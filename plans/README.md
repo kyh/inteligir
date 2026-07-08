@@ -26,6 +26,10 @@ Canonical gate (see plan 002): `pnpm format:fix` first, then
 | 009  | Base-store dedup into core                                                  | P3       | M      | 001, 003          | DONE (`kyh/plan-009-base-store-dedup` @ f0edc928, reviewed)                                                   |
 | 010  | Hygiene: stale comment, vitest catalog, mobile README, generated-file attrs | P3       | S      | —                 | DONE (`kyh/plan-010-hygiene` @ 9762918d, reviewed; also fixed repo-wide format drift)                         |
 | 011  | Knowledge perf tail (link resolve, prefix search, sidebar skip)             | P3       | M      | 005 (item C only) | DONE (`kyh/plan-011-knowledge-perf` @ 93c901b8, reviewed)                                                     |
+| 015  | Feature: HTML Apps — sandboxed vault `.html` views + files broker           | P1       | L      | —                 | IN PROGRESS (ADR-0002)                                                                                        |
+| 016  | Ephemeral vault index — no recursive watcher (ADR-0001)                     | P1       | L      | 015               | TODO                                                                                                          |
+| 017  | Frontmatter properties panel (file is the only store)                       | P2       | M      | 015               | TODO                                                                                                          |
+| 018  | Seeded property-based markdown round-trip tests                             | P3       | S-M    | —                 | TODO                                                                                                          |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) |
 REJECTED (one-line rationale).
@@ -95,6 +99,27 @@ gate run on the integrated tree before the PR.
 - **Agent's unconfined filesystem access** — intentional: the agent equals
   the user; the `./vault` symlink adds no new escape (the renderer IPC path is
   the one being hardened, in plan 007).
+
+## From the hubble.md study (2026-07-08) — decisions + backlog
+
+DECIDED 2026-07-08 (operator yes) → ADR-0001 + plan 016: **ephemeral sidebar index** —
+drop the recursive vault watcher; one-shot crawl respecting .gitignore,
+refresh listing+knowledge on window focus / save / manual sync; keep ONE
+watcher on the open note; sync passes trigger on save+focus+interval instead
+of vault-change events. Deletes the watcher fan-out and the cap-class of
+problems; liveness trade is "agent edits to non-open files appear on
+refocus" (delegation completion gets an explicit kick).
+
+Smaller steals, unplanned: frontmatter properties PANEL (file-is-the-store
+typing rules: true/false→checkbox, yes/no stay text, dates only YYYY-MM-DD,
+invalid YAML preserved); seeded property-based round-trip tests alongside the
+byte-pinned fixtures; `classifyFileChange` none|reload|conflict|match with
+self-save filtering; grace-period orphan-asset cleanup; CONTEXT.md glossary +
+docs/adr with supersession chains (repo-workflow, not code).
+
+Explicitly NOT taking: their sync (last-writer, no auth, WIP — ours is
+strictly ahead), Tiptap migration (pure churn), Biome (oxlint stays),
+non-atomic writes (they lack tmp+rename; keep ours).
 
 ## Direction backlog (audited, not yet planned)
 
