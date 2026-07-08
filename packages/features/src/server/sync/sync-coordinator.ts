@@ -15,7 +15,7 @@
 
 import { getHostNotifiers } from "../host-notifiers";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
-import { createSyncManager } from "./sync-manager";
+import { createNodeHasher, createSyncManager } from "./sync-manager";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
 import type { SyncEngine, SyncOutcome as CoreSyncOutcome } from "@repo/core/sync/engine";
 import type { SyncOutcome, SyncSignInResult, SyncState, SyncStatus } from "@repo/features/sync";
@@ -118,7 +118,12 @@ export class SyncCoordinator {
     const token = this.account.getToken();
     if (!config.enabled || token === null || config.coordinatorUrl.trim() === "") return;
     const vaultId = this.account.getVaultId();
-    const port = createHttpSyncPort({ baseUrl: config.coordinatorUrl, vaultId, token });
+    const port = createHttpSyncPort({
+      baseUrl: config.coordinatorUrl,
+      vaultId,
+      token,
+      hasher: createNodeHasher(),
+    });
     const engine = createSyncManager({ vaultId, port });
     engine.start();
     this.engine = engine;
