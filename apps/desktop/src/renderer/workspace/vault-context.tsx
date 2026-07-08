@@ -25,6 +25,7 @@ import { buildResolver } from "@repo/core/knowledge/link-resolve";
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.
 const MARKDOWN_RE = /\.(md|markdown)$/i;
+const HTML_RE = /\.html$/i;
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
 /** ui-state key the open note persists under (restored on boot). */
@@ -127,6 +128,18 @@ type VaultContextValue = {
   /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
   mode: "raw" | "rich";
   setMode: (mode: "raw" | "rich") => void;
+
+  // ---- HTML Apps -----------------------------------------------------------
+  /** Whether the open file is a vault `.html` file (renderable as an app). */
+  openIsHtml: boolean;
+  /** Whether to show the open `.html` as a sandboxed app (vs. as raw text). App
+   * is the default on open; "Open as text" flips it. Only meaningful when
+   * `openIsHtml`. */
+  isHtmlApp: boolean;
+  /** Show the open `.html` as raw text in the editor ("Open as text"). */
+  showHtmlAsText: () => void;
+  /** Show the open `.html` as a sandboxed app again ("Open as app"). */
+  showHtmlAsApp: () => void;
 };
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -151,12 +164,16 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const runtimeRef = useRef<NoteRuntime | null>(null);
   const setUiState = useUiStateStore((s) => s.set);
   const uiLoaded = useUiStateStore((s) => s.loaded);
+  // Per-open view choice for `.html` files: app (default) vs. raw text. Reset
+  // on every open so a new `.html` always starts as an app.
+  const [htmlAsText, setHtmlAsText] = useState(false);
 
   const applyOpenPath = useCallback(
     (next: string | null) => {
       if (next === openPathRef.current) return;
       openPathRef.current = next;
       setOpenPath(next);
+      setHtmlAsText(false);
       setUiState(OPEN_NOTE_KEY, next);
     },
     [setUiState],
@@ -516,6 +533,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }
   const richAvailable = isMarkdownOpen && analyzed.rawReason === null;
 
+  // ---- HTML Apps -----------------------------------------------------------
+  const openIsHtml = openPath !== null && HTML_RE.test(openPath);
+  const isHtmlApp = openIsHtml && !htmlAsText;
+  const showHtmlAsText = useCallback(() => setHtmlAsText(true), []);
+  const showHtmlAsApp = useCallback(() => setHtmlAsText(false), []);
+
   const value = useMemo<VaultContextValue>(
     () => ({
       editor,
@@ -537,6 +560,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       rawReason: analyzed.rawReason,
       mode,
       setMode,
+      openIsHtml,
+      isHtmlApp,
+      showHtmlAsText,
+      showHtmlAsApp,
     }),
     [
       editor,
@@ -557,6 +584,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       richAvailable,
       analyzed.rawReason,
       mode,
+      openIsHtml,
+      isHtmlApp,
+      showHtmlAsText,
+      showHtmlAsApp,
     ],
   );
 

@@ -35,6 +35,9 @@ export function Header() {
     mode,
     setMode,
     deleteEntry,
+    openIsHtml,
+    isHtmlApp,
+    showHtmlAsApp,
   } = useVault();
   const { state } = useSidebar();
   const path = editor.path;
@@ -87,6 +90,16 @@ export function Header() {
 
       {path !== null && (
         <div className="app-no-drag flex shrink-0 items-center gap-1.5">
+          {openIsHtml && !isHtmlApp && (
+            <Button
+              size="sm"
+              variant="tertiary"
+              className="h-7 px-2 text-xs"
+              onClick={showHtmlAsApp}
+            >
+              Open as app
+            </Button>
+          )}
           {isMarkdownOpen && rawReason !== null && (
             <Badge
               variant="dot"
