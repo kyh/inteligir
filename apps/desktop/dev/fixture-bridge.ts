@@ -15,6 +15,7 @@ import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
 import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
+import { conflictCopyName, fsSafeStamp } from "@repo/core/sync/reconcile";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
 // note IS the canonical kitchen-sink fixture.
@@ -370,6 +371,10 @@ export function createFixtureBridge(): Bridge {
     ...Object.entries(SAMPLE_NOTES),
     ...Object.entries(SAMPLE_ASSETS),
   ]);
+  // Real image bytes pasted/dropped during a harness session, base64-keyed by
+  // vault path — the in-memory twin of the host's on-disk assets/ folder, so
+  // writeVaultAsset → render → reload round-trips without a real filesystem.
+  const assetBytes = new Map<string, string>();
   // Ghost text defaults ON in the harness — there is no cost here and the
   // whole AI surface should be drivable out of the box.
   const uiState: Record<string, unknown> = { [GHOST_TEXT_ENABLED_UI_STATE]: true };
@@ -388,6 +393,7 @@ export function createFixtureBridge(): Bridge {
     email: null,
     coordinatorUrl: "",
     status: { phase: "idle" },
+    conflicts: [],
   };
 
   const agentEvents = new Emitter<AppAgentEvent>();
@@ -535,6 +541,14 @@ export function createFixtureBridge(): Bridge {
       if (removed) {
         knowledge.remove(path);
         touchVault();
+        // Mirror the host: deleting a conflict copy resolves its conflict row.
+        if (syncState.conflicts.some((conflict) => conflict.path === path)) {
+          syncState = {
+            ...syncState,
+            conflicts: syncState.conflicts.filter((conflict) => conflict.path !== path),
+          };
+          emitSync();
+        }
       }
       return { removed };
     },
@@ -557,6 +571,25 @@ export function createFixtureBridge(): Bridge {
       for (const path of edits.keys()) indexEntry(path);
       touchVault();
       return { ok: true };
+    },
+    writeVaultAsset: async ({ dir, baseName, bytesBase64 }) => {
+      const leaf = (baseName.split(/[/\\]/).pop() ?? "").replace(/^\.+/, "").trim() || "image";
+      const cleanDir = dir.replaceAll(/^\/+|\/+$/g, "") || "assets";
+      const dot = leaf.lastIndexOf(".");
+      const stem = dot > 0 ? leaf.slice(0, dot) : leaf;
+      const ext = dot > 0 ? leaf.slice(dot) : "";
+      let path = `${cleanDir}/${leaf}`;
+      for (let i = 1; vault.has(path); i++) path = `${cleanDir}/${stem}-${i}${ext}`;
+      vault.set(path, "asset-bytes (dev harness fixture)");
+      assetBytes.set(path, bytesBase64);
+      indexEntry(path);
+      touchVault();
+      return { path };
+    },
+    readVaultAsset: async ({ path }) => {
+      const bytesBase64 = assetBytes.get(path);
+      if (bytesBase64 === undefined) return { ok: false, error: `no bytes for: ${path}` };
+      return { ok: true, bytesBase64 };
     },
     onVaultChanged: vaultEvents.subscribe,
 
@@ -756,8 +789,38 @@ export function createFixtureBridge(): Bridge {
         emitSync();
         return { status: "error", message };
       }
-      const outcome = { status: "ok", pushed: 2, pulled: 1, deleted: 0, conflicts: 0 } as const;
-      syncState = { ...syncState, status: { ...outcome, phase: "ok" } };
+      // Simulate a pass that hit two conflicts: write real conflict-copy files
+      // into the fixture vault (host naming) so the Settings conflict list's
+      // Open and Dismiss actions are exercisable end-to-end in the harness.
+      const detectedAt = new Date().toISOString();
+      const copies = [
+        conflictCopyName("welcome.md", fsSafeStamp(new Date())),
+        conflictCopyName("tasks.md", fsSafeStamp(new Date(Date.now() + 1000))),
+      ];
+      for (const [i, copyPath] of copies.entries()) {
+        if (vault.has(copyPath)) continue;
+        vault.set(
+          copyPath,
+          `# Conflict copy ${i + 1}\n\nThe losing side of a simulated conflict.\n`,
+        );
+        indexEntry(copyPath);
+      }
+      touchVault();
+      const conflicts = [
+        ...syncState.conflicts,
+        ...copies
+          .filter((path) => !syncState.conflicts.some((conflict) => conflict.path === path))
+          .map((path) => ({ path, detectedAt })),
+      ];
+      const outcome = {
+        status: "ok",
+        pushed: 2,
+        pulled: 1,
+        deleted: 0,
+        conflicts: copies.length,
+        conflictPaths: copies,
+      } as const;
+      syncState = { ...syncState, status: { ...outcome, phase: "ok" }, conflicts };
       emitSync();
       return outcome;
     },

@@ -150,13 +150,41 @@ export class VaultManager {
 
   // ---- File operations ------------------------------------------------------
 
-  /** List every file under the vault (relative paths), skipping dot/VCS dirs. */
+  /** List every file under the vault (relative paths), skipping dot/VCS dirs.
+   * Capped at `MAX_LIST_ENTRIES` — this is for UI listing only (sidebar file
+   * tree). Do NOT feed this into anything that needs the complete vault state
+   * (e.g. sync) — use `listAllPaths()` for that. */
   list(): VaultEntry[] {
     const root = this.getRoot();
     if (!fs.existsSync(root)) return [];
-    const out: VaultEntry[] = [];
-    const walk = (dir: string): void => {
-      if (out.length >= MAX_LIST_ENTRIES) return;
+    return this.walk(root, MAX_LIST_ENTRIES)
+      .map((e) => ({ path: e.path, name: e.name, kind: classify(e.name) }))
+      .toSorted((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /** Every file path under the vault, uncapped. Sync must see every file — a
+   * truncated manifest reads as deletions (see plan 001): the 3-way reconcile
+   * treats "was in base and remote, missing from local" as a local deletion
+   * and propagates that delete to the coordinator and every other peer. Never
+   * cap this. */
+  listAllPaths(): string[] {
+    const root = this.getRoot();
+    if (!fs.existsSync(root)) return [];
+    return this.walk(root)
+      .map((e) => e.path)
+      .toSorted((a, b) => a.localeCompare(b));
+  }
+
+  // Shared recursive walk backing both list() and listAllPaths(): skips
+  // dot-entries, SKIP_DIRS, and the sibling *.tmp files atomicWrite creates
+  // mid-save. Returns entries in directory-read order (unsorted — callers
+  // sort). When `maxEntries` is given, stops once that many files have been
+  // collected — list()'s UI cap; omit it for the uncapped sync listing.
+  private walk(root: string, maxEntries?: number): { path: string; name: string }[] {
+    const out: { path: string; name: string }[] = [];
+    const atCap = (): boolean => maxEntries !== undefined && out.length >= maxEntries;
+    const visit = (dir: string): void => {
+      if (atCap()) return;
       let entries: fs.Dirent[];
       try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -165,21 +193,19 @@ export class VaultManager {
       }
       for (const entry of entries) {
         if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue;
-        // Skip the sibling temp files atomicWrite creates mid-save so they
-        // never show up as real vault files.
         if (entry.isFile() && entry.name.endsWith(".tmp")) continue;
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          walk(full);
+          visit(full);
         } else if (entry.isFile()) {
-          if (out.length >= MAX_LIST_ENTRIES) return;
+          if (atCap()) return;
           const rel = path.relative(root, full).split(path.sep).join("/");
-          out.push({ path: rel, name: entry.name, kind: classify(entry.name) });
+          out.push({ path: rel, name: entry.name });
         }
       }
     };
-    walk(root);
-    return out.toSorted((a, b) => a.path.localeCompare(b.path));
+    visit(root);
+    return out;
   }
 
   /** Raw file text — what the editor panel reads/writes (JSON included). */
@@ -210,6 +236,20 @@ export class VaultManager {
     const target = this.resolve(rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     atomicWrite(target, content);
+  }
+
+  /** Cheap stat-keyed change-detection fingerprint for the sync engine's hash
+   * cache — `mtimeMs:size:ino`, or `null` on any error (missing file, etc.).
+   * A change to content necessarily changes at least one of these, so a matching
+   * fingerprint safely licenses reusing a cached hash instead of re-reading. The
+   * path is confined through `resolve()` exactly like every other file op. */
+  statFingerprint(rel: string): string | null {
+    try {
+      const stat = fs.statSync(this.resolve(rel));
+      return `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
+    } catch {
+      return null;
+    }
   }
 
   delete(rel: string): boolean {
@@ -262,15 +302,27 @@ export class VaultManager {
 
   // ---- Internals ------------------------------------------------------------
 
-  // Lexical confinement: resolve the request against the root and require it to
-  // stay inside. Rejects `..` traversal and absolute escapes ("/etc/passwd"
-  // resolves outside root). Residual: a symlink planted inside the vault could
-  // still point out, but the user owns the vault and the agent already has raw
-  // fs access, so this guards the renderer path, not the agent.
+  // Confinement in two layers, both required to land inside the vault:
+  //  (1) Lexical: resolve the request against the root and require it to stay
+  //      inside. Rejects `..` traversal and absolute escapes ("/etc/passwd"
+  //      resolves outside root).
+  //  (2) Symlink-safe: realpath the target — dereferencing any symlink planted
+  //      inside the vault by git/Dropbox/another tool — and re-verify it still
+  //      lands inside the realpath'd root. This closes the residual where a
+  //      link under the vault points out, guarding every renderer/IPC file op.
+  //      (The agent keeps raw fs access by design; that surface is unconfined.)
+  //      realPath resolves the nearest existing ancestor and rejoins the
+  //      not-yet-created remainder, so a write that creates a new file still
+  //      passes. One realpathSync per op — acceptable; no caching.
   private resolve(rel: string): string {
     const root = path.resolve(this.getRoot());
     const target = path.resolve(root, rel);
     if (target !== root && !target.startsWith(root + path.sep)) {
+      throw new Error(`Path escapes the vault: ${rel}`);
+    }
+    const realRoot = realPath(root);
+    const realTarget = realPath(target);
+    if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) {
       throw new Error(`Path escapes the vault: ${rel}`);
     }
     return target;

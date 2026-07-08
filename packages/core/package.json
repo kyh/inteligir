@@ -48,6 +48,6 @@
     "micromark-util-types": "^2.0.2",
     "remark-stringify": "^11.0.0",
     "typescript": "catalog:",
-    "vitest": "^4.1.7"
+    "vitest": "catalog:"
   }
 }

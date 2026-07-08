@@ -1,8 +1,10 @@
 // Adapter-only tests for the node platform bindings of @repo/core's SyncEngine.
 // The heavy reconcile+execute orchestration is tested in @repo/core
-// (src/sync/__tests__/engine.test.ts); here we only pin the node-specific ports:
-// the JsonStore-backed base store, the VaultManager→SyncIo adapter, the
-// filesystem-safe clock, and the node-crypto hasher.
+// (src/sync/__tests__/engine.test.ts); the base store's own load/save/corrupt
+// contract is tested in @repo/core (src/sync/__tests__/base-store.test.ts);
+// here we only pin the node-specific ports: the fs-backed JsonFile the base
+// store wraps, the VaultManager→SyncIo adapter, the filesystem-safe clock,
+// and the node-crypto hasher.
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import crypto from "node:crypto";
@@ -36,9 +38,9 @@ afterEach(() => {
 });
 
 describe("createJsonBaseStore", () => {
-  it("loads an empty manifest before anything is saved", () => {
+  it("returns null before anything is saved (no anchor yet)", () => {
     const store = createJsonBaseStore(VAULT_ID, { path: path.join(tmp, "base.json") });
-    expect(store.load()).toEqual({ vaultId: VAULT_ID, generation: 0, files: [] });
+    expect(store.load()).toBeNull();
   });
 
   it("round-trips a saved manifest across store instances (persisted to disk)", () => {
@@ -53,19 +55,32 @@ describe("createJsonBaseStore", () => {
     expect(createJsonBaseStore(VAULT_ID, { path: basePath }).load()).toEqual(manifest);
   });
 
-  it("starts from empty when the persisted base belongs to a different vault", () => {
+  it("returns the persisted manifest as-is even when scoped to a different vaultId — the engine, not the store, guards against a foreign anchor (engine.ts loadBase)", () => {
     const basePath = path.join(tmp, "base.json");
-    createJsonBaseStore(VAULT_ID, { path: basePath }).save({
-      vaultId: VAULT_ID,
-      generation: 1,
-      files: [],
-    });
-    // A store scoped to a different vault ignores the foreign anchor.
-    expect(createJsonBaseStore("other-vault", { path: basePath }).load()).toEqual({
-      vaultId: "other-vault",
-      generation: 0,
-      files: [],
-    });
+    const manifest: VaultManifest = { vaultId: VAULT_ID, generation: 1, files: [] };
+    createJsonBaseStore(VAULT_ID, { path: basePath }).save(manifest);
+    expect(createJsonBaseStore("other-vault", { path: basePath }).load()).toEqual(manifest);
+  });
+
+  it("degrades to null (re-sync from empty) on an old enveloped base file — never throws", () => {
+    // Desktop base files predating this refactor carried a
+    // {version, vaultId, generation, files} envelope. The lifted store
+    // persists the bare manifest, so an old file either still parses (the
+    // extra `version` key is tolerated — parseVaultManifest ignores unknown
+    // keys) or fails validation and the store starts from empty. Either way
+    // it must not throw.
+    const basePath = path.join(tmp, "old-envelope.json");
+    fs.writeFileSync(
+      basePath,
+      JSON.stringify({ version: 1, vaultId: VAULT_ID, generation: 2, files: [] }),
+      "utf8",
+    );
+    const store = createJsonBaseStore(VAULT_ID, { path: basePath });
+    expect(() => store.load()).not.toThrow();
+    const loaded = store.load();
+    if (loaded !== null) {
+      expect(loaded).toEqual({ vaultId: VAULT_ID, generation: 2, files: [] });
+    }
   });
 });
 
@@ -86,6 +101,27 @@ describe("createVaultSyncIo", () => {
 
     io.remove("a.md");
     expect([...io.list()].toSorted()).toEqual(["notes/b.md"]);
+  });
+
+  it("lists every file uncapped — the data-loss regression pin (plan 001)", () => {
+    // vault.list() caps at 2000 entries for the UI. Feeding that capped list
+    // into the sync engine reads a truncated manifest as local deletions and
+    // propagates them to the coordinator and every peer. createVaultSyncIo
+    // must use the uncapped listAllPaths() instead.
+    const vault = new VaultManager({
+      settingsPath: path.join(tmp, "settings.json"),
+      defaultRoot: path.join(tmp, "vault"),
+      manageAgentLink: false,
+    });
+    vault.ensureReady();
+    const root = vault.getRoot();
+    const TOTAL = 2050;
+    for (let i = 0; i < TOTAL; i++) {
+      fs.writeFileSync(path.join(root, `f${String(i).padStart(4, "0")}.md`), "x");
+    }
+
+    const io = createVaultSyncIo(vault);
+    expect(io.list().length).toBe(TOTAL);
   });
 });
 

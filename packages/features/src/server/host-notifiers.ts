@@ -38,7 +38,7 @@ export type HostNotifiers = {
 let notifiers: HostNotifiers | null = null;
 
 /** Install the composed notifier bundle. Called once by the composition root
- * (buildHostContext), before any piece that reads it is constructed. */
+ * (constructHostSingletons), before any piece that reads it is constructed. */
 export function installHostNotifiers(next: HostNotifiers): void {
   notifiers = next;
 }

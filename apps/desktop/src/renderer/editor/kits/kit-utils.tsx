@@ -4,7 +4,12 @@
 // read-only transclusion render uses SlateElement (platejs/static) — same
 // shape, different render path, so it gets its own factory.
 
-import { PlateElement, PlateLeaf, type PlateElementProps, type PlateLeafProps } from "platejs/react";
+import {
+  PlateElement,
+  PlateLeaf,
+  type PlateElementProps,
+  type PlateLeafProps,
+} from "platejs/react";
 import { SlateElement, type SlateElementProps } from "platejs/static";
 
 /** className-only element renderer over the live PlateElement. */

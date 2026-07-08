@@ -79,6 +79,7 @@
     "@mariozechner/pi-ai": "^0.73.1",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/router-plugin": "^1.168.19",
+    "@testing-library/react": "^16.3.2",
     "@types/d3-force": "^3.0.10",
     "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
@@ -88,9 +89,10 @@
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
+    "jsdom": "^29.1.1",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "^4.1.7"
+    "vitest": "catalog:"
   },
   "optionalDependencies": {
     "sherpa-onnx-darwin-arm64": "^1.13.2",

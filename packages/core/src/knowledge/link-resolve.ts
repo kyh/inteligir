@@ -51,7 +51,6 @@ function push(map: Map<string, string[]>, key: string, path: string): void {
 /** Build a resolver over the vault's file paths (docs AND other files — a
  * `[[diagram.png]]` embed resolves too). */
 export function buildResolver(paths: Iterable<string>): TargetResolver {
-  const all: string[] = [];
   const exact = new Set<string>();
   const exactLower = new Map<string, string[]>();
   const byName = new Map<string, string[]>();
@@ -60,7 +59,6 @@ export function buildResolver(paths: Iterable<string>): TargetResolver {
   for (const raw of paths) {
     const path = normalizePath(raw);
     if (path === "" || exact.has(path)) continue;
-    all.push(path);
     exact.add(path);
     push(exactLower, path.toLowerCase(), path);
     const base = basenamePath(path);
@@ -96,12 +94,22 @@ export function buildResolver(paths: Iterable<string>): TargetResolver {
       return pickBest(byNameLower.get(clean.toLowerCase()) ?? []);
     }
 
-    // Tier 3 — path suffix.
+    // Tier 3 — path suffix. Any path ending in `/${clean}` has basename
+    // `basenamePath(clean)`; any path ending in `/${clean}.md` has basename
+    // `basenamePath(clean) + ".md"`, whose `.md` stem is `basenamePath(clean)`.
+    // Both are keyed in `byName`/`byNameLower` under `basenamePath(clean)`, so
+    // that bucket provably contains every Tier-3 candidate — filter it with the
+    // SAME suffix checks instead of scanning the whole listing.
     const suffixes = [`/${clean}`, `/${clean}.md`];
-    const cs = pickBest(all.filter((p) => suffixes.some((s) => p.endsWith(s))));
+    const key = basenamePath(clean);
+    const cs = pickBest((byName.get(key) ?? []).filter((p) => suffixes.some((s) => p.endsWith(s))));
     if (cs !== null) return cs;
     const lowerSuffixes = suffixes.map((s) => s.toLowerCase());
-    return pickBest(all.filter((p) => lowerSuffixes.some((s) => p.toLowerCase().endsWith(s))));
+    return pickBest(
+      (byNameLower.get(key.toLowerCase()) ?? []).filter((p) =>
+        lowerSuffixes.some((s) => p.toLowerCase().endsWith(s)),
+      ),
+    );
   };
 
   const resolveMd = (target: string, fromPath: string): string | null => {

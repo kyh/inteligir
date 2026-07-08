@@ -97,7 +97,8 @@ driving it; type/test passing isn't feature-correct.
 Before committing:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build
+pnpm format:fix   # FIRST — never after gates
+pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build
 ```
 
 ## Desktop architecture (@repo/desktop)

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { createJsonFileBaseStore } from "@repo/core/sync/base-store";
 import { SyncEngine } from "@repo/core/sync/engine";
 import { conflictCopyName } from "@repo/core/sync/reconcile";
 // The coordinator fake ships under core's `./sync/testing/*` subpath (test-only
@@ -7,7 +8,6 @@ import { conflictCopyName } from "@repo/core/sync/reconcile";
 // exactly like the wire contract.
 import { InMemorySyncPort } from "@repo/core/sync/testing/in-memory-sync-port";
 
-import { createBaseStore } from "../base-store";
 import { createFsStamp } from "../clock";
 import { createSyncIo } from "../sync-io";
 import { fakeJsonFile, memVaultFs, webCryptoHasher } from "./fakes";
@@ -27,7 +27,7 @@ function newEngine(): SyncEngine {
     vaultId: VAULT_ID,
     port,
     io: createSyncIo(vault.fs),
-    base: createBaseStore(baseFile.file),
+    base: createJsonFileBaseStore(baseFile.file),
     hash: webCryptoHasher(),
     stamp: FIXED_STAMP,
     debounceMs: 0,
@@ -52,7 +52,14 @@ describe("SyncEngine over the RN adapters", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 2, pulled: 0, deleted: 0, conflicts: 0 });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 2,
+      pulled: 0,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(await remoteText("a.md")).toBe("AAA");
     expect(await remoteText("notes/b.md")).toBe("BBB");
   });
@@ -62,7 +69,14 @@ describe("SyncEngine over the RN adapters", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 1, deleted: 0, conflicts: 0 });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 1,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(vault.readText("remote-only.md")).toBe("REMOTE");
   });
 
@@ -73,7 +87,14 @@ describe("SyncEngine over the RN adapters", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 0, conflicts: 0 });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 0,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(port.currentGeneration()).toBe(genAfterFirst);
   });
 
@@ -85,7 +106,14 @@ describe("SyncEngine over the RN adapters", () => {
     vault.files.delete("gone.md");
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 1, conflicts: 0 });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 0,
+      deleted: 1,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(await remoteText("gone.md")).toBeNull();
   });
 

@@ -51,6 +51,16 @@ export type SyncStatus =
     }
   | { readonly phase: "error"; readonly message: string };
 
+/** One unresolved conflict copy sitting in the vault — the sibling file that
+ * preserved a conflict's losing bytes. An entry lives until the copy file is
+ * deleted from the vault (deleting the copy IS resolving the conflict). */
+export type SyncConflict = {
+  /** Vault-relative path of the conflict COPY file (not the canonical note). */
+  readonly path: string;
+  /** ISO instant this device first noticed the copy (pass time or boot scan). */
+  readonly detectedAt: string;
+};
+
 /** The reactive sync state surfaced to the renderer — the payload of both
  * `getSyncState` and the `onSyncStateChanged` event, so the UI subscribes once
  * and re-renders on every config / auth / status change. */
@@ -60,6 +70,8 @@ export type SyncState = {
   readonly email: string | null;
   readonly coordinatorUrl: string;
   readonly status: SyncStatus;
+  /** Unresolved conflict copies still present in the vault, oldest first. */
+  readonly conflicts: readonly SyncConflict[];
 };
 
 /** One reconcile pass's result. Structurally identical to @repo/core's
@@ -71,6 +83,8 @@ export type SyncOutcome =
       readonly pulled: number;
       readonly deleted: number;
       readonly conflicts: number;
+      /** Conflict-copy paths created by this pass (see @repo/core engine.ts). */
+      readonly conflictPaths: readonly string[];
     }
   | { readonly status: "error"; readonly message: string };
 

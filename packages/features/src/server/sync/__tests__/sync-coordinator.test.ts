@@ -28,13 +28,15 @@ function noopNotifiers(capture: (state: SyncState) => void): HostNotifiers {
   };
 }
 
-function coordinatorAt(dir: string): SyncCoordinator {
+function coordinatorAt(dir: string, listVaultPaths?: () => readonly string[]): SyncCoordinator {
   const account = new SyncAccount({
     configPath: path.join(dir, "sync-config.json"),
     authPath: path.join(dir, "sync-auth.json"),
     vaultIdPath: path.join(dir, "sync-vault-id.json"),
   });
-  return new SyncCoordinator(account);
+  return listVaultPaths === undefined
+    ? new SyncCoordinator(account)
+    : new SyncCoordinator(account, listVaultPaths);
 }
 
 beforeEach(() => {
@@ -55,7 +57,30 @@ describe("SyncCoordinator", () => {
       email: null,
       coordinatorUrl: "",
       status: { phase: "idle" },
+      conflicts: [],
     });
+  });
+
+  it("seeds unresolved conflicts from the vault listing on start()", () => {
+    const copy = "notes/todo (conflict 2026-07-05T12-34-56-000Z).md";
+    const coordinator = coordinatorAt(tmp, () => ["notes/todo.md", copy, "plain.md"]);
+    // Before start(), nothing has been scanned.
+    expect(coordinator.getState().conflicts).toEqual([]);
+    coordinator.start();
+    const conflicts = coordinator.getState().conflicts;
+    expect(conflicts.map((c) => c.path)).toEqual([copy]);
+    expect(typeof conflicts[0]?.detectedAt).toBe("string");
+  });
+
+  it("drops a conflict row once its copy file leaves the vault", () => {
+    const copy = "todo (conflict 2026-07-05T12-34-56-000Z).md";
+    let paths: readonly string[] = ["todo.md", copy];
+    const coordinator = coordinatorAt(tmp, () => paths);
+    coordinator.start();
+    expect(coordinator.getState().conflicts.map((c) => c.path)).toEqual([copy]);
+    // Deleting the copy (resolving the conflict) prunes the row on the next read.
+    paths = ["todo.md"];
+    expect(coordinator.getState().conflicts).toEqual([]);
   });
 
   it("reflects config changes and emits onSyncStateChanged", () => {

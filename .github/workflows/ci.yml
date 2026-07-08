@@ -22,19 +22,29 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install
+        id: install
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm lint
 
       - name: Knip (dead code)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm knip
 
       - name: Format check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm format
 
       - name: Test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm test
+
+      - name: Build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm build

@@ -11,12 +11,12 @@
 
 import { useSyncExternalStore } from "react";
 
+import { createJsonFileBaseStore } from "@repo/core/sync/base-store";
 import { SyncEngine, type SyncOutcome } from "@repo/core/sync/engine";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
 
 import { getBearerToken } from "../auth";
 import { getCoordinatorUrl } from "../base-url";
-import { createBaseStore } from "./base-store";
 import { createFsStamp } from "./clock";
 import { createExpoBaseFile } from "./expo-base-file";
 import { createExpoHasher } from "./expo-hasher";
@@ -69,9 +69,14 @@ export async function syncOnce(): Promise<SyncOutcome> {
   const vaultId = getOrCreateVaultId();
   const engine = new SyncEngine({
     vaultId,
-    port: createHttpSyncPort({ baseUrl: getCoordinatorUrl(), vaultId, token }),
+    port: createHttpSyncPort({
+      baseUrl: getCoordinatorUrl(),
+      vaultId,
+      token,
+      hasher: createExpoHasher(),
+    }),
     io: createSyncIo(createExpoVaultFs()),
-    base: createBaseStore(createExpoBaseFile()),
+    base: createJsonFileBaseStore(createExpoBaseFile()),
     hash: createExpoHasher(),
     stamp: createFsStamp(),
     debounceMs: 0,

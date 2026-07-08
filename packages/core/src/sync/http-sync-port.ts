@@ -16,6 +16,7 @@
 
 import { isValidHash, type VaultPath } from "./vault-file";
 import { parseVaultFile, parseVaultManifest, type VaultManifest } from "./manifest";
+import type { Hasher } from "./engine";
 import type {
   DeleteResult,
   GetResult,
@@ -52,6 +53,15 @@ export type HttpSyncPortOptions = {
   token: string;
   /** Injected `fetch` (tests). Defaults to the global `fetch`. */
   fetchImpl?: FetchFn;
+  /**
+   * Optional content hasher. When supplied, `getFile` re-hashes the bytes it
+   * receives and throws if they don't match the reported `HEADER_CONTENT_HASH`
+   * — the DO's GET reads the manifest row then fetches R2 outside its mutation
+   * mutex, so a PUT racing in that window can hand back new bytes under an old
+   * version/hash. Without a hasher, `getFile` trusts the headers as before
+   * (backward-compatible default).
+   */
+  hasher?: Hasher;
 };
 
 /** A `SyncPort` backed by the wire.ts HTTP routes. */
@@ -60,6 +70,7 @@ export class HttpSyncPort implements SyncPort {
   private readonly vaultId: string;
   private readonly token: string;
   private readonly fetchImpl: FetchFn;
+  private readonly hasher: Hasher | undefined;
 
   constructor(opts: HttpSyncPortOptions) {
     // Trim a trailing slash so `baseUrl + "/v1/..."` never doubles up.
@@ -67,6 +78,7 @@ export class HttpSyncPort implements SyncPort {
     this.vaultId = opts.vaultId;
     this.token = opts.token;
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.hasher = opts.hasher;
   }
 
   async listManifest(): Promise<VaultManifest> {
@@ -94,6 +106,16 @@ export class HttpSyncPort implements SyncPort {
       throw new Error("sync: getFile response missing/invalid version or content-hash headers");
     }
     const content = new Uint8Array(await res.arrayBuffer());
+    if (this.hasher !== undefined) {
+      const actualHash = await this.hasher(content);
+      if (actualHash !== contentHash) {
+        // Raced a concurrent write (GET reads R2 outside the DO's mutation
+        // mutex) — throw so this pass fails and the next re-pulls fresh bytes.
+        throw new Error(
+          `sync: getFile bytes for ${path} don't match the reported content hash (raced a concurrent write)`,
+        );
+      }
+    }
     return { ok: true, file: { path, contentHash, version, size: content.length }, content };
   }
 

@@ -59,7 +59,7 @@ the next `pnpm dev:desktop`.
 
 ```bash
 pnpm format:fix   # FIRST — never after gates (see fixture rule below)
-pnpm typecheck && pnpm lint && pnpm format && pnpm test && pnpm knip && pnpm build
+pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build
 ```
 
 Rules that have bitten before:
@@ -71,9 +71,8 @@ Rules that have bitten before:
   (trailing spaces, indentation, line endings). oxfmt ignores the directory;
   editors must too. Generate fixture bytes through the pipeline itself
   (`roundTrip`) — see the fixture tests for the pattern.
-- Turbo caches test results — pass `--force` when you need proof over speed.
-- CI runs the same gates; format-check failures **skip the test step**, so a
-  red format silently hides test regressions. Keep format green.
+- CI runs every gate independently (each step runs even if an earlier one
+  fails), so a red format no longer hides test regressions.
 
 ## Verifying UI changes
 

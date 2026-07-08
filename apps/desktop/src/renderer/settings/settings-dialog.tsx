@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { SettingsIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
@@ -16,11 +17,13 @@ import { SettingsPanel } from "@renderer/settings/settings-panel";
 /**
  * Settings + Connectors, reachable from the workspace gear. Replaces the old
  * settings/extensions widget panels — same content, now a dialog instead of a
- * grid tile.
+ * grid tile. Controlled so panel actions that navigate the workspace (e.g.
+ * opening a conflicted note from Settings → Sync) can close it first.
  */
 export function SettingsDialog() {
+  const [open, setOpen] = useState(false);
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
           <Button
@@ -44,7 +47,7 @@ export function SettingsDialog() {
           </TabsList>
           <div className="min-h-0 flex-1 overflow-auto">
             <TabPanel value="general">
-              <SettingsPanel />
+              <SettingsPanel onRequestClose={() => setOpen(false)} />
             </TabPanel>
             <TabPanel value="connectors">
               <ExtensionsPanel />

@@ -52,6 +52,15 @@ type FileRow = {
 const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 /**
+ * Largest PUT body this DO will buffer, in bytes (32 MiB). `handlePut` buffers
+ * the whole request in memory before hashing/storing it, and a DO's memory
+ * budget is ~128 MB — an unbounded body is a self-DoS/cost hole. Checked both
+ * on `Content-Length` (before buffering) and on the buffered length (chunked
+ * bodies carry no `Content-Length`).
+ */
+const MAX_FILE_BYTES = 33_554_432; // 32 MiB
+
+/**
  * The `current` file to report on a PUT `version-conflict` when the path is in
  * fact ABSENT (a rare delete-vs-edit race: the client's base version is > 0 but
  * the file was deleted meanwhile). `SyncPort.PutResult` has no absent-conflict
@@ -155,8 +164,17 @@ export class VaultCoordinator extends DurableObject<Env> {
     if (base === null) {
       return new Response(`missing or invalid ${HEADER_BASE_VERSION}`, { status: 400 });
     }
+    // Reject an oversized body before buffering it, when the client declares one.
+    const declaredLength = parseContentLength(request.headers.get("content-length"));
+    if (declaredLength !== null && declaredLength > MAX_FILE_BYTES) {
+      return new Response("file too large", { status: 413 });
+    }
     // Read + hash the body OUTSIDE the mutex (no storage touched yet).
     const bytes = new Uint8Array(await request.arrayBuffer());
+    // A chunked body carries no Content-Length — re-check the buffered size.
+    if (bytes.length > MAX_FILE_BYTES) {
+      return new Response("file too large", { status: 413 });
+    }
     const contentHash = await sha256Hex(bytes);
 
     return this.runExclusive(async () => {
@@ -282,4 +300,13 @@ export class VaultCoordinator extends DurableObject<Env> {
 
 function objectKey(vaultId: string, path: VaultPath): string {
   return `${vaultId}/${path}`;
+}
+
+/** Parse a `Content-Length` header into a non-negative integer, or `null` when
+ * absent/malformed — a missing/bad header just skips the pre-buffer check
+ * (the post-buffer size check still catches it). */
+function parseContentLength(raw: string | null): number | null {
+  if (raw === null || !/^\d+$/.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
 }

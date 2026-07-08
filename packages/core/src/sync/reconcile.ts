@@ -152,6 +152,30 @@ export function conflictCopyName(path: VaultPath, isoTimestamp: string): VaultPa
   return `${dir}${stem} (conflict ${isoTimestamp})${ext}`;
 }
 
+/** The exact stamp shape `fsSafeStamp` emits (`2026-07-05T12-34-56-000Z`) — an
+ * ISO-8601 UTC instant with `:`/`.` swapped for `-`. Anchored so a user file
+ * that merely contains "(conflict …)" never matches. */
+const CONFLICT_STAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+
+/**
+ * The reverse of `conflictCopyName`: does `path` name a conflict copy this
+ * engine could have produced? Core owns the naming BOTH ways so UIs (listing
+ * unresolved conflicts) and the naming scheme can never drift apart. Matches
+ * exactly the `conflictCopyName(path, fsSafeStamp(date))` shape — a
+ * ` (conflict <fs-safe stamp>)` suffix on the stem — and nothing looser.
+ */
+export function isConflictCopyPath(path: string): boolean {
+  const slash = path.lastIndexOf("/");
+  const name = slash === -1 ? path : path.slice(slash + 1);
+  const dot = name.lastIndexOf(".");
+  const hasExt = dot > 0; // mirror conflictCopyName: a leading dot is a dotfile
+  const stem = hasExt ? name.slice(0, dot) : name;
+  const marker = stem.lastIndexOf(" (conflict ");
+  if (marker === -1 || !stem.endsWith(")")) return false;
+  const stamp = stem.slice(marker + " (conflict ".length, -1);
+  return CONFLICT_STAMP_RE.test(stamp);
+}
+
 // ---- internals ------------------------------------------------------------
 
 function byPath<T extends { readonly path: VaultPath }>(files: readonly T[]): Map<VaultPath, T> {

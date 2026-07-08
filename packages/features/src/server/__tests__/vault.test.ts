@@ -64,6 +64,47 @@ describe("VaultManager", () => {
     expect(() => mgr.writeText("/etc/passwd", "x")).toThrow(/escapes the vault/);
   });
 
+  // Symlink-safe confinement (plan 007): the lexical check alone lets a symlink
+  // planted INSIDE the vault escape it, so resolve() also realpaths the target.
+  // Realpath the root in these assertions: on macOS os.tmpdir() lives under a
+  // symlinked ancestor (/var → /private/var), so the lexical root differs from
+  // its canonical form.
+  it("blocks reading through a symlink that points to a file outside the vault", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    const outside = path.join(tmp, "outside.md");
+    fs.writeFileSync(outside, "secret");
+    fs.symlinkSync(outside, path.join(fs.realpathSync(root), "link.md"));
+    expect(() => mgr.readText("link.md")).toThrow(/escapes the vault/);
+  });
+
+  it("blocks writing through a symlinked directory that points outside the vault", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    const outsideDir = path.join(tmp, "outside-dir");
+    fs.mkdirSync(outsideDir, { recursive: true });
+    fs.symlinkSync(outsideDir, path.join(fs.realpathSync(root), "link-dir"), "dir");
+    expect(() => mgr.writeText("link-dir/x.md", "x")).toThrow(/escapes the vault/);
+    // The target dir stays untouched — nothing leaked out.
+    expect(fs.existsSync(path.join(outsideDir, "x.md"))).toBe(false);
+  });
+
+  it("still allows a symlink that points to another file inside the vault", () => {
+    const mgr = newManager();
+    mgr.writeText("real.md", "hello");
+    fs.symlinkSync(
+      path.join(fs.realpathSync(root), "real.md"),
+      path.join(fs.realpathSync(root), "inlink.md"),
+    );
+    expect(mgr.readText("inlink.md")).toBe("hello");
+  });
+
+  it("still creates a brand-new (non-existent) file inside the vault", () => {
+    const mgr = newManager();
+    mgr.writeText("fresh/new.md", "x");
+    expect(mgr.readText("fresh/new.md")).toBe("x");
+  });
+
   it("deletes files", () => {
     const mgr = newManager();
     mgr.writeText("temp.md", "x");
@@ -96,6 +137,29 @@ describe("VaultManager", () => {
     expect(mgr.readText("a.md")).toBe("after");
   });
 
+  it("caps list() at MAX_LIST_ENTRIES but listAllPaths() sees every file (plan 001)", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    const TOTAL = 2050;
+    for (let i = 0; i < TOTAL; i++) {
+      const name = `f${String(i).padStart(4, "0")}.md`;
+      fs.writeFileSync(path.join(root, name), "x");
+    }
+    // Plant entries that must be excluded from both listings.
+    fs.mkdirSync(path.join(root, ".git"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".git", "x"), "x");
+    fs.writeFileSync(path.join(root, "foo.tmp"), "x");
+    fs.writeFileSync(path.join(root, ".dotfile"), "x");
+
+    expect(mgr.list().length).toBe(2000);
+    expect(mgr.listAllPaths().length).toBe(TOTAL);
+
+    const all = mgr.listAllPaths();
+    expect(all).not.toContain(".git/x");
+    expect(all).not.toContain("foo.tmp");
+    expect(all).not.toContain(".dotfile");
+  });
+
   it("repoints the root and persists it across instances", () => {
     const mgr = newManager();
     mgr.writeText("a.md", "first");
@@ -108,5 +172,27 @@ describe("VaultManager", () => {
     const reopened = newManager();
     expect(reopened.getRoot()).toBe(next);
     expect(reopened.readText("b.md")).toBe("second");
+  });
+
+  it("statFingerprint changes when content changes and is null for a missing file", () => {
+    const mgr = newManager();
+    mgr.writeText("note.md", "one");
+    const fp1 = mgr.statFingerprint("note.md");
+    expect(fp1).not.toBeNull();
+
+    // A stable read → identical fingerprint (licenses hash-cache reuse).
+    expect(mgr.statFingerprint("note.md")).toBe(fp1);
+
+    // A content (and size) change must move the fingerprint.
+    mgr.writeText("note.md", "one-longer");
+    expect(mgr.statFingerprint("note.md")).not.toBe(fp1);
+
+    // Absent file → null, never a throw.
+    expect(mgr.statFingerprint("does-not-exist.md")).toBeNull();
+  });
+
+  it("statFingerprint returns null for a path escaping the vault (confinement)", () => {
+    const mgr = newManager();
+    expect(mgr.statFingerprint("../escape.md")).toBeNull();
   });
 });
