@@ -13,11 +13,6 @@ import {
 } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@repo/ui/components/collapsible";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import {
@@ -31,20 +26,32 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
 } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
 import { ThemeToggle } from "@renderer/components/theme-toggle";
 import { SettingsDialog } from "@renderer/settings/settings-dialog";
+import { flattenTree, resolveTreeKey, type FlatRow } from "@renderer/sidebar/tree-navigation";
 import { useResizableSidebar } from "@renderer/sidebar/use-resizable-sidebar";
-import { buildVaultTree, type VaultTreeNode } from "@renderer/sidebar/vault-tree";
+import { buildVaultTree } from "@renderer/sidebar/vault-tree";
 import { useViewStore } from "@renderer/stores/view-store";
 import { useVault } from "@renderer/workspace/vault-context";
 
 function withName(path: string, name: string): string {
   const slash = path.lastIndexOf("/");
   return slash === -1 ? name : `${path.slice(0, slash + 1)}${name}`;
+}
+
+// VS Code / Zed tree geometry. Depth is expressed as left padding INSIDE each
+// full-width row (never a nested container), so hover/active highlight always
+// spans the full sidebar width. Files reserve a chevron-width spacer so their
+// icon lines up under a sibling folder's icon.
+const INDENT_BASE = 8; // px before the first level's chevron/spacer
+const INDENT_STEP = 14; // px added per nesting level
+const CHEVRON = 14; // chevron / spacer column width (matches [&_svg]:size-3.5)
+
+function rowPadding(depth: number): number {
+  return INDENT_BASE + depth * INDENT_STEP;
 }
 
 export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
@@ -63,8 +70,18 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // Folder paths the user has collapsed. Default open (empty set), not
+  // persisted — persistence is out of scope.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  // Roving-tabindex focus: exactly one row is tabbable at a time.
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
 
   const tree = useMemo(() => buildVaultTree(entries), [entries]);
+  const rows = useMemo(() => flattenTree(tree, collapsed), [tree, collapsed]);
+  // The tabbable row: the focused one if still visible, else the first row.
+  const activePath = rows.some((r) => r.node.path === focusedPath)
+    ? focusedPath
+    : (rows[0]?.node.path ?? null);
 
   const handleCreate = useCallback(() => {
     const name = newName;
@@ -76,10 +93,54 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const surface = useViewStore((s) => s.surface);
   const setSurface = useViewStore((s) => s.setSurface);
 
+  const toggleFolder = useCallback((path: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
+
+  const handleTreeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLUListElement>) => {
+      const command = resolveTreeKey(rows, activePath, event.key);
+      if (!command) return;
+      // Enter/Space activation is left to the native <button> click (Space on
+      // keyup, Enter on keydown) so folders toggle / files open exactly once —
+      // resolveTreeKey still models it for unit tests.
+      if (command.kind === "activate") return;
+      event.preventDefault();
+      switch (command.kind) {
+        case "focus": {
+          setFocusedPath(command.path);
+          const el = event.currentTarget.querySelector<HTMLElement>(
+            `[data-tree-path="${CSS.escape(command.path)}"]`,
+          );
+          el?.focus();
+          break;
+        }
+        case "expand":
+          setCollapsed((prev) => {
+            const next = new Set(prev);
+            next.delete(command.path);
+            return next;
+          });
+          break;
+        case "collapse":
+          setCollapsed((prev) => new Set(prev).add(command.path));
+          break;
+      }
+    },
+    [rows, activePath],
+  );
+
   const rowProps = {
     selectedPath: editor.path,
     renaming,
     onOpen: (path: string) => openFile(path),
+    onToggleFolder: toggleFolder,
+    onFocusRow: setFocusedPath,
     onStartRename: setRenaming,
     onCommitRename: (from: string, to: string) => {
       setRenaming(null);
@@ -175,8 +236,15 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
               No notes yet. Create one with the + button.
             </p>
           ) : (
-            <SidebarMenu>
-              <TreeNodes nodes={tree} {...rowProps} />
+            <SidebarMenu role="tree" aria-label="Notes" onKeyDown={handleTreeKeyDown}>
+              {rows.map((row) => (
+                <TreeRow
+                  key={row.node.path}
+                  row={row}
+                  tabbable={row.node.path === activePath}
+                  {...rowProps}
+                />
+              ))}
             </SidebarMenu>
           )}
         </SidebarGroup>
@@ -205,79 +273,50 @@ type RowHandlers = {
   selectedPath: string | null;
   renaming: string | null;
   onOpen: (path: string) => void;
+  onToggleFolder: (path: string) => void;
+  onFocusRow: (path: string) => void;
   onStartRename: (path: string) => void;
   onCommitRename: (from: string, to: string) => void;
   onCancelRename: () => void;
   onDelete: (path: string) => void;
 };
 
-function TreeNodes({ nodes, ...handlers }: { nodes: VaultTreeNode[] } & RowHandlers) {
+// Vertical indent guides (Zed-style): one quiet 1px line per ancestor level,
+// positioned at that level's chevron center so guides align across every row.
+function IndentGuides({ depth }: { depth: number }) {
+  if (depth === 0) return null;
   return (
     <>
-      {nodes.map((node) =>
-        node.type === "folder" ? (
-          // Plain <li>, NOT SidebarMenuItem: the folder node wraps its whole
-          // subtree, so the `group/menu-item` class would make hovering
-          // anywhere in the folder match every descendant row's
-          // `group-hover/menu-item` and reveal ALL rename/delete actions at
-          // once. Folders have no row actions, so they don't need the group.
-          <li key={node.path} data-sidebar="menu-item" className="relative">
-            <Collapsible defaultOpen className="group/collapsible">
-              <CollapsibleTrigger
-                render={
-                  <SidebarMenuButton className="data-[panel-open]:font-normal">
-                    <ChevronRightIcon className="transition-transform group-data-[panel-open]/collapsible:rotate-90" />
-                    <FolderIcon />
-                    <span>{node.name}</span>
-                  </SidebarMenuButton>
-                }
-              />
-              <CollapsibleContent>
-                <SidebarMenuSub>
-                  <TreeNodes nodes={node.children} {...handlers} />
-                </SidebarMenuSub>
-              </CollapsibleContent>
-            </Collapsible>
-          </li>
-        ) : (
-          <FileRow
-            key={node.path}
-            name={node.name}
-            path={node.path}
-            kind={node.kind}
-            {...handlers}
-          />
-        ),
-      )}
+      {Array.from({ length: depth }, (_, level) => (
+        <span
+          key={level}
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 w-px bg-sidebar-border/70"
+          style={{ left: rowPadding(level) + CHEVRON / 2 }}
+        />
+      ))}
     </>
   );
 }
 
-function FileRow({
-  name,
-  path,
-  kind,
+function TreeRow({
+  row,
+  tabbable,
   selectedPath,
   renaming,
   onOpen,
+  onToggleFolder,
+  onFocusRow,
   onStartRename,
   onCommitRename,
   onCancelRename,
   onDelete,
-}: { name: string; path: string; kind: "doc" | "other" } & RowHandlers) {
-  const [draft, setDraft] = useState(name);
+}: { row: FlatRow; tabbable: boolean } & RowHandlers) {
+  const { node, depth } = row;
+  const [draft, setDraft] = useState(node.type === "file" ? node.name : "");
 
-  const confirmDelete = async () => {
-    const confirmed = await confirm({
-      title: `Delete ${path}?`,
-      body: "This permanently deletes the file from your vault.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (confirmed) onDelete(path);
-  };
-
-  if (renaming === path) {
+  // Inline rename occupies the row as an input, indented to match.
+  if (node.type === "file" && renaming === node.path) {
     return (
       <SidebarMenuItem>
         <Input
@@ -285,39 +324,87 @@ function FileRow({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") onCommitRename(path, withName(path, draft.trim()));
+            if (e.key === "Enter") onCommitRename(node.path, withName(node.path, draft.trim()));
             if (e.key === "Escape") onCancelRename();
           }}
           onBlur={onCancelRename}
           className="h-7 text-xs"
+          style={{ paddingLeft: rowPadding(depth) + CHEVRON }}
         />
       </SidebarMenuItem>
     );
   }
 
+  const commonButtonProps = {
+    size: "sm" as const,
+    "data-tree-path": node.path,
+    role: "treeitem",
+    "aria-level": depth + 1,
+    tabIndex: tabbable ? 0 : -1,
+    onFocus: () => onFocusRow(node.path),
+  };
+
+  if (node.type === "folder") {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          {...commonButtonProps}
+          aria-expanded={row.expanded}
+          onClick={() => onToggleFolder(node.path)}
+          className="relative font-normal focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset"
+          style={{ paddingLeft: rowPadding(depth) }}
+        >
+          <IndentGuides depth={depth} />
+          <ChevronRightIcon className={cn("transition-transform", row.expanded && "rotate-90")} />
+          <FolderIcon />
+          <span>{node.name}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  const isSelected = selectedPath === node.path;
+  const confirmDelete = async () => {
+    const confirmed = await confirm({
+      title: `Delete ${node.path}?`,
+      body: "This permanently deletes the file from your vault.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (confirmed) onDelete(node.path);
+  };
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        size="sm"
-        isActive={selectedPath === path}
-        onClick={() => onOpen(path)}
+        {...commonButtonProps}
+        isActive={isSelected}
+        aria-selected={isSelected}
+        onClick={() => onOpen(node.path)}
         className={cn(
+          "relative focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset",
           // Clear the two hover-revealed actions (Delete at right-1, Rename at
           // right-7, w-5 each) so they never overlay the truncated name.
           "group-focus-within/menu-item:pr-12 group-hover/menu-item:pr-12",
-          selectedPath === path && "bg-sidebar-accent text-sidebar-accent-foreground",
+          isSelected && "bg-sidebar-accent text-sidebar-accent-foreground",
         )}
+        style={{ paddingLeft: rowPadding(depth) }}
       >
-        {kind === "doc" ? <FileTextIcon /> : <FileIcon />}
-        <span>{name}</span>
+        <IndentGuides depth={depth} />
+        {/* Empty chevron column: keeps a file's icon aligned under a sibling
+         * folder's icon (files have no twistie), matching VS Code. */}
+        <span aria-hidden className="size-3.5 shrink-0" />
+        {node.kind === "doc" ? <FileTextIcon /> : <FileIcon />}
+        <span>{node.name}</span>
       </SidebarMenuButton>
       <SidebarMenuAction
         showOnHover
         title="Rename"
         className="right-7"
+        tabIndex={-1}
         onClick={() => {
-          setDraft(name);
-          onStartRename(path);
+          setDraft(node.name);
+          onStartRename(node.path);
         }}
       >
         <PencilIcon />
@@ -326,6 +413,7 @@ function FileRow({
         showOnHover
         title="Delete"
         className="hover:text-destructive"
+        tabIndex={-1}
         onClick={() => void confirmDelete()}
       >
         <Trash2Icon />
