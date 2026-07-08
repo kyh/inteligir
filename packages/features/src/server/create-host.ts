@@ -1,27 +1,29 @@
 // ---------------------------------------------------------------------------
-// createHost — the composition root for the node backend. It constructs the
-// explicit HostContext object graph (host-context.ts) in dependency order,
-// owns the whole notifier composition (the 5 slots are wired at build/start,
-// not mutated from app-machine), and sequences init/teardown over that graph.
-// The pieces are still process-global singletons under the hood — getX() stays
-// an accessor into this constructed graph with a lazy test fallback — so the
-// `created` guard makes a second call fail fast rather than silently share
-// module state. A shell (Electron desktop today, WebSocket server later)
-// injects a HostPlatform, folds the returned handler map into its transport,
-// forwards `events`, and drives start()/dispose().
+// createHost — the composition root for the node backend. It forces the
+// dependency-ordered construction of the backend singletons
+// (constructHostSingletons in host-context.ts), owns the whole notifier
+// composition (the 5 slots are wired at build/start, not mutated from
+// app-machine), and sequences init/teardown over those singletons. The pieces
+// are process-global singletons reached through getX() (the one DI path, with a
+// lazy test fallback), so the `created` guard makes a second call fail fast
+// rather than silently share module state. A shell (Electron desktop today,
+// WebSocket server later) injects a HostPlatform, folds the returned handler map
+// into its transport, forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
 import { configurePaths } from "./agent/paths";
 import { initMachine, shutdown } from "./app/app-machine";
 import { subscribeEvents } from "./events";
-import { buildHostContext } from "./host-context";
+import { constructHostSingletons } from "./host-context";
 import { initAgentLog } from "./lib/agent-log";
 import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
 import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
 import { registerAllHandlers } from "./handlers/register-handlers";
-import { disposeKnowledgeManager } from "./knowledge/knowledge-manager";
+import { getDelegationManager } from "./delegation/delegation-manager";
+import { disposeKnowledgeManager, getKnowledgeManager } from "./knowledge/knowledge-manager";
+import { getSyncCoordinator } from "./sync/sync-coordinator";
 import { installHostRuntime } from "./platform-instance";
-import { setVaultChangeNotifier } from "./vault/vault";
+import { getVaultManager, setVaultChangeNotifier } from "./vault/vault";
 import type { HostOptions, HostPlatform } from "./platform";
 import type { EventMethod } from "@repo/features/ipc-registry";
 
@@ -59,12 +61,12 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // Crash/debug visibility first, so even boot failures land in agent.log.
   initAgentLog();
 
-  // Build the object graph: constructs the core singletons in dependency order
-  // and installs the notifier composition (store-recovery is wired inside,
-  // before any store is read — it used to be an import-time side effect of
-  // notifications.ts). ctx.notifiers holds the other four; vault-change is wired
-  // in start() because the watcher must not start until ensureReady() has run.
-  const ctx = buildHostContext();
+  // Force the ordered construction of the core singletons and install the
+  // notifier composition (store-recovery is wired inside, before any store is
+  // read — it used to be an import-time side effect of notifications.ts).
+  // `notifiers` holds the other four; vault-change is wired in start() because
+  // the watcher must not start until ensureReady() has run.
+  const notifiers = constructHostSingletons();
 
   const handlers = collectHandlers(registerAllHandlers);
 
@@ -91,24 +93,24 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // exists), streaming file changes to the UI so the sidebar and editor
       // stay live. The notifier is module-scoped, so it survives a logout/login
       // reset. Every vault change also nudges the knowledge index (debounced
-      // incremental refresh — that fan-out lives in ctx.notifiers.vaultChange)
-      // and, when sync is live, the sync engine (ctx.sync.onVaultChanged →
-      // debounced reconcile). Wrapping here (once) keeps the sync engine
+      // incremental refresh — that fan-out lives in notifiers.vaultChange)
+      // and, when sync is live, the sync engine (getSyncCoordinator().onVaultChanged
+      // → debounced reconcile). Wrapping here (once) keeps the sync engine
       // rebuildable underneath without re-installing this notifier.
-      ctx.vault.ensureReady();
-      const baseVaultNotifier = ctx.notifiers.vaultChange;
+      getVaultManager().ensureReady();
+      const baseVaultNotifier = notifiers.vaultChange;
       setVaultChangeNotifier((root) => {
         baseVaultNotifier(root);
-        ctx.sync.onVaultChanged();
+        getSyncCoordinator().onVaultChanged();
       });
       // First index build rides the debounce too, keeping it off the boot
       // path; a query landing earlier builds lazily.
-      ctx.knowledge.scheduleRefresh();
+      getKnowledgeManager().scheduleRefresh();
 
       // Snapshot retention sweep (keep the newest SNAPSHOT_RETENTION pre-run
       // copies). Best-effort — a prune failure must never block boot.
       try {
-        ctx.delegation.pruneSnapshots();
+        getDelegationManager().pruneSnapshots();
       } catch (err) {
         console.warn("[host] delegation snapshot prune failed:", err);
       }
@@ -121,12 +123,12 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // routes local edits into it. OFF by default (no config = disabled). Only
       // vault FILES sync; the knowledge index + AI state live under ~/.inteligir
       // (outside the vault) and are never listed by the engine.
-      ctx.sync.start();
+      getSyncCoordinator().start();
 
       initMachine();
     },
     async dispose() {
-      ctx.sync.dispose();
+      getSyncCoordinator().dispose();
       disposeKnowledgeManager();
       await shutdown();
       releaseHostLock();
