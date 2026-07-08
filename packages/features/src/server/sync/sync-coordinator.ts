@@ -42,10 +42,17 @@ function toStatus(outcome: CoreSyncOutcome): SyncStatus {
 
 const DISABLED_REASON = "Enable sync and sign in first.";
 
+// Periodic reconcile cadence while sync is live (ADR-0001): with no recursive
+// watcher, a peer's remote push already wakes us through the remote-change
+// subscription, but this interval is the backstop that also flushes local
+// edits made between focus events. Policy, not law — revisit with real usage.
+const SYNC_INTERVAL_MS = 5 * 60_000;
+
 export class SyncCoordinator {
   private engine: SyncEngine | null = null;
   private status: SyncStatus = { phase: "idle" };
   private started = false;
+  private syncTimer: ReturnType<typeof setInterval> | null = null;
   // Unresolved conflict copies (derived, never persisted): seeded from a vault
   // scan on start, appended from each pass's conflictPaths, and pruned against
   // the live listing on every state read — deleting the copy resolves the row.
@@ -149,6 +156,9 @@ export class SyncCoordinator {
     const engine = createSyncManager({ vaultId, port });
     engine.start();
     this.engine = engine;
+    // Periodic background reconcile while the engine is live — a focus refresh
+    // and remote pushes already kick sync; this catches everything in between.
+    this.syncTimer = setInterval(() => this.engine?.onVaultChanged(), SYNC_INTERVAL_MS);
     if (opts.kickInitial) void this.runInitialSync(engine);
   }
 
@@ -211,6 +221,10 @@ export class SyncCoordinator {
   }
 
   private teardownEngine(): void {
+    if (this.syncTimer !== null) {
+      clearInterval(this.syncTimer);
+      this.syncTimer = null;
+    }
     this.engine?.stop();
     this.engine = null;
   }

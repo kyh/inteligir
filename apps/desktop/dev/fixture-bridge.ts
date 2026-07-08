@@ -687,6 +687,12 @@ export function createFixtureBridge(): Bridge {
     // No vault-app:// protocol in the browser harness — the HTML-App view falls
     // back to a blob: URL, so the token is unused. Return a stable stub.
     mintHtmlAppToken: async () => "harness-html-app-token",
+    // No filesystem to watch in the harness — the in-memory Map fires touchVault
+    // directly on every write, so there is no external-edit channel to arm.
+    setWatchedNote: async () => {},
+    // The harness has no external mutations to discover, but re-emitting keeps
+    // the "Refresh vault" command exercisable (sidebar re-lists, panes re-query).
+    refreshVault: async () => touchVault(),
     onVaultChanged: vaultEvents.subscribe,
 
     // Knowledge — live queries against the in-memory index.

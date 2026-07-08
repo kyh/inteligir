@@ -72,6 +72,12 @@ export type DelegationManagerOptions = {
   /** Streaming transcript channel — a delegation's accumulating response text
    * (keyed by id) for the live response dock. Same injection story as onChanged. */
   onStream?: (id: string, text: string) => void;
+  /** Called after each run settles. The background agent edits the vault file
+   * through ./vault (external to VaultManager), so a completed run's result
+   * won't otherwise appear until the window regains focus — this kicks a vault
+   * refresh so it shows immediately (ADR-0001). Defaults to the live vault
+   * refresh; unit tests leave it unset. */
+  onRunSettled?: () => void;
 };
 
 export class DelegationManager {
@@ -81,6 +87,7 @@ export class DelegationManager {
   private readonly snapshots: DelegationSnapshotStore;
   private readonly onChanged: ((delegations: Delegation[]) => void) | null;
   private readonly onStream: ((id: string, text: string) => void) | null;
+  private readonly onRunSettled: (() => void) | null;
   private getAgent: (() => DelegationAgent | null) | null = null;
   private running = false;
   // Id of a running delegation the user asked to stop — the run marks it stopped
@@ -103,6 +110,7 @@ export class DelegationManager {
     this.snapshots = opts?.snapshots ?? new DelegationSnapshotStore();
     this.onChanged = opts?.onChanged ?? null;
     this.onStream = opts?.onStream ?? null;
+    this.onRunSettled = opts?.onRunSettled ?? null;
     this.store = new JsonStore<Delegation[]>(
       opts?.path ?? inteligirPath("delegations.json"),
       DelegationsFileSchema,
@@ -409,6 +417,13 @@ export class DelegationManager {
       // re-enter the queue — that would start a second concurrent run.
       if (epoch === this.runEpoch) {
         this.running = false;
+        // The run edited the vault file directly through ./vault — refresh the
+        // snapshot so the result appears without waiting for window focus.
+        try {
+          this.onRunSettled?.();
+        } catch (err) {
+          console.warn("[delegation] run-settled refresh failed:", err);
+        }
         void this.processNext();
       }
     }
@@ -574,7 +589,11 @@ export function getDelegationManager(): DelegationManager {
     const notifiers = getHostNotifiers();
     instance = new DelegationManager(
       notifiers
-        ? { onChanged: notifiers.delegationsChanged, onStream: notifiers.delegationStream }
+        ? {
+            onChanged: notifiers.delegationsChanged,
+            onStream: notifiers.delegationStream,
+            onRunSettled: () => getVaultManager().refresh(),
+          }
         : {},
     );
   }

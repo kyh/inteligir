@@ -89,18 +89,19 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       configurePaths();
 
       // Vault: ensure the folder + agent symlink exist, THEN wire the change
-      // notifier (which starts the watcher — it must not start before the dir
-      // exists), streaming file changes to the UI so the sidebar and editor
-      // stay live. The notifier is module-scoped, so it survives a logout/login
-      // reset. Every vault change also nudges the knowledge index (debounced
-      // incremental refresh — that fan-out lives in notifiers.vaultChange)
-      // and, when sync is live, the sync engine (getSyncCoordinator().onVaultChanged
-      // → debounced reconcile). Wrapping here (once) keeps the sync engine
-      // rebuildable underneath without re-installing this notifier.
+      // notifier. There is no recursive watcher anymore (ADR-0001) — the notifier
+      // fires from app-initiated writes, the open-note watcher, and on-demand
+      // refresh (focus / "Refresh vault" / delegation completion). The notifier
+      // is module-scoped, so it survives a logout/login reset. Every vault change
+      // nudges the knowledge index (in notifiers.vaultChange) and, when sync is
+      // live, the sync engine — including a `save` (autosave), which must still
+      // sync even though it does not broadcast onVaultChanged. Wrapping here
+      // (once) keeps the sync engine rebuildable underneath without re-installing
+      // this notifier.
       getVaultManager().ensureReady();
       const baseVaultNotifier = notifiers.vaultChange;
-      setVaultChangeNotifier((root) => {
-        baseVaultNotifier(root);
+      setVaultChangeNotifier((root, kind) => {
+        baseVaultNotifier(root, kind);
         getSyncCoordinator().onVaultChanged();
       });
       // First index build rides the debounce too, keeping it off the boot
