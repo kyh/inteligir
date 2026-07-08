@@ -234,6 +234,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // Ordering token so overlapping list calls (initial load + onVaultChanged, or
   // rapid vault events) can't land out of order — only the latest applies.
   const listSeq = useRef(0);
+  // Last-applied listing, in a ref so the async callback compares against the
+  // truly latest value (React state would be a stale closure). Every vault
+  // broadcast re-fetches the listing — including each autosave tripping the fs
+  // watcher — so skip the state set when nothing structural changed to keep
+  // typing from re-rendering the sidebar tree on every save.
+  const lastEntriesRef = useRef<VaultEntry[]>([]);
   const refreshList = useCallback(() => {
     const bridge = getBridge();
     if (!bridge) return;
@@ -241,7 +247,22 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const next = await bridge.listVault();
-        if (seq === listSeq.current) setEntries(next);
+        if (seq !== listSeq.current) return;
+        const prev = lastEntriesRef.current;
+        const same =
+          next.length === prev.length &&
+          next.every((entry, i) => {
+            const before = prev[i];
+            return (
+              before !== undefined &&
+              entry.path === before.path &&
+              entry.name === before.name &&
+              entry.kind === before.kind
+            );
+          });
+        if (same) return;
+        lastEntriesRef.current = next;
+        setEntries(next);
       } catch {
         // Best-effort — keep the last-known listing on a transient failure.
       }
