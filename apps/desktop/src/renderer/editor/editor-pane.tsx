@@ -43,7 +43,7 @@ export function EditorPane() {
 }
 
 function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
-  const { editor, editNote, renameEntry } = useVault();
+  const { editor, editNote, registerNoteSerializeFlush, renameEntry } = useVault();
 
   const fileName = path.split("/").pop() ?? path;
   const dot = fileName.lastIndexOf(".");
@@ -124,6 +124,10 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           // the pane unmounts on note switch, when the open note may
           // already differ, so the bytes carry their own path.
           onSettled={(md) => editNote(path, md)}
+          // Pre-flush hook: the runtime drains the editor's serialize
+          // debounce before persisting, so save/rename/delete always see
+          // the latest keystroke. Path-routed like editNote.
+          onRegisterSerializeFlush={(flush) => registerNoteSerializeFlush(path, flush)}
         />
       ) : (
         <textarea

@@ -9,7 +9,7 @@
 // the seed/echo-dedupe lifecycle, the transient-AI settle seam, and the Plate
 // surface.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
@@ -22,6 +22,7 @@ import { Editor, EditorContainer } from "@renderer/editor/editor-chrome";
 import { WRITE_PLACEHOLDER } from "@renderer/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
+import { createSerializeScheduler } from "@renderer/editor/serialize-scheduler";
 import { TableOfContents } from "@renderer/editor/toc";
 import { useAiReviewStore } from "@renderer/stores/ai-review-store";
 
@@ -50,9 +51,20 @@ type Props = {
    * OWNER must route these bytes by `path`: by unmount time the active tab
    * may already have changed, so the normal onChange must not carry them. */
   onSettled: (markdown: string) => void;
+  /** Register a synchronous flush for the debounced serialize. The owner calls
+   * it (via the note runtime's pre-flush hook) before any save/rename/close so
+   * a keystroke still sitting in the serialize debounce reaches the controller
+   * first. Optional so the raw-editor and harness paths compile unchanged. */
+  onRegisterSerializeFlush?: (flush: () => void) => void;
 };
 
-export function MarkdownEditor({ path, value, onChange, onSettled }: Props) {
+export function MarkdownEditor({
+  path,
+  value,
+  onChange,
+  onSettled,
+  onRegisterSerializeFlush,
+}: Props) {
   const editor = usePlateEditor({
     plugins: EDITOR_KIT,
     value: () => seedValue(value),
@@ -70,16 +82,63 @@ export function MarkdownEditor({ path, value, onChange, onSettled }: Props) {
   if (seeded.current === null)
     seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
+  // ---- Deferred whole-document serialize -----------------------------------
+  // The actual serialize → echo-dedupe → emit, run behind the scheduler rather
+  // than synchronously in onChange so it's off the per-keystroke path. Reads
+  // live refs (editor is stable; onChange is reffed) so the scheduler holds one
+  // stable closure for the editor's lifetime.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const doSerialize = useCallback(() => {
+    // The transient-AI gate re-checked at FIRE time: the synchronous onChange
+    // gate ran at schedule time, but an AI stream/suggestion session can start
+    // inside the debounce window — serializing then would persist transient
+    // marks (AI state never reaches disk). Skip; the resolving edit that lifts
+    // the freeze fires onChange and reschedules, and the settle path routes
+    // interleaved typing itself.
+    if (hasTransientSuggestions(editor) || hasTransientAiState(editor)) return;
+    const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+    // Drop the echo a programmatic (re)seed produces — only real edits, which
+    // diverge from the seeded text, propagate.
+    if (md === seeded.current) return;
+    seeded.current = null;
+    lastValueProp.current = md;
+    onChangeRef.current(md);
+  }, [editor]);
+  const doSerializeRef = useRef(doSerialize);
+  doSerializeRef.current = doSerialize;
+  // One scheduler for the editor's lifetime; the closure re-reads the ref so it
+  // never goes stale even though doSerialize's identity is already stable.
+  const [scheduler] = useState(() => createSerializeScheduler(() => doSerializeRef.current()));
+
   // Re-seed when `value` changes from the outside (e.g. the agent edited the
   // file and the panel reloaded it). Without this the Plate surface keeps the
   // stale document and the next edit would serialize it back over the newer
-  // file.
+  // file. Flush any pending serialize FIRST: the user's in-debounce keystroke
+  // must reach the controller before the external content overwrites the
+  // surface and resets `seeded` — matching the old synchronous behavior where
+  // every keystroke had already propagated by reload time.
   useEffect(() => {
     if (value === lastValueProp.current) return;
+    scheduler.flush();
     lastValueProp.current = value;
     editor.tf.setValue(seedValue(value));
     seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-  }, [value, editor]);
+  }, [value, editor, scheduler]);
+
+  // Register the synchronous flush with the owner (via the note runtime's
+  // pre-flush hook) once — save/rename/close run it before flushing so a
+  // keystroke still in the serialize debounce lands first.
+  const onRegisterRef = useRef(onRegisterSerializeFlush);
+  onRegisterRef.current = onRegisterSerializeFlush;
+  useEffect(() => {
+    onRegisterRef.current?.(() => scheduler.flush());
+  }, [scheduler]);
+
+  // Unmount (note switch without a flush, raw-mode flip, surface change): flush
+  // a pending serialize so the keystroke isn't lost. onChange routes by this
+  // editor's `path`, so it no-ops if the open note already changed.
+  useEffect(() => () => scheduler.flush(), [scheduler]);
 
   // ---- Transient-AI settle seam (#374) -------------------------------------
   // While a suggestion session pends, autosave is frozen (the gate below) and
@@ -144,13 +203,12 @@ export function MarkdownEditor({ path, value, onChange, onSettled }: Props) {
         const reviewing = hasTransientSuggestions(editor);
         useAiReviewStore.getState().setReviewing(path, reviewing);
         if (reviewing || hasTransientAiState(editor)) return;
-        const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-        // Drop the echo a programmatic (re)seed produces — only real edits,
-        // which diverge from the seeded text, propagate.
-        if (md === seeded.current) return;
-        seeded.current = null;
-        lastValueProp.current = md;
-        onChange(md);
+        // Defer the whole-document serialize behind a short debounce — this
+        // event only marks the document dirty. The freeze above lifts through
+        // an onChange (the accept/reject/discard IS an edit), which reaches
+        // here and schedules, so a settle with no following keystroke still
+        // propagates. Save/close paths flush synchronously via the runtime.
+        scheduler.schedule();
       }}
     >
       {/* EditorContainer is the relative wrapper the cursor overlay's

@@ -151,6 +151,59 @@ describe("createNoteRuntime", () => {
     expect(io.writes).toBe(0);
   });
 
+  it("registerPreFlush: the hook runs at the top of flush(), and bytes it drains in land in the write", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    await settle();
+
+    // Models the Rich editor's serialize flush: a keystroke still sitting in
+    // the serialize debounce is drained into the buffer as an edit.
+    runtime.registerPreFlush(() => runtime.edit("drained"));
+
+    const clean = await runtime.flush();
+    expect(clean).toBe(true);
+    expect(io.files.get("a.md")).toBe("drained"); // the drained bytes were what flushed
+    expect(vi.getTimerCount()).toBe(0); // the drained edit's debounce timer was cleared, not left behind
+  });
+
+  it("registerPreFlush: the hook runs before remove()", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    await settle();
+
+    const order: string[] = [];
+    runtime.registerPreFlush(() => order.push("preFlush"));
+    const removeImpl = io.remove;
+    io.remove = (path) => {
+      order.push("remove");
+      return removeImpl(path);
+    };
+
+    await runtime.remove();
+    expect(order).toEqual(["preFlush", "remove"]);
+  });
+
+  it("registerPreFlush: last registration wins, and null clears it", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
+    await settle();
+
+    let firstRuns = 0;
+    let secondRuns = 0;
+    runtime.registerPreFlush(() => firstRuns++);
+    runtime.registerPreFlush(() => secondRuns++);
+    await runtime.flush();
+    expect(firstRuns).toBe(0); // replaced before it ever ran
+    expect(secondRuns).toBe(1);
+
+    runtime.registerPreFlush(null);
+    await runtime.flush();
+    expect(secondRuns).toBe(1); // cleared — nothing ran
+  });
+
   it("remove() deletes the file and clears a pending debounce timer", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "v0");

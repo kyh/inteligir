@@ -29,6 +29,11 @@ export type NoteRuntime = {
   readonly controller: VaultEditorController;
   /** Record an edit to this note's buffer (debounced autosave). */
   edit(next: string): void;
+  /** Register a pre-flush hook the runtime runs at the top of flush() and
+   * before remove(). The Rich editor registers its serialize flush here so a
+   * keystroke still in the serialize debounce is drained into the buffer
+   * before the runtime persists. Last registration wins; null clears it. */
+  registerPreFlush(fn: (() => void) | null): void;
   /** Persist pending edits now, clearing the debounce. Resolves true when the
    * buffer is clean. */
   flush(): Promise<boolean>;
@@ -52,6 +57,10 @@ export function createNoteRuntime(
   controller.setRoot(root);
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  // Runs at the top of flush()/remove() — the Rich editor's serialize flush,
+  // draining any keystroke still sitting in the serialize debounce into the
+  // buffer before the runtime persists (or discards) the file.
+  let preFlush: (() => void) | null = null;
   // The controller has successfully loaded its path at least once — gates the
   // vanish watcher so the initial `path: null` state doesn't close the note.
   let opened = false;
@@ -96,7 +105,11 @@ export function createNoteRuntime(
         void controller.flush();
       }, AUTOSAVE_DEBOUNCE_MS);
     },
+    registerPreFlush(fn: (() => void) | null): void {
+      preFlush = fn;
+    },
     async flush(): Promise<boolean> {
+      preFlush?.();
       clearTimer();
       await controller.flush();
       return !controller.getState().dirty;
@@ -107,6 +120,7 @@ export function createNoteRuntime(
       unsubscribe();
     },
     async remove(): Promise<void> {
+      preFlush?.();
       clearTimer();
       await controller.remove();
     },

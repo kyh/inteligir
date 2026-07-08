@@ -89,6 +89,12 @@ type VaultContextValue = {
    * (#374) and surface switches can emit after the open note already changed,
    * and those bytes must no-op rather than land on the wrong file. */
   editNote: (path: string, content: string) => void;
+  /** Register a SPECIFIC note's pre-flush hook on its runtime (the Rich
+   * editor's serialize flush — drains a keystroke still in the serialize
+   * debounce into the buffer before any save/rename/delete persists it).
+   * Routed by path like editNote: a registration from an editor whose note
+   * already closed must not land on the next note's runtime. */
+  registerNoteSerializeFlush: (path: string, flush: () => void) => void;
   /** Create a file at `path` (e.g. "folder/note.md") and open it. */
   createFile: (path: string) => Promise<void>;
   /** Create an empty file WITHOUT opening it (wiki create-on-complete). An
@@ -252,6 +258,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     const runtime = runtimeRef.current;
     if (runtime?.path !== path) return;
     runtime.edit(next);
+  }, []);
+
+  const registerNoteSerializeFlush = useCallback((path: string, flush: () => void) => {
+    const runtime = runtimeRef.current;
+    if (runtime?.path !== path) return;
+    runtime.registerPreFlush(flush);
   }, []);
 
   const createFileAt = useCallback(
@@ -491,6 +503,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       folderName,
       openFile,
       editNote,
+      registerNoteSerializeFlush,
       createFile,
       createFileAt,
       renameEntry,
@@ -511,6 +524,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       folderName,
       openFile,
       editNote,
+      registerNoteSerializeFlush,
       createFile,
       createFileAt,
       renameEntry,
