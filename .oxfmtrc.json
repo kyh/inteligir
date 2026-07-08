@@ -11,6 +11,8 @@
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
     "apps/desktop/src/renderer/__tests__/fixtures",
+    "apps/desktop/resources/html-app-runtime/tailwind.global.js",
+    "apps/desktop/resources/html-app-runtime/alpine.min.js",
     ".expo",
     "expo-env.d.ts",
     "nativewind-env.d.ts"

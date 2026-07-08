@@ -16,10 +16,13 @@
         inline style attributes.
       img-src allows https:/data: because JSON-UI widgets (Image/Avatar) and
       chat markdown may render agent-supplied remote images.
+      frame-src allows the vault-app: scheme so HTML Apps (vault .html files)
+      render in their sandboxed iframe; the app document itself gets an opaque
+      origin (sandbox has no allow-same-origin) and can't reach the host.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+      content="default-src 'self'; script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src vault-app:"
     />
   </head>
   <body>

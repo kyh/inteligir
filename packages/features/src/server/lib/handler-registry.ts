@@ -11,6 +11,7 @@ import type { TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import {
+  DESKTOP_SHELL_METHODS,
   IPC,
   IPC_METHODS,
   UPDATE_METHODS,
@@ -19,10 +20,12 @@ import {
   type IpcMethod,
 } from "@repo/features/ipc-registry";
 
-const updateMethods = new Set<string>(UPDATE_METHODS);
+// Methods the desktop SHELL implements (not the platform-agnostic host): the
+// updater trio + the html-app token mint. Excluded from HOST_METHODS.
+const shellMethods = new Set<string>([...UPDATE_METHODS, ...DESKTOP_SHELL_METHODS]);
 
 function isHostMethod(method: IpcMethod): method is HostMethod {
-  return IPC[method].kind !== "event" && !updateMethods.has(method);
+  return IPC[method].kind !== "event" && !shellMethods.has(method);
 }
 
 /** Every method the host must implement, as a runtime list. */

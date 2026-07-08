@@ -358,6 +358,11 @@ export const IPC = {
     "vault:read-asset",
     VaultPathSchema,
   ),
+  /** Mint a per-open token authorizing `vault-app://` reads for one HTML-App
+   * open. Desktop-shell-only: the token lives in the main-process token store
+   * the protocol handler checks, so this can't be a platform-neutral host
+   * handler (see DESKTOP_SHELL_METHODS). */
+  mintHtmlAppToken: invokeVoid<string>("vault:mint-html-app-token"),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
   onVaultChanged: event<{ root: string }>("vault:changed"),
@@ -563,8 +568,15 @@ export type EventMethod = {
 export const UPDATE_METHODS = ["checkForUpdates", "downloadUpdate", "installUpdate"] as const;
 export type UpdateMethod = (typeof UPDATE_METHODS)[number];
 
+/** Desktop-shell-only methods beyond the updater trio. `mintHtmlAppToken`
+ * touches the main-process token store the `vault-app://` protocol checks, so
+ * (like the updater) the platform-agnostic host has no handler for it and a
+ * non-desktop transport must stub it. */
+export const DESKTOP_SHELL_METHODS = ["mintHtmlAppToken"] as const;
+export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
+
 /** Methods the platform-agnostic host implements. */
-export type HostMethod = Exclude<IpcMethod, EventMethod | UpdateMethod>;
+export type HostMethod = Exclude<IpcMethod, EventMethod | UpdateMethod | DesktopShellMethod>;
 
 // Object.keys returns string[]; the predicate re-proves membership so the
 // typed list needs no assertion.
