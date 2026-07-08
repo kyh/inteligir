@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { InMemoryBaseStore } from "@repo/core/sync/base-store";
 import { SyncEngine, type SyncIo } from "@repo/core/sync/engine";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
+import { isConflictCopyPath } from "@repo/core/sync/reconcile";
 import { ABSENT_VERSION } from "@repo/core/sync/vault-file";
 import {
   filePath,
@@ -143,6 +144,16 @@ describe("end-to-end sync", () => {
     const outB = await engineB.syncOnce();
     expect(outB.status).toBe("ok");
     expect(outB).toMatchObject({ conflicts: 1 });
+
+    // The outcome NAMES the copy it created, end-to-end through the real
+    // Worker — the path exists on B and core's reverse matcher recognizes it.
+    if (outB.status !== "ok") throw new Error("expected an ok outcome");
+    expect(outB.conflictPaths).toHaveLength(1);
+    const namedCopy = outB.conflictPaths[0];
+    expect(namedCopy).toBeDefined();
+    if (namedCopy === undefined) throw new Error("unreachable");
+    expect(isConflictCopyPath(namedCopy)).toBe(true);
+    expect(b.io.list()).toContain(namedCopy);
 
     // Nothing lost: both edits survive on B (one at note.md, one in a copy).
     const all = b.io.list();

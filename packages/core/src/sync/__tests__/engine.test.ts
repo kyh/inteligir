@@ -102,7 +102,7 @@ describe("SyncEngine.syncOnce", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 2, pulled: 0, deleted: 0, conflicts: 0 });
+    expect(out).toEqual({ status: "ok", pushed: 2, pulled: 0, deleted: 0, conflicts: 0, conflictPaths: [] });
     const manifest = await port.listManifest();
     expect(manifest.files.map((f) => f.path).toSorted()).toEqual(["a.md", "notes/b.md"]);
     expect(await remoteText("a.md")).toBe("AAA");
@@ -114,7 +114,7 @@ describe("SyncEngine.syncOnce", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 1, deleted: 0, conflicts: 0 });
+    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 1, deleted: 0, conflicts: 0, conflictPaths: [] });
     expect(vault.readText("remote-only.md")).toBe("REMOTE");
   });
 
@@ -126,7 +126,7 @@ describe("SyncEngine.syncOnce", () => {
     // A fresh engine reads the persisted base — nothing should move.
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 0, conflicts: 0 });
+    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 0, conflicts: 0, conflictPaths: [] });
     expect(port.currentGeneration()).toBe(genAfterFirst); // no coordinator writes
   });
 
@@ -149,20 +149,24 @@ describe("SyncEngine.syncOnce", () => {
     const out = await newEngine().syncOnce();
 
     expect(out.status).toBe("ok");
-    if (out.status === "ok") expect(out.conflicts).toBe(1);
+    const copyPath = conflictCopyName("note.md", STAMP);
+    if (out.status === "ok") {
+      expect(out.conflicts).toBe(1);
+      // The outcome NAMES the copy it created — what a conflict UI lists.
+      expect(out.conflictPaths).toEqual([copyPath]);
+    }
 
     // Winner (remote, higher version) keeps the canonical path.
     expect(vault.readText("note.md")).toBe("remote-wins");
     expect(await remoteText("note.md")).toBe("remote-wins");
 
     // Loser's bytes are preserved beside it as a conflict copy, on BOTH sides.
-    const copyPath = conflictCopyName("note.md", STAMP);
     expect(vault.readText(copyPath)).toBe("local-loser");
     expect(await remoteText(copyPath)).toBe("local-loser");
 
     // Base advanced: a follow-up pass sees a fully converged vault.
     const settled = await newEngine().syncOnce();
-    expect(settled).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 0, conflicts: 0 });
+    expect(settled).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 0, conflicts: 0, conflictPaths: [] });
   });
 
   it("mirrors a local delete to the coordinator", async () => {
@@ -173,7 +177,7 @@ describe("SyncEngine.syncOnce", () => {
     vault.delete("gone.md");
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 1, conflicts: 0 });
+    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 1, conflicts: 0, conflictPaths: [] });
     expect(await remoteText("gone.md")).toBeNull();
   });
 
