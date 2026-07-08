@@ -44,6 +44,11 @@ export type SyncIo = {
   write(path: VaultPath, content: Uint8Array): void;
   /** Remove a vault file (idempotent — absent is fine). */
   remove(path: VaultPath): void;
+  /** Cheap change-detection key for a file (e.g. "mtimeMs:size:ino"), or null
+   * when unavailable. OPTIONAL — platforms without cheap stat omit it and the
+   * engine re-hashes every file (previous behavior). A stale fingerprint must
+   * be impossible: the key must change whenever content can have changed. */
+  fingerprint?(path: VaultPath): string | null;
 };
 
 /**
@@ -68,6 +73,12 @@ export type SyncOutcome =
       readonly pulled: number;
       readonly deleted: number;
       readonly conflicts: number;
+      /** Conflict-COPY paths created this pass (the sibling files preserving
+       * each conflict's losing bytes) — what a conflict UI lists and opens.
+       * May differ from `conflicts`: one conflict can spawn two copies (a
+       * local-wins downgraded to remote-wins mid-flight) or none (the remote
+       * loser vanished before it could be copied). */
+      readonly conflictPaths: readonly VaultPath[];
     }
   | { readonly status: "error"; readonly message: string };
 
@@ -100,6 +111,14 @@ export class SyncEngine {
   private readonly hash: Hasher;
   private readonly stamp: Clock;
   private readonly debounceMs: number;
+
+  // Stat-keyed hash cache: a passing fingerprint lets a pass reuse a file's
+  // hash without re-reading it. Keyed by path; invalidated whenever the engine
+  // itself writes/removes a file (the fingerprint would otherwise go stale).
+  private readonly hashCache = new Map<
+    VaultPath,
+    { fp: string; contentHash: string; size: number }
+  >();
 
   // Serialize passes so two never overlap (a debounce fire during an in-flight
   // pass queues behind it rather than racing the same files).
@@ -189,8 +208,9 @@ export class SyncEngine {
       for (const file of remote.files) converged.set(file.path, file);
 
       const counts = { pushed: 0, pulled: 0, deleted: 0, conflicts: 0 };
+      const conflictPaths: VaultPath[] = [];
       for (const op of plan.ops) {
-        await this.applyOp(op, converged, counts);
+        await this.applyOp(op, converged, counts, conflictPaths);
       }
 
       this.saveBase({
@@ -198,7 +218,7 @@ export class SyncEngine {
         generation: remote.generation,
         files: [...converged.values()].toSorted((a, b) => a.path.localeCompare(b.path)),
       });
-      return { status: "ok", ...counts };
+      return { status: "ok", ...counts, conflictPaths };
     } catch (err) {
       // A partial apply left local/remote in a half-converged state; the NEXT
       // pass reconciles fresh from the untouched base (reconcile treats equal
@@ -211,6 +231,7 @@ export class SyncEngine {
     op: SyncOp,
     converged: Map<VaultPath, VaultFile>,
     counts: { pushed: number; pulled: number; deleted: number; conflicts: number },
+    conflictPaths: VaultPath[],
   ): Promise<void> {
     switch (op.kind) {
       case "push": {
@@ -222,7 +243,7 @@ export class SyncEngine {
         } else {
           // A peer moved this path since our snapshot — downgrade to a
           // conflict copy (keep our bytes beside it) and re-pull the winner.
-          await this.resolveRemoteWins(op.path, bytes, converged);
+          await this.resolveRemoteWins(op.path, bytes, converged, conflictPaths);
           counts.conflicts += 1;
         }
         return;
@@ -235,6 +256,7 @@ export class SyncEngine {
       case "delete": {
         if (op.side === "local") {
           this.io.remove(op.path);
+          this.hashCache.delete(op.path);
           converged.delete(op.path);
           counts.deleted += 1;
           return;
@@ -254,9 +276,15 @@ export class SyncEngine {
       case "conflict-copy": {
         const localBytes = this.io.read(op.path);
         if (op.winner === "remote") {
-          await this.resolveRemoteWins(op.path, localBytes, converged);
+          await this.resolveRemoteWins(op.path, localBytes, converged, conflictPaths);
         } else {
-          await this.resolveLocalWins(op.path, localBytes, op.remote.version, converged);
+          await this.resolveLocalWins(
+            op.path,
+            localBytes,
+            op.remote.version,
+            converged,
+            conflictPaths,
+          );
         }
         counts.conflicts += 1;
         return;
@@ -276,6 +304,7 @@ export class SyncEngine {
       return;
     }
     this.io.write(path, got.content);
+    this.hashCache.delete(path);
     converged.set(path, got.file);
   }
 
@@ -285,8 +314,9 @@ export class SyncEngine {
     path: VaultPath,
     localBytes: Uint8Array,
     converged: Map<VaultPath, VaultFile>,
+    conflictPaths: VaultPath[],
   ): Promise<void> {
-    await this.syncConflictCopy(path, localBytes, converged);
+    await this.syncConflictCopy(path, localBytes, converged, conflictPaths);
     await this.pullInto(path, converged);
   }
 
@@ -298,28 +328,33 @@ export class SyncEngine {
     localBytes: Uint8Array,
     remoteVersion: number,
     converged: Map<VaultPath, VaultFile>,
+    conflictPaths: VaultPath[],
   ): Promise<void> {
     const got = await this.port.getFile(path);
-    if (got.ok) await this.syncConflictCopy(path, got.content, converged);
+    if (got.ok) await this.syncConflictCopy(path, got.content, converged, conflictPaths);
     const res = await this.port.putFile(path, localBytes, remoteVersion);
     if (res.ok) {
       converged.set(path, res.file);
     } else {
-      await this.resolveRemoteWins(path, localBytes, converged);
+      await this.resolveRemoteWins(path, localBytes, converged, conflictPaths);
     }
   }
 
   /** Write the losing bytes to `conflictCopyName(path, <stamp>)` locally and
    * push the new copy to the coordinator as a create. On the (astronomically
    * unlikely) name collision the copy stays local and the next pass reconciles
-   * it — never added to base half-synced. */
+   * it — never added to base half-synced. Records the copy in `conflictPaths`
+   * so the pass's outcome can name what it created. */
   private async syncConflictCopy(
     path: VaultPath,
     losingBytes: Uint8Array,
     converged: Map<VaultPath, VaultFile>,
+    conflictPaths: VaultPath[],
   ): Promise<void> {
     const copyPath = conflictCopyName(path, this.stamp());
     this.io.write(copyPath, losingBytes);
+    this.hashCache.delete(copyPath);
+    conflictPaths.push(copyPath);
     const res = await this.port.putFile(copyPath, losingBytes, ABSENT_VERSION);
     if (res.ok) converged.set(copyPath, res.file);
   }
@@ -328,9 +363,28 @@ export class SyncEngine {
 
   private async buildLocalManifest(): Promise<LocalManifest> {
     const files: LocalFile[] = [];
+    const seen = new Set<VaultPath>();
     for (const path of this.io.list()) {
+      seen.add(path);
+      const fp = this.io.fingerprint?.(path) ?? null;
+      if (fp !== null) {
+        const cached = this.hashCache.get(path);
+        if (cached && cached.fp === fp) {
+          // Fingerprint matches — content can't have changed; reuse the hash.
+          files.push({ path, contentHash: cached.contentHash, size: cached.size });
+          continue;
+        }
+      }
       const bytes = this.io.read(path);
-      files.push({ path, contentHash: await this.hash(bytes), size: bytes.length });
+      const contentHash = await this.hash(bytes);
+      const size = bytes.length;
+      files.push({ path, contentHash, size });
+      // Only cache when we have a fingerprint to validate future reuse against.
+      if (fp !== null) this.hashCache.set(path, { fp, contentHash, size });
+    }
+    // Prune entries for files that vanished from the vault since last pass.
+    for (const path of this.hashCache.keys()) {
+      if (!seen.has(path)) this.hashCache.delete(path);
     }
     return { vaultId: this.vaultId, files };
   }

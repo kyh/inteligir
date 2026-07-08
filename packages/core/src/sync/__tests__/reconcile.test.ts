@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LocalFile, LocalManifest, VaultManifest } from "../manifest";
-import { conflictCopyName, reconcile } from "../reconcile";
+import { conflictCopyName, fsSafeStamp, isConflictCopyPath, reconcile } from "../reconcile";
 import type { VaultFile } from "../vault-file";
 
 const VAULT = "vault-1";
@@ -194,5 +194,36 @@ describe("conflictCopyName", () => {
 
   it("treats a dotfile as having no extension", () => {
     expect(conflictCopyName(".gitignore", "T")).toBe(".gitignore (conflict T)");
+  });
+});
+
+describe("isConflictCopyPath", () => {
+  const stamp = fsSafeStamp(new Date("2026-07-05T12:34:56.000Z"));
+
+  it("round-trips every shape conflictCopyName produces", () => {
+    for (const path of ["notes/todo.md", "todo.md", "dir/README", ".gitignore", "a.tar.gz"]) {
+      expect(isConflictCopyPath(conflictCopyName(path, stamp))).toBe(true);
+    }
+  });
+
+  it("rejects ordinary notes", () => {
+    expect(isConflictCopyPath("notes/todo.md")).toBe(false);
+    expect(isConflictCopyPath("README")).toBe(false);
+    expect(isConflictCopyPath(".gitignore")).toBe(false);
+  });
+
+  it("rejects names that merely mention conflict", () => {
+    expect(isConflictCopyPath("notes/conflict.md")).toBe(false);
+    expect(isConflictCopyPath("merge conflict notes.md")).toBe(false);
+    expect(isConflictCopyPath("todo (conflict).md")).toBe(false);
+    expect(isConflictCopyPath("todo (conflict resolution tips).md")).toBe(false);
+    // Un-fs-safe (raw ISO) stamps never come out of the engine's clocks.
+    expect(isConflictCopyPath("todo (conflict 2026-07-05T12:34:56.000Z).md")).toBe(false);
+    // The tag must sit at the END of the stem, as conflictCopyName places it.
+    expect(isConflictCopyPath(`todo (conflict ${stamp}) v2.md`)).toBe(false);
+  });
+
+  it("only inspects the basename — directories cannot fake a match", () => {
+    expect(isConflictCopyPath(`dir (conflict ${stamp})/todo.md`)).toBe(false);
   });
 });

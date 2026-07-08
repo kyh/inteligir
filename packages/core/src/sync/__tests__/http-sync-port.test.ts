@@ -113,6 +113,71 @@ describe("HttpSyncPort", () => {
     await expect(newPort(fetchImpl).getFile("x.md")).rejects.toThrow(/version or content-hash/);
   });
 
+  describe("client-side hash verification (a wired hasher)", () => {
+    // The fake hasher mirrors the test file's own `sha256Hex(text)` — it just
+    // decodes the bytes back to text first, so it agrees with whatever hash the
+    // response header carries in these tests.
+    const fakeHasher = async (bytes: Uint8Array): Promise<string> =>
+      sha256Hex(new TextDecoder().decode(bytes));
+
+    function portWithHasher(fetchImpl: FetchFn): HttpSyncPort {
+      return createHttpSyncPort({
+        baseUrl: BASE_URL,
+        vaultId: VAULT_ID,
+        token: TOKEN,
+        fetchImpl,
+        hasher: fakeHasher,
+      });
+    }
+
+    it("succeeds when the body's hash matches the reported header", async () => {
+      const body = "hello world";
+      const { fetchImpl } = fakeFetch(
+        () =>
+          new Response(body, {
+            status: 200,
+            headers: { [HEADER_VERSION]: "7", [HEADER_CONTENT_HASH]: sha256Hex(body) },
+          }),
+      );
+
+      const got = await portWithHasher(fetchImpl).getFile("x.md");
+
+      expect(got.ok).toBe(true);
+    });
+
+    it("throws when the body's hash doesn't match the reported header (a raced GET)", async () => {
+      const body = "hello world";
+      const { fetchImpl } = fakeFetch(
+        () =>
+          // The header claims a DIFFERENT file's hash than the body actually is —
+          // simulating a PUT racing the DO's GET outside its mutation mutex.
+          new Response(body, {
+            status: 200,
+            headers: { [HEADER_VERSION]: "7", [HEADER_CONTENT_HASH]: sha256Hex("some other body") },
+          }),
+      );
+
+      await expect(portWithHasher(fetchImpl).getFile("x.md")).rejects.toThrow(
+        /don't match the reported content hash/,
+      );
+    });
+
+    it("skips verification when no hasher is supplied (backward-compatible default)", async () => {
+      const body = "hello world";
+      const { fetchImpl } = fakeFetch(
+        () =>
+          new Response(body, {
+            status: 200,
+            headers: { [HEADER_VERSION]: "7", [HEADER_CONTENT_HASH]: sha256Hex("some other body") },
+          }),
+      );
+
+      // No `hasher` option -> newPort() -> trusts the (here, mismatched) header.
+      const got = await newPort(fetchImpl).getFile("x.md");
+      expect(got.ok).toBe(true);
+    });
+  });
+
   it("PUTs bytes with the base-version header and parses an ok envelope", async () => {
     const file = { path: "a.md", contentHash: sha256Hex("AAA"), version: 3, size: 3 };
     const { fetchImpl, calls } = fakeFetch(() => Response.json({ ok: true, file }));

@@ -14,11 +14,19 @@
 // ---------------------------------------------------------------------------
 
 import { getHostNotifiers } from "../host-notifiers";
+import { getVaultManager } from "../vault/vault";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
-import { createSyncManager } from "./sync-manager";
+import { createNodeHasher, createSyncManager } from "./sync-manager";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
+import { isConflictCopyPath } from "@repo/core/sync/reconcile";
 import type { SyncEngine, SyncOutcome as CoreSyncOutcome } from "@repo/core/sync/engine";
-import type { SyncOutcome, SyncSignInResult, SyncState, SyncStatus } from "@repo/features/sync";
+import type {
+  SyncConflict,
+  SyncOutcome,
+  SyncSignInResult,
+  SyncState,
+  SyncStatus,
+} from "@repo/features/sync";
 
 function toStatus(outcome: CoreSyncOutcome): SyncStatus {
   return outcome.status === "ok"
@@ -38,14 +46,25 @@ export class SyncCoordinator {
   private engine: SyncEngine | null = null;
   private status: SyncStatus = { phase: "idle" };
   private started = false;
+  // Unresolved conflict copies (derived, never persisted): seeded from a vault
+  // scan on start, appended from each pass's conflictPaths, and pruned against
+  // the live listing on every state read — deleting the copy resolves the row.
+  private conflicts: SyncConflict[] = [];
 
-  constructor(private readonly account: SyncAccount) {}
+  constructor(
+    private readonly account: SyncAccount,
+    /** Vault-relative paths of every vault file — injected so tests never touch
+     * a live vault. Only consulted once conflicts exist (or at start()). */
+    private readonly listVaultPaths: () => readonly string[] = () =>
+      getVaultManager().listAllPaths(),
+  ) {}
 
   /** Build + start the engine if enabled and authed. Call after the vault is
    * ready (createSyncManager reads live vault files). Idempotent. */
   start(): void {
     if (this.started) return;
     this.started = true;
+    this.seedConflicts();
     this.rebuild({ kickInitial: true });
   }
 
@@ -56,6 +75,7 @@ export class SyncCoordinator {
   }
 
   getState(): SyncState {
+    this.pruneConflicts();
     const config = this.account.getConfig();
     return {
       enabled: config.enabled,
@@ -63,6 +83,7 @@ export class SyncCoordinator {
       email: this.account.getEmail(),
       coordinatorUrl: config.coordinatorUrl,
       status: this.status,
+      conflicts: [...this.conflicts],
     };
   }
 
@@ -100,6 +121,7 @@ export class SyncCoordinator {
     this.status = { phase: "syncing" };
     this.emit();
     const outcome = await engine.syncOnce();
+    this.recordConflicts(outcome);
     this.status = toStatus(outcome);
     this.emit();
     return outcome;
@@ -118,7 +140,12 @@ export class SyncCoordinator {
     const token = this.account.getToken();
     if (!config.enabled || token === null || config.coordinatorUrl.trim() === "") return;
     const vaultId = this.account.getVaultId();
-    const port = createHttpSyncPort({ baseUrl: config.coordinatorUrl, vaultId, token });
+    const port = createHttpSyncPort({
+      baseUrl: config.coordinatorUrl,
+      vaultId,
+      token,
+      hasher: createNodeHasher(),
+    });
     const engine = createSyncManager({ vaultId, port });
     engine.start();
     this.engine = engine;
@@ -132,8 +159,55 @@ export class SyncCoordinator {
     // A newer rebuild may have replaced the engine mid-flight; only publish this
     // pass's status if it's still the live one.
     if (this.engine !== engine) return;
+    this.recordConflicts(outcome);
     this.status = toStatus(outcome);
     this.emit();
+  }
+
+  /** Adopt pre-existing conflict copies (created before this boot, or pulled
+   * from a peer) by scanning the live vault listing. Derive-on-boot — nothing
+   * new is persisted; the vault files themselves are the source of truth. */
+  private seedConflicts(): void {
+    let paths: readonly string[];
+    try {
+      paths = this.listVaultPaths();
+    } catch {
+      return; // no vault yet — passes will still record their own conflicts
+    }
+    const detectedAt = new Date().toISOString();
+    const known = new Set(this.conflicts.map((conflict) => conflict.path));
+    for (const path of paths) {
+      if (!known.has(path) && isConflictCopyPath(path)) {
+        this.conflicts.push({ path, detectedAt });
+      }
+    }
+  }
+
+  /** Append this pass's freshly created conflict copies (dedup by path). */
+  private recordConflicts(outcome: CoreSyncOutcome): void {
+    if (outcome.status !== "ok" || outcome.conflictPaths.length === 0) return;
+    const detectedAt = new Date().toISOString();
+    const known = new Set(this.conflicts.map((conflict) => conflict.path));
+    for (const path of outcome.conflictPaths) {
+      if (!known.has(path)) {
+        this.conflicts.push({ path, detectedAt });
+        known.add(path);
+      }
+    }
+  }
+
+  /** Drop rows whose copy file no longer exists — deleting the copy (from the
+   * conflict list, the sidebar, or any peer) IS resolving the conflict. */
+  private pruneConflicts(): void {
+    if (this.conflicts.length === 0) return;
+    let existing: Set<string>;
+    try {
+      existing = new Set(this.listVaultPaths());
+    } catch {
+      return; // keep the rows on a transient listing failure
+    }
+    const kept = this.conflicts.filter((conflict) => existing.has(conflict.path));
+    if (kept.length !== this.conflicts.length) this.conflicts = kept;
   }
 
   private teardownEngine(): void {

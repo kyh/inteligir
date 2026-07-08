@@ -4,7 +4,47 @@ import { getPlatform } from "../platform-instance";
 import { getVaultManager } from "../vault/vault";
 import type { HandlerRegistrar } from "../lib/handler-registry";
 import { toErrorMessage } from "@repo/features/ipc";
-import type { ChooseVaultResult } from "@repo/features/ipc-registry";
+import type { ChooseVaultResult, ReadVaultAssetResult } from "@repo/features/ipc-registry";
+
+// Largest asset the renderer may pull back as base64 for rendering. Base64
+// inflates ~4/3, so a 10 MiB file crosses IPC as ~13 MiB of string — well
+// within Electron's structured-clone limits, and past this an inline preview
+// isn't the right affordance anyway.
+const MAX_ASSET_BYTES = 10 * 1024 * 1024;
+
+/** Reduce a caller-supplied file name to a safe leaf: no path separators, no
+ * traversal, no leading dots (hidden files), only word/space/dot/dash chars.
+ * Empty or fully-stripped input falls back to "image". */
+export function sanitizeAssetName(raw: string): string {
+  const leaf = raw.split(/[/\\]/).pop() ?? "";
+  const cleaned = leaf
+    .replaceAll(/[^\w .-]+/g, "")
+    .replace(/^\.+/, "")
+    .trim();
+  return cleaned.length > 0 ? cleaned : "image";
+}
+
+/** Normalize a target directory to a clean vault-relative prefix (dropping
+ * `.`/`..`/empty segments); empty input defaults to "assets". */
+export function normalizeAssetDir(raw: string): string {
+  const segments = raw
+    .split(/[/\\]/)
+    .filter((segment) => segment !== "" && segment !== "." && segment !== "..");
+  return segments.length > 0 ? segments.join("/") : "assets";
+}
+
+/** Vault-relative path for a new asset: `<dir>/<name>`, suffixed `-1`, `-2`, …
+ * before the extension until it doesn't collide with an `existing` path. */
+export function pickAssetPath(dir: string, name: string, existing: ReadonlySet<string>): string {
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  let candidate = `${dir}/${name}`;
+  for (let i = 1; existing.has(candidate); i++) {
+    candidate = `${dir}/${stem}-${i}${ext}`;
+  }
+  return candidate;
+}
 
 export function registerVaultHandlers(handle: HandlerRegistrar): void {
   // ---- Trusted surface (Vault panel) ----------------------------------------
@@ -49,5 +89,27 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
       }
     }
     return result;
+  });
+
+  // ---- Attachments (image paste/drop) ---------------------------------------
+
+  handle("writeVaultAsset", ({ dir, baseName, bytesBase64 }) => {
+    const vault = getVaultManager();
+    const existing = new Set(vault.list().map((entry) => entry.path));
+    const path = pickAssetPath(normalizeAssetDir(dir), sanitizeAssetName(baseName), existing);
+    vault.writeBytes(path, new Uint8Array(Buffer.from(bytesBase64, "base64")));
+    return { path };
+  });
+
+  handle("readVaultAsset", ({ path }): ReadVaultAssetResult => {
+    try {
+      const bytes = getVaultManager().readBytes(path);
+      if (bytes.length > MAX_ASSET_BYTES) {
+        return { ok: false, error: `File too large to preview (${bytes.length} bytes)` };
+      }
+      return { ok: true, bytesBase64: Buffer.from(bytes).toString("base64") };
+    } catch (err) {
+      return { ok: false, error: toErrorMessage(err) };
+    }
   });
 }

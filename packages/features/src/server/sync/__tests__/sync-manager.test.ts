@@ -87,6 +87,27 @@ describe("createVaultSyncIo", () => {
     io.remove("a.md");
     expect([...io.list()].toSorted()).toEqual(["notes/b.md"]);
   });
+
+  it("lists every file uncapped — the data-loss regression pin (plan 001)", () => {
+    // vault.list() caps at 2000 entries for the UI. Feeding that capped list
+    // into the sync engine reads a truncated manifest as local deletions and
+    // propagates them to the coordinator and every peer. createVaultSyncIo
+    // must use the uncapped listAllPaths() instead.
+    const vault = new VaultManager({
+      settingsPath: path.join(tmp, "settings.json"),
+      defaultRoot: path.join(tmp, "vault"),
+      manageAgentLink: false,
+    });
+    vault.ensureReady();
+    const root = vault.getRoot();
+    const TOTAL = 2050;
+    for (let i = 0; i < TOTAL; i++) {
+      fs.writeFileSync(path.join(root, `f${String(i).padStart(4, "0")}.md`), "x");
+    }
+
+    const io = createVaultSyncIo(vault);
+    expect(io.list().length).toBe(TOTAL);
+  });
 });
 
 describe("nodeStamp", () => {

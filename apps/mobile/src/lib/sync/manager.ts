@@ -69,7 +69,12 @@ export async function syncOnce(): Promise<SyncOutcome> {
   const vaultId = getOrCreateVaultId();
   const engine = new SyncEngine({
     vaultId,
-    port: createHttpSyncPort({ baseUrl: getCoordinatorUrl(), vaultId, token }),
+    port: createHttpSyncPort({
+      baseUrl: getCoordinatorUrl(),
+      vaultId,
+      token,
+      hasher: createExpoHasher(),
+    }),
     io: createSyncIo(createExpoVaultFs()),
     base: createBaseStore(createExpoBaseFile()),
     hash: createExpoHasher(),
