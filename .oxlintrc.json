@@ -14,7 +14,9 @@
     ".ds-sync",
     ".expo",
     "expo-env.d.ts",
-    "nativewind-env.d.ts"
+    "nativewind-env.d.ts",
+    "apps/desktop/resources/html-app-runtime/tailwind.global.js",
+    "apps/desktop/resources/html-app-runtime/alpine.min.js"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "categories": {

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,13 +25,24 @@ if (!app.isPackaged) {
 import { createHost, type Host } from "@repo/features/server/create-host";
 import type { HostOptions } from "@repo/features/server/platform";
 import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/ipc";
+import { IPC } from "@repo/features/ipc-registry";
 
 import { createElectronPlatform } from "@/main/electron-platform";
 import { foldHostIntoIpc } from "@/main/host-fold";
 import { setupAutoUpdater, type Updater } from "@/main/updater";
+import {
+  mintHtmlAppToken,
+  registerVaultAppProtocol,
+  registerVaultAppScheme,
+} from "@/main/vault-app-protocol";
 
 const isDevelopment = !app.isPackaged;
 const APP_DISPLAY_NAME = isDevelopment ? "Inteligir (Dev)" : "Inteligir";
+
+// The vault-app:// scheme's privileges MUST be registered before app `ready`,
+// so this runs at module load (the handler itself installs after ready, in
+// onAppReady). See vault-app-protocol.ts.
+registerVaultAppScheme();
 
 let mainWindow: BrowserWindow | null = null;
 let host: Host | null = null;
@@ -353,6 +364,12 @@ async function onAppReady(): Promise<void> {
   // can invoke a channel.
   foldHostIntoIpc(theHost);
   updater = setupAutoUpdater({ isDevelopment, gracefulShutdown: runGracefulShutdown });
+
+  // HTML-App surface: the vault-app:// handler + the shell-only token mint (a
+  // DESKTOP_SHELL_METHOD, so it's registered here beside the updater trio, not
+  // in the platform-agnostic host handler map).
+  registerVaultAppProtocol();
+  ipcMain.handle(IPC.mintHtmlAppToken.channel, () => mintHtmlAppToken());
 
   mainWindow = createWindow(await startupBackgroundColor(theHost));
   electronPlatform.setTargetWindow(mainWindow);

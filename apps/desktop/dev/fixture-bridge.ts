@@ -377,6 +377,52 @@ function cannedEditResponse(prompt: string): string | null {
 // classify as a doc).
 const SAMPLE_ASSETS: Record<string, string> = {
   "wiki/diagram.png": "png-placeholder (dev harness fixture, not real image bytes)",
+  // An HTML App fixture so the sandboxed-app surface is drivable in the harness
+  // (which has no vault-app:// protocol — the view falls back to a blob URL with
+  // the same runtime injected). Exercises Alpine (the counter) + the injected
+  // window.inteligir.files bridge (the note list). Not in SAMPLE_NOTES: it's not
+  // a doc, so the markdown-corpus contract doesn't apply.
+  "demo-app.html": `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Notes Explorer</title>
+  </head>
+  <body>
+    <div x-data="notesApp()" x-init="load()" class="mx-auto max-w-md">
+      <h1 class="mb-3 text-lg font-semibold">Notes Explorer</h1>
+      <button
+        class="mb-4 rounded border px-3 py-1"
+        style="border-color: var(--border)"
+        x-on:click="count++"
+      >
+        Count: <span x-text="count"></span>
+      </button>
+      <ul class="space-y-1" data-testid="note-list">
+        <template x-for="note in notes" :key="note.path">
+          <li>
+            <button class="text-left underline" x-on:click="open(note.path)" x-text="note.name"></button>
+          </li>
+        </template>
+      </ul>
+    </div>
+    <script>
+      function notesApp() {
+        return {
+          count: 0,
+          notes: [],
+          async load() {
+            this.notes = await window.inteligir.files.list();
+          },
+          open(path) {
+            window.inteligir.files.open(path);
+          },
+        };
+      }
+    </script>
+  </body>
+</html>
+`,
 };
 
 export function createFixtureBridge(): Bridge {
@@ -638,6 +684,9 @@ export function createFixtureBridge(): Bridge {
       if (bytesBase64 === undefined) return { ok: false, error: `no bytes for: ${path}` };
       return { ok: true, bytesBase64 };
     },
+    // No vault-app:// protocol in the browser harness — the HTML-App view falls
+    // back to a blob: URL, so the token is unused. Return a stable stub.
+    mintHtmlAppToken: async () => "harness-html-app-token",
     onVaultChanged: vaultEvents.subscribe,
 
     // Knowledge — live queries against the in-memory index.

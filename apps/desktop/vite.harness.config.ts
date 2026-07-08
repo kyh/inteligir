@@ -23,6 +23,12 @@ export default defineConfig({
     react(),
   ],
   resolve: {
-    alias: { "@renderer": resolve(configDir, "src/renderer") },
+    alias: {
+      "@renderer": resolve(configDir, "src/renderer"),
+      // `@` → src, matching electron.vite/vitest — the HTML-App view imports the
+      // shared runtime-injection module (`@/html-app-inject`) for its blob
+      // fallback.
+      "@": resolve(configDir, "src"),
+    },
   },
 });

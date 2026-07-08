@@ -11,7 +11,8 @@ import { BottomComposer } from "@renderer/composer/bottom-composer";
 import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
 import { AppSidebar } from "@renderer/sidebar/app-sidebar";
-import { VaultProvider } from "@renderer/workspace/vault-context";
+import { HtmlAppView } from "@renderer/workspace/html-app-view";
+import { VaultProvider, useVault } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useDelegationStore } from "@renderer/stores/delegation-store";
 import { useViewStore } from "@renderer/stores/view-store";
@@ -20,6 +21,26 @@ import { useVoiceStore } from "@renderer/stores/voice-store";
 // The graph view stays out of the main chunk: it (and its d3-force dependency)
 // loads on first open.
 const GraphView = lazy(() => import("@renderer/workspace/graph-view"));
+
+/** The main surface: the graph, an HTML App (open `.html` shown as an app), or
+ * the editor. Lives inside VaultProvider so it can read `isHtmlApp`. */
+function MainSurface({ surface }: { surface: "editor" | "graph" }) {
+  const { isHtmlApp } = useVault();
+  if (surface === "graph") {
+    return (
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center">
+            <Spinner className="size-5 text-muted-foreground" />
+          </div>
+        }
+      >
+        <GraphView />
+      </Suspense>
+    );
+  }
+  return isHtmlApp ? <HtmlAppView /> : <EditorPane />;
+}
 
 /**
  * The workspace — the app's only surface. Two flush Attio-style panes: a
@@ -84,19 +105,7 @@ export function WorkspacePage() {
           )}
 
           <main className="min-h-0 flex-1 overflow-auto">
-            {surface === "graph" ? (
-              <Suspense
-                fallback={
-                  <div className="flex h-full items-center justify-center">
-                    <Spinner className="size-5 text-muted-foreground" />
-                  </div>
-                }
-              >
-                <GraphView />
-              </Suspense>
-            ) : (
-              <EditorPane />
-            )}
+            <MainSurface surface={surface} />
           </main>
           <DelegationDock />
           <BottomComposer />
