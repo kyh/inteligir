@@ -46,9 +46,13 @@ function weightOf(counts: FieldCounts): number {
 export class SearchIndex {
   private readonly postings = new Map<string, Map<string, FieldCounts>>();
   private readonly docTokens = new Map<string, Set<string>>();
+  /** Sorted `postings` keys for range-scanned prefix expansion; `null` when a
+   * mutation may have changed the key set — rebuilt lazily on first search. */
+  private sortedTokens: string[] | null = null;
 
   set(path: string, fields: SearchFields): void {
     this.remove(path);
+    this.sortedTokens = null;
     const tokens = new Set<string>();
     const add = (field: keyof FieldCounts, text: string): void => {
       for (const token of tokenize(text)) {
@@ -82,11 +86,26 @@ export class SearchIndex {
       if (docs.size === 0) this.postings.delete(token);
     }
     this.docTokens.delete(path);
+    this.sortedTokens = null;
   }
 
   clear(): void {
     this.postings.clear();
     this.docTokens.clear();
+    this.sortedTokens = null;
+  }
+
+  /** First index into `sorted` whose key is `>= token` (lower bound). */
+  private static lowerBound(sorted: readonly string[], token: string): number {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      const v = sorted[mid];
+      if (v !== undefined && v < token) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
   }
 
   /** Ranked hits: AND across query tokens, last token prefix-matches. */
@@ -105,8 +124,17 @@ export class SearchIndex {
         for (const [path, counts] of exact) contributions.set(path, weightOf(counts));
       }
       if (isLast) {
-        for (const [candidate, docs] of this.postings) {
-          if (candidate === token || !candidate.startsWith(token)) continue;
+        // Range-scan just the keys sharing this prefix: sorted keys make the
+        // prefix span a contiguous block from the lower bound, so walk it and
+        // stop at the first non-match instead of iterating every posting.
+        if (this.sortedTokens === null) this.sortedTokens = [...this.postings.keys()].toSorted();
+        const sorted = this.sortedTokens;
+        for (let idx = SearchIndex.lowerBound(sorted, token); idx < sorted.length; idx++) {
+          const candidate = sorted[idx];
+          if (candidate === undefined || !candidate.startsWith(token)) break;
+          if (candidate === token) continue;
+          const docs = this.postings.get(candidate);
+          if (!docs) continue;
           for (const [path, counts] of docs) {
             const scored = PREFIX_FACTOR * weightOf(counts);
             const prior = contributions.get(path);
