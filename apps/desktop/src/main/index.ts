@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from "electron";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -205,6 +205,26 @@ function createWindow(backgroundColor: string): BrowserWindow {
     return { action: "deny" };
   });
 
+  // The app window loads exactly one origin: the electron-vite dev server in
+  // dev, or the packaged file:// bundle in production. Any top-level navigation
+  // away from it (a crafted link in a note, agent output, injected content) is
+  // a phishing surface inside the product chrome, so we pin the window: allow
+  // navigation that stays on the loaded origin (HMR relies on this in dev) and
+  // block everything else, routing http(s) out to the system browser to match
+  // the window-open handler above. `loadedUrlPrefix` is set at load time below.
+  let loadedUrlPrefix = "";
+  const isSameOrigin = (candidate: string): boolean =>
+    loadedUrlPrefix.length > 0 && candidate.startsWith(loadedUrlPrefix);
+  const guardNavigation = (event: Electron.Event, url: string): void => {
+    if (isSameOrigin(url)) return;
+    event.preventDefault();
+    if (isHttpUrl(url)) {
+      void shell.openExternal(url);
+    }
+  };
+  window.webContents.on("will-navigate", guardNavigation);
+  window.webContents.on("will-redirect", guardNavigation);
+
   window.on("page-title-updated", (event) => {
     event.preventDefault();
     window.setTitle(APP_DISPLAY_NAME);
@@ -232,9 +252,13 @@ function createWindow(backgroundColor: string): BrowserWindow {
   });
 
   if (isDevelopment && process.env["ELECTRON_RENDERER_URL"]) {
-    void window.loadURL(process.env["ELECTRON_RENDERER_URL"]);
+    const rendererUrl = process.env["ELECTRON_RENDERER_URL"];
+    loadedUrlPrefix = rendererUrl;
+    void window.loadURL(rendererUrl);
   } else {
-    void window.loadFile(path.join(moduleDir, "../renderer/index.html"));
+    const indexPath = path.join(moduleDir, "../renderer/index.html");
+    loadedUrlPrefix = pathToFileURL(indexPath).href;
+    void window.loadFile(indexPath);
   }
 
   if (isDevelopment) {
