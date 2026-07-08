@@ -26,9 +26,17 @@ const fetchSelf: typeof fetch = (input, init) => SELF.fetch(input, init);
 async function signIn(email: string): Promise<string> {
   const body = JSON.stringify({ email, password: "e2e-password-1234", name: email.split("@")[0] });
   const headers = { "content-type": "application/json", origin: ORIGIN };
-  const up = await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, { method: "POST", headers, body });
+  const up = await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
+    method: "POST",
+    headers,
+    body,
+  });
   if (up.status !== 200) throw new Error(`sign-up ${up.status}: ${await up.text()}`);
-  const inRes = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, { method: "POST", headers, body });
+  const inRes = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers,
+    body,
+  });
   if (inRes.status !== 200) throw new Error(`sign-in ${inRes.status}: ${await inRes.text()}`);
   const token = inRes.headers.get("set-auth-token");
   if (token === null || token === "") throw new Error("no bearer token in set-auth-token header");

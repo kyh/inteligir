@@ -53,6 +53,8 @@ export const BasicMarksKit = [
   CodePlugin.configure({
     inputRules: [CodeRules.markdown()],
   }).withComponent(
-    classNameLeaf("whitespace-pre-wrap rounded-md bg-muted px-[0.3em] py-[0.2em] font-mono text-sm"),
+    classNameLeaf(
+      "whitespace-pre-wrap rounded-md bg-muted px-[0.3em] py-[0.2em] font-mono text-sm",
+    ),
   ),
 ];
