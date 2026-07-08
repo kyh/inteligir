@@ -2,10 +2,10 @@
 // with no real expo-file-system / expo-crypto. Mirrors @repo/core's own engine
 // test doubles.
 
+import type { JsonFile } from "@repo/core/sync/base-store";
 import type { Hasher } from "@repo/core/sync/engine";
 import type { VaultPath } from "@repo/core/sync/vault-file";
 
-import type { JsonFile } from "../base-store";
 import type { VaultEntry, VaultFs } from "../sync-io";
 
 const encoder = new TextEncoder();

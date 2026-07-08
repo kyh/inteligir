@@ -18,16 +18,14 @@
 // ---------------------------------------------------------------------------
 
 import crypto from "node:crypto";
-import { Type } from "@sinclair/typebox";
+import fs from "node:fs";
+import path from "node:path";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getVaultManager, type VaultManager } from "../vault/vault";
-import { isRecord } from "@repo/features/ipc";
-import type { VaultFile } from "@repo/core/sync/vault-file";
-import type { VaultManifest } from "@repo/core/sync/manifest";
 import type { SyncPort } from "@repo/core/sync/sync-port";
 import { SyncEngine, type Clock, type Hasher, type SyncIo } from "@repo/core/sync/engine";
-import type { BaseStore } from "@repo/core/sync/base-store";
+import { createJsonFileBaseStore, type BaseStore, type JsonFile } from "@repo/core/sync/base-store";
 import { fsSafeStamp } from "@repo/core/sync/reconcile";
 
 // ---------------------------------------------------------------------------
@@ -71,33 +69,13 @@ export function createVaultSyncIo(vault: VaultManager): SyncIo {
 // ---------------------------------------------------------------------------
 // Base-manifest store — the last-synced coordinator snapshot, per vault, under
 // ~/.inteligir. The 3-way anchor `reconcile` diffs against; empty on first sync.
+// A thin fs-backed `JsonFile` over core's `createJsonFileBaseStore` — the same
+// factory mobile wraps its expo-file-system port around. A base is a PURE
+// CACHE of the last sync, so a legacy/corrupt file just means "re-sync from
+// empty", never data loss; no vaultId guard here, the engine already refuses a
+// foreign-vault base (`engine.ts` `loadBase`: `stored.vaultId !== this.vaultId`
+// → empty) so guarding twice would be redundant.
 // ---------------------------------------------------------------------------
-
-const BASE_VERSION = 1;
-
-const VaultFileSchema = Type.Object(
-  {
-    path: Type.String(),
-    contentHash: Type.String(),
-    version: Type.Integer({ minimum: 0 }),
-    size: Type.Integer({ minimum: 0 }),
-  },
-  { additionalProperties: false },
-);
-
-const BaseManifestSchema = Type.Object(
-  {
-    version: Type.Literal(BASE_VERSION),
-    vaultId: Type.String(),
-    generation: Type.Integer({ minimum: 0 }),
-    files: Type.Array(VaultFileSchema),
-  },
-  { additionalProperties: false },
-);
-
-function emptyManifest(vaultId: string): VaultManifest {
-  return { vaultId, generation: 0, files: [] };
-}
 
 /** Per-vault base file, keyed by a short hash of the vaultId so switching the
  * synced vault never clobbers another's anchor (vaultIds may contain `/`). */
@@ -106,53 +84,44 @@ function baseStorePath(vaultId: string): string {
   return inteligirPath(`sync-base-${key}.json`);
 }
 
+/** A synchronous `JsonFile` over a plain file path — `read` returns `null` on
+ * any error (missing file, permission denied, …); `write` creates the parent
+ * dir on demand. Delegates to an injected `FsAdapter` when the caller supplies
+ * one (tests), otherwise talks to the real filesystem directly. */
+function nodeJsonFile(filePath: string, adapter?: FsAdapter): JsonFile {
+  if (adapter) {
+    return {
+      read: () => adapter.read(filePath),
+      write: (text) => {
+        adapter.write(filePath, text);
+      },
+    };
+  }
+  return {
+    read: () => {
+      try {
+        return fs.readFileSync(filePath, "utf8");
+      } catch {
+        return null;
+      }
+    },
+    write: (text) => {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, text, "utf8");
+    },
+  };
+}
+
 /**
- * A `BaseStore` backed by a versioned per-vault `JsonStore` under ~/.inteligir.
- * A base is a pure cache of the last sync, so a legacy/corrupt/foreign file just
- * means "re-sync from empty", never data loss.
+ * A `BaseStore` backed by a JSON file under ~/.inteligir. A base is a pure
+ * cache of the last sync, so a legacy/corrupt/foreign file just means
+ * "re-sync from empty", never data loss.
  */
 export function createJsonBaseStore(
   vaultId: string,
   opts: { fs?: FsAdapter | undefined; path?: string | undefined } = {},
 ): BaseStore {
-  const store = new JsonStore<VaultManifest>(
-    opts.path ?? baseStorePath(vaultId),
-    BaseManifestSchema,
-    emptyManifest(vaultId),
-    {
-      fs: opts.fs,
-      versioning: {
-        current: BASE_VERSION,
-        // No unversioned era — the base file is new. A base is a pure cache of
-        // the last sync, so a legacy/corrupt file just means "re-sync from
-        // empty", never data loss.
-        fromLegacy: () => {
-          throw new Error("sync-base has no version field");
-        },
-      },
-      decode: (raw) => {
-        if (!isBaseFile(raw)) throw new Error("sync-base shape rejected");
-        return { vaultId: raw.vaultId, generation: raw.generation, files: raw.files };
-      },
-      encode: (value) => ({
-        version: BASE_VERSION,
-        vaultId: value.vaultId,
-        generation: value.generation,
-        files: value.files,
-      }),
-    },
-  );
-  return {
-    load: () => {
-      const stored = store.read();
-      // The per-vault filename already isolates anchors, but guard the id too so
-      // a reused file can never seed a foreign vault's base (→ start from empty).
-      return stored.vaultId === vaultId ? stored : emptyManifest(vaultId);
-    },
-    save: (manifest) => {
-      store.write(manifest);
-    },
-  };
+  return createJsonFileBaseStore(nodeJsonFile(opts.path ?? baseStorePath(vaultId), opts.fs));
 }
 
 // ---------------------------------------------------------------------------
@@ -192,25 +161,4 @@ export function createSyncManager(opts: SyncManagerOptions): SyncEngine {
     stamp: nodeStamp(opts.now),
     debounceMs: opts.debounceMs,
   });
-}
-
-// ---- module internals -----------------------------------------------------
-
-type BaseFile = {
-  version: number;
-  vaultId: string;
-  generation: number;
-  files: readonly VaultFile[];
-};
-
-// Structural guard for the decoded base file (the schema Value.Check already ran
-// in JsonStore.read; this narrows the `unknown` decode input without a cast).
-function isBaseFile(raw: unknown): raw is BaseFile {
-  return (
-    isRecord(raw) &&
-    raw["version"] === BASE_VERSION &&
-    typeof raw["vaultId"] === "string" &&
-    typeof raw["generation"] === "number" &&
-    Array.isArray(raw["files"])
-  );
 }
