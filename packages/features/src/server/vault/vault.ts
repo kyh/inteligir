@@ -12,20 +12,29 @@
 // settings file that records WHERE the vault lives.
 //
 // Electron-free so it can be unit-tested with a temp dir. The main process
-// wires a change notifier + starts the watcher at composition time; agent
-// awareness is a stable `vault` symlink in the agent workspace (so the agent's
-// native file tools always find the vault at ./vault regardless of where the
-// user put it).
+// wires a change notifier at composition time; agent awareness is a stable
+// `vault` symlink in the agent workspace (so the agent's native file tools
+// always find the vault at ./vault regardless of where the user put it).
+//
+// Liveness model (ADR-0001): the listing is an EPHEMERAL, refreshable snapshot,
+// not a watched mirror. There is NO recursive filesystem watcher. The snapshot
+// refreshes on demand — app-initiated structural writes, window focus, the
+// explicit "Refresh vault" command, and delegation completion. The ONLY watcher
+// is a single non-recursive watch on the currently open note (watchOpenNote),
+// so external edits to the file the user is looking at still reload; edits to
+// other files surface on the next refresh.
 // ---------------------------------------------------------------------------
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import ignore, { type Ignore } from "ignore";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
@@ -57,8 +66,20 @@ function classify(fileName: string): VaultEntry["kind"] {
   return isDocPath(fileName) ? "doc" : "other";
 }
 
-const MAX_LIST_ENTRIES = 2000;
+// Hard-pruned directories — never walked, never listed, regardless of ignore
+// files. Cheap protection against the classic repo-shaped-vault blowups.
 const SKIP_DIRS = new Set([".git", "node_modules", ".obsidian", ".trash"]);
+// Root-level ignore files parsed (v1) to filter DISCOVERY (not access). A file
+// the user explicitly opens outside the snapshot still reads/writes fine.
+const IGNORE_FILES = [".gitignore", ".ignore"];
+
+/** How a vault change should propagate. `refresh` runs the full pipeline
+ * (broadcast onVaultChanged + knowledge + sync) — structural writes, the open-
+ * note watcher, focus/manual refresh, delegation completion. `save` is a
+ * content overwrite of an existing file (an autosave): it keeps the knowledge
+ * index and sync live but does NOT broadcast, so the user's own typing stops
+ * generating any vault-changed traffic (ADR-0001). */
+export type VaultChangeKind = "refresh" | "save";
 
 type VaultManagerOptions = {
   fs?: FsAdapter;
@@ -75,9 +96,15 @@ export class VaultManager {
   private readonly settings: JsonStore<VaultSettings>;
   private readonly defaultRoot: string;
   private readonly manageAgentLink: boolean;
-  private watcher: fs.FSWatcher | null = null;
-  private notifyTimer: ReturnType<typeof setTimeout> | null = null;
-  private changeNotifier: ((root: string) => void) | null = null;
+  private changeNotifier: ((root: string, kind: VaultChangeKind) => void) | null = null;
+  // The single non-recursive watcher on the open note (ADR-0001). Everything
+  // else is refreshed on demand, so there is no recursive root watcher.
+  private openWatcher: fs.FSWatcher | null = null;
+  private watchedPath: string | null = null;
+  // Fingerprint of the watched note last time we observed it — the classifier's
+  // baseline for deciding reload vs. no-op.
+  private watchedFingerprint: string | null = null;
+  private readonly selfSaves = new SelfSaveRegistry();
 
   constructor(opts: VaultManagerOptions = {}) {
     this.defaultRoot = opts.defaultRoot ?? defaultVaultRoot();
@@ -137,8 +164,10 @@ export class VaultManager {
     fs.mkdirSync(resolved, { recursive: true });
     this.settings.update((s) => ({ ...s, vaultPath: resolved }));
     this.ensureAgentSymlink(resolved);
-    this.restartWatcher();
-    this.notify();
+    // The open note belonged to the old vault — stop watching it; the renderer
+    // drops the note and re-points the watcher after the switch.
+    this.watchOpenNote(null);
+    this.notify("refresh");
   }
 
   /** Create the vault dir + agent symlink. Called once at composition time. */
@@ -150,23 +179,24 @@ export class VaultManager {
 
   // ---- File operations ------------------------------------------------------
 
-  /** List every file under the vault (relative paths), skipping dot/VCS dirs.
-   * Capped at `MAX_LIST_ENTRIES` — this is for UI listing only (sidebar file
-   * tree). Do NOT feed this into anything that needs the complete vault state
-   * (e.g. sync) — use `listAllPaths()` for that. */
+  /** List every file under the vault (relative paths), respecting SKIP_DIRS and
+   * the root ignore files. Uncapped: the crawl is now on-demand (ephemeral
+   * snapshot — ADR-0001), not per-filesystem-event, so there is no scaling
+   * hazard to cap against. Drives the sidebar file tree. */
   list(): VaultEntry[] {
     const root = this.getRoot();
     if (!fs.existsSync(root)) return [];
-    return this.walk(root, MAX_LIST_ENTRIES)
+    return this.walk(root)
       .map((e) => ({ path: e.path, name: e.name, kind: classify(e.name) }))
       .toSorted((a, b) => a.path.localeCompare(b.path));
   }
 
-  /** Every file path under the vault, uncapped. Sync must see every file — a
-   * truncated manifest reads as deletions (see plan 001): the 3-way reconcile
-   * treats "was in base and remote, missing from local" as a local deletion
-   * and propagates that delete to the coordinator and every other peer. Never
-   * cap this. */
+  /** Every file path under the vault (same crawl as list(), minus the entry
+   * shaping). Sync must see every NON-ignored file — a truncated manifest reads
+   * as deletions (see plan 001): the 3-way reconcile treats "was in base and
+   * remote, missing from local" as a local deletion and propagates it to the
+   * coordinator and every peer. Ignore rules filter what sync tracks by design;
+   * SKIP_DIRS + ignore files are the only exclusions, and they match list(). */
   listAllPaths(): string[] {
     const root = this.getRoot();
     if (!fs.existsSync(root)) return [];
@@ -176,15 +206,13 @@ export class VaultManager {
   }
 
   // Shared recursive walk backing both list() and listAllPaths(): skips
-  // dot-entries, SKIP_DIRS, and the sibling *.tmp files atomicWrite creates
-  // mid-save. Returns entries in directory-read order (unsorted — callers
-  // sort). When `maxEntries` is given, stops once that many files have been
-  // collected — list()'s UI cap; omit it for the uncapped sync listing.
-  private walk(root: string, maxEntries?: number): { path: string; name: string }[] {
+  // dot-entries, SKIP_DIRS, ignore-matched paths, and the sibling *.tmp files
+  // atomicWrite creates mid-save. Returns entries in directory-read order
+  // (unsorted — callers sort).
+  private walk(root: string): { path: string; name: string }[] {
     const out: { path: string; name: string }[] = [];
-    const atCap = (): boolean => maxEntries !== undefined && out.length >= maxEntries;
+    const ig = this.loadIgnore(root);
     const visit = (dir: string): void => {
-      if (atCap()) return;
       let entries: fs.Dirent[];
       try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -195,17 +223,38 @@ export class VaultManager {
         if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue;
         if (entry.isFile() && entry.name.endsWith(".tmp")) continue;
         const full = path.join(dir, entry.name);
+        const rel = path.relative(root, full).split(path.sep).join("/");
+        // `ignore` wants a trailing slash to match directory patterns.
         if (entry.isDirectory()) {
+          if (ig !== null && ig.ignores(`${rel}/`)) continue;
           visit(full);
         } else if (entry.isFile()) {
-          if (atCap()) return;
-          const rel = path.relative(root, full).split(path.sep).join("/");
+          if (ig !== null && ig.ignores(rel)) continue;
           out.push({ path: rel, name: entry.name });
         }
       }
     };
     visit(root);
     return out;
+  }
+
+  // Parse the root ignore files (.gitignore / .ignore) into a matcher, or null
+  // when none exist. v1: root-level only — nested ignore files aren't merged.
+  // Rebuilt per crawl (crawls are on-demand now, so this is cheap and always
+  // reflects the current ignore files).
+  private loadIgnore(root: string): Ignore | null {
+    let matcher: Ignore | null = null;
+    for (const name of IGNORE_FILES) {
+      let text: string;
+      try {
+        text = fs.readFileSync(path.join(root, name), "utf8");
+      } catch {
+        continue; // absent or unreadable — skip
+      }
+      matcher ??= ignore();
+      matcher.add(text);
+    }
+    return matcher;
   }
 
   /** Raw file text — what the editor panel reads/writes (JSON included). */
@@ -217,8 +266,27 @@ export class VaultManager {
   writeText(rel: string, content: string): void {
     assertVaultWritable();
     const target = this.resolve(rel);
+    const existed = fs.existsSync(target);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     atomicWrite(target, content);
+    // A new file changes the listing (refresh); overwriting an existing one is a
+    // content save (sync + knowledge stay live, but no broadcast — the open-note
+    // watcher covers the open file, and the app's own autosaves go silent).
+    this.notify(existed ? "save" : "refresh");
+  }
+
+  /** Record that the app itself just wrote `rel` (the editor's autosave path),
+   * so the watch event that write triggers on the open note is filtered out
+   * rather than mistaken for an external edit. Called by the editor write
+   * handler only — restore / sync-pull deliberately do NOT record, so their
+   * writes to the open note still surface as reloads. */
+  markSelfSave(rel: string): void {
+    try {
+      const stat = fs.statSync(this.resolve(rel));
+      this.selfSaves.record(rel, stat.mtimeMs);
+    } catch {
+      // Path escaped the vault or vanished — nothing to record.
+    }
   }
 
   /** Raw file bytes — the binary-safe primitive the sync protocol reads (markdown
@@ -234,8 +302,10 @@ export class VaultManager {
   writeBytes(rel: string, content: Uint8Array): void {
     assertVaultWritable();
     const target = this.resolve(rel);
+    const existed = fs.existsSync(target);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     atomicWrite(target, content);
+    this.notify(existed ? "save" : "refresh");
   }
 
   /** Cheap stat-keyed change-detection fingerprint for the sync engine's hash
@@ -257,6 +327,7 @@ export class VaultManager {
     const target = this.resolve(rel);
     if (!fs.existsSync(target)) return false;
     fs.rmSync(target, { force: true });
+    this.notify("refresh");
     return true;
   }
 
@@ -272,28 +343,73 @@ export class VaultManager {
     if (fs.existsSync(dst)) return { ok: false, error: `${to} already exists` };
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.renameSync(src, dst);
+    this.notify("refresh");
     return { ok: true };
   }
 
-  // ---- Watcher / notifier ---------------------------------------------------
+  // ---- Change notifier / open-note watcher ----------------------------------
 
-  startWatching(notifier: (root: string) => void): void {
+  /** Register the change notifier. Unlike the old recursive model this does NOT
+   * start any filesystem watcher — app writes fire the notifier directly and
+   * the open-note watcher is armed separately via watchOpenNote. */
+  startWatching(notifier: (root: string, kind: VaultChangeKind) => void): void {
     this.changeNotifier = notifier;
-    this.restartWatcher();
+  }
+
+  /** Point the single non-recursive watcher at `rel` (the currently open note),
+   * or clear it with `null`. Its events run the change classifier: a genuine
+   * external edit (not one of our own autosaves) broadcasts onVaultChanged, so
+   * the renderer's existing reload/vanish machinery reacts; self-saves and
+   * no-op events are filtered. Edits to any OTHER file are invisible until the
+   * next refresh — that is the whole point of the ephemeral model (ADR-0001).
+   *
+   * We watch the note's PARENT directory (non-recursive) filtered to its
+   * basename, NOT the file path directly: a single-file watch is unreliable
+   * across atomic-rename replacement (our own atomicWrite, and the way many
+   * editors save), whereas a directory watch reliably reports in-place writes,
+   * atomic renames, and deletes of the file by name. Still one note, still
+   * non-recursive — the directory is not descended. */
+  watchOpenNote(rel: string | null): void {
+    this.closeOpenWatcher();
+    if (rel === null || rel === "") return;
+    let target: string;
+    try {
+      target = this.resolve(rel);
+    } catch {
+      return; // escapes the vault — nothing to watch
+    }
+    const dir = path.dirname(target);
+    const base = path.basename(target);
+    if (!fs.existsSync(dir)) return;
+    this.watchedPath = rel;
+    this.watchedFingerprint = this.statFingerprint(rel);
+    try {
+      this.openWatcher = fs.watch(dir, (_event, filename) => {
+        // A directory watch fires for every sibling; act only on the open note.
+        // `filename` is null on some platforms — fall through and let the
+        // fingerprint check decide.
+        if (filename !== null && filename !== base) return;
+        this.onOpenNoteEvent(rel, target);
+      });
+    } catch (err) {
+      console.warn("[vault] could not watch open note:", err);
+      this.watchedPath = null;
+      this.watchedFingerprint = null;
+    }
+  }
+
+  /** Fire the full refresh pipeline on demand (window focus, the "Refresh vault"
+   * command, delegation completion). This is the ephemeral snapshot's rebuild
+   * trigger — the renderer re-lists, knowledge re-indexes, sync kicks. */
+  refresh(): void {
+    this.notify("refresh");
   }
 
   stopWatching(): void {
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
-    }
-    if (this.notifyTimer) {
-      clearTimeout(this.notifyTimer);
-      this.notifyTimer = null;
-    }
+    this.closeOpenWatcher();
   }
 
-  /** Stop the watcher and disable the settings store before the dir is wiped. */
+  /** Stop watching and disable the settings store before the dir is wiped. */
   close(): void {
     this.stopWatching();
     this.changeNotifier = null;
@@ -364,38 +480,58 @@ export class VaultManager {
     }
   }
 
-  private restartWatcher(): void {
-    this.stopWatching();
-    if (!this.changeNotifier) return;
-    const root = this.getRoot();
-    if (!fs.existsSync(root)) return;
-    const onEvent = (): void => this.scheduleNotify();
+  // An event on the open note fired. Decide from disk state whether the editor
+  // must react: filter our own autosaves (self-save registry) and no-op events
+  // (unchanged fingerprint via the classifier); a genuine external edit or a
+  // vanish broadcasts so the renderer reloads/closes as it does today.
+  private onOpenNoteEvent(rel: string, target: string): void {
+    // Still the note we're meant to be watching? (watchOpenNote(null) closes the
+    // watcher, but a queued event could still land.)
+    if (this.watchedPath !== rel) return;
+    let stat: fs.Stats | null;
     try {
-      this.watcher = fs.watch(root, { recursive: true }, onEvent);
+      stat = fs.statSync(target);
     } catch {
-      // Recursive watching is unsupported on some platforms (Linux) — fall back
-      // to watching the root non-recursively. Better than nothing for an
-      // experimental feature; nested edits still surface on the next list().
-      try {
-        this.watcher = fs.watch(root, onEvent);
-      } catch (err) {
-        console.warn("[vault] could not start watcher:", err);
-      }
+      stat = null; // vanished/unreadable
     }
+    if (stat === null) {
+      // The open note disappeared — broadcast so the renderer's vanish watcher
+      // closes it. Keep the directory watch running (and the last fingerprint)
+      // so a recreate/rename-back is still caught; the renderer clears the
+      // watcher via setWatchedNote(null) when it drops the note.
+      this.notify("refresh");
+      return;
+    }
+    // Our own autosave landing — never reload the editor onto what it just wrote.
+    if (this.selfSaves.isSelfSave(rel, stat.mtimeMs)) return;
+    const current = `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
+    const verdict = classifyFileChange({
+      lastKnown: this.watchedFingerprint,
+      current,
+      // The host doesn't track the editor's dirty state; it broadcasts on any
+      // external change and lets the renderer's externalChange resolve reload
+      // vs. conflict (its behavior today). `reload` and `conflict` both
+      // broadcast, so passing false here is safe and never suppresses.
+      editorDirty: false,
+    });
+    // Advance the baseline so a duplicate event for the same state is a no-op.
+    this.watchedFingerprint = current;
+    if (verdict === "reload" || verdict === "conflict") this.notify("refresh");
   }
 
-  // Coalesce the burst of fs events a single save produces into one broadcast.
-  private scheduleNotify(): void {
-    if (this.notifyTimer) clearTimeout(this.notifyTimer);
-    this.notifyTimer = setTimeout(() => {
-      this.notifyTimer = null;
-      this.notify();
-    }, 200);
+  private closeOpenWatcher(): void {
+    if (this.openWatcher) {
+      this.openWatcher.close();
+      this.openWatcher = null;
+    }
+    if (this.watchedPath !== null) this.selfSaves.forget(this.watchedPath);
+    this.watchedPath = null;
+    this.watchedFingerprint = null;
   }
 
-  private notify(): void {
+  private notify(kind: VaultChangeKind): void {
     try {
-      this.changeNotifier?.(this.getRoot());
+      this.changeNotifier?.(this.getRoot(), kind);
     } catch (err) {
       console.warn("[vault] change notification failed:", err);
     }
@@ -443,8 +579,8 @@ function realPath(p: string): string {
 
 let instance: VaultManager | null = null;
 // Module-scoped so it survives resetVaultManager() (logout): a fresh instance
-// built on the next login re-attaches the watcher instead of going silent.
-let sharedNotifier: ((root: string) => void) | null = null;
+// built on the next login re-attaches the notifier instead of going silent.
+let sharedNotifier: ((root: string, kind: VaultChangeKind) => void) | null = null;
 // Mirrors the shell's write suspension: between logout (teardown wipes
 // ~/.inteligir, including settings.json) and the next login, a dirty autosave
 // firing from a still-mounted panel must not lazily build a fresh manager with
@@ -476,7 +612,9 @@ export function getVaultManager(): VaultManager {
 
 /** Register the broadcast hookup once at composition time. Re-applied to every
  * instance created after a logout/login reset. */
-export function setVaultChangeNotifier(notifier: (root: string) => void): void {
+export function setVaultChangeNotifier(
+  notifier: (root: string, kind: VaultChangeKind) => void,
+): void {
   sharedNotifier = notifier;
   getVaultManager().startWatching(notifier);
 }

@@ -69,7 +69,21 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
   handle("listVault", () => getVaultManager().list());
   handle("readVaultDoc", ({ path }) => getVaultManager().readText(path));
   handle("writeVaultDoc", ({ path, content }) => {
-    getVaultManager().writeText(path, content);
+    const vault = getVaultManager();
+    vault.writeText(path, content);
+    // This is the editor's write path (autosave). Mark it a self-save so the
+    // open-note watcher filters the event it triggers rather than reloading the
+    // editor onto what it just saved (ADR-0001). Restore / sync-pull do NOT go
+    // through here, so their writes still surface as reloads.
+    vault.markSelfSave(path);
+  });
+  // The renderer names the open note; the host watches that single file (ADR-0001).
+  handle("setWatchedNote", ({ path }) => {
+    getVaultManager().watchOpenNote(path);
+  });
+  // On-demand snapshot rebuild (window focus / "Refresh vault" command).
+  handle("refreshVault", () => {
+    getVaultManager().refresh();
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
   handle("renameVaultEntry", ({ from, to }) => {

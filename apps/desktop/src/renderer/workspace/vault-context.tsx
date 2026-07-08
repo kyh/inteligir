@@ -31,6 +31,10 @@ import type { VaultEntry } from "@repo/features/ipc-registry";
 /** ui-state key the open note persists under (restored on boot). */
 const OPEN_NOTE_KEY = "workspace.openNote";
 
+/** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,
+ * dialogs) coalesces into one snapshot rebuild (ADR-0001). */
+const FOCUS_REFRESH_DEBOUNCE_MS = 1000;
+
 /**
  * Append the default `.md` extension unless `name` already ends in one (any
  * lowercase-alphanumeric extension). `name` is assumed already trimmed.
@@ -114,6 +118,10 @@ type VaultContextValue = {
   /** Resolve a wiki target (`[[target]]`) against the current file listing —
    * the same Obsidian-style tiers the host's knowledge index uses. */
   resolveWikiTarget: (target: string) => string | null;
+  /** Rebuild the ephemeral vault snapshot now (re-list + reindex + sync kick).
+   * The command palette's "Refresh vault" invokes this; window focus does too,
+   * debounced (ADR-0001). */
+  refreshVault: () => void;
 
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
@@ -175,6 +183,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       setOpenPath(next);
       setHtmlAsText(false);
       setUiState(OPEN_NOTE_KEY, next);
+      // Point the host's single open-note watcher at the new file (or clear it).
+      // This is the only file watched for external edits (ADR-0001).
+      getBridge()
+        ?.setWatchedNote({ path: next })
+        .catch(() => {});
     },
     [setUiState],
   );
@@ -416,6 +429,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const flush = useCallback((): Promise<boolean> => flushCurrent(), [flushCurrent]);
 
+  const refreshVault = useCallback(() => {
+    getBridge()
+      ?.refreshVault()
+      .catch(() => {});
+  }, []);
+
   // Initial load: adopt the root + list files.
   useEffect(() => {
     getBridge()
@@ -462,6 +481,27 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       refreshList();
     });
   }, [applyOpenPath, disposeRuntime, refreshList]);
+
+  // External edits to files OTHER than the open note surface on window focus —
+  // the ephemeral model's "the user refocuses to look" trade (ADR-0001). One
+  // debounced refresh per focus flurry rebuilds the snapshot (re-list + reindex
+  // + sync kick). The open note itself is covered live by the host's open-note
+  // watcher, so this is about the rest of the vault.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onFocus = () => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        refreshVault();
+      }, FOCUS_REFRESH_DEBOUNCE_MS);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [refreshVault]);
 
   // Persist on unmount so a change within the debounce window isn't lost.
   useEffect(
@@ -555,6 +595,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       changeFolder,
       flush,
       resolveWikiTarget,
+      refreshVault,
       isMarkdownOpen,
       richAvailable,
       rawReason: analyzed.rawReason,
@@ -580,6 +621,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       changeFolder,
       flush,
       resolveWikiTarget,
+      refreshVault,
       isMarkdownOpen,
       richAvailable,
       analyzed.rawReason,

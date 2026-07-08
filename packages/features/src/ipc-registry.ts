@@ -170,6 +170,13 @@ const NotificationsPatchSchema = Type.Object(
 // ---------------------------------------------------------------------------
 
 const VaultPathSchema = Type.Object({ path: Type.String() }, { additionalProperties: false });
+// The currently open note the host should watch for external edits (null clears
+// it). Only this ONE file is watched — the rest of the vault is an ephemeral
+// snapshot refreshed on demand (ADR-0001).
+const WatchedNoteSchema = Type.Object(
+  { path: Type.Union([Type.String(), Type.Null()]) },
+  { additionalProperties: false },
+);
 const VaultWriteDocSchema = Type.Object(
   { path: Type.String(), content: Type.String() },
   { additionalProperties: false },
@@ -363,6 +370,16 @@ export const IPC = {
    * the protocol handler checks, so this can't be a platform-neutral host
    * handler (see DESKTOP_SHELL_METHODS). */
   mintHtmlAppToken: invokeVoid<string>("vault:mint-html-app-token"),
+  /** Tell the host which note is open so it watches that single file for
+   * external edits (ADR-0001). Pass `{ path: null }` when no note is open. */
+  setWatchedNote: invoke<typeof WatchedNoteSchema, void>(
+    "vault:set-watched-note",
+    WatchedNoteSchema,
+  ),
+  /** Rebuild the ephemeral snapshot now: re-list + reindex + sync kick. The
+   * renderer calls this on window focus (debounced) and from the "Refresh vault"
+   * command; the host also calls it internally on delegation completion. */
+  refreshVault: invokeVoid<void>("vault:refresh"),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
   onVaultChanged: event<{ root: string }>("vault:changed"),

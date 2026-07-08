@@ -9,6 +9,9 @@ let tmp: string;
 let root: string;
 let settingsPath: string;
 
+/** Let the OS deliver a filesystem watch event and our debounce settle. */
+const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 250));
+
 function newManager(): VaultManager {
   return new VaultManager({ settingsPath, defaultRoot: root, manageAgentLink: false });
 }
@@ -137,9 +140,11 @@ describe("VaultManager", () => {
     expect(mgr.readText("a.md")).toBe("after");
   });
 
-  it("caps list() at MAX_LIST_ENTRIES but listAllPaths() sees every file (plan 001)", () => {
+  it("list() is uncapped and agrees with listAllPaths() on a plain vault (plan 016)", () => {
     const mgr = newManager();
     mgr.ensureReady();
+    // Past the old 2,000 cap — the crawl is on-demand now, so there is no cap
+    // (ADR-0001). Both listings must see every file, and agree.
     const TOTAL = 2050;
     for (let i = 0; i < TOTAL; i++) {
       const name = `f${String(i).padStart(4, "0")}.md`;
@@ -151,13 +156,38 @@ describe("VaultManager", () => {
     fs.writeFileSync(path.join(root, "foo.tmp"), "x");
     fs.writeFileSync(path.join(root, ".dotfile"), "x");
 
-    expect(mgr.list().length).toBe(2000);
+    expect(mgr.list().length).toBe(TOTAL);
     expect(mgr.listAllPaths().length).toBe(TOTAL);
+    expect(mgr.list().map((e) => e.path)).toEqual(mgr.listAllPaths());
 
     const all = mgr.listAllPaths();
     expect(all).not.toContain(".git/x");
     expect(all).not.toContain("foo.tmp");
     expect(all).not.toContain(".dotfile");
+  });
+
+  it("respects root .gitignore / .ignore in both list() and listAllPaths() (plan 016)", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    mgr.writeText("keep.md", "x");
+    mgr.writeText("build/out.md", "x");
+    mgr.writeText("logs/today.md", "x");
+    mgr.writeText("secret.md", "x");
+    fs.writeFileSync(path.join(root, ".gitignore"), "build/\nsecret.md\n");
+    fs.writeFileSync(path.join(root, ".ignore"), "logs/\n");
+
+    const paths = mgr.list().map((e) => e.path);
+    expect(paths).toContain("keep.md");
+    expect(paths).not.toContain("build/out.md");
+    expect(paths).not.toContain("logs/today.md");
+    expect(paths).not.toContain("secret.md");
+    // The ignore files themselves are dot-prefixed, so already excluded.
+    expect(paths).not.toContain(".gitignore");
+    // Ignore filters DISCOVERY, not access: an explicitly-opened ignored file
+    // still reads fine.
+    expect(mgr.readText("secret.md")).toBe("x");
+    // Sync sees the same filtered set.
+    expect(mgr.listAllPaths()).toEqual(paths.toSorted((a, b) => a.localeCompare(b)));
   });
 
   it("repoints the root and persists it across instances", () => {
@@ -194,5 +224,50 @@ describe("VaultManager", () => {
   it("statFingerprint returns null for a path escaping the vault (confinement)", () => {
     const mgr = newManager();
     expect(mgr.statFingerprint("../escape.md")).toBeNull();
+  });
+
+  // ---- Change notifier kinds (plan 016) --------------------------------------
+  // A NEW file changes the listing → "refresh" (broadcast). Overwriting an
+  // existing file is a content save → "save" (reindex + sync, no broadcast).
+  it("fires refresh on new file / delete / rename and save on overwrite", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    const kinds: string[] = [];
+    mgr.startWatching((_root, kind) => kinds.push(kind));
+
+    mgr.writeText("a.md", "one"); // new file
+    mgr.writeText("a.md", "two"); // overwrite (autosave-shaped)
+    mgr.writeBytes("img.png", new Uint8Array([1])); // new binary
+    mgr.delete("a.md");
+    mgr.writeText("b.md", "x");
+    mgr.rename("b.md", "c.md");
+
+    expect(kinds).toEqual(["refresh", "save", "refresh", "refresh", "refresh", "refresh"]);
+  });
+
+  // ---- Open-note watcher (plan 016) ------------------------------------------
+  // A real (non-recursive) single-file watch: external edits to the open note
+  // broadcast "refresh"; the app's own autosave (markSelfSave) is filtered.
+  it("open-note watcher broadcasts external edits but filters self-saves", async () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    mgr.writeText("open.md", "original");
+    const events: string[] = [];
+    mgr.startWatching((_root, kind) => events.push(kind));
+    mgr.watchOpenNote("open.md");
+
+    // App autosave: write, then mark it a self-save — the watch event is filtered.
+    mgr.writeText("open.md", "app-edit");
+    mgr.markSelfSave("open.md");
+    await settle();
+    const afterSelfSave = events.filter((k) => k === "refresh").length;
+
+    // External edit (NOT via the editor write path → not marked) → broadcast.
+    fs.writeFileSync(path.join(root, "open.md"), "external-edit");
+    await settle();
+    const afterExternal = events.filter((k) => k === "refresh").length;
+    expect(afterExternal).toBeGreaterThan(afterSelfSave);
+
+    mgr.stopWatching();
   });
 });

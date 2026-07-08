@@ -4,6 +4,7 @@ import {
   FileTextIcon,
   FolderIcon,
   MoonIcon,
+  RefreshCwIcon,
   SunIcon,
   WaypointsIcon,
 } from "lucide-react";
@@ -52,7 +53,7 @@ export function CommandPalette({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { entries, openFile, createFile, changeFolder } = useVault();
+  const { entries, openFile, createFile, changeFolder, refreshVault } = useVault();
   const setSurface = useViewStore((s) => s.setSurface);
   const { resolved, setTheme } = useTheme();
   const [query, setQuery] = useState("");
@@ -129,6 +130,13 @@ export function CommandPalette({
       icon: resolved === "dark" ? <SunIcon /> : <MoonIcon />,
       label: `Switch to ${resolved === "dark" ? "light" : "dark"} theme`,
       onSelect: () => setTheme(resolved === "dark" ? "light" : "dark"),
+    },
+    {
+      value: "refresh",
+      keywords: "refresh vault reload rescan files sync snapshot",
+      icon: <RefreshCwIcon />,
+      label: "Refresh vault",
+      onSelect: () => refreshVault(),
     },
     {
       value: "vault",

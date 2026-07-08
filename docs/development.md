@@ -40,6 +40,17 @@ talks to the renderer over Electron IPC. pi auth (OpenAI OAuth) is on-device; if
 this machine is logged in, chat/AI/delegation are fully live. Uses the
 last-opened vault from `~/.inteligir`.
 
+**Vault liveness is ephemeral, not watched (ADR-0001).** There is NO recursive
+filesystem watcher. The file listing is an on-demand snapshot: it refreshes on
+app-initiated structural writes (new file / delete / rename), on window focus
+(debounced), on the "Refresh vault" command, and on delegation completion. The
+ONLY watcher is a single non-recursive watch on the currently open note (armed
+via `setWatchedNote`), so external edits to the file you're looking at still
+reload/conflict live; the app's own autosaves are filtered out and generate no
+`onVaultChanged` traffic. The trade (accepted): an external edit to a file that
+is NOT open appears when the window regains focus — which is when you look.
+`onVaultChanged` is still the renderer contract; only its SOURCES changed.
+
 ## Ports & shared state
 
 | What                                                                      | Where                                                                     |

@@ -13,6 +13,7 @@
 // form an import cycle with the graph that composes it.
 // ---------------------------------------------------------------------------
 
+import type { VaultChangeKind } from "./vault/vault";
 import type { StoreRecoveryEvent } from "./lib/json-store";
 import type { Delegation } from "@repo/features/delegation";
 import type { SyncState } from "@repo/features/sync";
@@ -23,8 +24,9 @@ import type { SyncState } from "@repo/features/sync";
 export type HostNotifiers = {
   /** A JsonStore quarantined a data file (json-store's default recovery seam). */
   storeRecovery: (event: StoreRecoveryEvent) => void;
-  /** A vault file changed on disk (watcher broadcast → onVaultChanged + reindex). */
-  vaultChange: (root: string) => void;
+  /** The vault changed. `refresh` broadcasts onVaultChanged + reindexes; `save`
+   * (an autosave content overwrite) reindexes only — no broadcast (ADR-0001). */
+  vaultChange: (root: string, kind: VaultChangeKind) => void;
   /** The delegation list changed (drives inline badges). */
   delegationsChanged: (delegations: Delegation[]) => void;
   /** A delegation's live transcript advanced (drives the response dock). */
