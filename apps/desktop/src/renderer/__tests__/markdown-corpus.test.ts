@@ -42,6 +42,7 @@ const EXPECTED: Record<string, Classification> = {
   "tasks.md": "canonical",
   "notes/roadmap.md": "canonical",
   "notes/snippets.md": "canonical",
+  "notes/archive/2025-recap.md": "canonical",
   "journal.md": "canonical",
   "kitchen-sink.md": "canonical",
   "legacy-web-clip.md": "raw:parse-error",

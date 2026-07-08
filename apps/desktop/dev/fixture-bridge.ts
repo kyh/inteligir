@@ -80,6 +80,15 @@ Inline \`code\` and a blockquote:
 
 > Bytes on disk stay canonical.
 `,
+  // A folder-inside-a-folder so the sidebar tree shows depth-2 nesting and
+  // multi-level indent guides.
+  "notes/archive/2025-recap.md": `# 2025 recap
+
+A nested archive note exercising deep folders in the sidebar tree.
+
+- Shipped the vault sync engine
+- Ported the editor kits
+`,
   "journal.md": `# Journal
 
 ## 2026-07-01
