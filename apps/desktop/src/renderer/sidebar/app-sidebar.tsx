@@ -216,7 +216,12 @@ function TreeNodes({ nodes, ...handlers }: { nodes: VaultTreeNode[] } & RowHandl
     <>
       {nodes.map((node) =>
         node.type === "folder" ? (
-          <SidebarMenuItem key={node.path}>
+          // Plain <li>, NOT SidebarMenuItem: the folder node wraps its whole
+          // subtree, so the `group/menu-item` class would make hovering
+          // anywhere in the folder match every descendant row's
+          // `group-hover/menu-item` and reveal ALL rename/delete actions at
+          // once. Folders have no row actions, so they don't need the group.
+          <li key={node.path} data-sidebar="menu-item" className="relative">
             <Collapsible defaultOpen className="group/collapsible">
               <CollapsibleTrigger
                 render={
@@ -233,7 +238,7 @@ function TreeNodes({ nodes, ...handlers }: { nodes: VaultTreeNode[] } & RowHandl
                 </SidebarMenuSub>
               </CollapsibleContent>
             </Collapsible>
-          </SidebarMenuItem>
+          </li>
         ) : (
           <FileRow
             key={node.path}
@@ -296,7 +301,12 @@ function FileRow({
         size="sm"
         isActive={selectedPath === path}
         onClick={() => onOpen(path)}
-        className={cn(selectedPath === path && "bg-sidebar-accent text-sidebar-accent-foreground")}
+        className={cn(
+          // Clear the two hover-revealed actions (Delete at right-1, Rename at
+          // right-7, w-5 each) so they never overlay the truncated name.
+          "group-focus-within/menu-item:pr-12 group-hover/menu-item:pr-12",
+          selectedPath === path && "bg-sidebar-accent text-sidebar-accent-foreground",
+        )}
       >
         {kind === "doc" ? <FileTextIcon /> : <FileIcon />}
         <span>{name}</span>
