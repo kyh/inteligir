@@ -222,7 +222,14 @@ describe("SyncEngine stat-keyed hash cache", () => {
     vault.stickyOnWrite = true;
 
     const pull = await engine.syncOnce();
-    expect(pull).toEqual({ status: "ok", pushed: 0, pulled: 1, deleted: 0, conflicts: 0, conflictPaths: [] });
+    expect(pull).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 1,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(vault.readText("note.md")).toBe("remote-new");
 
     // The follow-up pass must see the file as converged (its manifest carries
@@ -231,7 +238,14 @@ describe("SyncEngine stat-keyed hash cache", () => {
     // would spuriously re-push the stale bytes, bumping the generation.
     const genBefore = port.currentGeneration();
     const settled = await engine.syncOnce();
-    expect(settled).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 0, conflicts: 0, conflictPaths: [] });
+    expect(settled).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 0,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(port.currentGeneration()).toBe(genBefore);
     expect(calls).toContain("remote-new"); // the pulled bytes were hashed
   });

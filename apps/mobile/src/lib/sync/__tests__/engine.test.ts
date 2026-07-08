@@ -52,7 +52,14 @@ describe("SyncEngine over the RN adapters", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 2, pulled: 0, deleted: 0, conflicts: 0, conflictPaths: [] });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 2,
+      pulled: 0,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(await remoteText("a.md")).toBe("AAA");
     expect(await remoteText("notes/b.md")).toBe("BBB");
   });
@@ -62,7 +69,14 @@ describe("SyncEngine over the RN adapters", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 1, deleted: 0, conflicts: 0, conflictPaths: [] });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 1,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(vault.readText("remote-only.md")).toBe("REMOTE");
   });
 
@@ -73,7 +87,14 @@ describe("SyncEngine over the RN adapters", () => {
 
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 0, conflicts: 0, conflictPaths: [] });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 0,
+      deleted: 0,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(port.currentGeneration()).toBe(genAfterFirst);
   });
 
@@ -85,7 +106,14 @@ describe("SyncEngine over the RN adapters", () => {
     vault.files.delete("gone.md");
     const out = await newEngine().syncOnce();
 
-    expect(out).toEqual({ status: "ok", pushed: 0, pulled: 0, deleted: 1, conflicts: 0, conflictPaths: [] });
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 0,
+      deleted: 1,
+      conflicts: 0,
+      conflictPaths: [],
+    });
     expect(await remoteText("gone.md")).toBeNull();
   });
 

@@ -799,7 +799,10 @@ export function createFixtureBridge(): Bridge {
       ];
       for (const [i, copyPath] of copies.entries()) {
         if (vault.has(copyPath)) continue;
-        vault.set(copyPath, `# Conflict copy ${i + 1}\n\nThe losing side of a simulated conflict.\n`);
+        vault.set(
+          copyPath,
+          `# Conflict copy ${i + 1}\n\nThe losing side of a simulated conflict.\n`,
+        );
         indexEntry(copyPath);
       }
       touchVault();
