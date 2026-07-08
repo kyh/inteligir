@@ -360,7 +360,7 @@ export function transition(event: MachineEvent): void {
 
 /** Determine initial state from persisted auth/setup and auto-start if ready.
  * The delegation + inline-AI push channels are no longer wired here — the
- * composition root (create-host → buildHostContext) owns the whole notifier
+ * composition root (create-host → constructHostSingletons) owns the whole notifier
  * composition and injects them at construction. */
 export function initMachine(): void {
   const loggedIn = isLoggedIn();
