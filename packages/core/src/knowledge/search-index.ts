@@ -127,7 +127,7 @@ export class SearchIndex {
         // Range-scan just the keys sharing this prefix: sorted keys make the
         // prefix span a contiguous block from the lower bound, so walk it and
         // stop at the first non-match instead of iterating every posting.
-        if (this.sortedTokens === null) this.sortedTokens = [...this.postings.keys()].sort();
+        if (this.sortedTokens === null) this.sortedTokens = [...this.postings.keys()].toSorted();
         const sorted = this.sortedTokens;
         for (let idx = SearchIndex.lowerBound(sorted, token); idx < sorted.length; idx++) {
           const candidate = sorted[idx];
