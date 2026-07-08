@@ -19,6 +19,7 @@ import { EmbedKit } from "@renderer/editor/kits/embed-kit";
 import { EmojiKit } from "@renderer/editor/kits/emoji-kit";
 import { FloatingToolbarKit } from "@renderer/editor/kits/floating-toolbar-kit";
 import { FrontmatterKit } from "@renderer/editor/kits/frontmatter-kit";
+import { ImageKit } from "@renderer/editor/kits/image-kit";
 import { LinkKit } from "@renderer/editor/kits/link-kit";
 import { ListKit } from "@renderer/editor/kits/list-kit";
 import { MarkdownKit } from "@renderer/editor/kits/markdown-kit";
@@ -39,6 +40,7 @@ export const EDITOR_KIT = [
   ...ToggleKit,
   ...ColumnKit,
   ...EmbedKit,
+  ...ImageKit,
   ...DateKit,
   ...MathKit,
   ...CalloutKit,
