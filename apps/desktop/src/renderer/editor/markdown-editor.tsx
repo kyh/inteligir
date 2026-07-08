@@ -23,9 +23,14 @@ import { WRITE_PLACEHOLDER } from "@renderer/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
 import { PropertiesPanel } from "@renderer/editor/properties/properties-panel";
-import { createSerializeScheduler } from "@renderer/editor/serialize-scheduler";
+import { createDebouncer } from "@renderer/lib/debounce";
 import { TableOfContents } from "@renderer/editor/toc";
 import { useAiReviewStore } from "@renderer/stores/ai-review-store";
+
+/** How long after the last qualifying change the whole-document serialize
+ * waits before it runs. Bounds per-keystroke work without changing what
+ * reaches disk — the 600ms autosave debounce downstream gates the write. */
+const SERIALIZE_DEBOUNCE_MS = 150;
 
 // Seed markdown → Plate value through the owned pipeline. Unparseable content
 // is impossible behind the richAvailable parse gate, but never crash the
@@ -110,7 +115,9 @@ export function MarkdownEditor({
   doSerializeRef.current = doSerialize;
   // One scheduler for the editor's lifetime; the closure re-reads the ref so it
   // never goes stale even though doSerialize's identity is already stable.
-  const [scheduler] = useState(() => createSerializeScheduler(() => doSerializeRef.current()));
+  const [scheduler] = useState(() =>
+    createDebouncer(() => doSerializeRef.current(), SERIALIZE_DEBOUNCE_MS),
+  );
 
   // Re-seed when `value` changes from the outside (e.g. the agent edited the
   // file and the panel reloaded it). Without this the Plate surface keeps the

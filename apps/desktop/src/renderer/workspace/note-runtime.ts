@@ -6,6 +6,7 @@
 // when the file disappears out from under the open note.
 
 import { VaultEditorController, type VaultIO } from "@renderer/editor/vault-editor";
+import { createDebouncer } from "@renderer/lib/debounce";
 
 /** How long after the last edit the autosave debounce waits before flushing. */
 const AUTOSAVE_DEBOUNCE_MS = 600;
@@ -56,7 +57,10 @@ export function createNoteRuntime(
   const controller = new VaultEditorController(io);
   controller.setRoot(root);
 
-  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  // Trailing autosave debounce — a burst of edits coalesces into one flush.
+  const autosave = createDebouncer(() => {
+    void controller.flush();
+  }, AUTOSAVE_DEBOUNCE_MS);
   // Runs at the top of flush()/remove() — the Rich editor's serialize flush,
   // draining any keystroke still sitting in the serialize debounce into the
   // buffer before the runtime persists (or discards) the file.
@@ -68,13 +72,6 @@ export function createNoteRuntime(
   // fire a drop for a runtime the provider has already replaced (the original
   // `runtimeRef.current === runtime` guard — replacement always disposes first).
   let disposed = false;
-
-  const clearTimer = (): void => {
-    if (saveTimer !== null) {
-      clearTimeout(saveTimer);
-      saveTimer = null;
-    }
-  };
 
   const unsubscribe = controller.subscribe(() => {
     const st = controller.getState();
@@ -99,29 +96,25 @@ export function createNoteRuntime(
       // emit unchanged content) — don't dirty the buffer or schedule a write.
       if (controller.getState().content === next) return;
       controller.edit(next);
-      clearTimer();
-      saveTimer = setTimeout(() => {
-        saveTimer = null;
-        void controller.flush();
-      }, AUTOSAVE_DEBOUNCE_MS);
+      autosave.schedule();
     },
     registerPreFlush(fn: (() => void) | null): void {
       preFlush = fn;
     },
     async flush(): Promise<boolean> {
       preFlush?.();
-      clearTimer();
+      autosave.cancel();
       await controller.flush();
       return !controller.getState().dirty;
     },
     dispose(): void {
       disposed = true;
-      clearTimer();
+      autosave.cancel();
       unsubscribe();
     },
     async remove(): Promise<void> {
       preFlush?.();
-      clearTimer();
+      autosave.cancel();
       await controller.remove();
     },
   };

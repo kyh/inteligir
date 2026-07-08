@@ -17,6 +17,7 @@
 // Bridge.
 // ---------------------------------------------------------------------------
 
+import { docExists } from "@renderer/lib/bridge";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
@@ -78,17 +79,6 @@ function requireDocInput(value: unknown): { body?: string; properties?: Record<s
   return value;
 }
 
-// ---- Existence probe -------------------------------------------------------
-
-async function exists(bridge: BrokerBridge, path: string): Promise<boolean> {
-  try {
-    await bridge.readVaultDoc({ path });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // ---- Dispatch --------------------------------------------------------------
 
 /** Handle one validated broker request. Throws on any invalid input, unknown
@@ -122,7 +112,7 @@ export async function handleBrokerRequest(
     case "create": {
       const path = requireSafePath(args[0]);
       const input = requireDocInput(args[1] ?? {});
-      if (await exists(bridge, path)) throw new Error(`already exists: ${path}`);
+      if (await docExists(bridge, path)) throw new Error(`already exists: ${path}`);
       const content = serializeDoc(input.properties ?? {}, input.body ?? "");
       await bridge.writeVaultDoc({ path, content });
       return { path };
