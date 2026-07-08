@@ -40,19 +40,14 @@ const FrontmatterBasePlugin = createSlatePlugin({
 
 export const FrontmatterBaseKit = [FrontmatterBasePlugin];
 
+// The frontmatter's user-facing surface is now the typed properties panel
+// (editor/properties/), rendered above the document. The node itself stays in
+// the value (it serializes the `---` block byte-for-byte) but renders
+// invisibly — zero-height and non-interactive, so it keeps its DOM point for
+// Slate while the caret and block chrome skip past it.
 function FrontmatterElement(props: PlateElementProps) {
-  const value = typeof props.element.value === "string" ? props.element.value : "";
   return (
-    <PlateElement {...props} className="mb-4">
-      <div
-        contentEditable={false}
-        className="rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-xs text-muted-foreground select-text"
-        title="Frontmatter is read-only in Rich mode — edit it in Raw"
-      >
-        <div className="mb-1 opacity-50 select-none">---</div>
-        <pre className="whitespace-pre-wrap">{value}</pre>
-        <div className="mt-1 opacity-50 select-none">---</div>
-      </div>
+    <PlateElement {...props} className="h-0 overflow-hidden select-none">
       {props.children}
     </PlateElement>
   );

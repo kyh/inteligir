@@ -11,7 +11,13 @@
 // worker, or RN like the rest of @repo/core.
 // ---------------------------------------------------------------------------
 
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import {
+  isMap,
+  isScalar,
+  parse as parseYaml,
+  parseDocument,
+  stringify as stringifyYaml,
+} from "yaml";
 
 /** A doc's frontmatter as a parsed top-level mapping. */
 export type Properties = Record<string, unknown>;
@@ -76,4 +82,156 @@ export function applyPropertiesPatch(current: Properties, patch: PropertiesPatch
     else next[key] = value;
   }
   return next;
+}
+
+// ---------------------------------------------------------------------------
+// Typed properties — the file-properties panel's parse/serialize contract
+// (plan 017, hubble ADR-0003: the markdown file is the ONLY property store).
+// This sits ONE layer above splitFrontmatter: the panel already holds the
+// frontmatter block's raw yaml (the Plate frontmatter node's `value`), so these
+// helpers work on that yaml text directly. Kept here beside the split seam so
+// there is a single core home for frontmatter/YAML knowledge — the broker's
+// `read → properties` and the panel never fork a second YAML parser.
+//
+// Conservative typing (YAML 1.2 core schema, the `yaml` package's default):
+// `true`/`false` are the ONLY booleans, so `yes/no/on/off` stay text; the core
+// schema has no timestamp tag, so dates are recognized ONLY from explicit
+// `YYYY-MM-DD` strings; anything the panel can't safely round-trip (nested
+// maps, mixed/non-string arrays, nulls, anchors) is "unsupported" — displayed
+// read-only and preserved byte-for-byte on save via the Document API.
+// ---------------------------------------------------------------------------
+
+export type PropertyType = "text" | "number" | "checkbox" | "date" | "tags" | "unsupported";
+
+/** A frontmatter key parsed into a typed control. The ADT keeps illegal
+ * states unrepresentable: each type carries exactly the value shape its field
+ * edits, and `unsupported` carries the raw source bytes it must preserve. */
+export type TypedProperty =
+  | { key: string; type: "text"; value: string }
+  | { key: string; type: "number"; value: number }
+  | { key: string; type: "checkbox"; value: boolean }
+  | { key: string; type: "date"; value: string }
+  | { key: string; type: "tags"; value: string[] }
+  | { key: string; type: "unsupported"; rawYaml: string };
+
+/** The result of typing a frontmatter block:
+ *  - `none`    — the block is empty (no properties to show).
+ *  - `invalid` — malformed yaml, duplicate keys, or a non-mapping root. The
+ *                panel shows "properties unavailable" and NEVER rewrites the
+ *                block: what it can't read, it can't destroy.
+ *  - `valid`   — a top-level mapping, each key classified. */
+export type ParsedProperties =
+  | { kind: "valid"; properties: TypedProperty[] }
+  | { kind: "invalid" }
+  | { kind: "none" };
+
+// Explicit calendar-date shape only — no month/day range check, so an
+// out-of-range `2026-13-40` still edits as a (plain-text) date field rather
+// than being silently reclassified; the point is byte-safety, not validation.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function classify(key: string, value: unknown, rawYaml: string): TypedProperty {
+  if (typeof value === "boolean") return { key, type: "checkbox", value };
+  if (typeof value === "number" && Number.isFinite(value)) return { key, type: "number", value };
+  if (typeof value === "string") {
+    return DATE_RE.test(value) ? { key, type: "date", value } : { key, type: "text", value };
+  }
+  if (isStringArray(value)) return { key, type: "tags", value };
+  return { key, type: "unsupported", rawYaml };
+}
+
+/** Type a frontmatter block's raw yaml into editable properties. Never throws:
+ * a parse failure (or non-mapping root) is reported as `invalid`, leaving the
+ * caller to preserve the raw block untouched. */
+export function parseProperties(yamlText: string): ParsedProperties {
+  if (yamlText.trim() === "") return { kind: "none" };
+  let doc;
+  try {
+    doc = parseDocument(yamlText);
+  } catch {
+    return { kind: "invalid" };
+  }
+  // Duplicate keys and malformed yaml both surface as document errors.
+  if (doc.errors.length > 0) return { kind: "invalid" };
+  const contents = doc.contents;
+  if (!isMap(contents)) return { kind: "invalid" };
+  const properties: TypedProperty[] = [];
+  for (const item of contents.items) {
+    const keyNode = item.key;
+    const key = isScalar(keyNode) ? String(keyNode.value) : String(keyNode);
+    const valueNode = item.value;
+    // Slice the value's source bytes for the unsupported read-only display;
+    // range[0..1] is the value span (excludes the key and trailing node gap).
+    const range = valueNode?.range;
+    const rawYaml = range ? yamlText.slice(range[0], range[1]).trimEnd() : "";
+    const value = valueNode == null ? null : valueNode.toJSON();
+    properties.push(classify(key, value, rawYaml));
+  }
+  return { kind: "valid", properties };
+}
+
+/** Type a single new key from a user-entered raw value (the panel's "Add
+ * property" flow): the value is read as a YAML scalar so `true`, `42`,
+ * `2026-07-01`, `[a, b]` type naturally, exactly as if it had been typed into
+ * the block. An empty value is an empty text property. */
+export function typeNewProperty(key: string, rawValue: string): TypedProperty {
+  if (rawValue.trim() === "") return { key, type: "text", value: "" };
+  let value: unknown;
+  try {
+    value = parseYaml(rawValue);
+  } catch {
+    value = rawValue;
+  }
+  return classify(key, value, rawValue);
+}
+
+function typedValue(prop: TypedProperty): unknown {
+  return prop.type === "unsupported" ? undefined : prop.value;
+}
+
+function valueEqual(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => item === b[i]);
+  }
+  return a === b;
+}
+
+/** Recombine typed properties back into a frontmatter block's raw yaml (no
+ * fences, no trailing newline — matching remark-frontmatter's node `value`).
+ * Works over the `yaml` Document parsed from `priorRaw` so untouched keys —
+ * crucially every `unsupported` one — keep their exact source bytes, comments
+ * included; key ORDER is preserved and new keys append. Only keys whose value
+ * actually changed are re-set, so an edit to one property yields a minimal
+ * diff. An empty property list clears the block entirely (returns ""). */
+export function serializeProperties(properties: TypedProperty[], priorRaw: string): string {
+  if (properties.length === 0) return "";
+  const doc = parseDocument(priorRaw);
+  let parsedPrior: unknown = null;
+  try {
+    if (priorRaw.trim() !== "") parsedPrior = parseYaml(priorRaw);
+  } catch {
+    parsedPrior = null;
+  }
+  const priorValues: Properties = isPlainRecord(parsedPrior) ? parsedPrior : {};
+  if (isMap(doc.contents)) {
+    const desired = new Set(properties.map((prop) => prop.key));
+    const removable = doc.contents.items
+      .map((item) => (isScalar(item.key) ? String(item.key.value) : String(item.key)))
+      .filter((key) => !desired.has(key));
+    for (const key of removable) doc.delete(key);
+  }
+  for (const prop of properties) {
+    // Unsupported keys are never re-set — the Document keeps their raw bytes.
+    if (prop.type === "unsupported") continue;
+    const next = typedValue(prop);
+    const had = Object.prototype.hasOwnProperty.call(priorValues, prop.key);
+    if (!had || !valueEqual(priorValues[prop.key], next)) doc.set(prop.key, next);
+  }
+  // A mapping always stringifies with a single trailing newline; the frontmatter
+  // node value carries none, so drop exactly one.
+  return doc.toString().replace(/\n$/, "");
 }
