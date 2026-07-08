@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
+import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Switch } from "@repo/ui/components/switch";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
@@ -11,6 +12,7 @@ import { useTheme, type Theme } from "@renderer/lib/use-theme";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useAiSettingsStore } from "@renderer/stores/ai-settings-store";
 import { useVoiceStore } from "@renderer/stores/voice-store";
+import { useVault } from "@renderer/workspace/vault-context";
 import type { NotificationSettings } from "@repo/features/ipc";
 import type { SyncState, SyncStatus } from "@repo/features/sync";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
@@ -174,13 +176,14 @@ function formatSyncStatus(status: SyncStatus): string {
 // onSyncStateChanged subscription keeps this reactive across config/auth/status
 // changes (including a background pass finishing). The coordinator URL field is
 // kept local so an in-flight edit isn't clobbered by a pushed state update.
-function SyncSection() {
+function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) | undefined }) {
   const [state, setSyncView] = useState<SyncState | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { openFile, deleteEntry } = useVault();
 
   useEffect(() => {
     const bridge = getBridge();
@@ -260,8 +263,42 @@ function SyncSection() {
     }
   }, []);
 
+  // Reviewing a conflict is a workspace act — close the dialog, show the note.
+  const handleOpenConflict = useCallback(
+    (path: string) => {
+      onRequestClose?.();
+      openFile(path);
+    },
+    [onRequestClose, openFile],
+  );
+
+  // Dismissing deletes the conflict COPY file (the sibling holding the losing
+  // version) — the canonical note is untouched. The host prunes resolved rows
+  // on the next state read, so refresh promptly after the delete lands.
+  const handleDismissConflict = useCallback(
+    async (path: string) => {
+      const confirmed = await confirm({
+        title: "Delete this conflict copy?",
+        body: `The conflict copy file “${path}” will be deleted from your vault. The note it was copied from is not touched.`,
+        confirmLabel: "Delete copy",
+        destructive: true,
+      });
+      if (!confirmed) return;
+      setBusy(true);
+      try {
+        await deleteEntry(path);
+        const next = await getBridge()?.getSyncState();
+        if (next) setSyncView(next);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [deleteEntry],
+  );
+
   const loading = state === null;
   const signedIn = state?.signedIn === true;
+  const conflicts = state?.conflicts ?? [];
 
   return (
     <div className="flex flex-col gap-2">
@@ -355,6 +392,49 @@ function SyncSection() {
             </Button>
           </div>
 
+          {conflicts.length > 0 && (
+            <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+              <span className="text-[10px] text-muted-foreground">
+                Conflicts — a sync kept both versions of these notes. The losing side was saved as a
+                copy: review it, fold anything worth keeping into the note, then dismiss the copy.
+              </span>
+              {conflicts.map((conflict) => (
+                <div
+                  key={conflict.path}
+                  className="flex items-center justify-between gap-2 rounded-[8px] bg-card px-2.5 py-1.5"
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-xs text-foreground">
+                      {conflict.path.split("/").at(-1) ?? conflict.path}
+                    </span>
+                    <span className="truncate text-[10px] text-muted-foreground">
+                      {conflict.path}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenConflict(conflict.path)}
+                      className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handleDismissConflict(conflict.path)}
+                      disabled={busy}
+                      className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+                    >
+                      Dismiss copy
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {error && <span className="text-[10px] text-destructive">{error}</span>}
         </div>
       </div>
@@ -420,7 +500,7 @@ function EditorAiSection() {
   );
 }
 
-export function SettingsPanel() {
+export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void }) {
   const appState = useAgentStore((s) => s.appState);
   const newSession = useAgentStore((s) => s.newSession);
   const isReady = appState.phase === "ready";
@@ -557,7 +637,7 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      <SyncSection />
+      <SyncSection onRequestClose={onRequestClose} />
 
       <EditorAiSection />
 
