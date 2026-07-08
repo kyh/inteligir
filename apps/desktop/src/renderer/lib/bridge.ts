@@ -14,3 +14,18 @@ export function installBridge(bridge: Bridge): void {
 export function getBridge(): Bridge | null {
   return installed;
 }
+
+/** Does a vault doc exist at `path`? A read that resolves means yes; any
+ * rejection (absent, unreadable) means no — the caller only wants the
+ * boolean, never the bytes or the error. */
+export async function docExists(
+  bridge: { readVaultDoc(payload: { path: string }): Promise<string> },
+  path: string,
+): Promise<boolean> {
+  try {
+    await bridge.readVaultDoc({ path });
+    return true;
+  } catch {
+    return false;
+  }
+}

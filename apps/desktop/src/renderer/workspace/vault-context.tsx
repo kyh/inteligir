@@ -12,7 +12,8 @@ import {
 
 import { toast } from "@repo/ui/components/sonner";
 
-import { getBridge } from "@renderer/lib/bridge";
+import { docExists, getBridge } from "@renderer/lib/bridge";
+import { createDebouncer } from "@renderer/lib/debounce";
 import { settleTransients } from "@renderer/editor/ai/transient-settle";
 import { registerOpenNoteFlush, registerOpenNotePath } from "@renderer/workspace/open-note-flush";
 import { type RawReason, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
@@ -272,9 +273,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const listSeq = useRef(0);
   // Last-applied listing, in a ref so the async callback compares against the
   // truly latest value (React state would be a stale closure). Every vault
-  // broadcast re-fetches the listing — including each autosave tripping the fs
-  // watcher — so skip the state set when nothing structural changed to keep
-  // typing from re-rendering the sidebar tree on every save.
+  // broadcast re-fetches the listing — focus refreshes, delegation completion,
+  // external open-note edits (autosaves went silent with ADR-0001) — and most
+  // of those don't change the listing, so skip the state set when nothing
+  // structural changed to keep the sidebar tree from re-rendering on refocus.
   const lastEntriesRef = useRef<VaultEntry[]>([]);
   const refreshList = useCallback(() => {
     const bridge = getBridge();
@@ -325,11 +327,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const bridge = getBridge();
       if (!bridge) return false;
       // Don't truncate an existing file — it already satisfies "exists".
-      const exists = await bridge
-        .readVaultDoc({ path })
-        .then(() => true)
-        .catch(() => false);
-      if (exists) return true;
+      if (await docExists(bridge, path)) return true;
       const created = await bridge
         .writeVaultDoc({ path, content: "" })
         .then(() => true)
@@ -488,18 +486,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // + sync kick). The open note itself is covered live by the host's open-note
   // watcher, so this is about the rest of the vault.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const onFocus = () => {
-      if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        refreshVault();
-      }, FOCUS_REFRESH_DEBOUNCE_MS);
-    };
+    const refresh = createDebouncer(refreshVault, FOCUS_REFRESH_DEBOUNCE_MS);
+    const onFocus = () => refresh.schedule();
     window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("focus", onFocus);
-      if (timer !== null) clearTimeout(timer);
+      refresh.cancel();
     };
   }, [refreshVault]);
 
