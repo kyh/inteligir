@@ -64,6 +64,47 @@ describe("VaultManager", () => {
     expect(() => mgr.writeText("/etc/passwd", "x")).toThrow(/escapes the vault/);
   });
 
+  // Symlink-safe confinement (plan 007): the lexical check alone lets a symlink
+  // planted INSIDE the vault escape it, so resolve() also realpaths the target.
+  // Realpath the root in these assertions: on macOS os.tmpdir() lives under a
+  // symlinked ancestor (/var → /private/var), so the lexical root differs from
+  // its canonical form.
+  it("blocks reading through a symlink that points to a file outside the vault", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    const outside = path.join(tmp, "outside.md");
+    fs.writeFileSync(outside, "secret");
+    fs.symlinkSync(outside, path.join(fs.realpathSync(root), "link.md"));
+    expect(() => mgr.readText("link.md")).toThrow(/escapes the vault/);
+  });
+
+  it("blocks writing through a symlinked directory that points outside the vault", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    const outsideDir = path.join(tmp, "outside-dir");
+    fs.mkdirSync(outsideDir, { recursive: true });
+    fs.symlinkSync(outsideDir, path.join(fs.realpathSync(root), "link-dir"), "dir");
+    expect(() => mgr.writeText("link-dir/x.md", "x")).toThrow(/escapes the vault/);
+    // The target dir stays untouched — nothing leaked out.
+    expect(fs.existsSync(path.join(outsideDir, "x.md"))).toBe(false);
+  });
+
+  it("still allows a symlink that points to another file inside the vault", () => {
+    const mgr = newManager();
+    mgr.writeText("real.md", "hello");
+    fs.symlinkSync(
+      path.join(fs.realpathSync(root), "real.md"),
+      path.join(fs.realpathSync(root), "inlink.md"),
+    );
+    expect(mgr.readText("inlink.md")).toBe("hello");
+  });
+
+  it("still creates a brand-new (non-existent) file inside the vault", () => {
+    const mgr = newManager();
+    mgr.writeText("fresh/new.md", "x");
+    expect(mgr.readText("fresh/new.md")).toBe("x");
+  });
+
   it("deletes files", () => {
     const mgr = newManager();
     mgr.writeText("temp.md", "x");

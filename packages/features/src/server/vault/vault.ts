@@ -302,15 +302,27 @@ export class VaultManager {
 
   // ---- Internals ------------------------------------------------------------
 
-  // Lexical confinement: resolve the request against the root and require it to
-  // stay inside. Rejects `..` traversal and absolute escapes ("/etc/passwd"
-  // resolves outside root). Residual: a symlink planted inside the vault could
-  // still point out, but the user owns the vault and the agent already has raw
-  // fs access, so this guards the renderer path, not the agent.
+  // Confinement in two layers, both required to land inside the vault:
+  //  (1) Lexical: resolve the request against the root and require it to stay
+  //      inside. Rejects `..` traversal and absolute escapes ("/etc/passwd"
+  //      resolves outside root).
+  //  (2) Symlink-safe: realpath the target — dereferencing any symlink planted
+  //      inside the vault by git/Dropbox/another tool — and re-verify it still
+  //      lands inside the realpath'd root. This closes the residual where a
+  //      link under the vault points out, guarding every renderer/IPC file op.
+  //      (The agent keeps raw fs access by design; that surface is unconfined.)
+  //      realPath resolves the nearest existing ancestor and rejoins the
+  //      not-yet-created remainder, so a write that creates a new file still
+  //      passes. One realpathSync per op — acceptable; no caching.
   private resolve(rel: string): string {
     const root = path.resolve(this.getRoot());
     const target = path.resolve(root, rel);
     if (target !== root && !target.startsWith(root + path.sep)) {
+      throw new Error(`Path escapes the vault: ${rel}`);
+    }
+    const realRoot = realPath(root);
+    const realTarget = realPath(target);
+    if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) {
       throw new Error(`Path escapes the vault: ${rel}`);
     }
     return target;
