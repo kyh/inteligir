@@ -238,6 +238,20 @@ export class VaultManager {
     atomicWrite(target, content);
   }
 
+  /** Cheap stat-keyed change-detection fingerprint for the sync engine's hash
+   * cache — `mtimeMs:size:ino`, or `null` on any error (missing file, etc.).
+   * A change to content necessarily changes at least one of these, so a matching
+   * fingerprint safely licenses reusing a cached hash instead of re-reading. The
+   * path is confined through `resolve()` exactly like every other file op. */
+  statFingerprint(rel: string): string | null {
+    try {
+      const stat = fs.statSync(this.resolve(rel));
+      return `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
+    } catch {
+      return null;
+    }
+  }
+
   delete(rel: string): boolean {
     assertVaultWritable();
     const target = this.resolve(rel);

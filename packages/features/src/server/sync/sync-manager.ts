@@ -63,6 +63,8 @@ export function createVaultSyncIo(vault: VaultManager): SyncIo {
     remove: (path) => {
       vault.delete(path);
     },
+    // Stat-keyed change detection so a pass skips re-hashing unchanged files.
+    fingerprint: (path) => vault.statFingerprint(path),
   };
 }
 

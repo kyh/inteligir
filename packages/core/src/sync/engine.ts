@@ -44,6 +44,11 @@ export type SyncIo = {
   write(path: VaultPath, content: Uint8Array): void;
   /** Remove a vault file (idempotent — absent is fine). */
   remove(path: VaultPath): void;
+  /** Cheap change-detection key for a file (e.g. "mtimeMs:size:ino"), or null
+   * when unavailable. OPTIONAL — platforms without cheap stat omit it and the
+   * engine re-hashes every file (previous behavior). A stale fingerprint must
+   * be impossible: the key must change whenever content can have changed. */
+  fingerprint?(path: VaultPath): string | null;
 };
 
 /**
@@ -100,6 +105,14 @@ export class SyncEngine {
   private readonly hash: Hasher;
   private readonly stamp: Clock;
   private readonly debounceMs: number;
+
+  // Stat-keyed hash cache: a passing fingerprint lets a pass reuse a file's
+  // hash without re-reading it. Keyed by path; invalidated whenever the engine
+  // itself writes/removes a file (the fingerprint would otherwise go stale).
+  private readonly hashCache = new Map<
+    VaultPath,
+    { fp: string; contentHash: string; size: number }
+  >();
 
   // Serialize passes so two never overlap (a debounce fire during an in-flight
   // pass queues behind it rather than racing the same files).
@@ -235,6 +248,7 @@ export class SyncEngine {
       case "delete": {
         if (op.side === "local") {
           this.io.remove(op.path);
+          this.hashCache.delete(op.path);
           converged.delete(op.path);
           counts.deleted += 1;
           return;
@@ -276,6 +290,7 @@ export class SyncEngine {
       return;
     }
     this.io.write(path, got.content);
+    this.hashCache.delete(path);
     converged.set(path, got.file);
   }
 
@@ -320,6 +335,7 @@ export class SyncEngine {
   ): Promise<void> {
     const copyPath = conflictCopyName(path, this.stamp());
     this.io.write(copyPath, losingBytes);
+    this.hashCache.delete(copyPath);
     const res = await this.port.putFile(copyPath, losingBytes, ABSENT_VERSION);
     if (res.ok) converged.set(copyPath, res.file);
   }
@@ -328,9 +344,28 @@ export class SyncEngine {
 
   private async buildLocalManifest(): Promise<LocalManifest> {
     const files: LocalFile[] = [];
+    const seen = new Set<VaultPath>();
     for (const path of this.io.list()) {
+      seen.add(path);
+      const fp = this.io.fingerprint?.(path) ?? null;
+      if (fp !== null) {
+        const cached = this.hashCache.get(path);
+        if (cached && cached.fp === fp) {
+          // Fingerprint matches — content can't have changed; reuse the hash.
+          files.push({ path, contentHash: cached.contentHash, size: cached.size });
+          continue;
+        }
+      }
       const bytes = this.io.read(path);
-      files.push({ path, contentHash: await this.hash(bytes), size: bytes.length });
+      const contentHash = await this.hash(bytes);
+      const size = bytes.length;
+      files.push({ path, contentHash, size });
+      // Only cache when we have a fingerprint to validate future reuse against.
+      if (fp !== null) this.hashCache.set(path, { fp, contentHash, size });
+    }
+    // Prune entries for files that vanished from the vault since last pass.
+    for (const path of this.hashCache.keys()) {
+      if (!seen.has(path)) this.hashCache.delete(path);
     }
     return { vaultId: this.vaultId, files };
   }

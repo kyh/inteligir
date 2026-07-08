@@ -132,4 +132,26 @@ describe("VaultManager", () => {
     expect(reopened.getRoot()).toBe(next);
     expect(reopened.readText("b.md")).toBe("second");
   });
+
+  it("statFingerprint changes when content changes and is null for a missing file", () => {
+    const mgr = newManager();
+    mgr.writeText("note.md", "one");
+    const fp1 = mgr.statFingerprint("note.md");
+    expect(fp1).not.toBeNull();
+
+    // A stable read → identical fingerprint (licenses hash-cache reuse).
+    expect(mgr.statFingerprint("note.md")).toBe(fp1);
+
+    // A content (and size) change must move the fingerprint.
+    mgr.writeText("note.md", "one-longer");
+    expect(mgr.statFingerprint("note.md")).not.toBe(fp1);
+
+    // Absent file → null, never a throw.
+    expect(mgr.statFingerprint("does-not-exist.md")).toBeNull();
+  });
+
+  it("statFingerprint returns null for a path escaping the vault (confinement)", () => {
+    const mgr = newManager();
+    expect(mgr.statFingerprint("../escape.md")).toBeNull();
+  });
 });
