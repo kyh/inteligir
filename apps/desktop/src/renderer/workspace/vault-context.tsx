@@ -16,11 +16,8 @@ import { getBridge } from "@renderer/lib/bridge";
 import { settleTransients } from "@renderer/editor/ai/transient-settle";
 import { registerOpenNoteFlush, registerOpenNotePath } from "@renderer/workspace/open-note-flush";
 import { type RawReason, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
-import {
-  VaultEditorController,
-  type VaultEditorState,
-  type VaultIO,
-} from "@renderer/editor/vault-editor";
+import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-runtime";
+import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
 import { buildResolver } from "@repo/core/knowledge/link-resolve";
@@ -29,8 +26,6 @@ import { buildResolver } from "@repo/core/knowledge/link-resolve";
 // markdown pipeline doesn't round-trip MDX.
 const MARKDOWN_RE = /\.(md|markdown)$/i;
 import type { VaultEntry } from "@repo/features/ipc-registry";
-
-const AUTOSAVE_DEBOUNCE_MS = 600;
 
 /** ui-state key the open note persists under (restored on boot). */
 const OPEN_NOTE_KEY = "workspace.openNote";
@@ -75,21 +70,6 @@ const NO_NOTE_STATE: VaultEditorState = {
 };
 const noNoteSubscribe = () => () => {};
 const getNoNoteState = () => NO_NOTE_STATE;
-
-/** The open note's live machinery: its editor controller (per-doc state), its
- * autosave debounce, and the vanish watcher that closes the note when the file
- * disappears out from under it. */
-type NoteRuntime = {
-  /** The vault-relative path this runtime serves — flush/settle key off it, so
-   * it must not depend on the controller's (possibly not-yet-loaded) state. */
-  path: string;
-  controller: VaultEditorController;
-  saveTimer: ReturnType<typeof setTimeout> | null;
-  /** The controller has successfully loaded its path at least once — gates the
-   * vanish watcher so the initial `path: null` state doesn't close the note. */
-  opened: boolean;
-  unsubscribe: () => void;
-};
 
 type VaultContextValue = {
   /** Live editor session state of the open note (file, content, dirty,
@@ -177,10 +157,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   const disposeRuntime = useCallback(() => {
-    const runtime = runtimeRef.current;
-    if (!runtime) return;
-    if (runtime.saveTimer) clearTimeout(runtime.saveTimer);
-    runtime.unsubscribe();
+    runtimeRef.current?.dispose();
     runtimeRef.current = null;
   }, []);
 
@@ -202,31 +179,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const ensureRuntime = useCallback((path: string): NoteRuntime => {
     const existing = runtimeRef.current;
     if (existing?.path === path) return existing;
-    const controller = new VaultEditorController(VAULT_IO);
-    controller.setRoot(rootRef.current);
-    const runtime: NoteRuntime = {
-      path,
-      controller,
-      saveTimer: null,
-      opened: false,
-      unsubscribe: () => {},
-    };
-    runtime.unsubscribe = controller.subscribe(() => {
-      const st = controller.getState();
-      if (st.path === path) runtime.opened = true;
-      // The file vanished under the open note (deleted externally / removed) —
-      // the note closes rather than lingering over nothing.
-      else if (runtime.opened && st.path === null) dropNoteRef.current(path);
+    const runtime = createNoteRuntime(path, rootRef.current, VAULT_IO, {
+      onVanished: (p) => dropNoteRef.current(p),
     });
     runtimeRef.current = runtime;
-    void controller.open(path).then(() => {
-      // Unreadable on first load (e.g. a restored note whose file is gone) —
-      // it never held content, so it silently closes.
-      if (runtimeRef.current === runtime && controller.getState().path !== path) {
-        dropNoteRef.current(path);
-      }
-      return undefined;
-    });
     return runtime;
   }, []);
 
@@ -243,12 +199,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     if (settled !== null && settled !== runtime.controller.getState().content) {
       runtime.controller.edit(settled);
     }
-    if (runtime.saveTimer) {
-      clearTimeout(runtime.saveTimer);
-      runtime.saveTimer = null;
-    }
-    await runtime.controller.flush();
-    return !runtime.controller.getState().dirty;
+    return runtime.flush();
   }, []);
 
   const openFile = useCallback(
@@ -300,15 +251,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const editNote = useCallback((path: string, next: string) => {
     const runtime = runtimeRef.current;
     if (runtime?.path !== path) return;
-    // Identical bytes are a no-op (teardown settles and re-seed echoes can
-    // emit unchanged content) — don't dirty the buffer or schedule a write.
-    if (runtime.controller.getState().content === next) return;
-    runtime.controller.edit(next);
-    if (runtime.saveTimer) clearTimeout(runtime.saveTimer);
-    runtime.saveTimer = setTimeout(() => {
-      runtime.saveTimer = null;
-      void runtime.controller.flush();
-    }, AUTOSAVE_DEBOUNCE_MS);
+    runtime.edit(next);
   }, []);
 
   const createFileAt = useCallback(
@@ -385,13 +328,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (path: string) => {
       const runtime = runtimeRef.current;
       if (runtime?.path === path) {
-        if (runtime.saveTimer) {
-          clearTimeout(runtime.saveTimer);
-          runtime.saveTimer = null;
-        }
         // remove() emits path:null, which the vanish watcher turns into a
         // dropped note; the explicit drop below is an idempotent backstop.
-        await runtime.controller.remove();
+        await runtime.remove();
         dropNote(path);
       } else {
         const bridge = getBridge();
@@ -477,7 +416,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // Persist on unmount so a change within the debounce window isn't lost.
   useEffect(
     () => () => {
-      void runtimeRef.current?.controller.flush();
+      void runtimeRef.current?.flush();
     },
     [],
   );
