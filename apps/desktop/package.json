@@ -92,7 +92,7 @@
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "^4.1.7"
+    "vitest": "catalog:"
   },
   "optionalDependencies": {
     "sherpa-onnx-darwin-arm64": "^1.13.2",

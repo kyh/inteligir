@@ -10,8 +10,9 @@
 //   - createJsonBaseStore — the last-synced base manifest under ~/.inteligir
 //   - nodeStamp           — a filesystem-safe ISO timestamp for conflict copies
 //
-// OFF BY DEFAULT: this is an available capability, NOT wired into the live boot
-// path. create-host does not construct or start it (see the seam comment there).
+// OFF BY DEFAULT at runtime: create-host starts the SyncCoordinator at boot,
+// but it constructs + runs the engine only when sync is enabled in config AND
+// a bearer token is present (see create-host.ts and sync-coordinator.ts).
 // Only VAULT FILES are synced; the knowledge index and all AI/editor state live
 // under ~/.inteligir (outside the vault) and are never listed here, so derived
 // state can't leak into the protocol.

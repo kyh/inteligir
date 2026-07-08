@@ -4,9 +4,7 @@
   "globalName": "InteligirUI",
   "shape": "package",
   "cssEntry": "dist/ds-compiled.css",
-  "extraFonts": [
-    "dist/inter-latin.css"
-  ],
+  "extraFonts": ["dist/inter-latin.css"],
   "componentSrcMap": {
     "AlertDialogContent": null,
     "AlertDialogDescription": null,

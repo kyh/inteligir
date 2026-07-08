@@ -24,7 +24,7 @@
     "@cloudflare/vitest-pool-workers": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
-    "vitest": "^4.1.7",
+    "vitest": "catalog:",
     "wrangler": "catalog:"
   }
 }

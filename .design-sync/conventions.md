@@ -20,17 +20,17 @@ defaults). Wrap only when you use these:
 
 Style layout and surfaces with these **real** utility families (backed by CSS-variable tokens; they adapt to light/dark automatically). Prefer these over raw hex:
 
-| Purpose | Utilities |
-|---|---|
-| Base surface / text | `bg-background` `text-foreground` |
-| Cards / popovers | `bg-card` `bg-popover` `text-card-foreground` |
-| Emphasis | `bg-primary text-primary-foreground` · `bg-secondary` · `bg-accent` · `bg-muted text-muted-foreground` |
-| Danger | `bg-destructive text-destructive-foreground` |
-| Borders / focus | `border-border` `ring-ring` |
-| Elevation ladder | `bg-surface-1` … `bg-surface-8` + `shadow-surface-1` … `shadow-surface-8` (higher = more raised) |
-| Interactive states | `bg-hover` `bg-active` (surface-relative overlays) |
-| Radius | `rounded-lg` `rounded-xl` `rounded-2xl` … (scaled from `--radius`) |
-| Type | `font-sans` (Inter); vary weight with `font-medium` / `font-semibold` |
+| Purpose             | Utilities                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| Base surface / text | `bg-background` `text-foreground`                                                                      |
+| Cards / popovers    | `bg-card` `bg-popover` `text-card-foreground`                                                          |
+| Emphasis            | `bg-primary text-primary-foreground` · `bg-secondary` · `bg-accent` · `bg-muted text-muted-foreground` |
+| Danger              | `bg-destructive text-destructive-foreground`                                                           |
+| Borders / focus     | `border-border` `ring-ring`                                                                            |
+| Elevation ladder    | `bg-surface-1` … `bg-surface-8` + `shadow-surface-1` … `shadow-surface-8` (higher = more raised)       |
+| Interactive states  | `bg-hover` `bg-active` (surface-relative overlays)                                                     |
+| Radius              | `rounded-lg` `rounded-xl` `rounded-2xl` … (scaled from `--radius`)                                     |
+| Type                | `font-sans` (Inter); vary weight with `font-medium` / `font-semibold`                                  |
 
 All standard Tailwind utilities (`flex`, `grid`, `gap-*`, `p-*`, `text-*`) are available for your own layout glue.
 
@@ -38,14 +38,14 @@ All standard Tailwind utilities (`flex`, `grid`, `gap-*`, `p-*`, `text-*`) are a
 
 For document, note, and doc-page content, use this **compact scale** (the app's editor and the Fluid Functionalism doc pages share it). Sizes are explicit `text-[…px]`, headings are `font-semibold tracking-tight`, body is regular weight. Base text is small (13px) — this is a dense, information-forward scale, not a marketing scale.
 
-| Role | Class | Size / treatment |
-|---|---|---|
-| Page title | `text-[28px] font-semibold tracking-tight leading-[1.2]` | 28px |
-| Heading 1 | `text-[22px] font-semibold tracking-tight leading-[1.3]` | 22px |
-| Heading 2 | `text-[16px] font-semibold tracking-tight leading-[1.3]` | 16px |
-| Heading 3 | `text-[15px] font-semibold tracking-tight leading-[1.3]` | 15px |
-| Body | `text-[13px] leading-relaxed` | 13px |
-| Caption / meta | `text-[12px] text-muted-foreground` | 12px |
+| Role           | Class                                                    | Size / treatment |
+| -------------- | -------------------------------------------------------- | ---------------- |
+| Page title     | `text-[28px] font-semibold tracking-tight leading-[1.2]` | 28px             |
+| Heading 1      | `text-[22px] font-semibold tracking-tight leading-[1.3]` | 22px             |
+| Heading 2      | `text-[16px] font-semibold tracking-tight leading-[1.3]` | 16px             |
+| Heading 3      | `text-[15px] font-semibold tracking-tight leading-[1.3]` | 15px             |
+| Body           | `text-[13px] leading-relaxed`                            | 13px             |
+| Caption / meta | `text-[12px] text-muted-foreground`                      | 12px             |
 
 Headings use `text-foreground`; secondary/body copy often uses `text-muted-foreground`. Keep heading→body contrast via weight + color, not just size (H2 16px is only 3px over body).
 
@@ -63,11 +63,15 @@ Read `styles.css` (and its `@import`ed `_ds_bundle.css`) for the full token + ut
 <div className="flex flex-col gap-3 rounded-xl bg-surface-2 p-4 shadow-surface-2">
   <div className="flex items-center justify-between">
     <span className="font-semibold text-foreground">Q3 Planning</span>
-    <Badge color="green" variant="dot">Active</Badge>
+    <Badge color="green" variant="dot">
+      Active
+    </Badge>
   </div>
   <p className="text-sm text-muted-foreground">3 tasks delegated to the agent.</p>
   <div className="flex gap-2">
-    <Button variant="primary" leadingIcon={Plus}>New task</Button>
+    <Button variant="primary" leadingIcon={Plus}>
+      New task
+    </Button>
     <Button variant="ghost">Open note</Button>
   </div>
 </div>

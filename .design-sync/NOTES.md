@@ -83,6 +83,7 @@ forbids it and keeping the WebGL orb (which won't render in the 2D pane anyway) 
 3 MB. If the orb is ever wanted, it needs a real scheduler bundled — a separate effort.
 
 ## Known render warns
+
 - **AlertDialog** `[RENDER_THIN]` (rendered height 0px): BENIGN — the dialog portals/fixed-positions
   so the measured root height is 0, but the screenshot renders the full dialog correctly. Don't rework.
 - **Toaster**: imperative — toasts fire via `useEffect` on mount. VERIFIED renders (3 toasts show in
@@ -101,6 +102,7 @@ node .ds-sync/resync.mjs --config .design-sync/config.json \
   --node-modules ./packages/ui/node_modules --out ./ds-bundle \
   --remote .design-sync/.cache/remote-sync.json
 ```
+
 `prepare.mjs` removes the old manual fragility (it's the single point that can go stale).
 
 ## Re-sync risks

@@ -46,6 +46,6 @@
     "@types/react": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vitest": "^4.1.7"
+    "vitest": "catalog:"
   }
 }
