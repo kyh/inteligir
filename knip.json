@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["gh", "tar", "ps", "tasklist", "xcrun", "spctl"],
+  "ignoreBinaries": ["gh", "ps", "tasklist", "xcrun", "spctl"],
   // Local design-sync tooling state — not part of the app.
   "ignore": [".design-sync/**"],
   "workspaces": {
