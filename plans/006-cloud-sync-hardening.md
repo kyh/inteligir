@@ -46,9 +46,9 @@ entire request body in the DO with no size limit — a self-DoS/cost hole
   }
   ```
 
-- `apps/cloud/src/vault-coordinator.ts` `handleGet` (~:137-149) reads the
+- `apps/cloud/src/vault-coordinator.ts` `handleGet` (~~:137-149) reads the
   manifest row synchronously then `await this.env.VAULT_FILES.get(...)` with
-  reads deliberately outside the mutex; `handlePut` (~:154-195) does
+  reads deliberately outside the mutex; `handlePut` (~~:154-195) does
   `const bytes = new Uint8Array(await request.arrayBuffer())` before the
   mutex, with **no size check**, then writes R2 bytes first, manifest row
   second (that ordering is correct crash-consistency — keep it).
