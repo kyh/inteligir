@@ -27,6 +27,7 @@ function fakePorts(): AgentPorts {
     knowledge: {
       search: () => [],
       backlinks: () => [],
+      notesWithTag: () => [],
     },
   };
 }

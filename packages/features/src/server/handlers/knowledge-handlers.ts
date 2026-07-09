@@ -7,4 +7,6 @@ export function registerKnowledgeHandlers(handle: HandlerRegistrar): void {
   handle("getLinkGraph", () => getKnowledgeManager().graph());
   handle("searchVault", ({ query, limit }) => getKnowledgeManager().search(query, limit));
   handle("listWikiTargets", () => getKnowledgeManager().wikiTargets());
+  handle("listTags", () => getKnowledgeManager().tags());
+  handle("getNotesByTag", ({ tag }) => getKnowledgeManager().notesWithTag(tag));
 }

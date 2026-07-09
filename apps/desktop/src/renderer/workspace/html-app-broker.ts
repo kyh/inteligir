@@ -37,6 +37,7 @@ export type BrokerBridge = Pick<
   | "deleteVaultEntry"
   | "searchVault"
   | "getBacklinks"
+  | "getNotesByTag"
 >;
 
 export type BrokerDeps = {
@@ -52,15 +53,18 @@ export type BrokerDeps = {
 const PathArg = Type.String({ minLength: 1 });
 
 // `list()` options (all optional — a bare `list()` stays the all-docs listing).
-// `query` routes through the lexical search; `withProperties` attaches each
-// hit's parsed frontmatter; `limit` bounds BOTH the search and the property
-// reads. The listing pipeline is capped so `withProperties` can never trigger
-// an unbounded read fan-out (see the cap-first/read-after step below).
+// `tag` restricts to notes carrying that tag (applied FIRST); `query` routes
+// through the lexical search (narrowing within the tag when both are given);
+// `withProperties` attaches each hit's parsed frontmatter; `limit` bounds BOTH
+// the search and the property reads. The listing pipeline is capped so
+// `withProperties` can never trigger an unbounded read fan-out (see the
+// cap-first/read-after step below).
 const LIST_DEFAULT_LIMIT = 50;
 const LIST_MAX_LIMIT = 200;
 const ListOptions = Type.Object(
   {
     query: Type.Optional(Type.String()),
+    tag: Type.Optional(Type.String()),
     withProperties: Type.Optional(Type.Boolean()),
     limit: Type.Optional(Type.Number({ minimum: 1 })),
   },
@@ -103,6 +107,11 @@ function requireDocInput(value: unknown): { body?: string; properties?: Record<s
 
 // ---- Dispatch --------------------------------------------------------------
 
+/** The leaf name of a vault path (its display `name` in list results). */
+function nameOf(path: string): string {
+  return path.split("/").pop() ?? path;
+}
+
 /** Handle one validated broker request. Throws on any invalid input, unknown
  * method, or downstream failure — the caller maps a throw to an error response.
  */
@@ -128,12 +137,28 @@ export async function handleBrokerRequest(
       const limit = Math.min(opts.limit ?? LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT);
       // Compute the CAPPED hit set first — we never read more docs than `limit`.
       let hits: { path: string; name: string; snippet?: string }[];
-      if (opts.query !== undefined) {
+      if (opts.tag !== undefined) {
+        // Tag filter FIRST; a query then narrows WITHIN the tagged set.
+        const tagged = await bridge.getNotesByTag({ tag: opts.tag });
+        if (opts.query !== undefined) {
+          const taggedSet = new Set(tagged);
+          const results = await bridge.searchVault({ query: opts.query, limit });
+          hits = results
+            .filter((result) => taggedSet.has(result.path))
+            .map((result) => ({
+              path: result.path,
+              name: nameOf(result.path),
+              snippet: result.snippet,
+            }));
+        } else {
+          hits = tagged.slice(0, limit).map((path) => ({ path, name: nameOf(path) }));
+        }
+      } else if (opts.query !== undefined) {
         // Ranked lexical search; carry each hit's snippet through to the app.
         const results = await bridge.searchVault({ query: opts.query, limit });
         hits = results.map((result) => ({
           path: result.path,
-          name: result.path.split("/").pop() ?? result.path,
+          name: nameOf(result.path),
           snippet: result.snippet,
         }));
       } else {

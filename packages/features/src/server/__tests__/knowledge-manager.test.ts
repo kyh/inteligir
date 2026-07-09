@@ -136,6 +136,28 @@ describe("KnowledgeManager", () => {
     expect(results.map((r) => r.path)).toEqual(["alpha.md", "beta.md"]);
   });
 
+  it("indexes tags from inline `#tags` and the frontmatter `tags` property", () => {
+    vault.writeText("a.md", "---\ntags: [meta, demo]\n---\n\n# A\n");
+    vault.writeText("b.md", "# B\n\nInline #meta and #project here.\n");
+    manager.refresh();
+    expect(manager.tags()).toEqual([
+      { tag: "meta", count: 2 },
+      { tag: "demo", count: 1 },
+      { tag: "project", count: 1 },
+    ]);
+    expect(manager.notesWithTag("META")).toEqual(["a.md", "b.md"]);
+    expect(manager.notesWithTag("project")).toEqual(["b.md"]);
+  });
+
+  it("drops a note's tags when it is deleted", () => {
+    vault.writeText("a.md", "# A\n\n#solo tag.\n");
+    manager.refresh();
+    expect(manager.notesWithTag("solo")).toEqual(["a.md"]);
+    vault.delete("a.md");
+    manager.refresh();
+    expect(manager.notesWithTag("solo")).toEqual([]);
+  });
+
   it("coalesces scheduleRefresh bursts through the debounce", () => {
     vi.useFakeTimers();
     try {

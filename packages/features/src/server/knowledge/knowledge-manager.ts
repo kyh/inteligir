@@ -21,6 +21,7 @@ import type {
   ForwardLinkEntry,
   LinkGraph,
   SearchResult,
+  TagCount,
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
 
@@ -73,6 +74,16 @@ export class KnowledgeManager {
   wikiTargets(): WikiTarget[] {
     this.ensureBuilt();
     return this.index.wikiTargets();
+  }
+
+  tags(): TagCount[] {
+    this.ensureBuilt();
+    return this.index.tags();
+  }
+
+  notesWithTag(tag: string): string[] {
+    this.ensureBuilt();
+    return this.index.notesWithTag(tag);
   }
 
   // ---- Refresh ----------------------------------------------------------------

@@ -52,6 +52,7 @@ import type {
   ForwardLinkEntry,
   LinkGraph,
   SearchResult,
+  TagCount,
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
 import {
@@ -223,6 +224,8 @@ const KnowledgeSearchSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+const KnowledgeTagSchema = Type.Object({ tag: Type.String() }, { additionalProperties: false });
 
 // Float32Array / ArrayBuffer / ArrayBufferView don't have a TypeBox primitive;
 // approximate with Type.Any plus a runtime instanceof guard at the handler.
@@ -415,6 +418,14 @@ export const IPC = {
    * then attachments (flagged `type: "asset"` so the picker groups them and
    * inserts `![[embeds]]`). */
   listWikiTargets: invokeVoid<WikiTarget[]>("knowledge:wiki-targets"),
+  /** Every tag in the vault with its note count (inline `#tags` ∪ frontmatter
+   * `tags`, unified case-insensitively) — the palette's `#` tag list. */
+  listTags: invokeVoid<TagCount[]>("knowledge:tags"),
+  /** Vault paths of the notes carrying a tag (case-insensitive). */
+  getNotesByTag: invoke<typeof KnowledgeTagSchema, string[]>(
+    "knowledge:notes-by-tag",
+    KnowledgeTagSchema,
+  ),
   /** Fired after every index refresh (revision is monotonic) so backlink
    * panes / graph views re-query. */
   onKnowledgeUpdated: event<{ revision: number }>("knowledge:updated"),

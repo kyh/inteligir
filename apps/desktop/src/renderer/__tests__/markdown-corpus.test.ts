@@ -47,6 +47,7 @@ const EXPECTED: Record<string, Classification> = {
   "kitchen-sink.md": "canonical",
   "legacy-web-clip.md": "raw:parse-error",
   "frontmatter-note.md": "canonical",
+  "tagged.md": "canonical",
   // WP2 vocabulary notes — canonical by construction (drafted, then pinned to
   // the pipeline's own round-trip output).
   "components-playground.md": "canonical",
