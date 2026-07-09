@@ -61,11 +61,13 @@ When notes aren't the right shape — a table, kanban, dashboard, tracker, books
 **The vault API** (`window.inteligir.files`, all async/Promise-based):
 
 - `list()` → `[{ path, name }]` — every markdown note in the vault.
+- `list({ query?, withProperties?, limit? })` → ranked hits — `query` runs a full-text search (each hit gains a `snippet`); `withProperties: true` attaches each hit's parsed frontmatter as `properties`; `limit` caps results (default 50, max 200). Use this for "notes tagged X sorted by Y" instead of `list()` + N reads.
 - `read(path)` → `{ path, body, properties }` — `body` is the markdown after frontmatter; `properties` is the parsed frontmatter as an object.
 - `open(path)` — open a note in the editor.
 - `create(path, { body?, properties? })` — create a new note (errors if it exists).
 - `update(path, { body?, properties? })` — patch a note. Omitted keys are left alone; a property set to `null` is DELETED; provided properties are added/replaced; a provided `body` replaces the body.
 - `remove(path)` — delete a note (asks the user to confirm first).
+- `backlinks(path)` → `[path, …]` — vault paths of notes that link TO `path` (deduped).
 
 Every method has a `safe*` variant (`safeRead`, `safeUpdate`, …) returning `{ ok, value }` or `{ ok, error }` instead of throwing. Paths are vault-relative (no `..`, no leading `/`). Build the UI, wire it to these calls, and the app reads and writes the user's real notes.
 

@@ -1,18 +1,33 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { BacklinkEntry } from "@repo/core/knowledge/knowledge-index";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
 import { handleBrokerRequest, type BrokerBridge, type BrokerDeps } from "./html-app-broker";
 
-// A minimal in-memory Bridge slice standing in for the real host.
-function makeBridge(seed: Record<string, string> = {}): {
+// A minimal in-memory Bridge slice standing in for the real host. `searchVault`
+// is a substring stub (path OR content match), so tests seed paths and assert
+// the {query,limit} routing directly; `getBacklinks` returns the seeded map.
+function makeBridge(
+  seed: Record<string, string> = {},
+  opts: { backlinks?: Record<string, BacklinkEntry[]> } = {},
+): {
   bridge: BrokerBridge;
   store: Map<string, string>;
   kinds: Map<string, VaultEntry["kind"]>;
+  searchVault: ReturnType<typeof vi.fn>;
+  getBacklinks: ReturnType<typeof vi.fn>;
 } {
   const store = new Map<string, string>(Object.entries(seed));
   const kinds = new Map<string, VaultEntry["kind"]>();
   for (const path of store.keys()) kinds.set(path, path.endsWith(".md") ? "doc" : "other");
+  const searchVault = vi.fn(async ({ query, limit }: { query: string; limit?: number }) => {
+    const matches = [...store.keys()]
+      .filter((path) => (kinds.get(path) ?? "doc") === "doc" && path.includes(query))
+      .map((path) => ({ path, title: path, snippet: `hit:${query}`, score: 1 }));
+    return typeof limit === "number" ? matches.slice(0, limit) : matches;
+  });
+  const getBacklinks = vi.fn(async ({ path }: { path: string }) => opts.backlinks?.[path] ?? []);
   const bridge: BrokerBridge = {
     listVault: async () =>
       [...store.keys()].map((path) => ({
@@ -29,8 +44,10 @@ function makeBridge(seed: Record<string, string> = {}): {
       store.set(path, content);
     },
     deleteVaultEntry: async ({ path }) => ({ removed: store.delete(path) }),
+    searchVault,
+    getBacklinks,
   };
-  return { bridge, store, kinds };
+  return { bridge, store, kinds, searchVault, getBacklinks };
 }
 
 function makeDeps(bridge: BrokerBridge, over: Partial<BrokerDeps> = {}): BrokerDeps {
@@ -50,6 +67,101 @@ describe("handleBrokerRequest", () => {
       { path: "a.md", name: "a.md" },
       { path: "b.md", name: "b.md" },
     ]);
+  });
+
+  it("bare list() is unchanged: every doc, no cap, {path,name}", async () => {
+    const seed: Record<string, string> = {};
+    for (let i = 0; i < 120; i++) seed[`n${i}.md`] = "x";
+    const { bridge, searchVault } = makeBridge(seed);
+    const result = await handleBrokerRequest("list", [], makeDeps(bridge));
+    expect(result).toHaveLength(120);
+    expect(searchVault).not.toHaveBeenCalled();
+  });
+
+  it("list with a query routes through searchVault and keeps snippets", async () => {
+    const { bridge, searchVault } = makeBridge({
+      "projects/a.md": "x",
+      "projects/b.md": "y",
+      "other.md": "z",
+    });
+    const result = await handleBrokerRequest("list", [{ query: "projects" }], makeDeps(bridge));
+    expect(searchVault).toHaveBeenCalledWith({ query: "projects", limit: 50 });
+    expect(result).toEqual([
+      { path: "projects/a.md", name: "a.md", snippet: "hit:projects" },
+      { path: "projects/b.md", name: "b.md", snippet: "hit:projects" },
+    ]);
+  });
+
+  it("list withProperties (no query) attaches parsed frontmatter", async () => {
+    const { bridge } = makeBridge({ "a.md": "---\ntag: x\n---\nbody\n" });
+    const result = await handleBrokerRequest("list", [{ withProperties: true }], makeDeps(bridge));
+    expect(result).toEqual([{ path: "a.md", name: "a.md", properties: { tag: "x" } }]);
+  });
+
+  it("list withProperties + query carries BOTH snippet and properties", async () => {
+    const { bridge } = makeBridge({ "proj.md": "---\npriority: 1\n---\nbody\n" });
+    const result = await handleBrokerRequest(
+      "list",
+      [{ query: "proj", withProperties: true }],
+      makeDeps(bridge),
+    );
+    expect(result).toEqual([
+      { path: "proj.md", name: "proj.md", snippet: "hit:proj", properties: { priority: 1 } },
+    ]);
+  });
+
+  it("list defaults limit to 50 and hard-caps it at 200", async () => {
+    const { bridge, searchVault } = makeBridge();
+    await handleBrokerRequest("list", [{ query: "x" }], makeDeps(bridge));
+    expect(searchVault).toHaveBeenLastCalledWith({ query: "x", limit: 50 });
+    await handleBrokerRequest("list", [{ query: "x", limit: 999 }], makeDeps(bridge));
+    expect(searchVault).toHaveBeenLastCalledWith({ query: "x", limit: 200 });
+  });
+
+  it("list withProperties reads no more docs than the cap (cap-first)", async () => {
+    const seed: Record<string, string> = {};
+    for (let i = 0; i < 120; i++) seed[`n${i}.md`] = `---\ni: ${i}\n---\n`;
+    const { bridge } = makeBridge(seed);
+    const read = vi.spyOn(bridge, "readVaultDoc");
+    const result = await handleBrokerRequest(
+      "list",
+      [{ withProperties: true, limit: 10 }],
+      makeDeps(bridge),
+    );
+    expect(result).toHaveLength(10);
+    expect(read).toHaveBeenCalledTimes(10);
+  });
+
+  it("list rejects unknown option keys", async () => {
+    const { bridge } = makeBridge();
+    await expect(handleBrokerRequest("list", [{ bogus: 1 }], makeDeps(bridge))).rejects.toThrow(
+      /invalid list options/,
+    );
+  });
+
+  it("backlinks returns deduped source paths (mirrors get_backlinks)", async () => {
+    const { bridge } = makeBridge(
+      { "t.md": "x" },
+      {
+        backlinks: {
+          "t.md": [
+            { sourcePath: "a.md", line: 1, snippet: "", kind: "wiki", embed: false },
+            { sourcePath: "a.md", line: 5, snippet: "", kind: "wiki", embed: false },
+            { sourcePath: "b.md", line: 2, snippet: "", kind: "md", embed: false },
+          ],
+        },
+      },
+    );
+    const result = await handleBrokerRequest("backlinks", ["t.md"], makeDeps(bridge));
+    expect(result).toEqual(["a.md", "b.md"]);
+  });
+
+  it("backlinks rejects an unsafe path before the Bridge", async () => {
+    const { bridge, getBacklinks } = makeBridge();
+    await expect(handleBrokerRequest("backlinks", ["../x.md"], makeDeps(bridge))).rejects.toThrow(
+      /invalid vault path/,
+    );
+    expect(getBacklinks).not.toHaveBeenCalled();
   });
 
   it("read splits frontmatter into {path, body, properties}", async () => {
