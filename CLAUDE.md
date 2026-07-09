@@ -75,8 +75,6 @@ pnpm lint             # Lint all   (oxlint)
 pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
 ```
 
-**`CONTEXT.md` is the domain glossary** (use its vocabulary); **`docs/adr/`
-holds the decision records** (0001 ephemeral index, 0002 HTML apps).
 **`docs/development.md` is the full dev guide**: the two run modes (fixture
 harness / Electron), ports + `~/.inteligir` shared state +
 `host.lock`, the fixture byte-pinning rule, verification patterns, and the
@@ -118,7 +116,7 @@ injected `AgentPorts` (`{ executor, knowledge }`).
 `packages/features/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
-index** (ADR-0001): NO recursive watcher — the listing is a one-shot crawl
+index** (a deliberate decision — PR #411): NO recursive watcher — the listing is a one-shot crawl
 (respects `.gitignore`, uncapped) refreshed on window focus, app writes,
 delegation completion, and a "Refresh vault" palette command; only the OPEN
 note gets a (non-recursive) watcher, driven by a pure change classifier with
@@ -194,7 +192,7 @@ and full-text search live in the command palette.
   substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
   Notes configures folder/format).
 
-### HTML Apps — vault `.html` as sandboxed views (ADR-0002)
+### HTML Apps — vault `.html` as sandboxed views
 
 A vault `.html` file opens as an app in the content panel: served by the
 `vault-app://` protocol (per-open token, confined through `VaultManager`,
@@ -205,7 +203,9 @@ serve time; agents author ONE self-contained file, no build step. Vault
 access only via the async postMessage broker `window.inteligir.files`
 (`list({query, tag, withProperties, limit})`, `read` → body+properties,
 patch-like `update`, `backlinks`, confirmed `remove`; all with `safe*`
-variants). The injected-deps + broker contract is append-only.
+variants). The injected-deps + broker contract is append-only. Vaults are
+single-user today; if sharing ever ships, foreign `.html` is untrusted code
+on open — re-audit the broker's capability set before that lands.
 
 ### Delegation — `packages/features/src/server/delegation/`
 
@@ -215,7 +215,7 @@ session on `BACKGROUND_SESSION_DIR`). Before the agent dispatches, the host
 **snapshots the file** (bytes under `~/.inteligir`, newest 50 kept) — the dock's
 "Restore original" undoes an agent edit byte-exactly. The agent edits the file
 via `./vault`, checks the box, and appends a result; completion kicks a vault
-refresh (ADR-0001). Status streams to inline badges (`onDelegationsUpdated`).
+refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
 
 ### Vault sync — `@repo/core/sync` + `apps/cloud` + platform adapters

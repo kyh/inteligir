@@ -40,7 +40,7 @@ talks to the renderer over Electron IPC. pi auth (OpenAI OAuth) is on-device; if
 this machine is logged in, chat/AI/delegation are fully live. Uses the
 last-opened vault from `~/.inteligir`.
 
-**Vault liveness is ephemeral, not watched (ADR-0001).** There is NO recursive
+**Vault liveness is ephemeral, not watched (a deliberate decision — PR #411).** There is NO recursive
 filesystem watcher. The file listing is an on-demand snapshot: it refreshes on
 app-initiated structural writes (new file / delete / rename), on window focus
 (debounced), on the "Refresh vault" command, and on delegation completion. The
