@@ -75,6 +75,8 @@ pnpm lint             # Lint all   (oxlint)
 pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
 ```
 
+**`CONTEXT.md` is the domain glossary** (use its vocabulary); **`docs/adr/`
+holds the decision records** (0001 ephemeral index, 0002 HTML apps).
 **`docs/development.md` is the full dev guide**: the two run modes (fixture
 harness / Electron), ports + `~/.inteligir` shared state +
 `host.lock`, the fixture byte-pinning rule, verification patterns, and the
@@ -109,15 +111,20 @@ Three processes: **main** (Electron), **preload**, **renderer**. The renderer
 it reaches the backend only through the injected Bridge (`@renderer/lib/bridge`),
 never electron/node/host (lint-enforced). The `agent/` boundary never imports
 `main/` — also lint-enforced; main composes capabilities and hands the agent an
-injected `AgentPorts` (`{ executor }`).
+injected `AgentPorts` (`{ executor, knowledge }`).
 
 ### Data model — the vault
 
 `packages/features/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
-quarantines user files), writes atomically, watches for changes (broadcasts
-`onVaultChanged`), and maintains a `./vault` symlink in the agent workspace so
-the agent's file tools find it regardless of where the user put it.
+quarantines user files) and writes atomically. Liveness is the **ephemeral
+index** (ADR-0001): NO recursive watcher — the listing is a one-shot crawl
+(respects `.gitignore`, uncapped) refreshed on window focus, app writes,
+delegation completion, and a "Refresh vault" palette command; only the OPEN
+note gets a (non-recursive) watcher, driven by a pure change classifier with
+self-save filtering, so autosaves generate zero vault-changed traffic. It also
+maintains a `./vault` symlink in the agent workspace so the agent's file tools
+find it regardless of where the user put it.
 `~/.inteligir` holds only app state (auth, sessions, ui-state, delegations,
 pre-delegation snapshots) via versioned `JsonStore`s — never note content.
 
@@ -148,10 +155,15 @@ settings behind a dialog; backlinks collapse under the editor column; a
 right-edge TOC minimap expands on hover; the graph view (lazy d3-force canvas)
 and full-text search live in the command palette.
 
-- `workspace/vault-context.tsx` — a `VaultProvider` owning ONE editor
-  controller/autosave/vanish-watcher for the open note (`openPath`, persisted
-  in ui-state under `workspace.openNote`), the file listing, and all vault
-  actions. Sidebar + editor + composer consume `useVault()`.
+- `workspace/vault-context.tsx` — a `VaultProvider` owning the open note
+  (`openPath`, persisted in ui-state under `workspace.openNote`), the file
+  listing, and all vault actions; the note's live machinery (controller +
+  autosave debounce + vanish watcher) is the extracted, unit-tested
+  `workspace/note-runtime.ts`. Sidebar + editor + composer consume
+  `useVault()`. Links + Backlinks panels (`workspace/links-panel.tsx`)
+  collapse under the editor column. The sidebar file tree is VS Code-style
+  (full-width rows, depth as in-row padding, roving-tabindex keyboard nav —
+  `sidebar/tree-navigation.ts`).
 - The markdown parse pipeline (remark-gfm + math + MDX vocabulary +
   wiki-links + frontmatter) lives in `@repo/core/markdown/*`;
   `editor/markdown/` is the Plate-coupled byte-stability brain over it — the
@@ -171,6 +183,29 @@ and full-text search live in the command palette.
   mark; edit lands as accept/reject suggestions), reachable from the selection
   toolbar, slash menu, block menu, and space-in-empty-paragraph; ghost-text
   completions on a fast model, on by default (Settings › Editor AI opts out).
+- **File Properties**: a typed panel above the doc edits YAML frontmatter —
+  the file is the ONLY store (`@repo/core/markdown/frontmatter` typing rules:
+  true/false→checkbox, yes/no stay text, dates only YYYY-MM-DD; unsupported/
+  invalid YAML preserved byte-exactly). Pasting/dropping an image writes bytes
+  to `assets/` via `writeVaultAsset` and inserts bare `![](assets/…)`.
+- **Palette extras**: `#` lists tags (inline `#tags` + frontmatter tags,
+  case-unified in the core tag index) → notes with that tag; "New note from
+  template…" applies `templates/*.md` with `{{date}}`/`{{title}}`
+  substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
+  Notes configures folder/format).
+
+### HTML Apps — vault `.html` as sandboxed views (ADR-0002)
+
+A vault `.html` file opens as an app in the content panel: served by the
+`vault-app://` protocol (per-open token, confined through `VaultManager`,
+revoked on close) into an iframe with `sandbox="allow-scripts allow-forms"`
+and NO `allow-same-origin` — the frame can never reach the Bridge. Deps
+(vanilla runtime + Tailwind browser + Alpine + theme) are host-injected at
+serve time; agents author ONE self-contained file, no build step. Vault
+access only via the async postMessage broker `window.inteligir.files`
+(`list({query, tag, withProperties, limit})`, `read` → body+properties,
+patch-like `update`, `backlinks`, confirmed `remove`; all with `safe*`
+variants). The injected-deps + broker contract is append-only.
 
 ### Delegation — `packages/features/src/server/delegation/`
 
@@ -179,8 +214,8 @@ event-driven serialized queue) runs it on `background-agent.ts` (a second pi
 session on `BACKGROUND_SESSION_DIR`). Before the agent dispatches, the host
 **snapshots the file** (bytes under `~/.inteligir`, newest 50 kept) — the dock's
 "Restore original" undoes an agent edit byte-exactly. The agent edits the file
-via `./vault`, checks the box, and appends a result; the watcher refreshes the
-editor. Status streams to inline badges (`onDelegationsUpdated`).
+via `./vault`, checks the box, and appends a result; completion kicks a vault
+refresh (ADR-0001). Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
 
 ### Vault sync — `@repo/core/sync` + `apps/cloud` + platform adapters
@@ -198,13 +233,17 @@ optimistic concurrency — a version conflict is an HTTP-200 `{ok:false}` VALUE,
 never a throw) with bytes in R2. First authenticated user to touch a vaultId
 owns it. D1 schema ships via `drizzle-kit push` (no migration files);
 `test/e2e-sync.test.ts` drives the real engine against the real Worker
-in-process. Deploy is owner-only (see `apps/cloud/README.md`).
+in-process. Deploy is owner-only (see `apps/cloud/README.md`). Every engine
+pass (explicit, debounced, periodic) reports through `onOutcome`; unresolved
+conflict copies are listed in Settings → Sync with Open / Dismiss-copy.
 
 ### Agent surface — `packages/features/src/server/agent/`
 
 Extension bundles are listed in `agent/bundles.ts` (static registry + disk-drift
 test) and receive `AgentPorts` at register time — adding/removing a capability
-is one folder + one line. `executor/` is the MCP/connectors capability.
+is one folder + one line. `executor/` is the MCP/connectors capability;
+`knowledge/` exposes `search_vault` (lexical, optional `tag` filter) and
+`get_backlinks` over the knowledge engine.
 `validateToolParametersSchema` rejects tool schemas that aren't a top-level
 `Type.Object` (OpenAI silently rejects `anyOf`-rooted schemas). The chat agent
 edits notes with pi's native file tools pointed at `./vault` — no custom edit
