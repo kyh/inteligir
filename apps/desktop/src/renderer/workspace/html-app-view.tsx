@@ -67,6 +67,9 @@ export function HtmlAppView() {
 
   // Mint the token once per open. Re-minting on every reload raced the
   // remount (a blank frame): the token is stable for the lifetime of the open.
+  // On close/unmount (dep change or teardown), revoke it — the FIFO bound in
+  // vault-app-protocol.ts is only a backstop for tokens whose view never got
+  // the chance to revoke (crash, hard reload).
   useEffect(() => {
     if (openPath === null) return;
     const bridge = getBridge();
@@ -75,10 +78,12 @@ export function HtmlAppView() {
       return;
     }
     let cancelled = false;
+    let mintedToken: string | null = null;
     void (async () => {
       try {
         const minted = await bridge.mintHtmlAppToken();
         if (cancelled) return;
+        mintedToken = minted;
         tokenRef.current = minted;
         setToken(minted);
         setError(null);
@@ -88,6 +93,7 @@ export function HtmlAppView() {
     })();
     return () => {
       cancelled = true;
+      if (mintedToken !== null) void bridge.revokeHtmlAppToken({ token: mintedToken });
     };
   }, [openPath]);
 
