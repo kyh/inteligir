@@ -4,7 +4,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@renderer/editor/editor-chrome";
 import { MarkdownEditor } from "@renderer/editor/markdown-editor";
-import { BacklinksPanel } from "@renderer/workspace/backlinks-panel";
+import { BacklinksPanel, ForwardLinksPanel } from "@renderer/workspace/links-panel";
 import { useVault } from "@renderer/workspace/vault-context";
 
 /**
@@ -143,6 +143,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       )}
       {/* Linked mentions live in the same centered column, below the doc. */}
       <div className={EDITOR_COLUMN_PX}>
+        <ForwardLinksPanel path={path} />
         <BacklinksPanel path={path} />
       </div>
     </div>
