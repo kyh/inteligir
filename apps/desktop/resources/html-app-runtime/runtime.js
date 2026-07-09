@@ -71,8 +71,12 @@
   }
 
   var files = {
-    list: function () {
-      return request("list", []);
+    // list()                       → every doc as { path, name }
+    // list({ query, withProperties, limit }) → ranked hits (with snippets when
+    //   query is set) capped at `limit` (default 50, max 200); withProperties
+    //   attaches each hit's parsed frontmatter as `properties`.
+    list: function (options) {
+      return request("list", options === undefined ? [] : [options]);
     },
     read: function (path) {
       return request("read", [path]);
@@ -89,9 +93,13 @@
     remove: function (path) {
       return request("remove", [path]);
     },
+    // Source paths of notes that link TO `path` (wiki + markdown links), deduped.
+    backlinks: function (path) {
+      return request("backlinks", [path]);
+    },
   };
   // Non-throwing variants: safeList, safeRead, … → { ok, value | error }.
-  ["list", "read", "open", "create", "update", "remove"].forEach(function (name) {
+  ["list", "read", "open", "create", "update", "remove", "backlinks"].forEach(function (name) {
     files["safe" + name.charAt(0).toUpperCase() + name.slice(1)] = makeSafe(files[name]);
   });
 
