@@ -106,6 +106,11 @@ type VaultContextValue = {
   /** Create an empty file WITHOUT opening it (wiki create-on-complete). An
    * existing file is left untouched and counts as success. */
   createFileAt: (path: string) => Promise<boolean>;
+  /** Open the note at `path`; if it doesn't exist yet, create it seeded with
+   * `content` (byte-exact) FIRST, then open it. An existing file is opened
+   * untouched — this is the open-or-create used by templates + daily notes, so
+   * re-running it never clobbers a note the user already has. */
+  openOrCreateNote: (path: string, content: string) => Promise<void>;
   /** Rename/move the file at `from` to `to`. Resolves `false` if the rename
    * failed (so callers like the title field can roll back their UI). */
   renameEntry: (from: string, to: string) => Promise<boolean>;
@@ -349,6 +354,31 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [createFileAt, openFile],
   );
 
+  const openOrCreateNote = useCallback(
+    async (rawPath: string, content: string) => {
+      const trimmed = rawPath.trim();
+      if (!trimmed) return;
+      const path = withDefaultExtension(trimmed);
+      const bridge = getBridge();
+      if (!bridge) return;
+      // Open-or-create: only write (seed) when the file is genuinely new, so a
+      // second "open today's note" reopens the existing note byte-for-byte.
+      if (!(await docExists(bridge, path))) {
+        const created = await bridge
+          .writeVaultDoc({ path, content })
+          .then(() => true)
+          .catch(() => false);
+        if (!created) {
+          toast.error(`Couldn't create ${path}.`);
+          return;
+        }
+        refreshList();
+      }
+      openFile(path);
+    },
+    [openFile, refreshList],
+  );
+
   const renameEntry = useCallback(
     async (from: string, to: string): Promise<boolean> => {
       const dest = to.trim();
@@ -582,6 +612,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       registerNoteSerializeFlush,
       createFile,
       createFileAt,
+      openOrCreateNote,
       renameEntry,
       deleteEntry,
       changeFolder,
@@ -608,6 +639,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       registerNoteSerializeFlush,
       createFile,
       createFileAt,
+      openOrCreateNote,
       renameEntry,
       deleteEntry,
       changeFolder,
