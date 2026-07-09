@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { InMemorySyncPort } from "./in-memory-sync-port";
-import { SyncEngine, type Clock, type Hasher, type SyncIo } from "../engine";
+import { SyncEngine, type Clock, type Hasher, type SyncIo, type SyncOutcome } from "../engine";
 import { InMemoryBaseStore } from "../base-store";
 import { conflictCopyName } from "../reconcile";
 import type { VaultPath } from "../vault-file";
@@ -72,7 +72,10 @@ let port: InMemorySyncPort;
 // A fresh engine over the SHARED vault/base/port — two engines share the base
 // store, so a second one reads the first's persisted anchor (like the desktop's
 // two managers over one base file).
-function newEngine(vaultId: string = VAULT_ID): SyncEngine {
+function newEngine(
+  vaultId: string = VAULT_ID,
+  onOutcome?: (outcome: SyncOutcome) => void,
+): SyncEngine {
   return new SyncEngine({
     vaultId,
     port,
@@ -81,6 +84,7 @@ function newEngine(vaultId: string = VAULT_ID): SyncEngine {
     hash: webCryptoHasher(),
     stamp: fixedStamp,
     debounceMs: 0,
+    onOutcome,
   });
 }
 
@@ -224,5 +228,51 @@ describe("SyncEngine.syncOnce", () => {
     expect(out.status).toBe("error");
     // Nothing was pushed.
     expect((await port.listManifest()).files).toHaveLength(0);
+  });
+});
+
+describe("SyncEngine.scheduleSync (debounced) — onOutcome", () => {
+  // Mirrors "resolves a both-sides edit" above, but the pass is triggered by
+  // the internal debounce (scheduleSync/onVaultChanged) instead of an
+  // explicit syncOnce() — a caller that never calls syncOnce() directly (a
+  // remote-change subscription, a periodic timer) must still learn the
+  // outcome, which is exactly what a platform's coordinator needs to surface
+  // a background-pass conflict immediately.
+  it("fires onOutcome with a debounced pass's conflict — no explicit syncOnce() call", async () => {
+    // 1. Establish a shared base at version 1.
+    vault.writeText("note.md", "base");
+    await newEngine().syncOnce();
+
+    // 2. Coordinator advances the file to v2 (a peer edit).
+    const bumped = await port.putFile("note.md", encode("remote-wins"), 1);
+    expect(bumped.ok).toBe(true);
+
+    // 3. Local edits the same file since base → a true conflict, discovered
+    // only through a debounced trigger (never `syncOnce()` directly).
+    vault.writeText("note.md", "local-loser");
+
+    const outcomes: SyncOutcome[] = [];
+    let resolveSeen: (() => void) | null = null;
+    const seen = new Promise<void>((resolve) => {
+      resolveSeen = resolve;
+    });
+    const engine = newEngine(VAULT_ID, (outcome) => {
+      outcomes.push(outcome);
+      resolveSeen?.();
+    });
+
+    engine.onVaultChanged(); // the debounced path — NOT syncOnce()
+    await seen;
+
+    expect(outcomes).toHaveLength(1);
+    const out = outcomes[0];
+    expect(out?.status).toBe("ok");
+    const copyPath = conflictCopyName("note.md", STAMP);
+    if (out?.status === "ok") {
+      expect(out.conflicts).toBe(1);
+      expect(out.conflictPaths).toEqual([copyPath]);
+    }
+    expect(vault.readText("note.md")).toBe("remote-wins");
+    expect(vault.readText(copyPath)).toBe("local-loser");
   });
 });
