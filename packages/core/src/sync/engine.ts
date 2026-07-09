@@ -97,6 +97,14 @@ export type SyncEngineOptions = {
   readonly stamp: Clock;
   /** Debounce window (ms) for `scheduleSync`. Default 300ms. */
   readonly debounceMs?: number | undefined;
+  /** Fires after EVERY completed pass — whether triggered by an explicit
+   * `syncOnce()` call or an internal debounced one (`scheduleSync`,
+   * `onVaultChanged`, the remote-change subscription). `syncOnce()`'s return
+   * value already covers its own caller; this is what lets a platform surface
+   * a debounced pass's conflicts/status without polling. Called synchronously
+   * before the pass's promise resolves, so a caller awaiting `syncOnce()` sees
+   * this side effect already applied. */
+  readonly onOutcome?: ((outcome: SyncOutcome) => void) | undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -111,6 +119,7 @@ export class SyncEngine {
   private readonly hash: Hasher;
   private readonly stamp: Clock;
   private readonly debounceMs: number;
+  private readonly onOutcome: ((outcome: SyncOutcome) => void) | undefined;
 
   // Stat-keyed hash cache: a passing fingerprint lets a pass reuse a file's
   // hash without re-reading it. Keyed by path; invalidated whenever the engine
@@ -134,6 +143,7 @@ export class SyncEngine {
     this.hash = opts.hash;
     this.stamp = opts.stamp;
     this.debounceMs = opts.debounceMs ?? 300;
+    this.onOutcome = opts.onOutcome;
   }
 
   // ---- triggers -----------------------------------------------------------
@@ -175,9 +185,21 @@ export class SyncEngine {
   /** Run one reconcile+execute pass. Serialized against other in-flight passes.
    * Never throws — a transport failure comes back as `{ status: "error" }` and
    * leaves the base manifest untouched, so the next pass retries from the last
-   * clean anchor. */
+   * clean anchor. `onOutcome` fires here — the single exit point for every
+   * pass, explicit or debounced — rather than inside `runOnce()`, so a future
+   * exit path there can't accidentally skip the notification. */
   syncOnce(): Promise<SyncOutcome> {
-    const run = this.queue.then(() => this.runOnce());
+    const run = this.queue
+      .then(() => this.runOnce())
+      .then((outcome) => {
+        try {
+          this.onOutcome?.(outcome);
+        } catch {
+          // onOutcome is a platform-supplied side effect; a bug there must not
+          // break syncOnce's "never throws" contract for its caller.
+        }
+        return outcome;
+      });
     // Keep the chain alive regardless of this run's result.
     this.queue = run.then(
       () => undefined,

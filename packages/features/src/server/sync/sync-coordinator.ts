@@ -48,6 +48,29 @@ const DISABLED_REASON = "Enable sync and sign in first.";
 // edits made between focus events. Policy, not law — revisit with real usage.
 const SYNC_INTERVAL_MS = 5 * 60_000;
 
+/** Builds the live engine for one `rebuild()`. `onOutcome` is wired to fire
+ * for EVERY pass (explicit or debounced) — see `SyncEngineOptions.onOutcome`.
+ * Overridable in tests so a debounced pass can be driven against an
+ * in-memory port/vault instead of a real `HttpSyncPort`. */
+export type SyncEngineFactory = (opts: {
+  vaultId: string;
+  coordinatorUrl: string;
+  token: string;
+  onOutcome: (outcome: CoreSyncOutcome) => void;
+}) => SyncEngine;
+
+const defaultEngineFactory: SyncEngineFactory = (opts) =>
+  createSyncManager({
+    vaultId: opts.vaultId,
+    port: createHttpSyncPort({
+      baseUrl: opts.coordinatorUrl,
+      vaultId: opts.vaultId,
+      token: opts.token,
+      hasher: createNodeHasher(),
+    }),
+    onOutcome: opts.onOutcome,
+  });
+
 export class SyncCoordinator {
   private engine: SyncEngine | null = null;
   private status: SyncStatus = { phase: "idle" };
@@ -64,6 +87,9 @@ export class SyncCoordinator {
      * a live vault. Only consulted once conflicts exist (or at start()). */
     private readonly listVaultPaths: () => readonly string[] = () =>
       getVaultManager().listAllPaths(),
+    /** Builds the live engine — injected so tests can drive a debounced pass
+     * against an in-memory port instead of a real network transport. */
+    private readonly buildEngine: SyncEngineFactory = defaultEngineFactory,
   ) {}
 
   /** Build + start the engine if enabled and authed. Call after the vault is
@@ -117,6 +143,10 @@ export class SyncCoordinator {
     this.emit();
   }
 
+  /** Kick an explicit pass. Its outcome lands through the SAME `onOutcome`
+   * path a debounced pass uses (wired in `rebuild()`) — by the time this
+   * `await` resolves, `handleOutcome` has already updated status/conflicts
+   * and emitted, so there is nothing left to do here but return the value. */
   async syncNow(): Promise<SyncOutcome> {
     const engine = this.engine;
     if (!engine) {
@@ -127,11 +157,7 @@ export class SyncCoordinator {
     }
     this.status = { phase: "syncing" };
     this.emit();
-    const outcome = await engine.syncOnce();
-    this.recordConflicts(outcome);
-    this.status = toStatus(outcome);
-    this.emit();
-    return outcome;
+    return engine.syncOnce();
   }
 
   /** Stop the engine (shutdown). Leaves persisted config/session intact. */
@@ -147,13 +173,21 @@ export class SyncCoordinator {
     const token = this.account.getToken();
     if (!config.enabled || token === null || config.coordinatorUrl.trim() === "") return;
     const vaultId = this.account.getVaultId();
-    const port = createHttpSyncPort({
-      baseUrl: config.coordinatorUrl,
+    // `onOutcome` fires for EVERY pass this engine runs — explicit (syncNow,
+    // the initial kick below) AND debounced (onVaultChanged, the remote
+    // subscription, the periodic timer) — so a background pass's conflicts
+    // surface exactly as promptly as an explicit one's. Guarded against a
+    // newer rebuild having already replaced `this.engine` (a stale pass
+    // completing after teardown must not resurrect old status).
+    const engine = this.buildEngine({
       vaultId,
+      coordinatorUrl: config.coordinatorUrl,
       token,
-      hasher: createNodeHasher(),
+      onOutcome: (outcome) => {
+        if (this.engine !== engine) return;
+        this.handleOutcome(outcome);
+      },
     });
-    const engine = createSyncManager({ vaultId, port });
     engine.start();
     this.engine = engine;
     // Periodic background reconcile while the engine is live — a focus refresh
@@ -163,12 +197,19 @@ export class SyncCoordinator {
   }
 
   private async runInitialSync(engine: SyncEngine): Promise<void> {
+    // A newer rebuild may have already replaced the engine before this even
+    // starts; `onOutcome` (wired in rebuild()) carries the same guard for the
+    // completion race.
+    if (this.engine !== engine) return;
     this.status = { phase: "syncing" };
     this.emit();
-    const outcome = await engine.syncOnce();
-    // A newer rebuild may have replaced the engine mid-flight; only publish this
-    // pass's status if it's still the live one.
-    if (this.engine !== engine) return;
+    await engine.syncOnce();
+  }
+
+  /** The one place a pass's outcome becomes coordinator state — reached by
+   * EVERY pass (explicit or debounced) via the `onOutcome` wired in
+   * `rebuild()`. */
+  private handleOutcome(outcome: CoreSyncOutcome): void {
     this.recordConflicts(outcome);
     this.status = toStatus(outcome);
     this.emit();
