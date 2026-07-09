@@ -23,7 +23,7 @@
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "sherpa-onnx-node": "^1.10.41",
-    "tar": "^7.5.15",
+    "tar": "^7.5.16",
     "unbzip2-stream": "^1.4.3",
     "unified": "^11.0.5"
   },
