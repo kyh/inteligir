@@ -25,7 +25,13 @@ import path from "node:path";
 import { inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getVaultManager, type VaultManager } from "../vault/vault";
 import type { SyncPort } from "@repo/core/sync/sync-port";
-import { SyncEngine, type Clock, type Hasher, type SyncIo } from "@repo/core/sync/engine";
+import {
+  SyncEngine,
+  type Clock,
+  type Hasher,
+  type SyncIo,
+  type SyncOutcome,
+} from "@repo/core/sync/engine";
 import { createJsonFileBaseStore, type BaseStore, type JsonFile } from "@repo/core/sync/base-store";
 import { fsSafeStamp } from "@repo/core/sync/reconcile";
 
@@ -145,6 +151,10 @@ export type SyncManagerOptions = {
   now?: () => Date;
   /** Debounce window (ms) for `scheduleSync`. Default 300ms. */
   debounceMs?: number;
+  /** Fires after EVERY completed pass (explicit or debounced) — see
+   * `SyncEngineOptions.onOutcome`. The coordinator wires this to its
+   * conflicts-accumulate path so a background pass surfaces immediately. */
+  onOutcome?: (outcome: SyncOutcome) => void;
 };
 
 /**
@@ -161,5 +171,6 @@ export function createSyncManager(opts: SyncManagerOptions): SyncEngine {
     hash: createNodeHasher(),
     stamp: nodeStamp(opts.now),
     debounceMs: opts.debounceMs,
+    onOutcome: opts.onOutcome,
   });
 }

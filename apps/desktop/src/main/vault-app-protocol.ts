@@ -52,8 +52,17 @@ export function mintHtmlAppToken(): string {
   return token;
 }
 
-function isValidToken(token: string): boolean {
+/** Exported for tests, which drive `resolveVaultAppRequest` against the real
+ * module-level token store (mint/revoke) rather than a fake `isValidToken`. */
+export function isValidToken(token: string): boolean {
   return liveTokens.has(token);
+}
+
+/** Revoke a token immediately (the view's close/unmount path calls this via
+ * IPC). The normal path — the FIFO bound above is only a backstop for tokens
+ * whose closing view never got the chance to revoke (crash, hard reload). */
+export function revokeHtmlAppToken(token: string): void {
+  liveTokens.delete(token);
 }
 
 // ---------------------------------------------------------------------------

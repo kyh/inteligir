@@ -34,6 +34,7 @@ import {
   mintHtmlAppToken,
   registerVaultAppProtocol,
   registerVaultAppScheme,
+  revokeHtmlAppToken,
 } from "@/main/vault-app-protocol";
 
 const isDevelopment = !app.isPackaged;
@@ -370,6 +371,9 @@ async function onAppReady(): Promise<void> {
   // in the platform-agnostic host handler map).
   registerVaultAppProtocol();
   ipcMain.handle(IPC.mintHtmlAppToken.channel, () => mintHtmlAppToken());
+  ipcMain.handle(IPC.revokeHtmlAppToken.channel, (_event, raw: unknown) => {
+    if (isRecord(raw) && typeof raw.token === "string") revokeHtmlAppToken(raw.token);
+  });
 
   mainWindow = createWindow(await startupBackgroundColor(theHost));
   electronPlatform.setTargetWindow(mainWindow);

@@ -13,8 +13,10 @@ import { VaultManager } from "@repo/features/server/vault/vault";
 
 import { injectHtmlAppRuntime } from "@/html-app-inject";
 import {
+  isValidToken,
   mintHtmlAppToken,
   resolveVaultAppRequest,
+  revokeHtmlAppToken,
   type VaultAppDeps,
 } from "@/main/vault-app-protocol";
 
@@ -143,5 +145,27 @@ describe("injectHtmlAppRuntime", () => {
 describe("mintHtmlAppToken", () => {
   it("mints distinct tokens", () => {
     expect(mintHtmlAppToken()).not.toBe(mintHtmlAppToken());
+  });
+});
+
+describe("revokeHtmlAppToken", () => {
+  it("a revoked token 403s against the real protocol store", () => {
+    const token = mintHtmlAppToken();
+    // Valid before revocation — drives the real module-level store, not a fake.
+    expect(
+      resolveVaultAppRequest(url(`app.html?token=${token}`), deps({ isValidToken })).kind,
+    ).toBe("ok");
+
+    revokeHtmlAppToken(token);
+
+    expect(resolveVaultAppRequest(url(`app.html?token=${token}`), deps({ isValidToken }))).toEqual({
+      kind: "error",
+      status: 403,
+      message: "forbidden",
+    });
+  });
+
+  it("is a no-op for a token that was never minted", () => {
+    expect(() => revokeHtmlAppToken("never-minted")).not.toThrow();
   });
 });

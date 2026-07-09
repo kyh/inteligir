@@ -181,6 +181,7 @@ const VaultWriteDocSchema = Type.Object(
   { path: Type.String(), content: Type.String() },
   { additionalProperties: false },
 );
+const HtmlAppTokenSchema = Type.Object({ token: Type.String() }, { additionalProperties: false });
 
 /** One file in the vault, relative to the vault root. `kind` splits editable
  * markdown docs (md/markdown/txt) from everything else (images, pdfs, …). */
@@ -370,6 +371,14 @@ export const IPC = {
    * the protocol handler checks, so this can't be a platform-neutral host
    * handler (see DESKTOP_SHELL_METHODS). */
   mintHtmlAppToken: invokeVoid<string>("vault:mint-html-app-token"),
+  /** Revoke a per-open token when its HTML-App closes/unmounts, so a captured
+   * or leaked token can't keep reading the vault. The FIFO bound in
+   * vault-app-protocol.ts is a backstop, not a substitute — this is the normal
+   * path. Desktop-shell-only, same reasoning as `mintHtmlAppToken`. */
+  revokeHtmlAppToken: invoke<typeof HtmlAppTokenSchema, void>(
+    "vault:revoke-html-app-token",
+    HtmlAppTokenSchema,
+  ),
   /** Tell the host which note is open so it watches that single file for
    * external edits (ADR-0001). Pass `{ path: null }` when no note is open. */
   setWatchedNote: invoke<typeof WatchedNoteSchema, void>(
@@ -585,11 +594,11 @@ export type EventMethod = {
 export const UPDATE_METHODS = ["checkForUpdates", "downloadUpdate", "installUpdate"] as const;
 export type UpdateMethod = (typeof UPDATE_METHODS)[number];
 
-/** Desktop-shell-only methods beyond the updater trio. `mintHtmlAppToken`
- * touches the main-process token store the `vault-app://` protocol checks, so
- * (like the updater) the platform-agnostic host has no handler for it and a
- * non-desktop transport must stub it. */
-export const DESKTOP_SHELL_METHODS = ["mintHtmlAppToken"] as const;
+/** Desktop-shell-only methods beyond the updater trio. `mintHtmlAppToken` and
+ * `revokeHtmlAppToken` touch the main-process token store the `vault-app://`
+ * protocol checks, so (like the updater) the platform-agnostic host has no
+ * handler for them and a non-desktop transport must stub them. */
+export const DESKTOP_SHELL_METHODS = ["mintHtmlAppToken", "revokeHtmlAppToken"] as const;
 export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
 
 /** Methods the platform-agnostic host implements. */
