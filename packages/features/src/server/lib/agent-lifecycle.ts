@@ -62,6 +62,7 @@ export function getAgentPorts(): AgentPorts {
     knowledge: {
       search: (query, limit) => getKnowledgeManager().search(query, limit),
       backlinks: (path) => getKnowledgeManager().backlinks(path),
+      notesWithTag: (tag) => getKnowledgeManager().notesWithTag(tag),
     },
   };
 }

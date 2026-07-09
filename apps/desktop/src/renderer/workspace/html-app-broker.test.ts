@@ -10,13 +10,14 @@ import { handleBrokerRequest, type BrokerBridge, type BrokerDeps } from "./html-
 // the {query,limit} routing directly; `getBacklinks` returns the seeded map.
 function makeBridge(
   seed: Record<string, string> = {},
-  opts: { backlinks?: Record<string, BacklinkEntry[]> } = {},
+  opts: { backlinks?: Record<string, BacklinkEntry[]>; tags?: Record<string, string[]> } = {},
 ): {
   bridge: BrokerBridge;
   store: Map<string, string>;
   kinds: Map<string, VaultEntry["kind"]>;
   searchVault: ReturnType<typeof vi.fn>;
   getBacklinks: ReturnType<typeof vi.fn>;
+  getNotesByTag: ReturnType<typeof vi.fn>;
 } {
   const store = new Map<string, string>(Object.entries(seed));
   const kinds = new Map<string, VaultEntry["kind"]>();
@@ -28,6 +29,7 @@ function makeBridge(
     return typeof limit === "number" ? matches.slice(0, limit) : matches;
   });
   const getBacklinks = vi.fn(async ({ path }: { path: string }) => opts.backlinks?.[path] ?? []);
+  const getNotesByTag = vi.fn(async ({ tag }: { tag: string }) => opts.tags?.[tag] ?? []);
   const bridge: BrokerBridge = {
     listVault: async () =>
       [...store.keys()].map((path) => ({
@@ -46,8 +48,9 @@ function makeBridge(
     deleteVaultEntry: async ({ path }) => ({ removed: store.delete(path) }),
     searchVault,
     getBacklinks,
+    getNotesByTag,
   };
-  return { bridge, store, kinds, searchVault, getBacklinks };
+  return { bridge, store, kinds, searchVault, getBacklinks, getNotesByTag };
 }
 
 function makeDeps(bridge: BrokerBridge, over: Partial<BrokerDeps> = {}): BrokerDeps {
@@ -108,6 +111,48 @@ describe("handleBrokerRequest", () => {
     expect(result).toEqual([
       { path: "proj.md", name: "proj.md", snippet: "hit:proj", properties: { priority: 1 } },
     ]);
+  });
+
+  it("list with a tag routes through getNotesByTag as {path,name}", async () => {
+    const { bridge, getNotesByTag, searchVault } = makeBridge(
+      { "a.md": "x", "b.md": "y", "c.md": "z" },
+      { tags: { meta: ["a.md", "b.md"] } },
+    );
+    const result = await handleBrokerRequest("list", [{ tag: "meta" }], makeDeps(bridge));
+    expect(getNotesByTag).toHaveBeenCalledWith({ tag: "meta" });
+    expect(searchVault).not.toHaveBeenCalled();
+    expect(result).toEqual([
+      { path: "a.md", name: "a.md" },
+      { path: "b.md", name: "b.md" },
+    ]);
+  });
+
+  it("list with tag + query narrows the search within the tagged set", async () => {
+    const { bridge } = makeBridge(
+      { "projects/a.md": "x", "projects/b.md": "y", "other.md": "z" },
+      { tags: { meta: ["projects/a.md", "other.md"] } },
+    );
+    // searchVault matches by path substring "projects"; only projects/a.md is
+    // also tagged, so projects/b.md (matched query, untagged) drops.
+    const result = await handleBrokerRequest(
+      "list",
+      [{ tag: "meta", query: "projects" }],
+      makeDeps(bridge),
+    );
+    expect(result).toEqual([{ path: "projects/a.md", name: "a.md", snippet: "hit:projects" }]);
+  });
+
+  it("list with tag + withProperties attaches parsed frontmatter", async () => {
+    const { bridge } = makeBridge(
+      { "a.md": "---\nk: v\n---\nbody\n" },
+      { tags: { meta: ["a.md"] } },
+    );
+    const result = await handleBrokerRequest(
+      "list",
+      [{ tag: "meta", withProperties: true }],
+      makeDeps(bridge),
+    );
+    expect(result).toEqual([{ path: "a.md", name: "a.md", properties: { k: "v" } }]);
   });
 
   it("list defaults limit to 50 and hard-caps it at 200", async () => {

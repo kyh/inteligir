@@ -17,7 +17,10 @@ import type { ExtractedLink, LinkKind } from "./link-extract";
 import { scanDoc, titleFromPath } from "./link-extract";
 import { buildResolver } from "./link-resolve";
 import { SearchIndex, tokenize } from "./search-index";
+import { TagIndex, type TagCount } from "./tag-index";
 import { basenamePath, extnamePath } from "./vault-path";
+
+export type { TagCount } from "./tag-index";
 
 // ---- Wire types (Bridge channel results) ------------------------------------
 
@@ -100,6 +103,7 @@ export class KnowledgeIndex {
   private readonly docs = new Map<string, DocRecord>();
   private readonly others = new Set<string>();
   private readonly searchIndex = new SearchIndex();
+  private readonly tagIndex = new TagIndex();
   private resolved: ResolvedState | null = null;
 
   /** Index (or re-index) a markdown doc. */
@@ -114,6 +118,7 @@ export class KnowledgeIndex {
       links: scan.links,
     });
     this.searchIndex.set(path, { title, headings: scan.headings, body: content });
+    this.tagIndex.set(path, scan.tags);
     this.resolved = null;
   }
 
@@ -122,6 +127,7 @@ export class KnowledgeIndex {
     if (this.docs.has(path)) {
       this.docs.delete(path);
       this.searchIndex.remove(path);
+      this.tagIndex.remove(path);
     }
     this.others.add(path);
     this.resolved = null;
@@ -130,7 +136,10 @@ export class KnowledgeIndex {
   /** Drop a file (doc or other) from the index. */
   remove(path: string): void {
     const wasDoc = this.docs.delete(path);
-    if (wasDoc) this.searchIndex.remove(path);
+    if (wasDoc) {
+      this.searchIndex.remove(path);
+      this.tagIndex.remove(path);
+    }
     const wasOther = this.others.delete(path);
     if (wasDoc || wasOther) this.resolved = null;
   }
@@ -139,6 +148,7 @@ export class KnowledgeIndex {
     this.docs.clear();
     this.others.clear();
     this.searchIndex.clear();
+    this.tagIndex.clear();
     this.resolved = null;
   }
 
@@ -240,6 +250,17 @@ export class KnowledgeIndex {
       snippet: this.searchSnippet(path, tokens),
       score,
     }));
+  }
+
+  /** Every tag in the vault with its note count (most-used first). Fed by both
+   * inline `#tags` and the frontmatter `tags` property, unified case-insensitively. */
+  tags(): TagCount[] {
+    return this.tagIndex.all();
+  }
+
+  /** Vault paths of notes carrying `tag` (case-insensitive), sorted. */
+  notesWithTag(tag: string): string[] {
+    return this.tagIndex.notesWithTag(tag);
   }
 
   // ---- Internals --------------------------------------------------------------

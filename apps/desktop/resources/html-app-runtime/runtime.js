@@ -72,9 +72,10 @@
 
   var files = {
     // list()                       → every doc as { path, name }
-    // list({ query, withProperties, limit }) → ranked hits (with snippets when
-    //   query is set) capped at `limit` (default 50, max 200); withProperties
-    //   attaches each hit's parsed frontmatter as `properties`.
+    // list({ query, tag, withProperties, limit }) → ranked hits (with snippets
+    //   when query is set) capped at `limit` (default 50, max 200); tag
+    //   restricts to notes carrying that tag; withProperties attaches each
+    //   hit's parsed frontmatter as `properties`.
     list: function (options) {
       return request("list", options === undefined ? [] : [options]);
     },

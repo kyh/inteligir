@@ -66,7 +66,7 @@ When notes aren't the right shape — a table, kanban, dashboard, tracker, books
 **The vault API** (`window.inteligir.files`, all async/Promise-based):
 
 - `list()` → `[{ path, name }]` — every markdown note in the vault.
-- `list({ query?, withProperties?, limit? })` → ranked hits — `query` runs a full-text search (each hit gains a `snippet`); `withProperties: true` attaches each hit's parsed frontmatter as `properties`; `limit` caps results (default 50, max 200). Use this for "notes tagged X sorted by Y" instead of `list()` + N reads.
+- `list({ query?, tag?, withProperties?, limit? })` → ranked hits — `query` runs a full-text search (each hit gains a `snippet`); `tag` restricts to notes carrying that tag (inline `#tag` or frontmatter `tags`, case-insensitive; combine with `query` to search within the tag); `withProperties: true` attaches each hit's parsed frontmatter as `properties`; `limit` caps results (default 50, max 200). Use this for "notes tagged X sorted by Y" instead of `list()` + N reads.
 - `read(path)` → `{ path, body, properties }` — `body` is the markdown after frontmatter; `properties` is the parsed frontmatter as an object.
 - `open(path)` — open a note in the editor.
 - `create(path, { body?, properties? })` — create a new note (errors if it exists).

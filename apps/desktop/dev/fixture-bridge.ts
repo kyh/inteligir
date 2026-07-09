@@ -128,6 +128,16 @@ nested:
 
 Edit the typed properties above; the yaml block round-trips byte-for-byte.
 `,
+  // Inline-tag note (plan 021): exercises the palette `#` flow. Its inline
+  // #meta unifies with frontmatter-note.md's frontmatter `tags: [meta, demo]`,
+  // so the tag list demos BOTH sources (meta count 2) and inline-only tags.
+  // Pre-canonical prose (the corpus test pins it canonical).
+  "tagged.md": `# Tagged note
+
+Inline tags: working on #project and #meta this week, with #ideas to chase.
+
+A nested tag #area/deep-dive lives here too.
+`,
   // WP2 vocabulary notes — every kit exercisable in the harness. All four are
   // CANONICAL (the corpus test pins that): editing them must never flip the
   // pane to Raw.
@@ -863,6 +873,8 @@ export function createFixtureBridge(): Bridge {
     getLinkGraph: async () => knowledge.graph(),
     searchVault: async ({ query, limit }) => knowledge.search(query, limit),
     listWikiTargets: async () => knowledge.wikiTargets(),
+    listTags: async () => knowledge.tags(),
+    getNotesByTag: async ({ tag }) => knowledge.notesWithTag(tag),
     onKnowledgeUpdated: knowledgeEvents.subscribe,
 
     // Delegation — no background agent, but the run is simulated against the

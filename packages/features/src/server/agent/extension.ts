@@ -45,6 +45,8 @@ export type ExecutorPort = {
 export type KnowledgePort = {
   search(query: string, limit?: number): SearchResult[];
   backlinks(path: string): BacklinkEntry[];
+  /** Vault paths of notes carrying a tag (case-insensitive). */
+  notesWithTag(tag: string): string[];
 };
 
 export type AgentPorts = {

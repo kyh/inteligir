@@ -21,7 +21,18 @@ const SEARCH_DEFAULT_LIMIT = 20;
 const SEARCH_MAX_LIMIT = 50;
 
 const SearchVaultSchema = Type.Object({
-  query: Type.String({ description: "Search terms to match against note titles and body text." }),
+  query: Type.Optional(
+    Type.String({
+      description:
+        "Search terms to match against note titles and body text. Optional when `tag` is set (then it lists every note with that tag).",
+    }),
+  ),
+  tag: Type.Optional(
+    Type.String({
+      description:
+        "Restrict results to notes carrying this tag (case-insensitive; matches inline `#tag` and frontmatter `tags`). Combine with `query` to search within the tag.",
+    }),
+  ),
   limit: Type.Optional(
     Type.Number({
       description: `Max hits to return (default ${SEARCH_DEFAULT_LIMIT}, hard-capped at ${SEARCH_MAX_LIMIT}).`,
@@ -45,11 +56,27 @@ const knowledgeExtension: PiExtensionBundle = {
         label: "search_vault",
         description:
           "Full-text search over the user's vault (lexical, ranked). Returns matching " +
-          "note paths with snippets. Prefer this over grep for finding notes by topic.",
+          "note paths with snippets. Optionally filter by `tag` (inline `#tag` or " +
+          "frontmatter `tags`). Prefer this over grep for finding notes by topic.",
         parameters: SearchVaultSchema,
         execute: async (_toolCallId, params: Static<typeof SearchVaultSchema>) => {
           const limit = Math.min(params.limit ?? SEARCH_DEFAULT_LIMIT, SEARCH_MAX_LIMIT);
-          const hits = ports.knowledge.search(params.query, limit);
+          const query = params.query?.trim();
+          if (params.tag !== undefined) {
+            // Tag filter first, then the query narrows WITHIN the tagged set.
+            const tagged = new Set(ports.knowledge.notesWithTag(params.tag));
+            if (tagged.size === 0) return textResult("No matches.");
+            if (query === undefined || query === "") {
+              return textResult([...tagged].toSorted().slice(0, limit).join("\n"));
+            }
+            const hits = ports.knowledge.search(query, limit).filter((hit) => tagged.has(hit.path));
+            if (hits.length === 0) return textResult("No matches.");
+            return textResult(hits.map((hit) => `${hit.path} — ${hit.snippet}`).join("\n"));
+          }
+          if (query === undefined || query === "") {
+            return textResult("Provide a query or a tag to search.");
+          }
+          const hits = ports.knowledge.search(query, limit);
           if (hits.length === 0) return textResult("No matches.");
           return textResult(hits.map((hit) => `${hit.path} — ${hit.snippet}`).join("\n"));
         },

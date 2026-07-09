@@ -4,6 +4,7 @@ import {
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
+  HashIcon,
   LayoutTemplateIcon,
   MoonIcon,
   RefreshCwIcon,
@@ -26,18 +27,20 @@ import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
 import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { useVault } from "@renderer/workspace/vault-context";
-import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
+import type { SearchResult, TagCount } from "@repo/core/knowledge/knowledge-index";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 8;
 
 /** Multi-step palette navigation. The root is search + commands; picking "New
  * note from template…" walks into template selection then note-naming, reusing
- * the same command input as the typed-name field. */
+ * the same command input as the typed-name field. Typing `#` at the root lists
+ * tags; selecting one walks into `browseTag` (that tag's notes). */
 type Phase =
   | { kind: "root" }
   | { kind: "pickTemplate" }
-  | { kind: "nameTemplate"; template: string };
+  | { kind: "nameTemplate"; template: string }
+  | { kind: "browseTag"; tag: string };
 
 /** Every whitespace-separated term must appear somewhere in the haystack —
  * the filename filter (filtering is ours: cmdk's scorer can't see the
@@ -79,6 +82,8 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "root" });
   const [hits, setHits] = useState<SearchResult[]>([]);
+  const [tags, setTags] = useState<TagCount[]>([]);
+  const [tagNotes, setTagNotes] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Clear the filter AND reset navigation on every close, no matter the path —
@@ -89,9 +94,40 @@ export function CommandPalette({
     if (!open) {
       setQuery("");
       setHits([]);
+      setTagNotes([]);
       setPhase({ kind: "root" });
     }
   }, [open]);
+
+  // Load the tag list once per open — the `#` flow filters it client-side, and
+  // it's a small, cheap index read that the tag counts depend on.
+  useEffect(() => {
+    if (!open) return;
+    getBridge()
+      ?.listTags()
+      .then((result) => {
+        setTags(result);
+        return undefined;
+      })
+      .catch(() => {});
+  }, [open]);
+
+  // Fetch a tag's notes when stepping into the browse phase.
+  useEffect(() => {
+    if (phase.kind !== "browseTag") return;
+    const tag = phase.tag;
+    let live = true;
+    getBridge()
+      ?.getNotesByTag({ tag })
+      .then((paths) => {
+        if (live) setTagNotes(paths);
+        return undefined;
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [phase]);
 
   // Debounced full-text search; a stale response never lands over a newer
   // query (sequence check). Only the root phase searches notes — the sub-phases
@@ -100,7 +136,8 @@ export function CommandPalette({
   useEffect(() => {
     const trimmedQuery = query.trim();
     const seq = ++searchSeq.current;
-    if (!open || phase.kind !== "root" || trimmedQuery === "") {
+    // The root's `#`-prefixed query is a tag filter, not a full-text search.
+    if (!open || phase.kind !== "root" || trimmedQuery === "" || trimmedQuery.startsWith("#")) {
       setHits([]);
       return;
     }
@@ -141,6 +178,7 @@ export function CommandPalette({
       if (event.key !== "Escape" || phase.kind === "root") return;
       event.preventDefault();
       event.stopPropagation();
+      // browseTag / pickTemplate back out to root; nameTemplate to pickTemplate.
       goto({ kind: phase.kind === "nameTemplate" ? "pickTemplate" : "root" });
     },
     [phase.kind, goto],
@@ -224,6 +262,79 @@ export function CommandPalette({
               </CommandItem>
             </CommandGroup>
           )}
+        </CommandList>
+      </CommandDialog>
+    );
+  }
+
+  // ---- Tag flow: browse a tag's notes --------------------------------------
+  if (phase.kind === "browseTag") {
+    const tag = phase.tag;
+    const matches =
+      trimmed === "" ? tagNotes : tagNotes.filter((path) => matchesQuery(path, trimmed));
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+        initialFocus={inputRef}
+        shouldFilter={false}
+      >
+        <CommandInput
+          ref={inputRef}
+          value={query}
+          onValueChange={setQuery}
+          onKeyDown={handleInputKeyDown}
+          placeholder={`Notes tagged #${tag}…  (Esc to go back)`}
+        />
+        <CommandList>
+          <CommandEmpty>No notes with this tag.</CommandEmpty>
+          <CommandGroup heading={`#${tag}`}>
+            {matches.map((path) => (
+              <CommandItem key={path} value={path} onSelect={() => run(() => openFile(path))}>
+                <FileTextIcon />
+                <span className="truncate">{path}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+    );
+  }
+
+  // ---- Tag flow: list tags (typed `#` at the root) -------------------------
+  if (trimmed.startsWith("#")) {
+    const filter = trimmed.slice(1).toLowerCase();
+    const matches = filter === "" ? tags : tags.filter((t) => t.tag.toLowerCase().includes(filter));
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+        initialFocus={inputRef}
+        shouldFilter={false}
+      >
+        <CommandInput
+          ref={inputRef}
+          value={query}
+          onValueChange={setQuery}
+          placeholder="Filter tags…"
+        />
+        <CommandList>
+          <CommandEmpty>No tags.</CommandEmpty>
+          <CommandGroup heading="Tags">
+            {matches.map((t) => (
+              <CommandItem
+                key={t.tag}
+                value={`#${t.tag}`}
+                onSelect={() => goto({ kind: "browseTag", tag: t.tag })}
+              >
+                <HashIcon />
+                <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                  <span className="truncate">{t.tag}</span>
+                  <span className="text-xs text-muted-foreground">{t.count}</span>
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
         </CommandList>
       </CommandDialog>
     );

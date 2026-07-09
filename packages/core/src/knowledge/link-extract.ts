@@ -23,6 +23,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import { parseProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange, remarkWikiLink } from "../markdown/remark-wiki-link";
 import { basenamePath, extnamePath } from "./vault-path";
 
@@ -59,6 +60,10 @@ export type DocScan = {
   /** Every heading's text, any depth, in document order. */
   headings: string[];
   links: ExtractedLink[];
+  /** The doc's tags, display case, deduped — frontmatter `tags` first (in
+   * declaration order), then inline `#tag` tokens in document order. Unified
+   * case-insensitively downstream by TagIndex. */
+  tags: string[];
 };
 
 const processor = unified()
@@ -67,10 +72,10 @@ const processor = unified()
   .use(remarkGfm)
   .use(remarkWikiLink);
 
-/** Parse a doc once and pull out title, headings, and note links. */
+/** Parse a doc once and pull out title, headings, note links, and tags. */
 export function scanDoc(source: string): DocScan {
   const tree = processor.parse(source);
-  const scan: DocScan = { title: null, headings: [], links: [] };
+  const scan: DocScan = { title: null, headings: [], links: [], tags: extractTags(tree) };
   walk(tree, (node) => {
     switch (node.type) {
       case "heading": {
@@ -132,6 +137,64 @@ function textOf(node: Nodes): string {
   if (node.type === "text" || node.type === "inlineCode") return node.value;
   if ("children" in node) return node.children.map(textOf).join("");
   return "";
+}
+
+// ---- Tags -------------------------------------------------------------------
+
+// An inline `#tag`: `#` at a word boundary (not glued to a preceding word char,
+// `#`, or `/` — so `C#`, `##h`, and url fragments don't count) followed by a
+// LETTER-first name (excludes `#123` and fully-numeric hex like `#123456`).
+// Nested `a/b/c` and dashes are allowed; a trailing `/` or `-` is not captured.
+// Unicode letters/numbers count — the pipeline already runs with the `u` flag
+// (search-index tokenizer), so it costs nothing here.
+const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
+
+/** The doc's tags: frontmatter `tags` (declaration order) then inline `#tag`
+ * tokens (document order). Inline extraction is PARSE-AWARE — it scans only
+ * mdast `text` nodes, so code spans/fences (their own `inlineCode`/`code`
+ * nodes), link/image URLs (a node's `url`, never text), and link/image LABELS
+ * (their subtrees are suppressed) are all naturally excluded, no byte regex. */
+function extractTags(tree: Nodes): string[] {
+  const tags = [...frontmatterTags(tree)];
+  collectInlineTags(tree, tags, false);
+  return tags;
+}
+
+/** Parse the leading `yaml` node's `tags` property (017's typed tags: a string
+ * array). A leading `#` on a frontmatter tag is tolerated and stripped. */
+function frontmatterTags(tree: Nodes): string[] {
+  if (!("children" in tree)) return [];
+  const yaml = tree.children.find((child) => child.type === "yaml");
+  if (!yaml || yaml.type !== "yaml") return [];
+  const parsed = parseProperties(yaml.value);
+  if (parsed.kind !== "valid") return [];
+  const prop = parsed.properties.find((p) => p.key === "tags" && p.type === "tags");
+  if (!prop || prop.type !== "tags") return [];
+  return prop.value.map((tag) => tag.replace(/^#/, "").trim()).filter((tag) => tag !== "");
+}
+
+/** Walk `text` nodes for `#tag` tokens; suppress link/image subtrees so a
+ * `[label #not-a-tag](url)` label is never mistaken for a tag. */
+function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): void {
+  if (node.type === "text") {
+    if (suppressed) return;
+    for (const match of node.value.matchAll(INLINE_TAG_RE)) {
+      // A trailing dash is captured by the name class but reads as punctuation,
+      // not part of the tag (`#bar-` → `bar`); a trailing `/` never is.
+      const tag = match[1]?.replace(/-+$/, "");
+      if (tag !== undefined && tag !== "") out.push(tag);
+    }
+    return;
+  }
+  const nextSuppressed =
+    suppressed ||
+    node.type === "link" ||
+    node.type === "linkReference" ||
+    node.type === "image" ||
+    node.type === "imageReference";
+  if ("children" in node) {
+    for (const child of node.children) collectInlineTags(child, out, nextSuppressed);
+  }
 }
 
 type NodePosition = { span: Span; line: number };
