@@ -3,53 +3,53 @@ packages:
   - packages/*
 
 catalog:
-  "@base-ui/react": ^1.5.0
+  "@base-ui/react": ^1.6.0
   "@better-auth/expo": ^1.6.23
-  "@cloudflare/vite-plugin": ^1.43.0
-  "@cloudflare/vitest-pool-workers": ^0.18.0
-  "@expo/metro-runtime": ~56.0.16
-  "@sinclair/typebox": ^0.34.49
-  better-auth: ^1.6.11
-  drizzle-kit: ^0.31.10
-  drizzle-orm: ^0.45.2
-  expo: ~56.0.7
-  expo-constants: ~56.0.16
-  expo-crypto: ~56.0.4
-  expo-dev-client: ~56.0.18
-  expo-file-system: ~56.0.8
-  expo-linking: ~56.0.13
-  expo-network: ~56.0.5
-  expo-router: ~56.2.8
-  expo-secure-store: ~56.0.4
-  expo-splash-screen: ~56.0.10
-  expo-status-bar: ~56.0.4
-  expo-system-ui: ~56.0.5
-  expo-web-browser: ~56.0.5
-  nativewind: 5.0.0-preview.3
-  react-native: ~0.85.3
-  react-native-css: 3.0.7
-  react-native-gesture-handler: ~2.31.2
-  react-native-markdown-display: ^7.0.2
-  react-native-reanimated: ~4.3.1
-  react-native-safe-area-context: ~5.8.0
-  react-native-screens: ~4.25.2
-  react-native-worklets: ~0.8.3
-  "@tailwindcss/postcss": ^4.3.0
-  "@tailwindcss/vite": ^4.3.0
+  "@cloudflare/vite-plugin": ^1.44.0
+  "@cloudflare/vitest-pool-workers": ^0.18.4
+  "@expo/metro-runtime": ~57.0.3
+  "@sinclair/typebox": ^0.34.50
+  "@tailwindcss/postcss": ^4.3.2
+  "@tailwindcss/vite": ^4.3.2
   "@tanstack/react-router": ^1.170.17
   "@tanstack/react-start": ^1.168.27
-  "@types/node": ^25.9.1
+  "@types/node": ^26.1.1
   "@types/react": ^19.2.15
   "@types/react-dom": ^19.2.3
-  "@vitejs/plugin-react": ^6.0.2
-  lucide-react: ^1.16.0
-  react: ^19.2.6
-  react-dom: ^19.2.6
-  tailwindcss: ^4.3.0
-  typescript: ^6.0.3
-  vite: ^8.0.14
-  vitest: ^4.1.7
-  wrangler: ^4.107.0
+  "@vitejs/plugin-react": ^6.0.3
+  better-auth: ^1.6.23
+  drizzle-kit: ^0.31.10
+  drizzle-orm: ^0.45.2
+  expo: ~57.0.4
+  expo-constants: ~57.0.3
+  expo-crypto: ~57.0.0
+  expo-dev-client: ~57.0.5
+  expo-file-system: ~57.0.0
+  expo-linking: ~57.0.2
+  expo-network: ~57.0.0
+  expo-router: ~57.0.4
+  expo-secure-store: ~57.0.0
+  expo-splash-screen: ~57.0.2
+  expo-status-bar: ~57.0.0
+  expo-system-ui: ~57.0.0
+  expo-web-browser: ~57.0.0
+  lucide-react: ^1.24.0
+  nativewind: 5.0.0-preview.3
+  react: ^19.2.7
+  react-dom: ^19.2.7
+  react-native: ~0.86.0
+  react-native-css: 3.0.7
+  react-native-gesture-handler: ~3.0.2
+  react-native-markdown-display: ^7.0.2
+  react-native-reanimated: ~4.5.1
+  react-native-safe-area-context: ~5.8.0
+  react-native-screens: ~4.25.2
+  react-native-worklets: ~0.10.2
+  tailwindcss: ^4.3.2
+  typescript: ^7.0.2
+  vite: ^8.1.4
+  vitest: ^4.1.10
+  wrangler: ^4.110.0
 
 linkWorkspacePackages: true
 
