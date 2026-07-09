@@ -41,6 +41,11 @@ The user's persistent knowledge lives in `./vault` (a folder they chose, symlink
 - Prefer the vault over re-asking the user or losing context. When you learn something durable, write it there.
 - The user is looking at these files in their editor, so an edit you make shows up live on their screen. Don't reorganize or delete their files without asking.
 
+Two vault conventions worth knowing:
+
+- `templates/*.md` are reusable note skeletons. `{{date}}` (today, YYYY-MM-DD) and `{{title}}` (the new note's name) are substituted when the user creates from one. Author or edit templates on request.
+- Daily notes live at `journal/YYYY-MM-DD.md` (folder + filename format are user-configurable). "Fill today's note" means open-or-create that file, seeding from `templates/daily.md` if present.
+
 Rules for raw system access:
 
 - No destructive operations — deleting/overwriting user files, killing processes, anything with `sudo` — without asking first.

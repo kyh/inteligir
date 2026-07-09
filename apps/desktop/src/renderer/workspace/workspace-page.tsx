@@ -12,6 +12,7 @@ import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
 import { AppSidebar } from "@renderer/sidebar/app-sidebar";
 import { HtmlAppView } from "@renderer/workspace/html-app-view";
+import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { VaultProvider, useVault } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useDelegationStore } from "@renderer/stores/delegation-store";
@@ -40,6 +41,23 @@ function MainSurface({ surface }: { surface: "editor" | "graph" }) {
     );
   }
   return isHtmlApp ? <HtmlAppView /> : <EditorPane />;
+}
+
+/** ⌘D / Ctrl+D → open-or-create today's daily note. Lives inside VaultProvider
+ * so it can reach the vault + the Settings → Notes config; renders nothing. */
+function DailyNoteHotkey() {
+  const openDailyNote = useOpenDailyNote();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        openDailyNote();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openDailyNote]);
+  return null;
 }
 
 /**
@@ -83,6 +101,7 @@ export function WorkspacePage() {
 
   return (
     <VaultProvider>
+      <DailyNoteHotkey />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
         {/* Flush Attio-style editor pane: a full-height column butted against

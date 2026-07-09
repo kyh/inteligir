@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  CalendarDaysIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
+  LayoutTemplateIcon,
   MoonIcon,
   RefreshCwIcon,
   SunIcon,
@@ -19,13 +21,23 @@ import {
 } from "@repo/ui/components/command";
 
 import { getBridge } from "@renderer/lib/bridge";
+import { TEMPLATES_DIR, isTemplatePath } from "@renderer/lib/apply-template";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
+import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { useVault } from "@renderer/workspace/vault-context";
 import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 8;
+
+/** Multi-step palette navigation. The root is search + commands; picking "New
+ * note from template…" walks into template selection then note-naming, reusing
+ * the same command input as the typed-name field. */
+type Phase =
+  | { kind: "root" }
+  | { kind: "pickTemplate" }
+  | { kind: "nameTemplate"; template: string };
 
 /** Every whitespace-separated term must appear somewhere in the haystack —
  * the filename filter (filtering is ours: cmdk's scorer can't see the
@@ -40,11 +52,17 @@ function matchesQuery(haystack: string, query: string): boolean {
     .every((term) => lower.includes(term));
 }
 
+/** Display label for a template entry — the path with the `templates/` prefix
+ * dropped. */
+function templateLabel(path: string): string {
+  return path.startsWith(`${TEMPLATES_DIR}/`) ? path.slice(TEMPLATES_DIR.length + 1) : path;
+}
+
 /**
  * The ⌘K command palette: fuzzy-search notes by filename, full-text search
  * their contents (searchVault, debounced as-you-type), create a note from the
- * typed name, and run a handful of workspace commands. Opened by ⌘K
- * (WorkspacePage) and the sidebar's "Quick actions" pill.
+ * typed name or a template, open today's note, and run a handful of workspace
+ * commands. Opened by ⌘K (WorkspacePage) and the sidebar's "Quick actions" pill.
  */
 export function CommandPalette({
   open,
@@ -54,29 +72,35 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void;
 }) {
   const { entries, openFile, createFile, changeFolder, refreshVault } = useVault();
+  const createFromTemplate = useCreateFromTemplate();
+  const openDailyNote = useOpenDailyNote();
   const setSurface = useViewStore((s) => s.setSurface);
   const { resolved, setTheme } = useTheme();
   const [query, setQuery] = useState("");
+  const [phase, setPhase] = useState<Phase>({ kind: "root" });
   const [hits, setHits] = useState<SearchResult[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Clear the filter on every close, no matter the path — Esc / select run
-  // `close()`, but ⌘K-to-dismiss toggles `open` in WorkspacePage and bypasses
-  // it, so reopening would otherwise show stale query text.
+  // Clear the filter AND reset navigation on every close, no matter the path —
+  // Esc / select run `close()`, but ⌘K-to-dismiss toggles `open` in
+  // WorkspacePage and bypasses it, so reopening would otherwise show a stale
+  // query or a half-walked template flow.
   useEffect(() => {
     if (!open) {
       setQuery("");
       setHits([]);
+      setPhase({ kind: "root" });
     }
   }, [open]);
 
   // Debounced full-text search; a stale response never lands over a newer
-  // query (sequence check).
+  // query (sequence check). Only the root phase searches notes — the sub-phases
+  // reuse the query as a template filter / note name.
   const searchSeq = useRef(0);
   useEffect(() => {
     const trimmedQuery = query.trim();
     const seq = ++searchSeq.current;
-    if (!open || trimmedQuery === "") {
+    if (!open || phase.kind !== "root" || trimmedQuery === "") {
       setHits([]);
       return;
     }
@@ -90,11 +114,11 @@ export function CommandPalette({
         .catch(() => {});
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [query, open]);
+  }, [query, open, phase.kind]);
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
-  // Run an action then dismiss — every item closes the palette.
+  // Run an action then dismiss — every leaf item closes the palette.
   const run = useCallback(
     (action: () => void) => {
       action();
@@ -103,12 +127,109 @@ export function CommandPalette({
     [close],
   );
 
+  // Step into a sub-phase without closing (template flow); the query is reused
+  // as that phase's field, so clear it on entry.
+  const goto = useCallback((next: Phase) => {
+    setPhase(next);
+    setQuery("");
+  }, []);
+
+  // Escape backs out one navigation step instead of closing when inside the
+  // template flow (the CommandDialog would otherwise dismiss the whole palette).
+  const handleInputKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== "Escape" || phase.kind === "root") return;
+      event.preventDefault();
+      event.stopPropagation();
+      goto({ kind: phase.kind === "nameTemplate" ? "pickTemplate" : "root" });
+    },
+    [phase.kind, goto],
+  );
+
   const trimmed = query.trim();
   const lower = trimmed.toLowerCase();
   const exists = entries.some(
     (e) => e.path.toLowerCase() === lower || e.path.toLowerCase() === `${lower}.md`,
   );
 
+  const templates = entries.filter((e) => e.kind === "doc" && isTemplatePath(e.path));
+
+  // ---- Template flow: pick a template --------------------------------------
+  if (phase.kind === "pickTemplate") {
+    const matches =
+      trimmed === "" ? templates : templates.filter((e) => matchesQuery(e.path, trimmed));
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+        initialFocus={inputRef}
+        shouldFilter={false}
+      >
+        <CommandInput
+          ref={inputRef}
+          value={query}
+          onValueChange={setQuery}
+          onKeyDown={handleInputKeyDown}
+          placeholder="Pick a template…  (Esc to go back)"
+        />
+        <CommandList>
+          <CommandEmpty>No templates found.</CommandEmpty>
+          <CommandGroup heading="Templates">
+            {matches.map((e) => (
+              <CommandItem
+                key={e.path}
+                value={e.path}
+                onSelect={() => goto({ kind: "nameTemplate", template: e.path })}
+              >
+                <LayoutTemplateIcon />
+                <span className="truncate">{templateLabel(e.path)}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+    );
+  }
+
+  // ---- Template flow: name the new note ------------------------------------
+  if (phase.kind === "nameTemplate") {
+    const template = phase.template;
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+        initialFocus={inputRef}
+        shouldFilter={false}
+      >
+        <CommandInput
+          ref={inputRef}
+          value={query}
+          onValueChange={setQuery}
+          onKeyDown={handleInputKeyDown}
+          placeholder={`Name the note from ${templateLabel(template)}…  (Esc to go back)`}
+        />
+        <CommandList>
+          <CommandEmpty>Type a name for the new note.</CommandEmpty>
+          {trimmed.length > 0 && (
+            <CommandGroup heading="Create">
+              <CommandItem
+                value={`__from_template__ ${trimmed}`}
+                onSelect={() => run(() => createFromTemplate(template, trimmed))}
+              >
+                <FilePlusIcon />
+                <span>
+                  Create <span className="font-medium text-foreground">{trimmed}</span> from{" "}
+                  {templateLabel(template)}
+                </span>
+              </CommandItem>
+            </CommandGroup>
+          )}
+        </CommandList>
+      </CommandDialog>
+    );
+  }
+
+  // ---- Root: search + commands ---------------------------------------------
   // Notes = filename matches, then full-text hits that the filename filter
   // missed (deduped by path, host ranking preserved).
   const nameMatches =
@@ -116,7 +237,33 @@ export function CommandPalette({
   const namePaths = new Set(nameMatches.map((e) => e.path));
   const contentHits = hits.filter((hit) => !namePaths.has(hit.path));
 
-  const actions = [
+  const actions: {
+    value: string;
+    keywords: string;
+    icon: React.ReactNode;
+    label: string;
+    onSelect: () => void;
+    keepOpen?: boolean;
+  }[] = [
+    {
+      value: "daily",
+      keywords: "open today daily note journal ⌘d",
+      icon: <CalendarDaysIcon />,
+      label: "Open today's note",
+      onSelect: () => openDailyNote(),
+    },
+    ...(templates.length > 0
+      ? [
+          {
+            value: "new-from-template",
+            keywords: "new note from template create",
+            icon: <LayoutTemplateIcon />,
+            label: "New note from template…",
+            onSelect: () => goto({ kind: "pickTemplate" }),
+            keepOpen: true,
+          },
+        ]
+      : []),
     {
       value: "graph",
       keywords: "open graph view links map",
@@ -210,7 +357,7 @@ export function CommandPalette({
               <CommandItem
                 key={action.value}
                 value={action.value}
-                onSelect={() => run(action.onSelect)}
+                onSelect={() => (action.keepOpen ? action.onSelect() : run(action.onSelect))}
               >
                 {action.icon}
                 <span>{action.label}</span>

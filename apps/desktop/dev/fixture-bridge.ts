@@ -395,6 +395,41 @@ function cannedEditResponse(prompt: string): string | null {
 // classify as a doc).
 const SAMPLE_ASSETS: Record<string, string> = {
   "wiki/diagram.png": "png-placeholder (dev harness fixture, not real image bytes)",
+  // Template fixtures (plan 020) so "New note from template…" and the daily-note
+  // seed are drivable in the harness. Kept out of SAMPLE_NOTES: they carry
+  // {{date}}/{{title}} placeholders + frontmatter that the corpus contract
+  // (every entry canonical) doesn't model — they're only ever read as template
+  // bytes, never opened as a canonical note.
+  "templates/meeting.md": `---
+type: meeting
+date: {{date}}
+---
+
+# {{title}}
+
+**Date:** {{date}}
+
+## Attendees
+
+-
+
+## Notes
+
+## Action items
+
+- [ ]
+`,
+  "templates/daily.md": `---
+type: daily
+date: {{date}}
+---
+
+# {{title}}
+
+## Focus
+
+## Log
+`,
   // An HTML App fixture so the sandboxed-app surface is drivable in the harness
   // (which has no vault-app:// protocol — the view falls back to a blob URL with
   // the same runtime injected). Exercises Alpine (the counter) + the injected
