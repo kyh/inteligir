@@ -5,8 +5,8 @@
 // derived per-request from the request origin, so it needs no env at all.
 
 interface Env {
-  /** Dedicated Better Auth signing secret. `wrangler secret put AUTH_SECRET`. */
-  readonly AUTH_SECRET: string;
+  /** Dedicated Better Auth signing secret. `wrangler secret put BETTER_AUTH_SECRET`. */
+  readonly BETTER_AUTH_SECRET: string;
   /** Optional extra trusted origins, comma-separated (e.g. a desktop protocol). */
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string;
   /** Optional GitHub OAuth credentials — the provider is enabled only when both exist. */

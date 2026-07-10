@@ -22,7 +22,7 @@ import { createDb } from "../db/client";
 // independently. If social OAuth on mobile is added later, revisit isolating
 // the server expo plugin so it doesn't bloat the Worker.
 //
-// Secrets are runtime env, NOT hardcoded: `AUTH_SECRET` (a DEDICATED key, never
+// Secrets are runtime env, NOT hardcoded: `BETTER_AUTH_SECRET` (a DEDICATED key, never
 // reused — set via `wrangler secret put`) and the optional OAuth client
 // credentials. `baseURL` is NOT configured — it's derived per-request from the
 // incoming request origin (passed in by the fetch handler), so localhost,
@@ -64,7 +64,7 @@ function socialProviders(env: Env) {
 export function createAuth(env: Env, baseURL: string) {
   return betterAuth({
     database: drizzleAdapter(createDb(env.DB), { provider: "sqlite" }),
-    secret: env.AUTH_SECRET,
+    secret: env.BETTER_AUTH_SECRET,
     baseURL,
     plugins: [bearer()],
     emailAndPassword: { enabled: true },

@@ -37,6 +37,6 @@
 
   // No `vars`: the Better Auth baseURL is derived per-request from the incoming
   // request origin (so localhost/preview/prod all work with no config), and
-  // AUTH_SECRET + any OAuth client secrets are secrets — set them with
+  // BETTER_AUTH_SECRET + any OAuth client secrets are secrets — set them with
   // `wrangler secret put` (see README), never committed here.
 }

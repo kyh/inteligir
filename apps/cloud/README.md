@@ -15,7 +15,7 @@ apps/cloud/
     vault-coordinator.ts  # Durable Object: owns the manifest + versions + SSE + R2 writes
     route.ts              # matchRoute(): parse the @repo/core/sync/wire routes into an ADT
     hash.ts               # sha256Hex() — server-authoritative content hashing
-    env.d.ts              # types the runtime secrets (AUTH_SECRET, OAuth) onto Env
+    env.d.ts              # types the runtime secrets (BETTER_AUTH_SECRET, OAuth) onto Env
     auth/auth.ts          # createAuth(env, baseURL): per-request Better Auth (Drizzle+D1, bearer)
     db/
       schema.ts           # Drizzle schema: Better Auth tables + vault_owner (ownership)
@@ -73,7 +73,7 @@ pnpm --filter @repo/cloud cf-typegen   # regenerate worker-configuration.d.ts af
 ## Deploy (run by the account owner)
 
 > Provisioned 2026-07-09: R2 bucket + D1 (`database_id` in wrangler.jsonc) exist,
-> schema pushed, `AUTH_SECRET` set, worker live at
+> schema pushed, `BETTER_AUTH_SECRET` set, worker live at
 > <https://inteligir-cloud.kyh.workers.dev>. Steps 1–5 are for rebuilding from
 > scratch; day-to-day redeploys only need step 6.
 
@@ -96,9 +96,9 @@ wrangler d1 create inteligir-auth
 #    (D1_TOKEN = a Cloudflare API token with D1 edit; DATABASE_ID = the id above)
 pnpm --filter @repo/cloud db:push:remote
 
-# 5. Set the runtime secrets (NOT committed). AUTH_SECRET is a DEDICATED signing
+# 5. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED signing
 #    key — generate a fresh random 32+ char value, don't reuse another key.
-wrangler secret put AUTH_SECRET                 # e.g. `openssl rand -base64 32`
+wrangler secret put BETTER_AUTH_SECRET                 # e.g. `openssl rand -base64 32`
 #    Optional GitHub OAuth (only if you enable the provider):
 # wrangler secret put GITHUB_CLIENT_ID
 # wrangler secret put GITHUB_CLIENT_SECRET

@@ -30,7 +30,7 @@ const TEST_SCHEMA = execFileSync(
 // same DO + R2 + D1 bindings wrangler.jsonc declares — so the DO's SQLite
 // storage, R2 blob store, and the D1 auth database are exercised for real.
 //
-// AUTH_SECRET is a runtime secret (not in wrangler.jsonc), so it's absent from
+// BETTER_AUTH_SECRET is a runtime secret (not in wrangler.jsonc), so it's absent from
 // the test env — inject a deterministic dummy so Better Auth can sign/verify.
 export default defineConfig({
   plugins: [
@@ -39,7 +39,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TEST_SCHEMA,
-          AUTH_SECRET: "test-better-auth-secret-000000000000",
+          BETTER_AUTH_SECRET: "test-better-auth-secret-000000000000",
         },
       },
     }),
