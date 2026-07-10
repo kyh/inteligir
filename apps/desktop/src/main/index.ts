@@ -24,11 +24,14 @@ if (!app.isPackaged) {
 
 import { createHost, type Host } from "@repo/features/server/create-host";
 import type { HostOptions } from "@repo/features/server/platform";
+import {
+  getRemoteAccessManager,
+  type RemoteAccessManager,
+} from "@repo/features/server/transport/remote-access-manager";
+import { startWsHost, type WsHost } from "@repo/features/server/transport/ws-host";
 import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/ipc";
-import { IPC } from "@repo/features/ipc-registry";
 
 import { createElectronPlatform } from "@/main/electron-platform";
-import { foldHostIntoIpc } from "@/main/host-fold";
 import { setupAutoUpdater, type Updater } from "@/main/updater";
 import {
   mintHtmlAppToken,
@@ -47,6 +50,7 @@ registerVaultAppScheme();
 
 let mainWindow: BrowserWindow | null = null;
 let host: Host | null = null;
+let wsHost: WsHost | null = null;
 let updater: Updater | null = null;
 
 // ---------------------------------------------------------------------------
@@ -95,9 +99,15 @@ function runGracefulShutdown(): Promise<void> {
     });
     try {
       await Promise.race([
-        (host?.dispose() ?? Promise.resolve()).catch((error: unknown) => {
-          console.error("[desktop] shutdown failed:", error);
-        }),
+        (async () => {
+          // Transport first: no client can invoke into a disposing host.
+          await (wsHost?.close() ?? Promise.resolve()).catch((error: unknown) => {
+            console.error("[desktop] ws transport close failed:", error);
+          });
+          await (host?.dispose() ?? Promise.resolve()).catch((error: unknown) => {
+            console.error("[desktop] shutdown failed:", error);
+          });
+        })(),
         timeout,
       ]);
     } finally {
@@ -188,6 +198,12 @@ async function startupBackgroundColor(theHost: Host): Promise<string> {
   const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
   return dark ? "#141415" : "#f0f2f2";
 }
+
+/** The ws endpoint + per-boot local token the renderer's Bridge dials with.
+ * The preload fetches it over the one-shot `inteligir:bootstrap` sendSync
+ * channel (registered in onAppReady), keeping the token out of the page URL,
+ * navigation history, and the renderer's OS command line. */
+type BridgeBootstrap = { url: string; token: string };
 
 function createWindow(backgroundColor: string): BrowserWindow {
   const window = new BrowserWindow({
@@ -353,6 +369,46 @@ app.on("before-quit", (event) => {
   void runGracefulShutdown().then(() => quitNow());
 });
 
+// The renderer's first act is dialing the Bridge, so the ws server must be
+// accepting connections before any window exists. Resolves with the bound
+// port; rejects (→ the fatal-startup dialog) as soon as the bind FAILS — the
+// server's error event lands in milliseconds, e.g. a stale instance still
+// holding the port — with the timeout kept only as a backstop.
+const WS_LISTEN_TIMEOUT_MS = 10_000;
+
+function bindFailure(reason: string): Error {
+  return new Error(
+    `the WebSocket transport failed to bind (${reason}) — is another Inteligir instance running?`,
+  );
+}
+
+function waitForWsPort(theWsHost: WsHost, manager: RemoteAccessManager): Promise<number> {
+  const bound = theWsHost.port();
+  if (bound !== null) return Promise.resolve(bound);
+  const failed = manager.getListenError();
+  if (failed !== null) return Promise.reject(bindFailure(failed));
+  return new Promise<number>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      unsubscribe();
+      reject(bindFailure(`no bind within ${WS_LISTEN_TIMEOUT_MS}ms`));
+    }, WS_LISTEN_TIMEOUT_MS);
+    const unsubscribe = manager.onChange(() => {
+      const port = theWsHost.port();
+      if (port !== null) {
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(port);
+        return;
+      }
+      const error = manager.getListenError();
+      if (error === null) return;
+      clearTimeout(timer);
+      unsubscribe();
+      reject(bindFailure(error));
+    });
+  });
+}
+
 async function onAppReady(): Promise<void> {
   const electronPlatform = createElectronPlatform();
   const theHost = createHost(electronPlatform.platform, hostOptionsFromDefines());
@@ -361,18 +417,45 @@ async function onAppReady(): Promise<void> {
   configureAppIdentity();
   configureApplicationMenu();
 
-  // Transport fold + the desktop-only updater overlay, before any renderer
-  // can invoke a channel.
-  foldHostIntoIpc(theHost);
-  updater = setupAutoUpdater({ isDevelopment, gracefulShutdown: runGracefulShutdown });
+  // Transport fold: ONE WebSocket server carries the whole Bridge, before any
+  // renderer can invoke a channel. The desktop-only updater trio and the
+  // html-app token mint (UPDATE_METHODS / DESKTOP_SHELL_METHODS — deliberately
+  // absent from the platform-agnostic host handler map) ride along as
+  // shellHandlers. The updater is constructed first (the ws host needs its
+  // handlers at startup) and gets the onUpdateState broadcast injected after.
+  const remoteAccess = getRemoteAccessManager();
+  const theUpdater = setupAutoUpdater({ isDevelopment, gracefulShutdown: runGracefulShutdown });
+  updater = theUpdater;
+  const theWsHost = startWsHost({
+    host: theHost,
+    validator: remoteAccess.validator,
+    manager: remoteAccess,
+    shellHandlers: {
+      ...theUpdater.handlers,
+      mintHtmlAppToken: () => mintHtmlAppToken(),
+      revokeHtmlAppToken: (raw: unknown) => {
+        if (isRecord(raw) && typeof raw.token === "string") revokeHtmlAppToken(raw.token);
+      },
+    },
+  });
+  wsHost = theWsHost;
+  theUpdater.setBroadcast((state) => theWsHost.broadcastEvent("onUpdateState", state));
 
-  // HTML-App surface: the vault-app:// handler + the shell-only token mint (a
-  // DESKTOP_SHELL_METHOD, so it's registered here beside the updater trio, not
-  // in the platform-agnostic host handler map).
   registerVaultAppProtocol();
-  ipcMain.handle(IPC.mintHtmlAppToken.channel, () => mintHtmlAppToken());
-  ipcMain.handle(IPC.revokeHtmlAppToken.channel, (_event, raw: unknown) => {
-    if (isRecord(raw) && typeof raw.token === "string") revokeHtmlAppToken(raw.token);
+
+  const port = await waitForWsPort(theWsHost, remoteAccess);
+  const bootstrap: BridgeBootstrap = {
+    url: `ws://127.0.0.1:${port}`,
+    token: remoteAccess.getLocalToken(),
+  };
+
+  // One-shot BOOTSTRAP shell channel — NOT a Bridge data channel (the Bridge
+  // data plane stays WS-only). The preload sendSync's the ws endpoint +
+  // per-boot local token here; passing them via additionalArguments instead
+  // would put the token on the renderer's OS command line, readable by every
+  // local user via `ps`.
+  ipcMain.on("inteligir:bootstrap", (event) => {
+    event.returnValue = bootstrap;
   });
 
   mainWindow = createWindow(await startupBackgroundColor(theHost));

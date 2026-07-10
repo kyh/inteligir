@@ -12,6 +12,7 @@ import type { Delegation, ListDelegationsResult } from "@repo/features/delegatio
 import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/features/inline-ai";
 import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/features/ipc";
 import type { VaultEntry } from "@repo/features/ipc-registry";
+import type { RemoteAccessState } from "@repo/features/remote-access";
 import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
@@ -623,6 +624,23 @@ export function createFixtureBridge(): Bridge {
     status: { phase: "idle" },
     conflicts: [],
   };
+  // Remote access — no ws server runs in a browser tab, so enabling simulates
+  // the listening state and a LAN URL; one pre-paired device makes the device
+  // list + Revoke exercisable out of the box.
+  let remoteAccessState: RemoteAccessState = {
+    enabled: false,
+    port: 47890,
+    listening: false,
+    lanUrls: [],
+    devices: [
+      {
+        id: "fixture-device",
+        name: "Fixture Phone",
+        createdAt: "2026-07-01T09:00:00.000Z",
+        lastSeenAt: "2026-07-09T18:30:00.000Z",
+      },
+    ],
+  };
 
   const agentEvents = new Emitter<AppAgentEvent>();
   const appStateEvents = new Emitter<AppState>();
@@ -635,6 +653,8 @@ export function createFixtureBridge(): Bridge {
   const knowledgeEvents = new Emitter<{ revision: number }>();
   const syncEvents = new Emitter<SyncState>();
   const emitSync = () => syncEvents.emit(syncState);
+  const remoteAccessEvents = new Emitter<RemoteAccessState>();
+  const emitRemoteAccess = () => remoteAccessEvents.emit(remoteAccessState);
 
   const setAppState = (next: AppState) => {
     appState = next;
@@ -1101,6 +1121,36 @@ export function createFixtureBridge(): Bridge {
       return outcome;
     },
     onSyncStateChanged: syncEvents.subscribe,
+
+    // Remote access — simulated ws-server state so the settings section is
+    // drivable: toggling flips listening + LAN URLs, pairing returns a fixed
+    // token, revoking drops the pre-paired fixture device.
+    getRemoteAccessState: async () => remoteAccessState,
+    setRemoteAccessConfig: async (patch) => {
+      const enabled = patch.enabled ?? remoteAccessState.enabled;
+      remoteAccessState = {
+        ...remoteAccessState,
+        enabled,
+        listening: enabled,
+        lanUrls: enabled ? [`ws://192.168.1.24:${remoteAccessState.port}`] : [],
+      };
+      emitRemoteAccess();
+      return remoteAccessState;
+    },
+    createPairingToken: async () => ({
+      token: "fixture-pairing-token",
+      urls: ["ws://127.0.0.1:47890"],
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    }),
+    revokeRemoteDevice: async ({ id }) => {
+      remoteAccessState = {
+        ...remoteAccessState,
+        devices: remoteAccessState.devices.filter((device) => device.id !== id),
+      };
+      emitRemoteAccess();
+      return remoteAccessState;
+    },
+    onRemoteAccessChanged: remoteAccessEvents.subscribe,
 
     // Skills / integrations
     listSkills: async () => ({ skills: [] }),

@@ -11,5 +11,5 @@ declare module "*?raw" {
 }
 
 interface Window {
-  desktopBridge?: import("@repo/features/ipc").Bridge;
+  bridgeBootstrap?: { url: string; token: string };
 }

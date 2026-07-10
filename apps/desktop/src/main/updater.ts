@@ -1,17 +1,14 @@
 // ---------------------------------------------------------------------------
 // electron-updater wiring — the desktop-only overlay over the registry's
 // UPDATE_METHODS trio. The host's handler map deliberately excludes these
-// (a WS transport has nothing to self-update); the shell registers them on
-// ipcMain directly and emits onUpdateState itself.
+// (a WS transport has nothing to self-update); the shell passes the trio to
+// the ws host as shellHandlers and pushes onUpdateState itself.
 // ---------------------------------------------------------------------------
 
-import { ipcMain } from "electron";
 import electronUpdater from "electron-updater";
 
-import { IPC } from "@repo/features/ipc-registry";
+import type { UpdateMethod } from "@repo/features/ipc-registry";
 import { toErrorMessage, type UpdateState } from "@repo/features/ipc";
-
-import { sendToAllWindows } from "./host-fold";
 
 const { autoUpdater } = electronUpdater;
 
@@ -26,10 +23,19 @@ export type UpdaterOptions = {
 
 export type Updater = {
   checkForUpdates: () => Promise<void>;
+  /** The UPDATE_METHODS trio, shaped for the ws host's shellHandlers. */
+  handlers: Record<UpdateMethod, (raw: unknown) => unknown>;
+  /** Late-bound onUpdateState push: the ws host is constructed after the
+   * updater (it needs `handlers` at startup), so main injects the broadcast
+   * once the host exists. State changes before then are dropped — the startup
+   * feed check is delayed well past that window. */
+  setBroadcast: (broadcast: (state: UpdateState) => void) => void;
 };
 
 export function setupAutoUpdater(options: UpdaterOptions): Updater {
   const { isDevelopment, gracefulShutdown } = options;
+
+  let broadcast: ((state: UpdateState) => void) | null = null;
 
   let updateState: UpdateState = {
     status: "idle",
@@ -40,7 +46,7 @@ export function setupAutoUpdater(options: UpdaterOptions): Updater {
 
   function setUpdateState(patch: Partial<UpdateState>): void {
     updateState = { ...updateState, ...patch };
-    sendToAllWindows(IPC.onUpdateState.channel, updateState);
+    broadcast?.(updateState);
   }
 
   async function checkForUpdates(): Promise<void> {
@@ -55,43 +61,45 @@ export function setupAutoUpdater(options: UpdaterOptions): Updater {
     }
   }
 
-  ipcMain.handle(IPC.checkForUpdates.channel, async () => {
-    await checkForUpdates();
-    return updateState;
-  });
+  const handlers: Record<UpdateMethod, (raw: unknown) => unknown> = {
+    checkForUpdates: async () => {
+      await checkForUpdates();
+      return updateState;
+    },
 
-  ipcMain.handle(IPC.downloadUpdate.channel, async () => {
-    if (updateState.status !== "available") {
-      return { accepted: false, state: updateState };
-    }
-    try {
-      setUpdateState({ status: "downloading", downloadPercent: 0 });
-      await autoUpdater.downloadUpdate();
-      return { accepted: true, state: updateState };
-    } catch (error: unknown) {
-      setUpdateState({ status: "error", message: toErrorMessage(error) });
-      return { accepted: false, state: updateState };
-    }
-  });
-
-  ipcMain.handle(IPC.installUpdate.channel, () => {
-    if (updateState.status !== "downloaded") {
-      return { accepted: false, state: updateState };
-    }
-    // Graceful shutdown FIRST: quitAndInstall's internal quit must not be
-    // intercepted (preventDefault breaks the install on some platforms), and
-    // the executor daemon must not outlive the app across an update.
-    const shutdownThenInstall = async (): Promise<void> => {
-      await gracefulShutdown();
+    downloadUpdate: async () => {
+      if (updateState.status !== "available") {
+        return { accepted: false, state: updateState };
+      }
       try {
-        autoUpdater.quitAndInstall();
+        setUpdateState({ status: "downloading", downloadPercent: 0 });
+        await autoUpdater.downloadUpdate();
+        return { accepted: true, state: updateState };
       } catch (error: unknown) {
         setUpdateState({ status: "error", message: toErrorMessage(error) });
+        return { accepted: false, state: updateState };
       }
-    };
-    setImmediate(() => void shutdownThenInstall());
-    return { accepted: true, state: updateState };
-  });
+    },
+
+    installUpdate: () => {
+      if (updateState.status !== "downloaded") {
+        return { accepted: false, state: updateState };
+      }
+      // Graceful shutdown FIRST: quitAndInstall's internal quit must not be
+      // intercepted (preventDefault breaks the install on some platforms), and
+      // the executor daemon must not outlive the app across an update.
+      const shutdownThenInstall = async (): Promise<void> => {
+        await gracefulShutdown();
+        try {
+          autoUpdater.quitAndInstall();
+        } catch (error: unknown) {
+          setUpdateState({ status: "error", message: toErrorMessage(error) });
+        }
+      };
+      setImmediate(() => void shutdownThenInstall());
+      return { accepted: true, state: updateState };
+    },
+  };
 
   if (!isDevelopment) {
     autoUpdater.autoDownload = false;
@@ -120,5 +128,11 @@ export function setupAutoUpdater(options: UpdaterOptions): Updater {
     setTimeout(() => void checkForUpdates(), STARTUP_UPDATE_DELAY_MS);
   }
 
-  return { checkForUpdates };
+  return {
+    checkForUpdates,
+    handlers,
+    setBroadcast: (next) => {
+      broadcast = next;
+    },
+  };
 }

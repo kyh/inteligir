@@ -56,6 +56,12 @@ import type {
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
 import {
+  RemoteAccessSetConfigSchema,
+  RevokeDeviceSchema,
+  type PairingInfo,
+  type RemoteAccessState,
+} from "./remote-access";
+import {
   SyncSetConfigSchema,
   SyncSignInSchema,
   type SyncOutcome,
@@ -577,6 +583,27 @@ export const IPC = {
    * reactive. Same shape as getSyncState. */
   onSyncStateChanged: event<SyncState>("sync:state-changed"),
 
+  // Remote access — the WS transport's device-pairing surface: an enable
+  // toggle, LAN URLs, paired devices, and one-time pairing tokens. All state
+  // reads/writes go through the remote-access manager.
+  /** Current remote-access state (enabled/port/listening/lanUrls/devices). */
+  getRemoteAccessState: invokeVoid<RemoteAccessState>("remote:get-state"),
+  /** Patch the remote-access config (enable toggle only; port stays fixed). */
+  setRemoteAccessConfig: invoke<typeof RemoteAccessSetConfigSchema, RemoteAccessState>(
+    "remote:set-config",
+    RemoteAccessSetConfigSchema,
+  ),
+  /** Mint a one-time pairing token (10-minute TTL) for another device to
+   * redeem over the ws transport's `pair` frame. */
+  createPairingToken: invokeVoid<PairingInfo>("remote:create-pairing-token"),
+  /** Forget a paired device — its token stops validating immediately. */
+  revokeRemoteDevice: invoke<typeof RevokeDeviceSchema, RemoteAccessState>(
+    "remote:revoke-device",
+    RevokeDeviceSchema,
+  ),
+  /** Fired on every remote-access config / device / listen change. */
+  onRemoteAccessChanged: event<RemoteAccessState>("remote:state-changed"),
+
   // Skills
   listSkills: invokeVoid<SkillsList>("skills:list"),
 
@@ -611,6 +638,21 @@ export type UpdateMethod = (typeof UPDATE_METHODS)[number];
  * handler for them and a non-desktop transport must stub them. */
 export const DESKTOP_SHELL_METHODS = ["mintHtmlAppToken", "revokeHtmlAppToken"] as const;
 export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
+
+/** Methods only the LOCAL session (the desktop renderer on loopback) may call
+ * over the ws transport. Remote paired devices get the data plane, never the
+ * admin plane: the remote-access surface would let a compromised device mint
+ * shadow pairings or re-enable remote access after a revoke, and the updater
+ * and html-app tokens act on the host machine's shell. The ws host enforces
+ * this per-session at dispatch. */
+export const LOCAL_ONLY_METHODS = [
+  "getRemoteAccessState",
+  "setRemoteAccessConfig",
+  "createPairingToken",
+  "revokeRemoteDevice",
+  ...UPDATE_METHODS,
+  ...DESKTOP_SHELL_METHODS,
+] as const satisfies readonly IpcMethod[];
 
 /** Methods the platform-agnostic host implements. */
 export type HostMethod = Exclude<IpcMethod, EventMethod | UpdateMethod | DesktopShellMethod>;

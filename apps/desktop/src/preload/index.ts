@@ -1,38 +1,16 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { IPC, type Bridge } from "@repo/features/ipc-registry";
+import { isRecord } from "@repo/features/ipc";
 
-function forwardEvent<T>(channel: string, listener: (data: T) => void): () => void {
-  const wrapped = (_event: Electron.IpcRendererEvent, data: T) => {
-    listener(data);
-  };
-  ipcRenderer.on(channel, wrapped);
-  return () => {
-    ipcRenderer.removeListener(channel, wrapped);
-  };
+// Bootstrap-only preload: the Bridge itself is a WebSocket client the
+// renderer constructs (ws-bridge). The ws endpoint + per-boot local token are
+// fetched from main over a one-shot synchronous IPC call — a BOOTSTRAP shell
+// channel, not a Bridge data channel (the Bridge data plane stays WS-only).
+// sendSync (instead of additionalArguments) keeps the token off the renderer
+// process's OS command line — argv is readable by every local user via `ps` —
+// and out of the page URL / navigation history.
+const raw: unknown = ipcRenderer.sendSync("inteligir:bootstrap");
+
+if (isRecord(raw) && typeof raw["url"] === "string" && typeof raw["token"] === "string") {
+  contextBridge.exposeInMainWorld("bridgeBootstrap", { url: raw["url"], token: raw["token"] });
 }
-
-// Auto-construct the bridge from the registry. Each entry's `kind` decides
-// the IPC mechanism; the registry's per-entry typing flows into Bridge
-// via the `as Bridge` at the end (the runtime shape exactly matches
-// what the derivation produces).
-const entries = Object.entries(IPC).map(([method, def]) => {
-  switch (def.kind) {
-    case "invoke":
-      return [method, (payload: unknown) => ipcRenderer.invoke(def.channel, payload)] as const;
-    case "invoke-void":
-      return [method, () => ipcRenderer.invoke(def.channel)] as const;
-    case "send":
-      return [method, (payload: unknown) => ipcRenderer.send(def.channel, payload)] as const;
-    case "event":
-      return [
-        method,
-        (listener: (event: unknown) => void) => forwardEvent(def.channel, listener),
-      ] as const;
-  }
-});
-
-// oxlint-disable-next-line typescript/consistent-type-assertions -- runtime fold over the registry; shape proven by derivation above
-const desktopBridge = Object.fromEntries(entries) as unknown as Bridge;
-
-contextBridge.exposeInMainWorld("desktopBridge", desktopBridge);

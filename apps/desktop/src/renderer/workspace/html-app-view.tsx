@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // HTML-App view — renders a vault `.html` file as a sandboxed app. The iframe
 // is `sandbox="allow-scripts allow-forms"` with NO allow-same-origin, so the
-// app gets an opaque origin and can NEVER reach `window.desktopBridge` or the
-// parent DOM. Its only channel to the vault is postMessage to this parent,
+// app gets an opaque origin and can NEVER reach the parent's Bridge (or its
+// `window.bridgeBootstrap` ws token) or the parent DOM. Its only channel to the vault is postMessage to this parent,
 // brokered (validated + confined) by html-app-broker.
 //
 // Two URL strategies:
@@ -45,7 +45,7 @@ function encodeVaultPath(path: string): string {
 }
 
 function isElectronHost(): boolean {
-  return typeof window.desktopBridge !== "undefined";
+  return typeof window.bridgeBootstrap !== "undefined";
 }
 
 export function HtmlAppView() {

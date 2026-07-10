@@ -27,6 +27,7 @@ import {
 import { resetNotifications } from "../notifications";
 import { resetSecretStore } from "../secrets";
 import { resetSyncCoordinator } from "../sync/sync-coordinator";
+import { resetRemoteAccessManager } from "../transport/remote-access-manager";
 import { resetUiState } from "../ui-state";
 import {
   getVaultManager,
@@ -113,6 +114,9 @@ export function teardownAgentResources(): void {
   resetDelegationManager();
   resetExecutorDaemon();
   resetSyncCoordinator();
+  // Also revokes every paired remote device and pairing token, which closes
+  // their live ws sockets — remote credentials must not survive logout.
+  resetRemoteAccessManager();
   resetUiState();
   resetSecretStore();
   // Suspend vault writes BEFORE wiping ~/.inteligir, so a late autosave from a
