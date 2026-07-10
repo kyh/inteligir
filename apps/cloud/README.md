@@ -72,6 +72,11 @@ pnpm --filter @repo/cloud cf-typegen   # regenerate worker-configuration.d.ts af
 
 ## Deploy (run by the account owner)
 
+> Provisioned 2026-07-09: R2 bucket + D1 (`database_id` in wrangler.jsonc) exist,
+> schema pushed, `AUTH_SECRET` set, worker live at
+> <https://inteligir-cloud.kyh.workers.dev>. Steps 1–5 are for rebuilding from
+> scratch; day-to-day redeploys only need step 6.
+
 Deploying needs your Cloudflare account (`wrangler login` first).
 
 ```bash
