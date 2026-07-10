@@ -38,7 +38,7 @@
       // (index.ts / app.config.ts / metro.config.js / postcss.config.js) and the
       // deps they reference; these entries are the Expo Router route files + the
       // vitest specs, which it doesn't infer.
-      "entry": ["src/app/**/*.tsx", "src/lib/sync/__tests__/**/*.test.ts"],
+      "entry": ["src/app/**/*.tsx", "src/lib/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
       // metro-cache is required by metro.config.js but provided transitively by
       // metro (not a direct dependency), so knip can't see it as listed.

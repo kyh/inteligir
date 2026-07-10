@@ -439,6 +439,9 @@ importers:
       '@repo/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@repo/features':
+        specifier: workspace:*
+        version: link:../../packages/features
       better-auth:
         specifier: 'catalog:'
         version: 1.6.23(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.168.27(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(kysely@0.29.3))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0)))

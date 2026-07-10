@@ -240,4 +240,65 @@ describe("HttpSyncPort", () => {
 
     expect(received).toEqual(change);
   });
+
+  it("fires onEnd when the SSE stream closes on its own (drop/server close)", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close();
+      },
+    });
+    const { fetchImpl } = fakeFetch(
+      () => new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+
+    await new Promise<void>((resolve) => {
+      newPort(fetchImpl).subscribe(
+        () => {},
+        () => resolve(),
+      );
+    });
+  });
+
+  it("fires onEnd on a non-OK stream response, so supervisors can retry", async () => {
+    const { fetchImpl } = fakeFetch(() => new Response(null, { status: 500 }));
+
+    await new Promise<void>((resolve) => {
+      newPort(fetchImpl).subscribe(
+        () => {},
+        () => resolve(),
+      );
+    });
+  });
+
+  it("does NOT fire onEnd after an explicit unsubscribe", async () => {
+    // Hold the stream open until AFTER the unsubscribe, then close it — the
+    // read loop then exits with the signal already aborted, and the suppression
+    // branch must swallow the end instead of reporting a drop.
+    const closers: (() => void)[] = [];
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        closers.push(() => controller.close());
+      },
+    });
+    const { fetchImpl } = fakeFetch(
+      () => new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+
+    let ended = false;
+    const unsubscribe = newPort(fetchImpl).subscribe(
+      () => {},
+      () => {
+        ended = true;
+      },
+    );
+    // Let the fetch settle and the read loop start before aborting.
+    await Promise.resolve();
+    await Promise.resolve();
+    unsubscribe();
+    closers[0]?.();
+    // Drain microtasks so a (buggy) onEnd would have fired by now.
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+
+    expect(ended).toBe(false);
+  });
 });

@@ -1,10 +1,15 @@
-import type { ConfigContext, ExpoConfig } from "expo/config";
-
 // Native + product identity for the inteligir mobile companion. Mirrors the
 // template's app.config shape; the identity is inteligir's. `scheme` MUST stay
 // in sync with the Better Auth expo client (`expoClient({ scheme })` in
 // src/lib/auth.ts) — it is the deep-link callback origin the auth flow uses.
-export default ({ config }: ConfigContext): ExpoConfig => ({
+//
+// Plain JS, not TS: the workspace TypeScript is the 7.x native preview, which
+// drops the compiler JS API that expo's config loader (@expo/require-utils)
+// needs to evaluate a .ts config — a TS config crashes `expo start` on every
+// target.
+/** @param {import("expo/config").ConfigContext} ctx
+ *  @returns {import("expo/config").ExpoConfig} */
+module.exports = ({ config }) => ({
   ...config,
   name: "inteligir",
   slug: "inteligir",

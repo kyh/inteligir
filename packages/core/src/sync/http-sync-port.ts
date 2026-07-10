@@ -157,9 +157,19 @@ export class HttpSyncPort implements SyncPort {
     return parsed;
   }
 
-  subscribe(onChange: (change: VaultChange) => void): Unsubscribe {
+  /**
+   * Open the SSE change stream. `onEnd` (optional, beyond the `SyncPort`
+   * contract) fires once when the stream terminates for any reason OTHER than
+   * the returned unsubscribe — a network drop, a server close, a non-OK
+   * response — so callers that supervise the connection can reconnect with
+   * backoff. It never fires after an explicit unsubscribe.
+   */
+  subscribe(onChange: (change: VaultChange) => void, onEnd?: () => void): Unsubscribe {
     const controller = new AbortController();
-    void this.streamChanges(onChange, controller.signal);
+    void (async () => {
+      await this.streamChanges(onChange, controller.signal); // never rejects
+      if (!controller.signal.aborted && onEnd !== undefined) onEnd();
+    })();
     return () => controller.abort();
   }
 

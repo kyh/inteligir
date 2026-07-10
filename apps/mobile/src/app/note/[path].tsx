@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Markdown from "react-native-markdown-display";
 
+import { markdownStylesFor } from "@/lib/markdown-styles";
 import { syncOnce } from "@/lib/sync/manager";
 import { readVaultText, writeVaultText } from "@/lib/sync/vault-access";
 
@@ -111,7 +112,7 @@ export default function NoteScreen() {
         />
       ) : (
         <ScrollView className="flex-1" contentContainerClassName="px-4 py-3">
-          <Markdown style={dark ? darkMarkdownStyles : lightMarkdownStyles}>{load.text}</Markdown>
+          <Markdown style={markdownStylesFor(dark)}>{load.text}</Markdown>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -123,52 +124,4 @@ const styles = StyleSheet.create({
   mono: {
     fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
   },
-});
-
-// react-native-markdown-display styles. Colors mirror src/styles.css zinc tokens
-// for light + dark; StyleSheet keys match the library's node types.
-const lightMarkdownStyles = StyleSheet.create({
-  body: { color: "#171717", fontSize: 16, lineHeight: 24 },
-  heading1: { color: "#171717", fontSize: 24, fontWeight: "700", marginTop: 12, marginBottom: 6 },
-  heading2: { color: "#171717", fontSize: 20, fontWeight: "700", marginTop: 12, marginBottom: 6 },
-  heading3: { color: "#171717", fontSize: 18, fontWeight: "600", marginTop: 10, marginBottom: 4 },
-  link: { color: "#2563eb" },
-  code_inline: {
-    backgroundColor: "#f4f4f5",
-    color: "#171717",
-    borderRadius: 4,
-    paddingHorizontal: 4,
-  },
-  fence: { backgroundColor: "#f4f4f5", color: "#171717", borderRadius: 8, padding: 12 },
-  code_block: { backgroundColor: "#f4f4f5", color: "#171717", borderRadius: 8, padding: 12 },
-  blockquote: {
-    backgroundColor: "#f4f4f5",
-    borderColor: "#e5e5e5",
-    borderLeftWidth: 4,
-    paddingHorizontal: 12,
-  },
-  hr: { backgroundColor: "#e5e5e5" },
-});
-
-const darkMarkdownStyles = StyleSheet.create({
-  body: { color: "#f5f5f5", fontSize: 16, lineHeight: 24 },
-  heading1: { color: "#f5f5f5", fontSize: 24, fontWeight: "700", marginTop: 12, marginBottom: 6 },
-  heading2: { color: "#f5f5f5", fontSize: 20, fontWeight: "700", marginTop: 12, marginBottom: 6 },
-  heading3: { color: "#f5f5f5", fontSize: 18, fontWeight: "600", marginTop: 10, marginBottom: 4 },
-  link: { color: "#6b97ff" },
-  code_inline: {
-    backgroundColor: "#1e1e1e",
-    color: "#f5f5f5",
-    borderRadius: 4,
-    paddingHorizontal: 4,
-  },
-  fence: { backgroundColor: "#1e1e1e", color: "#f5f5f5", borderRadius: 8, padding: 12 },
-  code_block: { backgroundColor: "#1e1e1e", color: "#f5f5f5", borderRadius: 8, padding: 12 },
-  blockquote: {
-    backgroundColor: "#1e1e1e",
-    borderColor: "#404040",
-    borderLeftWidth: 4,
-    paddingHorizontal: 12,
-  },
-  hr: { backgroundColor: "#404040" },
 });

@@ -14,7 +14,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { authClient, clearBearerToken } from "@/lib/auth";
+import { useHostStatus } from "@/lib/host/connection";
+import { hostStatusDotClass } from "@/lib/host/status-display";
 import { syncOnce, useSyncStatus, type SyncStatus } from "@/lib/sync/manager";
+import { useRealtimeSync } from "@/lib/sync/realtime-manager";
 import { listVaultFiles } from "@/lib/sync/vault-access";
 
 // ---------------------------------------------------------------------------
@@ -136,6 +139,46 @@ function SignInScreen() {
   );
 }
 
+// ---- host nav ---------------------------------------------------------------
+
+// Compact row into the desktop-connection surfaces. The Connect pill carries a
+// live status dot so connection trouble is visible from the home screen.
+function HostNavRow() {
+  const router = useRouter();
+  const { status } = useHostStatus();
+  return (
+    <View className="flex-row gap-2 px-4 pt-3">
+      <NavPill label="Chat" onPress={() => router.push("/chat")} />
+      <NavPill label="Delegations" onPress={() => router.push("/delegations")} />
+      <NavPill
+        label="Connect"
+        dotClass={hostStatusDotClass(status)}
+        onPress={() => router.push("/connect")}
+      />
+    </View>
+  );
+}
+
+function NavPill({
+  label,
+  dotClass,
+  onPress,
+}: {
+  label: string;
+  dotClass?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      className="flex-row items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 active:opacity-70"
+      onPress={onPress}
+    >
+      {dotClass !== undefined ? <View className={`h-2 w-2 rounded-full ${dotClass}`} /> : null}
+      <Text className="text-sm font-medium text-card-foreground">{label}</Text>
+    </Pressable>
+  );
+}
+
 // ---- vault ----------------------------------------------------------------
 
 function describeStatus(status: SyncStatus): string {
@@ -157,6 +200,11 @@ function VaultScreen() {
   const [files, setFiles] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Foregrounded + signed in (this screen only mounts with a session): sync on
+  // activation and hold the SSE change stream — remote edits sync in near-real
+  // time. Backgrounding closes the stream; manual triggers below are untouched.
+  useRealtimeSync();
+
   const reload = useCallback(() => {
     setFiles(listVaultFiles());
   }, []);
@@ -164,6 +212,12 @@ function VaultScreen() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // A realtime/foreground pass lands outside `runSync` below — refresh the
+  // listing whenever any pass completes so pulled files appear without a pull.
+  useEffect(() => {
+    if (status.kind === "ok") reload();
+  }, [status, reload]);
 
   const runSync = useCallback(async () => {
     setRefreshing(true);
@@ -180,6 +234,7 @@ function VaultScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background" edges={["top", "left", "right"]}>
       <Stack.Screen options={{ title: "Vault" }} />
+      <HostNavRow />
       <View className="flex-row items-center justify-between px-4 py-3">
         <Text className="flex-1 pr-3 text-sm text-muted-foreground">{describeStatus(status)}</Text>
         <Pressable
