@@ -9,9 +9,9 @@
 // ~700px column padding (EDITOR_COLUMN_PX) so the block-drag hover gutter —
 // absolutely positioned at -left-11 inside each block — lands INSIDE the
 // editable's padding box and survives its overflow-x-hidden clip. The
-// filename-title <h1>, the Raw textarea, and the backlinks section apply the
-// same constant so all four surfaces share byte-exact column geometry (the
-// pane wrapper owns only the vertical padding). The workspace <main> is the
+// Raw textarea and the backlinks section apply the same constant so all
+// three surfaces share byte-exact column geometry (the pane wrapper owns
+// only the vertical padding). The workspace <main> is the
 // scroll container (toc.tsx depends on that), so the container deliberately
 // adds no overflow-y-auto.
 
@@ -27,9 +27,9 @@ const CONTAINER_CLASS =
   "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-focus-ring/25 focus-visible:outline-none [&_.slate-selection-area]:bg-focus-ring/15";
 
 /** The centered ~700px text column (symmetric padding, not max-w). Shared by
- * PlateContent, the page-title <h1>, the Raw textarea, and the backlinks
- * section so they can't drift apart. 48px min padding keeps the -left-11
- * (44px) drag gutter inside the editable's clip with a 4px reveal. */
+ * PlateContent, the Raw textarea, and the backlinks section so they can't
+ * drift apart. 48px min padding keeps the -left-11 (44px) drag gutter inside
+ * the editable's clip with a 4px reveal. */
 export const EDITOR_COLUMN_PX = "px-12 sm:px-[max(48px,calc(50%-350px))]";
 
 const EDITOR_CLASS = cn(

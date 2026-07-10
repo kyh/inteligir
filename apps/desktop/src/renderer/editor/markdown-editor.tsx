@@ -22,7 +22,6 @@ import { Editor, EditorContainer } from "@renderer/editor/editor-chrome";
 import { WRITE_PLACEHOLDER } from "@renderer/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
-import { PropertiesPanel } from "@renderer/editor/properties/properties-panel";
 import { createDebouncer } from "@renderer/lib/debounce";
 import { TableOfContents } from "@renderer/editor/toc";
 import { useAiReviewStore } from "@renderer/stores/ai-review-store";
@@ -222,10 +221,6 @@ export function MarkdownEditor({
       {/* EditorContainer is the relative wrapper the cursor overlay's
           selection ghost and the floating toolbar (afterEditable renders)
           position against. The toolbar itself renders from FloatingToolbarKit. */}
-      {/* Typed file-properties over the note's frontmatter, above the document.
-          It edits the frontmatter NODE, so its changes ride this same Plate
-          instance's serialize path to disk — no second write path. */}
-      <PropertiesPanel />
       <EditorContainer>
         {/* The editor-level placeholder covers the pristine-empty doc —
             BlockPlaceholderPlugin deliberately skips that state (its

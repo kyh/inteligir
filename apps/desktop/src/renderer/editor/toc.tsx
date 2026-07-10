@@ -30,9 +30,9 @@ function collectHeadings(editor: ReturnType<typeof useEditorRef>): HeadingItem[]
 }
 
 // The heading elements in this editor's live editable, in document order —
-// the same order as collectHeadings, so index i lines up. Excludes the
-// page-title <h1>, which lives outside the Slate editable (hence the scope
-// to the editor's own DOM node rather than a bare h1/h2/h3 query).
+// the same order as collectHeadings, so index i lines up. Scoped to the
+// editor's own DOM node rather than a bare h1/h2/h3 query so headings
+// outside the editable never leak in.
 function editorHeadingEls(editor: ReturnType<typeof useEditorRef>): HTMLElement[] {
   const root = editor.api.toDOMNode(editor);
   return root ? [...root.querySelectorAll<HTMLElement>("h1, h2, h3")] : [];

@@ -40,11 +40,10 @@ const FrontmatterBasePlugin = createSlatePlugin({
 
 export const FrontmatterBaseKit = [FrontmatterBasePlugin];
 
-// The frontmatter's user-facing surface is now the typed properties panel
-// (editor/properties/), rendered above the document. The node itself stays in
-// the value (it serializes the `---` block byte-for-byte) but renders
-// invisibly — zero-height and non-interactive, so it keeps its DOM point for
-// Slate while the caret and block chrome skip past it.
+// The frontmatter's user-facing edit surface is Raw mode. The node itself
+// stays in the value (it serializes the `---` block byte-for-byte) but
+// renders invisibly — zero-height and non-interactive, so it keeps its DOM
+// point for Slate while the caret and block chrome skip past it.
 function FrontmatterElement(props: PlateElementProps) {
   return (
     <PlateElement {...props} className="h-0 overflow-hidden select-none">

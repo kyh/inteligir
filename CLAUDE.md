@@ -181,10 +181,9 @@ and full-text search live in the command palette.
   mark; edit lands as accept/reject suggestions), reachable from the selection
   toolbar, slash menu, block menu, and space-in-empty-paragraph; ghost-text
   completions on a fast model, on by default (Settings › Editor AI opts out).
-- **File Properties**: a typed panel above the doc edits YAML frontmatter —
-  the file is the ONLY store (`@repo/core/markdown/frontmatter` typing rules:
-  true/false→checkbox, yes/no stay text, dates only YYYY-MM-DD; unsupported/
-  invalid YAML preserved byte-exactly). Pasting/dropping an image writes bytes
+- **Frontmatter**: YAML frontmatter round-trips byte-exactly (a void node
+  pinned at [0]; edit via Raw mode — `@repo/core/markdown/frontmatter` owns
+  the parse/serialize helpers). Pasting/dropping an image writes bytes
   to `assets/` via `writeVaultAsset` and inserts bare `![](assets/…)`.
 - **Palette extras**: `#` lists tags (inline `#tags` + frontmatter tags,
   case-unified in the core tag index) → notes with that tag; "New note from
