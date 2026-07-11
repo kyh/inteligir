@@ -25,6 +25,9 @@
       "dependsOn": ["^topo"],
       "outputs": []
     },
+    // The root `test` script runs this with --concurrency=1: five parallel
+    // vitest instances (each with its own worker pool) exhaust the machine
+    // and kill workers mid-run ("Worker exited unexpectedly" flakes).
     "test": {
       "dependsOn": ["^topo"],
       "cache": false

@@ -13,7 +13,7 @@
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
     "knip": "knip",
-    "test": "turbo run test",
+    "test": "turbo run test --concurrency=1",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
