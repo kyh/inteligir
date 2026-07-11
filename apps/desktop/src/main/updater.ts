@@ -19,23 +19,20 @@ export type UpdaterOptions = {
   isDevelopment: boolean;
   /** Awaited before quitAndInstall so the agent + executor daemon stop first. */
   gracefulShutdown: () => Promise<void>;
+  /** Push onUpdateState to connected clients. The ws host is constructed
+   * AFTER the updater (it needs `handlers` at startup), so main passes a
+   * thunk that reads its ws-host reference lazily on every state change. */
+  broadcast: (state: UpdateState) => void;
 };
 
 export type Updater = {
   checkForUpdates: () => Promise<void>;
   /** The UPDATE_METHODS trio, shaped for the ws host's shellHandlers. */
   handlers: Record<UpdateMethod, (raw: unknown) => unknown>;
-  /** Late-bound onUpdateState push: the ws host is constructed after the
-   * updater (it needs `handlers` at startup), so main injects the broadcast
-   * once the host exists. State changes before then are dropped — the startup
-   * feed check is delayed well past that window. */
-  setBroadcast: (broadcast: (state: UpdateState) => void) => void;
 };
 
 export function setupAutoUpdater(options: UpdaterOptions): Updater {
-  const { isDevelopment, gracefulShutdown } = options;
-
-  let broadcast: ((state: UpdateState) => void) | null = null;
+  const { isDevelopment, gracefulShutdown, broadcast } = options;
 
   let updateState: UpdateState = {
     status: "idle",
@@ -46,7 +43,7 @@ export function setupAutoUpdater(options: UpdaterOptions): Updater {
 
   function setUpdateState(patch: Partial<UpdateState>): void {
     updateState = { ...updateState, ...patch };
-    broadcast?.(updateState);
+    broadcast(updateState);
   }
 
   async function checkForUpdates(): Promise<void> {
@@ -128,11 +125,5 @@ export function setupAutoUpdater(options: UpdaterOptions): Updater {
     setTimeout(() => void checkForUpdates(), STARTUP_UPDATE_DELAY_MS);
   }
 
-  return {
-    checkForUpdates,
-    handlers,
-    setBroadcast: (next) => {
-      broadcast = next;
-    },
-  };
+  return { checkForUpdates, handlers };
 }

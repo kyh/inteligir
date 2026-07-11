@@ -12,7 +12,7 @@ import os from "node:os";
 import { type Static, Type } from "@sinclair/typebox";
 
 import { emitEvent } from "../events";
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { DeviceAuthStore, type PairingRedeemResult, type TokenValidator } from "./device-auth";
 import type { PairingInfo, RemoteAccessState } from "@repo/features/remote-access";
 
@@ -36,10 +36,6 @@ const DEFAULT_CONFIG: StoredConfig = {
   enabled: false,
   port: DEFAULT_REMOTE_ACCESS_PORT,
 };
-
-function rejectLegacy(): never {
-  throw new Error("remote-access store has no version field");
-}
 
 export type RemoteAccessConfig = { enabled: boolean; port: number };
 
@@ -71,7 +67,7 @@ export class RemoteAccessManager {
       {
         fs: opts.fs,
         mode: 0o600,
-        versioning: { current: CONFIG_VERSION, fromLegacy: rejectLegacy },
+        versioning: { current: CONFIG_VERSION, fromLegacy: rejectLegacyVersion("remote-access") },
       },
     );
     this.devices = new DeviceAuthStore({

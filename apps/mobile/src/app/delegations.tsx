@@ -1,11 +1,12 @@
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { Delegation } from "@repo/features/delegation";
+import type { Delegation, ListDelegationsResult } from "@repo/features/delegation";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
-import { hostStatusLabel } from "@/lib/host/status-display";
+import { DOT_BUSY, DOT_ERROR, DOT_IDLE, DOT_OK, hostStatusLabel } from "@/lib/host/status-display";
+import { useHostChannel } from "@/lib/host/use-host-channel";
 
 // ---------------------------------------------------------------------------
 // The desktop's delegation queue, live over the ws bridge: list on mount /
@@ -20,27 +21,13 @@ export default function DelegationsScreen() {
   const [delegations, setDelegations] = useState<readonly Delegation[] | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (status !== "connected") return;
-    const bridge = getHostBridge();
-    if (bridge === null) return;
-    let alive = true;
-    const unsubscribe = bridge.onDelegationsUpdated((result) => {
-      if (alive) setDelegations(sortNewestFirst(result.delegations));
-    });
-    void (async () => {
-      try {
-        const result = await bridge.listDelegations();
-        if (alive) setDelegations(sortNewestFirst(result.delegations));
-      } catch {
-        // Dropped mid-load — the next reconnect reloads.
-      }
-    })();
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, [status]);
+  // Live updates + a list reload on every (re)connect.
+  useHostChannel<ListDelegationsResult, ListDelegationsResult>({
+    subscribe: (bridge, onEvent) => bridge.onDelegationsUpdated(onEvent),
+    load: (bridge) => bridge.listDelegations(),
+    onEvent: (result) => setDelegations(sortNewestFirst(result.delegations)),
+    onLoad: (result) => setDelegations(sortNewestFirst(result.delegations)),
+  });
 
   const cancel = useCallback(async (id: string) => {
     const bridge = getHostBridge();
@@ -201,10 +188,10 @@ function DelegationCard({
 }
 
 const BADGES: Record<Delegation["status"], { label: string; dot: string }> = {
-  queued: { label: "Queued", dot: "bg-[#a3a3a3]" },
-  running: { label: "Running", dot: "bg-[#f59e0b]" },
-  done: { label: "Done", dot: "bg-[#22c55e]" },
-  failed: { label: "Failed", dot: "bg-[#ef4444]" },
+  queued: { label: "Queued", dot: DOT_IDLE },
+  running: { label: "Running", dot: DOT_BUSY },
+  done: { label: "Done", dot: DOT_OK },
+  failed: { label: "Failed", dot: DOT_ERROR },
 };
 
 function StatusBadge({ status }: { status: Delegation["status"] }) {

@@ -1,12 +1,16 @@
 // ---------------------------------------------------------------------------
 // The mobile composition root for @repo/core's `SyncEngine`: it binds the Expo
-// platform ports (hasher, vault IO, base store, clock) + an HTTP SyncPort to the
-// coordinator, and exposes `syncOnce()` + a reactive status the UI subscribes to.
+// platform ports (hasher, vault IO, base store, clock) + an HTTP SyncPort to
+// the coordinator, and exposes `syncOnce()` + `scheduleSync()` + a reactive
+// status the UI subscribes to.
 //
-// A fresh engine is built PER pass so it always carries the current bearer token
-// (which the auth client refreshes) and reads the persisted base from disk — the
-// engine keeps no cross-pass in-memory state that a rebuild would lose, so this
-// is equivalent to reusing one and side-steps stale-token bugs.
+// ONE engine lives as long as its bearer token: it is rebuilt whenever the
+// token changes (the auth client refreshes it), so no pass ever carries a
+// stale credential, while the engine's cross-pass machinery — debounce, pass
+// serialization, hash cache — stays warm between passes. The engine's stream
+// subscription (`start()`) is deliberately NOT used here: the SSE stream
+// needs `expo/fetch` and lives in realtime-manager.ts, which funnels changes
+// into `scheduleSync()`.
 // ---------------------------------------------------------------------------
 
 import { useSyncExternalStore } from "react";
@@ -17,6 +21,7 @@ import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
 
 import { getBearerToken } from "../auth";
 import { getCoordinatorUrl } from "../base-url";
+import { createExternalStore } from "../external-store";
 import { createFsStamp } from "./clock";
 import { createExpoBaseFile } from "./expo-base-file";
 import { createExpoHasher } from "./expo-hasher";
@@ -38,36 +43,42 @@ export type SyncStatus =
     }
   | { readonly kind: "error"; readonly message: string };
 
-let status: SyncStatus = { kind: "idle" };
-const listeners = new Set<() => void>();
+const statusStore = createExternalStore<SyncStatus>({ kind: "idle" });
 
-function setStatus(next: SyncStatus): void {
-  status = next;
-  for (const listener of listeners) listener();
+function statusFromOutcome(outcome: SyncOutcome): SyncStatus {
+  return outcome.status === "ok"
+    ? {
+        kind: "ok",
+        pushed: outcome.pushed,
+        pulled: outcome.pulled,
+        deleted: outcome.deleted,
+        conflicts: outcome.conflicts,
+        at: Date.now(),
+      }
+    : { kind: "error", message: outcome.message };
 }
 
-function subscribe(onChange: () => void): () => void {
-  listeners.add(onChange);
-  return () => {
-    listeners.delete(onChange);
-  };
-}
-
-/**
- * Run one reconcile+execute pass against the coordinator. Never throws — a
- * transport/auth failure lands in the status (and the returned outcome) as
- * `{ kind: "error" }`, leaving the base manifest untouched for the next retry.
- */
-export async function syncOnce(): Promise<SyncOutcome> {
-  const token = getBearerToken();
-  if (token === null || token === "") {
-    const message = "not signed in";
-    setStatus({ kind: "error", message });
-    return { status: "error", message };
+/** A SyncEngine whose every pass request flips the reactive status to
+ * `syncing`. The engine's own debounced passes (`scheduleSync`) call
+ * `this.syncOnce()`, so virtual dispatch routes them through this override —
+ * realtime-triggered passes surface exactly like explicit ones; `onOutcome`
+ * (below) lands the result status either way. */
+class StatusReportingSyncEngine extends SyncEngine {
+  override syncOnce(): Promise<SyncOutcome> {
+    statusStore.set({ kind: "syncing" });
+    return super.syncOnce();
   }
+}
 
+let live: { readonly token: string; readonly engine: SyncEngine } | null = null;
+
+/** The engine for `token` — reused while the token holds, rebuilt (and the
+ * old one stopped, cancelling its pending debounce) when it changes. */
+function engineFor(token: string): SyncEngine {
+  if (live !== null && live.token === token) return live.engine;
+  live?.engine.stop();
   const vaultId = getOrCreateVaultId();
-  const engine = new SyncEngine({
+  const engine = new StatusReportingSyncEngine({
     vaultId,
     port: createHttpSyncPort({
       baseUrl: getCoordinatorUrl(),
@@ -79,27 +90,44 @@ export async function syncOnce(): Promise<SyncOutcome> {
     base: createJsonFileBaseStore(createExpoBaseFile()),
     hash: createExpoHasher(),
     stamp: createFsStamp(),
-    debounceMs: 0,
+    onOutcome: (outcome) => statusStore.set(statusFromOutcome(outcome)),
   });
+  live = { token, engine };
+  return engine;
+}
 
-  setStatus({ kind: "syncing" });
-  const out = await engine.syncOnce();
-  setStatus(
-    out.status === "ok"
-      ? {
-          kind: "ok",
-          pushed: out.pushed,
-          pulled: out.pulled,
-          deleted: out.deleted,
-          conflicts: out.conflicts,
-          at: Date.now(),
-        }
-      : { kind: "error", message: out.message },
-  );
-  return out;
+function currentToken(): string | null {
+  const token = getBearerToken();
+  return token === null || token === "" ? null : token;
+}
+
+/**
+ * Run one reconcile+execute pass against the coordinator. Never throws — a
+ * transport/auth failure lands in the status (and the returned outcome) as
+ * `{ kind: "error" }`, leaving the base manifest untouched for the next retry.
+ */
+export async function syncOnce(): Promise<SyncOutcome> {
+  const token = currentToken();
+  if (token === null) {
+    const message = "not signed in";
+    statusStore.set({ kind: "error", message });
+    return { status: "error", message };
+  }
+  return engineFor(token).syncOnce();
+}
+
+/** Kick one engine-debounced pass (the realtime stream's change trigger).
+ * Bursts coalesce in the engine; passes never overlap (its serialized queue). */
+export function scheduleSync(): void {
+  const token = currentToken();
+  if (token === null) {
+    statusStore.set({ kind: "error", message: "not signed in" });
+    return;
+  }
+  engineFor(token).scheduleSync();
 }
 
 /** Subscribe a React component to the sync status. */
 export function useSyncStatus(): SyncStatus {
-  return useSyncExternalStore(subscribe, () => status);
+  return useSyncExternalStore(statusStore.subscribe, statusStore.get);
 }

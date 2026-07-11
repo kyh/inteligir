@@ -4,17 +4,13 @@ import { createRealtimeSync, type RealtimeOptions, type StreamHandlers } from ".
 
 // ---------------------------------------------------------------------------
 // Pure-policy tests: the supervisor runs over a manual clock and a scripted
-// stream — no timers, no network, no native modules.
+// stream — no timers, no network, no native modules. Debounce + pass
+// serialization are the SyncEngine's (tested in @repo/core); the supervisor
+// owns only the stream lifecycle + reconnect backoff.
 // ---------------------------------------------------------------------------
 
-/** Drain chained promise callbacks so async `runSync` chains settle. */
-async function drainMicrotasks(): Promise<void> {
-  for (let i = 0; i < 20; i += 1) await Promise.resolve();
-}
-
 /** A manual clock implementing the `schedule` port. `advance` fires due timers
- * in time-then-insertion order, draining microtasks between firings so async
- * `runSync` chains settle deterministically. */
+ * in time-then-insertion order. */
 function fakeClock() {
   let now = 0;
   let nextId = 1;
@@ -28,7 +24,7 @@ function fakeClock() {
     };
   }
 
-  async function advance(ms: number): Promise<void> {
+  function advance(ms: number): void {
     const target = now + ms;
     for (;;) {
       let dueId: number | null = null;
@@ -47,12 +43,11 @@ function fakeClock() {
       timers.delete(dueId);
       now = dueAt;
       due?.fn();
-      await drainMicrotasks();
     }
     now = target;
   }
 
-  return { schedule, advance, drainMicrotasks, pendingTimers: () => timers.size };
+  return { schedule, advance, pendingTimers: () => timers.size };
 }
 
 /** A scripted stream port: records opens/closes, lets tests push change events
@@ -86,95 +81,47 @@ function fakeStream() {
   };
 }
 
-/** A runSync fake that resolves when the test releases it. */
-function fakeSync() {
-  let runs = 0;
-  const releases: (() => void)[] = [];
-  let manual = false;
-
-  function runSync(): Promise<unknown> {
-    runs += 1;
-    if (!manual) return Promise.resolve({ status: "ok" });
-    return new Promise((resolve) => {
-      releases.push(() => resolve({ status: "ok" }));
-    });
-  }
-
-  return {
-    runSync,
-    runs: () => runs,
-    holdRuns: () => {
-      manual = true;
-    },
-    release: () => releases.shift()?.(),
-  };
-}
-
 function harness(options: RealtimeOptions = {}) {
   const clock = fakeClock();
   const stream = fakeStream();
-  const sync = fakeSync();
+  let kicks = 0;
   const supervisor = createRealtimeSync(
-    { openStream: stream.openStream, runSync: sync.runSync, schedule: clock.schedule },
+    {
+      openStream: stream.openStream,
+      scheduleSync: () => {
+        kicks += 1;
+      },
+      schedule: clock.schedule,
+    },
     options,
   );
-  return { clock, stream, sync, supervisor };
+  return { clock, stream, supervisor, kicks: () => kicks };
 }
 
-describe("createRealtimeSync — debounce", () => {
-  it("syncs once, 500ms after a change (trailing edge)", async () => {
-    const { clock, stream, sync, supervisor } = harness();
+describe("createRealtimeSync — change handling", () => {
+  it("kicks scheduleSync once per received change (debounce is the engine's)", () => {
+    const { stream, supervisor, kicks } = harness();
     supervisor.start();
+
     stream.emitChange();
-
-    await clock.advance(499);
-    expect(sync.runs()).toBe(0);
-
-    await clock.advance(1);
-    expect(sync.runs()).toBe(1);
+    expect(kicks()).toBe(1);
+    stream.emitChange();
+    stream.emitChange();
+    expect(kicks()).toBe(3);
   });
 
-  it("folds a burst of changes into one pass, timed from the LAST change", async () => {
-    const { clock, stream, sync, supervisor } = harness();
+  it("ignores changes from a stream that was already replaced/stopped", () => {
+    const { stream, supervisor, kicks } = harness();
     supervisor.start();
+    supervisor.stop();
 
-    stream.emitChange();
-    await clock.advance(300);
-    stream.emitChange(); // resets the window
-    await clock.advance(499);
-    expect(sync.runs()).toBe(0);
-
-    await clock.advance(1); // 800ms after the first change
-    expect(sync.runs()).toBe(1);
-  });
-
-  it("a change landing mid-pass queues exactly ONE follow-up pass", async () => {
-    const { clock, stream, sync, supervisor } = harness();
-    sync.holdRuns();
-    supervisor.start();
-
-    stream.emitChange();
-    await clock.advance(500);
-    expect(sync.runs()).toBe(1); // in flight, held
-
-    // Three more changes while the pass runs — their debounce fires mid-pass.
-    stream.emitChange();
-    stream.emitChange();
-    await clock.advance(500);
-    expect(sync.runs()).toBe(1); // still just the held pass
-
-    sync.release();
-    await clock.drainMicrotasks();
-    expect(sync.runs()).toBe(2); // one queued follow-up, not one per change
-
-    sync.release();
-    await clock.drainMicrotasks();
-    expect(sync.runs()).toBe(2); // nothing further queued
+    stream.emitChange(); // stale stream speaks after teardown
+    expect(kicks()).toBe(0);
   });
 });
 
 describe("createRealtimeSync — reconnect backoff", () => {
-  it("reopens after a drop with exponential backoff, capped", async () => {
+  it("reopens after a drop with exponential backoff, capped", () => {
     const { clock, stream, supervisor } = harness({
       reconnectBaseMs: 1_000,
       reconnectMaxMs: 4_000,
@@ -183,27 +130,27 @@ describe("createRealtimeSync — reconnect backoff", () => {
     expect(stream.opens()).toBe(1);
 
     stream.drop(); // 1st drop → 1s
-    await clock.advance(999);
+    clock.advance(999);
     expect(stream.opens()).toBe(1);
-    await clock.advance(1);
+    clock.advance(1);
     expect(stream.opens()).toBe(2);
 
     stream.drop(); // 2nd consecutive → 2s
-    await clock.advance(1_999);
+    clock.advance(1_999);
     expect(stream.opens()).toBe(2);
-    await clock.advance(1);
+    clock.advance(1);
     expect(stream.opens()).toBe(3);
 
     stream.drop(); // 3rd → 4s (cap)
-    await clock.advance(4_000);
+    clock.advance(4_000);
     expect(stream.opens()).toBe(4);
 
     stream.drop(); // 4th → still 4s (capped)
-    await clock.advance(4_000);
+    clock.advance(4_000);
     expect(stream.opens()).toBe(5);
   });
 
-  it("a received change resets the backoff to the base delay", async () => {
+  it("a received change resets the backoff to the base delay", () => {
     const { clock, stream, supervisor } = harness({
       reconnectBaseMs: 1_000,
       reconnectMaxMs: 30_000,
@@ -211,16 +158,15 @@ describe("createRealtimeSync — reconnect backoff", () => {
     supervisor.start();
 
     stream.drop();
-    await clock.advance(1_000); // reopened after 1s
+    clock.advance(1_000); // reopened after 1s
     stream.drop();
-    await clock.advance(2_000); // reopened after 2s
+    clock.advance(2_000); // reopened after 2s
     expect(stream.opens()).toBe(3);
 
     stream.emitChange(); // proof of life → backoff resets
-    await clock.advance(500); // let the debounced sync fire (irrelevant here)
 
     stream.drop();
-    await clock.advance(1_000); // back to the 1s base, not 4s
+    clock.advance(1_000); // back to the 1s base, not 4s
     expect(stream.opens()).toBe(4);
   });
 });
@@ -233,50 +179,59 @@ describe("createRealtimeSync — start/stop lifecycle", () => {
     expect(stream.opens()).toBe(1);
   });
 
-  it("stop closes the stream and cancels the pending debounce + reconnect", async () => {
-    const { clock, stream, sync, supervisor } = harness();
+  it("stop closes the stream and leaves no pending work", () => {
+    const { clock, stream, supervisor, kicks } = harness();
     supervisor.start();
 
-    stream.emitChange(); // debounce pending
     supervisor.stop();
     expect(stream.closes()).toBe(1);
 
-    await clock.advance(60_000);
-    expect(sync.runs()).toBe(0); // debounce cancelled
+    clock.advance(60_000);
+    expect(kicks()).toBe(0);
     expect(stream.opens()).toBe(1); // no reconnect scheduled
     expect(clock.pendingTimers()).toBe(0);
   });
 
-  it("a drop after stop never reconnects", async () => {
+  it("a drop after stop never reconnects", () => {
     const { clock, stream, supervisor } = harness();
     supervisor.start();
     supervisor.stop();
 
     stream.drop(); // stale stream speaks after teardown
-    await clock.advance(60_000);
+    clock.advance(60_000);
     expect(stream.opens()).toBe(1);
   });
 
-  it("stop cancels a scheduled reconnect from an earlier drop", async () => {
+  it("stop cancels a scheduled reconnect from an earlier drop", () => {
     const { clock, stream, supervisor } = harness();
     supervisor.start();
     stream.drop();
     supervisor.stop();
 
-    await clock.advance(60_000);
+    clock.advance(60_000);
     expect(stream.opens()).toBe(1);
+    expect(clock.pendingTimers()).toBe(0);
   });
 
-  it("restart after stop opens a fresh stream and syncs on new changes", async () => {
-    const { clock, stream, sync, supervisor } = harness();
+  it("restart after stop opens a fresh stream, backoff reset, changes kick again", () => {
+    const { clock, stream, supervisor, kicks } = harness({
+      reconnectBaseMs: 1_000,
+      reconnectMaxMs: 30_000,
+    });
     supervisor.start();
+    stream.drop();
+    clock.advance(1_000);
+    stream.drop(); // progression now at 2s
     supervisor.stop();
     supervisor.start();
-    expect(stream.opens()).toBe(2);
+    expect(stream.opens()).toBe(3);
 
     stream.emitChange();
-    await clock.advance(500);
-    expect(sync.runs()).toBe(1);
+    expect(kicks()).toBe(1);
+
+    stream.drop();
+    clock.advance(1_000); // base delay again — the restart reset the backoff
+    expect(stream.opens()).toBe(4);
   });
 
   it("stop is a no-op while already stopped", () => {

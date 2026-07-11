@@ -6,6 +6,7 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AppStateSchema, type AppState } from "@repo/features/app-state";
 import type { Bridge, SetupProgress } from "@repo/features/ipc";
+import { buildNoteContext, stripNoteContext } from "@repo/features/note-context";
 import type { ImageAttachment } from "@repo/features/voice";
 import { getBridge } from "@renderer/lib/bridge";
 import { flushOpenNote, openNotePath } from "@renderer/workspace/open-note-flush";
@@ -53,34 +54,6 @@ export function currentTurnMessages(messages: ChatMessage[]): ChatMessage[] {
 type SendOptions = {
   intent?: "steer";
 };
-
-/** Prefix a fresh user turn with the open note so the single persistent thread
- * is note-aware without the user naming the file. Kept out of the displayed
- * bubble — only the text sent to the agent carries it. */
-export function withNoteContext(text: string, activeNote: string | undefined): string {
-  // Ground the agent in the real date — it otherwise hallucinates one — and, if
-  // a note is open, in which file "this note" refers to.
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const note =
-    activeNote === undefined
-      ? ""
-      : ` The note open in front of me is ./vault/${activeNote}; if I say "this note", "here", or don't name a file, I mean that one.`;
-  return `[Context: today is ${today}.${note}]\n\n${text}`;
-}
-
-/** Remove the auto-attached note context so rehydrated history shows the user's
- * actual words (the agent's stored message includes the prefix; the live
- * optimistic bubble never did). */
-export function stripNoteContext(text: string): string {
-  // Lazy up to the first `]` that closes the block (`]\n\n`), so a note path
-  // containing `]` doesn't truncate the strip and leak context into the bubble.
-  return text.replace(/^\[Context: [\s\S]*?\]\n\n/, "");
-}
 
 // ---------------------------------------------------------------------------
 // Store
@@ -534,7 +507,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     if (cmdType === "user_message") {
       flushed = await flushOpenNote();
       const activeNote = flushed ? (openNotePath() ?? undefined) : undefined;
-      sentText = withNoteContext(text, activeNote);
+      sentText = buildNoteContext(text, activeNote);
       // The flush may have awaited a moment — bail if the session ended meanwhile
       // (e.g. a voice turn queued behind a flush while the user logged out).
       if (get().appState.phase === "logged_out") return { flushed };

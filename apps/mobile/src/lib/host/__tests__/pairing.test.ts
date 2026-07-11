@@ -146,20 +146,6 @@ describe("parsePairingInput", () => {
     });
   });
 
-  it("parses a combined pairing URL with the code in the fragment", () => {
-    expect(parsePairingInput(`ws://192.168.1.5:47890#${CODE}`)).toEqual({
-      wsUrl: "ws://192.168.1.5:47890",
-      pairingToken: CODE,
-    });
-  });
-
-  it("parses a combined pairing URL with the code in a query param", () => {
-    expect(parsePairingInput(`wss://host.local:47890/?token=${CODE}`)).toEqual({
-      wsUrl: "wss://host.local:47890",
-      pairingToken: CODE,
-    });
-  });
-
   it("never scavenges a code from inside the address", () => {
     expect(parsePairingInput("ws://averylonghostnamewithoutdots:47890")).toEqual({
       wsUrl: "ws://averylonghostnamewithoutdots:47890",

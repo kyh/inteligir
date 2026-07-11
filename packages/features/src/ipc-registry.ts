@@ -657,6 +657,40 @@ export const LOCAL_ONLY_METHODS = [
 /** Methods the platform-agnostic host implements. */
 export type HostMethod = Exclude<IpcMethod, EventMethod | UpdateMethod | DesktopShellMethod>;
 
+/** A method's invoke result type (never for sends/events). */
+type ResultOf<K extends IpcMethod> =
+  IpcRegistry[K] extends Invoke<TSchema, infer R>
+    ? R
+    : IpcRegistry[K] extends InvokeVoid<infer R>
+      ? R
+      : never;
+
+/** The methods whose result type EQUALS event `E`'s payload type — the only
+ * provable hydration sources for that event (the tuple check enforces
+ * assignability in both directions, so the pair can't drift). */
+type HydrationGetter<E extends EventMethod> = {
+  [K in IpcMethod]: [ResultOf<K>, IpcEvent<E>] extends [IpcEvent<E>, ResultOf<K>] ? K : never;
+}[IpcMethod];
+
+/** Reconnect self-healing: each STATEFUL event channel paired with the getter
+ * that answers its current state. A transport pushes every getter's result as
+ * an evt frame right after welcome, so a client that missed events while
+ * disconnected never sits on stale panels across a rebind (full event replay
+ * is deliberately not provided — see the transport design's accepted
+ * limitations). Getters resolve through the transport's merged dispatch map
+ * (host handlers + shell handlers), so shell-owned stateful channels hydrate
+ * too; a getter missing on a given host simply skips its push. */
+export const HYDRATED_EVENTS = {
+  onRemoteAccessChanged: "getRemoteAccessState",
+  onSyncStateChanged: "getSyncState",
+  onAppState: "getAppState",
+  onDelegationsUpdated: "listDelegations",
+  // onUpdateState is deliberately absent: its only provable getter
+  // (checkForUpdates) hits the update feed, and hydration runs on EVERY
+  // connect — including each mobile foreground resume. No UI consumes the
+  // event yet; add a side-effect-free getter before hydrating it.
+} as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
+
 // Object.keys returns string[]; the predicate re-proves membership so the
 // typed list needs no assertion.
 function methodNames<T extends Record<string, IpcEntry>>(registry: T): Array<keyof T & string> {

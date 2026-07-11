@@ -17,7 +17,7 @@ import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 import { createAuthClient } from "better-auth/client";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { toErrorMessage } from "@repo/features/ipc";
 import type { SyncSignInResult } from "@repo/features/sync";
 
@@ -71,9 +71,7 @@ const DEFAULT_CONFIG: StoredConfig = {
 const DEFAULT_AUTH: StoredAuth = { version: AUTH_VERSION, token: null, email: null };
 const DEFAULT_VAULT_ID: StoredVaultId = { version: VAULT_ID_VERSION, vaultId: "" };
 
-function rejectLegacy(): never {
-  throw new Error("sync store has no version field");
-}
+const rejectLegacy = rejectLegacyVersion("sync");
 
 export type SyncAccountOptions = {
   fs?: FsAdapter;

@@ -143,6 +143,17 @@ export type JsonStoreOptions<T> = {
   mode?: number;
 };
 
+/**
+ * A `fromLegacy` for stores that never had an unversioned era: any file
+ * without an integer `version` field is corrupt by definition. `storeName`
+ * names the store in the quarantine reason.
+ */
+export function rejectLegacyVersion(storeName: string): (raw: unknown) => never {
+  return () => {
+    throw new Error(`${storeName} store has no version field`);
+  };
+}
+
 function readVersion(value: unknown): number | null {
   if (!isRecord(value)) return null;
   const version = value["version"];

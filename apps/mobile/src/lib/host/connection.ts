@@ -1,34 +1,22 @@
 // ---------------------------------------------------------------------------
 // The module-level connection singleton (mirrors ../sync/manager.ts): binds
-// the pure owner in connection-core.ts to the real createWsBridge and React
-// Native's AppState, and exposes the React hook. AppState mapping: `active`
-// resumes; `background` suspends; iOS's transient `inactive` (control center,
-// app switcher peek) is ignored — tearing the socket down there would churn
-// reconnects for a state that usually bounces straight back to active.
+// the pure owner in connection-core.ts to the real createWsBridge and the
+// shared app-foreground seam (../app-lifecycle.ts — `active` resumes,
+// `background` suspends), and exposes the React hook.
 // ---------------------------------------------------------------------------
 
 import { useSyncExternalStore } from "react";
-import { AppState } from "react-native";
 
 import { createWsBridge } from "@repo/features/ws-bridge";
 import type { Bridge } from "@repo/features/ipc-registry";
 
+import { subscribeAppForeground } from "../app-lifecycle";
 import { createHostConnection, type HostSnapshot } from "./connection-core";
 import type { KnownEnvironment } from "./environment-store";
 
 const connection = createHostConnection({
   createBridge: (options) => createWsBridge(options),
-  lifecycle: {
-    subscribe: (listener) => {
-      const subscription = AppState.addEventListener("change", (state) => {
-        if (state === "active") listener("active");
-        else if (state === "background") listener("background");
-      });
-      return () => {
-        subscription.remove();
-      };
-    },
-  },
+  lifecycle: { subscribe: subscribeAppForeground },
 });
 
 /** Connect to a paired environment (replaces any current connection). */

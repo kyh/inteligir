@@ -4,14 +4,13 @@
 //   - the stream is @repo/core's HttpSyncPort SSE subscription, driven through
 //     `expo/fetch` (Expo's WinterCG fetch): React Native's built-in fetch
 //     buffers whole responses (`res.body` is unusable for SSE), while
-//     expo/fetch streams — so ONLY the subscription injects it; syncOnce keeps
-//     the global fetch.
+//     expo/fetch streams — so ONLY the subscription injects it; the engine's
+//     own passes keep the global fetch.
+//   - a change kicks ./manager's `scheduleSync` (the engine's debounced,
+//     serialized pass), so status keeps flowing through `useSyncStatus`.
 //   - `useRealtimeSync()` (mounted by the signed-in vault screen) holds the
 //     subscription while the app is foregrounded: active → syncOnce + (re)open
 //     the stream; background → close it. Unmount (sign-out) also closes it.
-//
-// Every pass still runs through ./manager's `syncOnce`, so status keeps
-// flowing through the existing `useSyncStatus` untouched.
 // ---------------------------------------------------------------------------
 
 import { useEffect } from "react";
@@ -19,10 +18,12 @@ import { AppState } from "react-native";
 import { fetch as expoFetch, type FetchRequestInit } from "expo/fetch";
 
 import { createHttpSyncPort, type FetchFn } from "@repo/core/sync/http-sync-port";
+import { timeoutSchedule } from "@repo/features/backoff";
 
+import { subscribeAppForeground } from "../app-lifecycle";
 import { getBearerToken } from "../auth";
 import { getCoordinatorUrl } from "../base-url";
-import { syncOnce } from "./manager";
+import { scheduleSync, syncOnce } from "./manager";
 import { createRealtimeSync, type StreamHandlers } from "./realtime";
 import { getOrCreateVaultId } from "./vault-id";
 
@@ -39,7 +40,7 @@ const streamingFetch: FetchFn = (input, init) => {
 };
 
 /** Open one SSE change stream carrying the CURRENT bearer token (a fresh port
- * per open, like ./manager's engine-per-pass, so reconnects never reuse a
+ * per open, like ./manager's engine-per-token, so reconnects never reuse a
  * stale token). */
 function openStream(handlers: StreamHandlers): () => void {
   const token = getBearerToken();
@@ -61,11 +62,8 @@ function openStream(handlers: StreamHandlers): () => void {
 
 const supervisor = createRealtimeSync({
   openStream,
-  runSync: syncOnce,
-  schedule: (fn, ms) => {
-    const handle = setTimeout(fn, ms);
-    return () => clearTimeout(handle);
-  },
+  scheduleSync,
+  schedule: timeoutSchedule,
 });
 
 /**
@@ -80,12 +78,12 @@ export function useRealtimeSync(): void {
       supervisor.start();
     };
     if (AppState.currentState === "active") onActive();
-    const subscription = AppState.addEventListener("change", (state) => {
+    const unsubscribe = subscribeAppForeground((state) => {
       if (state === "active") onActive();
-      else if (state === "background") supervisor.stop();
+      else supervisor.stop();
     });
     return () => {
-      subscription.remove();
+      unsubscribe();
       supervisor.stop();
     };
   }, []);

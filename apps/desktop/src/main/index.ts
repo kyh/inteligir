@@ -422,9 +422,14 @@ async function onAppReady(): Promise<void> {
   // html-app token mint (UPDATE_METHODS / DESKTOP_SHELL_METHODS — deliberately
   // absent from the platform-agnostic host handler map) ride along as
   // shellHandlers. The updater is constructed first (the ws host needs its
-  // handlers at startup) and gets the onUpdateState broadcast injected after.
+  // handlers at startup); its broadcast thunk reads the module-level wsHost
+  // lazily — safe, nothing broadcasts before the delayed startup feed check.
   const remoteAccess = getRemoteAccessManager();
-  const theUpdater = setupAutoUpdater({ isDevelopment, gracefulShutdown: runGracefulShutdown });
+  const theUpdater = setupAutoUpdater({
+    isDevelopment,
+    gracefulShutdown: runGracefulShutdown,
+    broadcast: (state) => wsHost?.broadcastEvent("onUpdateState", state),
+  });
   updater = theUpdater;
   const theWsHost = startWsHost({
     host: theHost,
@@ -439,11 +444,14 @@ async function onAppReady(): Promise<void> {
     },
   });
   wsHost = theWsHost;
-  theUpdater.setBroadcast((state) => theWsHost.broadcastEvent("onUpdateState", state));
 
   registerVaultAppProtocol();
 
-  const port = await waitForWsPort(theWsHost, remoteAccess);
+  // Independent awaits — the ws bind and the ui-state read overlap.
+  const [port, backgroundColor] = await Promise.all([
+    waitForWsPort(theWsHost, remoteAccess),
+    startupBackgroundColor(theHost),
+  ]);
   const bootstrap: BridgeBootstrap = {
     url: `ws://127.0.0.1:${port}`,
     token: remoteAccess.getLocalToken(),
@@ -458,7 +466,7 @@ async function onAppReady(): Promise<void> {
     event.returnValue = bootstrap;
   });
 
-  mainWindow = createWindow(await startupBackgroundColor(theHost));
+  mainWindow = createWindow(backgroundColor);
   electronPlatform.setTargetWindow(mainWindow);
 
   theHost.start();

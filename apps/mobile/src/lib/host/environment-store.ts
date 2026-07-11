@@ -8,6 +8,8 @@
 // legacy payloads read as "no environment" — never a throw.
 // ---------------------------------------------------------------------------
 
+import { isRecord } from "@repo/features/ipc";
+
 /** A desktop the device has paired with: where to connect + the durable
  * device credential the ws host minted for us. */
 export type KnownEnvironment = {
@@ -40,10 +42,6 @@ export type EnvironmentStore = {
 
 const STORE_KEY = "inteligir.hostEnvironments";
 const STORE_VERSION = 1;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function parseEnvironment(value: unknown): KnownEnvironment | null {
   if (!isRecord(value)) return null;

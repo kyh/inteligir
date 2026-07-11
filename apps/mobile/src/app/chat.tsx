@@ -1,5 +1,5 @@
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +13,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Markdown from "react-native-markdown-display";
 
+import type { AppAgentEvent } from "@repo/features/agent-events";
+import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
 import {
   appendNotice,
   appendUser,
@@ -24,6 +26,7 @@ import {
 } from "@/lib/host/chat-log";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
 import { hostStatusDotClass, hostStatusLabel, type HostStatus } from "@/lib/host/status-display";
+import { useHostChannel } from "@/lib/host/use-host-channel";
 import { markdownStylesFor } from "@/lib/markdown-styles";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +38,9 @@ import { markdownStylesFor } from "@/lib/markdown-styles";
 // like the desktop.
 // ---------------------------------------------------------------------------
 
+// How close to the end (px) still counts as "at the bottom" for auto-scroll.
+const NEAR_BOTTOM_SLOP_PX = 80;
+
 export default function ChatScreen() {
   const router = useRouter();
   const { status } = useHostStatus();
@@ -43,35 +49,30 @@ export default function ChatScreen() {
   const [log, setLog] = useState<ChatLog>(emptyChatLog);
   const [input, setInput] = useState("");
   const scrollRef = useRef<ScrollView | null>(null);
+  // Auto-scroll only while the user is pinned to the bottom — scrolling up to
+  // reread must not be yanked back down by streaming deltas.
+  const nearBottomRef = useRef(true);
 
-  // (Re)attach on every reconnect: a background suspend disposes the bridge
-  // (dropping event subscriptions), so each `connected` gets a fresh
-  // subscription — and a history reload to reconcile whatever streamed while
-  // this device was away.
-  useEffect(() => {
-    if (status !== "connected") return;
-    const bridge = getHostBridge();
-    if (bridge === null) return;
-    let alive = true;
-    const unsubscribe = bridge.onAgentEvent((event) => {
-      setLog((current) => applyAgentEvent(current, event));
-    });
-    void (async () => {
-      try {
-        const history = await bridge.getAgentHistory();
-        if (alive) setLog(logFromHistory(history));
-      } catch {
-        // Dropped mid-load — the next reconnect reloads.
-      }
-    })();
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, [status]);
+  // Live agent events + a history reload on every (re)connect.
+  useHostChannel<AppAgentEvent, ChatHistoryEntry[]>({
+    subscribe: (bridge, onEvent) => bridge.onAgentEvent(onEvent),
+    load: (bridge) => bridge.getAgentHistory(),
+    onEvent: (event) => setLog((current) => applyAgentEvent(current, event)),
+    onLoad: (history) => setLog(logFromHistory(history)),
+  });
 
   const connected = status === "connected";
   const canSend = connected && input.trim() !== "";
+  const streaming = log.streamingId !== null;
+
+  // Recreated only when the status changes — not per keystroke/delta render.
+  const screenOptions = useMemo(
+    () => ({
+      title: "Chat",
+      headerRight: () => <HeaderStatus status={status} />,
+    }),
+    [status],
+  );
 
   const send = useCallback(() => {
     const bridge = getHostBridge();
@@ -95,17 +96,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
-      <Stack.Screen
-        options={{
-          title: "Chat",
-          headerRight: () => (
-            <View className="flex-row items-center gap-1.5">
-              <View className={`h-2 w-2 rounded-full ${hostStatusDotClass(status)}`} />
-              <Text className="text-xs text-muted-foreground">{hostStatusLabel(status)}</Text>
-            </View>
-          ),
-        }}
-      />
+      <Stack.Screen options={screenOptions} />
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -117,7 +108,19 @@ export default function ChatScreen() {
           className="flex-1"
           contentContainerClassName="px-4 py-4"
           keyboardShouldPersistTaps="handled"
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          onScroll={(event) => {
+            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+            nearBottomRef.current =
+              contentOffset.y + layoutMeasurement.height >=
+              contentSize.height - NEAR_BOTTOM_SLOP_PX;
+          }}
+          scrollEventThrottle={32}
+          onContentSizeChange={() => {
+            if (!nearBottomRef.current) return;
+            // Non-animated during streaming: deltas land faster than the
+            // animation, which otherwise stutters and lags the tail.
+            scrollRef.current?.scrollToEnd({ animated: !streaming });
+          }}
         >
           {log.items.length === 0 ? (
             <View className="items-center gap-2 py-24">
@@ -177,6 +180,15 @@ export default function ChatScreen() {
   );
 }
 
+function HeaderStatus({ status }: { status: HostStatus }) {
+  return (
+    <View className="flex-row items-center gap-1.5">
+      <View className={`h-2 w-2 rounded-full ${hostStatusDotClass(status)}`} />
+      <Text className="text-xs text-muted-foreground">{hostStatusLabel(status)}</Text>
+    </View>
+  );
+}
+
 function composerHint(status: HostStatus): string {
   switch (status) {
     case "none":
@@ -193,7 +205,9 @@ function composerHint(status: HostStatus): string {
 
 // ---- rows -------------------------------------------------------------------
 
-function ChatRow({ item, dark }: { item: ChatItem; dark: boolean }) {
+// Memoized: the chat-log fold keeps untouched item references stable, so a
+// streaming delta re-renders ONE row, not the whole transcript.
+const ChatRow = memo(function ChatRow({ item, dark }: { item: ChatItem; dark: boolean }) {
   if (item.kind === "user") {
     return (
       <View className="mb-3 flex-row justify-end">
@@ -238,4 +252,4 @@ function ChatRow({ item, dark }: { item: ChatItem; dark: boolean }) {
       <Markdown style={markdownStylesFor(dark)}>{item.text}</Markdown>
     </View>
   );
-}
+});

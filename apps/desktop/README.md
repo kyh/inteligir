@@ -12,14 +12,13 @@ the sherpa-onnx voice binaries).
 ```
 src/
   main/      Electron main process
-    index.ts             app lifecycle — create window, boot host, wire IPC
+    index.ts             app lifecycle — boot host, start the ws transport, create window
     electron-platform.ts HostPlatform impl — dialogs, keychain cipher, notifications, resource paths
-    host-fold.ts         folds host.handlers into ipcMain + forwards host.events
-    updater.ts           electron-updater wiring
-  preload/   contextBridge — exposes the typed window.desktopBridge derived from @repo/features/ipc-registry
-  renderer/  the product UI — main.tsx installs window.desktopBridge and renders App;
+    updater.ts           electron-updater wiring (the shell-owned updater trio)
+  preload/   bootstrap-only — sendSync's the ws endpoint + per-boot local token to the renderer
+  renderer/  the product UI — main.tsx dials createWsBridge, installs the Bridge, renders App;
              editor/, workspace/, composer/, sidebar/, settings/, voice/, … (imported via @renderer)
-  __tests__/ Vitest — host-fold, updater, agent-event parsing
+  __tests__/ Vitest — updater, agent-event parsing, vault-app protocol
 
 dev/         browser dev harness — in-memory fixture Bridge (`dev:harness`)
 resources/   icons + entitlements shipped in the .app (agent assets live in packages/features/resources/agent)
@@ -30,19 +29,26 @@ scripts/     build-time verifiers (packaged runtime deps, model registry)
 
 ```
 renderer (sandboxed Chromium) — the product UI, host-agnostic (talks via the Bridge)
-   ↕  contextBridge → window.desktopBridge
-preload (Node, isolated)
-   ↕  ipcRenderer ⇄ ipcMain
-main (full Node + Electron) — createHost(@repo/features/server) behind an ElectronPlatform
+   ↕  WebSocket — createWsBridge (@repo/features/ws-bridge), reconnect supervisor + auth
+main (full Node + Electron) — createHost(@repo/features/server) behind an ElectronPlatform,
+                              served by startWsHost (@repo/features/server/transport/ws-host)
 ```
 
 - **Renderer** never touches Node APIs. Sandboxed, no nodeIntegration, contextIsolation on.
-- **Preload** is the narrow bridge, derived from the registry in `@repo/features/ipc-registry`.
-- **Main** composes `@repo/features/server` and folds its handler map into `ipcMain` (`host-fold.ts`).
+  Its Bridge is a WebSocket client (`createWsBridge`) derived from the registry in
+  `@repo/features/ipc-registry`.
+- **Preload** does not carry data. It is a one-shot bootstrap: a synchronous
+  `inteligir:bootstrap` IPC fetches `{ url, token }` (the loopback ws endpoint and the
+  per-boot local token) and exposes it as `window.bridgeBootstrap` — keeping the token
+  off the renderer's OS command line and out of the page URL.
+- **Main** composes `@repo/features/server` and serves its handler map + event stream
+  over ONE WebSocket server (`startWsHost`); the shell-owned updater trio and html-app
+  token methods ride along as `shellHandlers`. The same server is the remote-access
+  surface for paired mobile devices.
 
-IPC is typed end-to-end via the registry: each method pairs a channel name with
-a TypeBox payload schema and a result/event type, so renaming a method or
-changing a payload shape produces a typecheck error in both processes.
+The Bridge is typed end-to-end via the registry: each method pairs a channel name with
+a TypeBox payload schema and a result/event type, so renaming a method or changing a
+payload shape produces a typecheck error on both sides of the socket.
 
 ## Dev
 

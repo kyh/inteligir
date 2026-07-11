@@ -9,8 +9,7 @@
 // `parsePairingInput` parses what the desktop Settings → Remote access block
 // actually shows the user: one or more `ws://<lan-ip>:<port>` URLs ("or"-
 // joined) plus a separate base64url one-time code — pasted together or one at
-// a time — and tolerates a future combined form (`ws://host:port#<code>` or
-// `?token=<code>`).
+// a time, with whitespace/prose tolerance.
 // ---------------------------------------------------------------------------
 
 import { WS_CLOSE_UNAUTHORIZED, encodeFrame, parseServerFrame } from "@repo/features/ws-protocol";
@@ -138,41 +137,22 @@ const WS_URL_RE = /wss?:\/\/[^\s,;"'<>]+/gi;
 // Pairing codes are 32 random bytes base64url'd (43 chars); require a long
 // standalone run so prose around a pasted code never matches.
 const TOKEN_RE = /(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{20,})(?=$|[^A-Za-z0-9_-])/;
-const QUERY_TOKEN_RE = /[?&](?:token|pair|code)=([A-Za-z0-9_-]+)/i;
 const TRAILING_PUNCTUATION_RE = /[.,;:!?)\]}>'"]+$/;
 
 /**
  * Pull a ws URL and/or a pairing code out of free-form pasted text. Tolerant
- * of whitespace, several "or"-joined URLs (first wins), surrounding prose,
- * and a token embedded in the URL's fragment or query.
+ * of whitespace, several "or"-joined URLs (first wins), and surrounding prose
+ * — exactly what the desktop renders, nothing speculative.
  */
 export function parsePairingInput(text: string): ParsedPairingInput {
-  const urls = text.match(WS_URL_RE) ?? [];
-  let wsUrl: string | null = null;
-  let pairingToken: string | null = null;
+  const first = (text.match(WS_URL_RE) ?? [])[0];
+  const wsUrl =
+    first === undefined ? null : first.replace(TRAILING_PUNCTUATION_RE, "").replace(/\/+$/, "");
 
-  const first = urls[0];
-  if (first !== undefined) {
-    const cleaned = first.replace(TRAILING_PUNCTUATION_RE, "");
-    const fragmentToken = /#([A-Za-z0-9_-]{20,})$/.exec(cleaned)?.[1];
-    const queryToken = QUERY_TOKEN_RE.exec(cleaned)?.[1];
-    pairingToken = fragmentToken ?? queryToken ?? null;
-    // The host address is everything before the fragment/query.
-    const cut = Math.min(
-      ...[cleaned.indexOf("#"), cleaned.indexOf("?"), cleaned.length].filter(
-        (index) => index !== -1,
-      ),
-    );
-    const base = cleaned.slice(0, cut).replace(/\/+$/, "");
-    wsUrl = base === "" ? null : base;
-  }
-
-  if (pairingToken === null) {
-    // Search the text with URLs blanked out, so a code never gets scavenged
-    // from inside an address.
-    const remainder = text.replace(WS_URL_RE, " ");
-    pairingToken = TOKEN_RE.exec(remainder)?.[1] ?? null;
-  }
+  // Search the text with URLs blanked out, so a code never gets scavenged
+  // from inside an address.
+  const remainder = text.replace(WS_URL_RE, " ");
+  const pairingToken = TOKEN_RE.exec(remainder)?.[1] ?? null;
 
   return { wsUrl, pairingToken };
 }

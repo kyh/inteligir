@@ -15,6 +15,7 @@
 
 import type { Bridge } from "@repo/features/ipc-registry";
 import type { WsBridgeStatus } from "@repo/features/ws-bridge";
+import { createExternalStore } from "../external-store";
 import type { KnownEnvironment } from "./environment-store";
 
 /** `none` = no environment started (unpaired or stopped). */
@@ -59,12 +60,10 @@ export function createHostConnection(deps: {
   let env: KnownEnvironment | null = null;
   let handle: { bridge: Bridge; dispose: () => void } | null = null;
   let status: HostStatus = "none";
-  let snapshot: HostSnapshot = { status: "none", envName: null };
-  const listeners = new Set<() => void>();
+  const store = createExternalStore<HostSnapshot>({ status: "none", envName: null });
 
   function publish(): void {
-    snapshot = { status, envName: env?.name ?? null };
-    for (const listener of listeners) listener();
+    store.set({ status, envName: env?.name ?? null });
   }
 
   function setStatus(next: HostStatus): void {
@@ -121,32 +120,26 @@ export function createHostConnection(deps: {
     else suspend();
   });
 
+  function stop(): void {
+    closeBridge();
+    env = null;
+    status = "none";
+    publish();
+  }
+
   return {
     start: (nextEnv) => {
       closeBridge();
       env = nextEnv;
       openBridge(nextEnv);
     },
-    stop: () => {
-      closeBridge();
-      env = null;
-      status = "none";
-      publish();
-    },
+    stop,
     getBridge: () => (status === "unauthorized" ? null : (handle?.bridge ?? null)),
-    getSnapshot: () => snapshot,
-    subscribe: (onChange) => {
-      listeners.add(onChange);
-      return () => {
-        listeners.delete(onChange);
-      };
-    },
+    getSnapshot: store.get,
+    subscribe: store.subscribe,
     dispose: () => {
       unsubscribeLifecycle();
-      closeBridge();
-      env = null;
-      status = "none";
-      publish();
+      stop();
     },
   };
 }

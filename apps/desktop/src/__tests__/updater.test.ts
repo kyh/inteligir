@@ -20,6 +20,7 @@ describe("setupAutoUpdater", () => {
     const updater = setupAutoUpdater({
       isDevelopment: true,
       gracefulShutdown: () => Promise.resolve(),
+      broadcast: () => {},
     });
 
     expect(Object.keys(updater.handlers).toSorted()).toEqual([...UPDATE_METHODS].toSorted());
@@ -29,6 +30,7 @@ describe("setupAutoUpdater", () => {
     const updater = setupAutoUpdater({
       isDevelopment: true,
       gracefulShutdown: () => Promise.resolve(),
+      broadcast: () => {},
     });
     await updater.checkForUpdates();
 
@@ -36,13 +38,13 @@ describe("setupAutoUpdater", () => {
     expect(vi.mocked(electronUpdater.default.autoUpdater.checkForUpdates)).not.toHaveBeenCalled();
   });
 
-  it("pushes state through the late-bound broadcast", async () => {
+  it("pushes state through the injected broadcast", async () => {
+    const broadcast = vi.fn();
     const updater = setupAutoUpdater({
       isDevelopment: false,
       gracefulShutdown: () => Promise.resolve(),
+      broadcast,
     });
-    const broadcast = vi.fn();
-    updater.setBroadcast(broadcast);
 
     await updater.handlers.checkForUpdates(undefined);
 

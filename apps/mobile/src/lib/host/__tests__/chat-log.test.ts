@@ -9,7 +9,6 @@ import {
   applyAgentEvent,
   emptyChatLog,
   logFromHistory,
-  stripNoteContext,
   type ChatLog,
 } from "../chat-log";
 
@@ -17,23 +16,8 @@ function fold(log: ChatLog, events: readonly AppAgentEvent[]): ChatLog {
   return events.reduce(applyAgentEvent, log);
 }
 
-describe("stripNoteContext", () => {
-  it("removes the desktop's auto-attached context prefix", () => {
-    expect(stripNoteContext("[Context: today is Friday. The note is ./vault/a.md]\n\nhi")).toBe(
-      "hi",
-    );
-  });
-
-  it("strips through a ] inside a note path, but stops at the first closing ]\\n\\n", () => {
-    expect(stripNoteContext("[Context: note ./vault/a].md]\n\nhi")).toBe("hi");
-    expect(stripNoteContext("[Context: a]\n\nkeep [this]\n\ntail")).toBe("keep [this]\n\ntail");
-  });
-
-  it("leaves plain text alone", () => {
-    expect(stripNoteContext("just words")).toBe("just words");
-  });
-});
-
+// stripNoteContext itself is @repo/features/note-context's (tested there);
+// logFromHistory's strip-on-rehydrate is asserted below.
 describe("logFromHistory", () => {
   it("maps user/assistant entries and skips tool rows", () => {
     const history: ChatHistoryEntry[] = [

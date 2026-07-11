@@ -9,8 +9,10 @@
 import type { IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
+import { createBackoff, timeoutSchedule } from "@repo/features/backoff";
 import { isRecord, toErrorMessage } from "@repo/features/ipc";
 import {
+  HYDRATED_EVENTS,
   LOCAL_ONLY_METHODS,
   type DesktopShellMethod,
   type EventMethod,
@@ -87,25 +89,22 @@ export type WsHost = {
  * partition for the rationale). */
 const LOCAL_ONLY = new Set<string>(LOCAL_ONLY_METHODS);
 
-/** Reconnect self-healing: a client that missed events while disconnected has
- * the current state of the stateful channels pushed right after welcome, so
- * panels never sit on stale data across a rebind (full event replay is
- * deliberately not provided — see the design's accepted limitations). */
-const HYDRATION_PAIRS: ReadonlyArray<{ event: EventMethod; getter: HostMethod }> = [
-  { event: "onRemoteAccessChanged", getter: "getRemoteAccessState" },
-  { event: "onSyncStateChanged", getter: "getSyncState" },
-  { event: "onAppState", getter: "getAppState" },
-  { event: "onDelegationsUpdated", getter: "listDelegations" },
-];
-
 function rawDataToView(data: RawData): Uint8Array {
   if (Buffer.isBuffer(data)) return data;
   if (data instanceof ArrayBuffer) return new Uint8Array(data);
   return Buffer.concat(data);
 }
 
+/** Decode a text frame WITHOUT copying it: Buffers stringify directly, and a
+ * bare view is wrapped (offset + length, no clone) before stringifying. */
+function viewToString(view: Uint8Array): string {
+  return Buffer.isBuffer(view)
+    ? view.toString("utf8")
+    : Buffer.from(view.buffer, view.byteOffset, view.byteLength).toString("utf8");
+}
+
 function rawDataToString(data: RawData): string {
-  return Buffer.from(rawDataToView(data)).toString("utf8");
+  return viewToString(rawDataToView(data));
 }
 
 // Belt + braces on top of token auth: browsers attach the page's Origin, so
@@ -145,8 +144,11 @@ export function startWsHost(options: WsHostOptions): WsHost {
   // shell surfaces a fatal dialog off the manager's listen error), while a
   // later rebind failure retries with backoff.
   let everListened = false;
-  let retryTimer: NodeJS.Timeout | null = null;
-  let retryDelayMs = REBIND_RETRY_BASE_MS;
+  const rebindBackoff = createBackoff({
+    baseMs: REBIND_RETRY_BASE_MS,
+    capMs: REBIND_RETRY_CAP_MS,
+    schedule: timeoutSchedule,
+  });
   // Serializes rebinds so overlapping config changes can't race two servers.
   let rebindChain: Promise<void> = Promise.resolve();
   const authedSockets = new Map<WebSocket, DeviceSession>();
@@ -165,21 +167,13 @@ export function startWsHost(options: WsHostOptions): WsHost {
   let targetBind = desiredBind();
 
   function clearRetry(): void {
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-    retryDelayMs = REBIND_RETRY_BASE_MS;
+    rebindBackoff.cancel();
+    rebindBackoff.reset();
   }
 
   function scheduleRetry(): void {
-    if (closed || retryTimer !== null) return;
-    const delay = retryDelayMs;
-    retryDelayMs = Math.min(retryDelayMs * 2, REBIND_RETRY_CAP_MS);
-    retryTimer = setTimeout(() => {
-      retryTimer = null;
-      listen();
-    }, delay);
+    if (closed) return;
+    rebindBackoff.schedule(listen);
   }
 
   function listen(): void {
@@ -287,18 +281,19 @@ export function startWsHost(options: WsHostOptions): WsHost {
 
   const unsubscribeEvents = options.host.events.onAny(broadcastEvent);
 
-  /** Push current state as evt frames for the stateful channels (see
-   * HYDRATION_PAIRS). Best-effort: a getter that's missing on this host or
-   * throws just means no push. */
+  /** Push current state as evt frames for the registry's HYDRATED_EVENTS.
+   * Getters resolve through the merged dispatch map, so shell-owned stateful
+   * channels (onUpdateState) hydrate too. Best-effort: a getter that's
+   * missing on this host or throws just means no push. */
   function hydrate(sock: WebSocket): void {
-    for (const pair of HYDRATION_PAIRS) {
-      const getter = options.host.handlers[pair.getter];
-      if (getter === undefined) continue;
+    for (const [event, getter] of Object.entries(HYDRATED_EVENTS)) {
+      const handler = dispatch.get(getter);
+      if (handler === undefined) continue;
       void (async () => {
         try {
-          const payload = await getter(undefined);
+          const payload = await handler(undefined);
           if (sock.readyState === WebSocket.OPEN) {
-            sock.send(encodeFrame({ t: "evt", method: pair.event, payload }));
+            sock.send(encodeFrame({ t: "evt", method: event, payload }));
           }
         } catch {
           // Hydration never breaks the connection it heals.
@@ -355,7 +350,7 @@ export function startWsHost(options: WsHostOptions): WsHost {
         sock.close(WS_CLOSE_MESSAGE_TOO_BIG, "pre-auth frame too large");
         return;
       }
-      const frame = parseClientFrame(Buffer.from(view).toString("utf8"));
+      const frame = parseClientFrame(viewToString(view));
       if (frame === null) {
         sock.close(WS_CLOSE_UNAUTHORIZED, "malformed frame");
         return;

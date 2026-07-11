@@ -11,6 +11,7 @@
 
 import type { AppAgentEvent } from "@repo/features/agent-events";
 import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
+import { stripNoteContext } from "@repo/features/note-context";
 
 export type ChatItem =
   | { readonly kind: "user"; readonly id: string; readonly text: string }
@@ -73,34 +74,28 @@ export function appendNotice(log: ChatLog, text: string): ChatLog {
   });
 }
 
-/** Remove the desktop's auto-attached `[Context: …]` turn prefix so rehydrated
- * history shows the user's actual words (mirrors the desktop renderer's
- * stripNoteContext — lazy up to the first `]\n\n` so a `]` inside a note path
- * doesn't truncate the strip). */
-const NOTE_CONTEXT_RE = /^\[Context: [\s\S]*?\]\n\n/;
-
-export function stripNoteContext(text: string): string {
-  return text.replace(NOTE_CONTEXT_RE, "");
-}
-
 /** Rebuild the log from persisted history (mount / reconnect). Tool entries
- * are skipped — they are live-turn decoration, not conversation. */
+ * are skipped — they are live-turn decoration, not conversation. The user's
+ * auto-attached `[Context: …]` prefix (@repo/features/note-context) is
+ * stripped so bubbles show the user's actual words. Built mutably in one
+ * pass: `withItem`'s copy-per-append is fine for live events but O(n²) over a
+ * whole history, and this reruns on every reconnect/foreground. */
 export function logFromHistory(entries: readonly ChatHistoryEntry[]): ChatLog {
-  let log = emptyChatLog;
+  const items: ChatItem[] = [];
   for (const entry of entries) {
     if (entry.role === "user") {
-      log = appendUser(log, stripNoteContext(entry.text));
+      items.push({ kind: "user", id: `c${items.length}`, text: stripNoteContext(entry.text) });
     } else if (entry.role === "assistant") {
-      log = withItem(log, {
+      items.push({
         kind: "assistant",
-        id: allocId(log),
+        id: `c${items.length}`,
         text: entry.text,
         streaming: false,
         isError: entry.isError === true,
       });
     }
   }
-  return log;
+  return { ...emptyChatLog, items, nextId: items.length };
 }
 
 /** Fold one agent event into the log. Total and pure — unknown/irrelevant

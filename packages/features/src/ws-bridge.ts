@@ -8,6 +8,7 @@
 // server's welcome, and event subscriptions survive reconnects.
 // ---------------------------------------------------------------------------
 
+import { createBackoff, timeoutSchedule } from "./backoff";
 import { IPC, type Bridge } from "./ipc-registry";
 import {
   BINARY_STT_AUDIO,
@@ -75,8 +76,11 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
   // Welcomed = the server accepted our auth frame; only then may requests flow.
   let welcomed = false;
   let status: WsBridgeStatus | null = null;
-  let reconnectAttempts = 0;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  const reconnect = createBackoff({
+    baseMs: RECONNECT_BASE_MS,
+    capMs: RECONNECT_CAP_MS,
+    schedule: timeoutSchedule,
+  });
   let nextId = 1;
 
   /** Requests sent and awaiting a res frame — rejected if the socket drops. */
@@ -118,46 +122,48 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
     socket.addEventListener("error", () => {});
   }
 
+  /** Reject every request awaiting a res frame (the socket is gone). */
+  function drainInflight(message: (method: string) => string): void {
+    const dropped = [...inflight.values()];
+    inflight.clear();
+    for (const pending of dropped) {
+      pending.reject(new Error(message(pending.method)));
+    }
+  }
+
+  /** Terminal teardown shared by handleUnauthorized and dispose: stop the
+   * supervisor, reject everything in flight OR queued, publish the status. */
+  function failAll(next: WsBridgeStatus, message: (method: string) => string): void {
+    welcomed = false;
+    reconnect.cancel();
+    const queued = queue.map((item) => item.pending);
+    queue.length = 0;
+    drainInflight(message);
+    for (const pending of queued) {
+      pending.reject(new Error(message(pending.method)));
+    }
+    setStatus(next);
+  }
+
   function handleDisconnect(): void {
     sock = null;
     welcomed = false;
     setStatus("disconnected");
-    const dropped = [...inflight.values()];
-    inflight.clear();
-    for (const pending of dropped) {
-      pending.reject(new Error(`[ws-bridge] connection lost before "${pending.method}" resolved`));
-    }
+    drainInflight((method) => `[ws-bridge] connection lost before "${method}" resolved`);
     scheduleReconnect();
   }
 
-  /** Auth rejection (close 4401) is terminal — stop the supervisor and reject
-   * everything in flight or queued; reconnecting would just re-present the
-   * same dead token. */
+  /** Auth rejection (close 4401) is terminal — reconnecting would just
+   * re-present the same dead token. */
   function handleUnauthorized(): void {
     unauthorized = true;
     sock = null;
-    welcomed = false;
-    if (reconnectTimer !== null) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    const dropped = [...inflight.values(), ...queue.map((item) => item.pending)];
-    inflight.clear();
-    queue.length = 0;
-    for (const pending of dropped) {
-      pending.reject(new Error(`[ws-bridge] unauthorized — "${pending.method}" rejected`));
-    }
-    setStatus("unauthorized");
+    failAll("unauthorized", (method) => `[ws-bridge] unauthorized — "${method}" rejected`);
   }
 
   function scheduleReconnect(): void {
-    if (disposed || unauthorized || reconnectTimer !== null) return;
-    const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_CAP_MS);
-    reconnectAttempts += 1;
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      connect();
-    }, delay);
+    if (disposed || unauthorized) return;
+    reconnect.schedule(connect);
   }
 
   function handleMessage(data: unknown): void {
@@ -178,7 +184,7 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
     switch (frame.t) {
       case "welcome":
         welcomed = true;
-        reconnectAttempts = 0;
+        reconnect.reset();
         setStatus("connected");
         flushQueue();
         return;
@@ -298,22 +304,11 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
   function dispose(): void {
     if (disposed) return;
     disposed = true;
-    if (reconnectTimer !== null) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
     const socket = sock;
     sock = null;
-    welcomed = false;
     socket?.close(1000, "disposed");
-    const dropped = [...inflight.values(), ...queue.map((item) => item.pending)];
-    inflight.clear();
-    queue.length = 0;
-    for (const pending of dropped) {
-      pending.reject(new Error(`[ws-bridge] disposed — "${pending.method}" not sent`));
-    }
+    failAll("disconnected", (method) => `[ws-bridge] disposed — "${method}" not sent`);
     eventListeners.clear();
-    setStatus("disconnected");
   }
 
   connect();

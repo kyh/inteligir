@@ -10,7 +10,7 @@
 import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import type { RemoteDeviceInfo } from "@repo/features/remote-access";
 
 const DEVICES_VERSION = 1;
@@ -38,10 +38,6 @@ const RemoteDevicesSchema = Type.Object(
 type StoredDevices = Static<typeof RemoteDevicesSchema>;
 
 const DEFAULT_DEVICES: StoredDevices = { version: DEVICES_VERSION, devices: [] };
-
-function rejectLegacy(): never {
-  throw new Error("remote-devices store has no version field");
-}
 
 /** deviceId is `LOCAL_DEVICE_ID` for the loopback renderer's per-boot token. */
 export type DeviceSession = { deviceId: string; name: string };
@@ -99,7 +95,7 @@ export class DeviceAuthStore {
       {
         fs: opts.fs,
         mode: 0o600,
-        versioning: { current: DEVICES_VERSION, fromLegacy: rejectLegacy },
+        versioning: { current: DEVICES_VERSION, fromLegacy: rejectLegacyVersion("remote-devices") },
       },
     );
   }
