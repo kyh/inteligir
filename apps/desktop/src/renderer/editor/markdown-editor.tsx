@@ -19,6 +19,7 @@ import { hasTransientSuggestions, resolveAllSuggestions } from "@renderer/editor
 import { hasTransientAiState } from "@renderer/editor/ai/transient";
 import { registerTransientSettler } from "@renderer/editor/ai/transient-settle";
 import { Editor, EditorContainer } from "@renderer/editor/editor-chrome";
+import { registerLiveEditor } from "@renderer/editor/live-editor";
 import { WRITE_PLACEHOLDER } from "@renderer/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
@@ -172,6 +173,12 @@ export function MarkdownEditor({
   // Flush path: VaultProvider settles through this registration BEFORE
   // flushing this file (tab replace/close, folder switch, explicit flush).
   useEffect(() => registerTransientSettler(path, settleSuggestions), [path, settleSuggestions]);
+
+  // Expose this editor to chrome outside the Plate tree — the header's
+  // "Page details" popover edits the frontmatter node through it, so property
+  // writes ride this same serialize path to disk. Path-keyed like the
+  // transient settler above.
+  useEffect(() => registerLiveEditor(path, editor), [path, editor]);
 
   // Unmount path (note switch without a flush, raw-mode flip, surface
   // change): settle and hand the bytes to the owner for path-routed

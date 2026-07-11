@@ -15,15 +15,16 @@ import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
 import { describeRawReason } from "@renderer/editor/markdown/markdown-doc";
+import { PageDetails } from "@renderer/editor/properties/page-details";
 import { useAiReviewStore } from "@renderer/stores/ai-review-store";
 import { useVault } from "@renderer/workspace/vault-context";
 
 /**
  * The shell header — a single sticky toolbar over the editor card. Left: the
  * sidebar toggle + a breadcrumb of the open note's vault path. Right: the
- * per-file controls (raw-rich / save status / delete). Also the window
- * drag region. When the sidebar is collapsed the card slides under the macOS
- * traffic lights, so we pad the left to keep the toggle clear of them.
+ * per-file controls (raw-rich / save status / page details / delete). Also the
+ * window drag region. When the sidebar is collapsed the card slides under the
+ * macOS traffic lights, so we pad the left to keep the toggle clear of them.
  */
 export function Header() {
   const {
@@ -146,6 +147,13 @@ export function Header() {
                   ? "Unsaved"
                   : "Saved"}
           </Badge>
+          {/* Page details — the file-properties popover. Same gate the inline
+              panel used: only a markdown note open in Rich mode has a live
+              rich editor to write through. Keyed by path so switching notes
+              closes it. */}
+          {isMarkdownOpen && richAvailable && mode === "rich" && (
+            <PageDetails key={path} path={path} />
+          )}
           <Button
             variant="ghost"
             size="sm"
