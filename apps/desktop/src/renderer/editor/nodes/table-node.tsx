@@ -76,9 +76,9 @@ export function TableElement(props: PlateElementProps) {
         </DropdownContent>
       </DropdownMenu>
       <div className="overflow-x-auto">
-        {/* Table typography comes from typeset; mt-0 because the wrapper div
-            already carries the block's flow margin. */}
-        <PlateElement {...props} as="table" className="mt-0">
+        {/* Bordered grid over typeset's font/size rules; mt-0 because the
+            wrapper div already carries the block's flow margin. */}
+        <PlateElement {...props} as="table" className="mt-0 w-auto border-collapse">
           <tbody>{props.children}</tbody>
         </PlateElement>
       </div>

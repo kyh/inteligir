@@ -139,7 +139,7 @@ function FrontmatterStatic(props: SlateElementProps) {
 // table-kit markup — table > tbody > tr > td/th, same cell classes.
 function TableStatic(props: SlateElementProps) {
   return (
-    <SlateElement {...props} as="table" className="my-1">
+    <SlateElement {...props} as="table" className="my-1 w-auto border-collapse">
       <tbody>{props.children}</tbody>
     </SlateElement>
   );
