@@ -19,6 +19,12 @@ const plugins = [react()];
 
 export default defineConfig({
   test: {
+    // Worker caps are budgeted across the monorepo: turbo runs all five
+    // package suites in parallel, and uncapped pools (10 threads each)
+    // exhaust the machine and kill workers mid-run. Budget sums to ~9 on a
+    // 10-core machine: desktop 3 (largest suite), features/core 2,
+    // mobile/cloud 1.
+    maxWorkers: 3,
     projects: [
       {
         plugins,

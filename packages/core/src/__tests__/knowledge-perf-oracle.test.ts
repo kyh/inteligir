@@ -122,7 +122,9 @@ function caseMangle(rand: () => number, s: string): string {
 }
 
 describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
-  it("matches on 1,000 path-style targets over 5,000 synthetic paths", () => {
+  // ~5s of CPU when the machine is contended (the full monorepo test run) —
+  // the default 5s per-test timeout is too tight for it.
+  it("matches on 1,000 path-style targets over 5,000 synthetic paths", { timeout: 20_000 }, () => {
     const rand = mulberry32(0xc0ffee);
     const paths = buildSyntheticVault(rand, 5000);
     const resolver = buildResolver(paths);

@@ -46,5 +46,7 @@ export default defineConfig({
   ],
   test: {
     setupFiles: ["./test/apply-schema.ts"],
+    // Monorepo worker budget (see apps/desktop/vitest.config.ts).
+    maxWorkers: 1,
   },
 });

@@ -16,6 +16,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/lib/sync/__tests__/**/*.test.ts", "src/lib/host/__tests__/**/*.test.ts"],
+    // Monorepo worker budget (see apps/desktop/vitest.config.ts).
+    maxWorkers: 1,
   },
   server: {
     fs: {
