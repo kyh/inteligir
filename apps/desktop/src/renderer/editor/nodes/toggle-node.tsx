@@ -44,7 +44,7 @@ export function ToggleElement(props: PlateElementProps) {
   return (
     <PlateElement
       {...props}
-      className="relative mb-1 pl-6"
+      className="relative pl-6"
       attributes={{
         ...props.attributes,
         "data-toggle-collapsed": open ? undefined : "",

@@ -103,19 +103,17 @@ function ParagraphElement(props: PlateElementProps) {
       {...props}
       as={hostsBlockContent(props.element) ? "div" : "p"}
       className={cn(
-        "px-0.5 py-[3px]",
+        "px-0.5",
         isAlertMarkerLine(props.editor, props.element, props.path) && "callout-marker-line",
       )}
     />
   );
 }
 
-// Heading margins/sizes match the previous EDITOR_COMPONENTS styling.
-function heading(as: "h1" | "h2" | "h3", top: string, size: string) {
-  return element(
-    as,
-    `relative ${top} mb-1 px-0.5 py-[3px] ${size} font-semibold leading-[1.3] tracking-tight first:mt-0`,
-  );
+// Heading typography comes from typeset; `relative` keeps the drag gutter
+// anchored, `px-0.5` matches the paragraph caret inset.
+function heading(as: "h1" | "h2" | "h3") {
+  return element(as, "relative px-0.5");
 }
 
 function CalloutMarkerLeaf(props: PlateLeafProps) {
@@ -168,15 +166,9 @@ export function insertHorizontalRule(editor: PlateEditor): void {
 
 export const BasicBlocksKit = [
   ParagraphPlugin.withComponent(ParagraphElement),
-  H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(
-    heading("h1", "mt-8", "text-[22px]"),
-  ),
-  H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(
-    heading("h2", "mt-[1.4em]", "text-[16px]"),
-  ),
-  H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(
-    heading("h3", "mt-[1em]", "text-[15px]"),
-  ),
+  H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h1")),
+  H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h2")),
+  H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(heading("h3")),
   BlockquotePlugin.configure({ inputRules: [BlockquoteRules.markdown()] }).withComponent(
     BlockquoteElement,
   ),

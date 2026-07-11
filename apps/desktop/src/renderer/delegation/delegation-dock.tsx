@@ -20,7 +20,6 @@ import {
 import { Response } from "@renderer/ai-elements/response";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
-import { cn } from "@repo/ui/lib/utils";
 
 import { useDelegationStore } from "@renderer/stores/delegation-store";
 import { useVault } from "@renderer/workspace/vault-context";
@@ -193,7 +192,7 @@ function DelegationCard({
           {status === "failed" ? (
             <span className="text-destructive">{body}</span>
           ) : (
-            <Response className={cn("prose-sm")}>{body}</Response>
+            <Response className="typeset typeset-chat">{body}</Response>
           )}
         </div>
       )}

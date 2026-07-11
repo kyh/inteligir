@@ -29,7 +29,7 @@ import {
   UnderlinePlugin,
 } from "@platejs/basic-nodes/react";
 
-import { classNameLeaf } from "@renderer/editor/kits/kit-utils";
+import { semanticLeaf } from "@renderer/editor/kits/kit-utils";
 
 export const BasicMarksBaseKit = [
   BaseBoldPlugin,
@@ -39,22 +39,20 @@ export const BasicMarksBaseKit = [
   BaseCodePlugin,
 ];
 
+// Mark typography comes from typeset (strong/em/s/code :where() rules); the
+// renderers only pick the semantic tag.
 export const BasicMarksKit = [
   BoldPlugin.configure({
     inputRules: [BoldRules.markdown(), MarkComboRules.markdown({ variant: "boldItalic" })],
-  }).withComponent(classNameLeaf("font-semibold")),
+  }).withComponent(semanticLeaf("strong")),
   ItalicPlugin.configure({
     inputRules: [ItalicRules.markdown(), ItalicRules.markdown({ variant: "_" })],
-  }).withComponent(classNameLeaf("italic")),
-  UnderlinePlugin.withComponent(classNameLeaf("underline")),
+  }).withComponent(semanticLeaf("em")),
+  UnderlinePlugin.withComponent(semanticLeaf("u")),
   StrikethroughPlugin.configure({
     inputRules: [StrikethroughRules.markdown()],
-  }).withComponent(classNameLeaf("line-through")),
+  }).withComponent(semanticLeaf("s")),
   CodePlugin.configure({
     inputRules: [CodeRules.markdown()],
-  }).withComponent(
-    classNameLeaf(
-      "whitespace-pre-wrap rounded-md bg-muted px-[0.3em] py-[0.2em] font-mono text-sm",
-    ),
-  ),
+  }).withComponent(semanticLeaf("code", "whitespace-pre-wrap")),
 ];

@@ -142,10 +142,7 @@ function AssistantMessage({ text }: { text: string }) {
   // initial={false}: the popover's MessageRow wrapper owns the entrance.
   return (
     <ChatBubble from="assistant" initial={false}>
-      <Response
-        className="prose prose-sm max-w-none break-words text-xs dark:prose-invert [&_*]:text-xs"
-        shikiTheme={ASSISTANT_SHIKI_THEME}
-      >
+      <Response className="typeset typeset-chat break-words" shikiTheme={ASSISTANT_SHIKI_THEME}>
         {text}
       </Response>
     </ChatBubble>

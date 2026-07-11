@@ -49,7 +49,7 @@ export function TableElement(props: PlateElementProps) {
     // max-w-full + the inner overflow-x-auto: a wide table scrolls inside its
     // own block instead of being clipped by the editable's overflow-x-hidden
     // (the hover affordances stay outside the scroll container).
-    <div className="group/table relative my-3 w-fit max-w-full">
+    <div className="group/table relative w-fit max-w-full">
       <button
         type="button"
         contentEditable={false}
@@ -76,7 +76,9 @@ export function TableElement(props: PlateElementProps) {
         </DropdownContent>
       </DropdownMenu>
       <div className="overflow-x-auto">
-        <PlateElement {...props} as="table" className="w-auto border-collapse text-sm">
+        {/* Table typography comes from typeset; mt-0 because the wrapper div
+            already carries the block's flow margin. */}
+        <PlateElement {...props} as="table" className="mt-0">
           <tbody>{props.children}</tbody>
         </PlateElement>
       </div>

@@ -53,7 +53,6 @@ function LinkStatic(props: SlateElementProps) {
     <SlateElement
       {...props}
       as="a"
-      className="text-primary underline decoration-primary/40 underline-offset-2"
       attributes={{ ...props.attributes, href: url, rel: "noreferrer", target: "_blank" }}
     >
       {props.children}
@@ -97,7 +96,7 @@ function EquationStatic(props: SlateElementProps) {
   const tex = typeof props.element.texExpression === "string" ? props.element.texExpression : "";
   return (
     <SlateElement {...props} className="my-1">
-      <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-sm">{tex}</code>
+      <code>{tex}</code>
       {props.children}
     </SlateElement>
   );
@@ -107,7 +106,7 @@ function InlineEquationStatic(props: SlateElementProps) {
   const tex = typeof props.element.texExpression === "string" ? props.element.texExpression : "";
   return (
     <SlateElement {...props} as="span">
-      <code className="rounded-sm bg-muted px-1 font-mono text-sm">{tex}</code>
+      <code>{tex}</code>
       {props.children}
     </SlateElement>
   );
@@ -119,12 +118,7 @@ function MediaStatic(props: SlateElementProps) {
   const url = typeof props.element.url === "string" ? props.element.url : "";
   return (
     <SlateElement {...props} className="my-1">
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className="text-sm text-primary underline underline-offset-2"
-      >
+      <a href={url} target="_blank" rel="noreferrer">
         {url}
       </a>
       {props.children}
@@ -145,7 +139,7 @@ function FrontmatterStatic(props: SlateElementProps) {
 // table-kit markup — table > tbody > tr > td/th, same cell classes.
 function TableStatic(props: SlateElementProps) {
   return (
-    <SlateElement {...props} as="table" className="my-1 w-auto border-collapse text-sm">
+    <SlateElement {...props} as="table" className="my-1">
       <tbody>{props.children}</tbody>
     </SlateElement>
   );
@@ -257,7 +251,7 @@ function TransclusionBody({ content }: { content: string }) {
   if (!editor) {
     // Out-of-vocabulary / unparseable target — show the bytes rather than
     // nothing (the same honesty rule as the Raw editor mode).
-    return <pre className="overflow-x-auto font-mono text-xs whitespace-pre-wrap">{content}</pre>;
+    return <pre className="whitespace-pre-wrap">{content}</pre>;
   }
   return <PlateStatic editor={editor} />;
 }
@@ -317,7 +311,7 @@ export default function Transclusion({ body }: { body: string }) {
           {title}
         </button>
       </span>
-      <span className="block overflow-x-auto px-3 py-2 text-sm">
+      <span className="block overflow-x-auto px-3 py-2">
         {content.status === "loading" || innerScope === null ? (
           <span className="text-muted-foreground italic">Loading…</span>
         ) : (

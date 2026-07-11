@@ -74,7 +74,7 @@ export function LinkElement(props: PlateElementProps) {
       {...props}
       ref={anchorRef}
       as="a"
-      className="cursor-pointer border-b border-current font-medium text-foreground/70"
+      className="cursor-pointer"
       attributes={{
         ...props.attributes,
         href: url,

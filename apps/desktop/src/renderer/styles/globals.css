@@ -40,6 +40,20 @@ textarea,
   transition: none !important;
 }
 
+/* Typeset flow for Slate wrapper blocks. Document typography comes from
+ * shadcn/typeset (typeset.css on the .typeset editor surface), whose rules
+ * select real tags (p, h1…, pre, blockquote, table…). Plate renders void and
+ * wrapper blocks (hr, table, toggle, media, list items) as <div>s those
+ * selectors can't see, so non-list wrapper divs get the flow margin here.
+ * List-item divs (they host their own <ul>/<ol> in the flat list model) are
+ * excluded — their rhythm is typeset's own 0.5em li margin. */
+.typeset > div[data-slate-node="element"]:not(:has(> ul, > ol)) {
+  margin-block-start: var(--typeset-flow);
+}
+.typeset > div[data-slate-node="element"]:first-child {
+  margin-block-start: 0;
+}
+
 /* Collapsed toggle (editor/nodes/toggle-node.tsx): hide every Slate block
  * after the summary (the first element child). The split lives here rather
  * than in React because Plate hands ToggleElement all rendered children as a

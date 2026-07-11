@@ -110,7 +110,7 @@ export function BlockquoteElement(props: PlateElementProps) {
         {...props}
         as="blockquote"
         className={cn(
-          "callout-alert my-1 rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0",
+          "callout-alert rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0",
           accent,
           selected && "callout-editing",
         )}
@@ -140,7 +140,7 @@ export function BlockquoteElement(props: PlateElementProps) {
       <PlateElement
         {...props}
         as="blockquote"
-        className={cn("relative my-1 rounded-md border-l-[3px] py-2 pr-3 pl-9 [&>*]:my-0", accent)}
+        className={cn("relative rounded-md border-l-[3px] py-2 pr-3 pl-9 [&>*]:my-0", accent)}
       >
         <span contentEditable={false} className={cn("absolute top-[9px] left-3", icon)}>
           <Icon className="size-4" />
@@ -149,11 +149,6 @@ export function BlockquoteElement(props: PlateElementProps) {
       </PlateElement>
     );
   }
-  return (
-    <PlateElement
-      {...props}
-      as="blockquote"
-      className="my-1 border-l-[3px] border-foreground px-4 py-[3px]"
-    />
-  );
+  // Plain blockquote typography (rule, padding, flow margin) comes from typeset.
+  return <PlateElement {...props} as="blockquote" />;
 }

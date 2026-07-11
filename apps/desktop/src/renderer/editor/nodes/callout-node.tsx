@@ -30,7 +30,7 @@ export function CalloutElement(props: PlateElementProps) {
     <PlateElement
       {...props}
       className={cn(
-        "relative my-1 rounded-md border-l-[3px] py-2 pr-3 [&>*]:my-0",
+        "relative rounded-md border-l-[3px] py-2 pr-3 [&>*]:my-0",
         accent,
         icon ? "pl-9" : "pl-4",
       )}

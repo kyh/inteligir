@@ -1,6 +1,29 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist-mono";
+@import "./typeset.css";
+
+/* Typeset presets — one per markdown-rendering surface. `typeset-docs` is the
+   document surface (the note editor); `typeset-chat` is the compact AI chat /
+   delegation transcript scale. */
+.typeset-docs {
+  --typeset-font-body: var(--font-inter);
+  --typeset-font-heading: var(--font-inter);
+  --typeset-font-mono: var(--font-geist-mono);
+  --typeset-size: 14px;
+  --typeset-leading: 1.75;
+  --typeset-flow: 1.25em;
+}
+
+.typeset-chat {
+  --typeset-font-body: var(--font-inter);
+  --typeset-font-heading: var(--font-inter);
+  --typeset-font-mono: var(--font-geist-mono);
+  --typeset-size: 12px;
+  --typeset-leading: 1.6;
+  --typeset-flow: 1em;
+}
 
 /* Inter Variable — self-hosted, full axis range (wght + opsz). Matches the
    Fluid Functionalism reference (public/fonts/InterVariable.ttf). fontsource's
@@ -133,6 +156,11 @@
   /* Inter Variable — the fluid site's face; the weight axis powers label
      weight transitions. Self-hosted via the @font-face above (full wght+opsz). */
   --font-sans: "Inter", system-ui, sans-serif;
+
+  /* Typeset font hooks. --font-inter rides the self-hosted Inter Variable
+     (full wght+opsz) rather than fontsource's wght-only build. */
+  --font-inter: "Inter", system-ui, sans-serif;
+  --font-geist-mono: "Geist Mono Variable", ui-monospace, monospace;
 
   /* Core palette — the fluid site's neutral hex theme (app/globals.css in the
      fluid-functionalism repo is the source of truth). The site leaves

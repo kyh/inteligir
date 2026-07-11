@@ -5,10 +5,13 @@
 import { PlateElement, type PlateElementProps } from "platejs/react";
 
 export function HrElement(props: PlateElementProps) {
+  // Rule appearance comes from typeset; my-0 keeps the wrapper (which already
+  // carries the typeset flow margin — see the Slate-wrapper rule in
+  // styles/globals.css) from double-spacing, py-2 is the click target.
   return (
-    <PlateElement {...props} className="mb-1 py-2">
+    <PlateElement {...props} className="py-2">
       <div contentEditable={false}>
-        <hr className="h-0.5 rounded-sm border-none bg-muted bg-clip-content" />
+        <hr className="my-0" />
       </div>
       {props.children}
     </PlateElement>

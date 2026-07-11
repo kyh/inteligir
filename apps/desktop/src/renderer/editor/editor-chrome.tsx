@@ -32,13 +32,16 @@ const CONTAINER_CLASS =
  * (44px) drag gutter inside the editable's clip with a 4px reveal. */
 export const EDITOR_COLUMN_PX = "px-12 sm:px-[max(48px,calc(50%-350px))]";
 
+// Document typography comes from shadcn/typeset (typeset.css + the
+// .typeset-docs preset in @repo/ui globals) — element renderers carry only
+// functional classes; typeset's :where() rules style the tags.
 const EDITOR_CLASS = cn(
+  "typeset typeset-docs",
   "group/editor relative w-full overflow-x-hidden break-words whitespace-pre-wrap",
   EDITOR_COLUMN_PX,
-  "min-h-full pt-4 text-[13px] focus-visible:outline-none",
+  "min-h-full pt-4 focus-visible:outline-none",
   "placeholder:text-muted-foreground/80",
   "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/80 **:data-slate-placeholder:opacity-100!",
-  "[&_strong]:font-semibold",
 );
 
 /** Positioning + selection context for the editor: the floating toolbar and

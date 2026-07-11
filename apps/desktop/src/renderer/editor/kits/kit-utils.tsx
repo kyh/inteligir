@@ -26,9 +26,11 @@ export function classNameSlateElement(as: keyof HTMLElementTagNameMap, className
   };
 }
 
-/** className-only leaf renderer over the live PlateLeaf. */
-export function classNameLeaf(className: string) {
+/** Semantic-tag leaf renderer over the live PlateLeaf. Marks render as their
+ * semantic tag (strong/em/s/code) so typeset's :where() rules style them;
+ * className is for the rare functional extra, not typography. */
+export function semanticLeaf(as: keyof HTMLElementTagNameMap, className?: string) {
   return function Leaf(props: PlateLeafProps) {
-    return <PlateLeaf {...props} className={className} />;
+    return <PlateLeaf {...props} as={as} {...(className === undefined ? {} : { className })} />;
   };
 }

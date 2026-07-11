@@ -32,8 +32,8 @@ const lowlight = createLowlight(common);
 // every mermaid/math note.
 lowlight.registerAlias("plaintext", ["mermaid", "math"]);
 
-const PRE_CLASS =
-  "my-1 overflow-x-auto rounded-md bg-muted px-4 py-3 font-mono text-sm leading-normal [tab-size:2]";
+// Code-block typography (mono, bg, radius, padding, overflow, tab-size) comes
+// from typeset's `pre` rules.
 
 // CodeSyntaxPlugin tags each highlighted token with an `.hljs-*` className on
 // the leaf; render it so the theme in styles.css colors it.
@@ -62,7 +62,7 @@ function MermaidCodeBlock(props: PlateElementProps) {
   };
 
   return (
-    <PlateElement {...props} className="group/mermaid relative my-1">
+    <PlateElement {...props} className="group/mermaid relative">
       <div contentEditable={false} className="absolute top-1.5 right-1.5 z-10 select-none">
         <button
           type="button"
@@ -75,7 +75,7 @@ function MermaidCodeBlock(props: PlateElementProps) {
           {mode === "preview" ? "Source" : "Diagram"}
         </button>
       </div>
-      <pre className={cn(PRE_CLASS, mode === "preview" && "hidden")}>{props.children}</pre>
+      <pre className={cn("mt-0", mode === "preview" && "hidden")}>{props.children}</pre>
       <MermaidPreview code={codeText(props.element)} />
     </PlateElement>
   );
@@ -85,7 +85,7 @@ function CodeBlockElement(props: PlateElementProps) {
   if (props.element.lang === "mermaid") return <MermaidCodeBlock {...props} />;
   const lang = typeof props.element.lang === "string" ? props.element.lang : null;
   return (
-    <PlateElement {...props} as="pre" className={cn(PRE_CLASS, "group/code relative")}>
+    <PlateElement {...props} as="pre" className="group/code relative">
       {/* Hover-reveal language label (display-only header — the fence's lang
           is edited in Raw / at creation). A <span>: <pre> hosts phrasing. */}
       {lang ? (
