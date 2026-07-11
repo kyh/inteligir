@@ -25,14 +25,12 @@ export const TableBaseKit = [
   BaseTableCellHeaderPlugin,
 ];
 
-// Bordered-grid cells (Kyh's call over typeset's docs-style row separators):
-// the border/bg/padding utilities out-specify typeset's :where() table rules,
-// while fonts and sizes still come from typeset. min-w keeps empty cells
-// clickable while editing. Shared with the transclusion card's read-only
-// static render (transclusion.tsx) so live and embedded tables can't drift.
-export const TABLE_CELL_CLASS = "min-w-24 border border-border px-3 py-1.5 align-top [&>*]:my-0";
-export const TABLE_HEADER_CELL_CLASS =
-  "min-w-24 border border-border bg-muted px-3 py-1.5 text-left align-top font-semibold [&>*]:my-0";
+// The bordered grid itself lives in @repo/ui globals (`.typeset table` rules,
+// shared by every typeset surface incl. chat); min-w is the editor-only
+// affordance keeping empty cells clickable. Shared with the transclusion
+// card's read-only static render (transclusion.tsx).
+export const TABLE_CELL_CLASS = "min-w-24";
+export const TABLE_HEADER_CELL_CLASS = "min-w-24";
 
 export const TableKit = [
   TablePlugin.withComponent(TableElement),

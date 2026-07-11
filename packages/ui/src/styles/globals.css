@@ -25,6 +25,28 @@
   --typeset-flow: 1em;
 }
 
+/* Bordered-grid tables on EVERY typeset surface (editor, chat, transclusion) —
+   Kyh's call over typeset's docs-style row separators. Plain class selectors
+   out-specify typeset's zero-specificity :where() rules; fonts and sizes still
+   come from typeset. */
+.typeset table {
+  width: auto;
+  border-collapse: collapse;
+}
+.typeset :is(td, th) {
+  border: 1px solid var(--border);
+  padding: 0.375em 0.75em;
+  text-align: left;
+  vertical-align: top;
+}
+.typeset :is(td, th) > * {
+  margin-block: 0;
+}
+.typeset th {
+  background-color: var(--muted);
+  font-weight: 600;
+}
+
 /* Inter Variable — self-hosted, full axis range (wght + opsz). Matches the
    Fluid Functionalism reference (public/fonts/InterVariable.ttf). fontsource's
    variable build is wght-only, so its opsz axis was missing and the optical
