@@ -6,7 +6,6 @@ import {
   formatDatePattern,
   formatIsoDate,
   isTemplatePath,
-  titleFromPath,
 } from "@renderer/lib/apply-template";
 
 describe("applyTemplate", () => {
@@ -66,13 +65,6 @@ describe("dailyNotePath", () => {
   });
   it("puts the note at the root when the folder is blank", () => {
     expect(dailyNotePath("", "YYYY-MM-DD", date)).toBe("2026-07-09.md");
-  });
-});
-
-describe("titleFromPath", () => {
-  it("strips folder and extension", () => {
-    expect(titleFromPath("journal/2026-07-09.md")).toBe("2026-07-09");
-    expect(titleFromPath("meeting-notes.md")).toBe("meeting-notes");
   });
 });
 

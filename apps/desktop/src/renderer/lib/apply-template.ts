@@ -48,13 +48,6 @@ export function dailyNotePath(folder: string, filenameFormat: string, date: Date
   return cleanFolder === "" ? file : `${cleanFolder}/${file}`;
 }
 
-/** The note title a path implies: its basename without the extension. Used as
- * `{{title}}` when seeding from a template. */
-export function titleFromPath(path: string): string {
-  const base = path.split("/").at(-1) ?? path;
-  return base.replace(/\.[^.]+$/, "");
-}
-
 /** Substitute the fixed template placeholders in one pass. ONLY `{{date}}` and
  * `{{title}}` are replaced; a substituted value is never re-scanned (a title
  * that happens to contain `{{date}}` is left literal), and text with no

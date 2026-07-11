@@ -1,5 +1,7 @@
 import { useCallback } from "react";
 
+import { titleFromPath } from "@repo/core/knowledge/link-extract";
+
 import { getBridge } from "@renderer/lib/bridge";
 import {
   DAILY_FOLDER_KEY,
@@ -10,7 +12,6 @@ import {
   applyTemplate,
   dailyNotePath,
   formatIsoDate,
-  titleFromPath,
 } from "@renderer/lib/apply-template";
 import { useDiskState } from "@renderer/lib/use-disk-state";
 import { useVault } from "@renderer/workspace/vault-context";

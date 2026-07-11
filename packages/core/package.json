@@ -18,6 +18,7 @@
     "./sync/http-sync-port": "./src/sync/http-sync-port.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
+    "./knowledge/link-extract": "./src/knowledge/link-extract.ts",
     "./knowledge/link-resolve": "./src/knowledge/link-resolve.ts",
     "./knowledge/rename-links": "./src/knowledge/rename-links.ts",
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",
