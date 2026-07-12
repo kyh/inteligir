@@ -39,10 +39,13 @@ export function EditorAiSection() {
         </p>
         {enabled && models.length > 0 && (
           <div className="flex items-center justify-between gap-2 px-3 pb-2">
-            <span className="text-xs text-foreground">Completion model</span>
+            <label htmlFor="editor-ai-completion-model" className="text-xs text-foreground">
+              Completion model
+            </label>
             {/* Native select: a portaled Base UI menu popup inside the
                 settings Dialog reads as an outside press and dismisses it. */}
             <select
+              id="editor-ai-completion-model"
               value={effectiveId ?? ""}
               onChange={(e) => void setModel(e.target.value)}
               className="h-6 max-w-[55%] rounded-md bg-card px-1.5 text-[10px] font-medium text-muted-foreground shadow-surface-2 outline-none transition-colors hover:text-foreground"

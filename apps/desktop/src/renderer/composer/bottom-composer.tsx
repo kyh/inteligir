@@ -109,6 +109,7 @@ export function BottomComposer() {
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
+                  aria-label={pinned ? "Unpin response" : "Keep response open"}
                   onClick={togglePinned}
                   title={pinned ? "Unpin" : "Keep open"}
                   className={cn(
@@ -120,6 +121,7 @@ export function BottomComposer() {
                 </button>
                 <button
                   type="button"
+                  aria-label="Close response"
                   onClick={() => {
                     setPinned(false);
                     setRecentlyActive(false);
