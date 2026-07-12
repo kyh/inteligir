@@ -66,7 +66,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     changeFolder,
   } = useVault();
 
-  const { handleMouseDown } = useResizableSidebar();
+  const { handlePointerDown } = useResizableSidebar();
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -262,7 +262,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
         className="app-no-drag absolute top-0 right-0 z-20 h-full w-1 cursor-col-resize bg-transparent transition-colors duration-200 group-data-[collapsible=offcanvas]:hidden hover:bg-primary/50 active:bg-primary"
       />
     </Sidebar>

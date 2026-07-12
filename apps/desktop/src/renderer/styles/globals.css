@@ -33,10 +33,13 @@ textarea,
   -webkit-app-region: no-drag;
 }
 
-/* While dragging the sidebar resize handle, suppress the primitive's width
- * transition so the sidebar tracks the cursor 1:1 instead of easing behind it. */
+/* While dragging the sidebar resize handle, suppress every transition inside
+ * the sidebar — not just the container's width tween. The menu rows carry
+ * transition-[width,height,padding], so without this each row eases toward its
+ * new width on every mousemove and the whole panel lags the cursor. */
 .sidebar-resizing [data-slot="sidebar-gap"],
-.sidebar-resizing [data-slot="sidebar-container"] {
+.sidebar-resizing [data-slot="sidebar-container"],
+.sidebar-resizing [data-slot="sidebar-container"] * {
   transition: none !important;
 }
 
