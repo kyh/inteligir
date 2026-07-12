@@ -57,29 +57,23 @@ export function ReauthDialog() {
           </DialogDescription>
         </DialogHeader>
         {error && (
-          // On the smoked-glass dialog: a lighter translucent row with the
-          // light-salmon destructive text (#ffb4ab reads ≥3:1 on the glass).
-          <div className="rounded-[10px] bg-glass-row px-3 py-2 text-xs text-[#ffb4ab]">
-            {error}
-          </div>
+          <div className="rounded-[10px] bg-muted px-3 py-2 text-xs text-destructive">{error}</div>
         )}
         <DialogFooter>
-          {/* Inside-glass control language: muted white ghost + a lighter
-              translucent pill as the primary action (never an inverted solid). */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setOpen(false)}
             disabled={busy}
-            className="text-xs text-glass-fg-muted hover:text-glass-fg"
+            className="text-xs text-muted-foreground hover:text-foreground"
           >
             Dismiss
           </Button>
           <Button
-            variant="ghost"
+            variant="default"
             onClick={() => void handleReauth()}
             disabled={busy}
-            className="bg-glass-row-active text-xs text-white hover:text-white"
+            className="text-xs"
           >
             {busy ? "Opening browser…" : "Re-authenticate"}
           </Button>

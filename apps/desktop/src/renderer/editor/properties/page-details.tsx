@@ -26,7 +26,6 @@ export function PageDetails({ path }: { path: string }) {
           <Button
             variant="ghost"
             size="sm"
-            active={open}
             aria-label="Page details"
             title="Page details"
             className="size-7 px-0 text-muted-foreground hover:text-foreground"

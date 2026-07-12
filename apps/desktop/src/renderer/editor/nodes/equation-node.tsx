@@ -18,7 +18,7 @@ import {
 } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
-
+import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
 const KatexView = lazy(() => import("@renderer/editor/nodes/equation-katex"));
@@ -81,13 +81,9 @@ function EquationEditor({
           }
         }}
       />
-      <button
-        type="button"
-        onClick={onClose}
-        className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground transition-opacity hover:opacity-90"
-      >
+      <Button onClick={onClose} className="rounded-md">
         Done
-      </button>
+      </Button>
     </div>
   );
 }

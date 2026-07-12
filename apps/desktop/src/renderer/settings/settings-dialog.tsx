@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@repo/ui/components/dialog";
-import { Tabs, TabsList, TabItem, TabPanel } from "@repo/ui/components/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@repo/ui/components/tabs";
 
 import { ExtensionsPanel } from "@renderer/settings/extensions-panel";
 import { SettingsPanel } from "@renderer/settings/settings-panel";
@@ -42,16 +42,16 @@ export function SettingsDialog() {
         </DialogHeader>
         <Tabs defaultValue="general" className="flex max-h-[70vh] min-h-0 flex-col">
           <TabsList className="px-3 pt-2">
-            <TabItem value="general" label="General" />
-            <TabItem value="connectors" label="Connectors" />
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="connectors">Connectors</TabsTrigger>
           </TabsList>
           <div className="min-h-0 flex-1 overflow-auto">
-            <TabPanel value="general">
+            <TabsContent value="general">
               <SettingsPanel onRequestClose={() => setOpen(false)} />
-            </TabPanel>
-            <TabPanel value="connectors">
+            </TabsContent>
+            <TabsContent value="connectors">
               <ExtensionsPanel />
-            </TabPanel>
+            </TabsContent>
           </div>
         </Tabs>
       </DialogContent>

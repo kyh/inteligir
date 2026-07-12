@@ -21,6 +21,7 @@ import { RangeApi } from "platejs";
 import { useEditorRef, usePluginOption } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 import {
@@ -243,26 +244,28 @@ export function AiMenu() {
               <span className="flex grow items-center gap-2 text-sm text-muted-foreground">
                 <Loader2Icon className="size-3.5 animate-spin" /> {busyLabel}
               </span>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 title="Stop"
                 onClick={() => cancelActiveRun(editor)}
-                className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3"
+                className="rounded-md text-muted-foreground"
               >
                 <SquareIcon fill="currentColor" />
-              </button>
+              </Button>
             </>
           ) : status === "error" ? (
             <>
               <span className="grow text-sm text-destructive">{error}</span>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 title="Dismiss"
                 onClick={() => dismissAiError(editor)}
-                className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
+                className="rounded-md text-muted-foreground"
               >
-                <XIcon />
-              </button>
+                <XIcon className="size-3.5" />
+              </Button>
             </>
           ) : (
             <>
@@ -284,20 +287,21 @@ export function AiMenu() {
                 }
                 className="h-7 grow bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
-              <button
-                type="button"
+              <Button
+                size="icon-xs"
                 title="Send"
                 disabled={input.trim().length === 0}
                 onClick={() => submitAiPrompt(editor, input)}
                 className={cn(
-                  "flex size-6 items-center justify-center rounded-full transition-colors [&_svg]:size-3.5",
-                  input.trim().length === 0
-                    ? "text-muted-foreground/50"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90",
+                  "rounded-full",
+                  // Empty input reads as a faint affordance, not a dimmed
+                  // primary pill.
+                  input.trim().length === 0 &&
+                    "bg-transparent text-muted-foreground/50 disabled:opacity-100",
                 )}
               >
-                <ArrowUpIcon />
-              </button>
+                <ArrowUpIcon className="size-3.5" />
+              </Button>
             </>
           )}
         </div>

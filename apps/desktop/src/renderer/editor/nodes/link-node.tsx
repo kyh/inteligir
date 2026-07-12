@@ -15,6 +15,7 @@ import {
 } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 function PopoverButton({
@@ -27,14 +28,15 @@ function PopoverButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-sm"
       title={title}
       onClick={onClick}
-      className="flex size-7 items-center justify-center rounded-md text-foreground/80 transition-colors hover:bg-accent [&_svg]:size-4"
+      className="rounded-md text-foreground/80"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 

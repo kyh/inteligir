@@ -86,7 +86,7 @@ export function IntegrationsSection() {
 
       <div className="flex items-center gap-2">
         <Button
-          variant="tertiary"
+          variant="outline"
           size="sm"
           onClick={() => void handleRepair()}
           disabled={repairing}

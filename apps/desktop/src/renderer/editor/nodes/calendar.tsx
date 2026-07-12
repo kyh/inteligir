@@ -7,9 +7,14 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { DayPicker, type DayPickerProps } from "react-day-picker";
 
 import { cn } from "@repo/ui/lib/utils";
+import { buttonVariants } from "@repo/ui/components/button";
 
-const NAV_BUTTON =
-  "inline-flex size-7 items-center justify-center rounded-md border border-border bg-transparent text-foreground opacity-60 transition-opacity hover:opacity-100 disabled:pointer-events-none disabled:opacity-30";
+// DayPicker renders its own <button>s, so the stock Button styling arrives as
+// buttonVariants class strings rather than the component.
+const NAV_BUTTON = cn(
+  buttonVariants({ variant: "outline", size: "icon-sm" }),
+  "rounded-md bg-transparent opacity-60 hover:opacity-100 disabled:opacity-30",
+);
 
 export function Calendar({ className, classNames, ...props }: DayPickerProps) {
   return (
@@ -22,8 +27,10 @@ export function Calendar({ className, classNames, ...props }: DayPickerProps) {
         caption_label: "text-sm font-medium",
         chevron: "size-4 fill-current",
         day: "p-0 text-center text-sm",
-        day_button:
-          "inline-flex size-8 items-center justify-center rounded-md font-normal transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        day_button: cn(
+          buttonVariants({ variant: "ghost", size: "icon" }),
+          "rounded-md font-normal hover:bg-hover dark:hover:bg-hover",
+        ),
         disabled: "text-muted-foreground opacity-50",
         hidden: "invisible",
         month: "space-y-4",

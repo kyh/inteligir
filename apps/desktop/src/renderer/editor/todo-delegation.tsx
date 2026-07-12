@@ -2,7 +2,7 @@
 // ={false} sibling so Slate keeps mapping the item's text children directly
 // and never treats the control as editable content.
 //
-// Split from block-list.tsx (WP2) and loaded via React.lazy: this module
+// Split from block-list.tsx and loaded via React.lazy: this module
 // imports vault-context (which imports the markdown pipeline, which imports
 // base-kit, which imports the kit files) — importing it eagerly from
 // block-list would put the whole workspace inside the kit module graph and
@@ -23,6 +23,7 @@ import type { Descendant, TElement } from "platejs";
 import { type PlateEditor, useEditorRef } from "platejs/react";
 
 import { toast } from "@repo/ui/components/sonner";
+import { Button } from "@repo/ui/components/button";
 
 import { isTodoItem } from "@renderer/editor/todo-item";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
@@ -121,15 +122,16 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
         />
       ) : (
         !checked && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => void handleDelegate()}
             title="Delegate this task to an agent"
-            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground"
+            className="h-auto rounded-full px-2 py-0.5 text-[10px] font-normal text-muted-foreground opacity-0 group-hover:opacity-100"
           >
             <SparklesIcon className="size-3" />
             Delegate
-          </button>
+          </Button>
         )
       )}
     </span>

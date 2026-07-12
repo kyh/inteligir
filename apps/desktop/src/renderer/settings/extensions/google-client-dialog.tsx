@@ -66,12 +66,11 @@ export function GoogleClientDialog({ open, redirectUri, busy, error, onCancel, o
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
-          {/* Inside-glass info well: lighter translucent row, white text. */}
-          <div className="flex flex-col gap-1 rounded-[10px] bg-glass-row px-3 py-2">
-            <span className="text-[10px] font-medium text-glass-fg-muted">
+          <div className="flex flex-col gap-1 rounded-[10px] bg-muted px-3 py-2">
+            <span className="text-[10px] font-medium text-muted-foreground">
               Authorized redirect URI (add to your OAuth client in GCP)
             </span>
-            <code className="select-all break-all text-[11px] text-glass-fg">
+            <code className="select-all break-all text-[11px] text-foreground">
               {redirectUri ?? "Executor isn't running — start the app's agent first."}
             </code>
           </div>
@@ -92,9 +91,9 @@ export function GoogleClientDialog({ open, redirectUri, busy, error, onCancel, o
               if (e.key === "Enter" && canSubmit) onSubmit(trimmedId, trimmedSecret);
             }}
           />
-          {error && <div className="text-[10px] text-[#ffb4ab]">{error}</div>}
+          {error && <div className="text-[10px] text-destructive">{error}</div>}
           <Button
-            variant="primary"
+            variant="default"
             size="sm"
             onClick={() => canSubmit && onSubmit(trimmedId, trimmedSecret)}
             disabled={!canSubmit}

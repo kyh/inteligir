@@ -3,10 +3,12 @@ import { PinIcon, PinOffIcon, XIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from "@renderer/ai-elements/conversation";
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@repo/ui/components/message-scroller";
 import { cn } from "@repo/ui/lib/utils";
 
 import {
@@ -129,15 +131,19 @@ export function BottomComposer() {
                 </button>
               </div>
             </div>
-            <Conversation className="max-h-[46vh] min-h-0 select-text">
-              <ConversationContent className="gap-1 p-2">
-                {visibleMessages.map((msg) => (
-                  <MessageRow key={msg.id} msg={msg} />
-                ))}
-                <ChatActivityRow messages={messages} busy={busy} />
-              </ConversationContent>
-              <ConversationScrollButton />
-            </Conversation>
+            <MessageScrollerProvider>
+              <MessageScroller className="max-h-[46vh] min-h-0 select-text" role="log">
+                <MessageScrollerViewport>
+                  <MessageScrollerContent className="gap-1 p-2">
+                    {visibleMessages.map((msg) => (
+                      <MessageRow key={msg.id} msg={msg} />
+                    ))}
+                    <ChatActivityRow messages={messages} busy={busy} />
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton />
+              </MessageScroller>
+            </MessageScrollerProvider>
           </motion.div>
         )}
       </AnimatePresence>

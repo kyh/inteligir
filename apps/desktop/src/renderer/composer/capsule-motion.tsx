@@ -8,8 +8,7 @@
 
 import { motion, useReducedMotion, type Transition } from "framer-motion";
 
-import { GeometricOrb } from "@repo/ui/components/geometric-orb";
-
+import { LazyGeometricOrb } from "@renderer/components/lazy-orb";
 import { useOrbBaseColor } from "@renderer/lib/use-theme";
 
 /** One spring drives every capsule size/shape change (via useCapsuleSpring). */
@@ -56,7 +55,7 @@ export function ListeningOrb() {
   const baseColor = useOrbBaseColor();
   return (
     <div aria-hidden className="size-11 shrink-0">
-      <GeometricOrb status="listening" baseColor={baseColor} numLines={12} lineWidth={1.5} />
+      <LazyGeometricOrb status="listening" baseColor={baseColor} numLines={12} lineWidth={1.5} />
     </div>
   );
 }

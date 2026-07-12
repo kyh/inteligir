@@ -34,13 +34,14 @@ import {
 } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@repo/ui/components/button";
 import {
-  DropdownContent,
-  DropdownLabel,
   DropdownMenu,
-  DropdownTrigger,
-  MenuItem,
-} from "@repo/ui/components/menu";
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/dropdown-menu";
 
 import { AiSessionPlugin, openAiMenu } from "@renderer/editor/ai/ai-session";
 import {
@@ -50,8 +51,8 @@ import {
   turnIntoSelection,
 } from "@renderer/editor/block-transforms";
 
-// Elevation: toolbars sit on the menu tier (surface-4; popovers float higher
-// at surface-5 — @repo/ui's ladder). animate-in runs once on mount.
+// Elevation: toolbars sit on the menu tier (shadow-surface-4). animate-in
+// runs once on mount.
 const BAR_CLASS =
   "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
 
@@ -59,8 +60,10 @@ function Sep() {
   return <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
 }
 
-// A compact icon toggle (marks). `onMouseDown` preventDefault keeps the editor
-// selection alive through the click so the mark applies to it.
+// A compact icon toggle (marks) on the stock ghost icon button. `onMouseDown`
+// preventDefault keeps the editor selection alive through the click so the
+// mark applies to it. Stock Button styles aria-expanded but not aria-pressed,
+// so the pressed classes ride className.
 function IconButton({
   pressed,
   onClick,
@@ -75,19 +78,17 @@ function IconButton({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-sm"
       title={title}
       aria-pressed={pressed}
       onMouseDown={onMouseDown}
       onClick={onClick}
-      className={cn(
-        "flex size-7 items-center justify-center rounded-md text-foreground/80 transition-colors hover:bg-accent [&_svg]:size-4",
-        pressed && "bg-accent text-accent-foreground",
-      )}
+      className="rounded-md text-foreground/80 aria-pressed:bg-accent aria-pressed:text-accent-foreground"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -100,13 +101,13 @@ function IconButton({
 // opening click.
 function TurnIntoTrigger({ children }: { children: ReactNode }) {
   return (
-    <DropdownTrigger
+    <DropdownMenuTrigger
       onMouseDown={(e) => e.preventDefault()}
       className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
     >
       {children}
       <ChevronDownIcon className="!size-3 text-muted-foreground/70" />
-    </DropdownTrigger>
+    </DropdownMenuTrigger>
   );
 }
 
@@ -310,20 +311,24 @@ export function SelectionToolbar() {
                   on a menu item flips the hook's open state, display:none-s
                   the bar, and the popup (anchored to the hidden trigger)
                   jumps away before mouseup — items become unclickable. */}
-              <DropdownContent side="bottom" align="start" className="ignore-click-outside/toolbar">
-                <DropdownLabel>Turn into</DropdownLabel>
-                {TURN_INTO.map((opt, i) => (
-                  <MenuItem
+              <DropdownMenuContent
+                side="bottom"
+                align="start"
+                className="ignore-click-outside/toolbar"
+              >
+                <DropdownMenuLabel>Turn into</DropdownMenuLabel>
+                {TURN_INTO.map((opt) => (
+                  <DropdownMenuItem
                     key={opt.label}
-                    index={i}
-                    label={opt.label}
-                    onSelect={() => {
+                    onClick={() => {
                       turnIntoSelection(editor, opt, savedSel.current ?? undefined);
                       editor.tf.focus();
                     }}
-                  />
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
                 ))}
-              </DropdownContent>
+              </DropdownMenuContent>
             </DropdownMenu>
 
             <Sep />

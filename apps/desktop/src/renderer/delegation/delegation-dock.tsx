@@ -17,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@repo/ui/components/alert-dialog";
+import { Spinner } from "@repo/ui/components/spinner";
 import { Response } from "@renderer/ai-elements/response";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
@@ -113,7 +114,8 @@ export function DelegationDock() {
             <Button variant="secondary" disabled={restoring} onClick={() => setConfirming(null)}>
               Cancel
             </Button>
-            <Button loading={restoring} onClick={() => void confirmRestore()}>
+            <Button disabled={restoring} onClick={() => void confirmRestore()}>
+              {restoring && <Spinner />}
               Restore
             </Button>
           </AlertDialogFooter>

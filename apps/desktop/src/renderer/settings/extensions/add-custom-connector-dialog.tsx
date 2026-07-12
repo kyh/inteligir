@@ -11,6 +11,7 @@ import {
 import { Input } from "@repo/ui/components/input";
 import { Textarea } from "@repo/ui/components/textarea";
 
+import { SegmentedControl } from "@renderer/components/segmented-control";
 import { getBridge } from "@renderer/lib/bridge";
 import {
   installConnector,
@@ -168,24 +169,13 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
-          {/* Raw buttons on the smoked-glass dialog — glass-row pill recipe. */}
-          <div className="grid grid-cols-4 gap-1 rounded-[10px] bg-glass-row p-1">
-            {KINDS.map((k) => (
-              <button
-                key={k.id}
-                type="button"
-                onClick={() => setKind(k.id)}
-                aria-pressed={kind === k.id}
-                className={`rounded-[8px] px-2 py-1.5 text-[11px] transition-colors ${
-                  kind === k.id
-                    ? "bg-glass-row-active text-glass-fg"
-                    : "text-glass-fg-muted hover:bg-glass-row-hover hover:text-glass-fg"
-                }`}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            options={KINDS.map((k) => ({ value: k.id, label: k.label }))}
+            value={kind}
+            onChange={setKind}
+            className="grid-cols-4"
+            optionClassName="text-[11px]"
+          />
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -233,20 +223,19 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
             />
           )}
           {kind === "mcp" && (
-            <label className="flex items-center gap-2 text-[11px] text-glass-fg-muted">
+            <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <input
                 type="checkbox"
                 checked={oauth}
                 onChange={(e) => setOauth(e.target.checked)}
-                className="size-3.5 accent-white"
+                className="size-3.5 accent-primary"
               />
               Authenticate with OAuth before adding
             </label>
           )}
-          {/* Destructive token is tuned for opaque surfaces; #ffb4ab reads on glass. */}
-          {error && <div className="text-[10px] text-[#ffb4ab]">{error}</div>}
+          {error && <div className="text-[10px] text-destructive">{error}</div>}
           <Button
-            variant="primary"
+            variant="default"
             size="sm"
             onClick={() => void handleAdd()}
             disabled={busy}

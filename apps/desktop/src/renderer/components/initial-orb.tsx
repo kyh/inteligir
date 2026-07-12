@@ -1,5 +1,6 @@
-import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
+import type { DisplayStatus } from "@repo/ui/components/geometric-orb";
 
+import { LazyGeometricOrb } from "@renderer/components/lazy-orb";
 import { useOrbBaseColor } from "@renderer/lib/use-theme";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import type { AppState } from "@repo/features/app-state";
@@ -17,7 +18,7 @@ export function InitialOrb() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-30 m-auto h-44 w-44">
-      <GeometricOrb status={phaseToOrbStatus(phase)} baseColor={baseColor} />
+      <LazyGeometricOrb status={phaseToOrbStatus(phase)} baseColor={baseColor} />
     </div>
   );
 }

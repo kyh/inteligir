@@ -211,7 +211,7 @@ export function HtmlAppView() {
         <div className="ml-auto flex items-center gap-1">
           <Button
             size="sm"
-            variant="tertiary"
+            variant="outline"
             className="h-6 gap-1 px-2 text-xs"
             onClick={() => setReloadKey((k) => k + 1)}
           >
@@ -220,7 +220,7 @@ export function HtmlAppView() {
           </Button>
           <Button
             size="sm"
-            variant="tertiary"
+            variant="outline"
             className="h-6 gap-1 px-2 text-xs"
             onClick={showHtmlAsText}
           >

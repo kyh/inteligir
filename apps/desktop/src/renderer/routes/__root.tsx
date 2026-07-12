@@ -3,6 +3,7 @@ import { createRootRoute, Navigate, Outlet, useLocation } from "@tanstack/react-
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
+import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { ReauthDialog } from "@renderer/components/reauth-dialog";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
@@ -43,16 +44,20 @@ function RootLayout() {
   const needsRedirect = pathname !== target;
 
   return (
-    <div className="relative h-full w-full font-sans">
-      <div className="flex h-full flex-col">
-        {needsRedirect ? <Navigate to={target} replace /> : <Outlet />}
-      </div>
+    // One TooltipProvider for the whole app so every tooltip shares the same
+    // delay behavior (web mounts the same provider in its root).
+    <TooltipProvider>
+      <div className="relative h-full w-full font-sans">
+        <div className="flex h-full flex-col">
+          {needsRedirect ? <Navigate to={target} replace /> : <Outlet />}
+        </div>
 
-      <ReauthDialog />
-      {/* One shared confirm() dialog for the whole workspace. */}
-      <ConfirmDialogHost />
-      {/* Desktop toasts join the smoked-glass overlay language. */}
-      <Toaster glass />
-    </div>
+        <ReauthDialog />
+        {/* One shared confirm() dialog for the whole workspace. */}
+        <ConfirmDialogHost />
+        {/* App-wide toast outlet. */}
+        <Toaster />
+      </div>
+    </TooltipProvider>
   );
 }

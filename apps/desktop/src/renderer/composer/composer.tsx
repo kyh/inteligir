@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   ArrowUpIcon,
   CheckIcon,
+  ImageIcon,
   ListPlusIcon,
   MicIcon,
   PaperclipIcon,
@@ -16,10 +17,11 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 import {
   Attachment,
-  AttachmentPreview,
-  AttachmentRemove,
-  Attachments,
-} from "@renderer/ai-elements/attachments";
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentGroup,
+  AttachmentMedia,
+} from "@repo/ui/components/attachment";
 import {
   PromptInput,
   PromptInputButton,
@@ -626,18 +628,32 @@ function ComposerAttachments() {
   const { files, remove } = usePromptInputAttachments();
   if (files.length === 0) return null;
   return (
-    <Attachments className="px-2 pt-2 pb-1">
+    <AttachmentGroup className="ml-auto w-fit gap-2 px-2 pt-2 pb-1">
       {files.map((file) => (
         <Attachment
           key={file.id}
-          data={file}
-          onRemove={() => remove(file.id)}
-          className="size-9 rounded-lg border border-border"
+          size="xs"
+          orientation="vertical"
+          className="size-9 rounded-lg border-border"
         >
-          <AttachmentPreview />
-          <AttachmentRemove className="top-0 right-0 size-4 rounded-none rounded-bl bg-foreground/60 text-background [&>svg]:size-2.5" />
+          <AttachmentMedia variant="image" className="size-full rounded-lg">
+            {file.type === "file" && file.url ? (
+              <img alt={file.filename || "Image"} src={file.url} />
+            ) : (
+              <ImageIcon className="size-4 text-muted-foreground" />
+            )}
+          </AttachmentMedia>
+          <AttachmentActions className="top-0 right-0 gap-0">
+            <AttachmentAction
+              aria-label="Remove"
+              onClick={() => remove(file.id)}
+              className="size-4 rounded-none rounded-bl bg-foreground/60 text-background opacity-0 group-hover/attachment:opacity-100 hover:bg-foreground/80 hover:text-background [&>svg]:size-2.5"
+            >
+              <XIcon />
+            </AttachmentAction>
+          </AttachmentActions>
         </Attachment>
       ))}
-    </Attachments>
+    </AttachmentGroup>
   );
 }

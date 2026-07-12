@@ -1,17 +1,18 @@
 // Floating controls shown on a selected embed node (video/media_embed/file):
 // URL edit (writes the node's `url` through setNodes — serialized), Open in
 // browser, Delete. Rendered inside the node's non-editable figure, so no
-// popover primitive is needed — minimal by design; WP3's menu/popover pass
-// may restyle it. URL entry only, uploads are out of scope.
+// popover primitive is needed. URL entry only, uploads are out of scope.
 
 import { useEffect, useRef, useState } from "react";
 import { CheckIcon, ExternalLinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@repo/ui/components/button";
 
-const BUTTON_CLASS =
-  "flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3.5";
+// Overrides on the stock ghost icon button: toolbar radius, muted resting
+// color, and the 3.5 icon this toolbar uses.
+const BUTTON_CLASS = "rounded-md text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
 
 export function MediaToolbar() {
   const editor = useEditorRef();
@@ -65,23 +66,31 @@ export function MediaToolbar() {
               if (e.key === "Escape") setEditing(false);
             }}
           />
-          <button type="button" title="Apply URL" className={BUTTON_CLASS} onClick={commitUrl}>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            title="Apply URL"
+            className={BUTTON_CLASS}
+            onClick={commitUrl}
+          >
             <CheckIcon />
-          </button>
+          </Button>
         </>
       ) : (
         <>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             title="Edit URL"
             className={BUTTON_CLASS}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setEditing(true)}
           >
             <PencilIcon />
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
             title="Open original"
             className={BUTTON_CLASS}
             onClick={() => {
@@ -89,15 +98,19 @@ export function MediaToolbar() {
             }}
           >
             <ExternalLinkIcon />
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
             title="Delete embed"
-            className={cn(BUTTON_CLASS, "hover:bg-destructive/10 hover:text-destructive")}
+            className={cn(
+              BUTTON_CLASS,
+              "hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/10",
+            )}
             onClick={remove}
           >
             <Trash2Icon />
-          </button>
+          </Button>
         </>
       )}
     </div>

@@ -24,12 +24,8 @@ import type { FileUIPart } from "ai";
 import { CornerDownLeftIcon } from "lucide-react";
 import { nanoid } from "nanoid";
 
-import {
-  InputGroup,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "@renderer/ai-elements/input-group";
-import { Tooltip, TooltipProvider, type TooltipSide } from "@repo/ui/components/tooltip";
+import { InputGroup, InputGroupButton, InputGroupTextarea } from "@repo/ui/components/input-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
@@ -327,7 +323,9 @@ export const PromptInput = ({
         type="file"
       />
       <form className={cn("w-full", className)} onSubmit={handleSubmit} ref={formRef} {...props}>
-        <InputGroup className="overflow-hidden">{children}</InputGroup>
+        <InputGroup className="h-9 overflow-hidden rounded-full border-input bg-transparent shadow-xs has-[[data-slot=input-group-control]:focus-visible]:border-focus-ring has-[[data-slot=input-group-control]:focus-visible]:ring-2 has-[[data-slot=input-group-control]:focus-visible]:ring-focus-ring">
+          {children}
+        </InputGroup>
       </form>
     </LocalAttachmentsContext.Provider>
   );
@@ -414,7 +412,7 @@ type PromptInputButtonTooltip =
   | {
       content: ReactNode;
       shortcut?: string;
-      side?: TooltipSide;
+      side?: ComponentProps<typeof TooltipContent>["side"];
     };
 
 export type PromptInputButtonProps = ComponentProps<typeof InputGroupButton> & {
@@ -450,19 +448,13 @@ export const PromptInputButton = ({
   const side = typeof tooltip === "string" ? "top" : (tooltip.side ?? "top");
 
   return (
-    <TooltipProvider>
-      <Tooltip
-        side={side}
-        content={
-          <>
-            {tooltipContent}
-            {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
-          </>
-        }
-      >
-        {button}
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipContent side={side}>
+        {tooltipContent}
+        {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
@@ -470,7 +462,7 @@ export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton>;
 
 export const PromptInputSubmit = ({
   className,
-  variant = "primary",
+  variant = "default",
   size = "icon-sm",
   children,
   ...props
