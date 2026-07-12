@@ -213,20 +213,21 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     },
     [applyOpenPath, disposeRuntime],
   );
-  const dropNoteRef = useRef(dropNote);
-  dropNoteRef.current = dropNote;
 
   /** Create the runtime for a note and start loading its file. Any previous
    * runtime must already be disposed (openFile owns that ordering). */
-  const ensureRuntime = useCallback((path: string): NoteRuntime => {
-    const existing = runtimeRef.current;
-    if (existing?.path === path) return existing;
-    const runtime = createNoteRuntime(path, rootRef.current, VAULT_IO, {
-      onVanished: (p) => dropNoteRef.current(p),
-    });
-    runtimeRef.current = runtime;
-    return runtime;
-  }, []);
+  const ensureRuntime = useCallback(
+    (path: string): NoteRuntime => {
+      const existing = runtimeRef.current;
+      if (existing?.path === path) return existing;
+      const runtime = createNoteRuntime(path, rootRef.current, VAULT_IO, {
+        onVanished: dropNote,
+      });
+      runtimeRef.current = runtime;
+      return runtime;
+    },
+    [dropNote],
+  );
 
   /** Flush the open note's pending edits (clearing the debounce). True when
    * clean. A pending AI suggestion session on the file is settled first

@@ -10,7 +10,7 @@
 // highlight ring. Data refreshes on onKnowledgeUpdated, preserving layout
 // positions by node id.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   forceCenter,
   forceCollide,
@@ -117,7 +117,6 @@ export default function GraphView() {
   const transformRef = useRef<Transform>({ x: 0, y: 0, k: 1 });
   const hoveredRef = useRef<SimNode | null>(null);
   const activePathRef = useRef<string | null>(openPath);
-  activePathRef.current = openPath;
   const frameRef = useRef<number | null>(null);
 
   const draw = useCallback(() => {
@@ -287,7 +286,8 @@ export default function GraphView() {
   }, [scheduleDraw]);
 
   // Redraw on theme flips (colors are read at draw time) and active-note moves.
-  useEffect(() => {
+  useLayoutEffect(() => {
+    activePathRef.current = openPath;
     scheduleDraw();
   }, [scheduleDraw, resolvedTheme, openPath]);
 
