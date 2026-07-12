@@ -8,6 +8,7 @@ import { getBridge } from "@renderer/lib/bridge";
 import { CommandPalette } from "@renderer/command/command-palette";
 import { DelegationDock } from "@renderer/delegation/delegation-dock";
 import { BottomComposer } from "@renderer/composer/bottom-composer";
+import { SaveIndicator } from "@renderer/workspace/save-indicator";
 import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
 import { AppSidebar } from "@renderer/sidebar/app-sidebar";
@@ -116,7 +117,7 @@ export function WorkspacePage() {
                 <span className="truncate text-xs text-destructive" title={workspaceError}>
                   {workspaceError}
                 </span>
-                <Button size="sm" variant="tertiary" className="shrink-0" onClick={handleRetry}>
+                <Button size="sm" variant="outline" className="shrink-0" onClick={handleRetry}>
                   Retry
                 </Button>
               </div>
@@ -128,6 +129,7 @@ export function WorkspacePage() {
           </main>
           <DelegationDock />
           <BottomComposer />
+          <SaveIndicator />
         </div>
       </SidebarProvider>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />

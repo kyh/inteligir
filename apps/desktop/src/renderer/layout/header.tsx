@@ -16,13 +16,13 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { describeRawReason } from "@renderer/editor/markdown/markdown-doc";
 import { PageDetails } from "@renderer/editor/properties/page-details";
-import { useAiReviewStore } from "@renderer/stores/ai-review-store";
 import { useVault } from "@renderer/workspace/vault-context";
 
 /**
  * The shell header — a single sticky toolbar over the editor card. Left: the
  * sidebar toggle + a breadcrumb of the open note's vault path. Right: the
- * per-file controls (raw-rich / save status / page details / delete). Also the
+ * per-file controls (raw-rich / page details / delete; save status lives in
+ * the bottom-right SaveIndicator dot). Also the
  * window drag region. When the sidebar is collapsed the card slides under the
  * macOS traffic lights, so we pad the left to keep the toggle clear of them.
  */
@@ -42,11 +42,6 @@ export function Header() {
   } = useVault();
   const { state } = useSidebar();
   const path = editor.path;
-  // While an AI suggestion session pends ON THIS note, its autosave is frozen
-  // (the transient gate) — say so instead of silently reading "Saved" over
-  // stale bytes.
-  const reviewingPaths = useAiReviewStore((s) => s.reviewing);
-  const reviewing = path !== null && reviewingPaths.has(path);
   const segments = path ? path.split("/") : [];
 
   const confirmDelete = async () => {
@@ -94,7 +89,7 @@ export function Header() {
           {openIsHtml && !isHtmlApp && (
             <Button
               size="sm"
-              variant="tertiary"
+              variant="outline"
               className="h-7 px-2 text-xs"
               onClick={showHtmlAsApp}
             >
@@ -103,7 +98,7 @@ export function Header() {
           )}
           {isMarkdownOpen && rawReason !== null && (
             <Badge
-              variant="dot"
+              variant="outline"
               className="text-muted-foreground"
               title={describeRawReason(rawReason)}
             >
@@ -130,23 +125,6 @@ export function Header() {
               ))}
             </div>
           )}
-          <Badge
-            variant="dot"
-            className="text-muted-foreground"
-            title={
-              reviewing
-                ? "Saving is paused while AI suggestions await review — resolve or leave to settle them"
-                : undefined
-            }
-          >
-            {reviewing
-              ? "Reviewing suggestions"
-              : editor.saving
-                ? "Saving…"
-                : editor.dirty
-                  ? "Unsaved"
-                  : "Saved"}
-          </Badge>
           {/* Page details — the file-properties popover. Same gate the inline
               panel used: only a markdown note open in Rich mode has a live
               rich editor to write through. Keyed by path so switching notes
