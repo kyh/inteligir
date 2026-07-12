@@ -1,6 +1,6 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "base-vega",
+  "style": "base-rhea",
   "rsc": true,
   "tsx": true,
   "tailwind": {
@@ -17,8 +17,8 @@
     "lib": "@repo/ui/lib",
     "ui": "@repo/ui/components"
   },
-  "registries": {
-    "@fluid": "https://www.fluidfunctionalism.com/r/{name}.json",
-    "@base": "https://www.fluidfunctionalism.com/r/base/{name}.json"
-  }
+  "rtl": false,
+  "menuColor": "default-translucent",
+  "menuAccent": "subtle",
+  "registries": {}
 }

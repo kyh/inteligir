@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { GlobalAlertDialog } from "@repo/ui/components/alert-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
@@ -103,7 +102,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <SiteHeader />
             {children}
             <Toaster />
-            <GlobalAlertDialog />
           </TooltipProvider>
         </ThemeProvider>
         <Scripts />

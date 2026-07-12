@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist-mono";
 @import "./typeset.css";
+@import "@fontsource-variable/inter";
 
 /* Typeset presets — one per markdown-rendering surface. `typeset-docs` is the
    document surface (the note editor); `typeset-chat` is the compact AI chat /
@@ -47,19 +48,6 @@
   font-weight: 600;
 }
 
-/* Inter Variable — self-hosted, full axis range (wght + opsz). Matches the
-   Fluid Functionalism reference (public/fonts/InterVariable.ttf). fontsource's
-   variable build is wght-only, so its opsz axis was missing and the optical
-   sizing driven by lib/font-weight.ts ('opsz' 14/15/20/25) was silently
-   ignored — this restores it. Family name "Inter" mirrors the reference. */
-@font-face {
-  font-family: "Inter";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("../fonts/InterVariable.ttf") format("truetype");
-}
-
 @source "../../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
@@ -67,7 +55,8 @@
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: var(--font-sans);
+  --font-sans: "Inter Variable", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -86,7 +75,6 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-destructive-light: var(--destructive-light);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -109,15 +97,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Ophelias-style spatial tooling — surface + shadow elevation ladders */
-  --color-surface-1: var(--surface-1);
-  --color-surface-2: var(--surface-2);
-  --color-surface-3: var(--surface-3);
-  --color-surface-4: var(--surface-4);
-  --color-surface-5: var(--surface-5);
-  --color-surface-6: var(--surface-6);
-  --color-surface-7: var(--surface-7);
-  --color-surface-8: var(--surface-8);
+  /* Shadow elevation ladder (shadow-surface-N utilities) */
   --shadow-surface-1: var(--shadow-1);
   --shadow-surface-2: var(--shadow-2);
   --shadow-surface-3: var(--shadow-3);
@@ -127,141 +107,55 @@
   --shadow-surface-7: var(--shadow-7);
   --shadow-surface-8: var(--shadow-8);
 
-  /* Surface-relative interactive overlays + selection */
+  /* Surface-relative interactive overlays */
   --color-hover: var(--hover);
-  --color-active: var(--active);
-  --color-selected: var(--selected);
   --color-focus-ring: var(--focus-ring);
-
-  /* Smoked glass / mist / puck helper colors (tokens in :root + .dark below)
-     so utilities like bg-glass-row, text-glass-fg-muted, bg-puck-hover exist. */
-  --color-glass-smoke: var(--glass-smoke-bg);
-  --color-glass-smoke-deep: var(--glass-smoke-deep-bg);
-  --color-glass-fg: var(--glass-smoke-fg);
-  --color-glass-fg-muted: var(--glass-smoke-fg-muted);
-  --color-glass-row: var(--glass-row);
-  --color-glass-row-hover: var(--glass-row-hover);
-  --color-glass-row-active: var(--glass-row-active);
-  --color-glass-border: var(--glass-border);
-  --color-mist-fg: var(--mist-fg);
-  --color-puck: var(--puck-bg);
-  --color-puck-hover: var(--puck-bg-hover);
-  --color-puck-fg: var(--puck-fg);
-  /* Small smoked chips (Badge glass variant) cast a tighter shadow than the
-     glass sheets — a single soft drop, no inset ring. */
-  --shadow-chip: 0 2px 6px rgb(0 0 0 / 0.18);
-  @keyframes shimmer {
-    0% {
-      background-position: 0% 0;
-    }
-    100% {
-      background-position: 100% 0;
-    }
-  }
-  @keyframes spinner-move {
-    to {
-      stroke-dashoffset: -100;
-    }
-  }
-  @keyframes spinner-dash {
-    0%,
-    100% {
-      stroke-dasharray: 15 85;
-    }
-    50% {
-      stroke-dasharray: 40 60;
-    }
-  }
 }
 
 :root {
-  /* Inter Variable — the fluid site's face; the weight axis powers label
-     weight transitions. Self-hosted via the @font-face above (full wght+opsz). */
-  --font-sans: "Inter", system-ui, sans-serif;
-
-  /* Typeset font hooks. --font-inter rides the self-hosted Inter Variable
-     (full wght+opsz) rather than fontsource's wght-only build. */
-  --font-inter: "Inter", system-ui, sans-serif;
+  /* Typeset font hooks — same faces the theme's font-sans/font-mono use
+     (fontsource variable builds imported at the top of this file). */
+  --font-inter: "Inter Variable", system-ui, sans-serif;
   --font-geist-mono: "Geist Mono Variable", ui-monospace, monospace;
 
-  /* Core palette — the fluid site's neutral hex theme (app/globals.css in the
-     fluid-functionalism repo is the source of truth). The site leaves
-     --primary/--secondary/--popover undefined (shadcn-compare-only there);
-     here they map onto the same neutrals because the app uses them. */
-  --background: var(--surface-1);
-  --foreground: #171717;
-  --card: var(--surface-3);
-  --card-foreground: #171717;
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-  --primary: #171717;
-  --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #171717;
-  --muted: #f4f4f5;
-  --muted-foreground: #737373;
-  --accent: #e5e5e5;
-  --accent-foreground: #171717;
-  --destructive: #ef4444;
+  /* Stock shadcn zinc palette (written by the applied preset). */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: #ffffff;
-  --destructive-light: #fef2f2;
-  --border: color-mix(in oklab, var(--foreground) 12%, transparent);
-  --input: #e5e5e5;
-  --ring: #e5e5e5;
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
 
-  /* Neutral scale (for opacity variants that can't reference tokens directly). */
-  --neutral-100: #f5f5f5;
-  --neutral-200: #e5e5e5;
-  --neutral-300: #d4d4d4;
-  --neutral-400: #a3a3a3;
-  --neutral-500: #737373;
-  --neutral-600: #525252;
-  --neutral-700: #404040;
-  --neutral-800: #262626;
-  --neutral-900: #171717;
-
-  /* Color-picker transparency checkerboard. */
-  --checker-a: #bbbbbb;
-  --checker-b: #ffffff;
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
-  /* Claude theme base radius. */
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
-  /* Component radius scale. Controls/buttons keep --radius;
-     these are the generous container radii from the reference language.
-     Theme-invariant — defined once here. */
-  --radius-card: 18px; /* grid panels */
-  --radius-window: 22px; /* floating windows */
-  --radius-glass: 16px; /* composer bar, dialogs, large glass sheets */
-  --radius-menu: 14px; /* dropdowns / popovers / tooltips */
-  --radius-dock: 18px; /* left dock bar */
-  /* Sidebar layout (referenced by the sidebar component's w-(--sidebar-width)). */
-  --sidebar-width: 15rem;
-  --sidebar-width-icon: 3rem;
-  --sidebar: #f4f4f5;
-  --sidebar-foreground: #171717;
-  --sidebar-primary: #171717;
-  --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #e5e5e5;
-  --sidebar-accent-foreground: #171717;
-  --sidebar-border: color-mix(in oklab, var(--foreground) 12%, transparent);
-  --sidebar-ring: #e5e5e5;
-
-  /* ── Surface ladder (8 levels) — fluid site values ──
-     Light: two color steps (floor, sunken) then flat white; shadow does the
-     elevation work. Each surface pairs 1:1 with a shadow recipe. */
-  --surface-1: #fafafa;
-  --surface-2: #fcfcfc;
-  --surface-3: #ffffff;
-  --surface-4: #ffffff;
-  --surface-5: #ffffff;
-  --surface-6: #ffffff;
-  --surface-7: #ffffff;
-  --surface-8: #ffffff;
+  /* Sidebar width lives as an inline var on SidebarProvider's wrapper (and is
+     driven by the desktop resize hook) — no :root seed needed. */
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
 
   /* Shadow ladder — additive layers, halving offsets (1/3/6/12/24/48/96 px). */
   --shadow-color: rgb(0 0 0 / 0.06);
@@ -292,140 +186,48 @@
     0 12px 12px -6px var(--shadow-color), 0 24px 24px -12px var(--shadow-color),
     0 48px 48px -24px var(--shadow-color), 0 96px 96px -48px var(--shadow-color);
 
-  /* Surface-relative interactive overlays. --overlay is the tint direction
-     (black on light surfaces, white on dark) so hover/active read correctly at
-     any elevation. */
+  /* Surface-relative hover overlay. --overlay is the tint direction (black on
+     light surfaces, white on dark) so hover reads correctly at any elevation. */
   --overlay: 0 0 0;
   --hover: rgb(var(--overlay) / 0.04);
-  --active: rgb(var(--overlay) / 0.07);
-  --selected: #d4d4d4;
   --focus-ring: #6b97ff;
-
-  /* ── Dotted canvas ── fine low-contrast dot lattice over the surface-1
-     floor (texture, not pattern), plus a faint vignette under the dots. */
-  --dot: rgb(0 0 0 / 0.16);
-  --canvas-from: #edf0f0;
-  --canvas-to: #f6f7f7;
-
-  /* ── Smoked glass (the signature) ── dark-gray translucent fill + heavy
-     backdrop blur + saturate, white text. Theme-invariant by design: glass
-     stays dark and smoked in BOTH themes. Deep tier = menus/dialogs/tooltips.
-     Inside glass, interactive rows/inputs are lighter translucent white pills
-     (--glass-row*). */
-  --glass-smoke-bg: rgb(55 63 67 / 0.28);
-  --glass-smoke-deep-bg: rgb(55 63 67 / 0.39);
-  --glass-smoke-gradient: linear-gradient(
-    180deg,
-    rgb(55 63 67 / 0.28) 0%,
-    rgb(14 18 19 / 0.28) 100%
-  );
-  --glass-smoke-deep-gradient: linear-gradient(
-    180deg,
-    rgb(55 63 67 / 0.39) 0%,
-    rgb(14 18 19 / 0.39) 100%
-  );
-  --glass-smoke-fg: #f8f8f8;
-  --glass-smoke-fg-muted: rgb(255 255 255 / 0.5);
-  --glass-row: rgb(255 255 255 / 0.1);
-  --glass-row-hover: rgb(255 255 255 / 0.15);
-  --glass-row-active: rgb(255 255 255 / 0.3);
-  --glass-border: rgb(0 0 0 / 0.05);
-  --glass-highlight: transparent;
-  --glass-shadow:
-    0 28px 80px 0 rgb(0 0 0 / 0.06), 0 11.7px 33.4px 0 rgb(0 0 0 / 0.04),
-    0 6.3px 17.9px 0 rgb(0 0 0 / 0.04), 0 3.5px 10px 0 rgb(0 0 0 / 0.03),
-    0 1.9px 5.3px 0 rgb(0 0 0 / 0.02), 0 0.8px 2.2px 0 rgb(0 0 0 / 0.02);
-  --glass-shadow-strong: 0 33px 139px rgb(0 0 0 / 0.15), 0 20.915px 84.273px rgb(0 0 0 / 0.11);
-  --glass-blur: 5px;
-  --glass-saturate: 120%;
-
-  /* ── Mist frost (left dock) ── light translucent bar, dark icons. */
-  --mist-bg: rgb(55 63 67 / 0.38);
-  --mist-gradient: linear-gradient(180deg, rgb(55 63 67 / 0.38) 0%, rgb(14 18 19 / 0.38) 100%);
-  --mist-fg: rgb(255 255 255 / 0.5);
-  --mist-border: rgb(0 0 0 / 0.05);
-  --mist-shadow: 0 33px 139px rgb(0 0 0 / 0.15), 0 20.915px 84.273px rgb(0 0 0 / 0.11);
-
-  /* ── Puck (floating circular glass icon buttons) ── gray translucent
-     circle, WHITE icon even in the light theme. */
-  --puck-bg: rgb(65 65 65 / 0.45);
-  --puck-bg-hover: rgb(65 65 65 / 0.56);
-  --puck-fg: #f8f8f8;
-
-  /* ── Canvas objects ── pale translucent sheets for pinned widgets. These sit
-     on the dotted floor without becoming dashboard cards. */
-  --object-pane-bg: linear-gradient(180deg, rgb(255 255 255 / 0.54), rgb(240 242 242 / 0.38));
-  --object-pane-border: rgb(19 20 27 / 0.055);
-  --object-pane-shadow:
-    0 28px 90px rgb(19 20 27 / 0.045), 0 12px 36px rgb(19 20 27 / 0.035),
-    0 2px 8px rgb(19 20 27 / 0.03);
-  --object-row-bg: rgb(19 20 27 / 0.035);
-  --object-row-hover: rgb(19 20 27 / 0.055);
-  --object-row-border: rgb(19 20 27 / 0.035);
-  --object-row-highlight: rgb(255 255 255 / 0.28);
-  --object-row-shadow:
-    inset 0 1px 0 var(--object-row-highlight), 0 1px 2px rgb(19 20 27 / 0.025),
-    0 10px 30px rgb(19 20 27 / 0.025);
 }
 
 .dark {
-  /* Core palette — the fluid site's neutral hex theme, dark. */
-  --background: var(--surface-1);
-  --foreground: #f5f5f5;
-  --card: var(--surface-3);
-  --card-foreground: #f5f5f5;
-  --popover: var(--surface-3);
-  --popover-foreground: #f5f5f5;
-  --primary: #e5e5e5;
-  --primary-foreground: #171717;
-  --secondary: var(--surface-2);
-  --secondary-foreground: #f5f5f5;
-  --muted: var(--surface-2);
-  --muted-foreground: #a3a3a3;
-  --accent: #525252;
-  --accent-foreground: #f5f5f5;
-  --destructive: #f87171;
+  /* Stock shadcn zinc palette, dark. */
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: #f5f5f5;
-  --destructive-light: #450a0a;
-  --border: color-mix(in oklab, var(--foreground) 12%, transparent);
-  --input: #404040;
-  --ring: #404040;
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
 
-  --neutral-100: #f5f5f5;
-  --neutral-200: #e5e5e5;
-  --neutral-300: #d4d4d4;
-  --neutral-400: #a3a3a3;
-  --neutral-500: #737373;
-  --neutral-600: #525252;
-  --neutral-700: #404040;
-  --neutral-800: #262626;
-  --neutral-900: #171717;
-
-  --checker-a: #1f1f1f;
-  --checker-b: #2a2a2a;
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
-  --sidebar: var(--surface-2);
-  --sidebar-foreground: #f5f5f5;
-  --sidebar-primary: #e5e5e5;
-  --sidebar-primary-foreground: #171717;
-  --sidebar-accent: #525252;
-  --sidebar-accent-foreground: #f5f5f5;
-  --sidebar-border: color-mix(in oklab, var(--foreground) 12%, transparent);
-  --sidebar-ring: #404040;
-
-  /* Surface ladder — additive white over #171717 (fluid site values). */
-  --surface-1: #171717;
-  --surface-2: #1e1e1e;
-  --surface-3: #252525;
-  --surface-4: #2c2c2c;
-  --surface-5: #333333;
-  --surface-6: #3a3a3a;
-  --surface-7: #414141;
-  --surface-8: #484848;
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
 
   /* Dark shadow recipe — inset highlight + ring + stacked drops. */
   --dm-hi-base: rgba(255, 255, 255, 0.01);
@@ -469,112 +271,7 @@
 
   --overlay: 255 255 255;
   --hover: rgb(var(--overlay) / 0.06);
-  --active: rgb(var(--overlay) / 0.1);
-  --selected: #525252;
   --focus-ring: #6b97ff;
-
-  /* Dotted canvas — lighter dots on near-black, deeper vignette. */
-  --dot: rgb(255 255 255 / 0.1);
-  --canvas-from: #141415;
-  --canvas-to: #1a1a1c;
-
-  /* Smoked glass — on a near-black canvas the slab must read LIGHTER than
-     the floor (gray glass on black, like the refs' player chrome), or the
-     composer/dialogs melt into the canvas. Composites over #141415 land at
-     ~#2a2c30 — one clear step above the card ladder. */
-  --glass-smoke-bg: rgb(55 63 67 / 0.55);
-  --glass-smoke-deep-bg: rgb(21 25 28 / 0.7);
-  --glass-smoke-fg: #f8f8f8;
-  --glass-smoke-fg-muted: rgb(255 255 255 / 0.5);
-  --glass-row: rgb(255 255 255 / 0.1);
-  --glass-row-hover: rgb(255 255 255 / 0.16);
-  --glass-row-active: rgb(255 255 255 / 0.3);
-  --glass-border: rgb(255 255 255 / 0.09);
-  --glass-highlight: rgb(255 255 255 / 0.12);
-  --glass-shadow:
-    inset 0 1px 0 0 var(--glass-highlight), inset 0 0 0 1px var(--glass-border),
-    0 1px 1px rgb(0 0 0 / 0.2), 0 8px 20px -4px rgb(0 0 0 / 0.4), 0 24px 48px -12px rgb(0 0 0 / 0.5);
-  /* --glass-blur / --glass-saturate inherit from :root. */
-
-  /* Mist frost — dark translucent bar, light icons. Like the smoke tiers,
-     a hair lighter than the canvas so the dock reads as frosted, not carved. */
-  --mist-bg: rgb(52 54 60 / 0.55);
-  --mist-fg: rgb(255 255 255 / 0.72);
-  --mist-border: rgb(255 255 255 / 0.08);
-  --mist-shadow:
-    inset 0 1px 0 0 var(--mist-border), 0 0 0 1px rgb(0 0 0 / 0.3),
-    0 8px 24px -8px rgb(0 0 0 / 0.45);
-
-  /* Puck — same gray-circle/white-icon language, lifted for dark. */
-  --puck-bg: rgb(70 72 78 / 0.55);
-  --puck-bg-hover: rgb(86 88 94 / 0.65);
-  --puck-fg: rgb(255 255 255 / 0.95);
-
-  --object-pane-bg: linear-gradient(180deg, rgb(55 58 63 / 0.42), rgb(24 25 28 / 0.5));
-  --object-pane-border: rgb(255 255 255 / 0.07);
-  --object-pane-shadow:
-    0 28px 90px rgb(0 0 0 / 0.28), 0 12px 36px rgb(0 0 0 / 0.2),
-    inset 0 1px 0 rgb(255 255 255 / 0.05);
-  --object-row-bg: rgb(255 255 255 / 0.055);
-  --object-row-hover: rgb(255 255 255 / 0.085);
-  --object-row-border: rgb(255 255 255 / 0.06);
-  --object-row-highlight: rgb(255 255 255 / 0.05);
-  --object-row-shadow: inset 0 1px 0 var(--object-row-highlight), 0 8px 24px rgb(0 0 0 / 0.16);
-}
-
-/* ── Glass surfaces ──
-   background-color (not the `background` shorthand) so bg-* utilities can
-   override the fill without resetting clip/origin. Smoked tiers bump
-   --focus-ring for ≥3:1 contrast on the dark fill. Never nest blur surfaces:
-   a glass child inside a glass parent re-blurs. */
-@utility glass-smoke {
-  background-color: var(--glass-smoke-bg);
-  background-image: var(--glass-smoke-gradient);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-shadow);
-  color: var(--glass-smoke-fg);
-  --focus-ring: #8fb0ff;
-}
-
-@utility glass-smoke-deep {
-  background-color: var(--glass-smoke-deep-bg);
-  background-image: var(--glass-smoke-deep-gradient);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-shadow-strong);
-  color: var(--glass-smoke-fg);
-  --focus-ring: #8fb0ff;
-}
-
-@utility glass-mist {
-  background-color: var(--mist-bg);
-  background-image: var(--mist-gradient);
-  -webkit-backdrop-filter: blur(3px) saturate(120%);
-  backdrop-filter: blur(3px) saturate(120%);
-  box-shadow: var(--mist-shadow);
-  color: var(--mist-fg);
-}
-
-@utility glass-puck {
-  background-color: var(--puck-bg);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  backdrop-filter: blur(16px) saturate(150%);
-  color: var(--puck-fg);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
-}
-
-@utility object-pane {
-  background: var(--object-pane-bg);
-  border-color: var(--object-pane-border);
-  -webkit-backdrop-filter: blur(14px) saturate(116%);
-  backdrop-filter: blur(14px) saturate(116%);
-  box-shadow: var(--object-pane-shadow);
-}
-
-@utility object-row {
-  background-color: var(--object-row-bg);
-  box-shadow: var(--object-row-shadow);
 }
 
 @layer base {
@@ -615,31 +312,8 @@
     scrollbar-width: thin;
     scrollbar-color: color-mix(in oklab, var(--foreground), transparent 75%) transparent;
   }
-}
-
-/* ── Ophelias-style motion ── */
-@keyframes spinner-move {
-  to {
-    stroke-dashoffset: -100;
-  }
-}
-
-@keyframes spinner-dash {
-  0%,
-  100% {
-    stroke-dasharray: 15 85;
-  }
-  50% {
-    stroke-dasharray: 40 60;
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 0% 0;
-  }
-  100% {
-    background-position: 100% 0;
+  html {
+    @apply font-sans;
   }
 }
 
@@ -661,22 +335,4 @@
 .animate-progress-fill {
   transform-origin: left center;
   animation: progress-fill 14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Variable-font weight tokens animate smoothly when a component eases the
-   'wght' axis (e.g. a label shifting normal → semibold on selection). */
-.shimmer-text {
-  color: transparent;
-  background: linear-gradient(
-    90deg,
-    #a3a3a3 0%,
-    #a3a3a3 35%,
-    #525252 50%,
-    #a3a3a3 65%,
-    #a3a3a3 100%
-  );
-  background-size: 300% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: shimmer 1.5s ease-in-out infinite;
 }
