@@ -110,7 +110,9 @@ function InlineCombobox({
 
   // The latest value, readable from stable callbacks (cancel/commit).
   const valueRef = React.useRef(value);
-  valueRef.current = value;
+  React.useLayoutEffect(() => {
+    valueRef.current = hasValueProp ? valueProp : valueState;
+  }, [hasValueProp, valueProp, valueState]);
 
   // Once a commit or cancel ran for this element instance, every later cause
   // (a deselect effect firing after an Escape, unmount churn) is a no-op —

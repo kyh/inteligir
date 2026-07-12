@@ -1,6 +1,6 @@
 // Shared helpers for the Extensions panel's per-section components.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { getBridge } from "@renderer/lib/bridge";
 import type { OAuthStartInput } from "@repo/features/executor";
@@ -86,9 +86,11 @@ export function useBridgeResource<T>(
   // failed" (so they can show a retry instead of a stuck spinner).
   const [error, setError] = useState<string | null>(null);
   const loadRef = useRef(load);
-  loadRef.current = load;
   const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
+  useLayoutEffect(() => {
+    loadRef.current = load;
+    onErrorRef.current = onError;
+  }, [load, onError]);
 
   const refresh = useCallback(() => {
     const bridge = getBridge();
