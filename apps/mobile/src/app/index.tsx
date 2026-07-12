@@ -197,7 +197,7 @@ function describeStatus(status: SyncStatus): string {
 function VaultScreen() {
   const router = useRouter();
   const status = useSyncStatus();
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState(listVaultFiles);
   const [refreshing, setRefreshing] = useState(false);
 
   // Foregrounded + signed in (this screen only mounts with a session): sync on
@@ -208,10 +208,6 @@ function VaultScreen() {
   const reload = useCallback(() => {
     setFiles(listVaultFiles());
   }, []);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
 
   // A realtime/foreground pass lands outside `runSync` below — refresh the
   // listing whenever any pass completes so pulled files appear without a pull.
