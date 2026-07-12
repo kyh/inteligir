@@ -279,16 +279,14 @@ export const PromptInput = ({
       };
 
       try {
-        const convertedFiles: FileUIPart[] = [];
-        for (const submittedItem of submittedItems) {
-          const item = filePartWithoutId(submittedItem);
-          if (item.url?.startsWith("blob:")) {
+        const convertedFiles = await Promise.all(
+          submittedItems.map(async (submittedItem): Promise<FileUIPart> => {
+            const item = filePartWithoutId(submittedItem);
+            if (!item.url?.startsWith("blob:")) return item;
             const dataUrl = await convertBlobUrlToDataUrl(item.url);
-            convertedFiles.push(Object.assign({}, item, { url: dataUrl ?? item.url }));
-            continue;
-          }
-          convertedFiles.push(item);
-        }
+            return Object.assign({}, item, { url: dataUrl ?? item.url });
+          }),
+        );
 
         const result = onSubmit({ files: convertedFiles, text }, event);
         if (result instanceof Promise) {
