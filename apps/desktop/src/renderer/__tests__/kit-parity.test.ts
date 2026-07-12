@@ -122,7 +122,7 @@ describe("kit parity (live editor mirror)", () => {
     }
   });
 
-  it("registers the WP1 inline voids as inline voids (normalization guard)", () => {
+  it("registers the inline voids as inline voids (normalization guard)", () => {
     for (const type of ["date", "wikiLink", "wikiEmbed", "inline_equation"]) {
       const el: TElement = { children: [{ text: "" }], type };
       for (const [label, editor] of [

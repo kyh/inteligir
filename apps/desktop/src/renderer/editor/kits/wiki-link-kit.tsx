@@ -126,7 +126,7 @@ export const WikiLinkKit = [
     .withComponent(WikiLinkElement)
     .overrideEditor(({ editor, tf: { insertText } }) => ({
       transforms: {
-        // The `]]` completion rule (required by the Phase E spec).
+        // The `]]` completion rule.
         insertText(text, options) {
           if (text === "]" && completeWikiChip(editor)) return;
           insertText(text, options);

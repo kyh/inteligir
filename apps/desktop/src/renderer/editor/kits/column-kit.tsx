@@ -1,4 +1,4 @@
-// Column kit. Node shapes (WP1 serialization contract):
+// Column kit. Node shapes (serialization contract):
 //   { type: "column_group", children: column[] }
 //   { type: "column", width?: string, children: Block[] }
 // Canonical insert form is BARE `<column>` (no width until the first resize
@@ -110,7 +110,7 @@ export const ColumnBaseKit = [ColumnGroupBasePlugin, ColumnItemBasePlugin];
 /**
  * Insert a column group with `count` BARE columns (no `width` — equal widths
  * come from flex; the width attr appears only after the first resize commit).
- * Slash-menu-ready; the menu entry itself lands in WP3.
+ * Inserted from the slash menu's 2/3-column entries.
  */
 export function insertColumnGroup(editor: PlateEditor, count: 2 | 3): void {
   const emptyBlock = () => ({ children: [{ text: "" }], type: editor.getType(KEYS.p) });

@@ -2,7 +2,7 @@
 // feature (same kit files export both halves, so the serialization brain and
 // node metadata stay shared by construction — the kit-parity test converts
 // that premise into CI) and adds the live-only surfaces: slash menu, emoji,
-// drag handle, the AI surface (menu / suggestions / ghost text), and WP3's
+// drag handle, the AI surface (menu / suggestions / ghost text), and the
 // chrome kits.
 
 import { AiKit } from "@renderer/editor/ai/ai-kit";

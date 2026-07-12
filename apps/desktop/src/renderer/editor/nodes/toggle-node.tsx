@@ -1,7 +1,7 @@
 /* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
  * held Plate Plus license. */
 // Toggle block for the NESTED document model (`<toggle>` MDX with block
-// children — WP1's serialization contract), which differs from Plate's flat
+// children — the serialization contract), which differs from Plate's flat
 // indent-sibling model: the first child block is the always-visible summary
 // row; children 2..n are the collapsible body. Open state lives in the toggle
 // plugin's store (openIds) keyed by node id — never on the node — so

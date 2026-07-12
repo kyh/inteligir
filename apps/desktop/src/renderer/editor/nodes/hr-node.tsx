@@ -1,6 +1,6 @@
 // Horizontal rule is a void node, so the visual <hr> lives in a non-editable
 // sibling and Plate's children (the void's empty text) still render for Slate.
-// Relocated verbatim from markdown-editor.tsx in WP2.
+// Relocated verbatim from markdown-editor.tsx.
 
 import { PlateElement, type PlateElementProps } from "platejs/react";
 

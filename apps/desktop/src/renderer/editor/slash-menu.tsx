@@ -1,11 +1,11 @@
-// Slash command menu covering the full locked vocabulary (Phase E): basic
+// Slash command menu covering the full locked vocabulary: basic
 // blocks, toggle, columns, date, equations, mermaid, embeds — every insert
 // routes through the shared kit transforms so the bytes each item produces
 // are the canonical fixture forms. Grouping + keywords follow potion's
 // slash-node (reference-only). Block conversions route through
 // block-transforms.ts (one turn-into source for slash, menus, and toolbar).
 //
-// Phase F slot: the `[[` wiki-link picker will be a second inline-combobox
+// The `[[` wiki-link picker (wiki-autocomplete.tsx) is another inline-combobox
 // consumer following the emoji-input pattern.
 
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";

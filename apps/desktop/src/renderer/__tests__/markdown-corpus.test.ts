@@ -33,8 +33,8 @@ const REPO_DOCS: Record<string, string> = {
 // The expected-set. A change here must be a conscious decision, not a driveby.
 const EXPECTED: Record<string, Classification> = {
   // repo docs (real-world hand-written markdown)
-  "README.md": "formattable", // wrapped paragraphs → soft-break churn (pre-WP1 behavior too)
-  // dev fixture vault — pre-canonicalized (WP4): a first edit must produce a
+  "README.md": "formattable", // wrapped paragraphs → soft-break churn (predecessor behavior too)
+  // dev fixture vault — pre-canonicalized: a first edit must produce a
   // minimal diff, not a wholesale reflow. legacy-web-clip.md stays the Raw
   // exemplar; README.md above keeps the formattable path covered.
   "empty.md": "canonical",
@@ -48,13 +48,13 @@ const EXPECTED: Record<string, Classification> = {
   "legacy-web-clip.md": "raw:parse-error",
   "frontmatter-note.md": "canonical",
   "tagged.md": "canonical",
-  // WP2 vocabulary notes — canonical by construction (drafted, then pinned to
+  // Vocabulary notes — canonical by construction (drafted, then pinned to
   // the pipeline's own round-trip output).
   "components-playground.md": "canonical",
   "math-and-diagrams.md": "canonical",
   "wiki/hub.md": "canonical",
   "wiki/target note.md": "canonical",
-  // Phase F knowledge notes — the interlinked wiki cluster + transclusion
+  // Knowledge notes — the interlinked wiki cluster + transclusion
   // sampler; canonical so knowledge surfaces demo on Rich-mode files.
   "wiki/ideas.md": "canonical",
   "wiki/projects.md": "canonical",

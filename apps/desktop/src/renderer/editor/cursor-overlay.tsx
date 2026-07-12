@@ -3,7 +3,7 @@
 // Selection ghost: while a menu or popover holds DOM focus, the editor's
 // selection collapses visually — this overlay re-paints the model selection
 // rects so the user still sees what a Turn-into / link / AI action targets.
-// Ported with block-menu-kit so Phase F's AI menu doesn't re-plumb it.
+// Ported with block-menu-kit; the AI menu reuses this plumbing.
 // Positioning is relative to the editor's `relative` wrapper
 // (markdown-editor.tsx).
 

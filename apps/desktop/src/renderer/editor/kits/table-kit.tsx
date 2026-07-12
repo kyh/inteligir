@@ -1,6 +1,6 @@
 // Table kit. Base half feeds the headless serialization mirror; the React
 // half renders TableElement (with its per-table Base UI menu — independent of
-// WP3's block menu) from src/editor/nodes/table-node.tsx.
+// the block menu) from src/editor/nodes/table-node.tsx.
 
 import {
   BaseTableCellHeaderPlugin,

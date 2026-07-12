@@ -9,7 +9,7 @@ import {
   toCanonical,
 } from "@renderer/editor/markdown/markdown-doc";
 
-// The WP1 fixture matrix — the serialization pipeline's contract, one file per
+// The fixture matrix — the serialization pipeline's contract, one file per
 // behavior class:
 //
 //   canonical/*.md          roundTrip(src) === src (modulo trailing newline),
@@ -94,7 +94,7 @@ describe("churn fixtures (idempotent normalization)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Gate API behaviors carried over from the pre-WP1 suite (markdown-doc.ts's
+// Gate API behaviors carried over from the predecessor suite (markdown-doc.ts's
 // isCanonical/isRichSafe/toCanonical) — same assertions, new API.
 // ---------------------------------------------------------------------------
 

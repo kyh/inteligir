@@ -1,7 +1,7 @@
-// WP2 kit behaviors, exercised on a headless editor built from the LIVE
+// Kit behaviors, exercised on a headless editor built from the LIVE
 // EDITOR_KIT (the React halves' overrides — column normalizer, wiki `]]`
 // rule, toggle child normalizer — are editor behavior, not render behavior).
-// Serialization itself is pinned by the WP1 fixture matrix; these tests pin
+// Serialization itself is pinned by the fixture matrix; these tests pin
 // the editing transforms that feed it.
 
 import { describe, expect, it } from "vitest";
@@ -122,7 +122,7 @@ function type(editor: ReturnType<typeof makeEditor>, text: string) {
   for (const char of text) editor.tf.insertText(char);
 }
 
-// Since Phase F, char-by-char typing of `[[` opens the autocomplete picker
+// Char-by-char typing of `[[` opens the autocomplete picker
 // (wiki-autocomplete.test.ts pins that flow). The `]]` rule remains the
 // completion path for bodies already present as TEXT — a paste, or the
 // picker's cancel-restore — so these drive it with a bulk insert (the trigger

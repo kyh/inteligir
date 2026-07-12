@@ -1,5 +1,5 @@
 // BASE_KIT — the headless mirror composition. markdown-doc's gate editor is
-// built from exactly this list; the live editor's kit (WP2's EDITOR_KIT)
+// built from exactly this list; the live editor's kit (EDITOR_KIT)
 // composes the React halves of the SAME kit files, so the two stay in sync by
 // construction (kit-parity test enforces it: identical MarkdownPlugin options,
 // identical serialization of the fixture corpus).

@@ -1,5 +1,5 @@
-// Inline combobox for editor triggers (`/` slash menu, `:` emoji, and Phase
-// F's `[[` wiki autocomplete), built on Base UI Combobox. The popup anchors to
+// Inline combobox for editor triggers (`/` slash menu, `:` emoji, and the
+// `[[` wiki autocomplete), built on Base UI Combobox. The popup anchors to
 // the in-line input; Base UI's virtual focus keeps DOM focus ON the input
 // (aria-activedescendant roving), so keyboard navigation never fights the
 // editor for focus.

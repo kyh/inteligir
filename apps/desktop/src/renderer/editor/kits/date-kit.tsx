@@ -16,8 +16,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
  * Insert an inline date chip holding today's LOCAL date as ISO bytes, plus a
- * trailing space so the caret escapes the inline void. Slash-menu-ready; the
- * menu entry itself lands in WP3.
+ * trailing space so the caret escapes the inline void. Inserted from the
+ * slash menu's Date entry.
  */
 export function insertDate(editor: PlateEditor): void {
   const now = new Date();

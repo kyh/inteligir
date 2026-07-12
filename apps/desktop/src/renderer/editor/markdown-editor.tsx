@@ -3,7 +3,7 @@
 // text to Plate's value on mount, serialize back to markdown on every change
 // so the editor's autosave persists it.
 //
-// Thin by design (WP2): the plugin/component composition lives in
+// Thin by design: the plugin/component composition lives in
 // kits/editor-kit.ts (per-feature kit files whose Base halves compose the
 // headless serialization mirror — see kits/base-kit.ts); this file owns only
 // the seed/echo-dedupe lifecycle, the transient-AI settle seam, and the Plate

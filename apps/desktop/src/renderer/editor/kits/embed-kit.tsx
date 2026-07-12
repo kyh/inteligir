@@ -28,7 +28,8 @@ const PDF_RE = /\.pdf(?:[?#]|$)/i;
  * Insert an embed for `url`, routed by shape: video-provider URLs (youtube/
  * vimeo/…) → `video`; tweet status URLs → `media_embed` (tweet card); `.pdf`
  * → `file` (viewer); anything else → `media_embed` (generic iframe). The node
- * carries ONLY `{ type, url }`. Slash-menu URL prompt lands in WP3.
+ * carries ONLY `{ type, url }`. The slash menu's Embed item collects the URL
+ * via embed-url-dialog.tsx and routes here.
  */
 export function insertEmbedFromUrl(editor: PlateEditor, url: string): void {
   const trimmed = url.trim();

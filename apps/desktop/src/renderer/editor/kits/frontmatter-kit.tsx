@@ -1,6 +1,6 @@
 // Frontmatter kit. A void element holding the raw yaml source (`value`),
 // read-only in Rich for v1 (edit via Raw — locked decision); the React half
-// renders the yaml dimmed behind a `---` frame. WP3's block selection and the
+// renders the yaml dimmed behind a `---` frame. Block selection and the
 // block draggable must exclude it (position pin below).
 //
 // The normalizer pins the node to path [0]: mdast-util-frontmatter emits the

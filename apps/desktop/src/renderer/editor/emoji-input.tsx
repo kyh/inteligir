@@ -1,6 +1,6 @@
-// Emoji `:shortcode:` autocomplete riding the existing inline-combobox (the
-// same surface the slash menu uses — WP3's Base UI rebuild swaps underneath
-// without edits here). Selecting inserts plain unicode text — zero
+// Emoji `:shortcode:` autocomplete riding the shared inline-combobox (the
+// same Base UI surface the slash menu uses).
+// Selecting inserts plain unicode text — zero
 // serialization surface. @emoji-mart/data (~430KB json) loads via dynamic
 // import on first trigger, never in the initial chunk.
 

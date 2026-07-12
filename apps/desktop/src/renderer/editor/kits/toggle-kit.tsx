@@ -1,4 +1,4 @@
-// Toggle kit. Node shape (WP1 serialization contract): `<toggle>` MDX flow
+// Toggle kit. Node shape (serialization contract): `<toggle>` MDX flow
 // element with NESTED block children — the first child is the summary row,
 // the rest the collapsible body. This deliberately differs from Plate's flat
 // indent-sibling toggle model: TogglePlugin is kept for its openIds store +
