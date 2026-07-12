@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree, extend } from "@react-three/fiber";
 
 import * as THREE from "three";
@@ -215,7 +215,7 @@ function LatitudeLines({
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
   const parentGroupRef = useRef<THREE.Group>(null);
   const spinGroupRef = useRef<THREE.Group>(null);
-  const camDirRef = useRef(new THREE.Vector3());
+  const [cameraDirection] = useState(() => new THREE.Vector3());
   const helixRotationRef = useRef(0);
   // Theme-reactive moods. useFrame lerps the live mood toward `moods[status]`,
   // so a theme change smoothly recolors the orb without remounting. The refs
@@ -232,13 +232,15 @@ function LatitudeLines({
     target: DisplayStatus;
   } | null>(null);
 
-  if (status !== prevStatusRef.current) {
-    if (prevStatusRef.current === "starting" && status !== "starting") {
-      spinUpRef.current = { elapsed: 0, target: status };
+  useLayoutEffect(() => {
+    if (status !== prevStatusRef.current) {
+      if (prevStatusRef.current === "starting" && status !== "starting") {
+        spinUpRef.current = { elapsed: 0, target: status };
+      }
+      prevStatusRef.current = status;
     }
-    prevStatusRef.current = status;
-  }
-  targetRef.current = status;
+    targetRef.current = status;
+  }, [status]);
 
   // --- Tube mesh ---
   const helixMeshRef = useRef<THREE.Mesh>(null);
@@ -441,7 +443,7 @@ function LatitudeLines({
     // with the mood color so baseColor / theme changes are actually reflected.
     helixMaterial.color.setRGB(mood.r, mood.g, mood.b);
 
-    const camDir = camDirRef.current.copy(state.camera.position).normalize();
+    const camDir = cameraDirection.copy(state.camera.position).normalize();
 
     // During spin-up: kill spin quickly before group unwind (at morph≈0.2)
     // During normal transitions: spin fades linearly with morph
