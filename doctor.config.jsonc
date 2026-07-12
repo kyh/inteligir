@@ -16,10 +16,7 @@
         // Generated dependency bundles, not owned source. Keep other artifact
         // security checks enabled.
         "files": ["**/.output/**"],
-        "rules": [
-          "react-doctor/path-traversal-risk",
-          "react-doctor/insecure-crypto-risk",
-        ],
+        "rules": ["react-doctor/path-traversal-risk", "react-doctor/insecure-crypto-risk"],
       },
     ],
   },
