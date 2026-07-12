@@ -1,7 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
-import { motion } from "framer-motion";
+import { memo } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -13,31 +12,29 @@ export interface TextShimmerProps {
   duration?: number | undefined;
 }
 
+// A moving highlight window swept across text via a CSS keyframe animation
+// (`animate-shimmer-sweep` in globals.css) — background-position paints, but
+// no JS runs per frame, which matters because this ticks for the whole busy
+// window. Under prefers-reduced-motion the sweep stops and the text renders
+// as plain muted foreground.
 const ShimmerComponent = ({ children, className, duration = 2 }: TextShimmerProps) => {
-  const dynamicSpread = useMemo(() => (children?.length ?? 0) * SPREAD_PER_CHAR, [children]);
+  const spread = (children?.length ?? 0) * SPREAD_PER_CHAR;
 
   return (
-    <motion.p
-      animate={{ backgroundPosition: "0% center" }}
+    <p
       className={cn(
-        "relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
+        "animate-shimmer-sweep relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
         "[background-repeat:no-repeat,padding-box]",
+        "motion-reduce:bg-none motion-reduce:text-muted-foreground",
         className,
       )}
-      initial={{ backgroundPosition: "100% center" }}
       style={{
-        // Spread baked into the gradient (was a --spread CSS var; motion's
-        // style prop doesn't type custom properties).
-        backgroundImage: `linear-gradient(90deg,#0000 calc(50% - ${dynamicSpread}px),var(--color-background),#0000 calc(50% + ${dynamicSpread}px)), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))`,
-      }}
-      transition={{
-        duration,
-        ease: "linear",
-        repeat: Number.POSITIVE_INFINITY,
+        backgroundImage: `linear-gradient(90deg,#0000 calc(50% - ${spread}px),var(--color-background),#0000 calc(50% + ${spread}px)), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))`,
+        animationDuration: `${duration}s`,
       }}
     >
       {children}
-    </motion.p>
+    </p>
   );
 };
 

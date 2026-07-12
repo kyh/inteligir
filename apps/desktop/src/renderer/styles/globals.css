@@ -29,6 +29,25 @@ textarea,
   -webkit-app-region: drag;
 }
 
+/* The activity-row text shimmer (ai-elements/shimmer.tsx): sweep the highlight
+ * window across the text with zero per-frame JS. Duration comes from the
+ * component's inline animation-duration. Stops entirely under reduced motion
+ * (the component also swaps to a plain text color there). */
+@utility animate-shimmer-sweep {
+  animation: shimmer-sweep 2s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+@keyframes shimmer-sweep {
+  from {
+    background-position: 100% center;
+  }
+  to {
+    background-position: 0% center;
+  }
+}
+
 .app-no-drag {
   -webkit-app-region: no-drag;
 }
