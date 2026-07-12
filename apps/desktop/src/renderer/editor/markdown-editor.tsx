@@ -9,7 +9,7 @@
 // the seed/echo-dedupe lifecycle, the transient-AI settle seam, and the Plate
 // surface.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
@@ -84,9 +84,10 @@ export function MarkdownEditor({
   // drop that echo instead of treating it as a user edit (which would autosave
   // a normalized rewrite over the agent's/file's content). Initialized to the
   // mount value's normalized form so the first-render onChange is dropped too.
-  const seeded = useRef<string | null>(null);
-  if (seeded.current === null)
-    seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+  const [initialSeed] = useState(() =>
+    serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY }),
+  );
+  const seeded = useRef<string | null>(initialSeed);
 
   // ---- Deferred whole-document serialize -----------------------------------
   // The actual serialize → echo-dedupe → emit, run behind the scheduler rather
@@ -94,7 +95,6 @@ export function MarkdownEditor({
   // live refs (editor is stable; onChange is reffed) so the scheduler holds one
   // stable closure for the editor's lifetime.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
   const doSerialize = useCallback(() => {
     // The transient-AI gate re-checked at FIRE time: the synchronous onChange
     // gate ran at schedule time, but an AI stream/suggestion session can start
@@ -112,7 +112,10 @@ export function MarkdownEditor({
     onChangeRef.current(md);
   }, [editor]);
   const doSerializeRef = useRef(doSerialize);
-  doSerializeRef.current = doSerialize;
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange;
+    doSerializeRef.current = doSerialize;
+  }, [onChange, doSerialize]);
   // One scheduler for the editor's lifetime; the closure re-reads the ref so it
   // never goes stale even though doSerialize's identity is already stable.
   const [scheduler] = useState(() =>
@@ -137,10 +140,11 @@ export function MarkdownEditor({
   // Register the synchronous flush with the owner (via the note runtime's
   // pre-flush hook) once — save/rename/close run it before flushing so a
   // keystroke still in the serialize debounce lands first.
-  const onRegisterRef = useRef(onRegisterSerializeFlush);
-  onRegisterRef.current = onRegisterSerializeFlush;
+  const registerSerializeFlush = useEffectEvent((flush: () => void) => {
+    onRegisterSerializeFlush?.(flush);
+  });
   useEffect(() => {
-    onRegisterRef.current?.(() => scheduler.flush());
+    registerSerializeFlush(() => scheduler.flush());
   }, [scheduler]);
 
   // Unmount (note switch without a flush, raw-mode flip, surface change): flush
@@ -184,12 +188,11 @@ export function MarkdownEditor({
   // change): settle and hand the bytes to the owner for path-routed
   // persistence, and release the AI session — with one mounted editor this
   // teardown is the only thing that cancels an in-flight generation.
-  const onSettledRef = useRef(onSettled);
-  onSettledRef.current = onSettled;
+  const notifySettled = useEffectEvent(onSettled);
   useEffect(
     () => () => {
       const md = settleSuggestions();
-      if (md !== null) onSettledRef.current(md);
+      if (md !== null) notifySettled(md);
       releaseAiSession();
       useAiReviewStore.getState().setReviewing(path, false);
     },
