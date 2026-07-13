@@ -340,10 +340,12 @@ function InlineComboboxContent({
     <Combobox.Portal keepMounted>
       <Combobox.Positioner align="start" className="z-50" side="bottom" sideOffset={4}>
         <Combobox.Popup
-          // Menu-tier elevation (surface-4) + the same starting-style fade the
-          // @repo/ui menu popup uses, so every editor popup enters alike.
+          // Menu-tier elevation (surface-4) + the shared bloom popup motion, so
+          // every editor popup enters alike. Shell motion only, no item beat:
+          // the list remounts its children on every keystroke, which would
+          // replay the blur on each one.
           className={cn(
-            "max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-surface-4 transition-[transform,opacity] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
+            "bloom-popup max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-surface-4",
             variant === "slash" && "w-[320px]",
             className,
           )}

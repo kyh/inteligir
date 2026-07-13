@@ -336,3 +336,162 @@
   transform-origin: left center;
   animation: progress-fill 14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ── Bloom popup motion ──────────────────────────────────────────────────────
+   Open/close choreography for every popup surface, ported from
+   joshpuckett/bloom (MIT): the shell springs out from its anchor while the
+   items blur in a beat behind it. Base UI drives it — it holds the popup
+   mounted through `data-closed` until these animations end.
+
+   Three constraints are load-bearing; none of them are style preferences:
+
+   1. Shell and fade are SEPARATE animations because they need different
+      easings. The spring is a linear() whose values overshoot past 1 (that
+      overshoot IS the bounce). Run `filter: blur()` on it and the overshoot
+      interpolates past the target into a NEGATIVE radius, which is invalid —
+      the browser drops the filter and the blur pops off. So: spring on the
+      transform, plain ease on opacity and blur.
+
+   2. The blur is on the popup's CHILDREN, never the popup. `filter` on the
+      popup would make it a backdrop root, and the `before:backdrop-blur-2xl`
+      glass would have nothing left to sample. Bloom blurs its Content and not
+      its Container for exactly this reason.
+
+   3. Enter fills `backwards`, not `both`. A `forwards` fill would leave
+      `filter: blur(0)` on the element at rest — still a filter, still a
+      backdrop root, glass still dead. `backwards` applies the from-state
+      during the delay and then gets out of the way. */
+@keyframes bloom-shell-in {
+  from {
+    transform: translate3d(var(--bloom-in-x, 0), var(--bloom-in-y, 0), 0) scale(0.95);
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes bloom-shell-out {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(var(--bloom-out-x, 0), var(--bloom-out-y, 0), 0) scale(0.9);
+  }
+}
+
+@keyframes bloom-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bloom-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes bloom-items-in {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes bloom-items-out {
+  from {
+    opacity: 1;
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    filter: blur(10px);
+  }
+}
+
+.bloom-popup {
+  /* Bloom's spring: 0.2125s perceptual duration, 0.2 bounce. */
+  --bloom-spring: linear(
+    0,
+    0.2388,
+    0.5954,
+    0.843,
+    0.9667,
+    1.011,
+    1.0179,
+    1.0127,
+    1.0064,
+    1.0023,
+    1.0004,
+    1,
+    1
+  );
+  --bloom-in-dist: 8px;
+  --bloom-out-dist: 30px;
+}
+
+/* The popup enters FROM its anchor and exits back TOWARD it, so the offset
+   sign is the inverse of the side it sits on. */
+.bloom-popup[data-side="bottom"] {
+  --bloom-in-y: calc(var(--bloom-in-dist) * -1);
+  --bloom-out-y: calc(var(--bloom-out-dist) * -1);
+}
+
+.bloom-popup[data-side="top"] {
+  --bloom-in-y: var(--bloom-in-dist);
+  --bloom-out-y: var(--bloom-out-dist);
+}
+
+.bloom-popup:is([data-side="right"], [data-side="inline-end"]) {
+  --bloom-in-x: calc(var(--bloom-in-dist) * -1);
+  --bloom-out-x: calc(var(--bloom-out-dist) * -1);
+}
+
+.bloom-popup:is([data-side="left"], [data-side="inline-start"]) {
+  --bloom-in-x: var(--bloom-in-dist);
+  --bloom-out-x: var(--bloom-out-dist);
+}
+
+.bloom-popup[data-open] {
+  animation:
+    bloom-shell-in 400ms var(--bloom-spring) backwards,
+    bloom-fade-in 160ms ease-out backwards;
+}
+
+.bloom-popup[data-closed] {
+  animation:
+    bloom-shell-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards,
+    bloom-fade-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* The item beat, 30ms behind the shell (bloom's contentDelay). Only for popups
+   whose children are a STATIC list — a filtering surface (combobox, slash menu)
+   remounts its children on every keystroke, which would replay the blur on each
+   one. Those get the shell motion alone. */
+.bloom-popup-items[data-open] > * {
+  animation: bloom-items-in 200ms ease-out 30ms backwards;
+}
+
+.bloom-popup-items[data-closed] > * {
+  animation: bloom-items-out 150ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bloom-popup[data-open],
+  .bloom-popup[data-closed],
+  .bloom-popup-items[data-open] > *,
+  .bloom-popup-items[data-closed] > * {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+}

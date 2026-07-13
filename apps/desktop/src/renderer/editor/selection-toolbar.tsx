@@ -38,6 +38,7 @@ import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -316,18 +317,22 @@ export function SelectionToolbar() {
                 align="start"
                 className="ignore-click-outside/toolbar"
               >
-                <DropdownMenuLabel>Turn into</DropdownMenuLabel>
-                {TURN_INTO.map((opt) => (
-                  <DropdownMenuItem
-                    key={opt.label}
-                    onClick={() => {
-                      turnIntoSelection(editor, opt, savedSel.current ?? undefined);
-                      editor.tf.focus();
-                    }}
-                  >
-                    {opt.label}
-                  </DropdownMenuItem>
-                ))}
+                {/* The Group is required, not cosmetic: Base UI's GroupLabel
+                    reads MenuGroupContext and throws without a Group ancestor. */}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Turn into</DropdownMenuLabel>
+                  {TURN_INTO.map((opt) => (
+                    <DropdownMenuItem
+                      key={opt.label}
+                      onClick={() => {
+                        turnIntoSelection(editor, opt, savedSel.current ?? undefined);
+                        editor.tf.focus();
+                      }}
+                    >
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
 

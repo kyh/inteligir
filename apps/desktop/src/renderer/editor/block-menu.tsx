@@ -19,6 +19,7 @@ import { useEditorPlugin, usePluginOption } from "platejs/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -106,15 +107,20 @@ export function BlockMenu() {
           Delete
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Turn into</DropdownMenuLabel>
-        {TURN_INTO.map((opt) => (
-          <DropdownMenuItem
-            key={opt.label}
-            onClick={() => turnIntoBlocks(editor, selectedPaths(), opt)}
-          >
-            {opt.label}
-          </DropdownMenuItem>
-        ))}
+        {/* The Group is required, not cosmetic: Base UI's GroupLabel reads
+            MenuGroupContext and throws without a Group ancestor, which took the
+            whole renderer down on right-click. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Turn into</DropdownMenuLabel>
+          {TURN_INTO.map((opt) => (
+            <DropdownMenuItem
+              key={opt.label}
+              onClick={() => turnIntoBlocks(editor, selectedPaths(), opt)}
+            >
+              {opt.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
