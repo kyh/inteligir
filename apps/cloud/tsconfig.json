@@ -2,9 +2,6 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023"],
-    // Worker runtime globals + the generated `Env` (from wrangler.jsonc bindings)
-    // come from ./worker-configuration.d.ts; `cloudflare:test` types come from
-    // the vitest pool. No "dom" lib — this is the Workers runtime, not a browser.
     "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"]
   },
   "include": ["src", "test", "vitest.config.ts", "worker-configuration.d.ts"],

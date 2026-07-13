@@ -27,34 +27,21 @@
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
-    // No `as` casts (`as const` stays allowed). The few legitimate
-    // third-party/type-system bridges carry a one-line justification plus an
-    // inline disable; everything else gets a real type, guard, or generic.
     "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
     "react/react-in-jsx-scope": "off",
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off",
-    // Component-as-prop render slots (e.g. react-day-picker's `components`) are legit.
     "react/no-unstable-nested-components": ["error", { "allowAsProps": true }],
-    // Force the `node:` protocol on all builtins. This keeps the isomorphic /
-    // renderer boundary rules below sufficient: they block `node:*`, and a bare
-    // `import fs from "fs"` can no longer slip past that.
     "unicorn/prefer-node-protocol": "error"
   },
   "overrides": [
     {
-      // Tests may cast at mock seams (partial doubles of wide interfaces).
       "files": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
         "typescript/consistent-type-assertions": "off"
       }
     },
     {
-      // Dependency boundary: @repo/core is PURE and platform-neutral — it runs
-      // unchanged in a Cloudflare Worker, React Native, and the desktop
-      // renderer. No node, no electron, no react, no other workspace package.
-      // (tsconfig `lib: WebWorker, types: []` enforces the same at the type
-      // level; this states the invariant in lint like every other boundary.)
       "files": ["packages/core/src/**"],
       "rules": {
         "no-restricted-imports": [
@@ -84,10 +71,6 @@
       }
     },
     {
-      // Dependency boundary: `packages/features/src/**` is isomorphic — the
-      // same modules load in the Electron renderer (browser) and node. No node
-      // built-ins, no electron. The `src/server/**` override below re-permits
-      // node for the backend half (it must come AFTER this rule to win).
       "files": ["packages/features/src/**"],
       "rules": {
         "no-restricted-imports": [
@@ -104,9 +87,6 @@
       }
     },
     {
-      // The node backend half of features: node built-ins are fine here, but it
-      // stays platform-agnostic — electron and the desktop shell reach it only
-      // through the injected HostPlatform (src/server/platform.ts).
       "files": ["packages/features/src/server/**"],
       "rules": {
         "no-restricted-imports": [
@@ -130,13 +110,6 @@
       }
     },
     {
-      // Dependency boundary: agent/ must stay backbone-free. Any relative
-      // import that climbs out of server/agent/ reaches the backend internals;
-      // capabilities are injected as AgentPorts from lib/agent-lifecycle.ts.
-      // Two blocks because the rule is per-specifier text: one "../" escapes
-      // from agent/*.ts, two from agent/<bundle>/*.ts. The pi wrapper and
-      // agent-runtime helpers are the only server modules agent/ may import
-      // directly (via @repo/features/server/…, exempted below).
       "files": ["packages/features/src/server/agent/*.ts"],
       "rules": {
         "no-restricted-imports": [
@@ -183,9 +156,6 @@
       }
     },
     {
-      // Dependency boundary: the renderer UI is host-agnostic. It reaches the
-      // backend only through the injected Bridge (renderer/lib/bridge.ts) —
-      // never electron, node built-ins, the node backend, or the main process.
       "files": ["apps/desktop/src/renderer/**", "apps/desktop/dev/**"],
       "rules": {
         "no-restricted-imports": [
@@ -213,9 +183,6 @@
       }
     },
     {
-      // Tests run under vitest on node and read fixture files from disk. The
-      // portability boundary above applies to shipped renderer code, not the
-      // test harness.
       "files": ["apps/desktop/src/renderer/__tests__/**"],
       "rules": {
         "no-restricted-imports": "off"

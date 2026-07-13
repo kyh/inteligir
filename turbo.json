@@ -14,9 +14,6 @@
       "outputs": [".cache/tsbuildinfo.json", ".output/**"],
       "env": ["INTELIGIR_GOOGLE_OAUTH_CLIENT_ID", "INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET"]
     },
-    // No ^dev edge: every dev script is a long-running server (electron-vite,
-    // web's vite dev, the desktop dev harness), so a dependency edge would
-    // block a dependent's dev behind a server that never exits.
     "dev": {
       "cache": false,
       "persistent": false
@@ -25,9 +22,6 @@
       "dependsOn": ["^topo"],
       "outputs": []
     },
-    // The five suites run in parallel; each vitest config caps maxWorkers
-    // (desktop 4, features 3, rest 2) so the combined pool fits the machine —
-    // uncapped pools kill workers mid-run ("Worker exited unexpectedly").
     "test": {
       "dependsOn": ["^topo"],
       "cache": false

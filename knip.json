@@ -1,7 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreBinaries": ["gh", "ps", "tasklist", "xcrun", "spctl"],
-  // Local design-sync tooling state — not part of the app.
   "ignore": [".design-sync/**"],
   "workspaces": {
     ".": {},
@@ -18,67 +17,33 @@
         "scripts/**/*.mjs"
       ],
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
-      // TanStack Router's generated route tree — don't analyze its exports.
       "ignore": ["src/renderer/routeTree.gen.ts"],
-      // sherpa-onnx-node: not imported by desktop source (host imports it),
-      // but it must stay a desktop dependency so electron-builder packs the
-      // externalized native module (+ its sherpa-onnx-* platform binaries)
-      // into the app bundle.
       "ignoreDependencies": ["electron-builder", "sherpa-onnx-node"]
     },
     "apps/web": {
       "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
-      // tailwindcss is referenced only from globals.css (@import), which knip
-      // doesn't parse.
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/mobile": {
-      // An Expo app. knip's Expo plugin auto-detects the config entries
-      // (index.ts / app.config.ts / metro.config.js / postcss.config.js) and the
-      // deps they reference; these entries are the Expo Router route files + the
-      // vitest specs, which it doesn't infer.
       "entry": ["src/app/**/*.tsx", "src/lib/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
-      // metro-cache is required by metro.config.js but provided transitively by
-      // metro (not a direct dependency), so knip can't see it as listed.
-      // expo-updates is implied by knip's Expo plugin, but this companion does
-      // no OTA updates, so it isn't a real dependency.
       "ignoreDependencies": ["metro-cache", "expo-updates"]
     },
     "apps/cloud": {
-      // A Cloudflare Worker. `src/index.ts` is the Worker entry (exports the
-      // VaultCoordinator DO + the default fetch handler, auto-detected from
-      // wrangler.jsonc `main`); tests run under the Workers vitest pool.
       "entry": ["test/**/*.test.ts"],
       "project": ["src/**/*.ts"],
-      // `cloudflare:workers` / `cloudflare:test` are Workers runtime virtual
-      // modules, not npm packages — knip reads the `cloudflare:` prefix as a
-      // `cloudflare` dependency.
       "ignoreDependencies": ["cloudflare"]
     },
     "packages/features": {
-      // The backend + isomorphic contract. `src/**` is the iso contract +
-      // pure engines; `src/server/**` is the node backend (host, pi-driver,
-      // agent-runtime folded in). Its `./*` exports are the public API
-      // (renderer imports the iso half, desktop main the server half), so
-      // don't flag them as unused.
       "entry": ["src/__tests__/**/*.test.ts", "src/server/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
     "packages/ui": {
-      // A consumed component library: its exports are the public API, and the
-      // vendored @fluid components intentionally export surface (variants,
-      // sub-components, foundations) the app may not use internally yet. Treat
-      // entry exports as the API rather than flag them as dead.
       "includeEntryExports": false
     },
     "packages/core": {
-      // Pure, platform-agnostic domain core (sync engine + protocol, knowledge
-      // engine, markdown pipeline). Its subpath exports are the public API for
-      // the CF Worker (apps/cloud), mobile (apps/mobile), features, and the
-      // desktop renderer.
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false

@@ -1,10 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // Two surfaces in one package. `src/**` (minus server) is isomorphic — it
-    // loads in the Electron renderer (browser) as well as node; `src/server/**`
-    // is the node backend. `dom` + `node` are both available at the type level;
-    // the browser/node boundary is enforced by lint (.oxlintrc), not tsc.
     "lib": ["ES2023", "dom"],
     "types": ["node"],
     "paths": {

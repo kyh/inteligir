@@ -1,10 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // React Native runs Web-standard globals (fetch/Response/ReadableStream/
-    // TextDecoder/AbortController) that @repo/core's HTTP sync client uses; the
-    // DOM lib supplies their types (+ the DOM types React references). RN code
-    // type-checks fine alongside it, as in Expo's own tsconfig base.
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-native",
     "moduleSuffixes": [".ios", ".android", ".native", ""],
@@ -12,10 +8,6 @@
       "@/*": ["./src/*"]
     }
   },
-  // `*.js` (metro.config.js / postcss.config.js) is intentionally NOT type-
-  // checked: they run in node, and under this repo's strict base
-  // (exactOptionalPropertyTypes) the Metro/NativeWind config types don't line
-  // up — Expo's own tsconfig base excludes metro.config.js for the same reason.
   "include": ["src", "*.ts", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"],
   "exclude": ["node_modules"]
 }
