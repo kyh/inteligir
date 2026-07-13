@@ -52,6 +52,13 @@ const REBIND_RETRY_CAP_MS = 30_000;
 // answering the very config change that triggered it) flush; stragglers that
 // never finish the close handshake are terminated after this grace window.
 const REBIND_CLOSE_GRACE_MS = 2_000;
+// A peer that vanishes without a close handshake — slept laptop, yanked cable,
+// killed app — leaves a half-open socket that TCP alone may not notice for the
+// better part of an hour, holding an authed session open and making us write
+// frames into the void. Ping on an interval; a socket that misses a whole
+// interval without answering is unreachable and gets terminated (which fires
+// `close`, releasing its authed session like any other disconnect).
+const PING_INTERVAL_MS = 30_000;
 
 // Standard WebSocket close codes (RFC 6455) used by the pre-auth bounds and
 // the rebind path; the 44xx app codes live in ws-protocol.
@@ -75,6 +82,9 @@ export type WsHostOptions = {
   /** Shell-owned methods (updater trio + html-app tokens) the platform-
    * agnostic host has no handler for; host handlers win on overlap. */
   shellHandlers?: Partial<Record<UpdateMethod | DesktopShellMethod, (raw: unknown) => unknown>>;
+  /** Liveness ping cadence. Exists so tests can drive the sweep without waiting
+   * out the real interval; production has no reason to set it. */
+  pingIntervalMs?: number;
 };
 
 export type WsHost = {
@@ -152,6 +162,9 @@ export function startWsHost(options: WsHostOptions): WsHost {
   // Serializes rebinds so overlapping config changes can't race two servers.
   let rebindChain: Promise<void> = Promise.resolve();
   const authedSockets = new Map<WebSocket, DeviceSession>();
+  /** Sockets that have answered (or not yet been asked) since the last sweep.
+   *  Weak so a terminated socket needs no explicit cleanup here. */
+  const responsive = new WeakSet<WebSocket>();
   let preAuthCount = 0;
 
   function desiredBind(): { host: string; port: number } {
@@ -206,6 +219,23 @@ export function startWsHost(options: WsHostOptions): WsHost {
       options.manager.setListening(false, null, toErrorMessage(err));
       if (everListened) scheduleRetry();
     });
+    // Liveness sweep. `responsive` is refreshed by every pong (ws answers our
+    // protocol ping automatically on the peer side, so this needs no cooperation
+    // from the client protocol). A socket still unmarked one full interval after
+    // we pinged it never answered, so it is gone.
+    const pingTimer = setInterval(() => {
+      for (const sock of wss.clients) {
+        if (!responsive.delete(sock)) {
+          sock.terminate();
+          continue;
+        }
+        sock.ping();
+      }
+    }, options.pingIntervalMs ?? PING_INTERVAL_MS);
+    // Fires for both teardown paths (stopServer and the error handler both call
+    // wss.close()), so the timer can never outlive its server.
+    wss.on("close", () => clearInterval(pingTimer));
+
     wss.on("connection", handleConnection);
   }
 
@@ -311,6 +341,12 @@ export function startWsHost(options: WsHostOptions): WsHost {
       sock.close(WS_CLOSE_TRY_AGAIN_LATER, "too many pending connections");
       return;
     }
+    // Starts responsive so the first sweep pings rather than terminates it, and
+    // every pong re-marks it. A peer that stops answering falls out of the set
+    // and the next sweep reaps it.
+    responsive.add(sock);
+    sock.on("pong", () => responsive.add(sock));
+
     preAuthCount += 1;
     let preAuthHeld = true;
     const releasePreAuth = (): void => {

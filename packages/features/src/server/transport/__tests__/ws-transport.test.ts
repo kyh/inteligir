@@ -91,6 +91,7 @@ async function startTestHost(
   options: {
     manager?: RemoteAccessManager;
     shellHandlers?: Parameters<typeof startWsHost>[0]["shellHandlers"];
+    pingIntervalMs?: number;
   } = {},
 ): Promise<TestHost> {
   const manager = options.manager ?? makeManager(0);
@@ -100,6 +101,7 @@ async function startTestHost(
     validator: manager.validator,
     manager,
     ...(options.shellHandlers ? { shellHandlers: options.shellHandlers } : {}),
+    ...(options.pingIntervalMs === undefined ? {} : { pingIntervalMs: options.pingIntervalMs }),
   });
   cleanups.push(() => wsHost.close());
   const port = await listeningPort(wsHost);
@@ -598,6 +600,36 @@ describe("pre-auth bounds", () => {
     const raw = new RawClient(host.url);
     await raw.sendBinary(new Uint8Array([1, 2, 3]));
     expect(await raw.waitClose()).toBe(1008);
+  });
+
+  it("terminates a peer that stops answering pings, and keeps one that answers", async () => {
+    const host = await startTestHost({ getVaultRoot: () => "/v" }, { pingIntervalMs: 50 });
+
+    const responsive = new WsWebSocket(host.url);
+    // `autoPong: false` is the whole simulation: the socket stays open and the
+    // TCP connection is healthy, but the peer never answers a ping. That is a
+    // half-open connection — alive to the OS, gone to us — and is precisely what
+    // used to sit in the room forever.
+    const unreachable = new WsWebSocket(host.url, { autoPong: false });
+    await Promise.all([
+      new Promise((resolve) => responsive.on("open", resolve)),
+      new Promise((resolve) => unreachable.on("open", resolve)),
+    ]);
+
+    const closed = { responsive: false, unreachable: false };
+    responsive.on("close", () => (closed.responsive = true));
+    unreachable.on("close", () => (closed.unreachable = true));
+
+    await vi.waitFor(
+      () => {
+        expect(closed.unreachable).toBe(true);
+      },
+      { timeout: 2_000 },
+    );
+
+    // The socket that kept answering must be untouched by the sweep.
+    expect(closed.responsive).toBe(false);
+    expect(responsive.readyState).toBe(WsWebSocket.OPEN);
   });
 
   it("caps concurrent unauthenticated sockets at 8, rejecting the newest with 1013", async () => {
