@@ -36,18 +36,23 @@ type PendingConfirm = {
   resolve: (confirmed: boolean) => void;
 };
 
+type ConfirmSnapshot = {
+  pending: PendingConfirm | null;
+  options: ConfirmOptions | null;
+};
+
 type Listener = () => void;
 
 type ConfirmStore = {
-  pending: PendingConfirm | null;
+  snapshot: ConfirmSnapshot;
   listeners: Set<Listener>;
   subscribe: (listener: Listener) => () => void;
-  getSnapshot: () => PendingConfirm | null;
+  getSnapshot: () => ConfirmSnapshot;
   set: (pending: PendingConfirm | null) => void;
 };
 
 const confirmStore: ConfirmStore = {
-  pending: null,
+  snapshot: { pending: null, options: null },
   listeners: new Set<Listener>(),
   subscribe(listener: Listener): () => void {
     confirmStore.listeners.add(listener);
@@ -55,11 +60,14 @@ const confirmStore: ConfirmStore = {
       confirmStore.listeners.delete(listener);
     };
   },
-  getSnapshot(): PendingConfirm | null {
-    return confirmStore.pending;
+  getSnapshot(): ConfirmSnapshot {
+    return confirmStore.snapshot;
   },
   set(pending: PendingConfirm | null): void {
-    confirmStore.pending = pending;
+    confirmStore.snapshot = {
+      pending,
+      options: pending?.options ?? confirmStore.snapshot.options,
+    };
     for (const listener of confirmStore.listeners) listener();
   },
 };
@@ -73,23 +81,18 @@ const confirmStore: ConfirmStore = {
 export function confirm(options: ConfirmOptions): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     // One confirm at a time: a newer ask settles the older one as canceled.
-    confirmStore.pending?.resolve(false);
+    confirmStore.getSnapshot().pending?.resolve(false);
     confirmStore.set({ options, resolve });
   });
 }
 
 export function ConfirmDialogHost() {
-  const pending = React.useSyncExternalStore(
+  const { pending, options } = React.useSyncExternalStore(
     confirmStore.subscribe,
     confirmStore.getSnapshot,
     confirmStore.getSnapshot,
   );
   const confirmButtonRef = React.useRef<HTMLButtonElement>(null);
-  // Hold the last options through the close animation so the popup doesn't
-  // blank out while it fades.
-  const lastOptionsRef = React.useRef<ConfirmOptions | null>(null);
-  if (pending) lastOptionsRef.current = pending.options;
-  const options = pending?.options ?? lastOptionsRef.current;
 
   const settle = (confirmed: boolean) => {
     pending?.resolve(confirmed);

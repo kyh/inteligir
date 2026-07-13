@@ -155,7 +155,13 @@ function StatusBadge({
         <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
           <Clock3Icon className="size-3" />
           Queued
-          <button type="button" onClick={onCancel} title="Cancel" className="hover:text-foreground">
+          <button
+            type="button"
+            aria-label="Cancel delegation"
+            onClick={onCancel}
+            title="Cancel"
+            className="hover:text-foreground"
+          >
             <XIcon className="size-3" />
           </button>
         </span>
@@ -187,6 +193,7 @@ function StatusBadge({
           Failed
           <button
             type="button"
+            aria-label="Retry delegation"
             onClick={onRetry}
             title="Retry delegation"
             className="hover:text-foreground"

@@ -1,0 +1,23 @@
+{
+  "ignore": {
+    "overrides": [
+      {
+        // React Doctor cannot parse this repo's commented root knip.json and
+        // misses Electron renderer entry points. pnpm knip remains canonical.
+        "files": ["**/*"],
+        "rules": ["deslop/unused-file"],
+      },
+      {
+        // v0.7.6 mistakes any uninitialized binding for React Native Dimensions.
+        "files": ["**/src/lib/host/pairing.ts"],
+        "rules": ["react-doctor/rn-no-dimensions-get"],
+      },
+      {
+        // Generated dependency bundles, not owned source. Keep other artifact
+        // security checks enabled.
+        "files": ["**/.output/**"],
+        "rules": ["react-doctor/path-traversal-risk", "react-doctor/insecure-crypto-risk"],
+      },
+    ],
+  },
+}

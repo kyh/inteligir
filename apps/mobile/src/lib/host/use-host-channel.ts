@@ -7,7 +7,7 @@
 // to reconcile whatever happened while this device was away.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import type { Bridge } from "@repo/features/ipc-registry";
 import { getHostBridge, useHostStatus } from "./connection";
@@ -23,23 +23,25 @@ export type HostChannelOptions<E, S> = {
 
 export function useHostChannel<E, S>(options: HostChannelOptions<E, S>): void {
   const { status } = useHostStatus();
-  // Latest-ref: the effect's lifetime is the CONNECTION's, not the render's —
-  // inline callbacks at the call site must not retrigger it.
-  const latest = useRef(options);
-  latest.current = options;
+  // The effect's lifetime is the CONNECTION's, not the render's. Effect Events
+  // keep inline callbacks fresh without making them connection dependencies.
+  const subscribe = useEffectEvent(options.subscribe);
+  const load = useEffectEvent(options.load);
+  const onEvent = useEffectEvent(options.onEvent);
+  const onLoad = useEffectEvent(options.onLoad);
 
   useEffect(() => {
     if (status !== "connected") return;
     const bridge = getHostBridge();
     if (bridge === null) return;
     let alive = true;
-    const unsubscribe = latest.current.subscribe(bridge, (event) => {
-      if (alive) latest.current.onEvent(event);
+    const unsubscribe = subscribe(bridge, (event) => {
+      if (alive) onEvent(event);
     });
     void (async () => {
       try {
-        const snapshot = await latest.current.load(bridge);
-        if (alive) latest.current.onLoad(snapshot);
+        const snapshot = await load(bridge);
+        if (alive) onLoad(snapshot);
       } catch {
         // Dropped mid-load — the next reconnect reloads.
       }

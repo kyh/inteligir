@@ -169,6 +169,7 @@ function Draggable(props: PlateElementProps) {
       >
         <button
           type="button"
+          aria-label="Add block below"
           tabIndex={-1}
           onClick={insertBelow}
           title="Add block below"

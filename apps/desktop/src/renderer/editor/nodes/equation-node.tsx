@@ -40,8 +40,8 @@ function EquationEditor({
 }) {
   const editor = useEditorRef();
   const element = useElement();
-  const initial = useRef(tex(element));
-  const [value, setValue] = useState(initial.current);
+  const [initial] = useState(() => tex(element));
+  const [value, setValue] = useState(initial);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ function EquationEditor({
 
   const dismiss = () => {
     const at = editor.api.findPath(element);
-    if (at) editor.tf.setNodes({ texExpression: initial.current }, { at });
+    if (at) editor.tf.setNodes({ texExpression: initial }, { at });
     onClose();
   };
 

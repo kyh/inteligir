@@ -181,6 +181,7 @@ function DelegationCard({
         ) : (
           <button
             type="button"
+            aria-label="Dismiss delegation"
             onClick={onDismiss}
             title="Dismiss"
             className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
