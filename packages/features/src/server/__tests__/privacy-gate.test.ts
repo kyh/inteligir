@@ -193,6 +193,17 @@ describe("privacy gate — bash/execute/browser/peekaboo (best-effort ONLY)", ()
     expect(decide("get_backlinks", { path: "notes/secret.md" })).toEqual({ allow: true });
     expect(decide("resume", { executionId: "x", action: "accept" })).toEqual({ allow: true });
   });
+
+  it("screens an UNKNOWN tool's args for a private path (no silent fail-open)", () => {
+    // A future/connector tool the dispatch doesn't name gets the same
+    // best-effort screen bash does, not a blanket allow.
+    expect(decide("some_connector", { url: "read ./vault/notes/secret.md" }).allow).toBe(false);
+    expect(decide("resume", { executionId: "x", content: "cat vault/notes/secret.md" }).allow).toBe(
+      false,
+    );
+    // …but an unknown tool that names no private path still passes.
+    expect(decide("some_connector", { url: "https://example.com" })).toEqual({ allow: true });
+  });
 });
 
 describe("privacy extension handler (the piece pi invokes)", () => {

@@ -63,6 +63,10 @@ const ALLOW: GateDecision = { allow: true };
 const FILE_TOOLS = new Set(["read", "edit", "write"]);
 /** pi built-ins that scan a file or directory subtree. */
 const SCAN_TOOLS = new Set(["grep", "find", "ls"]);
+/** Curated knowledge tools: privacy is enforced at the KnowledgePort (private
+ * hits dropped entirely + live re-probe), so the gate leaves them alone — a
+ * path-shaped arg here is a lookup key, not a read. */
+const KNOWLEDGE_TOOLS = new Set(["search_vault", "get_backlinks"]);
 
 /** Gate one tool call. `input` is the already-validated tool arguments (pi
  * validates before the tool_call hook fires). Unknown tools pass — the
@@ -90,7 +94,26 @@ export function decideToolCall(
     const stdin = stringField(call.input, "stdin") ?? "";
     return decideOpaqueInput([...args, stdin].join("\n"), env, `${call.toolName} input`);
   }
-  return ALLOW;
+  if (KNOWLEDGE_TOOLS.has(call.toolName)) return ALLOW;
+  // Unknown tool (e.g. a connector registered by the executor bundle). We can't
+  // classify its arguments, so this is NOT a boundary — but it gets the same
+  // best-effort literal-private-path screen bash does, rather than a silent
+  // allow. A FUTURE tool that can read vault content must be added to the
+  // dispatch above with a real decision, never left to this fallthrough.
+  return decideOpaqueInput(collectStrings(call.input).join("\n"), env, `${call.toolName} input`);
+}
+
+/** Every top-level string (and string-array element) of a tool's input — the
+ * text screened for unknown tools above. */
+function collectStrings(input: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  for (const value of Object.values(input)) {
+    if (typeof value === "string") out.push(value);
+    else if (Array.isArray(value)) {
+      for (const item of value) if (typeof item === "string") out.push(item);
+    }
+  }
+  return out;
 }
 
 // ---- Path classification -------------------------------------------------------
