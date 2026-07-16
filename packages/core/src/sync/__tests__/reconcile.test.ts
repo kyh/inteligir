@@ -37,13 +37,17 @@ describe("reconcile", () => {
         deviceManifest([local("a.md", "h2")]),
         coordinatorManifest(1, [remote("a.md", "h1", 1)]),
       );
-      expect(plan.ops).toEqual([{ kind: "push", path: "a.md", expectedBaseVersion: 1 }]);
+      expect(plan.ops).toEqual([
+        { kind: "push", path: "a.md", expectedBaseVersion: 1, baseHash: "h1" },
+      ]);
     });
 
     it("new local file -> push as a create (ABSENT_VERSION)", () => {
       const empty = coordinatorManifest(0, []);
       const plan = reconcile(empty, deviceManifest([local("new.md", "h1")]), empty);
-      expect(plan.ops).toEqual([{ kind: "push", path: "new.md", expectedBaseVersion: 0 }]);
+      expect(plan.ops).toEqual([
+        { kind: "push", path: "new.md", expectedBaseVersion: 0, baseHash: null },
+      ]);
     });
   });
 
@@ -113,6 +117,7 @@ describe("reconcile", () => {
           winner: "remote",
           local: local("a.md", "h2"),
           remote: remote("a.md", "h3", 2),
+          baseHash: "h1",
         },
       ]);
     });
@@ -131,6 +136,7 @@ describe("reconcile", () => {
           winner: "remote",
           local: local("a.md", "h-local"),
           remote: remote("a.md", "h-remote", 1),
+          baseHash: null,
         },
       ]);
     });
@@ -150,7 +156,9 @@ describe("reconcile", () => {
         deviceManifest([local("a.md", "h2")]),
         coordinatorManifest(2, []),
       );
-      expect(plan.ops).toEqual([{ kind: "push", path: "a.md", expectedBaseVersion: 0 }]);
+      expect(plan.ops).toEqual([
+        { kind: "push", path: "a.md", expectedBaseVersion: 0, baseHash: "h1" },
+      ]);
     });
 
     it("local delete vs remote edit -> keep the remote edit via pull", () => {
@@ -171,7 +179,7 @@ describe("reconcile", () => {
     );
     // a.md: new local -> push; b.md: unchanged -> skip; c.md: remote edit -> pull.
     expect(plan.ops).toEqual([
-      { kind: "push", path: "a.md", expectedBaseVersion: 0 },
+      { kind: "push", path: "a.md", expectedBaseVersion: 0, baseHash: null },
       { kind: "pull", file: remote("c.md", "hc2", 2) },
     ]);
   });
