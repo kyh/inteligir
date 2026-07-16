@@ -21,8 +21,9 @@ import {
   CommandList,
 } from "@repo/ui/components/command";
 
+import { TEMPLATES_DIR, isTemplatePath } from "@repo/features/daily-notes";
+
 import { getBridge } from "@renderer/lib/bridge";
-import { TEMPLATES_DIR, isTemplatePath } from "@renderer/lib/apply-template";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
 import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";

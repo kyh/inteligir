@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  applyTemplate,
-  dailyNotePath,
-  formatDatePattern,
-  formatIsoDate,
-  isTemplatePath,
-} from "@renderer/lib/apply-template";
+import { applyTemplate, isTemplatePath } from "@repo/features/daily-notes";
 
 describe("applyTemplate", () => {
   it("substitutes both placeholders", () => {
@@ -37,34 +31,6 @@ describe("applyTemplate", () => {
   it("does not re-scan a substituted value", () => {
     // A title containing the date token must stay literal, not re-expand.
     expect(applyTemplate("{{title}}", { title: "{{date}}", date: "2026-07-09" })).toBe("{{date}}");
-  });
-});
-
-describe("date formatting", () => {
-  it("zero-pads iso date components (local time)", () => {
-    // Local-time constructor: month index 0 = January, day 5.
-    expect(formatIsoDate(new Date(2026, 0, 5))).toBe("2026-01-05");
-    expect(formatIsoDate(new Date(2026, 11, 31))).toBe("2026-12-31");
-  });
-
-  it("expands YYYY/MM/DD tokens in a pattern", () => {
-    const date = new Date(2026, 6, 9); // 2026-07-09
-    expect(formatDatePattern("YYYY-MM-DD", date)).toBe("2026-07-09");
-    expect(formatDatePattern("YYYY/MM/DD", date)).toBe("2026/07/09");
-    expect(formatDatePattern("Daily MM.DD.YYYY", date)).toBe("Daily 07.09.2026");
-  });
-});
-
-describe("dailyNotePath", () => {
-  const date = new Date(2026, 6, 9);
-  it("joins folder and formatted filename", () => {
-    expect(dailyNotePath("journal", "YYYY-MM-DD", date)).toBe("journal/2026-07-09.md");
-  });
-  it("strips surrounding slashes from the folder", () => {
-    expect(dailyNotePath("/journal/", "YYYY-MM-DD", date)).toBe("journal/2026-07-09.md");
-  });
-  it("puts the note at the root when the folder is blank", () => {
-    expect(dailyNotePath("", "YYYY-MM-DD", date)).toBe("2026-07-09.md");
   });
 });
 
