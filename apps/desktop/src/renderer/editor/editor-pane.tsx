@@ -90,6 +90,36 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
     });
   };
 
+  // Title settle rails beyond blur/Enter: `editingRef` is armed on focus and
+  // disarmed by the element's own blur-commit, so these only fire for edits
+  // the normal path never saw. (1) Window blur — ⌘Tab away mid-edit routes
+  // through the element blur, i.e. the normal commit. (2) Pane unmount — an
+  // external note switch/teardown while the title is still focused commits
+  // the pending text directly. A ⌘Q straight from the title remains the
+  // documented edge: the async rename can't finish during quit (content is
+  // safe via the runtime flush; only the retitle is lost).
+  const editingRef = useRef(false);
+  const commitTitleRef = useRef(commitTitle);
+  useEffect(() => {
+    commitTitleRef.current = commitTitle;
+  });
+  useEffect(() => {
+    const onWindowBlur = () => {
+      if (editingRef.current) titleRef.current?.blur();
+    };
+    window.addEventListener("blur", onWindowBlur);
+    return () => window.removeEventListener("blur", onWindowBlur);
+  }, []);
+  useEffect(
+    () => () => {
+      if (editingRef.current) {
+        editingRef.current = false;
+        commitTitleRef.current(titleRef.current?.textContent ?? "");
+      }
+    },
+    [],
+  );
+
   // Enter in the title drops the caret into the body (potion behavior): the
   // editor's editable in Rich mode, the textarea in Raw. The body mounts as a
   // sibling inside paneRef, so the query never escapes this pane.
@@ -119,7 +149,16 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
-        onBlur={(e) => commitTitle(e.currentTarget.textContent ?? "")}
+        onFocus={() => {
+          editingRef.current = true;
+        }}
+        onBlur={(e) => {
+          // Disarm BEFORE committing: a successful rename remounts the pane,
+          // and the unmount flush must not re-commit the same edit against
+          // the now-stale old path.
+          editingRef.current = false;
+          commitTitle(e.currentTarget.textContent ?? "");
+        }}
         onKeyDown={onTitleKeyDown}
         className={cn(
           EDITOR_COLUMN_PX,

@@ -239,6 +239,98 @@ describe("computeRenameEdits — shadow protection", () => {
   });
 });
 
+describe("computeRenameEdits — alias shadow protection", () => {
+  it("NEVER rewrites a pre-existing alias link to the moved doc (bytes unchanged)", () => {
+    // Bar is an alias of the moved doc: `[[Bar]]` resolves via the alias tier
+    // before AND after the rename (the alias travels with the frontmatter).
+    // The retarget branch keys on the PATH-ONLY pre-resolver, so the author's
+    // chosen word must survive byte-exact.
+    const result = edits(
+      {
+        "hub.md": "see [[Bar]] and [[old note]]\n",
+        "old note.md": "---\naliases: [Bar]\n---\n# Old\n",
+      },
+      "old note.md",
+      "renamed.md",
+    );
+    // Only the path-resolved link retargets; [[Bar]] is untouched.
+    expect(result.get("hub.md")).toBe("see [[Bar]] and [[renamed]]\n");
+  });
+
+  it("qualifies a link whose alias the rename steals, keeping the visible word", () => {
+    // `[[Retro]]` reaches notes/owner.md only via its alias; misc.md renamed
+    // to Retro.md now captures the name through the basename tier.
+    const result = edits(
+      {
+        "hub.md": "see [[Retro]]\n",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n# Owner\n",
+        "misc.md": "# Misc\n",
+      },
+      "misc.md",
+      "Retro.md",
+    );
+    expect(result.get("hub.md")).toBe("see [[notes/owner|Retro]]\n");
+    expect(result.size).toBe(1);
+  });
+
+  it("qualifies the target only when the link already has a display alias", () => {
+    const result = edits(
+      {
+        "hub.md": "see [[Retro|the retro]]\n",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n",
+        "misc.md": "",
+      },
+      "misc.md",
+      "Retro.md",
+    );
+    expect(result.get("hub.md")).toBe("see [[notes/owner|the retro]]\n");
+  });
+
+  it("qualifies the target only when the link carries an anchor", () => {
+    // Appending `|raw` before `#sec` would swallow the anchor into the
+    // display text (the body splits at the FIRST pipe).
+    const result = edits(
+      {
+        "hub.md": "see [[Retro#sec]]\n",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n# O\n\n## sec\n",
+        "misc.md": "",
+      },
+      "misc.md",
+      "Retro.md",
+    );
+    expect(result.get("hub.md")).toBe("see [[notes/owner#sec]]\n");
+  });
+
+  it("does nothing when the moved doc is renamed TO its own alias", () => {
+    // [[Retro]] resolved to owner via its alias; post-rename it resolves to
+    // the same doc via the basename tier — meaning unchanged, bytes unchanged.
+    const result = edits(
+      {
+        "hub.md": "see [[Retro]]\n",
+        "owner.md": "---\naliases: [Retro]\n---\n# Owner\n",
+      },
+      "owner.md",
+      "Retro.md",
+    );
+    expect(result.size).toBe(0);
+  });
+
+  it("alias-ci links are protected too", () => {
+    // `[[retro]]` (lowercase) reaches the owner via the alias-ci tier; the
+    // rename to retro.md captures it via the basename tier.
+    const result = edits(
+      {
+        "hub.md": "see [[retro]]\n",
+        "notes/owner.md": "---\naliases: [Retro]\n---\n",
+        "misc.md": "",
+      },
+      "misc.md",
+      "retro.md",
+    );
+    expect(result.get("hub.md")).toBe("see [[notes/owner|retro]]\n");
+  });
+});
+
 describe("computeRenameEdits — no-ops", () => {
   it("returns nothing when no links point at the file", () => {
     expect(edits({ "hub.md": "# No links\n", "old.md": "" }, "old.md", "new.md").size).toBe(0);
