@@ -18,6 +18,7 @@ import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "./host-lock";
+import { resetCaptureManager } from "../capture/capture-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../executor/executor-client";
@@ -153,6 +154,7 @@ export function teardownAgentResources(): void {
   // in-memory cache after the rm.
   resetAuthStorage();
   resetNotifications();
+  resetCaptureManager();
   resetDelegationManager();
   resetExecutorDaemon();
   resetSyncCoordinator();

@@ -19,6 +19,7 @@ import { initAgentLog } from "./lib/agent-log";
 import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
 import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
 import { registerAllHandlers } from "./handlers/register-handlers";
+import { getCaptureManager } from "./capture/capture-manager";
 import { getDelegationManager } from "./delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "./knowledge/knowledge-manager";
 import { getSyncCoordinator } from "./sync/sync-coordinator";
@@ -114,6 +115,15 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
         getDelegationManager().pruneSnapshots();
       } catch (err) {
         console.warn("[host] delegation snapshot prune failed:", err);
+      }
+
+      // Deep-link captures that survived a crash or arrived on a cold launch:
+      // drain the durable inbox now that the vault is ready. Exact-line dedupe
+      // makes a re-drain of an already-applied line a no-op. Best-effort.
+      try {
+        getCaptureManager().drainPendingCaptures();
+      } catch (err) {
+        console.warn("[host] capture inbox drain failed:", err);
       }
 
       // Vault-sync — LIVE, gated at runtime (not by the build). The coordinator

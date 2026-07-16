@@ -25,8 +25,9 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { notePrivacy, setNotePrivate } from "@repo/core/markdown/frontmatter";
 
+import { TEMPLATES_DIR, isTemplatePath } from "@repo/features/daily-notes";
+
 import { getBridge } from "@renderer/lib/bridge";
-import { TEMPLATES_DIR, isTemplatePath } from "@renderer/lib/apply-template";
 import { getLiveEditor } from "@renderer/editor/live-editor";
 import { toggleEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useTheme } from "@renderer/lib/use-theme";
@@ -76,9 +77,15 @@ function templateLabel(path: string): string {
 export function CommandPalette({
   open,
   onOpenChange,
+  seedQuery,
+  onSeedConsumed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** One-shot root-query prefill (deep-link search). Applied when the
+   * palette is open and a seed is set, then reported consumed. */
+  seedQuery?: string | null;
+  onSeedConsumed?: () => void;
 }) {
   const {
     entries,
@@ -116,6 +123,16 @@ export function CommandPalette({
       setPhase({ kind: "root" });
     }
   }, [open]);
+
+  // Deep-link search prefill: while open with a pending seed, adopt it as the
+  // root query and consume it — the close-reset above still wins on the next
+  // dismiss, so a later ⌘K opens clean.
+  useEffect(() => {
+    if (!open || typeof seedQuery !== "string") return;
+    setPhase({ kind: "root" });
+    setQuery(seedQuery);
+    onSeedConsumed?.();
+  }, [open, seedQuery, onSeedConsumed]);
 
   // Load the tag list once per open — the `#` flow filters it client-side, and
   // it's a small, cheap index read that the tag counts depend on.

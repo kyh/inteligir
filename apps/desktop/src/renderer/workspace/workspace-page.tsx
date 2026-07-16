@@ -13,6 +13,7 @@ import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
 import { AppSidebar } from "@renderer/sidebar/app-sidebar";
 import { HtmlAppView } from "@renderer/workspace/html-app-view";
+import { useDeepLinkNav } from "@renderer/workspace/use-deep-link";
 import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { VaultProvider, useVault } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
@@ -42,6 +43,13 @@ function MainSurface({ surface }: { surface: "editor" | "graph" }) {
     );
   }
   return isHtmlApp ? <HtmlAppView /> : <EditorPane />;
+}
+
+/** inteligir:// nav verbs (today / note / search). Lives inside VaultProvider
+ * so it can open notes; search opens the palette prefilled; renders nothing. */
+function DeepLinkNav({ onSearch }: { onSearch: (query: string) => void }) {
+  useDeepLinkNav(onSearch);
+  return null;
 }
 
 /** ⌘D / Ctrl+D → open-or-create today's daily note. Lives inside VaultProvider
@@ -76,6 +84,14 @@ export function WorkspacePage() {
   useEffect(() => initDelegations(), [initDelegations]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Deep-link search prefill: the seed rides into the palette once per
+  // delivery, then clears (consumed) so a later ⌘K opens clean.
+  const [paletteSeed, setPaletteSeed] = useState<string | null>(null);
+  const openSearch = useCallback((query: string) => {
+    setPaletteSeed(query);
+    setPaletteOpen(true);
+  }, []);
+  const consumeSeed = useCallback(() => setPaletteSeed(null), []);
   const surface = useViewStore((s) => s.surface);
 
   useEffect(() => {
@@ -103,6 +119,7 @@ export function WorkspacePage() {
   return (
     <VaultProvider>
       <DailyNoteHotkey />
+      <DeepLinkNav onSearch={openSearch} />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
         {/* Flush Attio-style editor pane: a full-height column butted against
@@ -132,7 +149,12 @@ export function WorkspacePage() {
           <SaveIndicator />
         </div>
       </SidebarProvider>
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        seedQuery={paletteSeed}
+        onSeedConsumed={consumeSeed}
+      />
     </VaultProvider>
   );
 }

@@ -22,6 +22,10 @@ if (!app.isPackaged) {
   }
 }
 
+import {
+  deliverDeepLink,
+  setDeepLinkFocusHandler,
+} from "@repo/features/server/capture/deep-link-service";
 import { createHost, type Host } from "@repo/features/server/create-host";
 import type { HostOptions } from "@repo/features/server/platform";
 import {
@@ -31,6 +35,12 @@ import {
 import { startWsHost, type WsHost } from "@repo/features/server/transport/ws-host";
 import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/ipc";
 
+import {
+  extractDeepLinkFromArgv,
+  handleDeepLinkUrl,
+  installDeepLinks,
+  markDeepLinksReady,
+} from "@/main/deep-link";
 import { createElectronPlatform } from "@/main/electron-platform";
 import { setupAutoUpdater, type Updater } from "@/main/updater";
 import {
@@ -47,6 +57,11 @@ const APP_DISPLAY_NAME = isDevelopment ? "Inteligir (Dev)" : "Inteligir";
 // so this runs at module load (the handler itself installs after ready, in
 // onAppReady). See vault-app-protocol.ts.
 registerVaultAppScheme();
+
+// inteligir:// deep links: the open-url listener must exist before `ready`
+// (macOS delivers a cold launch's URL early); raw URLs buffer until the host
+// starts (markDeepLinksReady in onAppReady). See deep-link.ts.
+installDeepLinks();
 
 let mainWindow: BrowserWindow | null = null;
 let host: Host | null = null;
@@ -470,16 +485,51 @@ async function onAppReady(): Promise<void> {
   electronPlatform.setTargetWindow(mainWindow);
 
   theHost.start();
+
+  // Deep links: the host (vault + capture inbox) is up — flush every URL that
+  // arrived during boot into the dispatcher, and wire how nav verbs surface
+  // the window. Captures deliberately never steal focus (background capture
+  // is the point); nav exists to be looked at.
+  setDeepLinkFocusHandler(() => focusMainWindow());
+  markDeepLinksReady(deliverDeepLink);
+  // win/linux cold launch: the URL rides our own argv (macOS uses open-url).
+  const launchUrl = extractDeepLinkFromArgv(process.argv);
+  if (launchUrl !== null) handleDeepLinkUrl(launchUrl);
 }
 
-app
-  .whenReady()
-  .then(onAppReady)
-  .catch((error: unknown) => {
-    console.error("[desktop] fatal startup error", error);
-    dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
-    app.quit();
+function focusMainWindow(): void {
+  const window = mainWindow;
+  if (window === null) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  app.focus();
+}
+
+// Single instance: deep links demand it — macOS routes open-url to the
+// running instance, and win/linux deliver the URL on the SECOND instance's
+// argv, which must be forwarded here and the duplicate quit. This also
+// upgrades the stale-instance UX: the launch now focuses the existing window
+// instead of dying on the ws-port bind (that failure stays as backstop).
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    focusMainWindow();
+    const url = extractDeepLinkFromArgv(argv);
+    if (url !== null) handleDeepLinkUrl(url);
   });
+
+  app
+    .whenReady()
+    .then(onAppReady)
+    .catch((error: unknown) => {
+      console.error("[desktop] fatal startup error", error);
+      dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
+      app.quit();
+    });
+}
 
 // POSIX signals must take the same graceful path as before-quit. In practice
 // Chromium's shutdown-detector thread usually catches SIGTERM/SIGINT before
