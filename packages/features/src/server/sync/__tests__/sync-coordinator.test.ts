@@ -28,6 +28,7 @@ function noopNotifiers(capture: (state: SyncState) => void): HostNotifiers {
     delegationsChanged: () => {},
     delegationStream: () => {},
     inlineAiStream: () => {},
+    captureApply: () => {},
     syncStateChanged: capture,
   };
 }

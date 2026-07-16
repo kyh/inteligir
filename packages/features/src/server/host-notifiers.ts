@@ -16,9 +16,10 @@
 import type { VaultChangeKind } from "./vault/vault";
 import type { StoreRecoveryEvent } from "./lib/json-store";
 import type { Delegation } from "@repo/features/delegation";
+import type { CaptureApplyEvent } from "@repo/features/ipc-registry";
 import type { SyncState } from "@repo/features/sync";
 
-/** The six host notifier slots, composed by the host and fired by the graph.
+/** The host notifier slots, composed by the host and fired by the graph.
  * Each is a plain callback that fans into `emitEvent(...)` / the notifications
  * manager — that wiring lives in the composition root, not here. */
 export type HostNotifiers = {
@@ -33,6 +34,8 @@ export type HostNotifiers = {
   delegationStream: (id: string, text: string) => void;
   /** Inline-AI generation streamed a text delta (drives live insertion). */
   inlineAiStream: (requestId: string, delta: string) => void;
+  /** A deep-link capture wants applying to the open note's live buffer. */
+  captureApply: (event: CaptureApplyEvent) => void;
   /** Vault-sync config / auth / status changed (drives the settings Sync UI). */
   syncStateChanged: (state: SyncState) => void;
 };

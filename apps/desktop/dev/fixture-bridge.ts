@@ -968,6 +968,13 @@ export function createFixtureBridge(): Bridge {
     onDelegationsUpdated: delegationEvents.subscribe,
     onDelegationStreamed: () => () => {},
 
+    // Deep-link capture — no URL scheme reaches a browser tab, so the apply
+    // event never fires; an ack arriving anyway is a wiring bug worth hearing.
+    onCaptureApply: () => () => {},
+    ackCapture: async ({ id }) => {
+      throw new Error(`fixture bridge: ackCapture(${id}) — no capture inbox exists in the harness`);
+    },
+
     // Inline AI — canned intent classification + streamed generations + a
     // deterministic edit rewrite, so the whole AI menu is drivable.
     generateInlineAi: async ({ prompt, requestId }) => {

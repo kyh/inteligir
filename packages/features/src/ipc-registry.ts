@@ -172,6 +172,32 @@ const NotificationsPatchSchema = Type.Object(
 );
 
 // ---------------------------------------------------------------------------
+// Deep-link capture — inteligir://append|task landing on today's daily note.
+// ---------------------------------------------------------------------------
+
+/** A capture the host wants applied to the OPEN note's live buffer: the
+ * durable inbox entry's id, the daily-note path it targets, and the exact
+ * (already sanitized) line to append. */
+export type CaptureApplyEvent = { id: string; path: string; line: string };
+
+/** The renderer's verdict on a capture-apply: `applied` (persisted through
+ * the live buffer — remove the inbox entry), `not-open` (host drains it to
+ * disk now), or `deferred` (a transient AI session blocks the buffer — keep
+ * the entry, cancel the host's timeout drain, the renderer re-acks when the
+ * session settles). */
+const AckCaptureSchema = Type.Object(
+  {
+    id: Type.String(),
+    outcome: Type.Union([
+      Type.Literal("applied"),
+      Type.Literal("not-open"),
+      Type.Literal("deferred"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+
+// ---------------------------------------------------------------------------
 // Vault — the user's local knowledge folder (markdown). Paths are
 // vault-relative; main confines them under the vault root.
 // ---------------------------------------------------------------------------
@@ -460,6 +486,17 @@ export const IPC = {
   /** Fired as a running delegation streams its response text (accumulating,
    * keyed by id) so the response dock can show it live. */
   onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
+
+  // Deep-link capture — inteligir://append|task. The host enqueues to a
+  // durable inbox and offers the line to the renderer; only the OPEN note is
+  // ever applied through the live buffer (the no-clobber path) — everything
+  // else drains host-side onto today's note.
+  /** A capture targets the open note: apply `line` through the live editor
+   * buffer so the next autosave persists it (a host disk write to an open
+   * DIRTY note would be overwritten by the next whole-buffer flush). */
+  onCaptureApply: event<CaptureApplyEvent>("capture:apply"),
+  /** The renderer's capture-apply verdict — see AckCaptureSchema. */
+  ackCapture: invoke<typeof AckCaptureSchema, void>("capture:ack", AckCaptureSchema),
 
   // Inline AI — one-shot text generation for the editor's AI menu (generate
   // and edit flows), run on an isolated no-tools session.

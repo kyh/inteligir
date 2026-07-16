@@ -14,8 +14,12 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { docExists, getBridge } from "@renderer/lib/bridge";
 import { createDebouncer } from "@renderer/lib/debounce";
+import { hasTransientSuggestions } from "@renderer/editor/ai/suggestions";
+import { hasTransientAiState } from "@renderer/editor/ai/transient";
 import { settleTransients } from "@renderer/editor/ai/transient-settle";
+import { getLiveEditor } from "@renderer/editor/live-editor";
 import { registerOpenNoteFlush, registerOpenNotePath } from "@renderer/workspace/open-note-flush";
+import { createCaptureApplier, insertCaptureLine } from "@renderer/workspace/capture-apply";
 import { type RawReason, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
 import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-runtime";
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
@@ -533,6 +537,43 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  // Deep-link captures (inteligir://append|task) targeting the OPEN note are
+  // routed INTO the live buffer — a host disk write would be skipped by the
+  // dirty reload guard and clobbered by the next whole-buffer autosave. Rich
+  // mode inserts through the live Plate editor (serialize → editNote carries
+  // it); Raw mode appends via runtime.edit. Ack goes out only after a
+  // confirmed flush; anything else ("not-open", a failed flush) hands the
+  // entry back to the host's disk drain.
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    const applier = createCaptureApplier({
+      openPath: () => openPathRef.current,
+      liveEditor: getLiveEditor,
+      hasTransients: (editor) => hasTransientSuggestions(editor) || hasTransientAiState(editor),
+      insertLine: insertCaptureLine,
+      bufferContent: () => {
+        // Loaded content only: while the controller is still reading the file
+        // (state.path === null) an edit would no-op and a clean flush would
+        // ack "applied" without persisting — report no buffer instead, so the
+        // host's disk drain takes the capture and the reload shows it.
+        const state = runtimeRef.current?.controller.getState();
+        return state !== undefined && state.path !== null ? state.content : null;
+      },
+      editBuffer: editNote,
+      flush: flushCurrent,
+      ack: (id, outcome) => {
+        bridge.ackCapture({ id, outcome }).catch(() => {});
+      },
+      onApplied: () => toast.success("Captured to today's note"),
+    });
+    const unsubscribe = bridge.onCaptureApply(applier.apply);
+    return () => {
+      applier.dispose();
+      unsubscribe();
+    };
+  }, [editNote, flushCurrent]);
 
   // Expose the flush + open-note path to non-React callers (the voice transcript
   // path) so a dictated turn persists the open note AND tags the agent with which
