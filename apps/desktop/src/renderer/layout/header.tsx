@@ -14,7 +14,7 @@ import {
 import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
-import { describeRawReason } from "@renderer/editor/markdown/markdown-doc";
+import { describeGateReason } from "@renderer/editor/markdown/markdown-doc";
 import { PageDetails } from "@renderer/editor/properties/page-details";
 import { useVault } from "@renderer/workspace/vault-context";
 
@@ -100,7 +100,7 @@ export function Header() {
             <Badge
               variant="outline"
               className="text-muted-foreground"
-              title={describeRawReason(rawReason)}
+              title={describeGateReason(rawReason)}
             >
               Raw
             </Badge>

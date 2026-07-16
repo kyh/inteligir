@@ -16,7 +16,12 @@ import { docExists, getBridge } from "@renderer/lib/bridge";
 import { createDebouncer } from "@renderer/lib/debounce";
 import { settleTransients } from "@renderer/editor/ai/transient-settle";
 import { registerOpenNoteFlush, registerOpenNotePath } from "@renderer/workspace/open-note-flush";
-import { type RawReason, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
+import {
+  type GateReason,
+  analyzeMarkdown,
+  describeGateReason,
+  gateReasonFor,
+} from "@renderer/editor/markdown/markdown-doc";
 import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-runtime";
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
@@ -132,13 +137,15 @@ type VaultContextValue = {
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
   isMarkdownOpen: boolean;
-  /** Whether Rich editing is available: the file parses within the vocabulary.
-   * Rich normalizes formatting on the first real edit — only files the
-   * pipeline can't represent at all (rawReason) are Raw-only. */
+  /** Whether Rich editing is available: the file parses within the vocabulary
+   * AND round-trips without losing content. Rich normalizes formatting on the
+   * first real edit — only files the pipeline can't represent (rawReason) or
+   * would corrupt (roundtrip-loss) are Raw-only. */
   richAvailable: boolean;
-  /** Why the open file is Raw-only (parse error / out-of-vocabulary construct),
-   * or null. Drives the header's Raw badge tooltip. */
-  rawReason: RawReason | null;
+  /** Why the open file is Raw-only (parse error / out-of-vocabulary construct
+   * / round-trip content loss), or null. Drives the header's Raw badge
+   * tooltip. */
+  rawReason: GateReason | null;
   /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
   mode: "raw" | "rich";
   setMode: (mode: "raw" | "rich") => void;
@@ -155,6 +162,25 @@ type VaultContextValue = {
   /** Show the open `.html` as a sandboxed app again ("Open as app"). */
   showHtmlAsApp: () => void;
 };
+
+// Gate policy: classify SAVED bytes with the full round-trip oracle
+// (parse + vocabulary + serialize + bounded fixpoint + content-loss check) so
+// a serializer bug on in-vocabulary content gates the file to Raw instead of
+// letting the first Rich save persist corrupted bytes. A pipeline THROW —
+// markdown-doc deliberately rethrows non-depth errors as real bugs — degrades
+// to Raw here too, rather than crashing the surface (the seedValue
+// never-crash precedent). Residual window: the oracle sees bytes at open and
+// save-settle; a bug triggered only by newly-typed content still lands ONE
+// corrupt save before the post-save re-analysis flips the gate ("file went
+// Raw mid-session" in triage = that save may already be on disk).
+function safeGateReason(md: string): GateReason | null {
+  try {
+    return gateReasonFor(analyzeMarkdown(md));
+  } catch (error) {
+    console.error("Markdown gate analysis failed", error);
+    return { kind: "parse-error", line: null, message: "Editor pipeline error" };
+  }
+}
 
 const VaultContext = createContext<VaultContextValue | null>(null);
 
@@ -571,21 +597,21 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // the effect corrected the gate. Adjusting state during render re-renders
   // before any child mounts, so the gate and the content can never disagree.
   const [analyzed, setAnalyzed] = useState<{
-    rawReason: RawReason | null;
+    rawReason: GateReason | null;
     content: string;
     path: string | null;
   }>({ rawReason: null, content: "", path: null });
   // While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
-  // intentionally retained — one parse pass per SAVED content change (the Raw
-  // badge + the `showRich` gate), not per keystroke.
+  // intentionally retained — one analysis pass per SAVED content change (the
+  // Raw badge + the `showRich` gate), not per keystroke.
   const pathChanged = analyzed.path !== editor.path;
   if ((pathChanged || analyzed.content !== editor.content) && !editor.dirty) {
     // Rich is the default surface: any file that parses within the vocabulary
-    // opens rich (normalizing on the first real edit); only genuinely
-    // unrepresentable content (unknown JSX, parse errors) is Raw-only.
-    const parsed =
-      isMarkdownOpen && editor.content.trim() !== "" ? parseMarkdown(editor.content) : null;
-    const rawReason = parsed !== null && !parsed.ok ? parsed.reason : null;
+    // AND round-trips losslessly opens rich (normalizing on the first real
+    // edit); unrepresentable content (unknown JSX, parse errors) and files
+    // whose round-trip would lose content are Raw-only.
+    const rawReason =
+      isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
     setAnalyzed({ rawReason, content: editor.content, path: editor.path });
     // The mode (raw/rich) is the user's choice, picked once per file open — a
     // post-save flush (dirty→false, content unchanged) and an external/agent
@@ -595,6 +621,28 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     if (pathChanged) setMode(isMarkdownOpen && rawReason === null ? "rich" : "raw");
   }
   const richAvailable = isMarkdownOpen && analyzed.rawReason === null;
+
+  // A mid-session Rich→Raw flip (post-save re-analysis caught a serializer
+  // bug, or an external reload landed unrepresentable content) swaps Plate for
+  // the textarea under the user's cursor — explain the yank once. Fresh opens
+  // (pathChanged) don't toast: the badge covers them.
+  const gateFlipRef = useRef<{ path: string | null; rawReason: GateReason | null }>({
+    path: null,
+    rawReason: null,
+  });
+  useEffect(() => {
+    const prev = gateFlipRef.current;
+    gateFlipRef.current = { path: analyzed.path, rawReason: analyzed.rawReason };
+    if (
+      analyzed.path !== null &&
+      prev.path === analyzed.path &&
+      prev.rawReason === null &&
+      analyzed.rawReason !== null &&
+      mode === "rich"
+    ) {
+      toast.warning(`Switched to Raw editing — ${describeGateReason(analyzed.rawReason)}`);
+    }
+  }, [analyzed, mode]);
 
   // ---- HTML Apps -----------------------------------------------------------
   const openIsHtml = openPath !== null && HTML_RE.test(openPath);
