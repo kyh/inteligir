@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Trash2Icon } from "lucide-react";
+import { LockIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
@@ -39,6 +39,7 @@ export function Header() {
     openIsHtml,
     isHtmlApp,
     showHtmlAsApp,
+    openNoteIsPrivate,
   } = useVault();
   const { state } = useSidebar();
   const path = editor.path;
@@ -95,6 +96,16 @@ export function Header() {
             >
               Open as app
             </Button>
+          )}
+          {openNoteIsPrivate && (
+            <Badge
+              variant="outline"
+              className="text-muted-foreground"
+              title="Private — excluded from AI features on this device"
+            >
+              <LockIcon className="size-3" />
+              Private
+            </Badge>
           )}
           {isMarkdownOpen && rawReason !== null && (
             <Badge

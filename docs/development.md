@@ -104,6 +104,10 @@ Type-checks passing isn't feature-correct. Drive the running app:
 - Byte-level checks: toggle Raw mode in the editor, or read the vault file —
   the byte-stability invariant (`roundTrip(raw) === raw` for canonical files)
   is the thing most UI regressions break.
+- Privacy (`private: true`) changes: `docs/privacy.md` states the guarantee
+  and its holes; the enforcement tests live in
+  `packages/features/src/server/__tests__/privacy-gate.test.ts` and
+  `knowledge-privacy.test.ts` (outbound-payload assertions).
 
 ## Making changes — checklists
 

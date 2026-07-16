@@ -6,6 +6,7 @@ import {
   FolderIcon,
   HashIcon,
   LayoutTemplateIcon,
+  LockIcon,
   MoonIcon,
   RefreshCwIcon,
   SunIcon,
@@ -20,9 +21,14 @@ import {
   CommandItem,
   CommandList,
 } from "@repo/ui/components/command";
+import { toast } from "@repo/ui/components/sonner";
+
+import { notePrivacy, setNotePrivate } from "@repo/core/markdown/frontmatter";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { TEMPLATES_DIR, isTemplatePath } from "@renderer/lib/apply-template";
+import { getLiveEditor } from "@renderer/editor/live-editor";
+import { toggleEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
 import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
@@ -74,7 +80,19 @@ export function CommandPalette({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { entries, openFile, createFile, changeFolder, refreshVault } = useVault();
+  const {
+    entries,
+    openFile,
+    createFile,
+    changeFolder,
+    refreshVault,
+    editor,
+    editNote,
+    openPath,
+    isMarkdownOpen,
+    mode,
+    openNoteIsPrivate,
+  } = useVault();
   const createFromTemplate = useCreateFromTemplate();
   const openDailyNote = useOpenDailyNote();
   const setSurface = useViewStore((s) => s.setSurface);
@@ -154,6 +172,28 @@ export function CommandPalette({
   }, [query, open, phase.kind]);
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+
+  // Toggle the open note's `private: true` flag. ONE write path per mode:
+  // rich edits the frontmatter NODE (the Page-details seam — Plate serialize →
+  // editNote persists it); raw rewrites the text through the same core YAML
+  // helpers and lands via editNote. Unreadable frontmatter is refused — what
+  // we can't read, we never rewrite (the properties panel's rule).
+  const togglePrivate = useCallback(() => {
+    if (openPath === null || !isMarkdownOpen) return;
+    if (mode === "rich") {
+      const live = getLiveEditor(openPath);
+      if (live === null || !toggleEditorNotePrivate(live)) {
+        toast.error("Couldn't toggle private — fix the note's frontmatter first.");
+      }
+      return;
+    }
+    const next = setNotePrivate(editor.content, notePrivacy(editor.content) !== "private");
+    if (next === null) {
+      toast.error("Couldn't toggle private — fix the note's frontmatter first.");
+      return;
+    }
+    editNote(openPath, next);
+  }, [openPath, isMarkdownOpen, mode, editor.content, editNote]);
 
   // Run an action then dismiss — every leaf item closes the palette.
   const run = useCallback(
@@ -389,6 +429,17 @@ export function CommandPalette({
       label: `Switch to ${resolved === "dark" ? "light" : "dark"} theme`,
       onSelect: () => setTheme(resolved === "dark" ? "light" : "dark"),
     },
+    ...(openPath !== null && isMarkdownOpen
+      ? [
+          {
+            value: "toggle-private",
+            keywords: "toggle private note lock privacy ai off exclude",
+            icon: <LockIcon />,
+            label: openNoteIsPrivate ? "Remove private mark from note" : "Mark note as private",
+            onSelect: () => togglePrivate(),
+          },
+        ]
+      : []),
     {
       value: "refresh",
       keywords: "refresh vault reload rescan files sync snapshot",

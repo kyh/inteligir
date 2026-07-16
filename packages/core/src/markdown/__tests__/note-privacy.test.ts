@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { notePrivacy } from "../frontmatter";
+import { notePrivacy, setNotePrivate } from "../frontmatter";
 
 describe("notePrivacy", () => {
   it("no frontmatter → public", () => {
@@ -56,5 +56,29 @@ describe("notePrivacy", () => {
   it("frontmatter not at byte 0 is not frontmatter → public", () => {
     expect(notePrivacy("\n---\nprivate: true\n---\n")).toBe("public");
     expect(notePrivacy("text first\n---\nprivate: true\n---\n")).toBe("public");
+  });
+});
+
+describe("setNotePrivate", () => {
+  it("adds a block to a note without frontmatter; round-trips back clean", () => {
+    const on = setNotePrivate("# Hello\n\nbody\n", true);
+    expect(on).toBe("---\nprivate: true\n---\n# Hello\n\nbody\n");
+    expect(notePrivacy(on ?? "")).toBe("private");
+    // Toggling off removes the key AND the now-empty block.
+    expect(setNotePrivate(on ?? "", false)).toBe("# Hello\n\nbody\n");
+  });
+
+  it("preserves sibling keys (comments included) across on → off", () => {
+    const text = "---\ntitle: My note # keep\ncount: 3\n---\nbody\n";
+    const on = setNotePrivate(text, true);
+    expect(on).toContain("title: My note # keep");
+    expect(on).toContain("count: 3");
+    expect(notePrivacy(on ?? "")).toBe("private");
+    const off = setNotePrivate(on ?? "", false);
+    expect(off).toBe(text);
+  });
+
+  it("refuses to rewrite unreadable frontmatter", () => {
+    expect(setNotePrivate("---\n[not: valid: yaml\n---\nbody\n", true)).toBeNull();
   });
 });

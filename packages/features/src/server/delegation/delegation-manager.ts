@@ -13,6 +13,8 @@ import crypto from "node:crypto";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
+import { notePrivacy } from "@repo/core/markdown/frontmatter";
+
 import { DelegationSnapshotStore } from "./delegation-snapshots";
 import { findTaskLine } from "./find-task-line";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
@@ -224,6 +226,15 @@ export class DelegationManager {
       raw = this.readVault(params.sourceFile);
     } catch (err) {
       return { ok: false, error: `Couldn't read ${params.sourceFile}: ${toErrorMessage(err)}` };
+    }
+    // Private notes never reach the background agent — the whole file rides
+    // the delegation prompt's context via the agent's file tools. Fail-closed:
+    // unreadable frontmatter counts as private.
+    if (notePrivacy(raw) !== "public") {
+      return {
+        ok: false,
+        error: "This note is private — delegating would send its content to the AI provider.",
+      };
     }
     const match = findTaskLine(raw, params.index);
     if (!match) {
@@ -442,6 +453,14 @@ export class DelegationManager {
       raw = this.readVault(delegation.sourceFile);
     } catch (err) {
       return { ok: false, error: `Couldn't read ${delegation.sourceFile}: ${toErrorMessage(err)}` };
+    }
+    // The note may have turned private while this sat queued — re-check at
+    // dispatch, same fail-closed rule as createDelegation.
+    if (notePrivacy(raw) !== "public") {
+      return {
+        ok: false,
+        error: "This note is private — delegating would send its content to the AI provider.",
+      };
     }
     const match = findTaskLine(raw, delegation.anchor.index);
     if (!match) {

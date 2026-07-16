@@ -137,6 +137,23 @@ describe("DelegationManager.createDelegation", () => {
     expect(mgr.getDelegations()).toHaveLength(0);
   });
 
+  it("refuses a private note — its content must not reach the AI provider", () => {
+    const mgr = makeManager(`---\nprivate: true\n---\n${DOC}`);
+    const result = mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    expect(result).toEqual({
+      ok: false,
+      error: "This note is private — delegating would send its content to the AI provider.",
+    });
+    expect(mgr.getDelegations()).toHaveLength(0);
+  });
+
+  it("refuses unreadable frontmatter too (fail-closed)", () => {
+    const mgr = makeManager(`---\n[not: valid: yaml\n---\n${DOC}`);
+    const result = mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    expect(result.ok).toBe(false);
+    expect(mgr.getDelegations()).toHaveLength(0);
+  });
+
   it("queues a valid checkbox with its resolved anchor", () => {
     const mgr = makeManager();
     const result = mgr.createDelegation({ sourceFile: "n.md", index: 0 });

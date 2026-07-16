@@ -206,6 +206,27 @@ export function notePrivacy(text: string): NotePrivacy {
   return prop !== undefined && prop.type === "checkbox" && prop.value ? "private" : "public";
 }
 
+/** Set/clear a doc's `private` flag at the TEXT level (the raw-mode path of
+ * the palette toggle; rich mode edits the frontmatter node instead — both
+ * flow through parseProperties/serializeProperties, one YAML brain). Turning
+ * ON appends `private: true`; turning OFF removes the key (absent == public,
+ * and an emptied block disappears entirely). Returns null when the existing
+ * frontmatter can't be typed — what we can't read, we never rewrite. */
+export function setNotePrivate(text: string, value: boolean): string | null {
+  const yaml = frontmatterYaml(text);
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") return null;
+  const props = (parsed.kind === "valid" ? parsed.properties : []).filter(
+    (p) => p.key !== "private",
+  );
+  const next: TypedProperty[] = value
+    ? [...props, { key: "private", type: "checkbox", value: true }]
+    : props;
+  const nextYaml = serializeProperties(next, yaml ?? "");
+  const body = splitFrontmatter(text).body;
+  return nextYaml === "" ? body : `---\n${nextYaml}\n---\n${body}`;
+}
+
 /** Type a single new key from a user-entered raw value (the panel's "Add
  * property" flow): the value is read as a YAML scalar so `true`, `42`,
  * `2026-07-01`, `[a, b]` type naturally, exactly as if it had been typed into

@@ -175,7 +175,8 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
         <div className="flex flex-col gap-2 px-3 pb-2">
           <p className="text-[10px] text-muted-foreground">
             Mirror your vault to the coordinator. Only markdown and attachments sync — never the
-            knowledge index or AI state.
+            knowledge index or AI state. Notes marked <code>private: true</code> are excluded from
+            AI features on this device but still sync to the server unencrypted.
           </p>
 
           <div className="flex flex-col gap-1">
