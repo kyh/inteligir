@@ -5,6 +5,13 @@
 # ships an artifact whose Google connect falls back to the GCP dialog.
 appId: com.inteligir.desktop
 productName: Inteligir
+# inteligir:// deep links (capture + nav verbs). CFBundleURLTypes on macOS —
+# required for cold-launch delivery; runtime registration in main/deep-link.ts
+# (packaged builds only) covers the rest.
+protocols:
+  - name: Inteligir
+    schemes:
+      - inteligir
 directories:
   buildResources: resources
   output: .output/bin

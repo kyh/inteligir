@@ -15,6 +15,7 @@
 
 import type { VaultChangeKind } from "./vault/vault";
 import type { StoreRecoveryEvent } from "./lib/json-store";
+import type { DeepLinkNavEvent } from "@repo/features/deep-link";
 import type { Delegation } from "@repo/features/delegation";
 import type { CaptureApplyEvent } from "@repo/features/ipc-registry";
 import type { SyncState } from "@repo/features/sync";
@@ -36,6 +37,8 @@ export type HostNotifiers = {
   inlineAiStream: (requestId: string, delta: string) => void;
   /** A deep-link capture wants applying to the open note's live buffer. */
   captureApply: (event: CaptureApplyEvent) => void;
+  /** A deep-link nav verb wants the renderer to navigate. */
+  deepLinkNav: (event: DeepLinkNavEvent) => void;
   /** Vault-sync config / auth / status changed (drives the settings Sync UI). */
   syncStateChanged: (state: SyncState) => void;
 };

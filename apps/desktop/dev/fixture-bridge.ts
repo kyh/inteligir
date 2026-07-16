@@ -974,6 +974,9 @@ export function createFixtureBridge(): Bridge {
     ackCapture: async ({ id }) => {
       throw new Error(`fixture bridge: ackCapture(${id}) — no capture inbox exists in the harness`);
     },
+    onDeepLinkNav: () => () => {},
+    // Genuinely nothing parked — a browser tab has no OS URL handler.
+    takePendingDeepLinkNav: async () => null,
 
     // Inline AI — canned intent classification + streamed generations + a
     // deterministic edit rewrite, so the whole AI menu is drivable.

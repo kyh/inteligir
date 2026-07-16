@@ -56,6 +56,7 @@ function buildHostNotifiers(): HostNotifiers {
     delegationStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
     inlineAiStream: (requestId, delta) => emitEvent("onAiStreamed", { requestId, delta }),
     captureApply: (event) => emitEvent("onCaptureApply", event),
+    deepLinkNav: (event) => emitEvent("onDeepLinkNav", event),
     syncStateChanged: (state) => emitEvent("onSyncStateChanged", state),
   };
 }

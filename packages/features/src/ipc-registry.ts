@@ -11,6 +11,7 @@ import { type Static, type TSchema, Type } from "@sinclair/typebox";
 
 import type { AppAgentEvent } from "./agent-events";
 import { AppEventSchema, type AppState } from "./app-state";
+import type { DeepLinkNavEvent } from "./deep-link";
 import {
   AddGraphqlInputSchema,
   AddMcpInputSchema,
@@ -497,6 +498,15 @@ export const IPC = {
   onCaptureApply: event<CaptureApplyEvent>("capture:apply"),
   /** The renderer's capture-apply verdict — see AckCaptureSchema. */
   ackCapture: invoke<typeof AckCaptureSchema, void>("capture:ack", AckCaptureSchema),
+  /** A deep-link nav verb arrived (inteligir://today | note/<target> |
+   * search?q=). Id-stamped so the renderer can dedupe the cold-launch
+   * overlap between this push and the takePendingDeepLinkNav pull. */
+  onDeepLinkNav: event<DeepLinkNavEvent>("deep-link:nav"),
+  /** Pull-and-clear the parked nav on mount — a cold launch delivers the URL
+   * before any renderer subscribed. Callers MUST subscribe onDeepLinkNav
+   * BEFORE pulling (the reverse order silently drops a nav landing between
+   * the two) and dedupe by event id. */
+  takePendingDeepLinkNav: invokeVoid<DeepLinkNavEvent | null>("deep-link:take-pending"),
 
   // Inline AI — one-shot text generation for the editor's AI menu (generate
   // and edit flows), run on an isolated no-tools session.
