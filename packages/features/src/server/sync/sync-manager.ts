@@ -72,6 +72,9 @@ export function createVaultSyncIo(vault: VaultManager): SyncIo {
       vault.delete(path);
     },
     // Stat-keyed change detection so a pass skips re-hashing unchanged files.
+    // Snapshot-served when the vault's walk cache is fresh (≤1s; own writes
+    // always invalidate), so a pass adds no second stat sweep — an external
+    // write racing that window is caught on the next pass (engine self-heals).
     fingerprint: (path) => vault.statFingerprint(path),
   };
 }
