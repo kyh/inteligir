@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
+import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@renderer/editor/editor-chrome";
 import { MarkdownEditor } from "@renderer/editor/markdown-editor";
 import { BacklinksPanel, ForwardLinksPanel } from "@renderer/workspace/links-panel";
 import { useVault } from "@renderer/workspace/vault-context";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 
 /**
  * The editor body: the open note's page title + document (+ backlinks). One
@@ -70,7 +72,16 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       if (titleRef.current) titleRef.current.textContent = displayName;
       return;
     }
-    void renameEntry(path, `${dir}${next}${ext}`).then((ok) => {
+    // Validate the would-be basename (title + extension) before any rename: a
+    // `/` used to silently create folders, and `: * ? " < > |` mint names that
+    // break on Windows/sync. Reject + rollback + toast — never sanitize.
+    const verdict = checkNoteName(`${next}${ext}`);
+    if (!verdict.ok) {
+      toast.error(noteNameErrorMessage(verdict.reason));
+      if (titleRef.current) titleRef.current.textContent = displayName;
+      return;
+    }
+    void renameEntry(path, `${dir}${verdict.name}`).then((ok) => {
       // On success the path changes and the renamed note mounts a fresh pane;
       // on failure roll the contentEditable back to the real filename so the
       // title never shows a name that was never saved.

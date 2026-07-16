@@ -18,6 +18,7 @@ import { isDocPath } from "@repo/core/knowledge/doc-file";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
 import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
 import { LinkGraphIndex } from "@repo/core/knowledge/link-graph-index";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { projectDoc } from "@repo/core/knowledge/projection";
 import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
 import { notePrivacy } from "@repo/core/markdown/frontmatter";
@@ -882,6 +883,9 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     renameVaultEntry: async ({ from, to }) => {
       const content = vault.get(from);
       if (content === undefined) return { ok: false, error: `no such file: ${from}` };
+      // Host parity: the destination basename passes the note-name gate.
+      const verdict = checkNoteName(to.split("/").at(-1) ?? to);
+      if (!verdict.ok) return { ok: false, error: noteNameErrorMessage(verdict.reason) };
       if (vault.has(to)) return { ok: false, error: `already exists: ${to}` };
       // Mirror the host: rename, then rewrite every link that pointed at the
       // old path (same pure core edit computation).

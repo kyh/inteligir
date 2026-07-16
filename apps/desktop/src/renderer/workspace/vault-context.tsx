@@ -36,6 +36,8 @@ import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-edit
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
 import { buildResolver } from "@repo/core/knowledge/link-resolve";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
+import { basenamePath, dirnamePath } from "@repo/core/knowledge/vault-path";
 
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.
@@ -56,6 +58,20 @@ const FOCUS_REFRESH_DEBOUNCE_MS = 1000;
  */
 function withDefaultExtension(name: string): string {
   return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.md`;
+}
+
+/** Gate a to-be-created path's basename through checkNoteName (directory
+ * segments pass through — `notes/foo` is intentional foldering here, unlike a
+ * `/` typed into the h1 title). Returns the path with the NFC-normalized
+ * basename, or null after a rejection toast. */
+function validNotePath(path: string): string | null {
+  const verdict = checkNoteName(basenamePath(path));
+  if (!verdict.ok) {
+    toast.error(noteNameErrorMessage(verdict.reason));
+    return null;
+  }
+  const dir = dirnamePath(path);
+  return dir === "" ? verdict.name : `${dir}/${verdict.name}`;
 }
 
 // IO the editor controller acts through — thin wrappers over the bridge so the
@@ -369,7 +385,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string): Promise<boolean> => {
       const trimmed = rawPath.trim();
       if (!trimmed) return false;
-      const path = withDefaultExtension(trimmed);
+      const path = validNotePath(withDefaultExtension(trimmed));
+      if (path === null) return false;
       const bridge = getBridge();
       if (!bridge) return false;
       // Don't truncate an existing file — it already satisfies "exists".
@@ -399,7 +416,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string, content: string) => {
       const trimmed = rawPath.trim();
       if (!trimmed) return;
-      const path = withDefaultExtension(trimmed);
+      const path = validNotePath(withDefaultExtension(trimmed));
+      if (path === null) return;
       const bridge = getBridge();
       if (!bridge) return;
       // Open-or-create: only write (seed) when the file is genuinely new, so a
