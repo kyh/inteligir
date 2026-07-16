@@ -50,9 +50,9 @@ boundary**. Read the "What it does NOT do" list before relying on it.
 - **Filenames still leak to the shell.** `bash ls vault/` shows private
   notes' names; only the knowledge tools hide paths.
 - **Sync uploads it unencrypted.** Vault sync (off by default) mirrors
-  private notes to the sync server exactly like any other file — `private:
-true` provides no server-side protection. Excluding them from sync would
-  be worse (silent data loss on other devices), so we sync and say so.
+  private notes to the sync server exactly like any other file — the flag
+  provides no server-side protection. Excluding them from sync would be
+  worse (silent data loss on other devices), so we sync and say so.
 - **Chat paste is not covered.** Content you paste into the chat composer,
   or copy into a public note, is out of scope by definition.
 - **HTML Apps can read it.** The `window.inteligir.files` broker does not
@@ -72,8 +72,8 @@ true` provides no server-side protection. Excluding them from sync would
   until parsed) and agent-facing search filters inside the SQL query; the
   gate and the knowledge port still re-probe live disk on every call, so the
   index is only ever a prefilter.
-- Enforcement points, for review: `agent/privacy/gate.ts` (tool gate),
-  `lib/agent-knowledge-port.ts` (search/backlinks), `editor/note-privacy.ts`
-  - `ai/ghost-text-kit.tsx` + `ai/ai-session.ts` (editor AI),
-    `stores/agent-store.ts` (context hint), `delegation/delegation-manager.ts`
-    (delegation).
+- Enforcement points, for review: `agent/privacy/gate.ts` (tool gate);
+  `lib/agent-knowledge-port.ts` (search/backlinks); `editor/note-privacy.ts`
+  with `ai/ghost-text-kit.tsx` and `ai/ai-session.ts` (editor AI);
+  `stores/agent-store.ts` (context hint); `delegation/delegation-manager.ts`
+  (delegation).
