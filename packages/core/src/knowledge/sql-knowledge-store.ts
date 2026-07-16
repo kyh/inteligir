@@ -25,7 +25,7 @@ import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 1;
+export const KNOWLEDGE_SCHEMA_VERSION = 2; // 2: files gained is_private
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 export type SqlValue = null | number | string;
@@ -66,7 +66,8 @@ CREATE TABLE files (
   content_hash TEXT,
   mtime_ms REAL,
   size INTEGER,
-  ino INTEGER
+  ino INTEGER,
+  is_private INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE links (
   source_path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
@@ -113,6 +114,21 @@ SELECT path, title,
   bm25(search_fts, 10.0, 4.0, 1.0) AS rank
 FROM search_fts
 WHERE search_fts MATCH ?
+ORDER BY rank, path
+LIMIT ?
+`;
+
+// The agent-facing variant: `private: true` docs are excluded INSIDE the query
+// (search_fts shares rowids with files), so the limit applies to public hits
+// and a private path/snippet can never even transit the result set. Column
+// default is 1 (private-until-parsed) — an unparsed row is excluded too.
+const SEARCH_PUBLIC_SQL = `
+SELECT path, title,
+  snippet(search_fts, 2, '', '', '…', 12) AS snip,
+  bm25(search_fts, 10.0, 4.0, 1.0) AS rank
+FROM search_fts
+WHERE search_fts MATCH ?
+  AND rowid IN (SELECT rowid FROM files WHERE is_private = 0)
 ORDER BY rank, path
 LIMIT ?
 `;
@@ -277,7 +293,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
     loadAll() {
       const docs = new Map<string, StoredDocRow>();
       for (const row of driver.all(
-        "SELECT path, title, content_hash, mtime_ms, size, ino FROM files WHERE kind = 'doc' ORDER BY path",
+        "SELECT path, title, content_hash, mtime_ms, size, ino, is_private FROM files WHERE kind = 'doc' ORDER BY path",
         [],
       )) {
         const path = columnString(row, "path");
@@ -286,6 +302,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
           headings: [],
           links: [],
           tags: [],
+          private: columnNumber(row, "is_private") !== 0,
         };
         docs.set(path, {
           path,
@@ -320,11 +337,12 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
       transaction(() => {
         const { projection } = row;
         driver.run(
-          `INSERT INTO files (path, kind, title, content_hash, mtime_ms, size, ino)
-           VALUES (?, 'doc', ?, ?, ?, ?, ?)
+          `INSERT INTO files (path, kind, title, content_hash, mtime_ms, size, ino, is_private)
+           VALUES (?, 'doc', ?, ?, ?, ?, ?, ?)
            ON CONFLICT(path) DO UPDATE SET
              kind = 'doc', title = excluded.title, content_hash = excluded.content_hash,
-             mtime_ms = excluded.mtime_ms, size = excluded.size, ino = excluded.ino`,
+             mtime_ms = excluded.mtime_ms, size = excluded.size, ino = excluded.ino,
+             is_private = excluded.is_private`,
           [
             row.path,
             projection.title,
@@ -332,6 +350,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
             row.fingerprint.mtimeMs,
             row.fingerprint.size,
             row.fingerprint.ino,
+            projection.private ? 1 : 0,
           ],
         );
         deleteChildren(row.path);
@@ -386,7 +405,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
           `INSERT INTO files (path, kind) VALUES (?, 'other')
            ON CONFLICT(path) DO UPDATE SET
              kind = 'other', title = NULL, content_hash = NULL,
-             mtime_ms = NULL, size = NULL, ino = NULL`,
+             mtime_ms = NULL, size = NULL, ino = NULL, is_private = 1`,
           [path],
         );
         deleteChildren(path);
@@ -418,10 +437,11 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
       });
     },
 
-    search(query, limit): SearchResult[] {
+    search(query, limit, opts): SearchResult[] {
       const match = buildFtsMatchQuery(query);
       if (match === null || limit <= 0) return [];
-      return driver.all(SEARCH_SQL, [match, limit]).map((row) => {
+      const sql = opts?.excludePrivate === true ? SEARCH_PUBLIC_SQL : SEARCH_SQL;
+      return driver.all(sql, [match, limit]).map((row) => {
         const title = columnString(row, "title");
         const snippet = columnString(row, "snip").trim();
         return {

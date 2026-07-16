@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import type { SearchResult } from "./knowledge-index";
+import type { PrivacyOpts } from "./link-graph-index";
 import type { DocProjection } from "./projection";
 
 /** Stat identity of an indexed file — the incremental-refresh diff basis.
@@ -60,8 +61,10 @@ export type KnowledgeStore = {
   /** Empty every table (kept schema) — a root re-index in place. */
   clear(): void;
 
-  /** Ranked full-text search over the stored corpus. */
-  search(query: string, limit: number): SearchResult[];
+  /** Ranked full-text search over the stored corpus. `excludePrivate` filters
+   * `private: true` docs INSIDE the query (WHERE, before the limit) — the
+   * agent-facing prefilter; renderer callers omit it and see everything. */
+  search(query: string, limit: number, opts?: PrivacyOpts): SearchResult[];
 
   /** Run `fn` atomically — the host batches reconcile writes through this. */
   transaction(fn: () => void): void;

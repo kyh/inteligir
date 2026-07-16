@@ -107,3 +107,31 @@ describe("LinkGraphIndex ≡ KnowledgeIndex over projectDoc", () => {
     expect(fromExtracted[0]).toContain("[[target note]]");
   });
 });
+
+// Privacy metadata rides the projection: isPrivate/privatePaths are what the
+// agent gate's best-effort bash/execute heuristics and the KnowledgePort's
+// prefilter consume.
+describe("LinkGraphIndex — privacy metadata", () => {
+  it("isPrivate reflects the projected frontmatter; undefined for non-docs", () => {
+    const index = new LinkGraphIndex();
+    index.applyDoc("s.md", projectDoc("s.md", "---\nprivate: true\n---\nx\n"));
+    index.applyDoc("p.md", projectDoc("p.md", "# Public\n"));
+    index.setOther("img.png");
+    expect(index.isPrivate("s.md")).toBe(true);
+    expect(index.isPrivate("p.md")).toBe(false);
+    expect(index.isPrivate("img.png")).toBeUndefined();
+    expect(index.isPrivate("missing.md")).toBeUndefined();
+  });
+
+  it("privatePaths lists private docs sorted, tracking updates", () => {
+    const index = new LinkGraphIndex();
+    index.applyDoc("b.md", projectDoc("b.md", "---\nprivate: true\n---\n"));
+    index.applyDoc("a.md", projectDoc("a.md", "---\nprivate: true\n---\n"));
+    index.applyDoc("c.md", projectDoc("c.md", "# C\n"));
+    expect(index.privatePaths()).toEqual(["a.md", "b.md"]);
+    index.applyDoc("b.md", projectDoc("b.md", "# now public\n"));
+    expect(index.privatePaths()).toEqual(["a.md"]);
+    index.remove("a.md");
+    expect(index.privatePaths()).toEqual([]);
+  });
+});

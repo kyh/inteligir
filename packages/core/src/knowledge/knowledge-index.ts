@@ -13,7 +13,13 @@
 // ---------------------------------------------------------------------------
 
 import { LinkGraphIndex } from "./link-graph-index";
-import type { BacklinkEntry, ForwardLinkEntry, LinkGraph, WikiTarget } from "./link-graph-index";
+import type {
+  BacklinkEntry,
+  ForwardLinkEntry,
+  LinkGraph,
+  PrivacyOpts,
+  WikiTarget,
+} from "./link-graph-index";
 import { titleFromPath } from "./link-extract";
 import { clipSnippet, projectDoc } from "./projection";
 import { SearchIndex, tokenize } from "./search-index";
@@ -72,8 +78,8 @@ export class KnowledgeIndex {
 
   // ---- Queries ---------------------------------------------------------------
 
-  backlinks(path: string): BacklinkEntry[] {
-    return this.linkGraph.backlinks(path);
+  backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[] {
+    return this.linkGraph.backlinks(path, opts);
   }
 
   forwardLinks(path: string): ForwardLinkEntry[] {
@@ -88,9 +94,15 @@ export class KnowledgeIndex {
     return this.linkGraph.wikiTargets();
   }
 
-  search(query: string, limit: number = SEARCH_DEFAULT_LIMIT): SearchResult[] {
+  search(query: string, limit: number = SEARCH_DEFAULT_LIMIT, opts?: PrivacyOpts): SearchResult[] {
     const tokens = tokenize(query);
-    return this.searchIndex.search(query, limit).map(({ path, score }) => ({
+    let ranked = this.searchIndex.search(query, limit);
+    // Post-limit filter (the SQL store filters pre-limit via WHERE): fine for
+    // this reference composition — agent callers re-probe live disk anyway.
+    if (opts?.excludePrivate === true) {
+      ranked = ranked.filter(({ path }) => this.linkGraph.isPrivate(path) !== true);
+    }
+    return ranked.map(({ path, score }) => ({
       path,
       title: this.linkGraph.titleOf(path) ?? titleFromPath(path),
       snippet: this.searchSnippet(path, tokens),
@@ -102,8 +114,8 @@ export class KnowledgeIndex {
     return this.linkGraph.tags();
   }
 
-  notesWithTag(tag: string): string[] {
-    return this.linkGraph.notesWithTag(tag);
+  notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
+    return this.linkGraph.notesWithTag(tag, opts);
   }
 
   // ---- Internals --------------------------------------------------------------

@@ -185,6 +185,27 @@ export function parseProperties(yamlText: string): ParsedProperties {
   return { kind: "valid", properties };
 }
 
+/** A note's `private: true` verdict, read from its raw text. `indeterminate`
+ * means frontmatter exists but can't be typed (malformed yaml, duplicate keys,
+ * non-mapping root) — AI paths treat that as private (fail-closed: what we
+ * can't read, we don't send to a model); user-facing UI treats it as
+ * not-private (no lock badge for a yaml typo). */
+export type NotePrivacy = "public" | "private" | "indeterminate";
+
+/** Classify a doc's privacy from its raw text. Strict per the conservative
+ * typing above: only a boolean `private: true` marks a note private —
+ * `yes`/`"true"` stay text and read as public, exactly like the properties
+ * panel would show them. No frontmatter (or an empty block) is public. */
+export function notePrivacy(text: string): NotePrivacy {
+  const yaml = frontmatterYaml(text);
+  if (yaml === null) return "public";
+  const parsed = parseProperties(yaml);
+  if (parsed.kind === "none") return "public";
+  if (parsed.kind === "invalid") return "indeterminate";
+  const prop = parsed.properties.find((p) => p.key === "private");
+  return prop !== undefined && prop.type === "checkbox" && prop.value ? "private" : "public";
+}
+
 /** Type a single new key from a user-entered raw value (the panel's "Add
  * property" flow): the value is read as a YAML scalar so `true`, `42`,
  * `2026-07-01`, `[a, b]` type naturally, exactly as if it had been typed into

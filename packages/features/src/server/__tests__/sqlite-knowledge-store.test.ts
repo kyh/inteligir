@@ -310,3 +310,42 @@ describe("indexDbPathFor", () => {
     expect(indexDbPathFor("/vault/one")).toBe(a);
   });
 });
+
+describe("sqlite-knowledge-store — privacy (is_private)", () => {
+  it("round-trips projection.private through loadAll", () => {
+    const store = open();
+    upsert(store, "secret.md", "---\nprivate: true\n---\n# Secret\n");
+    upsert(store, "open.md", "# Open\n");
+    const { docs } = store.loadAll();
+    const byPath = new Map(docs.map((d) => [d.path, d.projection.private]));
+    expect(byPath.get("secret.md")).toBe(true);
+    expect(byPath.get("open.md")).toBe(false);
+  });
+
+  it("excludePrivate filters search inside the query; default search sees all", () => {
+    const store = open();
+    upsert(store, "secret.md", "---\nprivate: true\n---\n# Secret\n\nrocket plans\n");
+    upsert(store, "broken.md", "---\n[not: valid: yaml\n---\nrocket plans too\n");
+    upsert(store, "open.md", "# Open\n\nrocket plans three\n");
+    expect(
+      store
+        .search("rocket", 10)
+        .map((h) => h.path)
+        .toSorted(),
+    ).toEqual(["broken.md", "open.md", "secret.md"]);
+    const filtered = store.search("rocket", 10, { excludePrivate: true });
+    expect(filtered.map((h) => h.path)).toEqual(["open.md"]);
+    // The private path/title/snippet never even transit the result payload.
+    expect(JSON.stringify(filtered)).not.toContain("secret");
+  });
+
+  it("a doc turning public updates the filter on re-upsert", () => {
+    const store = open();
+    upsert(store, "note.md", "---\nprivate: true\n---\nrocket\n");
+    expect(store.search("rocket", 10, { excludePrivate: true })).toEqual([]);
+    upsert(store, "note.md", "rocket, now public\n", 2000);
+    expect(store.search("rocket", 10, { excludePrivate: true }).map((h) => h.path)).toEqual([
+      "note.md",
+    ]);
+  });
+});

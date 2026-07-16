@@ -77,7 +77,13 @@ export type WikiTarget = { path: string; title: string; type: "doc" | "asset" };
 
 // ---- Engine ------------------------------------------------------------------
 
-type DocRecord = { title: string; links: StoredLink[] };
+/** Query option shared by the privacy-filterable reads. Default false keeps
+ * renderer surfaces (backlinks panel, palette, graph) seeing everything —
+ * private notes are the user's own screen; only AGENT-facing callers pass
+ * true, and they re-probe live disk on top (the index only prefilters). */
+export type PrivacyOpts = { excludePrivate?: boolean };
+
+type DocRecord = { title: string; links: StoredLink[]; private: boolean };
 
 type ResolvedLink = { link: StoredLink; targetPath: string | null };
 
@@ -96,7 +102,11 @@ export class LinkGraphIndex {
   /** Index (or re-index) a markdown doc from its projection. */
   applyDoc(path: string, projection: DocProjection): void {
     this.others.delete(path);
-    this.docs.set(path, { title: projection.title, links: projection.links });
+    this.docs.set(path, {
+      title: projection.title,
+      links: projection.links,
+      private: projection.private,
+    });
     this.tagIndex.set(path, projection.tags);
     this.resolved = null;
   }
@@ -130,8 +140,33 @@ export class LinkGraphIndex {
     return this.docs.get(path)?.title ?? null;
   }
 
-  backlinks(path: string): BacklinkEntry[] {
-    const occurrences = this.ensureResolved().backlinks.get(path) ?? [];
+  /** Whether the indexed doc carries `private: true` (or unreadable
+   * frontmatter — fail-closed). `undefined` = not an indexed doc. */
+  isPrivate(path: string): boolean | undefined {
+    return this.docs.get(path)?.private;
+  }
+
+  /** Vault paths of every indexed private doc, sorted — the prefilter the
+   * agent gate's best-effort bash/execute heuristics scan. */
+  privatePaths(): string[] {
+    return [...this.docs.entries()]
+      .filter(([, record]) => record.private)
+      .map(([path]) => path)
+      .toSorted();
+  }
+
+  backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[] {
+    // A private TARGET yields nothing at all under excludePrivate — the drop
+    // is silent (indistinguishable from "no backlinks") so the response never
+    // confirms the path exists, matching search's drop-entirely rule.
+    if (opts?.excludePrivate === true && this.docs.get(path)?.private === true) return [];
+    let occurrences = this.ensureResolved().backlinks.get(path) ?? [];
+    if (opts?.excludePrivate === true) {
+      // A backlink FROM a private note leaks its path + snippet — drop those.
+      occurrences = occurrences.filter(
+        ({ sourcePath }) => this.docs.get(sourcePath)?.private !== true,
+      );
+    }
     return occurrences.map(({ sourcePath, link }) => {
       const entry: BacklinkEntry = {
         sourcePath,
@@ -225,8 +260,10 @@ export class LinkGraphIndex {
   }
 
   /** Vault paths of notes carrying `tag` (case-insensitive), sorted. */
-  notesWithTag(tag: string): string[] {
-    return this.tagIndex.notesWithTag(tag);
+  notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
+    const paths = this.tagIndex.notesWithTag(tag);
+    if (opts?.excludePrivate !== true) return paths;
+    return paths.filter((path) => this.docs.get(path)?.private !== true);
   }
 
   // ---- Internals --------------------------------------------------------------

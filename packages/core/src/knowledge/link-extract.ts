@@ -64,6 +64,10 @@ export type DocScan = {
    * declaration order), then inline `#tag` tokens in document order. Unified
    * case-insensitively downstream by TagIndex. */
   tags: string[];
+  /** Frontmatter `private: true` (strict boolean — `yes`/`"true"` stay text
+   * and read false). Malformed frontmatter reads TRUE: at the index level a
+   * doc we can't type is treated private, the fail-closed side. */
+  private: boolean;
 };
 
 const processor = unified()
@@ -75,7 +79,13 @@ const processor = unified()
 /** Parse a doc once and pull out title, headings, note links, and tags. */
 export function scanDoc(source: string): DocScan {
   const tree = processor.parse(source);
-  const scan: DocScan = { title: null, headings: [], links: [], tags: extractTags(tree) };
+  const scan: DocScan = {
+    title: null,
+    headings: [],
+    links: [],
+    tags: extractTags(tree),
+    private: frontmatterPrivate(tree),
+  };
   walk(tree, (node) => {
     switch (node.type) {
       case "heading": {
@@ -171,6 +181,21 @@ function frontmatterTags(tree: Nodes): string[] {
   const prop = parsed.properties.find((p) => p.key === "tags" && p.type === "tags");
   if (!prop || prop.type !== "tags") return [];
   return prop.value.map((tag) => tag.replace(/^#/, "").trim()).filter((tag) => tag !== "");
+}
+
+/** The leading `yaml` node's strict-boolean `private` verdict for the index
+ * (same rules as frontmatter.ts notePrivacy, over the parsed node instead of
+ * re-matching the fence): no frontmatter / empty → false; malformed → TRUE
+ * (fail-closed at the index level); valid → the `private` checkbox's value. */
+function frontmatterPrivate(tree: Nodes): boolean {
+  if (!("children" in tree)) return false;
+  const yaml = tree.children.find((child) => child.type === "yaml");
+  if (!yaml || yaml.type !== "yaml") return false;
+  const parsed = parseProperties(yaml.value);
+  if (parsed.kind === "none") return false;
+  if (parsed.kind === "invalid") return true;
+  const prop = parsed.properties.find((p) => p.key === "private");
+  return prop !== undefined && prop.type === "checkbox" && prop.value;
 }
 
 /** Walk `text` nodes for `#tag` tokens; suppress link/image subtrees so a

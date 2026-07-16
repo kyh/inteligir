@@ -17,7 +17,7 @@ import { scanDoc, titleFromPath } from "./link-extract";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
-export const PROJECTION_VERSION = 1;
+export const PROJECTION_VERSION = 2; // 2: docs gained `private` (frontmatter private: true)
 
 const SNIPPET_MAX = 200;
 
@@ -40,6 +40,9 @@ export type DocProjection = {
   links: StoredLink[];
   /** Display-case tags, deduped — frontmatter first, then inline. */
   tags: string[];
+  /** Frontmatter `private: true` (malformed frontmatter reads true — the
+   * index prefilters fail-closed; AI surfaces re-probe live disk anyway). */
+  private: boolean;
 };
 
 /** Parse a doc once into its projection. Pure: same bytes, same output. */
@@ -54,5 +57,6 @@ export function projectDoc(path: string, content: string): DocProjection {
     headings: scan.headings,
     links,
     tags: scan.tags,
+    private: scan.private,
   };
 }
