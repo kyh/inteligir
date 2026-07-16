@@ -4,6 +4,8 @@ import { probeVaultPrivacy } from "../lib/agent-lifecycle";
 import { getPlatform } from "../platform-instance";
 import { getVaultManager } from "../vault/vault";
 import type { HandlerRegistrar } from "../lib/handler-registry";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 import { toErrorMessage } from "@repo/features/ipc";
 import type { ChooseVaultResult, ReadVaultAssetResult } from "@repo/features/ipc-registry";
 
@@ -93,6 +95,13 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
   handle("renameVaultEntry", ({ from, to }) => {
+    // Boundary enforcement of the note-name ruleset (the renderer validates
+    // too, for instant feedback — this is the layer nothing can skip). Only
+    // the destination BASENAME is checked; directory moves pass through.
+    // writeVaultDoc is deliberately NOT gated: it's the autosave path, and a
+    // pre-existing file with a hostile name must keep saving.
+    const verdict = checkNoteName(basenamePath(to));
+    if (!verdict.ok) return { ok: false, error: noteNameErrorMessage(verdict.reason) };
     // Rename, then rewrite [[wiki]] / relative md links vault-wide so nothing
     // dangles (snapshot-verified byte surgery — see knowledge/rename-rewrite).
     const result = renameWithLinkRewrite(getVaultManager(), from, to);

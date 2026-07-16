@@ -17,10 +17,22 @@
 //      when the move changed directories (wiki links are location-independent);
 //   3. links in ANY doc whose target the rename SHADOWS (`[[note]]` reached
 //      a/note.md; the file just renamed to note.md now wins the tie-break) —
-//      qualified so they keep meaning what they meant.
+//      qualified so they keep meaning what they meant. This includes links
+//      that resolved only via a frontmatter ALIAS the new name now steals
+//      (path tiers beat alias tiers): those are qualified back to the alias
+//      owner's path, keeping the visible word as the display alias.
+//
+// Resolver roles are deliberately split: the RETARGET branch keys on the
+// PATH-ONLY pre-resolver — a link that reaches the moved doc via one of its
+// aliases must NOT be rewritten (the alias travels with the file's
+// frontmatter and still resolves post-rename); rewriting it would replace
+// the author's chosen word vault-wide. The alias-aware pre-resolver serves
+// ONLY alias-shadow detection. The about-to-be-recorded old-title alias is
+// counted NOWHERE here — rewrites stay canonical; that alias is the fallback
+// for what surgery misses, never a reason to skip it.
 // ---------------------------------------------------------------------------
 
-import type { Span } from "./link-extract";
+import type { ExtractedLink, Span } from "./link-extract";
 import { scanDoc } from "./link-extract";
 import { buildResolver, type TargetResolver } from "./link-resolve";
 import { basenamePath, dirnamePath, extnamePath, normalizePath, relativePath } from "./vault-path";
@@ -55,12 +67,24 @@ export function computeRenameEdits(
   const othersResolver = buildResolver(postFiles.filter((p) => p !== toPath));
   const movedDirs = dirnamePath(fromPath) !== dirnamePath(toPath);
 
+  // One scan per doc, hoisted: the loop needs each doc's links, and the
+  // alias-aware pre-resolver needs EVERY doc's aliases before the loop runs.
+  const scans = new Map<string, ReturnType<typeof scanDoc>>();
+  for (const [docPath, content] of docs) scans.set(docPath, scanDoc(content));
+  const aliasEntries: Array<readonly [string, string]> = [];
+  for (const [docPath, scan] of scans) {
+    const owner = normalizePath(docPath);
+    for (const alias of scan.aliases) aliasEntries.push([alias, owner]);
+  }
+  // Alias-shadow detection ONLY (see header) — never the retarget branch.
+  const aliasPreResolver = buildResolver(files, aliasEntries);
+
   for (const [docPath, content] of docs) {
     const path = normalizePath(docPath);
     const postDocPath = path === fromPath ? toPath : path;
     const replacements: Array<{ span: Span; text: string }> = [];
 
-    for (const link of scanDoc(content).links) {
+    for (const link of scans.get(docPath)?.links ?? []) {
       if (!link.targetSpan) continue;
       const raw = content.slice(link.targetSpan.start, link.targetSpan.end);
       const resolved =
@@ -89,6 +113,22 @@ export function computeRenameEdits(
           // used to reach a/note.md; the new root note.md shadows it) —
           // qualify the target so the link keeps meaning what it meant.
           text = qualifiedWikiText(resolved, raw);
+        }
+      } else if (link.kind === "wiki") {
+        // Alias-shadow case: every path tier missed (resolved === null), the
+        // link reaches its target only via an alias, and the renamed file's
+        // new name captures it through a PATH tier post-rename — path beats
+        // alias, so the link would silently change meaning. Qualify it back
+        // to the alias owner (remapped when the owner IS the moved doc; if
+        // the new path hit and the owner agree, nothing changed — e.g. the
+        // doc was renamed TO its own alias).
+        const aliasOwner = aliasPreResolver.resolveWiki(link.target);
+        if (aliasOwner !== null) {
+          const ownerPost = aliasOwner === fromPath ? toPath : aliasOwner;
+          const postHit = postResolver.resolveWiki(link.target);
+          if (postHit !== null && postHit !== ownerPost) {
+            text = aliasShadowText(ownerPost, raw, link);
+          }
         }
       }
       if (text !== null && text !== raw) replacements.push({ span: link.targetSpan, text });
@@ -145,6 +185,18 @@ function qualifiedWikiText(path: string, oldRaw: string): string {
   const ext = extnamePath(path).toLowerCase();
   const explicitExt = ext !== "" && normalizePath(oldRaw).toLowerCase().endsWith(ext);
   return ext === ".md" && !explicitExt ? path.slice(0, -3) : path;
+}
+
+/** Qualified target for a link whose ALIAS the rename stole. When the link
+ * had neither an explicit `|alias` nor a `#anchor`, the raw alias text is
+ * appended as the display alias so the visible word survives — `[[Bar]]` →
+ * `[[owner|Bar]]`. Otherwise only the target is qualified: the targetSpan
+ * splice sits BEFORE any `#anchor`, and the wiki body splits at the FIRST
+ * pipe, so appending `|raw` there would corrupt the existing display text or
+ * swallow the anchor into it. */
+function aliasShadowText(ownerPath: string, raw: string, link: ExtractedLink): string {
+  const qualified = qualifiedWikiText(ownerPath, raw);
+  return link.alias === undefined && link.anchor === undefined ? `${qualified}|${raw}` : qualified;
 }
 
 /** New md url for a link from `sourcePath` (post-rename location) to

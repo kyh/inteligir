@@ -53,7 +53,9 @@ export class KnowledgeIndex {
     this.linkGraph.applyDoc(path, projection);
     this.searchIndex.set(path, {
       title: projection.title,
-      headings: projection.headings,
+      // Aliases ride the headings field — a ranking boost only (their bytes
+      // already match via the body); the SQL store's FTS insert mirrors this.
+      headings: [...projection.headings, ...projection.aliases],
       body: content,
     });
   }

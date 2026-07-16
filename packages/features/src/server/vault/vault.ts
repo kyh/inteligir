@@ -424,15 +424,52 @@ export class VaultManager {
 
   /** Rename/move a file within the vault. Both paths are confined under the
    * root; parent dirs of the destination are created. Refuses to overwrite an
-   * existing destination so a rename can't silently clobber another note. */
+   * existing destination so a rename can't silently clobber another note.
+   *
+   * The occupied check is CASE-INSENSITIVE (and unicode-normalization-
+   * insensitive) over the destination directory's real listing: a plain
+   * existsSync(dst) passes on case-sensitive dev filesystems and then
+   * explodes on the APFS/NTFS machines the vault syncs to — and on APFS it
+   * refused CASE-ONLY self-renames because existsSync(dst) saw the source
+   * itself. Occupancy is decided by inode: a matching name that IS the
+   * source (case-only / normalization-only retitle) passes through to a
+   * direct fs.renameSync, which handles that atomically on APFS and NTFS. */
   rename(from: string, to: string): { ok: true } | { ok: false; error: string } {
     assertVaultWritable();
     const src = this.resolve(from);
     const dst = this.resolve(to);
     if (!fs.existsSync(src)) return { ok: false, error: `Not found: ${from}` };
     if (src === dst) return { ok: true };
-    if (fs.existsSync(dst)) return { ok: false, error: `${to} already exists` };
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    const dstDir = path.dirname(dst);
+    // A not-yet-existing destination directory is trivially unoccupied
+    // (mkdirSync below creates it).
+    if (fs.existsSync(dstDir)) {
+      const wanted = path.basename(dst).normalize("NFC").toLowerCase();
+      let srcIno: number | null = null;
+      try {
+        srcIno = fs.statSync(src).ino;
+      } catch {
+        srcIno = null; // raced away — any name match below refuses, the safe side
+      }
+      let names: string[] = [];
+      try {
+        names = fs.readdirSync(dstDir);
+      } catch {
+        names = []; // unreadable dir — fall through; renameSync reports the real error
+      }
+      for (const name of names) {
+        if (name.normalize("NFC").toLowerCase() !== wanted) continue;
+        let ino: number | null = null;
+        try {
+          ino = fs.statSync(path.join(dstDir, name)).ino;
+        } catch {
+          continue; // vanished mid-scan — not an occupant
+        }
+        if (srcIno !== null && ino === srcIno) continue; // the source itself
+        return { ok: false, error: `${to} already exists` };
+      }
+    }
+    fs.mkdirSync(dstDir, { recursive: true });
     fs.renameSync(src, dst);
     this.invalidateSnapshot();
     this.notify("refresh");

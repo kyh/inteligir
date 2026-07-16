@@ -125,6 +125,59 @@ describe("sqlite-knowledge-store — round trip", () => {
     expect(store.loadAll().docs.map((d) => d.path)).toEqual(["c.md"]);
   });
 
+  it("aliases persist, rebuild across a reopen, and populate the doc_keys view", () => {
+    const dbPath = path.join(tmp, "aliases.sqlite");
+    const first = open(dbPath);
+    const content = "---\naliases:\n  - Retro\n  - Post-Mortem\n---\n\n# Retrospective\n";
+    const row = upsert(first, "notes/retrospective.md", content);
+    expect(row.projection.aliases).toEqual(["Retro", "Post-Mortem"]);
+    upsert(first, "plain.md", "# Plain\n");
+    first.dispose();
+
+    // Reopen (boot hydration path): aliases round-trip from child rows.
+    const second = open(dbPath);
+    const byPath = new Map(second.loadAll().docs.map((d) => [d.path, d]));
+    expect(byPath.get("notes/retrospective.md")?.projection.aliases).toEqual([
+      "Retro",
+      "Post-Mortem",
+    ]);
+    expect(byPath.get("plain.md")?.projection.aliases).toEqual([]);
+    second.dispose();
+
+    // The doc_keys view unions basename stems and aliases — the resolution-key
+    // seam sibling workstreams (tasks-projection, agents) query.
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    const keys = db
+      .prepare("SELECT path, key, key_ci, source FROM doc_keys ORDER BY source, key")
+      .all();
+    db.close();
+    expect(keys).toEqual([
+      {
+        path: "notes/retrospective.md",
+        key: "Post-Mortem",
+        key_ci: "post-mortem",
+        source: "alias",
+      },
+      { path: "notes/retrospective.md", key: "Retro", key_ci: "retro", source: "alias" },
+      { path: "plain.md", key: "plain", key_ci: "plain", source: "name" },
+      {
+        path: "notes/retrospective.md",
+        key: "retrospective",
+        key_ci: "retrospective",
+        source: "name",
+      },
+    ]);
+  });
+
+  it("re-upserting a doc replaces its alias rows", () => {
+    const store = open();
+    upsert(store, "a.md", "---\naliases: [One, Two]\n---\n# A\n");
+    upsert(store, "a.md", "---\naliases: [Three]\n---\n# A\n", 2000);
+    expect(store.loadAll().docs[0]?.projection.aliases).toEqual(["Three"]);
+    upsert(store, "a.md", "# A no aliases\n", 3000);
+    expect(store.loadAll().docs[0]?.projection.aliases).toEqual([]);
+  });
+
   it("updateFingerprint persists without touching projection or search corpus", () => {
     const dbPath = path.join(tmp, "fp.sqlite");
     const first = open(dbPath);

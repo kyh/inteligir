@@ -44,7 +44,10 @@ describe("renameWithLinkRewrite", () => {
     expect(renameWithLinkRewrite(vault, "old note.md", "sub/new note.md")).toEqual({ ok: true });
 
     expect(fs.existsSync(path.join(root, "old note.md"))).toBe(false);
-    expect(vault.readText("sub/new note.md")).toBe("# The note\n");
+    // Phase 3: the old title is recorded as an alias on the moved doc.
+    expect(vault.readText("sub/new note.md")).toBe(
+      "---\naliases:\n  - old note\n---\n# The note\n",
+    );
     expect(vault.readText("hub.md")).toBe(
       [
         "# Hub",
@@ -111,9 +114,51 @@ describe("renameWithLinkRewrite", () => {
       expect(renameWithLinkRewrite(racy, "old.md", "new.md")).toEqual({ ok: true });
       // The concurrent edit is preserved; the stale rewrite was dropped.
       expect(racy.readText("hub.md")).toBe("concurrent edit\n");
-      expect(fs.existsSync(path.join(root, "new.md"))).toBe(true);
+      // The alias still records — the skipped stale [[old]] link is exactly
+      // what it keeps resolving.
+      expect(racy.readText("new.md")).toBe("---\naliases:\n  - old\n---\n");
     } finally {
       racy.close();
     }
+  });
+});
+
+describe("renameWithLinkRewrite — old-title alias (phase 3)", () => {
+  it("records the old stem on a retitle even when no links needed rewriting", () => {
+    vault.writeText("Meeting Notes.md", "# Meeting Notes\n\nBody.\n");
+    expect(renameWithLinkRewrite(vault, "Meeting Notes.md", "Retro.md")).toEqual({ ok: true });
+    expect(vault.readText("Retro.md")).toBe(
+      "---\naliases:\n  - Meeting Notes\n---\n# Meeting Notes\n\nBody.\n",
+    );
+  });
+
+  it("appends to an existing alias list and skips a duplicate", () => {
+    vault.writeText("a.md", "---\naliases:\n  - Existing\n---\nbody\n");
+    expect(renameWithLinkRewrite(vault, "a.md", "b.md")).toEqual({ ok: true });
+    expect(vault.readText("b.md")).toBe("---\naliases:\n  - Existing\n  - a\n---\nbody\n");
+    // Rename back and forth: "b" gets recorded, then the re-rename to b.md
+    // would record "a" again — the ci-duplicate check keeps the list clean.
+    expect(renameWithLinkRewrite(vault, "b.md", "a.md")).toEqual({ ok: true });
+    expect(renameWithLinkRewrite(vault, "a.md", "b.md")).toEqual({ ok: true });
+    expect(vault.readText("b.md")).toBe("---\naliases:\n  - Existing\n  - a\n  - b\n---\nbody\n");
+  });
+
+  it("skips case-only retitles and dir-only moves", () => {
+    vault.writeText("note.md", "# N\n");
+    expect(renameWithLinkRewrite(vault, "note.md", "Note.md")).toEqual({ ok: true });
+    expect(vault.readText("Note.md")).toBe("# N\n");
+    expect(renameWithLinkRewrite(vault, "Note.md", "sub/Note.md")).toEqual({ ok: true });
+    expect(vault.readText("sub/Note.md")).toBe("# N\n");
+  });
+
+  it("skips non-docs and unreadable frontmatter (bytes = plain rename)", () => {
+    fs.writeFileSync(path.join(root, "pic.png"), "bytes");
+    expect(renameWithLinkRewrite(vault, "pic.png", "photo.png")).toEqual({ ok: true });
+    expect(fs.readFileSync(path.join(root, "photo.png"), "utf8")).toBe("bytes");
+
+    const invalid = "---\ndup: 1\ndup: 2\n---\nbody\n";
+    vault.writeText("weird.md", invalid);
+    expect(renameWithLinkRewrite(vault, "weird.md", "renamed weird.md")).toEqual({ ok: true });
+    expect(vault.readText("renamed weird.md")).toBe(invalid);
   });
 });

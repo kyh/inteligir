@@ -226,6 +226,55 @@ describe("VaultManager", () => {
     expect(mgr.statFingerprint("../escape.md")).toBeNull();
   });
 
+  // ---- rename: occupancy + case-only (the two APFS/NTFS rename bugs) ---------
+  it("refuses to overwrite an exact existing destination", () => {
+    const mgr = newManager();
+    mgr.writeText("a.md", "A");
+    mgr.writeText("b.md", "B");
+    expect(mgr.rename("a.md", "b.md")).toEqual({ ok: false, error: "b.md already exists" });
+    expect(mgr.readText("a.md")).toBe("A");
+    expect(mgr.readText("b.md")).toBe("B");
+  });
+
+  it("refuses a case-insensitive collision with a DIFFERENT file", () => {
+    // On a case-sensitive dev fs both names can coexist; the refusal keeps
+    // the vault portable to the APFS/NTFS machines it syncs to (where the
+    // rename would silently clobber).
+    const mgr = newManager();
+    mgr.writeText("Taken.md", "occupied");
+    mgr.writeText("b.md", "B");
+    const result = mgr.rename("b.md", "taken.md");
+    expect(result).toEqual({ ok: false, error: "taken.md already exists" });
+    expect(mgr.readText("Taken.md")).toBe("occupied");
+    expect(mgr.readText("b.md")).toBe("B");
+  });
+
+  it("refuses a unicode-normalization collision (NFD name vs NFC rename)", () => {
+    const mgr = newManager();
+    mgr.writeText("café.md", "decomposed"); // café, NFD
+    mgr.writeText("b.md", "B");
+    const result = mgr.rename("b.md", "café.md"); // café, NFC
+    expect(result.ok).toBe(false);
+    expect(mgr.readText("b.md")).toBe("B");
+  });
+
+  it("allows a case-only self-rename (previously refused on APFS)", () => {
+    const mgr = newManager();
+    mgr.writeText("meeting notes.md", "content");
+    expect(mgr.rename("meeting notes.md", "Meeting Notes.md")).toEqual({ ok: true });
+    expect(mgr.readText("Meeting Notes.md")).toBe("content");
+    const names = mgr.list().map((e) => e.name);
+    expect(names).toContain("Meeting Notes.md");
+    expect(names).not.toContain("meeting notes.md");
+  });
+
+  it("renames into a not-yet-existing directory (trivially unoccupied)", () => {
+    const mgr = newManager();
+    mgr.writeText("a.md", "A");
+    expect(mgr.rename("a.md", "brand/new/dir/a.md")).toEqual({ ok: true });
+    expect(mgr.readText("brand/new/dir/a.md")).toBe("A");
+  });
+
   // ---- Change notifier kinds (plan 016) --------------------------------------
   // A NEW file changes the listing → "refresh" (broadcast). Overwriting an
   // existing file is a content save → "save" (reindex + sync, no broadcast).

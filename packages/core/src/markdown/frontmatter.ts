@@ -227,6 +227,48 @@ export function setNotePrivate(text: string, value: boolean): string | null {
   return nextYaml === "" ? body : `---\n${nextYaml}\n---\n${body}`;
 }
 
+/** Record `alias` in a doc's frontmatter `aliases:` — the byte-preserving
+ * writer the rename pipeline uses so an old title keeps resolving. Runs over
+ * the yaml Document API (serializeProperties), NOT splitFrontmatter +
+ * serializeDoc, so untouched keys keep their exact source bytes, comments
+ * included. Returns null (write NOTHING) when:
+ *   - the frontmatter can't be typed (`invalid` — never rewrite what we
+ *     can't read),
+ *   - the alias list key exists but is not a plain string array,
+ *   - the alias is already present case-insensitively.
+ * The legacy `alias:` key is honored when it is the doc's only alias list
+ * (extraction prefers `aliases`, so minting `aliases` beside an existing
+ * `alias` would silently shadow the old entries). A doc with no frontmatter
+ * gains a block; the body is preserved byte-exactly. */
+export function addFrontmatterAlias(content: string, alias: string): string | null {
+  const trimmed = alias.trim();
+  if (trimmed === "") return null;
+  const yaml = frontmatterYaml(content);
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") return null;
+  const props = parsed.kind === "valid" ? parsed.properties : [];
+  const key =
+    props.some((p) => p.key === "aliases") || !props.some((p) => p.key === "alias")
+      ? "aliases"
+      : "alias";
+  const existing = props.find((p) => p.key === key);
+  if (existing !== undefined && existing.type !== "tags") return null;
+  const current = existing === undefined ? [] : existing.value;
+  if (current.some((a) => a.trim().toLowerCase() === trimmed.toLowerCase())) return null;
+  const nextProps: TypedProperty[] =
+    existing === undefined
+      ? [...props, { key, type: "tags", value: [trimmed] }]
+      : props.map(
+          (p): TypedProperty =>
+            p.key === key && p.type === "tags"
+              ? { key: p.key, type: "tags", value: [...p.value, trimmed] }
+              : p,
+        );
+  const nextYaml = serializeProperties(nextProps, yaml ?? "");
+  const body = splitFrontmatter(content).body;
+  return `---\n${nextYaml}\n---\n${body}`;
+}
+
 /** Type a single new key from a user-entered raw value (the panel's "Add
  * property" flow): the value is read as a YAML scalar so `true`, `42`,
  * `2026-07-01`, `[a, b]` type naturally, exactly as if it had been typed into

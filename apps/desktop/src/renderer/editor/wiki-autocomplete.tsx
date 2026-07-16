@@ -105,7 +105,9 @@ function WikiInputElement(props: PlateElementProps) {
       key={target.path}
       value={target.path}
       label={target.title}
-      keywords={[target.title]}
+      // Aliases match too; picking an alias-matched row inserts the canonical
+      // `[[target]]` (composeWikiBody below), not `[[target|alias]]`.
+      keywords={[target.title, ...(target.aliases ?? [])]}
       onClick={() =>
         complete(
           composeWikiBody(wikiBodyForPath(target.path, resolveWikiTarget), typed),

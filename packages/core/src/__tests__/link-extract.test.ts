@@ -230,6 +230,35 @@ describe("scanDoc — title and headings", () => {
   });
 });
 
+describe("scanDoc — frontmatter aliases", () => {
+  it("extracts the canonical string-array form in declaration order", () => {
+    const src = "---\naliases:\n  - Retro\n  - Post-mortem\n---\n\n# Retrospective\n";
+    expect(scanDoc(src).aliases).toEqual(["Retro", "Post-mortem"]);
+  });
+
+  it("accepts the single-string scalar and the legacy alias: key (Obsidian interop)", () => {
+    expect(scanDoc("---\naliases: Retro\n---\nbody\n").aliases).toEqual(["Retro"]);
+    expect(scanDoc("---\nalias: Retro\n---\nbody\n").aliases).toEqual(["Retro"]);
+    // `aliases` wins when both keys exist.
+    expect(scanDoc("---\naliases: [A]\nalias: B\n---\nbody\n").aliases).toEqual(["A"]);
+    // A date-shaped scalar is still a string alias.
+    expect(scanDoc("---\naliases: 2026-07-15\n---\nbody\n").aliases).toEqual(["2026-07-15"]);
+  });
+
+  it("trims, drops empties, and dedupes case-insensitively keeping first display case", () => {
+    const src = "---\naliases:\n  - ' Padded '\n  - ''\n  - padded\n  - Other\n---\nbody\n";
+    expect(scanDoc(src).aliases).toEqual(["Padded", "Other"]);
+  });
+
+  it("degrades malformed or non-string values to []", () => {
+    expect(scanDoc("---\naliases: 42\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("---\naliases:\n  - 1\n  - 2\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("---\naliases: {a: b}\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("---\n: bad yaml [\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("no frontmatter\n").aliases).toEqual([]);
+  });
+});
+
 describe("titleFromPath", () => {
   it("strips directories and the extension", () => {
     expect(titleFromPath("notes/my note.md")).toBe("my note");

@@ -72,8 +72,10 @@ export type GraphEdge = {
 export type LinkGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
 
 /** A `[[` picker entry: notes AND attachments suggest (Obsidian-style); the
- * `type` flag lets the picker group them and insert `![[..]]` for assets. */
-export type WikiTarget = { path: string; title: string; type: "doc" | "asset" };
+ * `type` flag lets the picker group them and insert `![[..]]` for assets.
+ * `aliases` (docs only, when non-empty) feed the picker's match keywords and
+ * the renderer's local resolver. */
+export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; aliases?: string[] };
 
 // ---- Engine ------------------------------------------------------------------
 
@@ -83,7 +85,7 @@ export type WikiTarget = { path: string; title: string; type: "doc" | "asset" };
  * true, and they re-probe live disk on top (the index only prefilters). */
 export type PrivacyOpts = { excludePrivate?: boolean };
 
-type DocRecord = { title: string; links: StoredLink[]; private: boolean };
+type DocRecord = { title: string; links: StoredLink[]; aliases: string[]; private: boolean };
 
 type ResolvedLink = { link: StoredLink; targetPath: string | null };
 
@@ -105,6 +107,7 @@ export class LinkGraphIndex {
     this.docs.set(path, {
       title: projection.title,
       links: projection.links,
+      aliases: projection.aliases,
       private: projection.private,
     });
     this.tagIndex.set(path, projection.tags);
@@ -244,9 +247,11 @@ export class LinkGraphIndex {
   /** Docs first (title-bearing), assets after — the picker renders them as
    * two groups in this order. */
   wikiTargets(): WikiTarget[] {
-    const docs = [...this.docs.entries()].map(
-      ([path, record]): WikiTarget => ({ path, title: record.title, type: "doc" }),
-    );
+    const docs = [...this.docs.entries()].map(([path, record]): WikiTarget => {
+      const target: WikiTarget = { path, title: record.title, type: "doc" };
+      if (record.aliases.length > 0) target.aliases = record.aliases;
+      return target;
+    });
     const assets = [...this.others].map(
       (path): WikiTarget => ({ path, title: basenamePath(path), type: "asset" }),
     );
@@ -270,7 +275,15 @@ export class LinkGraphIndex {
 
   private ensureResolved(): ResolvedState {
     if (this.resolved) return this.resolved;
-    const resolver = buildResolver([...this.docs.keys(), ...this.others]);
+    // Alias entries feed the resolver's below-path tiers, so `[[alias]]`
+    // links resolve in backlinks/forward-links/graph exactly like the
+    // renderer's local resolver (which pulls the same aliases via
+    // listWikiTargets).
+    const aliasEntries: Array<readonly [string, string]> = [];
+    for (const [path, record] of this.docs) {
+      for (const alias of record.aliases) aliasEntries.push([alias, path]);
+    }
+    const resolver = buildResolver([...this.docs.keys(), ...this.others], aliasEntries);
     const forward = new Map<string, ResolvedLink[]>();
     const backlinks: ResolvedState["backlinks"] = new Map();
     for (const [sourcePath, record] of this.docs) {

@@ -17,10 +17,12 @@ import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
 import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
+import { titleFromPath } from "@repo/core/knowledge/link-extract";
 import { LinkGraphIndex } from "@repo/core/knowledge/link-graph-index";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { projectDoc } from "@repo/core/knowledge/projection";
 import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
-import { notePrivacy } from "@repo/core/markdown/frontmatter";
+import { addFrontmatterAlias, notePrivacy } from "@repo/core/markdown/frontmatter";
 import { conflictCopyName, fsSafeStamp } from "@repo/core/sync/reconcile";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
@@ -882,9 +884,21 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     renameVaultEntry: async ({ from, to }) => {
       const content = vault.get(from);
       if (content === undefined) return { ok: false, error: `no such file: ${from}` };
-      if (vault.has(to)) return { ok: false, error: `already exists: ${to}` };
+      // Host parity: the destination basename passes the note-name gate.
+      const verdict = checkNoteName(to.split("/").at(-1) ?? to);
+      if (!verdict.ok) return { ok: false, error: noteNameErrorMessage(verdict.reason) };
+      // Host parity: case-insensitive occupied check (a DIFFERENT file
+      // claiming the name refuses; a case-only self-rename passes).
+      const wanted = to.normalize("NFC").toLowerCase();
+      for (const path of vault.keys()) {
+        if (path === from) continue;
+        if (path.normalize("NFC").toLowerCase() === wanted) {
+          return { ok: false, error: `already exists: ${to}` };
+        }
+      }
       // Mirror the host: rename, then rewrite every link that pointed at the
-      // old path (same pure core edit computation).
+      // old path (same pure core edit computation), then record the old stem
+      // as an alias on the moved doc (rename-rewrite's phase 3).
       const docs = new Map<string, string>();
       for (const [path, text] of vault) {
         if (isDocPath(path)) docs.set(path, text);
@@ -892,10 +906,21 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       const edits = computeRenameEdits(docs, vault.keys(), from, to);
       vault.delete(from);
       removeEntry(from);
-      vault.set(to, content);
-      for (const [path, text] of edits) vault.set(path, text);
+      const oldStem = titleFromPath(from);
+      const recordAlias =
+        isDocPath(from) &&
+        isDocPath(to) &&
+        oldStem !== "" &&
+        oldStem.toLowerCase() !== titleFromPath(to).toLowerCase();
+      const moved = edits.get(to) ?? content;
+      vault.set(to, recordAlias ? (addFrontmatterAlias(moved, oldStem) ?? moved) : moved);
+      for (const [path, text] of edits) {
+        if (path !== to) vault.set(path, text);
+      }
       indexEntry(to);
-      for (const path of edits.keys()) indexEntry(path);
+      for (const path of edits.keys()) {
+        if (path !== to) indexEntry(path);
+      }
       touchVault();
       return { ok: true };
     },

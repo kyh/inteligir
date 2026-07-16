@@ -64,6 +64,10 @@ export type DocScan = {
    * declaration order), then inline `#tag` tokens in document order. Unified
    * case-insensitively downstream by TagIndex. */
   tags: string[];
+  /** Frontmatter `aliases` (Obsidian's alias list), display case, deduped
+   * case-insensitively. The SINGLE extraction source for aliases — sibling
+   * indexes consume this, never re-parse frontmatter. */
+  aliases: string[];
   /** Frontmatter `private: true` (strict boolean — `yes`/`"true"` stay text
    * and read false). Malformed frontmatter reads TRUE: at the index level a
    * doc we can't type is treated private, the fail-closed side. */
@@ -84,6 +88,7 @@ export function scanDoc(source: string): DocScan {
     headings: [],
     links: [],
     tags: extractTags(tree),
+    aliases: frontmatterAliases(tree),
     private: frontmatterPrivate(tree),
   };
   walk(tree, (node) => {
@@ -181,6 +186,44 @@ function frontmatterTags(tree: Nodes): string[] {
   const prop = parsed.properties.find((p) => p.key === "tags" && p.type === "tags");
   if (!prop || prop.type !== "tags") return [];
   return prop.value.map((tag) => tag.replace(/^#/, "").trim()).filter((tag) => tag !== "");
+}
+
+/** Parse the leading `yaml` node's `aliases` property — Obsidian's alias
+ * list. The canonical form is a plain string array (which classifies as the
+ * existing 'tags' TypedProperty, so the properties panel round-trips it for
+ * free); for Obsidian interop a single-string scalar and the legacy `alias:`
+ * key are accepted too. Values are trimmed, empties dropped, and deduped
+ * case-insensitively keeping the first display case (TagIndex's identity
+ * rule). Anything else — malformed yaml, non-string values — degrades to []. */
+function frontmatterAliases(tree: Nodes): string[] {
+  if (!("children" in tree)) return [];
+  const yaml = tree.children.find((child) => child.type === "yaml");
+  if (!yaml || yaml.type !== "yaml") return [];
+  const parsed = parseProperties(yaml.value);
+  if (parsed.kind !== "valid") return [];
+  const prop =
+    parsed.properties.find((p) => p.key === "aliases") ??
+    parsed.properties.find((p) => p.key === "alias");
+  if (!prop) return [];
+  // "tags" = string array; "text"/"date" = a single string scalar (a date
+  // alias like `2026-07-01` classifies as date but is still a string).
+  const values =
+    prop.type === "tags"
+      ? prop.value
+      : prop.type === "text" || prop.type === "date"
+        ? [prop.value]
+        : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const alias = raw.trim();
+    if (alias === "") continue;
+    const key = alias.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(alias);
+  }
+  return out;
 }
 
 /** The leading `yaml` node's strict-boolean `private` verdict for the index

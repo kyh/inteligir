@@ -35,7 +35,10 @@ import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-ru
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
+import type { WikiTarget } from "@repo/core/knowledge/knowledge-index";
 import { buildResolver } from "@repo/core/knowledge/link-resolve";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
+import { basenamePath, dirnamePath } from "@repo/core/knowledge/vault-path";
 
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.
@@ -56,6 +59,20 @@ const FOCUS_REFRESH_DEBOUNCE_MS = 1000;
  */
 function withDefaultExtension(name: string): string {
   return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.md`;
+}
+
+/** Gate a to-be-created path's basename through checkNoteName (directory
+ * segments pass through — `notes/foo` is intentional foldering here, unlike a
+ * `/` typed into the h1 title). Returns the path with the NFC-normalized
+ * basename, or null after a rejection toast. */
+function validNotePath(path: string): string | null {
+  const verdict = checkNoteName(basenamePath(path));
+  if (!verdict.ok) {
+    toast.error(noteNameErrorMessage(verdict.reason));
+    return null;
+  }
+  const dir = dirnamePath(path);
+  return dir === "" ? verdict.name : `${dir}/${verdict.name}`;
 }
 
 // IO the editor controller acts through — thin wrappers over the bridge so the
@@ -369,7 +386,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string): Promise<boolean> => {
       const trimmed = rawPath.trim();
       if (!trimmed) return false;
-      const path = withDefaultExtension(trimmed);
+      const path = validNotePath(withDefaultExtension(trimmed));
+      if (path === null) return false;
       const bridge = getBridge();
       if (!bridge) return false;
       // Don't truncate an existing file — it already satisfies "exists".
@@ -399,7 +417,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string, content: string) => {
       const trimmed = rawPath.trim();
       if (!trimmed) return;
-      const path = withDefaultExtension(trimmed);
+      const path = validNotePath(withDefaultExtension(trimmed));
+      if (path === null) return;
       const bridge = getBridge();
       if (!bridge) return;
       // Open-or-create: only write (seed) when the file is genuinely new, so a
@@ -642,9 +661,42 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     return cleaned.split(/[/\\]/).pop() ?? cleaned;
   }, [root]);
 
+  // Alias entries for the local resolver: the host's knowledge index owns
+  // alias extraction; the renderer pulls WikiTargets (path + aliases) over
+  // the Bridge so chips, transclusion, and autocomplete resolve `[[alias]]`
+  // exactly like backlinks do. Refreshed with every listing refresh and on
+  // knowledge updates — the index lags saves ~100-300ms, so a just-added
+  // alias resolves slightly late (same as the backlinks panel).
+  const [wikiTargets, setWikiTargets] = useState<WikiTarget[]>([]);
+  const refreshWikiTargets = useCallback(() => {
+    getBridge()
+      ?.listWikiTargets()
+      .then((targets) => {
+        setWikiTargets(targets);
+        return undefined;
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshWikiTargets();
+    const bridge = getBridge();
+    if (!bridge) return;
+    return bridge.onKnowledgeUpdated(() => refreshWikiTargets());
+  }, [refreshWikiTargets]);
+
   // Wiki resolution over the live listing — same engine as the host's index,
-  // so chips and the knowledge channels agree on what resolves.
-  const resolver = useMemo(() => buildResolver(entries.map((e) => e.path)), [entries]);
+  // so chips and the knowledge channels agree on what resolves. The listing
+  // stays the path authority (aliases only fill the below-path tiers).
+  const resolver = useMemo(() => {
+    const aliasEntries: Array<readonly [string, string]> = [];
+    for (const target of wikiTargets) {
+      for (const alias of target.aliases ?? []) aliasEntries.push([alias, target.path]);
+    }
+    return buildResolver(
+      entries.map((e) => e.path),
+      aliasEntries,
+    );
+  }, [entries, wikiTargets]);
   const resolveWikiTarget = useCallback(
     (target: string) => resolver.resolveWiki(target),
     [resolver],
