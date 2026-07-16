@@ -1,5 +1,6 @@
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
+import { probeVaultPrivacy } from "../lib/agent-lifecycle";
 import { getPlatform } from "../platform-instance";
 import { getVaultManager } from "../vault/vault";
 import type { HandlerRegistrar } from "../lib/handler-registry";
@@ -77,6 +78,11 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
     // through here, so their writes still surface as reloads.
     vault.markSelfSave(path);
   });
+  // LIVE-disk privacy probe — the SAME fail-closed probe the agent tool gate
+  // runs, so the renderer's context-hint check can never drift from it. The
+  // buffer the renderer holds may be stale (an external sync/agent write can
+  // flip `private: true` on disk first); only the host sees the disk truth.
+  handle("probeNotePrivacy", ({ path }) => probeVaultPrivacy(path));
   // The renderer names the open note; the host watches that single file (ADR-0001).
   handle("setWatchedNote", ({ path }) => {
     getVaultManager().watchOpenNote(path);
