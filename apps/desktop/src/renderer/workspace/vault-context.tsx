@@ -35,6 +35,7 @@ import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-ru
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
+import type { WikiTarget } from "@repo/core/knowledge/knowledge-index";
 import { buildResolver } from "@repo/core/knowledge/link-resolve";
 import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/core/knowledge/vault-path";
@@ -660,9 +661,42 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     return cleaned.split(/[/\\]/).pop() ?? cleaned;
   }, [root]);
 
+  // Alias entries for the local resolver: the host's knowledge index owns
+  // alias extraction; the renderer pulls WikiTargets (path + aliases) over
+  // the Bridge so chips, transclusion, and autocomplete resolve `[[alias]]`
+  // exactly like backlinks do. Refreshed with every listing refresh and on
+  // knowledge updates — the index lags saves ~100-300ms, so a just-added
+  // alias resolves slightly late (same as the backlinks panel).
+  const [wikiTargets, setWikiTargets] = useState<WikiTarget[]>([]);
+  const refreshWikiTargets = useCallback(() => {
+    getBridge()
+      ?.listWikiTargets()
+      .then((targets) => {
+        setWikiTargets(targets);
+        return undefined;
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshWikiTargets();
+    const bridge = getBridge();
+    if (!bridge) return;
+    return bridge.onKnowledgeUpdated(() => refreshWikiTargets());
+  }, [refreshWikiTargets]);
+
   // Wiki resolution over the live listing — same engine as the host's index,
-  // so chips and the knowledge channels agree on what resolves.
-  const resolver = useMemo(() => buildResolver(entries.map((e) => e.path)), [entries]);
+  // so chips and the knowledge channels agree on what resolves. The listing
+  // stays the path authority (aliases only fill the below-path tiers).
+  const resolver = useMemo(() => {
+    const aliasEntries: Array<readonly [string, string]> = [];
+    for (const target of wikiTargets) {
+      for (const alias of target.aliases ?? []) aliasEntries.push([alias, target.path]);
+    }
+    return buildResolver(
+      entries.map((e) => e.path),
+      aliasEntries,
+    );
+  }, [entries, wikiTargets]);
   const resolveWikiTarget = useCallback(
     (target: string) => resolver.resolveWiki(target),
     [resolver],

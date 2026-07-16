@@ -275,7 +275,15 @@ export class LinkGraphIndex {
 
   private ensureResolved(): ResolvedState {
     if (this.resolved) return this.resolved;
-    const resolver = buildResolver([...this.docs.keys(), ...this.others]);
+    // Alias entries feed the resolver's below-path tiers, so `[[alias]]`
+    // links resolve in backlinks/forward-links/graph exactly like the
+    // renderer's local resolver (which pulls the same aliases via
+    // listWikiTargets).
+    const aliasEntries: Array<readonly [string, string]> = [];
+    for (const [path, record] of this.docs) {
+      for (const alias of record.aliases) aliasEntries.push([alias, path]);
+    }
+    const resolver = buildResolver([...this.docs.keys(), ...this.others], aliasEntries);
     const forward = new Map<string, ResolvedLink[]>();
     const backlinks: ResolvedState["backlinks"] = new Map();
     for (const [sourcePath, record] of this.docs) {
