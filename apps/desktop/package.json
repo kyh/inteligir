@@ -75,6 +75,7 @@
   },
   "devDependencies": {
     "@mariozechner/pi-ai": "^0.73.1",
+    "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/router-plugin": "^1.168.19",
     "@testing-library/react": "^16.3.2",

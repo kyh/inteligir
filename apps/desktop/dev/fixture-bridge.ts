@@ -15,7 +15,10 @@ import type { VaultEntry } from "@repo/features/ipc-registry";
 import type { RemoteAccessState } from "@repo/features/remote-access";
 import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
-import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
+import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
+import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
+import { LinkGraphIndex } from "@repo/core/knowledge/link-graph-index";
+import { projectDoc } from "@repo/core/knowledge/projection";
 import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
 import { conflictCopyName, fsSafeStamp } from "@repo/core/sync/reconcile";
 
@@ -595,7 +598,21 @@ Exploratory project work, links back to [[hub]].
 `,
 };
 
-export function createFixtureBridge(): Bridge {
+/** Tiny non-crypto content hash (FNV-1a): the store wants a value that
+ * changes with the bytes, and the harness has no node:crypto. */
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+/** `openKnowledgeStore` injects the persistent search store (the harness
+ * bootstrap passes core's SQL store over the wasm driver), mirroring how the
+ * desktop shell injects the node:sqlite store into KnowledgeManager. */
+export function createFixtureBridge(openKnowledgeStore: (root: string) => KnowledgeStore): Bridge {
   const vault = new Map<string, string>([
     ...Object.entries(SAMPLE_NOTES),
     ...Object.entries(SAMPLE_ASSETS),
@@ -668,17 +685,44 @@ export function createFixtureBridge(): Bridge {
       kind: isDocPath(path) ? "doc" : "other",
     }));
 
-  // A REAL knowledge index over the in-memory vault — the same core engine
-  // the host runs — so backlinks/graph/search/autocomplete are exercisable
-  // in the harness with live data.
-  const knowledge = new KnowledgeIndex();
+  // The REAL knowledge engine over the in-memory vault, in the SAME
+  // composition the desktop host runs (knowledge-manager.ts): the pure
+  // LinkGraphIndex resolves links/tags/graph in memory, and the injected SQL
+  // KnowledgeStore (wasm-backed here, node:sqlite on desktop) owns FTS5 bm25
+  // search — so harness search ranks exactly like the product.
+  const linkGraph = new LinkGraphIndex();
+  const knowledgeStore = openKnowledgeStore(FIXTURE_ROOT);
+  // Stat identity is fabricated (no filesystem behind the Map): a fresh
+  // monotonic fingerprint per write — nothing in the harness diffs it.
+  let fingerprintSeq = 0;
   const indexEntry = (path: string): void => {
     const content = vault.get(path);
     if (content === undefined) return;
-    if (isDocPath(path)) knowledge.setDoc(path, content);
-    else knowledge.setOther(path);
+    if (isDocPath(path)) {
+      const projection = projectDoc(path, content);
+      linkGraph.applyDoc(path, projection);
+      fingerprintSeq++;
+      knowledgeStore.upsertDoc(
+        {
+          path,
+          fingerprint: { mtimeMs: fingerprintSeq, size: content.length, ino: fingerprintSeq },
+          contentHash: fnv1a(content),
+          projection,
+        },
+        content,
+      );
+    } else {
+      linkGraph.setOther(path);
+      knowledgeStore.upsertOther(path);
+    }
   };
-  for (const path of vault.keys()) indexEntry(path);
+  const removeEntry = (path: string): void => {
+    linkGraph.remove(path);
+    knowledgeStore.remove(path);
+  };
+  knowledgeStore.transaction(() => {
+    for (const path of vault.keys()) indexEntry(path);
+  });
   let knowledgeRevision = 0;
   const touchVault = (): void => {
     vaultEvents.emit({ root: FIXTURE_ROOT });
@@ -821,7 +865,7 @@ export function createFixtureBridge(): Bridge {
     deleteVaultEntry: async ({ path }) => {
       const removed = vault.delete(path);
       if (removed) {
-        knowledge.remove(path);
+        removeEntry(path);
         touchVault();
         // Mirror the host: deleting a conflict copy resolves its conflict row.
         if (syncState.conflicts.some((conflict) => conflict.path === path)) {
@@ -846,7 +890,7 @@ export function createFixtureBridge(): Bridge {
       }
       const edits = computeRenameEdits(docs, vault.keys(), from, to);
       vault.delete(from);
-      knowledge.remove(from);
+      removeEntry(from);
       vault.set(to, content);
       for (const [path, text] of edits) vault.set(path, text);
       indexEntry(to);
@@ -887,14 +931,15 @@ export function createFixtureBridge(): Bridge {
     refreshVault: async () => touchVault(),
     onVaultChanged: vaultEvents.subscribe,
 
-    // Knowledge — live queries against the in-memory index.
-    getBacklinks: async ({ path }) => knowledge.backlinks(path),
-    getForwardLinks: async ({ path }) => knowledge.forwardLinks(path),
-    getLinkGraph: async () => knowledge.graph(),
-    searchVault: async ({ query, limit }) => knowledge.search(query, limit),
-    listWikiTargets: async () => knowledge.wikiTargets(),
-    listTags: async () => knowledge.tags(),
-    getNotesByTag: async ({ tag }) => knowledge.notesWithTag(tag),
+    // Knowledge — live queries: link graph in memory, search through FTS5.
+    getBacklinks: async ({ path }) => linkGraph.backlinks(path),
+    getForwardLinks: async ({ path }) => linkGraph.forwardLinks(path),
+    getLinkGraph: async () => linkGraph.graph(),
+    searchVault: async ({ query, limit }) =>
+      knowledgeStore.search(query, limit ?? SEARCH_DEFAULT_LIMIT),
+    listWikiTargets: async () => linkGraph.wikiTargets(),
+    listTags: async () => linkGraph.tags(),
+    getNotesByTag: async ({ tag }) => linkGraph.notesWithTag(tag),
     onKnowledgeUpdated: knowledgeEvents.subscribe,
 
     // Delegation — no background agent, but the run is simulated against the

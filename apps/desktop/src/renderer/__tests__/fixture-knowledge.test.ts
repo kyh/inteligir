@@ -1,13 +1,23 @@
 // The dev-harness fixture bridge must serve the knowledge channels from the
 // REAL core engine over its in-memory vault — live queries, not canned data —
 // so backlink/graph/search UI is exercisable (and honest) in the harness.
+// Knowledge runs the harness's real composition: LinkGraphIndex + the SQL
+// store over the wasm driver (the module loads once, up front).
 import { describe, expect, it } from "vitest";
 
+import { createSqlKnowledgeStore } from "@repo/core/knowledge/sql-knowledge-store";
+
 import { createFixtureBridge } from "../../../dev/fixture-bridge";
+import { createWasmSqlDriver, loadSqlite3 } from "../../../dev/wasm-sql-driver";
+
+const sqlite3 = await loadSqlite3();
+
+const newBridge = () =>
+  createFixtureBridge((root) => createSqlKnowledgeStore(createWasmSqlDriver(sqlite3), root));
 
 describe("fixture bridge knowledge channels", () => {
   it("reflects writes live across search, backlinks, targets, and the graph", async () => {
-    const bridge = createFixtureBridge();
+    const bridge = newBridge();
 
     // A term that cannot pre-exist in the fixture vault.
     expect(await bridge.searchVault({ query: "xyzzyplugh" })).toEqual([]);
@@ -32,7 +42,7 @@ describe("fixture bridge knowledge channels", () => {
   });
 
   it("rename rewrites links, fires knowledge events, and delete drops backlinks", async () => {
-    const bridge = createFixtureBridge();
+    const bridge = newBridge();
     let events = 0;
     bridge.onKnowledgeUpdated(() => {
       events++;
@@ -55,7 +65,7 @@ describe("fixture bridge knowledge channels", () => {
   });
 
   it("lists the seeded attachment as a grouped asset target, after docs", async () => {
-    const bridge = createFixtureBridge();
+    const bridge = newBridge();
     const targets = await bridge.listWikiTargets();
     const asset = targets.find((t) => t.path === "wiki/diagram.png");
     expect(asset).toEqual({ path: "wiki/diagram.png", title: "diagram.png", type: "asset" });
@@ -66,7 +76,7 @@ describe("fixture bridge knowledge channels", () => {
   });
 
   it("renaming an asset rewrites md image and wiki embed references", async () => {
-    const bridge = createFixtureBridge();
+    const bridge = newBridge();
     await bridge.writeVaultDoc({
       path: "review/gallery.md",
       content: "shot ![alt](../wiki/diagram.png), embed ![[diagram.png]]\n",
@@ -84,7 +94,7 @@ describe("fixture bridge knowledge channels", () => {
   });
 
   it("refuses a clobbering rename like the host", async () => {
-    const bridge = createFixtureBridge();
+    const bridge = newBridge();
     await bridge.writeVaultDoc({ path: "a.md", content: "A\n" });
     await bridge.writeVaultDoc({ path: "b.md", content: "B\n" });
     const result = await bridge.renameVaultEntry({ from: "a.md", to: "b.md" });
