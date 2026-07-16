@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
-// Lexical full-text index with title/heading/body tiering. Hand-rolled
-// inverted index rather than a search dependency: the vault caps at 2000
-// files (VaultManager MAX_LIST_ENTRIES), the ranking must be deterministic
-// and tier-exact for tests, and the same class runs in node (host) and the
-// browser (dev-harness fixture bridge) with zero install weight. At this
-// scale a library buys nothing but drift.
+// Lexical full-text index with title/heading/body tiering — the pure,
+// zero-dependency in-memory reference engine inside KnowledgeIndex. The
+// production surfaces search through the SQL KnowledgeStore's FTS5 instead
+// (bm25 with the same 10/4/1 field weights, sql-knowledge-store.ts); this
+// class stays as the deterministic, tier-exact behavioral pin (core tests)
+// and the drop-in for any surface that can't carry a SQLite binding.
 //
 // Model: token → doc → per-field term frequencies. Queries AND across tokens
 // (every token must hit somewhere in the doc); the final token also matches

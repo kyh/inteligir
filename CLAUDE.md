@@ -133,12 +133,21 @@ and the MDX components `<toggle>`, `<column_group>/<column>`, `<video>`,
 JSX, expressions, HTML comments) sends the file to Raw mode rather than being
 mangled. Files stay `.md`.
 
-The derived indexes (wiki/md link graph, backlinks, lexical search,
-wiki-target list) are `@repo/core/knowledge/*` — pure, platform-neutral.
-`packages/features/src/server/knowledge/` is the node host shell around them:
-incremental refresh from vault events, and renames that rewrite `[[links]]`
-across the vault byte-surgically (shadow-protection qualifies links the new
-name would steal). Derived indexes are rebuilt per device and NEVER synced.
+The derived indexes (wiki/md link graph, backlinks, full-text search,
+wiki-target list) are `@repo/core/knowledge/*` — pure, platform-neutral:
+`projectDoc()` is the ONE parse per doc, `LinkGraphIndex` resolves links over
+projections, and the SQL `KnowledgeStore` (schema + FTS5 bm25 search, written
+once in core over an injected `SqlDriver`) persists projections per vault in
+`~/.inteligir/indexes/<hash>.sqlite`. Markdown stays the only source of
+truth — the DB is a wipe-and-rebuild CACHE (any corruption/version mismatch
+deletes and rebuilds; **nothing durable may ever live in index.sqlite** —
+durable state belongs in the `~/.inteligir` JsonStores).
+`packages/features/src/server/knowledge/` is the node host shell: boot
+hydrates the in-memory graph from persisted rows (no first-query full parse),
+an async time-budgeted reconcile diffs stat fingerprints (content hash is the
+write authority) from vault events, and renames rewrite `[[links]]` across
+the vault byte-surgically (shadow-protection qualifies links the new name
+would steal). Derived indexes are rebuilt per device and NEVER synced.
 
 ### UI — `apps/desktop/src/renderer`, one fixed workspace
 
