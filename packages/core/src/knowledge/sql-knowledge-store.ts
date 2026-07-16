@@ -23,9 +23,17 @@ import type { KnowledgeStore, StoredDocRow, StoredFingerprint } from "./knowledg
 import type { DocProjection, StoredLink } from "./projection";
 import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";
+import { basenamePath, extnamePath } from "./vault-path";
+
+/** A doc's resolvable name stem — the resolver's byName rule: the `.md`
+ * extension is implied (stripped); any other extension stays written out. */
+function docStem(path: string): string {
+  const base = basenamePath(path);
+  return extnamePath(base).toLowerCase() === ".md" ? base.slice(0, -3) : base;
+}
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 2; // 2: files gained is_private
+export const KNOWLEDGE_SCHEMA_VERSION = 3; // 3: aliases table + files.stem/stem_ci + doc_keys view
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 export type SqlValue = null | number | string;
@@ -50,10 +58,17 @@ export type SqlDriver = {
 // ---- Schema -------------------------------------------------------------------
 
 // Column layout mirrors DocProjection: files carries identity + fingerprint +
-// content hash; links/headings/tags are ord-keyed child rows (deterministic
-// rebuild output); search_fts holds the ONLY copy of doc bodies. Sibling
-// workstreams extend by adding a projection field + a child table here and
-// bumping PROJECTION_VERSION — the wipe-and-rebuild guard IS the migration.
+// content hash; links/headings/tags/aliases are ord-keyed child rows
+// (deterministic rebuild output); search_fts holds the ONLY copy of doc
+// bodies. Sibling workstreams extend by adding a projection field + a child
+// table here and bumping PROJECTION_VERSION — the wipe-and-rebuild guard IS
+// the migration.
+//
+// `stem`/`stem_ci` (docs only) are TS-derived at upsert — the same
+// basename-stem rule the resolver's byName bucket uses — so the `doc_keys`
+// view can union every resolvable NAME (basename stems + aliases) without
+// forking case-folding into SQL: all `*_ci` columns are JS toLowerCase()
+// (full Unicode), never SQLite lower() (ASCII-only).
 const SCHEMA_DDL = `
 CREATE TABLE meta (
   key TEXT PRIMARY KEY,
@@ -67,7 +82,9 @@ CREATE TABLE files (
   mtime_ms REAL,
   size INTEGER,
   ino INTEGER,
-  is_private INTEGER NOT NULL DEFAULT 1
+  is_private INTEGER NOT NULL DEFAULT 1,
+  stem TEXT,
+  stem_ci TEXT
 );
 CREATE TABLE links (
   source_path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
@@ -99,6 +116,18 @@ CREATE TABLE tags (
   PRIMARY KEY (path, ord)
 );
 CREATE INDEX tags_tag ON tags(tag COLLATE NOCASE);
+CREATE TABLE aliases (
+  path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+  ord INTEGER NOT NULL,
+  alias TEXT NOT NULL,
+  alias_ci TEXT NOT NULL,
+  PRIMARY KEY (path, ord)
+);
+CREATE INDEX aliases_alias_ci ON aliases(alias_ci);
+CREATE VIEW doc_keys (path, key, key_ci, source) AS
+  SELECT path, stem, stem_ci, 'name' FROM files WHERE kind = 'doc' AND stem IS NOT NULL
+  UNION ALL
+  SELECT path, alias, alias_ci, 'alias' FROM aliases;
 CREATE VIRTUAL TABLE search_fts USING fts5(
   title, headings, body, path UNINDEXED,
   tokenize='unicode61 tokenchars ''_'''
@@ -285,6 +314,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
     driver.run("DELETE FROM links WHERE source_path = ?", [path]);
     driver.run("DELETE FROM headings WHERE path = ?", [path]);
     driver.run("DELETE FROM tags WHERE path = ?", [path]);
+    driver.run("DELETE FROM aliases WHERE path = ?", [path]);
   };
 
   open();
@@ -302,6 +332,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
           headings: [],
           links: [],
           tags: [],
+          aliases: [],
           private: columnNumber(row, "is_private") !== 0,
         };
         docs.set(path, {
@@ -327,6 +358,9 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
       for (const row of driver.all("SELECT path, tag FROM tags ORDER BY path, ord", [])) {
         docs.get(columnString(row, "path"))?.projection.tags.push(columnString(row, "tag"));
       }
+      for (const row of driver.all("SELECT path, alias FROM aliases ORDER BY path, ord", [])) {
+        docs.get(columnString(row, "path"))?.projection.aliases.push(columnString(row, "alias"));
+      }
       const others = driver
         .all("SELECT path FROM files WHERE kind = 'other' ORDER BY path", [])
         .map((row) => ({ path: columnString(row, "path") }));
@@ -336,13 +370,14 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
     upsertDoc(row, body) {
       transaction(() => {
         const { projection } = row;
+        const stem = docStem(row.path);
         driver.run(
-          `INSERT INTO files (path, kind, title, content_hash, mtime_ms, size, ino, is_private)
-           VALUES (?, 'doc', ?, ?, ?, ?, ?, ?)
+          `INSERT INTO files (path, kind, title, content_hash, mtime_ms, size, ino, is_private, stem, stem_ci)
+           VALUES (?, 'doc', ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(path) DO UPDATE SET
              kind = 'doc', title = excluded.title, content_hash = excluded.content_hash,
              mtime_ms = excluded.mtime_ms, size = excluded.size, ino = excluded.ino,
-             is_private = excluded.is_private`,
+             is_private = excluded.is_private, stem = excluded.stem, stem_ci = excluded.stem_ci`,
           [
             row.path,
             projection.title,
@@ -351,6 +386,8 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
             row.fingerprint.size,
             row.fingerprint.ino,
             projection.private ? 1 : 0,
+            stem,
+            stem.toLowerCase(),
           ],
         );
         deleteChildren(row.path);
@@ -385,12 +422,29 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
         for (const [ord, tag] of projection.tags.entries()) {
           driver.run("INSERT INTO tags (path, ord, tag) VALUES (?, ?, ?)", [row.path, ord, tag]);
         }
+        for (const [ord, alias] of projection.aliases.entries()) {
+          driver.run("INSERT INTO aliases (path, ord, alias, alias_ci) VALUES (?, ?, ?, ?)", [
+            row.path,
+            ord,
+            alias,
+            alias.toLowerCase(),
+          ]);
+        }
         const rowid = rowidOf(row.path);
         if (rowid === null) throw new Error("knowledge-store: upserted file row vanished");
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
         driver.run(
+          // Aliases ride the headings column — a ranking boost only (the alias
+          // bytes already match via the body, which includes the frontmatter),
+          // mirroring the pure SearchIndex composition in knowledge-index.ts.
           "INSERT INTO search_fts (rowid, title, headings, body, path) VALUES (?, ?, ?, ?, ?)",
-          [rowid, projection.title, projection.headings.join("\n"), body, row.path],
+          [
+            rowid,
+            projection.title,
+            [...projection.headings, ...projection.aliases].join("\n"),
+            body,
+            row.path,
+          ],
         );
       });
     },
@@ -405,7 +459,8 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
           `INSERT INTO files (path, kind) VALUES (?, 'other')
            ON CONFLICT(path) DO UPDATE SET
              kind = 'other', title = NULL, content_hash = NULL,
-             mtime_ms = NULL, size = NULL, ino = NULL, is_private = 1`,
+             mtime_ms = NULL, size = NULL, ino = NULL, is_private = 1,
+             stem = NULL, stem_ci = NULL`,
           [path],
         );
         deleteChildren(path);
