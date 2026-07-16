@@ -41,7 +41,13 @@ export type ExecutorPort = {
 };
 
 /** Knowledge-engine access (derived indexes live OUTSIDE the vault, so the
- * agent's file tools can't reach them — hence a port). Read-only. */
+ * agent's file tools can't reach them — hence a port). Read-only.
+ *
+ * PRIVACY CONTRACT: results are privacy-FILTERED — a `private: true` note
+ * never appears (no path, no snippet; a private backlinks target reads as
+ * "no backlinks", indistinguishable from none). The implementation
+ * (lib/agent-knowledge-port.ts) excludes private at the index AND re-probes
+ * every survivor against live disk, closing the index-lag TOCTOU. */
 export type KnowledgePort = {
   search(query: string, limit?: number): SearchResult[];
   backlinks(path: string): BacklinkEntry[];

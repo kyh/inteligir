@@ -13,6 +13,7 @@ import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
 import { login, resetAuthStorage } from "../agent/auth";
 import type { AgentPorts, PrivacyProbe } from "../agent/extension";
+import { buildAgentKnowledgePort } from "./agent-knowledge-port";
 import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
@@ -60,25 +61,21 @@ export function getAgentPorts(): AgentPorts {
       execute: executeEnsuringDaemon,
       resume: resumeEnsuringDaemon,
     },
-    // Read-only knowledge queries. Defers to the live singleton so a
-    // logout/login vault reset stays transparent (mirrors executor above).
-    knowledge: {
-      search: (query, limit) => getKnowledgeManager().search(query, limit),
-      backlinks: (path) => getKnowledgeManager().backlinks(path),
-      notesWithTag: (tag) => getKnowledgeManager().notesWithTag(tag),
-    },
+    // Read-only knowledge queries, PRIVACY-FILTERED (agent-knowledge-port.ts):
+    // private notes are excluded at the index and every survivor is re-probed
+    // against live disk — a private path/snippet never reaches the model.
+    // Defers to the live singleton so a logout/login vault reset stays
+    // transparent (mirrors executor above).
+    knowledge: buildAgentKnowledgePort({
+      queries: () => getKnowledgeManager(),
+      probe: probeVaultPrivacy,
+    }),
     // Vault-privacy capability for the tool gate (agent/privacy). probe reads
     // LIVE disk through VaultManager (resolve() confinement included): a path
     // that escapes the vault or fails to read probes "indeterminate", which
     // the gate blocks — fail-closed on every error path.
     privacy: {
-      probe: (rel): PrivacyProbe => {
-        try {
-          return notePrivacy(getVaultManager().readText(rel));
-        } catch (err) {
-          return isEnoent(err) ? "absent" : "indeterminate";
-        }
-      },
+      probe: probeVaultPrivacy,
       vaultRealRoot: () => {
         try {
           return fs.realpathSync(getVaultManager().getRoot());
@@ -96,6 +93,17 @@ export function getAgentPorts(): AgentPorts {
       privateIndexPaths: () => getKnowledgeManager().privatePaths(),
     },
   };
+}
+
+/** LIVE disk frontmatter probe, shared by the tool gate and the knowledge
+ * port. Reads through VaultManager (resolve() confinement): an escaping path
+ * or any read failure probes "indeterminate" — treated private, fail-closed. */
+function probeVaultPrivacy(rel: string): PrivacyProbe {
+  try {
+    return notePrivacy(getVaultManager().readText(rel));
+  } catch (err) {
+    return isEnoent(err) ? "absent" : "indeterminate";
+  }
 }
 
 function isEnoent(err: unknown): boolean {

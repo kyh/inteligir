@@ -30,7 +30,7 @@ import type {
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
-import { LinkGraphIndex } from "@repo/core/knowledge/link-graph-index";
+import { LinkGraphIndex, type PrivacyOpts } from "@repo/core/knowledge/link-graph-index";
 import type { KnowledgeStore, StoredFingerprint } from "@repo/core/knowledge/knowledge-store";
 import { projectDoc, type DocProjection } from "@repo/core/knowledge/projection";
 
@@ -83,9 +83,9 @@ export class KnowledgeManager {
 
   // ---- Queries (hydrate lazily on first use; reconcile streams in async) ------
 
-  backlinks(vaultPath: string): BacklinkEntry[] {
+  backlinks(vaultPath: string, opts?: PrivacyOpts): BacklinkEntry[] {
     this.ensureBuilt();
-    return this.linkGraph.backlinks(vaultPath);
+    return this.linkGraph.backlinks(vaultPath, opts);
   }
 
   forwardLinks(vaultPath: string): ForwardLinkEntry[] {
@@ -98,12 +98,12 @@ export class KnowledgeManager {
     return this.linkGraph.graph();
   }
 
-  search(query: string, limit?: number): SearchResult[] {
+  search(query: string, limit?: number, opts?: PrivacyOpts): SearchResult[] {
     this.ensureBuilt();
     const store = this.store;
     if (store === null) return [];
     try {
-      return store.search(query, limit ?? SEARCH_DEFAULT_LIMIT);
+      return store.search(query, limit ?? SEARCH_DEFAULT_LIMIT, opts);
     } catch (err) {
       console.warn("[knowledge] search failed — rebuilding index db:", err);
       this.recover(store);
@@ -122,9 +122,9 @@ export class KnowledgeManager {
     return this.linkGraph.tags();
   }
 
-  notesWithTag(tag: string): string[] {
+  notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
     this.ensureBuilt();
-    return this.linkGraph.notesWithTag(tag);
+    return this.linkGraph.notesWithTag(tag, opts);
   }
 
   /** Indexed private note paths — the agent gate's best-effort prefilter for
