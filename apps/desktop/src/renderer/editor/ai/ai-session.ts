@@ -31,9 +31,12 @@ import {
 import { createTPlatePlugin, type PlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
+import { toast } from "@repo/ui/components/sonner";
+
 import type { AiIntentResult } from "@repo/features/inline-ai";
 
 import { getBridge } from "@renderer/lib/bridge";
+import { isEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { createMarkdownStream, stripAiMarks } from "@renderer/editor/ai/stream-markdown";
 import { applyEditSuggestions } from "@renderer/editor/ai/suggestions";
 import {
@@ -150,6 +153,16 @@ export function releaseAiSession(): void {
   lastRun = null;
 }
 
+/** Hard-off in private notes (every entry point guards, not just the menu —
+ * the note can turn private mid-session). One deduped sonner toast; derived
+ * live from the document via isEditorNotePrivate, fail-closed on unreadable
+ * frontmatter. `private` wins over everything, including ghostTextEnabled. */
+function refusePrivate(editor: PlateEditor): boolean {
+  if (!isEditorNotePrivate(editor)) return false;
+  toast("AI is off — this note is private.", { id: "private-note-ai" });
+  return true;
+}
+
 function setOptions(editor: PlateEditor, patch: Partial<AiSessionOptions>): void {
   editor.setOptions(AiSessionPlugin, patch);
 }
@@ -164,6 +177,7 @@ function savedSelection(editor: PlateEditor): TRange | null {
 
 /** Open the AI menu anchored under the block holding the selection's end. */
 export function openAiMenu(editor: PlateEditor): void {
+  if (refusePrivate(editor)) return;
   if (editor.getOption(AiSessionPlugin, "status") !== "closed") return;
   const sel = editor.selection;
   if (!sel) return;
@@ -218,6 +232,7 @@ function unwindGenerate(editor: PlateEditor): void {
 /** Free-form prompt path: classify host-side, then route. Submitting from the
  * generate review discards the pending output first (a follow-up replaces). */
 export function submitAiPrompt(editor: PlateEditor, text: string): void {
+  if (refusePrivate(editor)) return;
   const bridge = getBridge();
   const prompt = text.trim();
   if (!bridge || prompt.length === 0) return;
@@ -241,6 +256,7 @@ export function submitAiPrompt(editor: PlateEditor, text: string): void {
 
 /** Canned action path: fixed intent, no classification round-trip. */
 export function runCannedAction(editor: PlateEditor, id: CannedActionId): void {
+  if (refusePrivate(editor)) return;
   const action = CANNED_ACTIONS.find((a) => a.id === id);
   if (!action) return;
   lastRun = { kind: "canned", action: id };
@@ -251,6 +267,7 @@ export function runCannedAction(editor: PlateEditor, id: CannedActionId): void {
 /** Translate the selection's blocks — the AI menu's language page. Recorded
  * as a prompt lastRun so "Try again" re-runs it. */
 export function runTranslate(editor: PlateEditor, language: string): void {
+  if (refusePrivate(editor)) return;
   const instruction = `Translate the content to ${language}, keeping the markdown structure and formatting.`;
   lastRun = { kind: "prompt", text: instruction, intent: "edit" };
   startEdit(editor, instruction);
@@ -258,6 +275,7 @@ export function runTranslate(editor: PlateEditor, language: string): void {
 
 /** Discard the current pending output (if any) and re-run the last request. */
 export function retryLastRun(editor: PlateEditor): void {
+  if (refusePrivate(editor)) return;
   const run = lastRun;
   if (!run) return;
   if (editor.getOption(AiSessionPlugin, "status") === "review") unwindGenerate(editor);

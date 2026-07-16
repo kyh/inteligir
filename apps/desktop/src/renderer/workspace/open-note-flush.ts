@@ -9,6 +9,7 @@
 
 let flushImpl: (() => Promise<boolean>) | null = null;
 let pathImpl: (() => string | null) | null = null;
+let privacyImpl: (() => boolean) | null = null;
 
 // Upper bound on how long a flush may take before callers give up on it. A flush
 // is a local disk write through IPC; if it somehow never settles, a serialized
@@ -29,6 +30,19 @@ export function registerOpenNotePath(fn: (() => string | null) | null): void {
 /** The path of the note currently open in the editor, or null. */
 export function openNotePath(): string | null {
   return pathImpl ? pathImpl() : null;
+}
+
+/** Wire (or clear, with null) a live getter for the open note's AI-privacy
+ * verdict. Called by VaultProvider alongside registerOpenNotePath. */
+export function registerOpenNotePrivacy(fn: (() => boolean) | null): void {
+  privacyImpl = fn;
+}
+
+/** Whether the open note is private for AI purposes (indeterminate counts as
+ * private). FAIL-CLOSED: unregistered (no provider mounted) reads true, so a
+ * caller can never attach a note path it couldn't clear. */
+export function openNoteIsPrivate(): boolean {
+  return privacyImpl ? privacyImpl() : true;
 }
 
 /** Flush the open note. Resolves true when the buffer is clean afterward (or

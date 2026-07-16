@@ -17,6 +17,7 @@ import { AiSessionPlugin } from "@renderer/editor/ai/ai-session";
 import { GhostTextMachine } from "@renderer/editor/ai/ghost-text-machine";
 import { hasTransientAiState } from "@renderer/editor/ai/transient";
 import { MD_STRINGIFY } from "@renderer/editor/markdown/markdown-doc";
+import { isEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useAiSettingsStore } from "@renderer/stores/ai-settings-store";
 
 const DEBOUNCE_MS = 600;
@@ -35,6 +36,11 @@ type GhostTextOptions = {
 const machines = new WeakMap<PlateEditor, GhostTextMachine>();
 
 function canTrigger(editor: PlateEditor): boolean {
+  // `private: true` wins over the default-ON ghostTextEnabled — the ghost
+  // streams note text on every typing pause, the single worst continuous
+  // leak for a private note. Derived live from the doc, so it stops the
+  // instant the flag is typed, before any save/index cycle.
+  if (isEditorNotePrivate(editor)) return false;
   if (!editor.api.isFocused()) return false;
   const sel = editor.selection;
   if (!sel || RangeApi.isExpanded(sel)) return false;

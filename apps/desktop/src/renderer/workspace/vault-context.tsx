@@ -15,7 +15,12 @@ import { toast } from "@repo/ui/components/sonner";
 import { docExists, getBridge } from "@renderer/lib/bridge";
 import { createDebouncer } from "@renderer/lib/debounce";
 import { settleTransients } from "@renderer/editor/ai/transient-settle";
-import { registerOpenNoteFlush, registerOpenNotePath } from "@renderer/workspace/open-note-flush";
+import {
+  registerOpenNoteFlush,
+  registerOpenNotePath,
+  registerOpenNotePrivacy,
+} from "@renderer/workspace/open-note-flush";
+import { notePrivacy } from "@repo/core/markdown/frontmatter";
 import {
   type GateReason,
   analyzeMarkdown,
@@ -133,6 +138,11 @@ type VaultContextValue = {
    * The command palette's "Refresh vault" invokes this; window focus does too,
    * debounced (ADR-0001). */
   refreshVault: () => void;
+  /** Whether the open note is marked `private: true` — the header's lock
+   * badge. USER-FACING semantics: strictly "private" (unreadable frontmatter
+   * shows no lock); the AI paths use their own fail-closed reads. Derived
+   * from the note's live content buffer, so it works in raw AND rich mode. */
+  openNoteIsPrivate: boolean;
 
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
@@ -567,9 +577,19 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     registerOpenNoteFlush(flush);
     registerOpenNotePath(() => runtimeRef.current?.controller.getState().path ?? null);
+    // AI-path privacy read (fail-closed: indeterminate counts as private) —
+    // agent-store omits the note-context hint for a private note. Reads the
+    // live buffer, not the saved file, so a just-typed `private: true` is
+    // honored on the very next send.
+    registerOpenNotePrivacy(() => {
+      const state = runtimeRef.current?.controller.getState();
+      if (!state || state.path === null) return true; // no note → nothing to attach anyway
+      return notePrivacy(state.content) !== "public";
+    });
     return () => {
       registerOpenNoteFlush(null);
       registerOpenNotePath(null);
+      registerOpenNotePrivacy(null);
     };
   }, [flush]);
 
@@ -644,6 +664,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }
   }, [analyzed, mode]);
 
+  // ---- Privacy badge (UI semantics: strictly "private", no lock for a yaml
+  // typo — the AI paths carry their own fail-closed reads) ---------------------
+  const openNoteIsPrivate = useMemo(
+    () => isMarkdownOpen && editor.path !== null && notePrivacy(editor.content) === "private",
+    [isMarkdownOpen, editor.path, editor.content],
+  );
+
   // ---- HTML Apps -----------------------------------------------------------
   const openIsHtml = openPath !== null && HTML_RE.test(openPath);
   const isHtmlApp = openIsHtml && !htmlAsText;
@@ -668,6 +695,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       refreshVault,
+      openNoteIsPrivate,
       isMarkdownOpen,
       richAvailable,
       rawReason: analyzed.rawReason,
@@ -695,6 +723,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       refreshVault,
+      openNoteIsPrivate,
       isMarkdownOpen,
       richAvailable,
       analyzed.rawReason,

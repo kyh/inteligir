@@ -9,7 +9,11 @@ import type { Bridge, SetupProgress } from "@repo/features/ipc";
 import { buildNoteContext, stripNoteContext } from "@repo/features/note-context";
 import type { ImageAttachment } from "@repo/features/voice";
 import { getBridge } from "@renderer/lib/bridge";
-import { flushOpenNote, openNotePath } from "@renderer/workspace/open-note-flush";
+import {
+  flushOpenNote,
+  openNoteIsPrivate,
+  openNotePath,
+} from "@renderer/workspace/open-note-flush";
 import { onUserTranscript, useVoiceStore } from "@renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -506,7 +510,11 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     let flushed = true;
     if (cmdType === "user_message") {
       flushed = await flushOpenNote();
-      const activeNote = flushed ? (openNotePath() ?? undefined) : undefined;
+      // A private note's PATH is a leak too — omit the context hint entirely
+      // (the date-only prefix still rides). Fail-closed: openNoteIsPrivate()
+      // reads true when unregistered or the frontmatter is unreadable.
+      const activeNote =
+        flushed && !openNoteIsPrivate() ? (openNotePath() ?? undefined) : undefined;
       sentText = buildNoteContext(text, activeNote);
       // The flush may have awaited a moment — bail if the session ended meanwhile
       // (e.g. a voice turn queued behind a flush while the user logged out).
