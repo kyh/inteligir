@@ -211,18 +211,18 @@ describe("KnowledgeIndex — wiki targets and search", () => {
 // Privacy prefilter — the excludePrivate opt every agent-facing surface layers
 // its live re-probe on top of. Renderer calls (no opts) must keep seeing
 // private notes: they are the user's own screen.
-describe("KnowledgeIndex — privacy (excludePrivate)", () => {
-  function privateSeeded(): KnowledgeIndex {
-    const index = new KnowledgeIndex();
-    index.setDoc(
-      "secret-plans.md",
-      "---\nprivate: true\ntags: [meta]\n---\n# Secret plans\n\nBody about rockets.\n",
-    );
-    index.setDoc("public.md", "# Public\n\nBody about rockets too. #meta\n\n[[secret-plans]]\n");
-    index.setDoc("broken.md", "---\n[not: valid: yaml\n---\nBody about rockets three.\n");
-    return index;
-  }
+function privateSeeded(): KnowledgeIndex {
+  const index = new KnowledgeIndex();
+  index.setDoc(
+    "secret-plans.md",
+    "---\nprivate: true\ntags: [meta]\n---\n# Secret plans\n\nBody about rockets.\n",
+  );
+  index.setDoc("public.md", "# Public\n\nBody about rockets too. #meta\n\n[[secret-plans]]\n");
+  index.setDoc("broken.md", "---\n[not: valid: yaml\n---\nBody about rockets three.\n");
+  return index;
+}
 
+describe("KnowledgeIndex — privacy (excludePrivate)", () => {
   it("search drops private AND unreadable-frontmatter docs entirely", () => {
     const index = privateSeeded();
     expect(

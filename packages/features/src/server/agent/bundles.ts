@@ -8,6 +8,7 @@ import browser from "./browser/extension";
 import executor from "./executor/extension";
 import knowledge from "./knowledge/extension";
 import peekaboo from "./peekaboo/extension";
+import privacy from "./privacy/extension";
 import type { PiExtensionBundle } from "./extension";
 
 export const EXTENSION_BUNDLES: PiExtensionBundle[] = [
@@ -15,4 +16,5 @@ export const EXTENSION_BUNDLES: PiExtensionBundle[] = [
   executor,
   knowledge,
   peekaboo,
+  privacy,
 ].toSorted((a, b) => a.name.localeCompare(b.name));

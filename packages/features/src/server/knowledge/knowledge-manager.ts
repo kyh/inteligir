@@ -127,6 +127,14 @@ export class KnowledgeManager {
     return this.linkGraph.notesWithTag(tag);
   }
 
+  /** Indexed private note paths — the agent gate's best-effort prefilter for
+   * bash/execute strings and directory scans. Index-lagged (~100ms debounce);
+   * anything that matters probes live disk on top. */
+  privatePaths(): string[] {
+    this.ensureBuilt();
+    return this.linkGraph.privatePaths();
+  }
+
   // ---- Refresh ----------------------------------------------------------------
 
   /** Debounced refresh — wired to vault change notifications. */

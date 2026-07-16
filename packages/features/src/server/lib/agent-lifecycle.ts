@@ -9,8 +9,10 @@
 
 import fs from "node:fs";
 
+import { notePrivacy } from "@repo/core/markdown/frontmatter";
+
 import { login, resetAuthStorage } from "../agent/auth";
-import type { AgentPorts } from "../agent/extension";
+import type { AgentPorts, PrivacyProbe } from "../agent/extension";
 import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
@@ -65,7 +67,39 @@ export function getAgentPorts(): AgentPorts {
       backlinks: (path) => getKnowledgeManager().backlinks(path),
       notesWithTag: (tag) => getKnowledgeManager().notesWithTag(tag),
     },
+    // Vault-privacy capability for the tool gate (agent/privacy). probe reads
+    // LIVE disk through VaultManager (resolve() confinement included): a path
+    // that escapes the vault or fails to read probes "indeterminate", which
+    // the gate blocks — fail-closed on every error path.
+    privacy: {
+      probe: (rel): PrivacyProbe => {
+        try {
+          return notePrivacy(getVaultManager().readText(rel));
+        } catch (err) {
+          return isEnoent(err) ? "absent" : "indeterminate";
+        }
+      },
+      vaultRealRoot: () => {
+        try {
+          return fs.realpathSync(getVaultManager().getRoot());
+        } catch {
+          return null; // the gate fails closed for vault-shaped paths
+        }
+      },
+      vaultLexicalRoot: () => {
+        try {
+          return getVaultManager().getRoot();
+        } catch {
+          return null;
+        }
+      },
+      privateIndexPaths: () => getKnowledgeManager().privatePaths(),
+    },
   };
+}
+
+function isEnoent(err: unknown): boolean {
+  return err instanceof Error && "code" in err && err.code === "ENOENT";
 }
 
 /** Seed agent resources (dirs, bundled skills/AGENTS.md, bundle setups). */

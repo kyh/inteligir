@@ -49,9 +49,33 @@ export type KnowledgePort = {
   notesWithTag(tag: string): string[];
 };
 
+/** A note's live-disk privacy verdict: notePrivacy's three states plus
+ * `absent` (no such file). Anything that can't be read/typed probes
+ * `indeterminate` — the gate treats it as private (fail-closed). */
+export type PrivacyProbe = "public" | "private" | "absent" | "indeterminate";
+
+/** Vault-privacy capability behind the agent tool gate (privacy/extension.ts).
+ * Built host-side in agent-lifecycle.ts over the live Vault/Knowledge
+ * singletons; the gate itself stays a pure decision core. */
+export type PrivacyPort = {
+  /** LIVE disk frontmatter probe for a vault-relative path — never the index. */
+  probe(rel: string): PrivacyProbe;
+  /** realpath of the vault root, or null when it can't be resolved — the gate
+   * then FAILS CLOSED for anything vault-shaped rather than allowing it. */
+  vaultRealRoot(): string | null;
+  /** The configured root, lexically resolved (no fs) — the fail-closed
+   * fallback prefix used only while vaultRealRoot is null. */
+  vaultLexicalRoot(): string | null;
+  /** Indexed private note paths (vault-relative) — the PREFILTER feeding the
+   * best-effort bash/execute heuristics and directory-scan checks. Lags the
+   * index debounce; file tools never rely on it (they probe live). */
+  privateIndexPaths(): string[];
+};
+
 export type AgentPorts = {
   executor: ExecutorPort;
   knowledge: KnowledgePort;
+  privacy: PrivacyPort;
 };
 
 /**

@@ -9,6 +9,8 @@ export type {
   ExtensionAPI,
   ExtensionFactory,
   SessionMessageEntry,
+  ToolCallEvent,
+  ToolCallEventResult,
 } from "@mariozechner/pi-coding-agent";
 
 export type {
