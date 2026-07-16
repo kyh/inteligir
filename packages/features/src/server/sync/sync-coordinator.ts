@@ -36,6 +36,7 @@ function toStatus(outcome: CoreSyncOutcome): SyncStatus {
         pulled: outcome.pulled,
         deleted: outcome.deleted,
         conflicts: outcome.conflicts,
+        merged: outcome.merged,
       }
     : { phase: "error", message: outcome.message };
 }

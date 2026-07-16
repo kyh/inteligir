@@ -183,6 +183,7 @@ describe("SyncCoordinator — debounced-pass conflicts (item 2)", () => {
         port,
         vault: vault.io,
         basePath: path.join(tmp, "sync-base.json"),
+        blobsDir: path.join(tmp, "sync-blobs"),
         debounceMs: 0,
         onOutcome: opts.onOutcome,
       });

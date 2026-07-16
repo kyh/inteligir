@@ -48,6 +48,9 @@ export type SyncStatus =
       readonly pulled: number;
       readonly deleted: number;
       readonly conflicts: number;
+      /** Both-sides-changed files the merge ladder resolved cleanly — never
+       * counted in `conflicts`, never listed as conflict rows. */
+      readonly merged: number;
     }
   | { readonly phase: "error"; readonly message: string };
 
@@ -83,6 +86,8 @@ export type SyncOutcome =
       readonly pulled: number;
       readonly deleted: number;
       readonly conflicts: number;
+      /** Merge-ladder resolutions this pass (see @repo/core engine.ts). */
+      readonly merged: number;
       /** Conflict-copy paths created by this pass (see @repo/core engine.ts). */
       readonly conflictPaths: readonly string[];
     }

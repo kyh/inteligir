@@ -228,6 +228,7 @@ describe("SyncEngine stat-keyed hash cache", () => {
       pulled: 1,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(vault.readText("note.md")).toBe("remote-new");
@@ -244,6 +245,7 @@ describe("SyncEngine stat-keyed hash cache", () => {
       pulled: 0,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(port.currentGeneration()).toBe(genBefore);

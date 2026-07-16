@@ -47,6 +47,17 @@ function isPlainRecord(value: unknown): value is Properties {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** The raw yaml source inside a doc's leading frontmatter fences (no fences,
+ * no trailing line terminator — the shape `parseProperties` expects), or
+ * `null` when the doc has no frontmatter block. The one place besides
+ * `splitFrontmatter` allowed to know the fence grammar, so consumers that need
+ * the header's SOURCE (the sync merge ladder) never fork the regex. */
+export function frontmatterYaml(text: string): string | null {
+  const match = FRONTMATTER_RE.exec(text);
+  if (!match) return null;
+  return match[1] ?? "";
+}
+
 /** Split raw doc text into `{ properties, body }`. Never throws on malformed
  * yaml — a block that doesn't parse to a mapping yields empty properties with
  * `hadFrontmatter: true` so the caller can decide, and the body is always the
@@ -193,7 +204,9 @@ function typedValue(prop: TypedProperty): unknown {
   return prop.type === "unsupported" ? undefined : prop.value;
 }
 
-function valueEqual(a: unknown, b: unknown): boolean {
+/** Property-value equality as the panel (and the sync merge ladder) define it:
+ * strict for scalars, element-wise for the flat string arrays `tags` carries. */
+export function valueEqual(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => item === b[i]);
   }

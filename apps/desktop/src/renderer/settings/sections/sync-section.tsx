@@ -23,6 +23,7 @@ function formatSyncStatus(status: SyncStatus): string {
       if (status.pushed > 0) parts.push(`${status.pushed} pushed`);
       if (status.pulled > 0) parts.push(`${status.pulled} pulled`);
       if (status.deleted > 0) parts.push(`${status.deleted} deleted`);
+      if (status.merged > 0) parts.push(`${status.merged} merged`);
       if (status.conflicts > 0) {
         parts.push(`${status.conflicts} conflict${status.conflicts === 1 ? "" : "s"}`);
       }

@@ -56,7 +56,12 @@ export function reconcile(
     if (localChanged && !remoteChanged) {
       if (l) {
         // created or edited locally -> push to the coordinator
-        ops.push({ kind: "push", path, expectedBaseVersion: r?.version ?? ABSENT_VERSION });
+        ops.push({
+          kind: "push",
+          path,
+          expectedBaseVersion: r?.version ?? ABSENT_VERSION,
+          baseHash: b?.contentHash ?? null,
+        });
       } else if (r) {
         // deleted locally, coordinator unchanged -> delete on the coordinator
         ops.push({ kind: "delete", side: "remote", path, expectedBaseVersion: r.version });
@@ -87,13 +92,19 @@ export function reconcile(
         winner: pickWinner(b?.version ?? ABSENT_VERSION, l, r),
         local: l,
         remote: r,
+        baseHash: b?.contentHash ?? null,
       });
       continue;
     }
     if (l) {
       // local edit vs remote delete -> resurrect: keep the edit, recreate remote
       // (never silently lose an edit)
-      ops.push({ kind: "push", path, expectedBaseVersion: ABSENT_VERSION });
+      ops.push({
+        kind: "push",
+        path,
+        expectedBaseVersion: ABSENT_VERSION,
+        baseHash: b?.contentHash ?? null,
+      });
       continue;
     }
     if (r) {

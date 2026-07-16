@@ -1114,6 +1114,7 @@ export function createFixtureBridge(): Bridge {
         pulled: 1,
         deleted: 0,
         conflicts: copies.length,
+        merged: 1,
         conflictPaths: copies,
       } as const;
       syncState = { ...syncState, status: { ...outcome, phase: "ok" }, conflicts };
