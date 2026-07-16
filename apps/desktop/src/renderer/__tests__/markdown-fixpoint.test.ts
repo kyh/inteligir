@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ParseFailedError,
   analyzeMarkdown,
+  describeGateReason,
+  gateReasonFor,
   roundTrip,
   toCanonical,
 } from "@renderer/editor/markdown/markdown-doc";
@@ -45,6 +47,13 @@ describe("bounded fixpoint check (≤3 passes)", () => {
     });
     expect(() => roundTrip("driftforever\n")).toThrow(ParseFailedError);
     expect(() => toCanonical("driftforever\n")).toThrow(ParseFailedError);
+    // The open gate sees the same verdict — message pinned so the badge copy
+    // for instability stays distinguishable from real parse errors.
+    expect(gateReasonFor(analysis)).toEqual({
+      kind: "parse-error",
+      line: null,
+      message: "Round-trip does not stabilize",
+    });
   });
 
   it("returns the settled form for a pass-2 stabilization (Format stays idempotent)", () => {
@@ -56,6 +65,8 @@ describe("bounded fixpoint check (≤3 passes)", () => {
     expect(analysis.canonical).toBe(false);
     expect(analysis.richSafe).toBe(true);
     expect(analysis.rawReason).toBeNull();
+    // Normalizing tier still opens Rich at the gate.
+    expect(gateReasonFor(analysis)).toBeNull();
   });
 
   it("refuses rich mode when the stabilization chain loses letters", () => {
@@ -64,11 +75,19 @@ describe("bounded fixpoint check (≤3 passes)", () => {
     expect(analysis.canonical).toBe(false);
     expect(analysis.richSafe).toBe(false);
     expect(analysis.rawReason).toBeNull(); // honest churn, Format still offered
+    // The end-to-end proof: a content-losing serializer now gates to Raw with
+    // its own reason (DocAnalysis semantics deliberately unchanged above).
+    const gateReason = gateReasonFor(analysis);
+    expect(gateReason).toEqual({ kind: "roundtrip-loss" });
+    expect(gateReason && describeGateReason(gateReason)).toBe(
+      "Rich editing would change this file's content — opened in Raw to protect it",
+    );
   });
 
   it("keeps byte-identical output on the single-pass fast path", () => {
     const md = "# Hi\n\n- a\n- b\n";
     expect(analyzeMarkdown(md).canonical).toBe(true);
+    expect(gateReasonFor(analyzeMarkdown(md))).toBeNull();
     expect(roundTrip(md)).toBe(md);
   });
 });

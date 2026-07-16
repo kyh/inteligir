@@ -61,6 +61,30 @@ export function describeRawReason(reason: RawReason): string {
   }
 }
 
+/** Why the open gate refuses Rich: a pipeline RawReason, or `roundtrip-loss` —
+ * the file parses within the vocabulary but re-serializing it would silently
+ * drop content (a serializer bug, never user error). Desktop-gate-only: core's
+ * RawReason can't produce it because only this pipeline serializes. */
+export type GateReason = RawReason | { kind: "roundtrip-loss" };
+
+/** Map a DocAnalysis to the open gate's verdict: the analysis's own reason
+ * when it has one, `roundtrip-loss` when the round-trip loses content with no
+ * RawReason (analyzeMarkdown's letters-diverge verdict), null when Rich is
+ * safe. */
+export function gateReasonFor(analysis: DocAnalysis): GateReason | null {
+  if (analysis.rawReason !== null) return analysis.rawReason;
+  if (analysis.richSafe) return null;
+  return { kind: "roundtrip-loss" };
+}
+
+/** Human-readable form of a GateReason (mode badge tooltip). */
+export function describeGateReason(reason: GateReason): string {
+  if (reason.kind === "roundtrip-loss") {
+    return "Rich editing would change this file's content — opened in Raw to protect it";
+  }
+  return describeRawReason(reason);
+}
+
 // Fresh editor per call — Slate editors carry mutable state, and these helpers
 // run once per file open / content change, so construction cost is irrelevant
 // and a clean editor avoids cross-call bleed.
