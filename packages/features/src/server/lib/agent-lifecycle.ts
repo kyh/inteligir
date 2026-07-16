@@ -95,10 +95,12 @@ export function getAgentPorts(): AgentPorts {
   };
 }
 
-/** LIVE disk frontmatter probe, shared by the tool gate and the knowledge
- * port. Reads through VaultManager (resolve() confinement): an escaping path
- * or any read failure probes "indeterminate" — treated private, fail-closed. */
-function probeVaultPrivacy(rel: string): PrivacyProbe {
+/** LIVE disk frontmatter probe, shared by the tool gate, the knowledge port,
+ * and the renderer's context-hint check (the vault:probe-note-privacy
+ * channel — one probe, no drift). Reads through VaultManager (resolve()
+ * confinement): an escaping path or any read failure probes "indeterminate"
+ * — treated private, fail-closed. */
+export function probeVaultPrivacy(rel: string): PrivacyProbe {
   try {
     return notePrivacy(getVaultManager().readText(rel));
   } catch (err) {

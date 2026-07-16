@@ -28,6 +28,7 @@ import path from "node:path";
 import type { PiExtensionBundle, PrivacyPort } from "../extension";
 import { WORKSPACE_DIR } from "../paths";
 import { decideToolCall, type GateEnv } from "./gate";
+import { resolvePiToolPath } from "./pi-path-parity";
 import type { ToolCallEvent, ToolCallEventResult } from "@repo/features/server/pi/pi-types";
 
 /** Canonicalize with nearest-existing-ancestor semantics (VaultManager's
@@ -60,6 +61,9 @@ function gateEnv(privacy: PrivacyPort): GateEnv {
     vaultLexicalRoot: privacy.vaultLexicalRoot(),
     probe: (rel) => privacy.probe(rel),
     privateIndexPaths: () => privacy.privateIndexPaths(),
+    // Resolve path args exactly as pi's tools will (same cwd, same expandPath
+    // + read-variant semantics) — gate/tool agreement by construction.
+    normalizePath: (inputPath) => resolvePiToolPath(inputPath, WORKSPACE_DIR),
     realpath: realPathResolve,
   };
 }

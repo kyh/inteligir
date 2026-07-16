@@ -20,6 +20,7 @@ import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
 import { LinkGraphIndex } from "@repo/core/knowledge/link-graph-index";
 import { projectDoc } from "@repo/core/knowledge/projection";
 import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
+import { notePrivacy } from "@repo/core/markdown/frontmatter";
 import { conflictCopyName, fsSafeStamp } from "@repo/core/sync/reconcile";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
@@ -923,6 +924,12 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // No live token store in the harness (no vault-app:// protocol) — the
     // revoke call is a no-op, matching the mint stub above.
     revokeHtmlAppToken: async () => {},
+    // The real probe reads live disk; the harness's "disk" is the Map — same
+    // fail-closed verdict shape (notePrivacy + absent) as the host handler.
+    probeNotePrivacy: async ({ path }) => {
+      const content = vault.get(path);
+      return content === undefined ? "absent" : notePrivacy(content);
+    },
     // No filesystem to watch in the harness — the in-memory Map fires touchVault
     // directly on every write, so there is no external-edit channel to arm.
     setWatchedNote: async () => {},

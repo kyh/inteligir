@@ -580,7 +580,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     // AI-path privacy read (fail-closed: indeterminate counts as private) —
     // agent-store omits the note-context hint for a private note. Reads the
     // live buffer, not the saved file, so a just-typed `private: true` is
-    // honored on the very next send.
+    // honored on the very next send. The OTHER staleness direction — disk
+    // flipped private by a sync pull / agent write while this buffer still
+    // holds the public text — is covered host-side: agent-store re-probes
+    // live disk (probeNotePrivacy) before attaching the path.
     registerOpenNotePrivacy(() => {
       const state = runtimeRef.current?.controller.getState();
       if (!state || state.path === null) return true; // no note → nothing to attach anyway

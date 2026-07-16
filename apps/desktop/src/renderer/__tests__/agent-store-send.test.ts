@@ -1,10 +1,19 @@
 // ---------------------------------------------------------------------------
 // Agent store submission failures — a rejected sendAgentCommand must surface
 // in the chat instead of leaving the optimistic user bubble looking sent
-// while the message silently never reached the agent.
+// while the message silently never reached the agent — plus the note-context
+// privacy contract: the open note's PATH only rides a turn when the host's
+// LIVE-disk probe says "public" (an external `private: true` flip lands on
+// disk before the renderer buffer hears about it).
 // ---------------------------------------------------------------------------
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  registerOpenNoteFlush,
+  registerOpenNotePath,
+  registerOpenNotePrivacy,
+} from "@renderer/workspace/open-note-flush";
 
 const helpers = vi.hoisted(
   (): {
@@ -18,6 +27,7 @@ const helpers = vi.hoisted(
       transition: ReturnType<typeof vi.fn>;
       isTtsAvailable: ReturnType<typeof vi.fn>;
       onVoiceModelState: ReturnType<typeof vi.fn>;
+      probeNotePrivacy: ReturnType<typeof vi.fn>;
     };
   } => ({
     bridgeMock: {
@@ -30,6 +40,7 @@ const helpers = vi.hoisted(
       transition: vi.fn(),
       isTtsAvailable: vi.fn(() => Promise.resolve(false)),
       onVoiceModelState: vi.fn(() => () => {}),
+      probeNotePrivacy: vi.fn(() => Promise.resolve("public")),
     },
   }),
 );
@@ -91,5 +102,61 @@ describe("agent-store send", () => {
     expect(failure?.metadata?.errorKind).toBe("unknown");
     const part = failure?.parts[0];
     expect(part?.type === "text" ? part.text : "").toContain("Agent unavailable");
+  });
+});
+
+// Simulate an open note whose RENDERER BUFFER reads public — the disk
+// verdict comes from the mocked host probe, which is the point: an
+// external flip to private lands on disk first.
+function openBufferPublicNote(path: string): void {
+  registerOpenNoteFlush(() => Promise.resolve(true));
+  registerOpenNotePath(() => path);
+  registerOpenNotePrivacy(() => false);
+}
+
+describe("agent-store send — note-context privacy (live disk probe)", () => {
+  afterEach(() => {
+    registerOpenNoteFlush(null);
+    registerOpenNotePath(null);
+    registerOpenNotePrivacy(null);
+  });
+
+  it("attaches the open note's path when disk agrees it is public", async () => {
+    helpers.bridgeMock.sendAgentCommand.mockResolvedValue(undefined);
+    helpers.bridgeMock.probeNotePrivacy.mockResolvedValue("public");
+    openBufferPublicNote("notes/plan.md");
+
+    await useAgentStore.getState().send("hello");
+
+    expect(helpers.bridgeMock.probeNotePrivacy).toHaveBeenCalledWith({ path: "notes/plan.md" });
+    expect(helpers.bridgeMock.sendAgentCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining("./vault/notes/plan.md") }),
+    );
+  });
+
+  it("suppresses the path when the note flipped private ON DISK behind a stale public buffer", async () => {
+    // The external-flip window: sync pull / background-agent write landed
+    // `private: true` on disk; the open-note watcher hasn't reloaded yet, so
+    // the buffer (and openNoteIsPrivate) still reads public. The host probe
+    // must win — not even the PATH may ride the turn.
+    helpers.bridgeMock.sendAgentCommand.mockResolvedValue(undefined);
+    helpers.bridgeMock.probeNotePrivacy.mockResolvedValue("private");
+    openBufferPublicNote("notes/secret.md");
+
+    await useAgentStore.getState().send("hello");
+
+    const sent: unknown = helpers.bridgeMock.sendAgentCommand.mock.calls[0]?.[0];
+    expect(JSON.stringify(sent)).not.toContain("notes/secret.md");
+  });
+
+  it("suppresses the path when the disk probe fails (fail-closed)", async () => {
+    helpers.bridgeMock.sendAgentCommand.mockResolvedValue(undefined);
+    helpers.bridgeMock.probeNotePrivacy.mockRejectedValue(new Error("host unavailable"));
+    openBufferPublicNote("notes/anything.md");
+
+    await useAgentStore.getState().send("hello");
+
+    const sent: unknown = helpers.bridgeMock.sendAgentCommand.mock.calls[0]?.[0];
+    expect(JSON.stringify(sent)).not.toContain("notes/anything.md");
   });
 });

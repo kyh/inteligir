@@ -55,6 +55,7 @@ import type {
   TagCount,
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
+import type { NotePrivacy } from "@repo/core/markdown/frontmatter";
 import {
   RemoteAccessSetConfigSchema,
   RevokeDeviceSchema,
@@ -216,6 +217,11 @@ const VaultWriteAssetSchema = Type.Object(
  * file is missing, escapes the vault, or exceeds the transfer cap). Rendering
  * a broken image is a UI state, not an exception — hence a Result, not a throw. */
 export type ReadVaultAssetResult = { ok: true; bytesBase64: string } | { ok: false; error: string };
+
+/** probeNotePrivacy result: notePrivacy's verdict from a LIVE disk read, plus
+ * "absent" when no file exists at the path. Callers treat everything except
+ * "public" as private (fail-closed). */
+export type NotePrivacyProbe = NotePrivacy | "absent";
 
 // ---------------------------------------------------------------------------
 // Knowledge — the host's link + lexical search indexes over the vault
@@ -387,6 +393,15 @@ export const IPC = {
   revokeHtmlAppToken: invoke<typeof HtmlAppTokenSchema, void>(
     "vault:revoke-html-app-token",
     HtmlAppTokenSchema,
+  ),
+  /** LIVE-disk privacy probe for one note — the SAME probe the agent tool
+   * gate runs (never an index, never the renderer buffer). The context-hint
+   * path needs it: a sync pull or agent write can flip a note `private: true`
+   * on disk before the open-note watcher refreshes the editor buffer, and a
+   * private note's PATH must not reach the model either. */
+  probeNotePrivacy: invoke<typeof VaultPathSchema, NotePrivacyProbe>(
+    "vault:probe-note-privacy",
+    VaultPathSchema,
   ),
   /** Tell the host which note is open so it watches that single file for
    * external edits (ADR-0001). Pass `{ path: null }` when no note is open. */

@@ -17,7 +17,10 @@
 // the tool says "No backlinks.", indistinguishable from a note with none, so
 // the response never confirms a guessed path exists or is private. The
 // explicit "this note is private" refusal lives ONLY on the direct file-tool
-// gate (privacy/gate.ts), where the model already holds the path.
+// gate (privacy/gate.ts). That gate IS a per-path existence/privacy oracle for
+// a model-GUESSED path (private → refusal, absent → the tool's own ENOENT) —
+// an ACCEPTED hole, documented in docs/privacy.md: paths only, near-inherent
+// to per-path gating, and already reachable via `bash ls`.
 //
 // Extracted from agent-lifecycle so the guarantee is testable without host
 // singletons — __tests__/knowledge-privacy.test.ts stringifies real tool

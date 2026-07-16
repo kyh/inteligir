@@ -28,6 +28,12 @@
 //  - vaultRealRoot unresolvable (null): FAIL CLOSED — anything lexically
 //    under ./vault (the workspace symlink) or the configured root is blocked
 //    rather than treated as outside-vault.
+//
+// Path arguments are classified through the injected env.normalizePath —
+// pi's OWN resolution semantics (pi-path-parity.ts) — never the raw string:
+// gate and tool must agree on the target BY CONSTRUCTION, or an alias form
+// (`@vault/…`, NBSP-spaced filename, `~`-absolute) reads a private note
+// through a gate that probed a phantom path.
 // ---------------------------------------------------------------------------
 
 import path from "node:path";
@@ -40,6 +46,15 @@ import type { PrivacyProbe } from "../extension";
 export type GateEnv = {
   /** The agent workspace dir — pi tools resolve relative paths against it. */
   cwd: string;
+  /** pi-parity path normalization (expandPath + resolveReadPath semantics):
+   * maps a tool's raw `path` argument to the target pi's file tools will
+   * ACTUALLY open — `@`-prefix strip, unicode-space mapping, `~` expansion,
+   * and the on-disk filename-variant fallbacks. The gate must never resolve
+   * the raw string itself: gate-vs-tool resolution divergence was a confirmed
+   * private-content bypass (`@vault/…`, NBSP filenames). Wired to
+   * pi-path-parity.ts's resolvePiToolPath; injected so this module stays
+   * fs-free and the decision matrix unit-testable. */
+  normalizePath: (inputPath: string) => string;
   /** realpath of the vault root, or null when it could not be resolved. */
   vaultRealRoot: string | null;
   /** The configured vault root, lexically resolved (no symlink deref) — the
@@ -128,7 +143,10 @@ function isUnder(target: string, root: string): boolean {
 }
 
 function classifyPath(inputPath: string, env: GateEnv): Target {
-  const resolved = path.resolve(env.cwd, inputPath);
+  // FIRST resolve through pi's OWN normalization so the gate classifies the
+  // file pi's tool will open, not the literal string the model typed — the
+  // raw input was the `@`/unicode-space/`~` bypass class (see GateEnv).
+  const resolved = path.resolve(env.cwd, env.normalizePath(inputPath));
   if (env.vaultRealRoot === null) {
     // FAIL CLOSED (mustFix): with no verified root, a path under the ./vault
     // workspace symlink or the configured root cannot be probed — block it

@@ -441,6 +441,18 @@ async function loadInitialHistory(bridge: Bridge, set: SetFn): Promise<void> {
   }
 }
 
+/** LIVE host-side disk probe for the context hint — the same fail-closed
+ * probe the agent tool gate uses (vault:probe-note-privacy). Only a note
+ * that reads "public" on disk RIGHT NOW may have its path attached;
+ * absent, indeterminate, private, and a failed probe all suppress it. */
+async function noteIsPublicOnDisk(bridge: Bridge, path: string): Promise<boolean> {
+  try {
+    return (await bridge.probeNotePrivacy({ path })) === "public";
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Store factory
 // ---------------------------------------------------------------------------
@@ -511,10 +523,18 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     if (cmdType === "user_message") {
       flushed = await flushOpenNote();
       // A private note's PATH is a leak too — omit the context hint entirely
-      // (the date-only prefix still rides). Fail-closed: openNoteIsPrivate()
-      // reads true when unregistered or the frontmatter is unreadable.
+      // (the date-only prefix still rides). Fail-closed twice over: the
+      // renderer-buffer check (openNoteIsPrivate — true when unregistered or
+      // unreadable) honors a just-typed `private: true` before any save, and
+      // the host-side LIVE-disk probe catches an EXTERNAL flip (sync pull,
+      // agent write, second editor) the stale buffer can't see — the
+      // open-note watcher reloads asynchronously, and flush is a no-op on a
+      // clean buffer, so neither would notice the flip in time.
+      const bufferPublicPath = flushed && !openNoteIsPrivate() ? openNotePath() : null;
       const activeNote =
-        flushed && !openNoteIsPrivate() ? (openNotePath() ?? undefined) : undefined;
+        bufferPublicPath !== null && (await noteIsPublicOnDisk(bridge, bufferPublicPath))
+          ? bufferPublicPath
+          : undefined;
       sentText = buildNoteContext(text, activeNote);
       // The flush may have awaited a moment — bail if the session ended meanwhile
       // (e.g. a voice turn queued behind a flush while the user logged out).

@@ -24,10 +24,26 @@ const LEXICAL_ROOT = "/user/Documents/Vault";
 
 const PROBES: Record<string, PrivacyProbe> = {
   "notes/secret.md": "private",
+  "meeting notes.md": "private", // ASCII space — the unicode-space bypass target
   "public.md": "public",
+  "plans/roadmap v2.md": "public",
   "broken.md": "indeterminate",
   "sub/inner.md": "public",
 };
+
+// Pure double of the host resolver's normalization (pi-path-parity.ts):
+// @-strip, unicode spaces → ASCII space, ~ → HOME. The on-disk variant
+// fallbacks (NFD/curly/AM-PM) need a filesystem, so tests emulate those with
+// per-test overrides; the REAL resolver's agreement with pi's own path-utils
+// is pinned separately by pi-path-parity.test.ts.
+const HOME = "/user";
+function stubNormalizePath(p: string): string {
+  const stripped = p.startsWith("@") ? p.slice(1) : p;
+  const normalized = stripped.replace(/[  -   　]/g, " ");
+  if (normalized === "~") return HOME;
+  if (normalized.startsWith("~/")) return HOME + normalized.slice(1);
+  return normalized;
+}
 
 /** Stubbed fs world: /ws/vault and the lexical root are symlinks to the real
  * root; /real/vault/link-out.md is a symlink escaping the vault. */
@@ -47,6 +63,7 @@ function env(overrides?: Partial<GateEnv>): GateEnv {
     vaultLexicalRoot: LEXICAL_ROOT,
     probe: (rel) => PROBES[rel] ?? "absent",
     privateIndexPaths: () => ["notes/secret.md"],
+    normalizePath: stubNormalizePath,
     realpath: stubRealpath,
     ...overrides,
   };
@@ -110,6 +127,75 @@ describe("privacy gate — read/edit/write (live probe)", () => {
     expect(payload).toContain("notes/secret.md");
     expect(payload).not.toContain(SECRET_BODY);
     expect(payload).not.toContain("rocket");
+  });
+});
+
+describe("privacy gate — pi path-normalization parity (bypass regressions)", () => {
+  // The confirmed CRITICAL bypass: pi's expandPath strips a leading `@`, so
+  // "@vault/…" reads through the ./vault symlink while a raw-string gate
+  // classified it "outside the vault" and never probed. Pinned per tool.
+  it("blocks the `@`-prefixed form of a private note (read/edit/write)", () => {
+    for (const tool of ["read", "edit", "write"]) {
+      expect(decide(tool, { path: "@vault/notes/secret.md" }).allow, tool).toBe(false);
+      expect(decide(tool, { path: "@./vault/notes/secret.md" }).allow, tool).toBe(false);
+    }
+  });
+
+  it("still allows the `@` form of public / genuinely-outside paths", () => {
+    expect(decide("read", { path: "@vault/public.md" })).toEqual({ allow: true });
+    expect(decide("read", { path: "@scratch/tmp.md" })).toEqual({ allow: true });
+  });
+
+  // The confirmed HIGH bypass: pi maps unicode spaces (NBSP/en/em/…) to ASCII
+  // space, so an NBSP-spelled filename opened the real "meeting notes.md"
+  // while the gate probed a phantom → "absent" → allow.
+  it("blocks a private note addressed with unicode spaces in the filename", () => {
+    const nbsp = String.fromCharCode(0xa0);
+    const enQuad = String.fromCharCode(0x2000);
+    for (const tool of ["read", "edit", "write"]) {
+      expect(decide(tool, { path: `./vault/meeting${nbsp}notes.md` }).allow, tool).toBe(false);
+      expect(decide(tool, { path: `vault/meeting${enQuad}notes.md` }).allow, tool).toBe(false);
+    }
+  });
+
+  it("still allows a public note addressed with a unicode space", () => {
+    const nbsp = String.fromCharCode(0xa0);
+    expect(decide("read", { path: `./vault/plans/roadmap${nbsp}v2.md` })).toEqual({ allow: true });
+  });
+
+  // `~`-absolute addressing: pi expands ~ to the homedir; a raw-string gate
+  // treated "~" as a literal directory under the workspace → "outside".
+  it("blocks a private note addressed ~-absolute; allows ~ paths outside the vault", () => {
+    expect(decide("read", { path: "~/Documents/Vault/notes/secret.md" }).allow).toBe(false);
+    expect(decide("edit", { path: "~/Documents/Vault/notes/secret.md" }).allow).toBe(false);
+    expect(decide("read", { path: "~/elsewhere/notes.md" })).toEqual({ allow: true });
+  });
+
+  // pi's read retries NFD / curly-quote filename variants that exist on disk;
+  // the injected resolver returns the variant pi WILL open, and the gate must
+  // probe that — never conclude "absent" from the phantom literal.
+  it("blocks when pi's fs-fallback would open an NFD or curly-quote variant of a private note", () => {
+    const eAcute = String.fromCharCode(0xe9); // é (NFC)
+    const nfdRel = `cafe${String.fromCharCode(0x0301)}.md`; // café.md in NFD
+    const curlyRel = `don${String.fromCharCode(0x2019)}t.md`; // don’t.md
+    const withVariants = env({
+      probe: (rel) => (rel === nfdRel || rel === curlyRel ? "private" : "absent"),
+      // Emulate resolveReadPath's on-disk probing: the literal is absent but
+      // its NFD (or curly-quote) sibling exists and is what pi will read.
+      normalizePath: (p) => {
+        const s = stubNormalizePath(p);
+        if (s.endsWith(`caf${eAcute}.md`)) return s.slice(0, -`caf${eAcute}.md`.length) + nfdRel;
+        if (s.endsWith("don't.md")) return s.slice(0, -"don't.md".length) + curlyRel;
+        return s;
+      },
+    });
+    expect(decide("read", { path: `./vault/caf${eAcute}.md` }, withVariants).allow).toBe(false);
+    expect(decide("read", { path: "./vault/don't.md" }, withVariants).allow).toBe(false);
+    // A genuinely absent file (no variant either) still allows — the tool's
+    // own ENOENT is the honest reply.
+    expect(decide("read", { path: "./vault/never-existed.md" }, withVariants)).toEqual({
+      allow: true,
+    });
   });
 });
 
@@ -233,6 +319,22 @@ describe("privacy extension handler (the piece pi invokes)", () => {
     const outbound = JSON.stringify(result);
     expect(outbound).not.toContain(SECRET_BODY);
     expect(outbound).not.toContain("rocket");
+  });
+
+  it("resolves `@vault/…` through pi's real normalization (regression: the @-bypass)", () => {
+    // The REAL wiring (resolvePiToolPath, no stub): "@vault/x.md" must strip
+    // to "vault/x.md" and classify as vault-shaped. In this fail-closed world
+    // (vaultRealRoot null) that means BLOCK — before the fix the raw string
+    // resolved to "<cwd>/@vault/x.md", classified "outside", and was allowed
+    // straight through to pi's read, which stripped the @ and read the note.
+    const handler = buildToolCallHandler(port());
+    const result = handler({
+      type: "tool_call",
+      toolCallId: "call-at",
+      toolName: "read",
+      input: { path: "@vault/x.md" },
+    });
+    expect(result?.block).toBe(true);
   });
 
   it("returns undefined (allow) for an unrelated tool call", () => {
