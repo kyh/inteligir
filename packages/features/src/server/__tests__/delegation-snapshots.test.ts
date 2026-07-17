@@ -135,6 +135,8 @@ describe("DelegationSnapshotStore", () => {
 
 // Snapshot bytes are raw NOTE CONTENT — the default (real-fs) adapters must
 // write both the bytes file and the index owner-only. Real fs in a temp dir.
+const fileMode = (p: string) => nodeFs.statSync(p).mode & 0o777;
+
 describe("DelegationSnapshotStore file modes (real fs)", () => {
   it("writes snapshot bytes and the index 0600", () => {
     const root = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "snapshots-mode-"));
@@ -142,9 +144,8 @@ describe("DelegationSnapshotStore file modes (real fs)", () => {
     const indexPath = nodePath.join(root, "snapshots.json");
     const store = new DelegationSnapshotStore({ dir, indexPath });
     store.capture("d1", "a.md", "note bytes");
-    const mode = (p: string) => nodeFs.statSync(p).mode & 0o777;
-    expect(mode(nodePath.join(dir, "d1"))).toBe(0o600);
-    expect(mode(indexPath)).toBe(0o600);
+    expect(fileMode(nodePath.join(dir, "d1"))).toBe(0o600);
+    expect(fileMode(indexPath)).toBe(0o600);
     expect(store.read("d1")).toMatchObject({ ok: true, content: "note bytes" });
   });
 });
