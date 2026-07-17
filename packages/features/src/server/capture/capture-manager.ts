@@ -21,9 +21,10 @@
 // ---------------------------------------------------------------------------
 
 import crypto from "node:crypto";
-import { Type } from "@sinclair/typebox";
+import { Type, type Static } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { getHostNotifiers } from "../host-notifiers";
 import { getUiState } from "../ui-state";
 import { getVaultManager } from "../vault/vault";
@@ -43,8 +44,7 @@ import {
   hasExactCaptureLine,
   type CaptureKind,
 } from "@repo/features/deep-link";
-import { isRecord } from "@repo/features/ipc";
-import type { CaptureApplyEvent } from "@repo/features/ipc-registry";
+import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/features/ipc-registry";
 
 const INBOX_VERSION = 1;
 // Inbox bound — a rate-limited surface can't realistically hit this; oldest
@@ -60,6 +60,7 @@ const CaptureEntrySchema = Type.Object(
   {
     id: Type.String(),
     kind: Type.Union([Type.Literal("append"), Type.Literal("task")]),
+    /** Already sanitized by parseDeepLink — the inbox never holds raw input. */
     text: Type.String(),
     createdAt: Type.String(),
   },
@@ -71,15 +72,7 @@ const InboxFileSchema = Type.Object(
   { additionalProperties: false },
 );
 
-type CaptureEntry = {
-  id: string;
-  kind: CaptureKind;
-  /** Already sanitized by parseDeepLink — the inbox never holds raw input. */
-  text: string;
-  createdAt: string;
-};
-
-export type CaptureAckOutcome = "applied" | "not-open" | "deferred";
+type CaptureEntry = Static<typeof CaptureEntrySchema>;
 
 /** The two vault operations the drain needs — injection seam for tests. Both
  * are SYNCHRONOUS (the CAS serialization story depends on it). */
@@ -169,16 +162,11 @@ export class CaptureManager {
           current: INBOX_VERSION,
           // No unversioned era — the inbox is new. Anything without a version
           // field is corrupt (quarantined, reset to empty).
-          fromLegacy: () => {
-            throw new Error("capture-inbox.json has no version field");
-          },
+          fromLegacy: rejectLegacyVersion("capture-inbox.json"),
         },
         decode: (raw) => {
-          // Value.Check against InboxFileSchema already ran; pull the array.
-          if (!isRecord(raw) || !Array.isArray(raw["entries"])) {
-            throw new Error("capture inbox shape rejected");
-          }
-          return raw["entries"].filter(isCaptureEntry);
+          if (!Value.Check(InboxFileSchema, raw)) throw new Error("capture inbox shape rejected");
+          return raw.entries;
         },
         encode: (entries) => ({ version: INBOX_VERSION, entries }),
       },
@@ -309,16 +297,6 @@ export class CaptureManager {
       date: formatIsoDate(this.now()),
     });
   }
-}
-
-function isCaptureEntry(value: unknown): value is CaptureEntry {
-  return (
-    isRecord(value) &&
-    typeof value["id"] === "string" &&
-    (value["kind"] === "append" || value["kind"] === "task") &&
-    typeof value["text"] === "string" &&
-    typeof value["createdAt"] === "string"
-  );
 }
 
 /** The live broadcast path, read at CALL time (like inline-AI's notifier) so

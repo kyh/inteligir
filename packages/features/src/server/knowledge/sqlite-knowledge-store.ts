@@ -16,7 +16,6 @@
 // narrow API used here (DatabaseSync/prepare/exec) is stable per app version.
 // ---------------------------------------------------------------------------
 
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
@@ -24,13 +23,12 @@ import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
 import { createSqlKnowledgeStore, type SqlDriver } from "@repo/core/knowledge/sql-knowledge-store";
 
-import { inteligirPath } from "../lib/json-store";
+import { inteligirPath, shortPathKey } from "../lib/json-store";
 
 /** Per-vault index DB path, keyed by a short hash of the vault root (mirrors
  * sync-manager's baseStorePath pattern — roots contain `/`). */
 export function indexDbPathFor(root: string): string {
-  const key = crypto.createHash("sha256").update(root).digest("hex").slice(0, 16);
-  return inteligirPath("indexes", `${key}.sqlite`);
+  return inteligirPath("indexes", `${shortPathKey(root)}.sqlite`);
 }
 
 const IN_MEMORY = ":memory:";

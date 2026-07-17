@@ -25,11 +25,13 @@
 import type { SlateEditor } from "platejs";
 
 import { appendCaptureLine, hasExactCaptureLine } from "@repo/features/deep-link";
-import type { CaptureApplyEvent } from "@repo/features/ipc-registry";
+import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/features/ipc-registry";
 
 import { parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
 
-export type CaptureAckOutcome = "applied" | "not-open" | "deferred";
+// Re-exported beside the ports type that carries it, so applier consumers
+// (and its tests) need only this module.
+export type { CaptureAckOutcome };
 
 export type CaptureApplyPorts = {
   /** The open note's vault-relative path right now, or null. */

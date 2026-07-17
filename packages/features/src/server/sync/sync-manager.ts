@@ -23,7 +23,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { inteligirPath, type FsAdapter } from "../lib/json-store";
+import { inteligirPath, shortPathKey, type FsAdapter } from "../lib/json-store";
 import { getVaultManager, type VaultManager } from "../vault/vault";
 import type { SyncPort } from "@repo/core/sync/sync-port";
 import {
@@ -34,7 +34,7 @@ import {
   type SyncOutcome,
 } from "@repo/core/sync/engine";
 import { createJsonFileBaseStore, type BaseStore, type JsonFile } from "@repo/core/sync/base-store";
-import type { BaseBlobStore } from "@repo/core/sync/blob-store";
+import { isBlobFileName, type BaseBlobStore } from "@repo/core/sync/blob-store";
 import type { Hash } from "@repo/core/sync/vault-file";
 import { fsSafeStamp } from "@repo/core/sync/reconcile";
 
@@ -97,8 +97,7 @@ export function createVaultSyncIo(vault: VaultManager): SyncIo {
 /** Per-vault base file, keyed by a short hash of the vaultId so switching the
  * synced vault never clobbers another's anchor (vaultIds may contain `/`). */
 function baseStorePath(vaultId: string): string {
-  const key = crypto.createHash("sha256").update(vaultId).digest("hex").slice(0, 16);
-  return inteligirPath(`sync-base-${key}.json`);
+  return inteligirPath(`sync-base-${shortPathKey(vaultId)}.json`);
 }
 
 /** A synchronous `JsonFile` over a plain file path — `read` returns `null` on
@@ -151,12 +150,8 @@ export function createJsonBaseStore(
 
 /** Per-vault blob directory, keyed exactly like `baseStorePath`. */
 function blobStoreDir(vaultId: string): string {
-  const key = crypto.createHash("sha256").update(vaultId).digest("hex").slice(0, 16);
-  return inteligirPath(`sync-blobs-${key}`);
+  return inteligirPath(`sync-blobs-${shortPathKey(vaultId)}`);
 }
-
-/** Only content-addressed entries are ours — foreign files are never touched. */
-const BLOB_NAME_RE = /^[0-9a-f]{64}$/;
 
 /**
  * A `BaseBlobStore` over a flat directory of hash-named files. Honors the port
@@ -199,7 +194,7 @@ export function createNodeBlobStore(
         return; // no directory yet — nothing to prune
       }
       for (const name of entries) {
-        if (!BLOB_NAME_RE.test(name) || keep.has(name)) continue;
+        if (!isBlobFileName(name) || keep.has(name)) continue;
         try {
           fs.unlinkSync(path.join(dir, name));
         } catch {

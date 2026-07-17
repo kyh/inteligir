@@ -31,7 +31,7 @@ import path from "node:path";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { isRecord } from "@repo/features/ipc";
 
 // Retention: keep the newest 50 snapshots PER ORIGIN, pruned on host start.
@@ -189,9 +189,7 @@ export class SnapshotStore {
         versioning: {
           current: SNAPSHOTS_VERSION,
           // No unversioned era — snapshots.json was born versioned.
-          fromLegacy: () => {
-            throw new Error("snapshots.json has no version field");
-          },
+          fromLegacy: rejectLegacyVersion("snapshots.json"),
           migrations: {
             // v1 → v2: delegation-only entries generalized to AI-write
             // snapshots. Every v1 entry was captured by a delegation before

@@ -11,16 +11,11 @@
 
 import { Directory, File, Paths } from "expo-file-system";
 
-import type { BaseBlobStore } from "@repo/core/sync/blob-store";
+import { isBlobFileName, type BaseBlobStore } from "@repo/core/sync/blob-store";
 import type { Hash } from "@repo/core/sync/vault-file";
 
 /** The blob directory name under the app's document directory. */
 const BLOBS_DIR = "sync-blobs";
-
-/** Only content-addressed entries are ours — foreign files are never touched.
- * (No synchronous digest exists on Expo, so unlike the desktop store `get`
- * trusts a present blob rather than re-hashing it.) */
-const BLOB_NAME_RE = /^[0-9a-f]{64}$/;
 
 function fileFor(hash: Hash): File {
   return new File(Paths.document, BLOBS_DIR, hash);
@@ -53,7 +48,10 @@ export function createExpoBlobStore(): BaseBlobStore {
         if (!dir.exists) return;
         for (const entry of dir.list()) {
           if (entry instanceof Directory) continue;
-          if (!BLOB_NAME_RE.test(entry.name) || keep.has(entry.name)) continue;
+          // Only content-addressed entries are ours — foreign files are never
+          // touched. (No synchronous digest exists on Expo, so unlike the
+          // desktop store `get` trusts a present blob rather than re-hashing.)
+          if (!isBlobFileName(entry.name) || keep.has(entry.name)) continue;
           try {
             entry.delete();
           } catch {
