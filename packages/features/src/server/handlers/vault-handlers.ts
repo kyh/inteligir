@@ -1,4 +1,5 @@
 import { getDelegationManager } from "../delegation/delegation-manager";
+import { getSnapshotStore } from "../snapshots/snapshot-store";
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import { probeVaultPrivacy } from "../lib/agent-lifecycle";
 import { getPlatform } from "../platform-instance";
@@ -120,6 +121,9 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
     if (result.ok) {
       try {
         getDelegationManager().renameSource(from, to);
+        // Same story for AI-write snapshots: a chat checkpoint's entry path
+        // is its restore target, so undo must follow the moved file.
+        getSnapshotStore().renamePath(from, to);
       } catch (err) {
         console.warn("[vault] delegation remap after rename failed:", err);
       }

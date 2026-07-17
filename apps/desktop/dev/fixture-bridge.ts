@@ -1088,6 +1088,16 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     onDelegationsUpdated: delegationEvents.subscribe,
     onDelegationStreamed: () => () => {},
 
+    // AI-write checkpoints — the harness chat agent is a canned echo that
+    // never edits notes, so no capture event ever fires; a restore arriving
+    // anyway is a wiring bug worth hearing.
+    onAgentEditCaptured: () => () => {},
+    restoreAgentEdits: async ({ ids }) => {
+      throw new Error(
+        `fixture bridge: restoreAgentEdits(${ids.join(",")}) — no chat checkpoints exist in the harness`,
+      );
+    },
+
     // Deep-link capture — no URL scheme reaches a browser tab, so the apply
     // event never fires; an ack arriving anyway is a wiring bug worth hearing.
     onCaptureApply: () => () => {},

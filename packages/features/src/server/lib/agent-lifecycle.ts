@@ -19,6 +19,7 @@ import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "./host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
+import { getCheckpointManager, resetCheckpointManager } from "../checkpoints/checkpoint-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { resetSnapshotStore } from "../snapshots/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
@@ -94,6 +95,15 @@ export function getAgentPorts(): AgentPorts {
       },
       privateIndexPaths: () => getKnowledgeManager().privatePaths(),
     },
+    // Pre-write checkpoint capture for allowed in-vault doc edits/writes —
+    // the chat agent's undo point (the tool gate invokes it post-allow,
+    // pre-execution). The background delegation agent OVERRIDES this to null
+    // (background-agent.ts): its undo is the pre-run delegation snapshot, and
+    // hook captures there would leak into the chat undo toast. Defers to the
+    // live singleton like everything else here.
+    checkpoints: {
+      capture: (target) => getCheckpointManager().capture(target),
+    },
   };
 }
 
@@ -158,6 +168,7 @@ export function teardownAgentResources(): void {
   resetAuthStorage();
   resetNotifications();
   resetCaptureManager();
+  resetCheckpointManager();
   resetDelegationManager();
   resetSnapshotStore();
   resetExecutorDaemon();

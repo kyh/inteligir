@@ -17,7 +17,7 @@ import type { VaultChangeKind } from "./vault/vault";
 import type { StoreRecoveryEvent } from "./lib/json-store";
 import type { DeepLinkNavEvent } from "@repo/features/deep-link";
 import type { Delegation } from "@repo/features/delegation";
-import type { CaptureApplyEvent } from "@repo/features/ipc-registry";
+import type { AgentEditCaptured, CaptureApplyEvent } from "@repo/features/ipc-registry";
 import type { SyncState } from "@repo/features/sync";
 
 /** The host notifier slots, composed by the host and fired by the graph.
@@ -34,6 +34,8 @@ export type HostNotifiers = {
   delegationsChanged: (delegations: Delegation[]) => void;
   /** A delegation's live transcript advanced (drives the response dock). */
   delegationStream: (id: string, text: string) => void;
+  /** A chat-agent write was checkpointed (drives the post-turn undo toast). */
+  agentEditCaptured: (event: AgentEditCaptured) => void;
   /** Inline-AI generation streamed a text delta (drives live insertion). */
   inlineAiStream: (requestId: string, delta: string) => void;
   /** A deep-link capture wants applying to the open note's live buffer. */

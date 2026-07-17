@@ -27,6 +27,7 @@
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "./events";
+import { getCheckpointManager } from "./checkpoints/checkpoint-manager";
 import { getDelegationManager } from "./delegation/delegation-manager";
 import { getExecutorDaemon } from "./executor/executor-daemon";
 import { getKnowledgeManager } from "./knowledge/knowledge-manager";
@@ -55,6 +56,7 @@ function buildHostNotifiers(): HostNotifiers {
     },
     delegationsChanged: (delegations) => emitEvent("onDelegationsUpdated", { delegations }),
     delegationStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
+    agentEditCaptured: (event) => emitEvent("onAgentEditCaptured", event),
     inlineAiStream: (requestId, delta) => emitEvent("onAiStreamed", { requestId, delta }),
     captureApply: (event) => emitEvent("onCaptureApply", event),
     deepLinkNav: (event) => emitEvent("onDeepLinkNav", event),
@@ -91,6 +93,7 @@ export function constructHostSingletons(): HostNotifiers {
   getVaultManager(); // paths (watcher stays off until start() wires it post-ensureReady)
   getKnowledgeManager(); // vault
   getDelegationManager(); // vault + delegation notifiers (installed above)
+  getCheckpointManager(); // shared snapshot store + checkpoint notifier (installed above)
   getExecutorDaemon(); // paths
   getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
 
