@@ -4,6 +4,11 @@
 // typecheck. Vault reads/writes hit a Map seeded with sample notes; agent
 // chat streams a canned reply; STT streams a canned transcript;
 // TTS/executor/updates report unavailable.
+//
+// Stub convention for new channels: make the stub DO something real against
+// the in-memory state, or throw `unavailable("<feature>")` naming the gap.
+// Never silently return `[]`/undefined/false where the real host would act —
+// a stub that answers wrong is worse than an error that names itself.
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "@repo/features/agent-events";
@@ -136,7 +141,7 @@ nested:
 
 Edit the typed properties above; the yaml block round-trips byte-for-byte.
 `,
-  // Inline-tag note (plan 021): exercises the palette `#` flow. Its inline
+  // Inline-tag note (tags palette): exercises the palette `#` flow. Its inline
   // #meta unifies with frontmatter-note.md's frontmatter `tags: [meta, demo]`,
   // so the tag list demos BOTH sources (meta count 2) and inline-only tags.
   // Pre-canonical prose (the corpus test pins it canonical).
@@ -405,7 +410,7 @@ function cannedEditResponse(prompt: string): string | null {
 // classify as a doc).
 const SAMPLE_ASSETS: Record<string, string> = {
   "wiki/diagram.png": "png-placeholder (dev harness fixture, not real image bytes)",
-  // Template fixtures (plan 020) so "New note from template…" and the daily-note
+  // Template fixtures so "New note from template…" and the daily-note
   // seed are drivable in the harness. Kept out of SAMPLE_NOTES: they carry
   // {{date}}/{{title}} placeholders + frontmatter that the corpus contract
   // (every entry canonical) doesn't model — they're only ever read as template
@@ -625,6 +630,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   // Pre-run copies keyed by delegation id — the in-memory twin of the host's
   // ~/.inteligir/snapshots store, so "Restore original" is exercisable.
   const snapshots = new Map<string, { path: string; content: string }>();
+  // The pending simulated-run timer per delegation id, so cancelDelegation
+  // can really pull a "running" run back (clearTimeout = the harness twin of
+  // the host's agent interrupt).
+  const delegationTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
   // Sync — an in-memory stand-in so the settings Sync section is demoable
@@ -1012,7 +1021,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       };
       delegations.push(delegation);
       delegationEvents.emit({ delegations: [...delegations] });
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        delegationTimers.delete(id);
         const content = vault.get(delegation.sourceFile);
         const edited = content === undefined ? null : simulateDelegationEdit(content, index);
         if (content === undefined || edited === null) {
@@ -1021,7 +1031,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         } else {
           // Mirror the host's ordering: snapshot the pre-run bytes FIRST, then
           // let the "agent" edit, then finish done. Completion re-indexes +
-          // broadcasts (the host's onRunSettled vault refresh, ADR-0001) so
+          // broadcasts (the host's onRunSettled vault refresh — vault
+          // liveness, CLAUDE.md § Decisions) so
           // knowledge consumers — the tasks view included — see the edit.
           snapshots.set(id, { path: delegation.sourceFile, content });
           delegation.hasSnapshot = true;
@@ -1036,10 +1047,29 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         delegation.finishedAt = Date.now();
         delegationEvents.emit({ delegations: [...delegations] });
       }, 800);
+      delegationTimers.set(id, timer);
       return { ok: true, delegation };
     },
     listDelegations: async () => ({ delegations: [...delegations] }),
-    cancelDelegation: async () => ({ ok: false }),
+    // A REAL cancel over the simulated run (a throw here would be swallowed
+    // by delegation-store's fire-and-forget .catch): pull the pending timer
+    // and land the host's stop outcome — status "failed", error "Stopped." —
+    // so the dock badge visibly flips. A finished/unknown id can't be pulled
+    // back, exactly like the host manager.
+    cancelDelegation: async (id) => {
+      const delegation = delegations.find((d) => d.id === id);
+      const timer = delegationTimers.get(id);
+      if (!delegation || delegation.status !== "running" || timer === undefined) {
+        return { ok: false };
+      }
+      clearTimeout(timer);
+      delegationTimers.delete(id);
+      delegation.status = "failed";
+      delegation.error = "Stopped.";
+      delegation.finishedAt = Date.now();
+      delegationEvents.emit({ delegations: [...delegations] });
+      return { ok: true };
+    },
     restoreDelegationSnapshot: async (id) => {
       const delegation = delegations.find((d) => d.id === id);
       if (!delegation) return { ok: false, error: "Unknown delegation." };
@@ -1133,12 +1163,20 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     addGraphqlIntegration: async () => {
       throw unavailable("executor");
     },
-    removeExecutorIntegration: async () => ({ removed: false }),
+    // Loud, not `{ removed: false }`: a silent "nothing removed" reads as a
+    // successful no-op in the Extensions panel. (Heads-up for harness drives:
+    // connector-install.ts's cleanup path swallows removeExecutorIntegration
+    // rejections — its direct remove paths propagate.)
+    removeExecutorIntegration: async () => {
+      throw unavailable("executor");
+    },
     listExecutorConnections: async () => [],
     createExecutorConnection: async () => {
       throw unavailable("executor");
     },
-    removeExecutorConnection: async () => ({ removed: false }),
+    removeExecutorConnection: async () => {
+      throw unavailable("executor");
+    },
     listExecutorOAuthClients: async () => [],
     createExecutorOAuthClient: async () => {
       throw unavailable("executor");
@@ -1154,7 +1192,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       throw unavailable("executor");
     },
     executorOAuthAwait: async () => null,
-    executorOpenExternal: async () => {},
+    // A silent no-op would look like a browser that just failed to open.
+    executorOpenExternal: async () => {
+      throw unavailable("executor");
+    },
 
     // Sync — an in-memory account so the settings Sync section is drivable:
     // toggle enable, set a URL, sign in (always succeeds), sync now (stub
@@ -1253,9 +1294,25 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
     onRemoteAccessChanged: remoteAccessEvents.subscribe,
 
-    // Skills / integrations
-    listSkills: async () => ({ skills: [] }),
-    listIntegrations: async () => [],
-    repairIntegrations: async () => {},
+    // Skills / integrations — one seeded row each so the Settings panels
+    // render their POPULATED state ("zero installed" is a legitimate state,
+    // but the harness should demo rows). Repair mutates real binaries on the
+    // host, so it rejects loudly instead of pretending to succeed.
+    listSkills: async () => ({
+      skills: [
+        {
+          name: "summarize-note",
+          description: "Summarize the open note into a short digest (dev-harness fixture).",
+          source: "user",
+          scope: "user",
+          filePath: "/fixture/.inteligir/skills/summarize-note/SKILL.md",
+          disableModelInvocation: false,
+        },
+      ],
+    }),
+    listIntegrations: async () => [{ name: "fixture-cli", expected: "1.2.3", installed: "1.2.3" }],
+    repairIntegrations: async () => {
+      throw unavailable("integrations repair");
+    },
   };
 }

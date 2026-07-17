@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import nodeFs from "node:fs";
+import os from "node:os";
+import nodePath from "node:path";
 
 import { DelegationSnapshotStore, SNAPSHOT_RETENTION } from "../delegation/delegation-snapshots";
 import type { FsAdapter } from "../lib/json-store";
@@ -127,5 +130,22 @@ describe("DelegationSnapshotStore", () => {
     expect(store.read("d1")).toMatchObject({ ok: true, content: "second" });
     store.prune(); // must not treat the overwrite as an orphan
     expect(store.read("d1")).toMatchObject({ ok: true, content: "second" });
+  });
+});
+
+// Snapshot bytes are raw NOTE CONTENT — the default (real-fs) adapters must
+// write both the bytes file and the index owner-only. Real fs in a temp dir.
+const fileMode = (p: string) => nodeFs.statSync(p).mode & 0o777;
+
+describe("DelegationSnapshotStore file modes (real fs)", () => {
+  it("writes snapshot bytes and the index 0600", () => {
+    const root = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "snapshots-mode-"));
+    const dir = nodePath.join(root, "snapshots");
+    const indexPath = nodePath.join(root, "snapshots.json");
+    const store = new DelegationSnapshotStore({ dir, indexPath });
+    store.capture("d1", "a.md", "note bytes");
+    expect(fileMode(nodePath.join(dir, "d1"))).toBe(0o600);
+    expect(fileMode(indexPath)).toBe(0o600);
+    expect(store.read("d1")).toMatchObject({ ok: true, content: "note bytes" });
   });
 });

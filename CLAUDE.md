@@ -116,15 +116,22 @@ injected `AgentPorts` (`{ executor, knowledge }`).
 `packages/features/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
-index** (a deliberate decision — PR #411): NO recursive watcher — the listing is a one-shot crawl
+listing** (a deliberate decision — PR #411, § Decisions): NO recursive watcher — the listing is a one-shot crawl
 (respects `.gitignore`, uncapped) refreshed on window focus, app writes,
 delegation completion, and a "Refresh vault" palette command; only the OPEN
 note gets a (non-recursive) watcher, driven by a pure change classifier with
 self-save filtering, so autosaves generate zero vault-changed traffic. It also
 maintains a `./vault` symlink in the agent workspace so the agent's file tools
-find it regardless of where the user put it.
-`~/.inteligir` holds only app state (auth, sessions, ui-state, delegations,
-pre-delegation snapshots) via versioned `JsonStore`s — never note content.
+find it regardless of where the user put it. User-initiated deletes go to the
+**OS trash** (`HostPlatform.trashItem`); sync-applied remote deletes are
+permanent (§ Decisions).
+`~/.inteligir` is app state, NOT the vault — but **note content does reach
+it**: session transcripts record every note the agent read, and
+pre-delegation snapshots are raw note bytes. The dir is therefore owner-only
+(0700 dirs / 0600 data files — json-store's default write mode plus a
+boot-time `hardenAppDir` sweep that heals pre-existing installs). Versioned
+`JsonStore`s hold the rest (ui-state, delegations, sync config); pi's
+auth.json is pi-owned — plaintext-but-0600 by design.
 
 Notes are **markdown with a fixed MDX vocabulary**: GFM plus `[[wiki-links]]`
 (aliases, `![[transclusion]]`), `$$` math, mermaid fences, `> [!NOTE]` alerts,
@@ -147,7 +154,10 @@ hydrates the in-memory graph from persisted rows (no first-query full parse),
 an async time-budgeted reconcile diffs stat fingerprints (content hash is the
 write authority) from vault events, and renames rewrite `[[links]]` across
 the vault byte-surgically (shadow-protection qualifies links the new name
-would steal). Derived indexes are rebuilt per device and NEVER synced.
+would steal) and record the old stem in the moved doc's frontmatter
+`aliases:` — wiki targets resolve through aliases after every path tier (a
+real filename always beats an alias). Derived indexes are rebuilt per device
+and NEVER synced.
 
 ### UI — `apps/desktop/src/renderer`, one fixed workspace
 
@@ -202,6 +212,13 @@ and full-text search live in the command palette.
   template…" applies `templates/*.md` with `{{date}}`/`{{title}}`
   substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
   Notes configures folder/format).
+- **Deep links / capture**: the world-invokable `inteligir://` scheme has
+  exactly five verbs (`packages/features/src/deep-link.ts`, pure parser +
+  sanitizer): `append`/`task` capture ONE sanitized plain-text line onto
+  TODAY's daily note — durable inbox + exactly-once apply (the open note's
+  live buffer via `onCaptureApply`, else the host-side CAS drain in
+  `server/capture/`) — and `today` / `note/<target>` / `search?q=` navigate.
+  Target paths are computed host-side, never taken from the URL.
 - **Tasks view**: a palette-launched alternate main surface like the graph
   ("Open tasks view") over the projection's per-doc task extraction (every
   GFM `- [ ]` is a task; per-note `tasks: false` opts out). Scheduling is
@@ -271,6 +288,14 @@ tool. Chat is a single persistent thread; the open note is auto-attached as
 context (agent-side only). `Cmd+K` rolls a fresh thread. Two more no-tools pi
 sessions serve the editor: inline-AI/intent classification, and an ephemeral
 in-memory session for ghost-text on a fast model.
+**Private notes** (`private: true` frontmatter, `docs/privacy.md` is the
+contract): excluded from every AI surface on this device, fail-closed — the
+agent's file tools refuse them (per-call live-disk probe in pi's `tool_call`
+hook, `agent/privacy/`, path-normalization parity with pi's own tools),
+`search_vault`/`get_backlinks` drop them entirely, editor AI + ghost text go
+hard-off, the chat context hint withholds even the path, and delegation
+refuses. Unparseable frontmatter counts as private. A leak-prevention
+boundary for AI features, NOT a security boundary.
 
 ### IPC / Bridge
 
@@ -282,3 +307,48 @@ shell folds over Electron `ipcMain` (the preload derives the typed
 `window.desktopBridge` automatically). Add a channel = registry entry + host
 handler + one line in the dev-harness fixture Bridge
 (`apps/desktop/dev/fixture-bridge.ts`), which fails typecheck until covered.
+The fixture stub must do something real against the in-memory state or throw
+an error naming the gap — never silently return `[]`/undefined.
+
+## Decisions
+
+Durable architecture decisions code comments cite (plan files and ADR docs
+are deleted on purpose — this section + PRs are the record):
+
+- **Vault liveness: ephemeral listing + one open-note watcher** (PR #411).
+  NO recursive filesystem watcher, ever. The vault LISTING is an on-demand
+  crawl (TTL-shared snapshot) refreshed on window focus, app structural
+  writes, delegation completion, and "Refresh vault"; the only watcher is a
+  single non-recursive watch on the open note, filtered through a pure change
+  classifier with self-save suppression, so the app's own autosaves generate
+  zero vault-changed traffic. External edits to other files surface on the
+  next refresh — that trade is the design. The persistent SQLite knowledge
+  projection did NOT reverse this: it changed where DERIVED knowledge lives,
+  not how disk changes are discovered; "ephemeral snapshot" comments refer to
+  this on-disk crawl cadence.
+- **The knowledge index is a wipe-and-rebuild cache.** The SQL KnowledgeStore
+  persists projections (`~/.inteligir/indexes/<hash>.sqlite`) purely to make
+  boot cheap; corruption or a version mismatch deletes and rebuilds from the
+  vault. Nothing durable may ever live in index.sqlite — durable state
+  belongs in the `~/.inteligir` JsonStores. Per-device, never synced.
+- **Frontmatter is the ONLY property store.** No metadata DB, ever. Typed
+  properties parse/serialize against the file's own YAML
+  (`@repo/core/markdown/frontmatter`); YAML the typing rules can't represent
+  is preserved byte-exactly, never coerced or dropped.
+- **Delete = OS trash.** User-initiated deletes (`deleteVaultEntry`: sidebar,
+  header, HTML-app broker, conflict dismiss) move the file to the OS trash
+  via `HostPlatform.trashItem` (Electron `shell.trashItem`; permanent-remove
+  fallback where the OS has none). The OS is the trash UI — no in-app trash
+  view. Sync-applied remote deletes stay permanent (`VaultManager.delete`):
+  the originating device already trashed, core's `SyncIo.remove` is
+  synchronous by contract, and reconcile preserves conflicting local edits as
+  sibling copies.
+- **No tag rename/delete UI, ever.** Tags are projections over note bodies
+  (inline `#tags` + frontmatter `tags:`); a "rename/delete tag" affordance is
+  a bulk content mutation disguised as a filter-chip action. Edit the notes
+  (or ask the agent).
+- **`~/.inteligir` is owner-only** (0700 dirs / 0600 data files) because
+  session transcripts and snapshots carry note content; `hardenAppDir`
+  re-asserts it on every boot for files third parties (pi) create 0644.
+  pi's auth.json stays pi-owned: plaintext-but-0600 by design — pi reads it
+  directly during OAuth refresh, so there is no cipher-injection seam.

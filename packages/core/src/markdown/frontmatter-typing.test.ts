@@ -6,7 +6,8 @@ import {
   serializeProperties,
 } from "@repo/core/markdown/frontmatter";
 
-// Every typing rule from plan 017 (hubble ADR-0003), exhaustively. The rules
+// Every frontmatter typing rule (CLAUDE.md § Decisions: the markdown file is
+// the ONLY property store), exhaustively. The rules
 // ARE the feature: conservative YAML 1.2 core-schema typing that never coerces
 // and never destroys what it can't represent.
 

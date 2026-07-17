@@ -120,7 +120,7 @@ describe("SyncCoordinator", () => {
 // A live engine over an in-memory port/vault (no network), wired through the
 // injectable `SyncEngineFactory` — proves a DEBOUNCED pass (onVaultChanged,
 // never syncNow()) surfaces its conflict into `getState().conflicts` through
-// the SAME `onOutcome` path syncNow uses (plan 022, item 2).
+// the SAME `onOutcome` path syncNow uses.
 // ---------------------------------------------------------------------------
 
 const VAULT_ID = "vault-coordinator-test";

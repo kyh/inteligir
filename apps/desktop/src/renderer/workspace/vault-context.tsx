@@ -50,7 +50,8 @@ import type { VaultEntry } from "@repo/features/ipc-registry";
 const OPEN_NOTE_KEY = "workspace.openNote";
 
 /** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,
- * dialogs) coalesces into one snapshot rebuild (ADR-0001). */
+ * dialogs) coalesces into one snapshot rebuild (vault liveness — CLAUDE.md
+ * § Decisions). */
 const FOCUS_REFRESH_DEBOUNCE_MS = 1000;
 
 /**
@@ -157,7 +158,7 @@ type VaultContextValue = {
   resolveWikiTarget: (target: string) => string | null;
   /** Rebuild the ephemeral vault snapshot now (re-list + reindex + sync kick).
    * The command palette's "Refresh vault" invokes this; window focus does too,
-   * debounced (ADR-0001). */
+   * debounced (vault liveness — CLAUDE.md § Decisions). */
   refreshVault: () => void;
   /** Whether the open note is marked `private: true` — the header's lock
    * badge. USER-FACING semantics: strictly "private" (unreadable frontmatter
@@ -247,7 +248,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       setHtmlAsText(false);
       setUiState(OPEN_NOTE_KEY, next);
       // Point the host's single open-note watcher at the new file (or clear it).
-      // This is the only file watched for external edits (ADR-0001).
+      // This is the only file watched for external edits (vault liveness —
+      // CLAUDE.md § Decisions).
       getBridge()
         ?.setWatchedNote({ path: next })
         .catch(() => {});
@@ -337,7 +339,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // Last-applied listing, in a ref so the async callback compares against the
   // truly latest value (React state would be a stale closure). Every vault
   // broadcast re-fetches the listing — focus refreshes, delegation completion,
-  // external open-note edits (autosaves went silent with ADR-0001) — and most
+  // external open-note edits (autosaves went silent with the vault-liveness
+  // model, CLAUDE.md § Decisions) — and most
   // of those don't change the listing, so skip the state set when nothing
   // structural changed to keep the sidebar tree from re-rendering on refocus.
   const lastEntriesRef = useRef<VaultEntry[]>([]);
@@ -571,7 +574,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [applyOpenPath, disposeRuntime, refreshList]);
 
   // External edits to files OTHER than the open note surface on window focus —
-  // the ephemeral model's "the user refocuses to look" trade (ADR-0001). One
+  // the ephemeral model's "the user refocuses to look" trade (vault liveness —
+  // CLAUDE.md § Decisions). One
   // debounced refresh per focus flurry rebuilds the snapshot (re-list + reindex
   // + sync kick). The open note itself is covered live by the host's open-note
   // watcher, so this is about the rest of the vault.

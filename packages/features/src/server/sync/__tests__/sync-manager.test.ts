@@ -103,11 +103,12 @@ describe("createVaultSyncIo", () => {
     expect([...io.list()].toSorted()).toEqual(["notes/b.md"]);
   });
 
-  it("lists every file uncapped — the data-loss regression pin (plan 001)", () => {
-    // vault.list() caps at 2000 entries for the UI. Feeding that capped list
-    // into the sync engine reads a truncated manifest as local deletions and
-    // propagates them to the coordinator and every peer. createVaultSyncIo
-    // must use the uncapped listAllPaths() instead.
+  it("lists every file uncapped — the data-loss regression pin", () => {
+    // Historically vault.list() capped its listing (2000 entries, long gone).
+    // Feeding any capped/truncated list into the sync engine reads the
+    // missing tail as local deletions and propagates them to the coordinator
+    // and every peer. createVaultSyncIo must see EVERY non-ignored file
+    // (listAllPaths) — this pins that, cap or no cap.
     const vault = new VaultManager({
       settingsPath: path.join(tmp, "settings.json"),
       defaultRoot: path.join(tmp, "vault"),

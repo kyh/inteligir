@@ -27,7 +27,8 @@ export type HostNotifiers = {
   /** A JsonStore quarantined a data file (json-store's default recovery seam). */
   storeRecovery: (event: StoreRecoveryEvent) => void;
   /** The vault changed. `refresh` broadcasts onVaultChanged + reindexes; `save`
-   * (an autosave content overwrite) reindexes only — no broadcast (ADR-0001). */
+   * (an autosave content overwrite) reindexes only — no broadcast (vault
+   * liveness — CLAUDE.md § Decisions). */
   vaultChange: (root: string, kind: VaultChangeKind) => void;
   /** The delegation list changed (drives inline badges). */
   delegationsChanged: (delegations: Delegation[]) => void;

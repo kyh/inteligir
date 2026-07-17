@@ -77,7 +77,8 @@ export type DelegationManagerOptions = {
   /** Called after each run settles. The background agent edits the vault file
    * through ./vault (external to VaultManager), so a completed run's result
    * won't otherwise appear until the window regains focus — this kicks a vault
-   * refresh so it shows immediately (ADR-0001). Defaults to the live vault
+   * refresh so it shows immediately (vault liveness — CLAUDE.md § Decisions).
+   * Defaults to the live vault
    * refresh; unit tests leave it unset. */
   onRunSettled?: () => void;
 };

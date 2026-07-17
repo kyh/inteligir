@@ -439,3 +439,41 @@ describe("JsonStore versioning", () => {
     expect(events[0].reason).toContain("legacy migration failed");
   });
 });
+
+// The default adapter's on-disk permission contract: every JsonStore under
+// ~/.inteligir defaults to owner-only files (session-adjacent state can carry
+// note content or credentials). Real fs in a temp dir — mode bits are the
+// thing under test.
+const fileMode = (p: string) => fs.statSync(p).mode & 0o777;
+
+function tempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "json-store-mode-"));
+}
+
+describe("JsonStore file modes (real fs)", () => {
+  it("writes data files 0600 by default", () => {
+    const file = path.join(tempDir(), "store.json");
+    const store = new JsonStore<number[]>(file, NumbersSchema, []);
+    store.write([1]);
+    expect(fileMode(file)).toBe(0o600);
+  });
+
+  it("lets an explicit mode win over the default", () => {
+    const file = path.join(tempDir(), "store.json");
+    const store = new JsonStore<number[]>(file, NumbersSchema, [], { mode: 0o640 });
+    store.write([1]);
+    expect(fileMode(file)).toBe(0o640);
+  });
+
+  it("heals a stale crash-leftover tmp file's mode instead of inheriting it", () => {
+    const dir = tempDir();
+    const file = path.join(dir, "store.json");
+    // A crashed previous write left a world-readable tmp behind; writeFileSync
+    // only applies mode on create, so without the explicit chmod the rename
+    // would carry 0644 onto the target.
+    fs.writeFileSync(`${file}.tmp`, "stale", { encoding: "utf8", mode: 0o644 });
+    const store = new JsonStore<number[]>(file, NumbersSchema, []);
+    store.write([1]);
+    expect(fileMode(file)).toBe(0o600);
+  });
+});

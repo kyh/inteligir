@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
-// classify-file-change — the open-note watcher's brain (ADR-0001). The
-// ephemeral index has exactly ONE filesystem watcher: a non-recursive watch on
+// classify-file-change — the open-note watcher's brain (vault liveness —
+// CLAUDE.md § Decisions). The
+// ephemeral listing has exactly ONE filesystem watcher: a non-recursive watch on
 // the currently open note. When it fires we must decide, from disk state
 // alone, whether the editor needs to react — and crucially NOT react to the
 // app's own autosaves (which today round-trip a pointless broadcast per save).

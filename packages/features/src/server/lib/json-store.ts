@@ -38,13 +38,15 @@ function restrictInteligirDir(filePath: string): void {
   }
 }
 
-function writeFileOptions(mode: number | undefined): { encoding: "utf8"; mode?: number } {
-  return mode === undefined ? { encoding: "utf8" } : { encoding: "utf8", mode };
-}
-
 // Write to <path>.tmp then rename — atomic on POSIX + NTFS, so a crash mid-write
 // leaves the previous file intact instead of a half-written one. `mode` applies
-// to the tmp file (fresh every write), so the rename carries it to the target.
+// to the tmp file, so the rename carries it to the target.
+//
+// Mode DEFAULTS to owner-only (0o600): every JsonStore lives under
+// ~/.inteligir, and several hold credentials or note content (secrets,
+// the snapshots index, delegation records naming note lines). A store that
+// genuinely needed shared visibility would pass an explicit mode — none does;
+// revisit this default before ever pointing a JsonStore outside ~/.inteligir.
 const realFs: FsAdapter = {
   read: (filePath) => {
     try {
@@ -57,7 +59,12 @@ const realFs: FsAdapter = {
     fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
     restrictInteligirDir(filePath);
     const tmp = `${filePath}.tmp`;
-    fs.writeFileSync(tmp, content, writeFileOptions(mode));
+    const fileMode = mode ?? 0o600;
+    fs.writeFileSync(tmp, content, { encoding: "utf8", mode: fileMode });
+    // writeFileSync's mode applies only on CREATE — a stale tmp left by a
+    // crash would otherwise carry its old (possibly 0644) mode through the
+    // rename. An explicit chmod makes the mode unconditional.
+    fs.chmodSync(tmp, fileMode);
     fs.renameSync(tmp, filePath);
   },
   rename: (from, to) => {
@@ -137,8 +144,10 @@ export type JsonStoreOptions<T> = {
   /** Version + migrations for the on-disk format. Required for new stores. */
   versioning?: StoreVersioning;
   /**
-   * POSIX permission bits applied to the file on every write (e.g. 0o600 for
-   * credential-bearing stores). Backups written on recovery inherit it too.
+   * POSIX permission bits applied to the file on every write. Defaults to
+   * 0o600 (owner-only — every store lives under ~/.inteligir); explicit
+   * values at call sites document intent. Backups written on recovery
+   * inherit it too.
    */
   mode?: number;
 };

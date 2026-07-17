@@ -16,7 +16,8 @@
 // `vault` symlink in the agent workspace (so the agent's native file tools
 // always find the vault at ./vault regardless of where the user put it).
 //
-// Liveness model (ADR-0001): the listing is an EPHEMERAL, refreshable snapshot,
+// Liveness model (vault liveness — CLAUDE.md § Decisions): the listing is an
+// EPHEMERAL, refreshable snapshot,
 // not a watched mirror. There is NO recursive filesystem watcher. The snapshot
 // refreshes on demand — app-initiated structural writes, window focus, the
 // explicit "Refresh vault" command, and delegation completion. The ONLY watcher
@@ -34,6 +35,7 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import type { VaultEntry } from "@repo/features/ipc-registry";
@@ -78,7 +80,8 @@ const IGNORE_FILES = [".gitignore", ".ignore"];
  * note watcher, focus/manual refresh, delegation completion. `save` is a
  * content overwrite of an existing file (an autosave): it keeps the knowledge
  * index and sync live but does NOT broadcast, so the user's own typing stops
- * generating any vault-changed traffic (ADR-0001). */
+ * generating any vault-changed traffic (vault liveness — CLAUDE.md
+ * § Decisions). */
 export type VaultChangeKind = "refresh" | "save";
 
 /** A listed vault file with its stat identity — what one crawl+stat pass
@@ -113,14 +116,20 @@ type VaultManagerOptions = {
   /** Maintain the `vault` symlink in the agent workspace. Off in tests so a
    * read/write against a temp dir never touches ~/.inteligir/workspace. */
   manageAgentLink?: boolean;
+  /** Move an absolute path to the OS trash (tests inject fakes). Defaults
+   * LAZILY at call time to the platform capability (secrets.ts cipher
+   * precedent) so unit tests that never call trash() need no platform. */
+  trashItem?: (absolutePath: string) => Promise<void>;
 };
 
 export class VaultManager {
   private readonly settings: JsonStore<VaultSettings>;
   private readonly defaultRoot: string;
   private readonly manageAgentLink: boolean;
+  private readonly trashItem: ((absolutePath: string) => Promise<void>) | undefined;
   private changeNotifier: ((root: string, kind: VaultChangeKind) => void) | null = null;
-  // The single non-recursive watcher on the open note (ADR-0001). Everything
+  // The single non-recursive watcher on the open note (vault liveness —
+  // CLAUDE.md § Decisions). Everything
   // else is refreshed on demand, so there is no recursive root watcher.
   private openWatcher: fs.FSWatcher | null = null;
   private watchedPath: string | null = null;
@@ -131,12 +140,14 @@ export class VaultManager {
   // TTL-cached walk+stat snapshot backing list()/listAllPaths()/listWithStats()
   // and (when fresh) statFingerprint. Invalidated by every mutating method and
   // by refresh(); external edits surface on the next refresh trigger — the
-  // ephemeral-liveness contract (ADR-0001) unchanged, just deduplicated.
+  // ephemeral-liveness contract (CLAUDE.md § Decisions) unchanged, just
+  // deduplicated.
   private snapshot: VaultSnapshot | null = null;
 
   constructor(opts: VaultManagerOptions = {}) {
     this.defaultRoot = opts.defaultRoot ?? defaultVaultRoot();
     this.manageAgentLink = opts.manageAgentLink ?? true;
+    this.trashItem = opts.trashItem;
     this.settings = new JsonStore<VaultSettings>(
       opts.settingsPath ?? inteligirPath("settings.json"),
       SettingsFileSchema,
@@ -210,7 +221,8 @@ export class VaultManager {
 
   /** List every file under the vault (relative paths), respecting SKIP_DIRS and
    * the root ignore files. Uncapped: the crawl is now on-demand (ephemeral
-   * snapshot — ADR-0001), not per-filesystem-event, so there is no scaling
+   * snapshot — vault liveness, CLAUDE.md § Decisions), not
+   * per-filesystem-event, so there is no scaling
    * hazard to cap against. Drives the sidebar file tree. Served from the
    * shared TTL snapshot so a refresh burst crawls once. */
   list(): VaultEntry[] {
@@ -219,7 +231,7 @@ export class VaultManager {
 
   /** Every file path under the vault (same crawl as list(), minus the entry
    * shaping). Sync must see every NON-ignored file — a truncated manifest reads
-   * as deletions (see plan 001): the 3-way reconcile treats "was in base and
+   * as deletions: the 3-way reconcile treats "was in base and
    * remote, missing from local" as a local deletion and propagates it to the
    * coordinator and every peer. Ignore rules filter what sync tracks by design;
    * SKIP_DIRS + ignore files are the only exclusions, and they match list(). */
@@ -412,11 +424,36 @@ export class VaultManager {
     }
   }
 
+  /** Permanent remove. This is the SYNC path only (a sync-applied remote
+   * delete was user-initiated — and trashed — on the ORIGINATING device, and
+   * core's SyncIo.remove is synchronous); user-initiated deletes go through
+   * trash() instead. */
   delete(rel: string): boolean {
     assertVaultWritable();
     const target = this.resolve(rel);
     if (!fs.existsSync(target)) return false;
     fs.rmSync(target, { force: true });
+    this.invalidateSnapshot();
+    this.notify("refresh");
+    return true;
+  }
+
+  /** User-initiated delete: move the file to the OS trash so it's recoverable
+   * (the OS is the trash UI — no in-app trash view). Falls back to a
+   * permanent remove when the platform can't trash (some Linux setups),
+   * matching the old behavior there. Non-recursive by contract, like
+   * delete(): the UI offers Delete on files only, and shell.trashItem
+   * accepting a directory must not silently widen that affordance. */
+  async trash(rel: string): Promise<boolean> {
+    assertVaultWritable();
+    const target = this.resolve(rel);
+    if (!fs.existsSync(target)) return false;
+    const trashItem = this.trashItem ?? getPlatform().trashItem;
+    try {
+      await trashItem(target);
+    } catch {
+      fs.rmSync(target, { force: true });
+    }
     this.invalidateSnapshot();
     this.notify("refresh");
     return true;
@@ -490,7 +527,8 @@ export class VaultManager {
    * external edit (not one of our own autosaves) broadcasts onVaultChanged, so
    * the renderer's existing reload/vanish machinery reacts; self-saves and
    * no-op events are filtered. Edits to any OTHER file are invisible until the
-   * next refresh — that is the whole point of the ephemeral model (ADR-0001).
+   * next refresh — that is the whole point of the ephemeral model (vault
+   * liveness — CLAUDE.md § Decisions).
    *
    * We watch the note's PARENT directory (non-recursive) filtered to its
    * basename, NOT the file path directly: a single-file watch is unreliable

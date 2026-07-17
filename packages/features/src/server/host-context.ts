@@ -46,7 +46,8 @@ function buildHostNotifiers(): HostNotifiers {
     vaultChange: (root, kind) => {
       // A `save` (autosave content overwrite) keeps the knowledge index live but
       // must NOT broadcast — the user's own typing generates zero vault-changed
-      // traffic (ADR-0001); the open-note watcher covers the open file's own
+      // traffic (vault liveness — CLAUDE.md § Decisions); the open-note
+      // watcher covers the open file's own
       // reloads. A `refresh` is a structural/external/on-demand change: broadcast
       // so the sidebar re-lists and the editor reloads, and reindex.
       if (kind === "refresh") emitEvent("onVaultChanged", { root });

@@ -1,4 +1,4 @@
-// Isomorphic helpers for the templates + daily-note conventions (plan 020),
+// Isomorphic helpers for the templates + daily-note conventions,
 // relocated from the desktop renderer so the host (deep-link capture drain)
 // and the renderer (⌘D, palette, Settings → Notes) share one source of truth.
 // No bridge, no React, no node — just string math; the pure date→path fns

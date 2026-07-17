@@ -73,7 +73,8 @@ export type SnapshotFileAdapter = {
 
 // Content files get the same tmp+rename atomic write as everything else under
 // ~/.inteligir — a crash mid-write must not leave a half snapshot that the
-// hash check would then reject at restore time.
+// hash check would then reject at restore time. Written 0o600: snapshot bytes
+// are raw NOTE CONTENT (the dir is already 0700; defense in depth).
 const realFiles: SnapshotFileAdapter = {
   read: (filePath) => {
     try {
@@ -85,7 +86,9 @@ const realFiles: SnapshotFileAdapter = {
   write: (filePath, content) => {
     fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
     const tmp = `${filePath}.tmp`;
-    fs.writeFileSync(tmp, content, "utf8");
+    fs.writeFileSync(tmp, content, { encoding: "utf8", mode: 0o600 });
+    // Mode applies only on create — heal a stale crash-leftover tmp too.
+    fs.chmodSync(tmp, 0o600);
     fs.renameSync(tmp, filePath);
   },
   remove: (filePath) => {
