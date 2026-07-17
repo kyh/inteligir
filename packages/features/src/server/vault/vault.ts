@@ -34,6 +34,7 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import type { VaultEntry } from "@repo/features/ipc-registry";
@@ -113,12 +114,17 @@ type VaultManagerOptions = {
   /** Maintain the `vault` symlink in the agent workspace. Off in tests so a
    * read/write against a temp dir never touches ~/.inteligir/workspace. */
   manageAgentLink?: boolean;
+  /** Move an absolute path to the OS trash (tests inject fakes). Defaults
+   * LAZILY at call time to the platform capability (secrets.ts cipher
+   * precedent) so unit tests that never call trash() need no platform. */
+  trashItem?: (absolutePath: string) => Promise<void>;
 };
 
 export class VaultManager {
   private readonly settings: JsonStore<VaultSettings>;
   private readonly defaultRoot: string;
   private readonly manageAgentLink: boolean;
+  private readonly trashItem: ((absolutePath: string) => Promise<void>) | undefined;
   private changeNotifier: ((root: string, kind: VaultChangeKind) => void) | null = null;
   // The single non-recursive watcher on the open note (ADR-0001). Everything
   // else is refreshed on demand, so there is no recursive root watcher.
@@ -137,6 +143,7 @@ export class VaultManager {
   constructor(opts: VaultManagerOptions = {}) {
     this.defaultRoot = opts.defaultRoot ?? defaultVaultRoot();
     this.manageAgentLink = opts.manageAgentLink ?? true;
+    this.trashItem = opts.trashItem;
     this.settings = new JsonStore<VaultSettings>(
       opts.settingsPath ?? inteligirPath("settings.json"),
       SettingsFileSchema,
@@ -412,11 +419,36 @@ export class VaultManager {
     }
   }
 
+  /** Permanent remove. This is the SYNC path only (a sync-applied remote
+   * delete was user-initiated — and trashed — on the ORIGINATING device, and
+   * core's SyncIo.remove is synchronous); user-initiated deletes go through
+   * trash() instead. */
   delete(rel: string): boolean {
     assertVaultWritable();
     const target = this.resolve(rel);
     if (!fs.existsSync(target)) return false;
     fs.rmSync(target, { force: true });
+    this.invalidateSnapshot();
+    this.notify("refresh");
+    return true;
+  }
+
+  /** User-initiated delete: move the file to the OS trash so it's recoverable
+   * (the OS is the trash UI — no in-app trash view). Falls back to a
+   * permanent remove when the platform can't trash (some Linux setups),
+   * matching the old behavior there. Non-recursive by contract, like
+   * delete(): the UI offers Delete on files only, and shell.trashItem
+   * accepting a directory must not silently widen that affordance. */
+  async trash(rel: string): Promise<boolean> {
+    assertVaultWritable();
+    const target = this.resolve(rel);
+    if (!fs.existsSync(target)) return false;
+    const trashItem = this.trashItem ?? getPlatform().trashItem;
+    try {
+      await trashItem(target);
+    } catch {
+      fs.rmSync(target, { force: true });
+    }
     this.invalidateSnapshot();
     this.notify("refresh");
     return true;

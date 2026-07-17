@@ -93,7 +93,12 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
   handle("refreshVault", () => {
     getVaultManager().refresh();
   });
-  handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
+  // Every user-initiated delete (sidebar, header, HTML-app broker remove,
+  // sync conflict-dismiss) lands here → OS trash, recoverable. Sync-applied
+  // remote deletes bypass this channel and stay permanent (vault.delete).
+  handle("deleteVaultEntry", async ({ path }) => ({
+    removed: await getVaultManager().trash(path),
+  }));
   handle("renameVaultEntry", ({ from, to }) => {
     // Boundary enforcement of the note-name ruleset (the renderer validates
     // too, for instant feedback — this is the layer nothing can skip). Only

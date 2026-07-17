@@ -62,6 +62,10 @@ export function createElectronPlatform(): ElectronPlatform {
 
     openExternal: (url) => shell.openExternal(url),
 
+    // Rejects where the OS has no trash (some Linux setups) — the vault layer
+    // falls back to a permanent remove.
+    trashItem: (absolutePath) => shell.trashItem(absolutePath),
+
     pickDirectory: async ({ title, defaultPath }) => {
       const win = BrowserWindow.getFocusedWindow();
       const options: OpenDialogOptions = {

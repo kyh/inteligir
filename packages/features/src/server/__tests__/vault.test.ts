@@ -320,3 +320,53 @@ describe("VaultManager", () => {
     mgr.stopWatching();
   });
 });
+
+// User-initiated deletes go to the OS trash through the injected platform
+// capability; sync-applied remote deletes keep the permanent delete(). The
+// fallback pins today's Linux-without-a-trash behavior: permanent remove.
+describe("VaultManager.trash", () => {
+  function newTrashManager(trashItem: (abs: string) => Promise<void>): VaultManager {
+    return new VaultManager({ settingsPath, defaultRoot: root, manageAgentLink: false, trashItem });
+  }
+
+  it("hands the injected trashItem the confined absolute path and notifies refresh", async () => {
+    const trashed: string[] = [];
+    const mgr = newTrashManager(async (abs) => {
+      trashed.push(abs);
+      fs.rmSync(abs, { force: true }); // a real trash moves the file away
+    });
+    mgr.writeText("a.md", "bye");
+    const kinds: string[] = [];
+    mgr.startWatching((_root, kind) => kinds.push(kind));
+
+    await expect(mgr.trash("a.md")).resolves.toBe(true);
+    expect(trashed).toEqual([path.join(root, "a.md")]);
+    expect(mgr.list().map((e) => e.path)).not.toContain("a.md");
+    expect(kinds).toEqual(["refresh"]);
+  });
+
+  it("falls back to a permanent remove when the platform can't trash", async () => {
+    const mgr = newTrashManager(async () => {
+      throw new Error("no trash implementation on this platform");
+    });
+    mgr.writeText("a.md", "bye");
+    await expect(mgr.trash("a.md")).resolves.toBe(true);
+    expect(fs.existsSync(path.join(root, "a.md"))).toBe(false);
+  });
+
+  it("returns false for a missing file without touching the platform", async () => {
+    let calls = 0;
+    const mgr = newTrashManager(async () => {
+      calls++;
+    });
+    mgr.ensureReady();
+    await expect(mgr.trash("missing.md")).resolves.toBe(false);
+    expect(calls).toBe(0);
+  });
+
+  it("confines the path like every other file op", async () => {
+    const mgr = newTrashManager(async () => {});
+    mgr.ensureReady();
+    await expect(mgr.trash("../escape.md")).rejects.toThrow(/escapes the vault/);
+  });
+});

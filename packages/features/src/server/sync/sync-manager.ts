@@ -68,6 +68,10 @@ export function createVaultSyncIo(vault: VaultManager): SyncIo {
     list: () => vault.listAllPaths(),
     read: (path) => vault.readBytes(path),
     write: (path, content) => vault.writeBytes(path, content),
+    // Deliberately the PERMANENT delete, not trash(): a sync-applied remote
+    // delete was user-initiated (and OS-trashed) on the originating device,
+    // and this port is synchronous by the engine's contract. Conflicting
+    // local edits are already preserved as sibling copies by reconcile.
     remove: (path) => {
       vault.delete(path);
     },
