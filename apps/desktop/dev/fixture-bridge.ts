@@ -15,9 +15,10 @@ import type { VaultEntry } from "@repo/features/ipc-registry";
 import type { RemoteAccessState } from "@repo/features/remote-access";
 import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
+import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/core/knowledge/guarded-line-edit";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
 import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
-import { titleFromPath } from "@repo/core/knowledge/link-extract";
+import { scanTaskItems, titleFromPath } from "@repo/core/knowledge/link-extract";
 import { LinkGraphIndex } from "@repo/core/knowledge/link-graph-index";
 import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { projectDoc } from "@repo/core/knowledge/projection";
@@ -297,31 +298,23 @@ Self embed (cycle guard): ![[digest]]
 `,
 };
 
-// Matches one checkbox line: indent, marker, box state, label. Ordinals count
-// every checkbox (checked or not), mirroring the host's find-task-line.
-const CHECKBOX_RE = /^(\s*)- \[( |x|X)\] (.*)$/;
-
-/** Simulate the background agent's edit: check the `index`-th checkbox off and
- * append a nested one-line result under it. Returns null when the ordinal
- * doesn't land on a checkbox. */
+/** Simulate the background agent's edit: check the `index`-th task item off
+ * (the REAL core primitives — scanTaskItems locates by the shared ordinal
+ * contract, toggleCheckboxLine flips only the marker char) and append a
+ * nested one-line result under it. Null when the ordinal doesn't land on an
+ * unchecked task item, mirroring the host's findTaskLine rejections. */
 function simulateDelegationEdit(
   content: string,
   index: number,
 ): { content: string; taskText: string; lineText: string } | null {
-  const lines = content.split("\n");
-  let ordinal = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? "";
-    const match = CHECKBOX_RE.exec(line);
-    if (!match) continue;
-    ordinal++;
-    if (ordinal !== index) continue;
-    const [, indent = "", , label = ""] = match;
-    lines[i] = `${indent}- [x] ${label}`;
-    lines.splice(i + 1, 0, `${indent}  - ✅ Done in the dev harness (simulated edit)`);
-    return { content: lines.join("\n"), taskText: label, lineText: line.trim() };
-  }
-  return null;
+  const task = scanTaskItems(content).find((t) => t.ordinal === index);
+  if (!task || task.checked) return null;
+  const toggled = toggleCheckboxLine(content, task.line - 1, task.raw);
+  if (!toggled.ok) return null;
+  const indent = /^\s*/.exec(task.raw)?.[0] ?? "";
+  const lines = toggled.content.split("\n");
+  lines.splice(task.line, 0, `${indent}  - ✅ Done in the dev harness (simulated edit)`);
+  return { content: lines.join("\n"), taskText: task.text, lineText: task.raw };
 }
 
 /** Streams `text` in small chunks via `onDelta`, then calls `onDone`.
@@ -972,6 +965,23 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     listWikiTargets: async () => linkGraph.wikiTargets(),
     listTags: async () => linkGraph.tags(),
     getNotesByTag: async ({ tag }) => linkGraph.notesWithTag(tag),
+    listVaultTasks: async () => linkGraph.tasks(),
+    // The REAL guarded toggle over the in-memory vault — same ordinal +
+    // raw-equality contract as the host handler; refusals are values.
+    toggleVaultTask: async ({ path, ordinal, expectedRaw }) => {
+      const content = vault.get(path);
+      if (content === undefined) {
+        return { ok: false, reason: "line-missing", error: `no such file: ${path}` };
+      }
+      const result = toggleTaskAtOrdinal(content, ordinal, expectedRaw);
+      if (!result.ok) {
+        return { ok: false, reason: result.reason, error: "The note changed under the task list." };
+      }
+      vault.set(path, result.content);
+      indexEntry(path);
+      touchVault();
+      return { ok: true, checked: result.checked };
+    },
     onKnowledgeUpdated: knowledgeEvents.subscribe,
 
     // Delegation — no background agent, but the run is simulated against the

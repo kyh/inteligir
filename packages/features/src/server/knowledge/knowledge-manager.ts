@@ -27,6 +27,7 @@ import type {
   LinkGraph,
   SearchResult,
   TagCount,
+  VaultTaskEntry,
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
@@ -120,6 +121,11 @@ export class KnowledgeManager {
   tags(): TagCount[] {
     this.ensureBuilt();
     return this.linkGraph.tags();
+  }
+
+  tasks(): VaultTaskEntry[] {
+    this.ensureBuilt();
+    return this.linkGraph.tasks();
   }
 
   notesWithTag(tag: string, opts?: PrivacyOpts): string[] {

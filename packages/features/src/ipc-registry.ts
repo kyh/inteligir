@@ -54,6 +54,7 @@ import type {
   LinkGraph,
   SearchResult,
   TagCount,
+  VaultTaskEntry,
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
 import type { NotePrivacy } from "@repo/core/markdown/frontmatter";
@@ -266,6 +267,26 @@ const KnowledgeSearchSchema = Type.Object(
 
 const KnowledgeTagSchema = Type.Object({ tag: Type.String() }, { additionalProperties: false });
 
+// Guarded task toggle — keyed by ORDINAL (delegation's anchor key; survives
+// line shifts and duplicate identical lines) plus the exact recorded line.
+const ToggleTaskSchema = Type.Object(
+  {
+    path: Type.String(),
+    /** Position among the file's GFM task items (find-task-line's counting). */
+    ordinal: Type.Number({ minimum: 0 }),
+    /** The task's exact untrimmed source line (terminator excluded) as the
+     * projection recorded it — the write proceeds only on byte equality. */
+    expectedRaw: Type.String(),
+  },
+  { additionalProperties: false },
+);
+
+/** toggleVaultTask's verdict. Failures are VALUES, never throws: the host has
+ * already kicked an index refresh, so the renderer refetches + toasts. */
+export type ToggleTaskResult =
+  | { ok: true; checked: boolean }
+  | { ok: false; reason: "line-missing" | "line-changed" | "not-a-checkbox"; error: string };
+
 // Float32Array / ArrayBuffer / ArrayBufferView don't have a TypeBox primitive;
 // approximate with Type.Any plus a runtime instanceof guard at the handler.
 const BinaryAudioSchema = Type.Any();
@@ -473,6 +494,19 @@ export const IPC = {
   getNotesByTag: invoke<typeof KnowledgeTagSchema, string[]>(
     "knowledge:notes-by-tag",
     KnowledgeTagSchema,
+  ),
+  /** Every task in the vault (checked and not), path-then-ordinal — the Tasks
+   * view's whole-vault query over the projection. */
+  listVaultTasks: invokeVoid<VaultTaskEntry[]>("knowledge:tasks"),
+  /** Guarded checkbox toggle: re-read the file, locate the ordinal-th task
+   * item, require its current line to equal `expectedRaw` byte-for-byte, and
+   * flip only the marker char (atomic write; the watcher broadcasts). On ANY
+   * {ok:false} the host refreshes the index (self-heal) and the renderer
+   * refetches + toasts — refuse loudly, never write wrong. Invalidation rides
+   * the existing onKnowledgeUpdated event. */
+  toggleVaultTask: invoke<typeof ToggleTaskSchema, ToggleTaskResult>(
+    "knowledge:toggle-task",
+    ToggleTaskSchema,
   ),
   /** Fired after every index refresh (revision is monotonic) so backlink
    * panes / graph views re-query. */
