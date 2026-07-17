@@ -23,7 +23,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
+import { parseProperties, privacyOfParsed, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange, remarkWikiLink } from "../markdown/remark-wiki-link";
 import { basenamePath, extnamePath } from "./vault-path";
 
@@ -256,16 +256,13 @@ function frontmatterAliases(parsed: ParsedProperties | null): string[] {
   return out;
 }
 
-/** The parsed frontmatter's strict-boolean `private` verdict for the index
- * (same rules as frontmatter.ts notePrivacy, over the parsed properties
- * instead of re-matching the fence): no frontmatter / empty → false;
- * malformed → TRUE (fail-closed at the index level); valid → the `private`
- * checkbox's value. */
+/** The parsed frontmatter's strict-boolean `private` verdict for the index —
+ * the shared privacyOfParsed kernel with the index's fail-closed mapping:
+ * no frontmatter → false; indeterminate (malformed) → TRUE (a doc we can't
+ * type is treated private at the index level). */
 function frontmatterPrivate(parsed: ParsedProperties | null): boolean {
-  if (parsed === null || parsed.kind === "none") return false;
-  if (parsed.kind === "invalid") return true;
-  const prop = parsed.properties.find((p) => p.key === "private");
-  return prop !== undefined && prop.type === "checkbox" && prop.value;
+  if (parsed === null) return false;
+  return privacyOfParsed(parsed) !== "public";
 }
 
 /** Walk `text` nodes for `#tag` tokens; suppress link/image subtrees so a

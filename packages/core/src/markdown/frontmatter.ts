@@ -192,18 +192,34 @@ export function parseProperties(yamlText: string): ParsedProperties {
  * not-private (no lock badge for a yaml typo). */
 export type NotePrivacy = "public" | "private" | "indeterminate";
 
-/** Classify a doc's privacy from its raw text. Strict per the conservative
- * typing above: only a boolean `private: true` marks a note private —
- * `yes`/`"true"` stay text and read as public, exactly like the properties
- * panel would show them. No frontmatter (or an empty block) is public. */
-export function notePrivacy(text: string): NotePrivacy {
-  const yaml = frontmatterYaml(text);
-  if (yaml === null) return "public";
-  const parsed = parseProperties(yaml);
+/** The ONE `private` verdict kernel, over already-parsed frontmatter: an
+ * empty block is public, an untypeable one is indeterminate, and only a
+ * boolean `private: true` checkbox reads private (`yes`/`"true"` stay text
+ * and read public, exactly like the properties panel shows them). Every
+ * privacy read — notePrivacy here, the index's projection, the editor's
+ * live probe — calls this; each caller keeps only its own substrate read and
+ * its fail-open vs fail-closed mapping of `indeterminate`. */
+export function privacyOfParsed(parsed: ParsedProperties): NotePrivacy {
   if (parsed.kind === "none") return "public";
   if (parsed.kind === "invalid") return "indeterminate";
   const prop = parsed.properties.find((p) => p.key === "private");
   return prop !== undefined && prop.type === "checkbox" && prop.value ? "private" : "public";
+}
+
+/** The `private`-flag toggle transform shared by the raw-text and editor-node
+ * writers: ON replaces any existing `private` key with an appended
+ * `private: true`; OFF removes the key (absent == public). */
+export function withPrivateFlag(properties: TypedProperty[], on: boolean): TypedProperty[] {
+  const rest = properties.filter((p) => p.key !== "private");
+  return on ? [...rest, { key: "private", type: "checkbox", value: true }] : rest;
+}
+
+/** Classify a doc's privacy from its raw text — privacyOfParsed over the
+ * leading frontmatter block. No frontmatter is public. */
+export function notePrivacy(text: string): NotePrivacy {
+  const yaml = frontmatterYaml(text);
+  if (yaml === null) return "public";
+  return privacyOfParsed(parseProperties(yaml));
 }
 
 /** Set/clear a doc's `private` flag at the TEXT level (the raw-mode path of
@@ -216,12 +232,7 @@ export function setNotePrivate(text: string, value: boolean): string | null {
   const yaml = frontmatterYaml(text);
   const parsed = parseProperties(yaml ?? "");
   if (parsed.kind === "invalid") return null;
-  const props = (parsed.kind === "valid" ? parsed.properties : []).filter(
-    (p) => p.key !== "private",
-  );
-  const next: TypedProperty[] = value
-    ? [...props, { key: "private", type: "checkbox", value: true }]
-    : props;
+  const next = withPrivateFlag(parsed.kind === "valid" ? parsed.properties : [], value);
   const nextYaml = serializeProperties(next, yaml ?? "");
   const body = splitFrontmatter(text).body;
   return nextYaml === "" ? body : `---\n${nextYaml}\n---\n${body}`;
