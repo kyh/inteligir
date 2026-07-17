@@ -16,7 +16,7 @@
 // is unit-testable with fakes, mirroring connectDeepLinkNav.
 
 import type { AppAgentEvent } from "@repo/features/agent-events";
-import type { AgentEditCaptured } from "@repo/features/ipc-registry";
+import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
 
 export type AgentEditUndoPorts = {
   /** Bridge onAgentEditCaptured. */
@@ -56,4 +56,36 @@ export function describeAgentEdits(edits: AgentEditCaptured[]): string {
     return first.kind === "create" ? `Agent created "${name}"` : `Agent edited "${name}"`;
   }
   return `Agent edited ${edits.length} notes`;
+}
+
+export type AgentEditUndoRunPorts = {
+  /** Persist the open note now (open-note-flush). Its settled value is
+   * irrelevant here — only the ORDERING is load-bearing. */
+  flushOpenNote: () => Promise<boolean>;
+  /** Bridge restoreAgentEdits. */
+  restore: (ids: string[]) => Promise<RestoreAgentEditsResult>;
+};
+
+/** Execute an undo: flush the open note FIRST, then restore. Flush-first is
+ * the open-note coherence contract (the tasks-view toggle pattern): the
+ * restore lands on disk, and a dirty editor buffer would dirty-skip the
+ * external-change reload and then autosave its stale contents OVER the
+ * restore — flushing makes the buffer clean, so the open-note watcher
+ * reloads the restored bytes into the editor. A FAILED flush still proceeds:
+ * the restore is the user's explicit intent, disk is its target either way,
+ * and the conflict machinery owns whatever the dirty buffer does next.
+ * Rejections come back as error VALUES so the caller only renders. */
+export async function runAgentEditUndo(
+  edits: AgentEditCaptured[],
+  ports: AgentEditUndoRunPorts,
+): Promise<RestoreAgentEditsResult> {
+  await ports.flushOpenNote();
+  try {
+    return await ports.restore(edits.map((edit) => edit.id));
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Couldn't restore the notes.",
+    };
+  }
 }

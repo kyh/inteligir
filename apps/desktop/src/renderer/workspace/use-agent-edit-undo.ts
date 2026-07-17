@@ -22,7 +22,11 @@ import { toast } from "@repo/ui/components/sonner";
 import type { Bridge } from "@repo/features/ipc";
 import type { AgentEditCaptured } from "@repo/features/ipc-registry";
 import { getBridge } from "@renderer/lib/bridge";
-import { connectAgentEditUndo, describeAgentEdits } from "@renderer/workspace/agent-edit-undo";
+import {
+  connectAgentEditUndo,
+  describeAgentEdits,
+  runAgentEditUndo,
+} from "@renderer/workspace/agent-edit-undo";
 import { flushOpenNote } from "@renderer/workspace/open-note-flush";
 
 // Long enough to read the headline and reconsider; short enough that stale
@@ -30,18 +34,14 @@ import { flushOpenNote } from "@renderer/workspace/open-note-flush";
 const UNDO_TOAST_DURATION_MS = 12_000;
 
 async function undoAgentEdits(bridge: Bridge, edits: AgentEditCaptured[]): Promise<void> {
-  // Flush-first — see the header. A failed flush still proceeds: the restore
-  // targets disk either way, and the exact-bytes write is the user's intent.
-  await flushOpenNote();
-  try {
-    const result = await bridge.restoreAgentEdits({ ids: edits.map((edit) => edit.id) });
-    if (result.ok) {
-      toast.success(edits.length === 1 ? "Restored." : `Restored ${edits.length} notes.`);
-    } else {
-      toast.error(result.error);
-    }
-  } catch (err) {
-    toast.error(err instanceof Error ? err.message : "Couldn't restore the notes.");
+  const result = await runAgentEditUndo(edits, {
+    flushOpenNote,
+    restore: (ids) => bridge.restoreAgentEdits({ ids }),
+  });
+  if (result.ok) {
+    toast.success(edits.length === 1 ? "Restored." : `Restored ${edits.length} notes.`);
+  } else {
+    toast.error(result.error);
   }
 }
 
