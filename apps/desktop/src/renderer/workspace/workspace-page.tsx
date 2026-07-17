@@ -18,18 +18,20 @@ import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { VaultProvider, useVault } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useDelegationStore } from "@renderer/stores/delegation-store";
-import { useViewStore } from "@renderer/stores/view-store";
+import { useViewStore, type WorkspaceSurface } from "@renderer/stores/view-store";
 import { useVoiceStore } from "@renderer/stores/voice-store";
 
-// The graph view stays out of the main chunk: it (and its d3-force dependency)
-// loads on first open.
+// The graph and tasks views stay out of the main chunk: each (and the graph's
+// d3-force dependency) loads on first open.
 const GraphView = lazy(() => import("@renderer/workspace/graph-view"));
+const TasksView = lazy(() => import("@renderer/workspace/tasks-view"));
 
-/** The main surface: the graph, an HTML App (open `.html` shown as an app), or
- * the editor. Lives inside VaultProvider so it can read `isHtmlApp`. */
-function MainSurface({ surface }: { surface: "editor" | "graph" }) {
+/** The main surface: the graph, the tasks view, an HTML App (open `.html`
+ * shown as an app), or the editor. Lives inside VaultProvider so it can read
+ * `isHtmlApp`. */
+function MainSurface({ surface }: { surface: WorkspaceSurface }) {
   const { isHtmlApp } = useVault();
-  if (surface === "graph") {
+  if (surface === "graph" || surface === "tasks") {
     return (
       <Suspense
         fallback={
@@ -38,7 +40,7 @@ function MainSurface({ surface }: { surface: "editor" | "graph" }) {
           </div>
         }
       >
-        <GraphView />
+        {surface === "graph" ? <GraphView /> : <TasksView />}
       </Suspense>
     );
   }

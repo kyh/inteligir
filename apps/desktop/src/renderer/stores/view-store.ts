@@ -2,12 +2,13 @@ import { create } from "zustand";
 
 // Transient UI/view state for the shell (not persisted): whether the user has
 // pinned the agent response popover open, and which main surface fills the
-// workspace (the editor panes, or the link-graph view). Everything else about
-// the popover's visibility is derived from live agent activity in the bottom
-// composer.
+// workspace (the editor panes, the link-graph view, or the tasks view).
+// Everything else about the popover's visibility is derived from live agent
+// activity in the bottom composer.
 
-/** The workspace's main surface: the note editor, or the link graph. */
-type WorkspaceSurface = "editor" | "graph";
+/** The workspace's main surface: the note editor, the link graph, or the
+ * whole-vault tasks view. */
+export type WorkspaceSurface = "editor" | "graph" | "tasks";
 
 type ViewStore = {
   responsePinned: boolean;

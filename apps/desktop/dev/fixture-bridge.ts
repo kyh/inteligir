@@ -1020,11 +1020,14 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
           delegation.error = "That checkbox is no longer in the file.";
         } else {
           // Mirror the host's ordering: snapshot the pre-run bytes FIRST, then
-          // let the "agent" edit, then finish done.
+          // let the "agent" edit, then finish done. Completion re-indexes +
+          // broadcasts (the host's onRunSettled vault refresh, ADR-0001) so
+          // knowledge consumers — the tasks view included — see the edit.
           snapshots.set(id, { path: delegation.sourceFile, content });
           delegation.hasSnapshot = true;
           vault.set(delegation.sourceFile, edited.content);
-          vaultEvents.emit({ root: FIXTURE_ROOT });
+          indexEntry(delegation.sourceFile);
+          touchVault();
           delegation.status = "done";
           delegation.anchor = { index, text: edited.taskText, heading: null };
           delegation.lineText = edited.lineText;
