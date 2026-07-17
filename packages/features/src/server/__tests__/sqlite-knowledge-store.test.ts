@@ -151,7 +151,7 @@ describe("sqlite-knowledge-store — round trip", () => {
     expect(store.loadAll().docs.map((d) => d.path)).toEqual(["c.md"]);
   });
 
-  it("aliases persist, rebuild across a reopen, and populate the doc_keys view", () => {
+  it("aliases persist and rebuild across a reopen", () => {
     const dbPath = path.join(tmp, "aliases.sqlite");
     const first = open(dbPath);
     const content = "---\naliases:\n  - Retro\n  - Post-Mortem\n---\n\n# Retrospective\n";
@@ -169,30 +169,6 @@ describe("sqlite-knowledge-store — round trip", () => {
     ]);
     expect(byPath.get("plain.md")?.projection.aliases).toEqual([]);
     second.dispose();
-
-    // The doc_keys view unions basename stems and aliases — the resolution-key
-    // seam sibling workstreams (tasks-projection, agents) query.
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    const keys = db
-      .prepare("SELECT path, key, key_ci, source FROM doc_keys ORDER BY source, key")
-      .all();
-    db.close();
-    expect(keys).toEqual([
-      {
-        path: "notes/retrospective.md",
-        key: "Post-Mortem",
-        key_ci: "post-mortem",
-        source: "alias",
-      },
-      { path: "notes/retrospective.md", key: "Retro", key_ci: "retro", source: "alias" },
-      { path: "plain.md", key: "plain", key_ci: "plain", source: "name" },
-      {
-        path: "notes/retrospective.md",
-        key: "retrospective",
-        key_ci: "retrospective",
-        source: "name",
-      },
-    ]);
   });
 
   it("re-upserting a doc replaces its alias rows", () => {
