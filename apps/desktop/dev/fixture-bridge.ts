@@ -141,7 +141,7 @@ nested:
 
 Edit the typed properties above; the yaml block round-trips byte-for-byte.
 `,
-  // Inline-tag note (plan 021): exercises the palette `#` flow. Its inline
+  // Inline-tag note (tags palette): exercises the palette `#` flow. Its inline
   // #meta unifies with frontmatter-note.md's frontmatter `tags: [meta, demo]`,
   // so the tag list demos BOTH sources (meta count 2) and inline-only tags.
   // Pre-canonical prose (the corpus test pins it canonical).
@@ -410,7 +410,7 @@ function cannedEditResponse(prompt: string): string | null {
 // classify as a doc).
 const SAMPLE_ASSETS: Record<string, string> = {
   "wiki/diagram.png": "png-placeholder (dev harness fixture, not real image bytes)",
-  // Template fixtures (plan 020) so "New note from template…" and the daily-note
+  // Template fixtures so "New note from template…" and the daily-note
   // seed are drivable in the harness. Kept out of SAMPLE_NOTES: they carry
   // {{date}}/{{title}} placeholders + frontmatter that the corpus contract
   // (every entry canonical) doesn't model — they're only ever read as template
@@ -1031,7 +1031,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         } else {
           // Mirror the host's ordering: snapshot the pre-run bytes FIRST, then
           // let the "agent" edit, then finish done. Completion re-indexes +
-          // broadcasts (the host's onRunSettled vault refresh, ADR-0001) so
+          // broadcasts (the host's onRunSettled vault refresh — vault
+          // liveness, CLAUDE.md § Decisions) so
           // knowledge consumers — the tasks view included — see the edit.
           snapshots.set(id, { path: delegation.sourceFile, content });
           delegation.hasSnapshot = true;

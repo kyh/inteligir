@@ -67,7 +67,7 @@ describe("VaultManager", () => {
     expect(() => mgr.writeText("/etc/passwd", "x")).toThrow(/escapes the vault/);
   });
 
-  // Symlink-safe confinement (plan 007): the lexical check alone lets a symlink
+  // Symlink-safe confinement: the lexical check alone lets a symlink
   // planted INSIDE the vault escape it, so resolve() also realpaths the target.
   // Realpath the root in these assertions: on macOS os.tmpdir() lives under a
   // symlinked ancestor (/var → /private/var), so the lexical root differs from
@@ -140,11 +140,12 @@ describe("VaultManager", () => {
     expect(mgr.readText("a.md")).toBe("after");
   });
 
-  it("list() is uncapped and agrees with listAllPaths() on a plain vault (plan 016)", () => {
+  it("list() is uncapped and agrees with listAllPaths() on a plain vault (ephemeral listing)", () => {
     const mgr = newManager();
     mgr.ensureReady();
     // Past the old 2,000 cap — the crawl is on-demand now, so there is no cap
-    // (ADR-0001). Both listings must see every file, and agree.
+    // (vault liveness — CLAUDE.md § Decisions). Both listings must see every
+    // file, and agree.
     const TOTAL = 2050;
     for (let i = 0; i < TOTAL; i++) {
       const name = `f${String(i).padStart(4, "0")}.md`;
@@ -166,7 +167,7 @@ describe("VaultManager", () => {
     expect(all).not.toContain(".dotfile");
   });
 
-  it("respects root .gitignore / .ignore in both list() and listAllPaths() (plan 016)", () => {
+  it("respects root .gitignore / .ignore in both list() and listAllPaths()", () => {
     const mgr = newManager();
     mgr.ensureReady();
     mgr.writeText("keep.md", "x");
@@ -275,7 +276,7 @@ describe("VaultManager", () => {
     expect(mgr.readText("brand/new/dir/a.md")).toBe("A");
   });
 
-  // ---- Change notifier kinds (plan 016) --------------------------------------
+  // ---- Change notifier kinds (ephemeral listing) -----------------------------
   // A NEW file changes the listing → "refresh" (broadcast). Overwriting an
   // existing file is a content save → "save" (reindex + sync, no broadcast).
   it("fires refresh on new file / delete / rename and save on overwrite", () => {
@@ -294,7 +295,7 @@ describe("VaultManager", () => {
     expect(kinds).toEqual(["refresh", "save", "refresh", "refresh", "refresh", "refresh"]);
   });
 
-  // ---- Open-note watcher (plan 016) ------------------------------------------
+  // ---- Open-note watcher (ephemeral listing) ---------------------------------
   // A real (non-recursive) single-file watch: external edits to the open note
   // broadcast "refresh"; the app's own autosave (markSelfSave) is filtered.
   it("open-note watcher broadcasts external edits but filters self-saves", async () => {

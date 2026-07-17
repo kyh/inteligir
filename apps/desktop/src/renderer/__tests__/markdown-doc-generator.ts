@@ -1,8 +1,8 @@
 // Deterministic seeded document generator over the fixed MDX vocabulary
 // (headings, marks, lists, tables, blockquotes/alerts, code fences, math,
 // wiki-links, images, toggles, columns) — the property test's source of
-// "arbitrary but legal" documents. Test-only; see plan 018 and
-// markdown-roundtrip-property.test.ts.
+// "arbitrary but legal" documents. Test-only; the header of
+// markdown-roundtrip-property.test.ts carries the rationale + seed contract.
 //
 // The generator does NOT aim to produce byte-canonical markdown (padding,
 // exact list markers, etc.) — `toCanonical` normalizes whatever it produces.

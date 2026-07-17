@@ -97,7 +97,7 @@ export function applyPropertiesPatch(current: Properties, patch: PropertiesPatch
 
 // ---------------------------------------------------------------------------
 // Typed properties — the file-properties panel's parse/serialize contract
-// (plan 017, hubble ADR-0003: the markdown file is the ONLY property store).
+// (CLAUDE.md § Decisions: the markdown file is the ONLY property store).
 // This sits ONE layer above splitFrontmatter: the panel already holds the
 // frontmatter block's raw yaml (the Plate frontmatter node's `value`), so these
 // helpers work on that yaml text directly. Kept here beside the split seam so

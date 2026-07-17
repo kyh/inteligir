@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Oracle-equivalence tests for the perf-shaped code paths (plan 011). Not
+// Oracle-equivalence tests for the perf-shaped code paths. Not
 // timing tests: each pins the optimized implementation against a brute-force
 // reference copied from the pre-optimization code, over deterministic
 // synthetic corpora large enough to exercise bucket/range logic broadly.

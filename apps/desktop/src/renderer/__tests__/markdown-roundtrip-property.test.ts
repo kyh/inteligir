@@ -7,7 +7,11 @@ import { generateDoc } from "./markdown-doc-generator";
 // generator (markdown-doc-generator.ts) — complements the byte-pinned fixture
 // matrix (markdown-fixpoint.test.ts) and the adversarial byte/fragment fuzzer
 // (markdown-adversarial.test.ts) with structurally well-formed documents
-// built from the SAME node vocabulary the fixtures hand-pin. See plan 018.
+// built from the SAME node vocabulary the fixtures hand-pin. Rationale
+// (hubble's MarkdownRoundtrip pattern): byte-pinned fixtures are strong for
+// KNOWN shapes and blind to unknown ones — a seeded fuzzer turns "we
+// round-trip everything we thought of" into "a fuzzer agrees", with every
+// counterexample replayable by seed.
 //
 // Invariant per generated doc `d`:
 //   1. toCanonical(d) reaches a fixpoint (does not throw) — the pipeline
@@ -22,12 +26,13 @@ import { generateDoc } from "./markdown-doc-generator";
 // failing seed + a truncated doc excerpt, so it's replayable in isolation:
 // `ROUNDTRIP_SEED=<n> pnpm --filter @repo/desktop test markdown-roundtrip-property`.
 //
-// N: plan 018 targets 200 seeds, but each seed pays a full parse+serialize
-// (createSlateEditor is not cheap) — 200 measured at ~25s, over the ~10s
-// suite-time budget. Per the plan's own tuning order ("tune N down before
-// tuning doc size down"), N is cut instead of shrinking the ~5-40 block
-// generator range; 72 keeps this file at ~7s with margin.
-const BASE_SEED = 20260708; // plan-018 authoring date — arbitrary but fixed
+// N: the original spec targeted 200 seeds under a ~10s suite-time budget,
+// but each seed pays a full parse+serialize (createSlateEditor is not cheap)
+// — 200 measured at ~25s. The spec's tuning order was "tune N down before
+// tuning doc size down" (coverage lives in the ~5-40 block generator range,
+// not seed count), so N is cut instead of shrinking the range; 72 keeps this
+// file at ~7s with margin.
+const BASE_SEED = 20260708; // the spec's authoring date — arbitrary but fixed
 const N = 72;
 
 function seeds(): number[] {
@@ -37,8 +42,9 @@ function seeds(): number[] {
 }
 
 // Seeds where the fuzzer found a genuine round-trip bug that isn't a
-// one-liner fix. Pinned here (skipped) rather than fixed — see NOTES in the
-// plan-018 executor report for the shape of each.
+// one-liner fix. Pin the seed here (skipped) rather than fixing blind, and
+// document the failure's shape in a comment beside the seed — each pin is a
+// finding, replayable via ROUNDTRIP_SEED. Currently empty: no known bugs.
 const KNOWN_FAILURES = new Set<number>([]);
 
 function checkSeed(seed: number): string | null {
@@ -86,7 +92,7 @@ describe("seeded property-based round-trip fuzzing", () => {
   );
 
   for (const seed of KNOWN_FAILURES) {
-    it.skip(`seed ${seed} (pinned — see plan-018 NOTES)`, () => {
+    it.skip(`seed ${seed} (pinned — see the comment beside it in KNOWN_FAILURES)`, () => {
       expect(checkSeed(seed)).toBeNull();
     });
   }

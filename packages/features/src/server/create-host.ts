@@ -101,7 +101,8 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       configurePaths();
 
       // Vault: ensure the folder + agent symlink exist, THEN wire the change
-      // notifier. There is no recursive watcher anymore (ADR-0001) — the notifier
+      // notifier. There is no recursive watcher anymore (vault liveness —
+      // CLAUDE.md § Decisions) — the notifier
       // fires from app-initiated writes, the open-note watcher, and on-demand
       // refresh (focus / "Refresh vault" / delegation completion). The notifier
       // is module-scoped, so it survives a logout/login reset. Every vault change
