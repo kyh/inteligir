@@ -23,7 +23,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { parseProperties } from "../markdown/frontmatter";
+import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange, remarkWikiLink } from "../markdown/remark-wiki-link";
 import { basenamePath, extnamePath } from "./vault-path";
 
@@ -107,14 +107,17 @@ const processor = unified()
 /** Parse a doc once and pull out title, headings, note links, tags, tasks. */
 export function scanDoc(source: string): DocScan {
   const tree = processor.parse(source);
+  // ONE YAML parse per scan — every frontmatter extractor consumes this
+  // result instead of re-locating the node and re-running parseProperties.
+  const frontmatter = parseFrontmatter(tree);
   const scan: DocScan = {
     title: null,
     headings: [],
     links: [],
-    tags: extractTags(tree),
-    aliases: frontmatterAliases(tree),
-    private: frontmatterPrivate(tree),
-    tasks: frontmatterTasksDisabled(tree) ? [] : collectTasks(tree, source),
+    tags: extractTags(tree, frontmatter),
+    aliases: frontmatterAliases(frontmatter),
+    private: frontmatterPrivate(frontmatter),
+    tasks: frontmatterTasksDisabled(frontmatter) ? [] : collectTasks(tree, source),
   };
   walk(tree, (node) => {
     switch (node.type) {
@@ -189,43 +192,45 @@ function textOf(node: Nodes): string {
 // (search-index tokenizer), so it costs nothing here.
 const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
 
+/** The leading `yaml` node's typed properties, parsed ONCE per scanDoc pass,
+ * or null when the doc has no frontmatter block. Each `frontmatter*` extractor
+ * below keeps its own none/invalid default mapping over this shared result. */
+function parseFrontmatter(tree: Nodes): ParsedProperties | null {
+  if (!("children" in tree)) return null;
+  const yaml = tree.children.find((child) => child.type === "yaml");
+  if (!yaml || yaml.type !== "yaml") return null;
+  return parseProperties(yaml.value);
+}
+
 /** The doc's tags: frontmatter `tags` (declaration order) then inline `#tag`
  * tokens (document order). Inline extraction is PARSE-AWARE — it scans only
  * mdast `text` nodes, so code spans/fences (their own `inlineCode`/`code`
  * nodes), link/image URLs (a node's `url`, never text), and link/image LABELS
  * (their subtrees are suppressed) are all naturally excluded, no byte regex. */
-function extractTags(tree: Nodes): string[] {
-  const tags = [...frontmatterTags(tree)];
+function extractTags(tree: Nodes, frontmatter: ParsedProperties | null): string[] {
+  const tags = [...frontmatterTags(frontmatter)];
   collectInlineTags(tree, tags, false);
   return tags;
 }
 
-/** Parse the leading `yaml` node's `tags` property (017's typed tags: a string
+/** The parsed frontmatter's `tags` property (017's typed tags: a string
  * array). A leading `#` on a frontmatter tag is tolerated and stripped. */
-function frontmatterTags(tree: Nodes): string[] {
-  if (!("children" in tree)) return [];
-  const yaml = tree.children.find((child) => child.type === "yaml");
-  if (!yaml || yaml.type !== "yaml") return [];
-  const parsed = parseProperties(yaml.value);
-  if (parsed.kind !== "valid") return [];
+function frontmatterTags(parsed: ParsedProperties | null): string[] {
+  if (parsed === null || parsed.kind !== "valid") return [];
   const prop = parsed.properties.find((p) => p.key === "tags" && p.type === "tags");
   if (!prop || prop.type !== "tags") return [];
   return prop.value.map((tag) => tag.replace(/^#/, "").trim()).filter((tag) => tag !== "");
 }
 
-/** Parse the leading `yaml` node's `aliases` property — Obsidian's alias
+/** The parsed frontmatter's `aliases` property — Obsidian's alias
  * list. The canonical form is a plain string array (which classifies as the
  * existing 'tags' TypedProperty, so the properties panel round-trips it for
  * free); for Obsidian interop a single-string scalar and the legacy `alias:`
  * key are accepted too. Values are trimmed, empties dropped, and deduped
  * case-insensitively keeping the first display case (TagIndex's identity
  * rule). Anything else — malformed yaml, non-string values — degrades to []. */
-function frontmatterAliases(tree: Nodes): string[] {
-  if (!("children" in tree)) return [];
-  const yaml = tree.children.find((child) => child.type === "yaml");
-  if (!yaml || yaml.type !== "yaml") return [];
-  const parsed = parseProperties(yaml.value);
-  if (parsed.kind !== "valid") return [];
+function frontmatterAliases(parsed: ParsedProperties | null): string[] {
+  if (parsed === null || parsed.kind !== "valid") return [];
   const prop =
     parsed.properties.find((p) => p.key === "aliases") ??
     parsed.properties.find((p) => p.key === "alias");
@@ -251,16 +256,13 @@ function frontmatterAliases(tree: Nodes): string[] {
   return out;
 }
 
-/** The leading `yaml` node's strict-boolean `private` verdict for the index
- * (same rules as frontmatter.ts notePrivacy, over the parsed node instead of
- * re-matching the fence): no frontmatter / empty → false; malformed → TRUE
- * (fail-closed at the index level); valid → the `private` checkbox's value. */
-function frontmatterPrivate(tree: Nodes): boolean {
-  if (!("children" in tree)) return false;
-  const yaml = tree.children.find((child) => child.type === "yaml");
-  if (!yaml || yaml.type !== "yaml") return false;
-  const parsed = parseProperties(yaml.value);
-  if (parsed.kind === "none") return false;
+/** The parsed frontmatter's strict-boolean `private` verdict for the index
+ * (same rules as frontmatter.ts notePrivacy, over the parsed properties
+ * instead of re-matching the fence): no frontmatter / empty → false;
+ * malformed → TRUE (fail-closed at the index level); valid → the `private`
+ * checkbox's value. */
+function frontmatterPrivate(parsed: ParsedProperties | null): boolean {
+  if (parsed === null || parsed.kind === "none") return false;
   if (parsed.kind === "invalid") return true;
   const prop = parsed.properties.find((p) => p.key === "private");
   return prop !== undefined && prop.type === "checkbox" && prop.value;
@@ -296,16 +298,12 @@ function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): voi
 // text. Kept in lockstep with find-task-line's MARKER.
 const TASK_MARKER_RE = /^\s*[-*+]\s+\[[ xX]\]\s+/;
 
-/** The leading `yaml` node's `tasks: false` opt-out — a strict-boolean
+/** The parsed frontmatter's `tasks: false` opt-out — a strict-boolean
  * checkbox property like `private`, but defaulting OPEN: only an explicit
  * `tasks: false` suppresses extraction (malformed frontmatter changes
  * nothing — suppressing tasks is a preference, not a safety property). */
-function frontmatterTasksDisabled(tree: Nodes): boolean {
-  if (!("children" in tree)) return false;
-  const yaml = tree.children.find((child) => child.type === "yaml");
-  if (!yaml || yaml.type !== "yaml") return false;
-  const parsed = parseProperties(yaml.value);
-  if (parsed.kind !== "valid") return false;
+function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
+  if (parsed === null || parsed.kind !== "valid") return false;
   const prop = parsed.properties.find((p) => p.key === "tasks");
   return prop !== undefined && prop.type === "checkbox" && !prop.value;
 }
