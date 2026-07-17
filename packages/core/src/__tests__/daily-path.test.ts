@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { dailyNotePath, formatDatePattern, formatIsoDate } from "../notes/daily-path";
+import {
+  dailyNotePath,
+  dateFromDailyPath,
+  formatDatePattern,
+  formatIsoDate,
+  parseDateByPattern,
+} from "../notes/daily-path";
 
 describe("date formatting", () => {
   it("zero-pads iso date components (local time)", () => {
@@ -42,5 +48,56 @@ describe("dailyNotePath", () => {
       const recovered = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
       expect(formatIsoDate(recovered)).toBe(formatIsoDate(day));
     }
+  });
+});
+
+describe("dateFromDailyPath (the inverse)", () => {
+  it("round-trips through dailyNotePath for every token arrangement", () => {
+    const date = new Date(2026, 6, 9);
+    const cases: Array<[string, string]> = [
+      ["journal", "YYYY-MM-DD"],
+      ["daily", "DD-MM-YYYY"],
+      ["notes/log", "Daily MM.DD.YYYY"],
+      ["", "YYYY-MM-DD"],
+      ["journal", "YYYY/MM/DD"], // nested-folder pattern: `/` matches literally
+    ];
+    for (const [folder, format] of cases) {
+      const path = dailyNotePath(folder, format, date);
+      expect(dateFromDailyPath(path, folder, format)).toBe("2026-07-09");
+    }
+  });
+
+  it("applies the same cleanFolder rule as the forward direction", () => {
+    expect(dateFromDailyPath("journal/2026-07-09.md", "/journal/", "YYYY-MM-DD")).toBe(
+      "2026-07-09",
+    );
+  });
+
+  it("returns null off the configured folder, format, or extension", () => {
+    expect(dateFromDailyPath("notes/2026-07-09.md", "journal", "YYYY-MM-DD")).toBeNull();
+    expect(dateFromDailyPath("2026-07-09.md", "journal", "YYYY-MM-DD")).toBeNull();
+    expect(dateFromDailyPath("journal/2026-07-09.txt", "journal", "YYYY-MM-DD")).toBeNull();
+    expect(dateFromDailyPath("journal/07-09.md", "journal", "YYYY-MM-DD")).toBeNull();
+    // Blank folder means vault-ROOT dailies — nested paths don't match.
+    expect(dateFromDailyPath("journal/2026-07-09.md", "", "YYYY-MM-DD")).toBeNull();
+  });
+
+  it("rejects impossible calendar dates (real-date validation)", () => {
+    expect(dateFromDailyPath("journal/2026-13-40.md", "journal", "YYYY-MM-DD")).toBeNull();
+    expect(dateFromDailyPath("journal/2026-02-30.md", "journal", "YYYY-MM-DD")).toBeNull();
+    // A leap day parses only in a leap year.
+    expect(dateFromDailyPath("journal/2024-02-29.md", "journal", "YYYY-MM-DD")).toBe("2024-02-29");
+    expect(dateFromDailyPath("journal/2026-02-29.md", "journal", "YYYY-MM-DD")).toBeNull();
+  });
+
+  it("fails null for ambiguous patterns (repeated or missing tokens)", () => {
+    expect(parseDateByPattern("2026-07-2026", "YYYY-MM-YYYY")).toBeNull();
+    expect(parseDateByPattern("2026-07", "YYYY-MM")).toBeNull();
+    expect(parseDateByPattern("07-09", "MM-DD")).toBeNull();
+  });
+
+  it("treats regex specials in the pattern as literals", () => {
+    expect(parseDateByPattern("(2026) 07+09", "(YYYY) MM+DD")).toBe("2026-07-09");
+    expect(parseDateByPattern("2026x07x09", "YYYY.MM.DD")).toBeNull();
   });
 });

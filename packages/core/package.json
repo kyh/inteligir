@@ -28,6 +28,8 @@
     "./knowledge/note-name": "./src/knowledge/note-name.ts",
     "./knowledge/rename-links": "./src/knowledge/rename-links.ts",
     "./knowledge/projection": "./src/knowledge/projection.ts",
+    "./knowledge/guarded-line-edit": "./src/knowledge/guarded-line-edit.ts",
+    "./knowledge/task-schedule": "./src/knowledge/task-schedule.ts",
     "./knowledge/link-graph-index": "./src/knowledge/link-graph-index.ts",
     "./knowledge/knowledge-store": "./src/knowledge/knowledge-store.ts",
     "./knowledge/sql-knowledge-store": "./src/knowledge/sql-knowledge-store.ts",

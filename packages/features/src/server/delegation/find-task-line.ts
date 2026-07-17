@@ -15,11 +15,16 @@
 // Heading + section are read at the located item as agent-prompt context only.
 
 import type { Heading, ListItem, Nodes } from "mdast";
+import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-const processor = unified().use(remarkParse).use(remarkGfm);
+// remarkFrontmatter matters for the ordinal contract: without it a leading
+// `---` block parses as a thematic break and a checkbox-shaped line INSIDE
+// the YAML would count as a task item here while scanDoc and the Plate
+// pipeline (both frontmatter-aware) skip it — silently desyncing ordinals.
+const processor = unified().use(remarkParse).use(remarkFrontmatter).use(remarkGfm);
 
 const MAX_SECTION_LINES = 60;
 // The list marker + checkbox prefix on a task line; what's left is the item text.
