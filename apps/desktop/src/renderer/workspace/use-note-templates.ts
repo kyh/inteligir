@@ -1,8 +1,7 @@
 import { useCallback } from "react";
 
 import { titleFromPath } from "@repo/core/knowledge/link-extract";
-
-import { getBridge } from "@renderer/lib/bridge";
+import { dailyNotePath, formatIsoDate } from "@repo/core/notes/daily-path";
 import {
   DAILY_FOLDER_KEY,
   DAILY_FORMAT_KEY,
@@ -10,9 +9,9 @@ import {
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
   applyTemplate,
-  dailyNotePath,
-  formatIsoDate,
-} from "@renderer/lib/apply-template";
+} from "@repo/features/daily-notes";
+
+import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";
 import { useVault } from "@renderer/workspace/vault-context";
 

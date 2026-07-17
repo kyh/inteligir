@@ -16,7 +16,8 @@
 // `vault` symlink in the agent workspace (so the agent's native file tools
 // always find the vault at ./vault regardless of where the user put it).
 //
-// Liveness model (ADR-0001): the listing is an EPHEMERAL, refreshable snapshot,
+// Liveness model (vault liveness — CLAUDE.md § Decisions): the listing is an
+// EPHEMERAL, refreshable snapshot,
 // not a watched mirror. There is NO recursive filesystem watcher. The snapshot
 // refreshes on demand — app-initiated structural writes, window focus, the
 // explicit "Refresh vault" command, and delegation completion. The ONLY watcher
@@ -34,6 +35,7 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import type { VaultEntry } from "@repo/features/ipc-registry";
@@ -78,8 +80,32 @@ const IGNORE_FILES = [".gitignore", ".ignore"];
  * note watcher, focus/manual refresh, delegation completion. `save` is a
  * content overwrite of an existing file (an autosave): it keeps the knowledge
  * index and sync live but does NOT broadcast, so the user's own typing stops
- * generating any vault-changed traffic (ADR-0001). */
+ * generating any vault-changed traffic (vault liveness — CLAUDE.md
+ * § Decisions). */
 export type VaultChangeKind = "refresh" | "save";
+
+/** A listed vault file with its stat identity — what one crawl+stat pass
+ * yields, shared by the sidebar listing, knowledge reconcile, and sync. */
+export type VaultStatEntry = {
+  path: string;
+  name: string;
+  kind: VaultEntry["kind"];
+  mtimeMs: number;
+  size: number;
+  ino: number;
+};
+
+/** How long a walk+stat snapshot may be reused. Bounds staleness for sync's
+ * snapshot-served fingerprints; a refresh burst (window focus fans into
+ * renderer listing + knowledge + sync) shares ONE crawl inside the window. */
+const SNAPSHOT_TTL_MS = 1000;
+
+type VaultSnapshot = {
+  at: number;
+  root: string;
+  entries: VaultStatEntry[];
+  byPath: Map<string, VaultStatEntry>;
+};
 
 type VaultManagerOptions = {
   fs?: FsAdapter;
@@ -90,14 +116,20 @@ type VaultManagerOptions = {
   /** Maintain the `vault` symlink in the agent workspace. Off in tests so a
    * read/write against a temp dir never touches ~/.inteligir/workspace. */
   manageAgentLink?: boolean;
+  /** Move an absolute path to the OS trash (tests inject fakes). Defaults
+   * LAZILY at call time to the platform capability (secrets.ts cipher
+   * precedent) so unit tests that never call trash() need no platform. */
+  trashItem?: (absolutePath: string) => Promise<void>;
 };
 
 export class VaultManager {
   private readonly settings: JsonStore<VaultSettings>;
   private readonly defaultRoot: string;
   private readonly manageAgentLink: boolean;
+  private readonly trashItem: ((absolutePath: string) => Promise<void>) | undefined;
   private changeNotifier: ((root: string, kind: VaultChangeKind) => void) | null = null;
-  // The single non-recursive watcher on the open note (ADR-0001). Everything
+  // The single non-recursive watcher on the open note (vault liveness —
+  // CLAUDE.md § Decisions). Everything
   // else is refreshed on demand, so there is no recursive root watcher.
   private openWatcher: fs.FSWatcher | null = null;
   private watchedPath: string | null = null;
@@ -105,10 +137,17 @@ export class VaultManager {
   // baseline for deciding reload vs. no-op.
   private watchedFingerprint: string | null = null;
   private readonly selfSaves = new SelfSaveRegistry();
+  // TTL-cached walk+stat snapshot backing list()/listAllPaths()/listWithStats()
+  // and (when fresh) statFingerprint. Invalidated by every mutating method and
+  // by refresh(); external edits surface on the next refresh trigger — the
+  // ephemeral-liveness contract (CLAUDE.md § Decisions) unchanged, just
+  // deduplicated.
+  private snapshot: VaultSnapshot | null = null;
 
   constructor(opts: VaultManagerOptions = {}) {
     this.defaultRoot = opts.defaultRoot ?? defaultVaultRoot();
     this.manageAgentLink = opts.manageAgentLink ?? true;
+    this.trashItem = opts.trashItem;
     this.settings = new JsonStore<VaultSettings>(
       opts.settingsPath ?? inteligirPath("settings.json"),
       SettingsFileSchema,
@@ -164,6 +203,7 @@ export class VaultManager {
     fs.mkdirSync(resolved, { recursive: true });
     this.settings.update((s) => ({ ...s, vaultPath: resolved }));
     this.ensureAgentSymlink(resolved);
+    this.invalidateSnapshot();
     // The open note belonged to the old vault — stop watching it; the renderer
     // drops the note and re-points the watcher after the switch.
     this.watchOpenNote(null);
@@ -181,28 +221,73 @@ export class VaultManager {
 
   /** List every file under the vault (relative paths), respecting SKIP_DIRS and
    * the root ignore files. Uncapped: the crawl is now on-demand (ephemeral
-   * snapshot — ADR-0001), not per-filesystem-event, so there is no scaling
-   * hazard to cap against. Drives the sidebar file tree. */
+   * snapshot — vault liveness, CLAUDE.md § Decisions), not
+   * per-filesystem-event, so there is no scaling
+   * hazard to cap against. Drives the sidebar file tree. Served from the
+   * shared TTL snapshot so a refresh burst crawls once. */
   list(): VaultEntry[] {
-    const root = this.getRoot();
-    if (!fs.existsSync(root)) return [];
-    return this.walk(root)
-      .map((e) => ({ path: e.path, name: e.name, kind: classify(e.name) }))
-      .toSorted((a, b) => a.path.localeCompare(b.path));
+    return this.getSnapshot().map((e) => ({ path: e.path, name: e.name, kind: e.kind }));
   }
 
   /** Every file path under the vault (same crawl as list(), minus the entry
    * shaping). Sync must see every NON-ignored file — a truncated manifest reads
-   * as deletions (see plan 001): the 3-way reconcile treats "was in base and
+   * as deletions: the 3-way reconcile treats "was in base and
    * remote, missing from local" as a local deletion and propagates it to the
    * coordinator and every peer. Ignore rules filter what sync tracks by design;
    * SKIP_DIRS + ignore files are the only exclusions, and they match list(). */
   listAllPaths(): string[] {
+    return this.getSnapshot().map((e) => e.path);
+  }
+
+  /** The listing WITH stat identities — the knowledge reconcile's one-crawl
+   * diff basis. Freshness follows the snapshot TTL: external edits surface on
+   * the next refresh trigger, exactly the ephemeral-liveness contract. */
+  listWithStats(): VaultStatEntry[] {
+    return [...this.getSnapshot()];
+  }
+
+  // The shared crawl behind list()/listAllPaths()/listWithStats(): one walk +
+  // one stat per file, cached for SNAPSHOT_TTL_MS and invalidated by every
+  // mutating method (and rebuilt, never reused, by an explicit refresh()) —
+  // so the window-focus fan-out (renderer listing, knowledge diff, sync
+  // manifest+fingerprints) shares a single crawl instead of three.
+  private getSnapshot(): VaultStatEntry[] {
     const root = this.getRoot();
-    if (!fs.existsSync(root)) return [];
-    return this.walk(root)
-      .map((e) => e.path)
-      .toSorted((a, b) => a.localeCompare(b));
+    const cached = this.snapshot;
+    if (cached && cached.root === root && Date.now() - cached.at <= SNAPSHOT_TTL_MS) {
+      return cached.entries;
+    }
+    if (!fs.existsSync(root)) {
+      this.snapshot = null;
+      return [];
+    }
+    const entries: VaultStatEntry[] = [];
+    const byPath = new Map<string, VaultStatEntry>();
+    for (const file of this.walk(root)) {
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(path.join(root, file.path));
+      } catch {
+        continue; // vanished mid-crawl — the next refresh settles it
+      }
+      const entry: VaultStatEntry = {
+        path: file.path,
+        name: file.name,
+        kind: classify(file.name),
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+        ino: stat.ino,
+      };
+      entries.push(entry);
+      byPath.set(file.path, entry);
+    }
+    entries.sort((a, b) => a.path.localeCompare(b.path));
+    this.snapshot = { at: Date.now(), root, entries, byPath };
+    return entries;
+  }
+
+  private invalidateSnapshot(): void {
+    this.snapshot = null;
   }
 
   // Shared recursive walk backing both list() and listAllPaths(): skips
@@ -269,6 +354,7 @@ export class VaultManager {
     const existed = fs.existsSync(target);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     atomicWrite(target, content);
+    this.invalidateSnapshot();
     // A new file changes the listing (refresh); overwriting an existing one is a
     // content save (sync + knowledge stay live, but no broadcast — the open-note
     // watcher covers the open file, and the app's own autosaves go silent).
@@ -305,15 +391,31 @@ export class VaultManager {
     const existed = fs.existsSync(target);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     atomicWrite(target, content);
+    this.invalidateSnapshot();
     this.notify(existed ? "save" : "refresh");
   }
 
   /** Cheap stat-keyed change-detection fingerprint for the sync engine's hash
    * cache — `mtimeMs:size:ino`, or `null` on any error (missing file, etc.).
    * A change to content necessarily changes at least one of these, so a matching
-   * fingerprint safely licenses reusing a cached hash instead of re-reading. The
-   * path is confined through `resolve()` exactly like every other file op. */
+   * fingerprint safely licenses reusing a cached hash instead of re-reading.
+   * Served from the shared snapshot when fresh (so a sync pass adds no second
+   * stat sweep, ≤SNAPSHOT_TTL_MS stale — own writes always invalidate); a path
+   * ABSENT from the snapshot (ignored files opened directly, non-listing
+   * spellings) falls through to a live stat, never to a false null. */
   statFingerprint(rel: string): string | null {
+    const cached = this.snapshot;
+    if (cached && cached.root === this.getRoot() && Date.now() - cached.at <= SNAPSHOT_TTL_MS) {
+      const entry = cached.byPath.get(rel);
+      if (entry) return `${entry.mtimeMs}:${entry.size}:${entry.ino}`;
+    }
+    return this.liveStatFingerprint(rel);
+  }
+
+  // The uncached stat — confined through `resolve()` exactly like every other
+  // file op. The open-note watcher baselines through THIS (freshness matters
+  // for classify; it is one file, not a sweep).
+  private liveStatFingerprint(rel: string): string | null {
     try {
       const stat = fs.statSync(this.resolve(rel));
       return `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
@@ -322,27 +424,91 @@ export class VaultManager {
     }
   }
 
+  /** Permanent remove. This is the SYNC path only (a sync-applied remote
+   * delete was user-initiated — and trashed — on the ORIGINATING device, and
+   * core's SyncIo.remove is synchronous); user-initiated deletes go through
+   * trash() instead. */
   delete(rel: string): boolean {
     assertVaultWritable();
     const target = this.resolve(rel);
     if (!fs.existsSync(target)) return false;
     fs.rmSync(target, { force: true });
+    this.invalidateSnapshot();
+    this.notify("refresh");
+    return true;
+  }
+
+  /** User-initiated delete: move the file to the OS trash so it's recoverable
+   * (the OS is the trash UI — no in-app trash view). Falls back to a
+   * permanent remove when the platform can't trash (some Linux setups),
+   * matching the old behavior there. Non-recursive by contract, like
+   * delete(): the UI offers Delete on files only, and shell.trashItem
+   * accepting a directory must not silently widen that affordance. */
+  async trash(rel: string): Promise<boolean> {
+    assertVaultWritable();
+    const target = this.resolve(rel);
+    if (!fs.existsSync(target)) return false;
+    const trashItem = this.trashItem ?? getPlatform().trashItem;
+    try {
+      await trashItem(target);
+    } catch {
+      fs.rmSync(target, { force: true });
+    }
+    this.invalidateSnapshot();
     this.notify("refresh");
     return true;
   }
 
   /** Rename/move a file within the vault. Both paths are confined under the
    * root; parent dirs of the destination are created. Refuses to overwrite an
-   * existing destination so a rename can't silently clobber another note. */
+   * existing destination so a rename can't silently clobber another note.
+   *
+   * The occupied check is CASE-INSENSITIVE (and unicode-normalization-
+   * insensitive) over the destination directory's real listing: a plain
+   * existsSync(dst) passes on case-sensitive dev filesystems and then
+   * explodes on the APFS/NTFS machines the vault syncs to — and on APFS it
+   * refused CASE-ONLY self-renames because existsSync(dst) saw the source
+   * itself. Occupancy is decided by inode: a matching name that IS the
+   * source (case-only / normalization-only retitle) passes through to a
+   * direct fs.renameSync, which handles that atomically on APFS and NTFS. */
   rename(from: string, to: string): { ok: true } | { ok: false; error: string } {
     assertVaultWritable();
     const src = this.resolve(from);
     const dst = this.resolve(to);
     if (!fs.existsSync(src)) return { ok: false, error: `Not found: ${from}` };
     if (src === dst) return { ok: true };
-    if (fs.existsSync(dst)) return { ok: false, error: `${to} already exists` };
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    const dstDir = path.dirname(dst);
+    // A not-yet-existing destination directory is trivially unoccupied
+    // (mkdirSync below creates it).
+    if (fs.existsSync(dstDir)) {
+      const wanted = path.basename(dst).normalize("NFC").toLowerCase();
+      let srcIno: number | null = null;
+      try {
+        srcIno = fs.statSync(src).ino;
+      } catch {
+        srcIno = null; // raced away — any name match below refuses, the safe side
+      }
+      let names: string[] = [];
+      try {
+        names = fs.readdirSync(dstDir);
+      } catch {
+        names = []; // unreadable dir — fall through; renameSync reports the real error
+      }
+      for (const name of names) {
+        if (name.normalize("NFC").toLowerCase() !== wanted) continue;
+        let ino: number | null = null;
+        try {
+          ino = fs.statSync(path.join(dstDir, name)).ino;
+        } catch {
+          continue; // vanished mid-scan — not an occupant
+        }
+        if (srcIno !== null && ino === srcIno) continue; // the source itself
+        return { ok: false, error: `${to} already exists` };
+      }
+    }
+    fs.mkdirSync(dstDir, { recursive: true });
     fs.renameSync(src, dst);
+    this.invalidateSnapshot();
     this.notify("refresh");
     return { ok: true };
   }
@@ -361,7 +527,8 @@ export class VaultManager {
    * external edit (not one of our own autosaves) broadcasts onVaultChanged, so
    * the renderer's existing reload/vanish machinery reacts; self-saves and
    * no-op events are filtered. Edits to any OTHER file are invisible until the
-   * next refresh — that is the whole point of the ephemeral model (ADR-0001).
+   * next refresh — that is the whole point of the ephemeral model (vault
+   * liveness — CLAUDE.md § Decisions).
    *
    * We watch the note's PARENT directory (non-recursive) filtered to its
    * basename, NOT the file path directly: a single-file watch is unreliable
@@ -382,7 +549,7 @@ export class VaultManager {
     const base = path.basename(target);
     if (!fs.existsSync(dir)) return;
     this.watchedPath = rel;
-    this.watchedFingerprint = this.statFingerprint(rel);
+    this.watchedFingerprint = this.liveStatFingerprint(rel);
     try {
       this.openWatcher = fs.watch(dir, (_event, filename) => {
         // A directory watch fires for every sibling; act only on the open note.
@@ -400,8 +567,11 @@ export class VaultManager {
 
   /** Fire the full refresh pipeline on demand (window focus, the "Refresh vault"
    * command, delegation completion). This is the ephemeral snapshot's rebuild
-   * trigger — the renderer re-lists, knowledge re-indexes, sync kicks. */
+   * trigger — the renderer re-lists, knowledge re-indexes, sync kicks — and it
+   * always drops the walk snapshot first, so the whole burst shares one FRESH
+   * crawl (a refresh must discover external edits, never reuse the cache). */
   refresh(): void {
+    this.invalidateSnapshot();
     this.notify("refresh");
   }
 

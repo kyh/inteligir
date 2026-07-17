@@ -29,6 +29,13 @@ function fakePorts(): AgentPorts {
       backlinks: () => [],
       notesWithTag: () => [],
     },
+    privacy: {
+      probe: () => "indeterminate",
+      vaultRealRoot: () => null,
+      vaultLexicalRoot: () => null,
+      privateIndexPaths: () => [],
+    },
+    checkpoints: null,
   };
 }
 

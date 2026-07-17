@@ -24,6 +24,7 @@ import { getCoordinatorUrl } from "../base-url";
 import { createExternalStore } from "../external-store";
 import { createFsStamp } from "./clock";
 import { createExpoBaseFile } from "./expo-base-file";
+import { createExpoBlobStore } from "./expo-blob-store";
 import { createExpoHasher } from "./expo-hasher";
 import { createExpoVaultFs } from "./expo-vault-fs";
 import { createSyncIo } from "./sync-io";
@@ -39,6 +40,8 @@ export type SyncStatus =
       readonly pulled: number;
       readonly deleted: number;
       readonly conflicts: number;
+      /** Both-sides-changed files the merge ladder resolved (no copy forked). */
+      readonly merged: number;
       readonly at: number;
     }
   | { readonly kind: "error"; readonly message: string };
@@ -53,6 +56,7 @@ function statusFromOutcome(outcome: SyncOutcome): SyncStatus {
         pulled: outcome.pulled,
         deleted: outcome.deleted,
         conflicts: outcome.conflicts,
+        merged: outcome.merged,
         at: Date.now(),
       }
     : { kind: "error", message: outcome.message };
@@ -88,6 +92,7 @@ function engineFor(token: string): SyncEngine {
     }),
     io: createSyncIo(createExpoVaultFs()),
     base: createJsonFileBaseStore(createExpoBaseFile()),
+    blobs: createExpoBlobStore(),
     hash: createExpoHasher(),
     stamp: createFsStamp(),
     onOutcome: (outcome) => statusStore.set(statusFromOutcome(outcome)),

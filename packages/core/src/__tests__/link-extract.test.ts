@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { scanDoc, titleFromPath, type ExtractedLink } from "../knowledge/link-extract";
+import {
+  scanDoc,
+  scanTaskItems,
+  titleFromPath,
+  type ExtractedLink,
+} from "../knowledge/link-extract";
 
 function links(source: string): ExtractedLink[] {
   return scanDoc(source).links;
@@ -227,6 +232,145 @@ describe("scanDoc — title and headings", () => {
 
   it("returns null title when there is no h1", () => {
     expect(scanDoc("## only a subheading\n").title).toBeNull();
+  });
+});
+
+describe("scanDoc — frontmatter aliases", () => {
+  it("extracts the canonical string-array form in declaration order", () => {
+    const src = "---\naliases:\n  - Retro\n  - Post-mortem\n---\n\n# Retrospective\n";
+    expect(scanDoc(src).aliases).toEqual(["Retro", "Post-mortem"]);
+  });
+
+  it("accepts the single-string scalar and the legacy alias: key (Obsidian interop)", () => {
+    expect(scanDoc("---\naliases: Retro\n---\nbody\n").aliases).toEqual(["Retro"]);
+    expect(scanDoc("---\nalias: Retro\n---\nbody\n").aliases).toEqual(["Retro"]);
+    // `aliases` wins when both keys exist.
+    expect(scanDoc("---\naliases: [A]\nalias: B\n---\nbody\n").aliases).toEqual(["A"]);
+    // A date-shaped scalar is still a string alias.
+    expect(scanDoc("---\naliases: 2026-07-15\n---\nbody\n").aliases).toEqual(["2026-07-15"]);
+  });
+
+  it("trims, drops empties, and dedupes case-insensitively keeping first display case", () => {
+    const src = "---\naliases:\n  - ' Padded '\n  - ''\n  - padded\n  - Other\n---\nbody\n";
+    expect(scanDoc(src).aliases).toEqual(["Padded", "Other"]);
+  });
+
+  it("degrades malformed or non-string values to []", () => {
+    expect(scanDoc("---\naliases: 42\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("---\naliases:\n  - 1\n  - 2\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("---\naliases: {a: b}\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("---\n: bad yaml [\n---\nbody\n").aliases).toEqual([]);
+    expect(scanDoc("no frontmatter\n").aliases).toEqual([]);
+  });
+});
+
+describe("scanDoc — task extraction", () => {
+  it("extracts every GFM task item with ordinal, exact raw line, and text", () => {
+    const src = [
+      "# Plan",
+      "",
+      "- [ ] book the flight",
+      "- [x] already done",
+      "  - [ ] nested child",
+      "",
+      "* [ ] **bold** star item",
+    ].join("\n");
+    const tasks = scanDoc(src).tasks;
+    expect(tasks).toEqual([
+      {
+        checked: false,
+        text: "book the flight",
+        raw: "- [ ] book the flight",
+        line: 3,
+        ordinal: 0,
+        wikiTargets: [],
+      },
+      {
+        checked: true,
+        text: "already done",
+        raw: "- [x] already done",
+        line: 4,
+        ordinal: 1,
+        wikiTargets: [],
+      },
+      {
+        checked: false,
+        text: "nested child",
+        raw: "  - [ ] nested child", // untrimmed: leading indent preserved
+        line: 5,
+        ordinal: 2,
+        wikiTargets: [],
+      },
+      {
+        checked: false,
+        text: "**bold** star item", // inline md verbatim
+        raw: "* [ ] **bold** star item",
+        line: 7,
+        ordinal: 3,
+        wikiTargets: [],
+      },
+    ]);
+  });
+
+  it("raw excludes the line terminator on CRLF files", () => {
+    const tasks = scanDoc("# H\r\n\r\n- [ ] crlf task\r\n").tasks;
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.raw).toBe("- [ ] crlf task");
+    expect(tasks[0]?.line).toBe(3);
+  });
+
+  it("skips plain bullets, empty checkboxes, and code-fence lookalikes", () => {
+    const src = [
+      "- plain bullet",
+      "- [ ] ",
+      "",
+      "```",
+      "- [ ] fenced lookalike",
+      "```",
+      "",
+      "    - [ ] indented-code lookalike",
+      "",
+      "- [ ] the real one",
+    ].join("\n");
+    const tasks = scanDoc(src).tasks;
+    expect(tasks.map((t) => [t.ordinal, t.text])).toEqual([[0, "the real one"]]);
+  });
+
+  it("collects wiki targets from the item's first paragraph only, in doc order", () => {
+    const src = [
+      "- [ ] see [[2026-07-20]] and ![[hub|alias]] for [[#anchor-only]]",
+      "  - [ ] child with [[child target]]",
+      "  - a sub-bullet with [[not mine]]",
+    ].join("\n");
+    const tasks = scanDoc(src).tasks;
+    expect(tasks[0]?.wikiTargets).toEqual(["2026-07-20", "hub"]);
+    expect(tasks[1]?.wikiTargets).toEqual(["child target"]);
+  });
+
+  it("frontmatter `tasks: false` suppresses extraction (scanTaskItems still counts)", () => {
+    const src = "---\ntasks: false\n---\n\n- [ ] hidden from the view\n";
+    expect(scanDoc(src).tasks).toEqual([]);
+    // The raw counting contract (delegation ordinals, guarded toggle) is
+    // unaffected by the view opt-out.
+    expect(scanTaskItems(src).map((t) => t.text)).toEqual(["hidden from the view"]);
+  });
+
+  it("only an explicit checkbox false opts out", () => {
+    expect(scanDoc("---\ntasks: true\n---\n\n- [ ] a\n").tasks).toHaveLength(1);
+    expect(scanDoc("---\ntasks: maybe\n---\n\n- [ ] a\n").tasks).toHaveLength(1);
+    expect(scanDoc("---\n: bad yaml [\n---\n\n- [ ] a\n").tasks).toHaveLength(1);
+  });
+
+  it("never counts checkbox-shaped lines inside YAML frontmatter", () => {
+    const src = ["---", "notes:", "  - [ ] yaml lookalike", "---", "", "- [ ] real"].join("\n");
+    const tasks = scanDoc(src).tasks;
+    expect(tasks.map((t) => [t.ordinal, t.text, t.line])).toEqual([[0, "real", 6]]);
+  });
+
+  it("leaves tags/links extraction unchanged on task-bearing docs (regression)", () => {
+    const scan = scanDoc("- [ ] follow up on [[target note]] #urgent\n");
+    expect(scan.links.map((l) => l.target)).toEqual(["target note"]);
+    expect(scan.tags).toEqual(["urgent"]);
   });
 });
 

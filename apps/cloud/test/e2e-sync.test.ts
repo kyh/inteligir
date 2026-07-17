@@ -1,6 +1,7 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { InMemoryBaseStore } from "@repo/core/sync/base-store";
+import { InMemoryBaseBlobStore } from "@repo/core/sync/blob-store";
 import { SyncEngine, type SyncIo } from "@repo/core/sync/engine";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/core/sync/reconcile";
@@ -96,6 +97,9 @@ function engineFor(vaultId: string, token: string, io: SyncIo): SyncEngine {
     io,
     port: createHttpSyncPort({ baseUrl: ORIGIN, vaultId, token, fetchImpl: fetchSelf }),
     base: new InMemoryBaseStore(),
+    // Arm the merge ladder like both real clients do — the conflict test below
+    // proves an overlapping edit STILL forks a copy with the ladder on.
+    blobs: new InMemoryBaseBlobStore(),
     hash: sha256Hex,
     stamp: fsStamp,
   });
@@ -119,6 +123,42 @@ describe("end-to-end sync", () => {
     expect(pullB.status).toBe("ok");
     expect(pullB).toMatchObject({ pushed: 0, pulled: 1 });
     expect(b.text("notes/hello.md")).toBe("# Hello\n");
+  });
+
+  it("both devices append to the same journal while apart → merged, ZERO conflict copies", async () => {
+    const token = await signIn("frida@example.com");
+    const vaultId = "vault-e2e-journal";
+    const journal = "journal/2026-07-15.md";
+
+    // Both devices converge on the morning entry (v1).
+    const a = deviceVault();
+    a.io.write(journal, bytes("# 2026-07-15\n\n- morning\n"));
+    const engineA = engineFor(vaultId, token, a.io);
+    await engineA.syncOnce();
+    const b = deviceVault();
+    const engineB = engineFor(vaultId, token, b.io);
+    await engineB.syncOnce();
+
+    // A appends + pushes (v2); B appends off the stale base, then syncs.
+    a.io.write(journal, bytes("# 2026-07-15\n\n- morning\n- from A\n"));
+    await engineA.syncOnce();
+    b.io.write(journal, bytes("# 2026-07-15\n\n- morning\n- from B\n"));
+    const outB = await engineB.syncOnce();
+
+    // The ladder unions the tails (remote-committed-first) — no fork.
+    expect(outB.status).toBe("ok");
+    expect(outB).toMatchObject({ merged: 1, conflicts: 0, conflictPaths: [] });
+    const both = "# 2026-07-15\n\n- morning\n- from A\n- from B\n";
+    expect(b.text(journal)).toBe(both);
+
+    // A pulls the merged entry as a plain one-sided remote change.
+    const outA = await engineA.syncOnce();
+    expect(outA).toMatchObject({ pulled: 1, conflicts: 0, merged: 0 });
+    expect(a.text(journal)).toBe(both);
+
+    // Zero conflict copies anywhere — the whole point of the ladder.
+    expect(a.io.list().some(isConflictCopyPath)).toBe(false);
+    expect(b.io.list().some(isConflictCopyPath)).toBe(false);
   });
 
   it("a concurrent edit is preserved as a conflict copy (nothing lost)", async () => {

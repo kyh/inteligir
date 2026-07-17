@@ -207,3 +207,51 @@ describe("KnowledgeIndex — wiki targets and search", () => {
     ]);
   });
 });
+
+// Privacy prefilter — the excludePrivate opt every agent-facing surface layers
+// its live re-probe on top of. Renderer calls (no opts) must keep seeing
+// private notes: they are the user's own screen.
+function privateSeeded(): KnowledgeIndex {
+  const index = new KnowledgeIndex();
+  index.setDoc(
+    "secret-plans.md",
+    "---\nprivate: true\ntags: [meta]\n---\n# Secret plans\n\nBody about rockets.\n",
+  );
+  index.setDoc("public.md", "# Public\n\nBody about rockets too. #meta\n\n[[secret-plans]]\n");
+  index.setDoc("broken.md", "---\n[not: valid: yaml\n---\nBody about rockets three.\n");
+  return index;
+}
+
+describe("KnowledgeIndex — privacy (excludePrivate)", () => {
+  it("search drops private AND unreadable-frontmatter docs entirely", () => {
+    const index = privateSeeded();
+    expect(
+      index
+        .search("rockets")
+        .map((h) => h.path)
+        .toSorted(),
+    ).toEqual(["broken.md", "public.md", "secret-plans.md"]);
+    expect(index.search("rockets", 20, { excludePrivate: true }).map((h) => h.path)).toEqual([
+      "public.md",
+    ]);
+  });
+
+  it("backlinks with a private target return [] (silent, not a refusal)", () => {
+    const index = privateSeeded();
+    expect(index.backlinks("secret-plans.md")).toHaveLength(1);
+    expect(index.backlinks("secret-plans.md", { excludePrivate: true })).toEqual([]);
+  });
+
+  it("backlinks from a private source are dropped", () => {
+    const index = privateSeeded();
+    index.setDoc("linker.md", "---\nprivate: true\n---\n[[public]]\n");
+    expect(index.backlinks("public.md").map((b) => b.sourcePath)).toEqual(["linker.md"]);
+    expect(index.backlinks("public.md", { excludePrivate: true })).toEqual([]);
+  });
+
+  it("notesWithTag filters private notes", () => {
+    const index = privateSeeded();
+    expect(index.notesWithTag("meta")).toEqual(["public.md", "secret-plans.md"]);
+    expect(index.notesWithTag("meta", { excludePrivate: true })).toEqual(["public.md"]);
+  });
+});

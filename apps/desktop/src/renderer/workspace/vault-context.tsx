@@ -14,14 +14,31 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { docExists, getBridge } from "@renderer/lib/bridge";
 import { createDebouncer } from "@renderer/lib/debounce";
+import { hasTransientSuggestions } from "@renderer/editor/ai/suggestions";
+import { hasTransientAiState } from "@renderer/editor/ai/transient";
 import { settleTransients } from "@renderer/editor/ai/transient-settle";
-import { registerOpenNoteFlush, registerOpenNotePath } from "@renderer/workspace/open-note-flush";
-import { type RawReason, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
+import {
+  registerOpenNoteFlush,
+  registerOpenNotePath,
+  registerOpenNotePrivacy,
+} from "@renderer/workspace/open-note-flush";
+import { notePrivacy } from "@repo/core/markdown/frontmatter";
+import {
+  type GateReason,
+  analyzeMarkdown,
+  describeGateReason,
+  gateReasonFor,
+} from "@renderer/editor/markdown/markdown-doc";
+import { getLiveEditor } from "@renderer/editor/live-editor";
+import { createCaptureApplier, insertCaptureLine } from "@renderer/workspace/capture-apply";
 import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-runtime";
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
+import type { WikiTarget } from "@repo/core/knowledge/knowledge-index";
 import { buildResolver } from "@repo/core/knowledge/link-resolve";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
+import { basenamePath, dirnamePath } from "@repo/core/knowledge/vault-path";
 
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.
@@ -33,7 +50,8 @@ import type { VaultEntry } from "@repo/features/ipc-registry";
 const OPEN_NOTE_KEY = "workspace.openNote";
 
 /** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,
- * dialogs) coalesces into one snapshot rebuild (ADR-0001). */
+ * dialogs) coalesces into one snapshot rebuild (vault liveness — CLAUDE.md
+ * § Decisions). */
 const FOCUS_REFRESH_DEBOUNCE_MS = 1000;
 
 /**
@@ -42,6 +60,20 @@ const FOCUS_REFRESH_DEBOUNCE_MS = 1000;
  */
 function withDefaultExtension(name: string): string {
   return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.md`;
+}
+
+/** Gate a to-be-created path's basename through checkNoteName (directory
+ * segments pass through — `notes/foo` is intentional foldering here, unlike a
+ * `/` typed into the h1 title). Returns the path with the NFC-normalized
+ * basename, or null after a rejection toast. */
+function validNotePath(path: string): string | null {
+  const verdict = checkNoteName(basenamePath(path));
+  if (!verdict.ok) {
+    toast.error(noteNameErrorMessage(verdict.reason));
+    return null;
+  }
+  const dir = dirnamePath(path);
+  return dir === "" ? verdict.name : `${dir}/${verdict.name}`;
 }
 
 // IO the editor controller acts through — thin wrappers over the bridge so the
@@ -126,19 +158,26 @@ type VaultContextValue = {
   resolveWikiTarget: (target: string) => string | null;
   /** Rebuild the ephemeral vault snapshot now (re-list + reindex + sync kick).
    * The command palette's "Refresh vault" invokes this; window focus does too,
-   * debounced (ADR-0001). */
+   * debounced (vault liveness — CLAUDE.md § Decisions). */
   refreshVault: () => void;
+  /** Whether the open note is marked `private: true` — the header's lock
+   * badge. USER-FACING semantics: strictly "private" (unreadable frontmatter
+   * shows no lock); the AI paths use their own fail-closed reads. Derived
+   * from the note's live content buffer, so it works in raw AND rich mode. */
+  openNoteIsPrivate: boolean;
 
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
   isMarkdownOpen: boolean;
-  /** Whether Rich editing is available: the file parses within the vocabulary.
-   * Rich normalizes formatting on the first real edit — only files the
-   * pipeline can't represent at all (rawReason) are Raw-only. */
+  /** Whether Rich editing is available: the file parses within the vocabulary
+   * AND round-trips without losing content. Rich normalizes formatting on the
+   * first real edit — only files the pipeline can't represent (rawReason) or
+   * would corrupt (roundtrip-loss) are Raw-only. */
   richAvailable: boolean;
-  /** Why the open file is Raw-only (parse error / out-of-vocabulary construct),
-   * or null. Drives the header's Raw badge tooltip. */
-  rawReason: RawReason | null;
+  /** Why the open file is Raw-only (parse error / out-of-vocabulary construct
+   * / round-trip content loss), or null. Drives the header's Raw badge
+   * tooltip. */
+  rawReason: GateReason | null;
   /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
   mode: "raw" | "rich";
   setMode: (mode: "raw" | "rich") => void;
@@ -155,6 +194,25 @@ type VaultContextValue = {
   /** Show the open `.html` as a sandboxed app again ("Open as app"). */
   showHtmlAsApp: () => void;
 };
+
+// Gate policy: classify SAVED bytes with the full round-trip oracle
+// (parse + vocabulary + serialize + bounded fixpoint + content-loss check) so
+// a serializer bug on in-vocabulary content gates the file to Raw instead of
+// letting the first Rich save persist corrupted bytes. A pipeline THROW —
+// markdown-doc deliberately rethrows non-depth errors as real bugs — degrades
+// to Raw here too, rather than crashing the surface (the seedValue
+// never-crash precedent). Residual window: the oracle sees bytes at open and
+// save-settle; a bug triggered only by newly-typed content still lands ONE
+// corrupt save before the post-save re-analysis flips the gate ("file went
+// Raw mid-session" in triage = that save may already be on disk).
+function safeGateReason(md: string): GateReason | null {
+  try {
+    return gateReasonFor(analyzeMarkdown(md));
+  } catch (error) {
+    console.error("Markdown gate analysis failed", error);
+    return { kind: "parse-error", line: null, message: "Editor pipeline error" };
+  }
+}
 
 const VaultContext = createContext<VaultContextValue | null>(null);
 
@@ -190,7 +248,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       setHtmlAsText(false);
       setUiState(OPEN_NOTE_KEY, next);
       // Point the host's single open-note watcher at the new file (or clear it).
-      // This is the only file watched for external edits (ADR-0001).
+      // This is the only file watched for external edits (vault liveness —
+      // CLAUDE.md § Decisions).
       getBridge()
         ?.setWatchedNote({ path: next })
         .catch(() => {});
@@ -280,7 +339,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // Last-applied listing, in a ref so the async callback compares against the
   // truly latest value (React state would be a stale closure). Every vault
   // broadcast re-fetches the listing — focus refreshes, delegation completion,
-  // external open-note edits (autosaves went silent with ADR-0001) — and most
+  // external open-note edits (autosaves went silent with the vault-liveness
+  // model, CLAUDE.md § Decisions) — and most
   // of those don't change the listing, so skip the state set when nothing
   // structural changed to keep the sidebar tree from re-rendering on refocus.
   const lastEntriesRef = useRef<VaultEntry[]>([]);
@@ -329,7 +389,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string): Promise<boolean> => {
       const trimmed = rawPath.trim();
       if (!trimmed) return false;
-      const path = withDefaultExtension(trimmed);
+      const path = validNotePath(withDefaultExtension(trimmed));
+      if (path === null) return false;
       const bridge = getBridge();
       if (!bridge) return false;
       // Don't truncate an existing file — it already satisfies "exists".
@@ -359,7 +420,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string, content: string) => {
       const trimmed = rawPath.trim();
       if (!trimmed) return;
-      const path = withDefaultExtension(trimmed);
+      const path = validNotePath(withDefaultExtension(trimmed));
+      if (path === null) return;
       const bridge = getBridge();
       if (!bridge) return;
       // Open-or-create: only write (seed) when the file is genuinely new, so a
@@ -512,7 +574,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [applyOpenPath, disposeRuntime, refreshList]);
 
   // External edits to files OTHER than the open note surface on window focus —
-  // the ephemeral model's "the user refocuses to look" trade (ADR-0001). One
+  // the ephemeral model's "the user refocuses to look" trade (vault liveness —
+  // CLAUDE.md § Decisions). One
   // debounced refresh per focus flurry rebuilds the snapshot (re-list + reindex
   // + sync kick). The open note itself is covered live by the host's open-note
   // watcher, so this is about the rest of the vault.
@@ -534,6 +597,43 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // Deep-link captures (inteligir://append|task) targeting the OPEN note are
+  // routed INTO the live buffer — a host disk write would be skipped by the
+  // dirty reload guard and clobbered by the next whole-buffer autosave. Rich
+  // mode inserts through the live Plate editor (serialize → editNote carries
+  // it); Raw mode appends via runtime.edit. Ack goes out only after a
+  // confirmed flush; anything else ("not-open", a failed flush) hands the
+  // entry back to the host's disk drain.
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    const applier = createCaptureApplier({
+      openPath: () => openPathRef.current,
+      liveEditor: getLiveEditor,
+      hasTransients: (editor) => hasTransientSuggestions(editor) || hasTransientAiState(editor),
+      insertLine: insertCaptureLine,
+      bufferContent: () => {
+        // Loaded content only: while the controller is still reading the file
+        // (state.path === null) an edit would no-op and a clean flush would
+        // ack "applied" without persisting — report no buffer instead, so the
+        // host's disk drain takes the capture and the reload shows it.
+        const state = runtimeRef.current?.controller.getState();
+        return state !== undefined && state.path !== null ? state.content : null;
+      },
+      editBuffer: editNote,
+      flush: flushCurrent,
+      ack: (id, outcome) => {
+        bridge.ackCapture({ id, outcome }).catch(() => {});
+      },
+      onApplied: () => toast.success("Captured to today's note"),
+    });
+    const unsubscribe = bridge.onCaptureApply(applier.apply);
+    return () => {
+      applier.dispose();
+      unsubscribe();
+    };
+  }, [editNote, flushCurrent]);
+
   // Expose the flush + open-note path to non-React callers (the voice transcript
   // path) so a dictated turn persists the open note AND tags the agent with which
   // file "this note" means — same as the typed composer. The path getter reads
@@ -541,9 +641,22 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     registerOpenNoteFlush(flush);
     registerOpenNotePath(() => runtimeRef.current?.controller.getState().path ?? null);
+    // AI-path privacy read (fail-closed: indeterminate counts as private) —
+    // agent-store omits the note-context hint for a private note. Reads the
+    // live buffer, not the saved file, so a just-typed `private: true` is
+    // honored on the very next send. The OTHER staleness direction — disk
+    // flipped private by a sync pull / agent write while this buffer still
+    // holds the public text — is covered host-side: agent-store re-probes
+    // live disk (probeNotePrivacy) before attaching the path.
+    registerOpenNotePrivacy(() => {
+      const state = runtimeRef.current?.controller.getState();
+      if (!state || state.path === null) return true; // no note → nothing to attach anyway
+      return notePrivacy(state.content) !== "public";
+    });
     return () => {
       registerOpenNoteFlush(null);
       registerOpenNotePath(null);
+      registerOpenNotePrivacy(null);
     };
   }, [flush]);
 
@@ -552,9 +665,48 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     return cleaned.split(/[/\\]/).pop() ?? cleaned;
   }, [root]);
 
+  // Alias entries for the local resolver: the host's knowledge index owns
+  // alias extraction; the renderer pulls WikiTargets (path + aliases) over
+  // the Bridge so chips, transclusion, and autocomplete resolve `[[alias]]`
+  // exactly like backlinks do. Refreshed with every listing refresh and on
+  // knowledge updates — the index lags saves ~100-300ms, so a just-added
+  // alias resolves slightly late (same as the backlinks panel).
+  const [wikiTargets, setWikiTargets] = useState<WikiTarget[]>([]);
+  const refreshWikiTargets = useCallback(() => {
+    getBridge()
+      ?.listWikiTargets()
+      .then((targets) => {
+        // Keep the previous reference when the payload is value-identical —
+        // every autosave's knowledge pass re-emits the full list, and a fresh
+        // array would rebuild the resolver + cascade a rerender for nothing.
+        // (JSON compare is fine at wiki-target list size.)
+        setWikiTargets((prev) =>
+          JSON.stringify(prev) === JSON.stringify(targets) ? prev : targets,
+        );
+        return undefined;
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshWikiTargets();
+    const bridge = getBridge();
+    if (!bridge) return;
+    return bridge.onKnowledgeUpdated(() => refreshWikiTargets());
+  }, [refreshWikiTargets]);
+
   // Wiki resolution over the live listing — same engine as the host's index,
-  // so chips and the knowledge channels agree on what resolves.
-  const resolver = useMemo(() => buildResolver(entries.map((e) => e.path)), [entries]);
+  // so chips and the knowledge channels agree on what resolves. The listing
+  // stays the path authority (aliases only fill the below-path tiers).
+  const resolver = useMemo(() => {
+    const aliasEntries: Array<readonly [string, string]> = [];
+    for (const target of wikiTargets) {
+      for (const alias of target.aliases ?? []) aliasEntries.push([alias, target.path]);
+    }
+    return buildResolver(
+      entries.map((e) => e.path),
+      aliasEntries,
+    );
+  }, [entries, wikiTargets]);
   const resolveWikiTarget = useCallback(
     (target: string) => resolver.resolveWiki(target),
     [resolver],
@@ -571,21 +723,21 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // the effect corrected the gate. Adjusting state during render re-renders
   // before any child mounts, so the gate and the content can never disagree.
   const [analyzed, setAnalyzed] = useState<{
-    rawReason: RawReason | null;
+    rawReason: GateReason | null;
     content: string;
     path: string | null;
   }>({ rawReason: null, content: "", path: null });
   // While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
-  // intentionally retained — one parse pass per SAVED content change (the Raw
-  // badge + the `showRich` gate), not per keystroke.
+  // intentionally retained — one analysis pass per SAVED content change (the
+  // Raw badge + the `showRich` gate), not per keystroke.
   const pathChanged = analyzed.path !== editor.path;
   if ((pathChanged || analyzed.content !== editor.content) && !editor.dirty) {
     // Rich is the default surface: any file that parses within the vocabulary
-    // opens rich (normalizing on the first real edit); only genuinely
-    // unrepresentable content (unknown JSX, parse errors) is Raw-only.
-    const parsed =
-      isMarkdownOpen && editor.content.trim() !== "" ? parseMarkdown(editor.content) : null;
-    const rawReason = parsed !== null && !parsed.ok ? parsed.reason : null;
+    // AND round-trips losslessly opens rich (normalizing on the first real
+    // edit); unrepresentable content (unknown JSX, parse errors) and files
+    // whose round-trip would lose content are Raw-only.
+    const rawReason =
+      isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
     setAnalyzed({ rawReason, content: editor.content, path: editor.path });
     // The mode (raw/rich) is the user's choice, picked once per file open — a
     // post-save flush (dirty→false, content unchanged) and an external/agent
@@ -595,6 +747,35 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     if (pathChanged) setMode(isMarkdownOpen && rawReason === null ? "rich" : "raw");
   }
   const richAvailable = isMarkdownOpen && analyzed.rawReason === null;
+
+  // A mid-session Rich→Raw flip (post-save re-analysis caught a serializer
+  // bug, or an external reload landed unrepresentable content) swaps Plate for
+  // the textarea under the user's cursor — explain the yank once. Fresh opens
+  // (pathChanged) don't toast: the badge covers them.
+  const gateFlipRef = useRef<{ path: string | null; rawReason: GateReason | null }>({
+    path: null,
+    rawReason: null,
+  });
+  useEffect(() => {
+    const prev = gateFlipRef.current;
+    gateFlipRef.current = { path: analyzed.path, rawReason: analyzed.rawReason };
+    if (
+      analyzed.path !== null &&
+      prev.path === analyzed.path &&
+      prev.rawReason === null &&
+      analyzed.rawReason !== null &&
+      mode === "rich"
+    ) {
+      toast.warning(`Switched to Raw editing — ${describeGateReason(analyzed.rawReason)}`);
+    }
+  }, [analyzed, mode]);
+
+  // ---- Privacy badge (UI semantics: strictly "private", no lock for a yaml
+  // typo — the AI paths carry their own fail-closed reads) ---------------------
+  const openNoteIsPrivate = useMemo(
+    () => isMarkdownOpen && editor.path !== null && notePrivacy(editor.content) === "private",
+    [isMarkdownOpen, editor.path, editor.content],
+  );
 
   // ---- HTML Apps -----------------------------------------------------------
   const openIsHtml = openPath !== null && HTML_RE.test(openPath);
@@ -620,6 +801,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       refreshVault,
+      openNoteIsPrivate,
       isMarkdownOpen,
       richAvailable,
       rawReason: analyzed.rawReason,
@@ -647,6 +829,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       refreshVault,
+      openNoteIsPrivate,
       isMarkdownOpen,
       richAvailable,
       analyzed.rawReason,

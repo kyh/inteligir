@@ -1,5 +1,5 @@
 import type { LocalFile } from "./manifest";
-import type { VaultFile, VaultPath } from "./vault-file";
+import type { Hash, VaultFile, VaultPath } from "./vault-file";
 
 // ---------------------------------------------------------------------------
 // SyncPlan — the typed operations `reconcile` produces to converge one vault.
@@ -22,6 +22,10 @@ export type Push = {
   /** OCC token: the coordinator version this push is based on
    *  (`ABSENT_VERSION` for a create). */
   readonly expectedBaseVersion: number;
+  /** The BASE manifest's contentHash for this path (`null` = no base entry) —
+   * the merge ladder's key into the local base-blob shadow, should this push
+   * lose its OCC race and downgrade to a both-sides-changed resolution. */
+  readonly baseHash: Hash | null;
 };
 
 /**
@@ -67,6 +71,10 @@ export type ConflictCopy = {
   readonly local: LocalFile;
   /** The coordinator file at `path` at reconcile time (its version = OCC token). */
   readonly remote: VaultFile;
+  /** The BASE manifest's contentHash for this path (`null` = both sides
+   * CREATED it — a creation collision) — the merge ladder's key into the
+   * local base-blob shadow, tried before the copy is written. */
+  readonly baseHash: Hash | null;
 };
 
 /** One unit of convergence work. */

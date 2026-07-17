@@ -51,6 +51,14 @@ reload/conflict live; the app's own autosaves are filtered out and generate no
 is NOT open appears when the window regains focus — which is when you look.
 `onVaultChanged` is still the renderer contract; only its SOURCES changed.
 
+**The knowledge index persists** in `~/.inteligir/indexes/<hash>.sqlite`, one
+DB per vault root. It is a pure cache of projected markdown: deleting it (or
+any corruption/version mismatch) is always safe — the host rebuilds it from
+the vault automatically. Never put durable state in it. Desktop search is
+FTS5 bm25 (title/heading/body weighted 10/4/1) through this store; a refresh
+burst (focus → renderer listing + knowledge diff + sync fingerprints) shares
+one walk+stat snapshot inside VaultManager (~1s TTL).
+
 ## Ports & shared state
 
 | What                                                                      | Where                                                                     |
@@ -59,6 +67,7 @@ is NOT open appears when the window regains focus — which is when you look.
 | Electron CDP debugging                                                    | 9222                                                                      |
 | Executor daemon                                                           | 47888                                                                     |
 | App state (auth, sessions, ui-state, delegations, snapshots, `host.lock`) | `~/.inteligir`                                                            |
+| Knowledge index cache (per-vault SQLite; delete-safe, auto-rebuilds)      | `~/.inteligir/indexes/`                                                   |
 | Voice model (~140 MB)                                                     | per-OS user-data dir (`~/Library/Application Support/Inteligir` on macOS) |
 
 **Only one real host at a time**: `~/.inteligir/host.lock` is a pidfile — a
@@ -95,6 +104,10 @@ Type-checks passing isn't feature-correct. Drive the running app:
 - Byte-level checks: toggle Raw mode in the editor, or read the vault file —
   the byte-stability invariant (`roundTrip(raw) === raw` for canonical files)
   is the thing most UI regressions break.
+- Privacy (`private: true`) changes: `docs/privacy.md` states the guarantee
+  and its holes; the enforcement tests live in
+  `packages/features/src/server/__tests__/privacy-gate.test.ts` and
+  `knowledge-privacy.test.ts` (outbound-payload assertions).
 
 ## Making changes — checklists
 

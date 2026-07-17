@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Trash2Icon } from "lucide-react";
+import { LockIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
@@ -14,7 +14,7 @@ import {
 import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
-import { describeRawReason } from "@renderer/editor/markdown/markdown-doc";
+import { describeGateReason } from "@renderer/editor/markdown/markdown-doc";
 import { PageDetails } from "@renderer/editor/properties/page-details";
 import { useVault } from "@renderer/workspace/vault-context";
 
@@ -39,6 +39,7 @@ export function Header() {
     openIsHtml,
     isHtmlApp,
     showHtmlAsApp,
+    openNoteIsPrivate,
   } = useVault();
   const { state } = useSidebar();
   const path = editor.path;
@@ -96,11 +97,21 @@ export function Header() {
               Open as app
             </Button>
           )}
+          {openNoteIsPrivate && (
+            <Badge
+              variant="outline"
+              className="text-muted-foreground"
+              title="Private — excluded from AI features on this device"
+            >
+              <LockIcon className="size-3" />
+              Private
+            </Badge>
+          )}
           {isMarkdownOpen && rawReason !== null && (
             <Badge
               variant="outline"
               className="text-muted-foreground"
-              title={describeRawReason(rawReason)}
+              title={describeGateReason(rawReason)}
             >
               Raw
             </Badge>

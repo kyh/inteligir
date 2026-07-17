@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createJsonFileBaseStore } from "@repo/core/sync/base-store";
+import { InMemoryBaseBlobStore } from "@repo/core/sync/blob-store";
 import { SyncEngine } from "@repo/core/sync/engine";
 import { conflictCopyName } from "@repo/core/sync/reconcile";
 // The coordinator fake ships under core's `./sync/testing/*` subpath (test-only
@@ -58,6 +59,7 @@ describe("SyncEngine over the RN adapters", () => {
       pulled: 0,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(await remoteText("a.md")).toBe("AAA");
@@ -75,6 +77,7 @@ describe("SyncEngine over the RN adapters", () => {
       pulled: 1,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(vault.readText("remote-only.md")).toBe("REMOTE");
@@ -93,6 +96,7 @@ describe("SyncEngine over the RN adapters", () => {
       pulled: 0,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(port.currentGeneration()).toBe(genAfterFirst);
@@ -112,6 +116,7 @@ describe("SyncEngine over the RN adapters", () => {
       pulled: 0,
       deleted: 1,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(await remoteText("gone.md")).toBeNull();
@@ -134,5 +139,42 @@ describe("SyncEngine over the RN adapters", () => {
     const copyPath = conflictCopyName("note.md", FIXED_STAMP());
     expect(vault.readText(copyPath)).toBe("local-loser");
     expect(await remoteText(copyPath)).toBe("local-loser");
+  });
+
+  it("with a blob store wired, a both-appended journal merges instead of forking", async () => {
+    // The RN composition arms the ladder exactly like the desktop's (the
+    // platform-neutral InMemory store here; expo-blob-store.ts on device —
+    // core's engine-merge.test.ts owns the full merge matrix).
+    const blobs = new InMemoryBaseBlobStore();
+    const engineWithBlobs = () =>
+      new SyncEngine({
+        vaultId: VAULT_ID,
+        port,
+        io: createSyncIo(vault.fs),
+        base: createJsonFileBaseStore(baseFile.file),
+        blobs,
+        hash: webCryptoHasher(),
+        stamp: FIXED_STAMP,
+        debounceMs: 0,
+      });
+
+    vault.writeText("journal.md", "day\n");
+    await engineWithBlobs().syncOnce();
+    await port.putFile("journal.md", new TextEncoder().encode("day\n- remote\n"), 1);
+    vault.writeText("journal.md", "day\n- local\n");
+
+    const out = await engineWithBlobs().syncOnce();
+
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 0,
+      deleted: 0,
+      conflicts: 0,
+      merged: 1,
+      conflictPaths: [],
+    });
+    expect(vault.readText("journal.md")).toBe("day\n- remote\n- local\n");
+    expect(await remoteText("journal.md")).toBe("day\n- remote\n- local\n");
   });
 });

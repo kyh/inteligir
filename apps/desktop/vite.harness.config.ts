@@ -12,6 +12,9 @@ const configDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   root: "dev",
+  // Per the package's vite guidance: esbuild prebundling breaks the wasm
+  // module's own asset resolution — serve its ESM as-is.
+  optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
   plugins: [
     tanstackRouter({
       target: "react",

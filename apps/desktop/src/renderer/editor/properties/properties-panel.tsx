@@ -1,6 +1,6 @@
 // The file-properties panel — typed controls over the open note's YAML
 // frontmatter, hosted in the shell header's "Page details" popover. The
-// markdown file is the ONLY property store (hubble ADR-0003): there is no
+// markdown file is the ONLY property store (CLAUDE.md § Decisions): there is no
 // metadata DB. Edits flow through the frontmatter NODE (properties-node.ts)
 // and out the editor's normal serialize path, so a property edit and a body
 // edit take the exact same route to disk. Unsupported / invalid YAML is shown

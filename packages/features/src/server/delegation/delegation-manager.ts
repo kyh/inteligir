@@ -13,8 +13,10 @@ import crypto from "node:crypto";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { DelegationSnapshotStore } from "./delegation-snapshots";
+import { notePrivacy } from "@repo/core/markdown/frontmatter";
+
 import { findTaskLine } from "./find-task-line";
+import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
 import { getHostNotifiers } from "../host-notifiers";
@@ -62,8 +64,10 @@ export type DelegationManagerOptions = {
    * to the live VaultManager. Restore goes through here so editors refresh via
    * the standard onVaultChanged path. */
   writeVault?: (rel: string, content: string) => void;
-  /** Pre-run snapshot store. Defaults to the real ~/.inteligir-backed one. */
-  snapshots?: DelegationSnapshotStore;
+  /** Pre-run snapshot store. Defaults to the shared ~/.inteligir-backed
+   * singleton (chat checkpoints live in the same store, under their own
+   * origin). */
+  snapshots?: SnapshotStore;
   /** Push channel for the editor's inline badges — the delegation list changed.
    * Injected at construction by the composition root so this module never
    * imports the IPC event registry; the live singleton (getDelegationManager)
@@ -75,7 +79,8 @@ export type DelegationManagerOptions = {
   /** Called after each run settles. The background agent edits the vault file
    * through ./vault (external to VaultManager), so a completed run's result
    * won't otherwise appear until the window regains focus — this kicks a vault
-   * refresh so it shows immediately (ADR-0001). Defaults to the live vault
+   * refresh so it shows immediately (vault liveness — CLAUDE.md § Decisions).
+   * Defaults to the live vault
    * refresh; unit tests leave it unset. */
   onRunSettled?: () => void;
 };
@@ -84,7 +89,7 @@ export class DelegationManager {
   private readonly store: JsonStore<Delegation[]>;
   private readonly readVault: (rel: string) => string;
   private readonly writeVault: (rel: string, content: string) => void;
-  private readonly snapshots: DelegationSnapshotStore;
+  private readonly snapshots: SnapshotStore;
   private readonly onChanged: ((delegations: Delegation[]) => void) | null;
   private readonly onStream: ((id: string, text: string) => void) | null;
   private readonly onRunSettled: (() => void) | null;
@@ -107,7 +112,7 @@ export class DelegationManager {
     this.readVault = opts?.readVault ?? ((rel) => getVaultManager().readText(rel));
     this.writeVault =
       opts?.writeVault ?? ((rel, content) => getVaultManager().writeText(rel, content));
-    this.snapshots = opts?.snapshots ?? new DelegationSnapshotStore();
+    this.snapshots = opts?.snapshots ?? getSnapshotStore();
     this.onChanged = opts?.onChanged ?? null;
     this.onStream = opts?.onStream ?? null;
     this.onRunSettled = opts?.onRunSettled ?? null;
@@ -225,6 +230,15 @@ export class DelegationManager {
     } catch (err) {
       return { ok: false, error: `Couldn't read ${params.sourceFile}: ${toErrorMessage(err)}` };
     }
+    // Private notes never reach the background agent — the whole file rides
+    // the delegation prompt's context via the agent's file tools. Fail-closed:
+    // unreadable frontmatter counts as private.
+    if (notePrivacy(raw) !== "public") {
+      return {
+        ok: false,
+        error: "This note is private — delegating would send its content to the AI provider.",
+      };
+    }
     const match = findTaskLine(raw, params.index);
     if (!match) {
       return {
@@ -277,7 +291,7 @@ export class DelegationManager {
     let changed = false;
     this.store.update((all) =>
       all.map((d) => {
-        const next = remapPath(d.sourceFile, from, to);
+        const next = remapVaultPath(d.sourceFile, from, to);
         if (next === d.sourceFile) return d;
         changed = true;
         return { ...d, sourceFile: next };
@@ -443,6 +457,14 @@ export class DelegationManager {
     } catch (err) {
       return { ok: false, error: `Couldn't read ${delegation.sourceFile}: ${toErrorMessage(err)}` };
     }
+    // The note may have turned private while this sat queued — re-check at
+    // dispatch, same fail-closed rule as createDelegation.
+    if (notePrivacy(raw) !== "public") {
+      return {
+        ok: false,
+        error: "This note is private — delegating would send its content to the AI provider.",
+      };
+    }
     const match = findTaskLine(raw, delegation.anchor.index);
     if (!match) {
       return { ok: false, error: "That checkbox is no longer in the file." };
@@ -460,7 +482,11 @@ export class DelegationManager {
     }
     const fresh: Delegation = {
       ...delegation,
-      lineText: match.lineText.trim(),
+      // UNTRIMMED, deliberately: this is the exact raw line the run was
+      // resolved against — the guarded-write input (guarded-line-edit's
+      // expectedRaw contract) — so any future host-side write-back has its
+      // guard bytes on record. Same string shape, no schema bump.
+      lineText: match.lineText,
       anchor: { ...delegation.anchor, heading: match.heading },
     };
     // Persist the refreshed line so the inline badge tracks it too.
@@ -492,7 +518,10 @@ export class DelegationManager {
     // intercept the write itself, and an agent edit with no snapshot is an
     // edit the user can't revert. A capture failure therefore aborts the run.
     try {
-      this.snapshots.capture(delegation.id, fresh.sourceFile, resolved.raw);
+      this.snapshots.capture(
+        { id: delegation.id, origin: "delegation", path: fresh.sourceFile, kind: "edit" },
+        resolved.raw,
+      );
     } catch (err) {
       this.finishRun(
         delegation.id,
@@ -541,15 +570,6 @@ export class DelegationManager {
       resultSummary: result.text.length > 0 ? result.text.trim().slice(0, SUMMARY_LEN) : "Done",
     });
   }
-}
-
-/** Repoint a delegation's source path across a rename/move. Handles an exact
- * file rename and a folder rename (every path under `from/`). Uses `/` — vault
- * paths are POSIX-relative regardless of host OS. */
-function remapPath(path: string, from: string, to: string): string {
-  if (path === from) return to;
-  if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
-  return path;
 }
 
 /** The terminal-failure patch — one shape for every place a run/queue entry ends

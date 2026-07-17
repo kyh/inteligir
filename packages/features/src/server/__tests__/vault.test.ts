@@ -67,7 +67,7 @@ describe("VaultManager", () => {
     expect(() => mgr.writeText("/etc/passwd", "x")).toThrow(/escapes the vault/);
   });
 
-  // Symlink-safe confinement (plan 007): the lexical check alone lets a symlink
+  // Symlink-safe confinement: the lexical check alone lets a symlink
   // planted INSIDE the vault escape it, so resolve() also realpaths the target.
   // Realpath the root in these assertions: on macOS os.tmpdir() lives under a
   // symlinked ancestor (/var → /private/var), so the lexical root differs from
@@ -140,11 +140,12 @@ describe("VaultManager", () => {
     expect(mgr.readText("a.md")).toBe("after");
   });
 
-  it("list() is uncapped and agrees with listAllPaths() on a plain vault (plan 016)", () => {
+  it("list() is uncapped and agrees with listAllPaths() on a plain vault (ephemeral listing)", () => {
     const mgr = newManager();
     mgr.ensureReady();
     // Past the old 2,000 cap — the crawl is on-demand now, so there is no cap
-    // (ADR-0001). Both listings must see every file, and agree.
+    // (vault liveness — CLAUDE.md § Decisions). Both listings must see every
+    // file, and agree.
     const TOTAL = 2050;
     for (let i = 0; i < TOTAL; i++) {
       const name = `f${String(i).padStart(4, "0")}.md`;
@@ -166,7 +167,7 @@ describe("VaultManager", () => {
     expect(all).not.toContain(".dotfile");
   });
 
-  it("respects root .gitignore / .ignore in both list() and listAllPaths() (plan 016)", () => {
+  it("respects root .gitignore / .ignore in both list() and listAllPaths()", () => {
     const mgr = newManager();
     mgr.ensureReady();
     mgr.writeText("keep.md", "x");
@@ -226,7 +227,56 @@ describe("VaultManager", () => {
     expect(mgr.statFingerprint("../escape.md")).toBeNull();
   });
 
-  // ---- Change notifier kinds (plan 016) --------------------------------------
+  // ---- rename: occupancy + case-only (the two APFS/NTFS rename bugs) ---------
+  it("refuses to overwrite an exact existing destination", () => {
+    const mgr = newManager();
+    mgr.writeText("a.md", "A");
+    mgr.writeText("b.md", "B");
+    expect(mgr.rename("a.md", "b.md")).toEqual({ ok: false, error: "b.md already exists" });
+    expect(mgr.readText("a.md")).toBe("A");
+    expect(mgr.readText("b.md")).toBe("B");
+  });
+
+  it("refuses a case-insensitive collision with a DIFFERENT file", () => {
+    // On a case-sensitive dev fs both names can coexist; the refusal keeps
+    // the vault portable to the APFS/NTFS machines it syncs to (where the
+    // rename would silently clobber).
+    const mgr = newManager();
+    mgr.writeText("Taken.md", "occupied");
+    mgr.writeText("b.md", "B");
+    const result = mgr.rename("b.md", "taken.md");
+    expect(result).toEqual({ ok: false, error: "taken.md already exists" });
+    expect(mgr.readText("Taken.md")).toBe("occupied");
+    expect(mgr.readText("b.md")).toBe("B");
+  });
+
+  it("refuses a unicode-normalization collision (NFD name vs NFC rename)", () => {
+    const mgr = newManager();
+    mgr.writeText("café.md", "decomposed"); // café, NFD
+    mgr.writeText("b.md", "B");
+    const result = mgr.rename("b.md", "café.md"); // café, NFC
+    expect(result.ok).toBe(false);
+    expect(mgr.readText("b.md")).toBe("B");
+  });
+
+  it("allows a case-only self-rename (previously refused on APFS)", () => {
+    const mgr = newManager();
+    mgr.writeText("meeting notes.md", "content");
+    expect(mgr.rename("meeting notes.md", "Meeting Notes.md")).toEqual({ ok: true });
+    expect(mgr.readText("Meeting Notes.md")).toBe("content");
+    const names = mgr.list().map((e) => e.name);
+    expect(names).toContain("Meeting Notes.md");
+    expect(names).not.toContain("meeting notes.md");
+  });
+
+  it("renames into a not-yet-existing directory (trivially unoccupied)", () => {
+    const mgr = newManager();
+    mgr.writeText("a.md", "A");
+    expect(mgr.rename("a.md", "brand/new/dir/a.md")).toEqual({ ok: true });
+    expect(mgr.readText("brand/new/dir/a.md")).toBe("A");
+  });
+
+  // ---- Change notifier kinds (ephemeral listing) -----------------------------
   // A NEW file changes the listing → "refresh" (broadcast). Overwriting an
   // existing file is a content save → "save" (reindex + sync, no broadcast).
   it("fires refresh on new file / delete / rename and save on overwrite", () => {
@@ -245,7 +295,7 @@ describe("VaultManager", () => {
     expect(kinds).toEqual(["refresh", "save", "refresh", "refresh", "refresh", "refresh"]);
   });
 
-  // ---- Open-note watcher (plan 016) ------------------------------------------
+  // ---- Open-note watcher (ephemeral listing) ---------------------------------
   // A real (non-recursive) single-file watch: external edits to the open note
   // broadcast "refresh"; the app's own autosave (markSelfSave) is filtered.
   it("open-note watcher broadcasts external edits but filters self-saves", async () => {
@@ -269,5 +319,55 @@ describe("VaultManager", () => {
     expect(afterExternal).toBeGreaterThan(afterSelfSave);
 
     mgr.stopWatching();
+  });
+});
+
+// User-initiated deletes go to the OS trash through the injected platform
+// capability; sync-applied remote deletes keep the permanent delete(). The
+// fallback pins today's Linux-without-a-trash behavior: permanent remove.
+describe("VaultManager.trash", () => {
+  function newTrashManager(trashItem: (abs: string) => Promise<void>): VaultManager {
+    return new VaultManager({ settingsPath, defaultRoot: root, manageAgentLink: false, trashItem });
+  }
+
+  it("hands the injected trashItem the confined absolute path and notifies refresh", async () => {
+    const trashed: string[] = [];
+    const mgr = newTrashManager(async (abs) => {
+      trashed.push(abs);
+      fs.rmSync(abs, { force: true }); // a real trash moves the file away
+    });
+    mgr.writeText("a.md", "bye");
+    const kinds: string[] = [];
+    mgr.startWatching((_root, kind) => kinds.push(kind));
+
+    await expect(mgr.trash("a.md")).resolves.toBe(true);
+    expect(trashed).toEqual([path.join(root, "a.md")]);
+    expect(mgr.list().map((e) => e.path)).not.toContain("a.md");
+    expect(kinds).toEqual(["refresh"]);
+  });
+
+  it("falls back to a permanent remove when the platform can't trash", async () => {
+    const mgr = newTrashManager(async () => {
+      throw new Error("no trash implementation on this platform");
+    });
+    mgr.writeText("a.md", "bye");
+    await expect(mgr.trash("a.md")).resolves.toBe(true);
+    expect(fs.existsSync(path.join(root, "a.md"))).toBe(false);
+  });
+
+  it("returns false for a missing file without touching the platform", async () => {
+    let calls = 0;
+    const mgr = newTrashManager(async () => {
+      calls++;
+    });
+    mgr.ensureReady();
+    await expect(mgr.trash("missing.md")).resolves.toBe(false);
+    expect(calls).toBe(0);
+  });
+
+  it("confines the path like every other file op", async () => {
+    const mgr = newTrashManager(async () => {});
+    mgr.ensureReady();
+    await expect(mgr.trash("../escape.md")).rejects.toThrow(/escapes the vault/);
   });
 });

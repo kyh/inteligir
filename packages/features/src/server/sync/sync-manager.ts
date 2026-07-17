@@ -8,6 +8,7 @@
 //   - createNodeHasher    — node:crypto sha-256 (wrapped async)
 //   - createVaultSyncIo   — a live VaultManager as the engine's SyncIo
 //   - createJsonBaseStore — the last-synced base manifest under ~/.inteligir
+//   - createNodeBlobStore — content-addressed base BYTES for the merge ladder
 //   - nodeStamp           — a filesystem-safe ISO timestamp for conflict copies
 //
 // OFF BY DEFAULT at runtime: create-host starts the SyncCoordinator at boot,
@@ -22,7 +23,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { inteligirPath, type FsAdapter } from "../lib/json-store";
+import { inteligirPath, shortPathKey, type FsAdapter } from "../lib/json-store";
 import { getVaultManager, type VaultManager } from "../vault/vault";
 import type { SyncPort } from "@repo/core/sync/sync-port";
 import {
@@ -33,6 +34,8 @@ import {
   type SyncOutcome,
 } from "@repo/core/sync/engine";
 import { createJsonFileBaseStore, type BaseStore, type JsonFile } from "@repo/core/sync/base-store";
+import { isBlobFileName, type BaseBlobStore } from "@repo/core/sync/blob-store";
+import type { Hash } from "@repo/core/sync/vault-file";
 import { fsSafeStamp } from "@repo/core/sync/reconcile";
 
 // ---------------------------------------------------------------------------
@@ -65,10 +68,17 @@ export function createVaultSyncIo(vault: VaultManager): SyncIo {
     list: () => vault.listAllPaths(),
     read: (path) => vault.readBytes(path),
     write: (path, content) => vault.writeBytes(path, content),
+    // Deliberately the PERMANENT delete, not trash(): a sync-applied remote
+    // delete was user-initiated (and OS-trashed) on the originating device,
+    // and this port is synchronous by the engine's contract. Conflicting
+    // local edits are already preserved as sibling copies by reconcile.
     remove: (path) => {
       vault.delete(path);
     },
     // Stat-keyed change detection so a pass skips re-hashing unchanged files.
+    // Snapshot-served when the vault's walk cache is fresh (≤1s; own writes
+    // always invalidate), so a pass adds no second stat sweep — an external
+    // write racing that window is caught on the next pass (engine self-heals).
     fingerprint: (path) => vault.statFingerprint(path),
   };
 }
@@ -87,8 +97,7 @@ export function createVaultSyncIo(vault: VaultManager): SyncIo {
 /** Per-vault base file, keyed by a short hash of the vaultId so switching the
  * synced vault never clobbers another's anchor (vaultIds may contain `/`). */
 function baseStorePath(vaultId: string): string {
-  const key = crypto.createHash("sha256").update(vaultId).digest("hex").slice(0, 16);
-  return inteligirPath(`sync-base-${key}.json`);
+  return inteligirPath(`sync-base-${shortPathKey(vaultId)}.json`);
 }
 
 /** A synchronous `JsonFile` over a plain file path — `read` returns `null` on
@@ -132,6 +141,71 @@ export function createJsonBaseStore(
 }
 
 // ---------------------------------------------------------------------------
+// Base-blob store — content-addressed last-synced BYTES (markdown only) for
+// the merge ladder's true 3-way base, per vault under ~/.inteligir. A flat
+// directory of files named by their sha-256 contentHash — the same hashes the
+// base manifest records. Like the base manifest it is a PURE CACHE: a missing
+// or corrupt blob only downgrades a merge to a conflict copy.
+// ---------------------------------------------------------------------------
+
+/** Per-vault blob directory, keyed exactly like `baseStorePath`. */
+function blobStoreDir(vaultId: string): string {
+  return inteligirPath(`sync-blobs-${shortPathKey(vaultId)}`);
+}
+
+/**
+ * A `BaseBlobStore` over a flat directory of hash-named files. Honors the port
+ * contract: `put` is an existence-checked no-op (content-addressed — same hash,
+ * same bytes) and never throws; `get` re-hashes and returns `null` on a
+ * mismatch so a torn write can never be merged as base bytes.
+ */
+export function createNodeBlobStore(
+  vaultId: string,
+  opts: { dir?: string | undefined } = {},
+): BaseBlobStore {
+  const dir = opts.dir ?? blobStoreDir(vaultId);
+  const fileFor = (hash: Hash) => path.join(dir, hash);
+  return {
+    get: (hash) => {
+      let bytes: Uint8Array;
+      try {
+        bytes = new Uint8Array(fs.readFileSync(fileFor(hash)));
+      } catch {
+        return null;
+      }
+      const digest = crypto.createHash("sha256").update(bytes).digest("hex");
+      return digest === hash ? bytes : null;
+    },
+    put: (hash, bytes) => {
+      const file = fileFor(hash);
+      try {
+        if (fs.existsSync(file)) return; // content-addressed — already stored
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(file, bytes);
+      } catch {
+        // Capture is best-effort — a dropped blob degrades to a conflict copy.
+      }
+    },
+    prune: (keep) => {
+      let entries: string[];
+      try {
+        entries = fs.readdirSync(dir);
+      } catch {
+        return; // no directory yet — nothing to prune
+      }
+      for (const name of entries) {
+        if (!isBlobFileName(name) || keep.has(name)) continue;
+        try {
+          fs.unlinkSync(path.join(dir, name));
+        } catch {
+          // A failed unlink is retried on the next pass's prune.
+        }
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // SyncManager — the desktop composition of the node ports into a core
 // SyncEngine.
 // ---------------------------------------------------------------------------
@@ -145,6 +219,8 @@ export type SyncManagerOptions = {
   vault?: SyncIo;
   /** Override the base-manifest file path (tests). */
   basePath?: string;
+  /** Override the base-blob directory (tests — keeps ~/.inteligir untouched). */
+  blobsDir?: string;
   /** FsAdapter for the base store (tests). */
   fs?: FsAdapter;
   /** Clock for conflict-copy timestamps. Defaults to the wall clock. */
@@ -168,6 +244,7 @@ export function createSyncManager(opts: SyncManagerOptions): SyncEngine {
     port: opts.port,
     io: opts.vault ?? createVaultSyncIo(getVaultManager()),
     base: createJsonBaseStore(opts.vaultId, { fs: opts.fs, path: opts.basePath }),
+    blobs: createNodeBlobStore(opts.vaultId, { dir: opts.blobsDir }),
     hash: createNodeHasher(),
     stamp: nodeStamp(opts.now),
     debounceMs: opts.debounceMs,

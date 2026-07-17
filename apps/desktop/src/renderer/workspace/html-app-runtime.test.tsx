@@ -1,10 +1,11 @@
 // Runtime surface test — the vendored `resources/html-app-runtime/runtime.js`
-// is the app-facing half of the broker contract (ADR-0002). It's plain ES5-ish
+// is the app-facing half of the broker contract (CLAUDE.md § HTML Apps — the
+// injected-deps + broker contract is append-only). It's plain ES5-ish
 // vanilla JS with no module system, so we eval it into a jsdom window and drive
 // the postMessage RPC by hand: outbound requests are captured (window.parent ===
 // window in jsdom, so window.postMessage is the wire), inbound responses are
-// dispatched as message events. This pins the append-only additions from plan
-// 019 — `list(options)` forwarding and `backlinks` + `safeBacklinks`.
+// dispatched as message events. This also pins the append-only additions —
+// `list(options)` forwarding and `backlinks` + `safeBacklinks`.
 
 import runtimeSource from "../../../resources/html-app-runtime/runtime.js?raw";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";

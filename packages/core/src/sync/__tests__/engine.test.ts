@@ -112,6 +112,7 @@ describe("SyncEngine.syncOnce", () => {
       pulled: 0,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     const manifest = await port.listManifest();
@@ -131,6 +132,7 @@ describe("SyncEngine.syncOnce", () => {
       pulled: 1,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(vault.readText("remote-only.md")).toBe("REMOTE");
@@ -150,6 +152,7 @@ describe("SyncEngine.syncOnce", () => {
       pulled: 0,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(port.currentGeneration()).toBe(genAfterFirst); // no coordinator writes
@@ -197,6 +200,7 @@ describe("SyncEngine.syncOnce", () => {
       pulled: 0,
       deleted: 0,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
   });
@@ -215,9 +219,31 @@ describe("SyncEngine.syncOnce", () => {
       pulled: 0,
       deleted: 1,
       conflicts: 0,
+      merged: 0,
       conflictPaths: [],
     });
     expect(await remoteText("gone.md")).toBeNull();
+  });
+
+  it("without a blob store, a mergeable both-appended .md still resolves as a conflict copy (pre-ladder behavior)", async () => {
+    // Both sides pure-append to a shared base — the merge ladder WOULD union
+    // this (see engine-merge.test.ts), but no `blobs` port is configured, so
+    // the engine must behave byte-identically to before the ladder existed.
+    vault.writeText("journal.md", "base\n");
+    await newEngine().syncOnce();
+    await port.putFile("journal.md", encode("base\nremote line\n"), 1);
+    vault.writeText("journal.md", "base\nlocal line\n");
+
+    const out = await newEngine().syncOnce();
+
+    expect(out.status).toBe("ok");
+    if (out.status === "ok") {
+      expect(out.merged).toBe(0);
+      expect(out.conflicts).toBe(1);
+      expect(out.conflictPaths).toEqual([conflictCopyName("journal.md", STAMP)]);
+    }
+    expect(vault.readText("journal.md")).toBe("base\nremote line\n");
+    expect(vault.readText(conflictCopyName("journal.md", STAMP))).toBe("base\nlocal line\n");
   });
 
   it("reports an error (and leaves base untouched) when the coordinator vault mismatches", async () => {

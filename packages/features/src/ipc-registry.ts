@@ -11,6 +11,7 @@ import { type Static, type TSchema, Type } from "@sinclair/typebox";
 
 import type { AppAgentEvent } from "./agent-events";
 import { AppEventSchema, type AppState } from "./app-state";
+import type { DeepLinkNavEvent } from "./deep-link";
 import {
   AddGraphqlInputSchema,
   AddMcpInputSchema,
@@ -53,8 +54,10 @@ import type {
   LinkGraph,
   SearchResult,
   TagCount,
+  VaultTaskEntry,
   WikiTarget,
 } from "@repo/core/knowledge/knowledge-index";
+import type { NotePrivacy } from "@repo/core/markdown/frontmatter";
 import {
   RemoteAccessSetConfigSchema,
   RevokeDeviceSchema,
@@ -172,6 +175,63 @@ const NotificationsPatchSchema = Type.Object(
 );
 
 // ---------------------------------------------------------------------------
+// Deep-link capture — inteligir://append|task landing on today's daily note.
+// ---------------------------------------------------------------------------
+
+/** A capture the host wants applied to the OPEN note's live buffer: the
+ * durable inbox entry's id, the daily-note path it targets, and the exact
+ * (already sanitized) line to append. */
+export type CaptureApplyEvent = { id: string; path: string; line: string };
+
+/** The renderer's verdict on a capture-apply: `applied` (persisted through
+ * the live buffer — remove the inbox entry), `not-open` (host drains it to
+ * disk now), or `deferred` (a transient AI session blocks the buffer — keep
+ * the entry, cancel the host's timeout drain, the renderer re-acks when the
+ * session settles). */
+const AckCaptureSchema = Type.Object(
+  {
+    id: Type.String(),
+    outcome: Type.Union([
+      Type.Literal("applied"),
+      Type.Literal("not-open"),
+      Type.Literal("deferred"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+
+/** The capture-apply verdict — the ONE declaration; the renderer applier and
+ * the host CaptureManager both import it, so the ack contract can't fork. */
+export type CaptureAckOutcome = Static<typeof AckCaptureSchema>["outcome"];
+
+// ---------------------------------------------------------------------------
+// AI-write checkpoints — pre-write copies of vault notes captured at the chat
+// agent's tool gate (checkpoints/checkpoint-manager.ts). Delegation has its
+// own pre-run snapshot + dock affordance; these channels serve the CHAT undo.
+// ---------------------------------------------------------------------------
+
+/** A chat-agent edit/write on a vault note was checkpointed: the host copied
+ * the pre-write bytes before the tool executed. Fired mid-turn; the renderer
+ * collects them per turn (first capture per path = the pre-turn bytes) and
+ * offers one undo toast when the turn settles. `create` = the write made a
+ * new file, so undo deletes it. */
+export type AgentEditCaptured = {
+  id: string;
+  path: string;
+  kind: "edit" | "create";
+  capturedAt: number;
+};
+
+const RestoreAgentEditsSchema = Type.Object(
+  { ids: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }) },
+  { additionalProperties: false },
+);
+
+/** restoreAgentEdits verdict. Partial failures aggregate into one message —
+ * whatever could be restored was. */
+export type RestoreAgentEditsResult = { ok: true } | { ok: false; error: string };
+
+// ---------------------------------------------------------------------------
 // Vault — the user's local knowledge folder (markdown). Paths are
 // vault-relative; main confines them under the vault root.
 // ---------------------------------------------------------------------------
@@ -179,7 +239,7 @@ const NotificationsPatchSchema = Type.Object(
 const VaultPathSchema = Type.Object({ path: Type.String() }, { additionalProperties: false });
 // The currently open note the host should watch for external edits (null clears
 // it). Only this ONE file is watched — the rest of the vault is an ephemeral
-// snapshot refreshed on demand (ADR-0001).
+// snapshot refreshed on demand (vault liveness — CLAUDE.md § Decisions).
 const WatchedNoteSchema = Type.Object(
   { path: Type.Union([Type.String(), Type.Null()]) },
   { additionalProperties: false },
@@ -217,6 +277,11 @@ const VaultWriteAssetSchema = Type.Object(
  * a broken image is a UI state, not an exception — hence a Result, not a throw. */
 export type ReadVaultAssetResult = { ok: true; bytesBase64: string } | { ok: false; error: string };
 
+/** probeNotePrivacy result: notePrivacy's verdict from a LIVE disk read, plus
+ * "absent" when no file exists at the path. Callers treat everything except
+ * "public" as private (fail-closed). */
+export type NotePrivacyProbe = NotePrivacy | "absent";
+
 // ---------------------------------------------------------------------------
 // Knowledge — the host's link + lexical search indexes over the vault
 // (backlinks, graph, palette search, wiki autocomplete). Result shapes live
@@ -232,6 +297,26 @@ const KnowledgeSearchSchema = Type.Object(
 );
 
 const KnowledgeTagSchema = Type.Object({ tag: Type.String() }, { additionalProperties: false });
+
+// Guarded task toggle — keyed by ORDINAL (delegation's anchor key; survives
+// line shifts and duplicate identical lines) plus the exact recorded line.
+const ToggleTaskSchema = Type.Object(
+  {
+    path: Type.String(),
+    /** Position among the file's GFM task items (find-task-line's counting). */
+    ordinal: Type.Number({ minimum: 0 }),
+    /** The task's exact untrimmed source line (terminator excluded) as the
+     * projection recorded it — the write proceeds only on byte equality. */
+    expectedRaw: Type.String(),
+  },
+  { additionalProperties: false },
+);
+
+/** toggleVaultTask's verdict. Failures are VALUES, never throws: the host has
+ * already kicked an index refresh, so the renderer refetches + toasts. */
+export type ToggleTaskResult =
+  | { ok: true; checked: boolean }
+  | { ok: false; reason: "line-missing" | "line-changed" | "not-a-checkbox"; error: string };
 
 // Float32Array / ArrayBuffer / ArrayBufferView don't have a TypeBox primitive;
 // approximate with Type.Any plus a runtime instanceof guard at the handler.
@@ -388,8 +473,18 @@ export const IPC = {
     "vault:revoke-html-app-token",
     HtmlAppTokenSchema,
   ),
+  /** LIVE-disk privacy probe for one note — the SAME probe the agent tool
+   * gate runs (never an index, never the renderer buffer). The context-hint
+   * path needs it: a sync pull or agent write can flip a note `private: true`
+   * on disk before the open-note watcher refreshes the editor buffer, and a
+   * private note's PATH must not reach the model either. */
+  probeNotePrivacy: invoke<typeof VaultPathSchema, NotePrivacyProbe>(
+    "vault:probe-note-privacy",
+    VaultPathSchema,
+  ),
   /** Tell the host which note is open so it watches that single file for
-   * external edits (ADR-0001). Pass `{ path: null }` when no note is open. */
+   * external edits (vault liveness — CLAUDE.md § Decisions). Pass
+   * `{ path: null }` when no note is open. */
   setWatchedNote: invoke<typeof WatchedNoteSchema, void>(
     "vault:set-watched-note",
     WatchedNoteSchema,
@@ -432,6 +527,19 @@ export const IPC = {
     "knowledge:notes-by-tag",
     KnowledgeTagSchema,
   ),
+  /** Every task in the vault (checked and not), path-then-ordinal — the Tasks
+   * view's whole-vault query over the projection. */
+  listVaultTasks: invokeVoid<VaultTaskEntry[]>("knowledge:tasks"),
+  /** Guarded checkbox toggle: re-read the file, locate the ordinal-th task
+   * item, require its current line to equal `expectedRaw` byte-for-byte, and
+   * flip only the marker char (atomic write; the watcher broadcasts). On ANY
+   * {ok:false} the host refreshes the index (self-heal) and the renderer
+   * refetches + toasts — refuse loudly, never write wrong. Invalidation rides
+   * the existing onKnowledgeUpdated event. */
+  toggleVaultTask: invoke<typeof ToggleTaskSchema, ToggleTaskResult>(
+    "knowledge:toggle-task",
+    ToggleTaskSchema,
+  ),
   /** Fired after every index refresh (revision is monotonic) so backlink
    * panes / graph views re-query. */
   onKnowledgeUpdated: event<{ revision: number }>("knowledge:updated"),
@@ -460,6 +568,41 @@ export const IPC = {
   /** Fired as a running delegation streams its response text (accumulating,
    * keyed by id) so the response dock can show it live. */
   onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
+
+  // AI-write checkpoints — the chat agent's undo (see the section header on
+  // AgentEditCaptured above).
+  /** A chat-agent write was checkpointed pre-execution — drives the
+   * post-turn undo toast. */
+  onAgentEditCaptured: event<AgentEditCaptured>("checkpoint:captured"),
+  /** Undo a set of chat checkpoints: each `edit` writes its pre-write bytes
+   * back atomically through the vault (no-op when already matching; the
+   * open-note watcher refreshes editors), each `create` moves the created
+   * file to the OS trash. The renderer flushes the open note FIRST so the
+   * restore never fights a dirty buffer. */
+  restoreAgentEdits: invoke<typeof RestoreAgentEditsSchema, RestoreAgentEditsResult>(
+    "checkpoint:restore",
+    RestoreAgentEditsSchema,
+  ),
+
+  // Deep-link capture — inteligir://append|task. The host enqueues to a
+  // durable inbox and offers the line to the renderer; only the OPEN note is
+  // ever applied through the live buffer (the no-clobber path) — everything
+  // else drains host-side onto today's note.
+  /** A capture targets the open note: apply `line` through the live editor
+   * buffer so the next autosave persists it (a host disk write to an open
+   * DIRTY note would be overwritten by the next whole-buffer flush). */
+  onCaptureApply: event<CaptureApplyEvent>("capture:apply"),
+  /** The renderer's capture-apply verdict — see AckCaptureSchema. */
+  ackCapture: invoke<typeof AckCaptureSchema, void>("capture:ack", AckCaptureSchema),
+  /** A deep-link nav verb arrived (inteligir://today | note/<target> |
+   * search?q=). Id-stamped so the renderer can dedupe the cold-launch
+   * overlap between this push and the takePendingDeepLinkNav pull. */
+  onDeepLinkNav: event<DeepLinkNavEvent>("deep-link:nav"),
+  /** Pull-and-clear the parked nav on mount — a cold launch delivers the URL
+   * before any renderer subscribed. Callers MUST subscribe onDeepLinkNav
+   * BEFORE pulling (the reverse order silently drops a nav landing between
+   * the two) and dedupe by event id. */
+  takePendingDeepLinkNav: invokeVoid<DeepLinkNavEvent | null>("deep-link:take-pending"),
 
   // Inline AI — one-shot text generation for the editor's AI menu (generate
   // and edit flows), run on an isolated no-tools session.

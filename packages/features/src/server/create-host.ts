@@ -16,9 +16,11 @@ import { initMachine, shutdown } from "./app/app-machine";
 import { subscribeEvents } from "./events";
 import { constructHostSingletons } from "./host-context";
 import { initAgentLog } from "./lib/agent-log";
+import { hardenAppDir } from "./lib/harden-app-dir";
 import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
 import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
 import { registerAllHandlers } from "./handlers/register-handlers";
+import { getCaptureManager } from "./capture/capture-manager";
 import { getDelegationManager } from "./delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "./knowledge/knowledge-manager";
 import { getSyncCoordinator } from "./sync/sync-coordinator";
@@ -85,11 +87,22 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // surfaces it and quits.
       acquireHostLock();
 
+      // Permission sweep before anything else touches app state: normalize
+      // pre-existing installs (0755 session dirs, 0644 transcripts/stores —
+      // note content) to owner-only. Best-effort by design, but keep the
+      // whole call guarded too: a sweep failure must never block boot.
+      try {
+        hardenAppDir();
+      } catch (err) {
+        console.warn("[host] app-dir permission sweep failed:", err);
+      }
+
       // Must run before any pi-coding-agent call that consults getAgentDir().
       configurePaths();
 
       // Vault: ensure the folder + agent symlink exist, THEN wire the change
-      // notifier. There is no recursive watcher anymore (ADR-0001) — the notifier
+      // notifier. There is no recursive watcher anymore (vault liveness —
+      // CLAUDE.md § Decisions) — the notifier
       // fires from app-initiated writes, the open-note watcher, and on-demand
       // refresh (focus / "Refresh vault" / delegation completion). The notifier
       // is module-scoped, so it survives a logout/login reset. Every vault change
@@ -114,6 +127,15 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
         getDelegationManager().pruneSnapshots();
       } catch (err) {
         console.warn("[host] delegation snapshot prune failed:", err);
+      }
+
+      // Deep-link captures that survived a crash or arrived on a cold launch:
+      // drain the durable inbox now that the vault is ready. Exact-line dedupe
+      // makes a re-drain of an already-applied line a no-op. Best-effort.
+      try {
+        getCaptureManager().drainPendingCaptures();
+      } catch (err) {
+        console.warn("[host] capture inbox drain failed:", err);
       }
 
       // Vault-sync — LIVE, gated at runtime (not by the build). The coordinator

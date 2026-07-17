@@ -17,13 +17,13 @@
 // is still indexed (backlinks/graph) but is never rewritten.
 // ---------------------------------------------------------------------------
 
-import type { Nodes } from "mdast";
+import type { ListItem, Nodes } from "mdast";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { parseProperties } from "../markdown/frontmatter";
+import { parseProperties, privacyOfParsed, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange, remarkWikiLink } from "../markdown/remark-wiki-link";
 import { basenamePath, extnamePath } from "./vault-path";
 
@@ -54,6 +54,27 @@ export type ExtractedLink = {
   targetSpan?: Span;
 };
 
+/** One GFM task item (`- [ ]` checkbox), as the projection records it. The
+ * ordinal is the item's position among the doc's task items — the SAME
+ * pre-order counting find-task-line and the renderer's todoIndex use, so it
+ * doubles as delegation's anchor key. `raw` is the exact untrimmed source
+ * line EXCLUDING its terminator (`\r\n`/`\r`/`\n`) — the guarded-write input. */
+export type ExtractedTask = {
+  checked: boolean;
+  /** The item text after the checkbox marker, trimmed (inline md verbatim). */
+  text: string;
+  /** The EXACT untrimmed source line, terminator excluded. */
+  raw: string;
+  /** 1-based source line the item starts on. */
+  line: number;
+  /** Position among the doc's GFM task items (0-based, document pre-order). */
+  ordinal: number;
+  /** Wiki link/embed targets written inside the item's FIRST paragraph, in
+   * document order — the scheduling association input (never interpreted as
+   * dates at extraction). */
+  wikiTargets: string[];
+};
+
 export type DocScan = {
   /** First `#` heading's text, or null (callers fall back to the filename). */
   title: string | null;
@@ -64,6 +85,17 @@ export type DocScan = {
    * declaration order), then inline `#tag` tokens in document order. Unified
    * case-insensitively downstream by TagIndex. */
   tags: string[];
+  /** Frontmatter `aliases` (Obsidian's alias list), display case, deduped
+   * case-insensitively. The SINGLE extraction source for aliases — sibling
+   * indexes consume this, never re-parse frontmatter. */
+  aliases: string[];
+  /** Frontmatter `private: true` (strict boolean — `yes`/`"true"` stay text
+   * and read false). Malformed frontmatter reads TRUE: at the index level a
+   * doc we can't type is treated private, the fail-closed side. */
+  private: boolean;
+  /** The doc's GFM task items, in ordinal order. Empty when the note opts out
+   * via frontmatter `tasks: false` (the checkbox property, like `private`). */
+  tasks: ExtractedTask[];
 };
 
 const processor = unified()
@@ -72,10 +104,21 @@ const processor = unified()
   .use(remarkGfm)
   .use(remarkWikiLink);
 
-/** Parse a doc once and pull out title, headings, note links, and tags. */
+/** Parse a doc once and pull out title, headings, note links, tags, tasks. */
 export function scanDoc(source: string): DocScan {
   const tree = processor.parse(source);
-  const scan: DocScan = { title: null, headings: [], links: [], tags: extractTags(tree) };
+  // ONE YAML parse per scan — every frontmatter extractor consumes this
+  // result instead of re-locating the node and re-running parseProperties.
+  const frontmatter = parseFrontmatter(tree);
+  const scan: DocScan = {
+    title: null,
+    headings: [],
+    links: [],
+    tags: extractTags(tree, frontmatter),
+    aliases: frontmatterAliases(frontmatter),
+    private: frontmatterPrivate(frontmatter),
+    tasks: frontmatterTasksDisabled(frontmatter) ? [] : collectTasks(tree, source),
+  };
   walk(tree, (node) => {
     switch (node.type) {
       case "heading": {
@@ -149,28 +192,77 @@ function textOf(node: Nodes): string {
 // (search-index tokenizer), so it costs nothing here.
 const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
 
+/** The leading `yaml` node's typed properties, parsed ONCE per scanDoc pass,
+ * or null when the doc has no frontmatter block. Each `frontmatter*` extractor
+ * below keeps its own none/invalid default mapping over this shared result. */
+function parseFrontmatter(tree: Nodes): ParsedProperties | null {
+  if (!("children" in tree)) return null;
+  const yaml = tree.children.find((child) => child.type === "yaml");
+  if (!yaml || yaml.type !== "yaml") return null;
+  return parseProperties(yaml.value);
+}
+
 /** The doc's tags: frontmatter `tags` (declaration order) then inline `#tag`
  * tokens (document order). Inline extraction is PARSE-AWARE — it scans only
  * mdast `text` nodes, so code spans/fences (their own `inlineCode`/`code`
  * nodes), link/image URLs (a node's `url`, never text), and link/image LABELS
  * (their subtrees are suppressed) are all naturally excluded, no byte regex. */
-function extractTags(tree: Nodes): string[] {
-  const tags = [...frontmatterTags(tree)];
+function extractTags(tree: Nodes, frontmatter: ParsedProperties | null): string[] {
+  const tags = [...frontmatterTags(frontmatter)];
   collectInlineTags(tree, tags, false);
   return tags;
 }
 
-/** Parse the leading `yaml` node's `tags` property (017's typed tags: a string
+/** The parsed frontmatter's `tags` property (017's typed tags: a string
  * array). A leading `#` on a frontmatter tag is tolerated and stripped. */
-function frontmatterTags(tree: Nodes): string[] {
-  if (!("children" in tree)) return [];
-  const yaml = tree.children.find((child) => child.type === "yaml");
-  if (!yaml || yaml.type !== "yaml") return [];
-  const parsed = parseProperties(yaml.value);
-  if (parsed.kind !== "valid") return [];
+function frontmatterTags(parsed: ParsedProperties | null): string[] {
+  if (parsed === null || parsed.kind !== "valid") return [];
   const prop = parsed.properties.find((p) => p.key === "tags" && p.type === "tags");
   if (!prop || prop.type !== "tags") return [];
   return prop.value.map((tag) => tag.replace(/^#/, "").trim()).filter((tag) => tag !== "");
+}
+
+/** The parsed frontmatter's `aliases` property — Obsidian's alias
+ * list. The canonical form is a plain string array (which classifies as the
+ * existing 'tags' TypedProperty, so the properties panel round-trips it for
+ * free); for Obsidian interop a single-string scalar and the legacy `alias:`
+ * key are accepted too. Values are trimmed, empties dropped, and deduped
+ * case-insensitively keeping the first display case (TagIndex's identity
+ * rule). Anything else — malformed yaml, non-string values — degrades to []. */
+function frontmatterAliases(parsed: ParsedProperties | null): string[] {
+  if (parsed === null || parsed.kind !== "valid") return [];
+  const prop =
+    parsed.properties.find((p) => p.key === "aliases") ??
+    parsed.properties.find((p) => p.key === "alias");
+  if (!prop) return [];
+  // "tags" = string array; "text"/"date" = a single string scalar (a date
+  // alias like `2026-07-01` classifies as date but is still a string).
+  const values =
+    prop.type === "tags"
+      ? prop.value
+      : prop.type === "text" || prop.type === "date"
+        ? [prop.value]
+        : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const alias = raw.trim();
+    if (alias === "") continue;
+    const key = alias.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(alias);
+  }
+  return out;
+}
+
+/** The parsed frontmatter's strict-boolean `private` verdict for the index —
+ * the shared privacyOfParsed kernel with the index's fail-closed mapping:
+ * no frontmatter → false; indeterminate (malformed) → TRUE (a doc we can't
+ * type is treated private at the index level). */
+function frontmatterPrivate(parsed: ParsedProperties | null): boolean {
+  if (parsed === null) return false;
+  return privacyOfParsed(parsed) !== "public";
 }
 
 /** Walk `text` nodes for `#tag` tokens; suppress link/image subtrees so a
@@ -195,6 +287,79 @@ function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): voi
   if ("children" in node) {
     for (const child of node.children) collectInlineTags(child, out, nextSuppressed);
   }
+}
+
+// ---- Tasks ------------------------------------------------------------------
+
+// The list marker + checkbox prefix on a task line; what's left is the item
+// text. Kept in lockstep with find-task-line's MARKER.
+const TASK_MARKER_RE = /^\s*[-*+]\s+\[[ xX]\]\s+/;
+
+/** The parsed frontmatter's `tasks: false` opt-out — a strict-boolean
+ * checkbox property like `private`, but defaulting OPEN: only an explicit
+ * `tasks: false` suppresses extraction (malformed frontmatter changes
+ * nothing — suppressing tasks is a preference, not a safety property). */
+function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
+  if (parsed === null || parsed.kind !== "valid") return false;
+  const prop = parsed.properties.find((p) => p.key === "tasks");
+  return prop !== undefined && prop.type === "checkbox" && !prop.value;
+}
+
+/** Every GFM task item in `source`, in ordinal order, IGNORING the `tasks:
+ * false` opt-out — the raw counting contract shared with find-task-line and
+ * the guarded toggle (delegation ordinals count every task item regardless of
+ * the note's view preference). scanDoc applies the opt-out on top. */
+export function scanTaskItems(source: string): ExtractedTask[] {
+  return collectTasks(processor.parse(source), source);
+}
+
+function collectTasks(tree: Nodes, source: string): ExtractedTask[] {
+  const items: Array<{ item: ListItem; checked: boolean }> = [];
+  collectTaskItems(tree, items);
+  if (items.length === 0) return [];
+  // Same line-split rule the projection's snippets use: `raw` excludes the
+  // terminator, whatever flavor it was — the guarded-write EOL contract.
+  const lines = source.split(/\r\n|\r|\n/);
+  const tasks: ExtractedTask[] = [];
+  for (const [ordinal, { item, checked }] of items.entries()) {
+    const startLine = item.position?.start.line;
+    if (startLine === undefined) continue; // ordinal still consumed — parity with find-task-line
+    const raw = lines[startLine - 1] ?? "";
+    tasks.push({
+      checked,
+      text: raw.replace(TASK_MARKER_RE, "").trim(),
+      raw,
+      line: startLine,
+      ordinal,
+      wikiTargets: firstParagraphWikiTargets(item),
+    });
+  }
+  return tasks;
+}
+
+/** Pre-order DFS collecting task-list items (`checked` is a boolean) in
+ * document order — find-task-line's counting contract, verbatim. */
+function collectTaskItems(node: Nodes, out: Array<{ item: ListItem; checked: boolean }>): void {
+  if (node.type === "listItem" && typeof node.checked === "boolean") {
+    out.push({ item: node, checked: node.checked });
+  }
+  if ("children" in node) {
+    for (const child of node.children) collectTaskItems(child, out);
+  }
+}
+
+/** Wiki link/embed targets inside the item's first paragraph (the checkbox
+ * line's own text), document order — nested sub-lists don't contribute. */
+function firstParagraphWikiTargets(item: ListItem): string[] {
+  const paragraph = item.children.find((child) => child.type === "paragraph");
+  if (!paragraph) return [];
+  const targets: string[] = [];
+  walk(paragraph, (node) => {
+    if (node.type !== "wikiLink" && node.type !== "wikiEmbed") return;
+    const target = parseWikiBodyRange(node.body).target;
+    if (target !== "") targets.push(target);
+  });
+  return targets;
 }
 
 type NodePosition = { span: Span; line: number };

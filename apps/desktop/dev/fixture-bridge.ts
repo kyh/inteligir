@@ -4,6 +4,11 @@
 // typecheck. Vault reads/writes hit a Map seeded with sample notes; agent
 // chat streams a canned reply; STT streams a canned transcript;
 // TTS/executor/updates report unavailable.
+//
+// Stub convention for new channels: make the stub DO something real against
+// the in-memory state, or throw `unavailable("<feature>")` naming the gap.
+// Never silently return `[]`/undefined/false where the real host would act —
+// a stub that answers wrong is worse than an error that names itself.
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "@repo/features/agent-events";
@@ -15,8 +20,15 @@ import type { VaultEntry } from "@repo/features/ipc-registry";
 import type { RemoteAccessState } from "@repo/features/remote-access";
 import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
-import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
+import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/core/knowledge/guarded-line-edit";
+import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
+import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
+import { scanTaskItems, titleFromPath } from "@repo/core/knowledge/link-extract";
+import { LinkGraphIndex } from "@repo/core/knowledge/link-graph-index";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
+import { projectDoc } from "@repo/core/knowledge/projection";
 import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
+import { addFrontmatterAlias, notePrivacy } from "@repo/core/markdown/frontmatter";
 import { conflictCopyName, fsSafeStamp } from "@repo/core/sync/reconcile";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
@@ -129,7 +141,7 @@ nested:
 
 Edit the typed properties above; the yaml block round-trips byte-for-byte.
 `,
-  // Inline-tag note (plan 021): exercises the palette `#` flow. Its inline
+  // Inline-tag note (tags palette): exercises the palette `#` flow. Its inline
   // #meta unifies with frontmatter-note.md's frontmatter `tags: [meta, demo]`,
   // so the tag list demos BOTH sources (meta count 2) and inline-only tags.
   // Pre-canonical prose (the corpus test pins it canonical).
@@ -291,31 +303,23 @@ Self embed (cycle guard): ![[digest]]
 `,
 };
 
-// Matches one checkbox line: indent, marker, box state, label. Ordinals count
-// every checkbox (checked or not), mirroring the host's find-task-line.
-const CHECKBOX_RE = /^(\s*)- \[( |x|X)\] (.*)$/;
-
-/** Simulate the background agent's edit: check the `index`-th checkbox off and
- * append a nested one-line result under it. Returns null when the ordinal
- * doesn't land on a checkbox. */
+/** Simulate the background agent's edit: check the `index`-th task item off
+ * (the REAL core primitives — scanTaskItems locates by the shared ordinal
+ * contract, toggleCheckboxLine flips only the marker char) and append a
+ * nested one-line result under it. Null when the ordinal doesn't land on an
+ * unchecked task item, mirroring the host's findTaskLine rejections. */
 function simulateDelegationEdit(
   content: string,
   index: number,
 ): { content: string; taskText: string; lineText: string } | null {
-  const lines = content.split("\n");
-  let ordinal = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? "";
-    const match = CHECKBOX_RE.exec(line);
-    if (!match) continue;
-    ordinal++;
-    if (ordinal !== index) continue;
-    const [, indent = "", , label = ""] = match;
-    lines[i] = `${indent}- [x] ${label}`;
-    lines.splice(i + 1, 0, `${indent}  - ✅ Done in the dev harness (simulated edit)`);
-    return { content: lines.join("\n"), taskText: label, lineText: line.trim() };
-  }
-  return null;
+  const task = scanTaskItems(content).find((t) => t.ordinal === index);
+  if (!task || task.checked) return null;
+  const toggled = toggleCheckboxLine(content, task.line - 1, task.raw);
+  if (!toggled.ok) return null;
+  const indent = /^\s*/.exec(task.raw)?.[0] ?? "";
+  const lines = toggled.content.split("\n");
+  lines.splice(task.line, 0, `${indent}  - ✅ Done in the dev harness (simulated edit)`);
+  return { content: lines.join("\n"), taskText: task.text, lineText: task.raw };
 }
 
 /** Streams `text` in small chunks via `onDelta`, then calls `onDone`.
@@ -406,7 +410,7 @@ function cannedEditResponse(prompt: string): string | null {
 // classify as a doc).
 const SAMPLE_ASSETS: Record<string, string> = {
   "wiki/diagram.png": "png-placeholder (dev harness fixture, not real image bytes)",
-  // Template fixtures (plan 020) so "New note from template…" and the daily-note
+  // Template fixtures so "New note from template…" and the daily-note
   // seed are drivable in the harness. Kept out of SAMPLE_NOTES: they carry
   // {{date}}/{{title}} placeholders + frontmatter that the corpus contract
   // (every entry canonical) doesn't model — they're only ever read as template
@@ -595,7 +599,21 @@ Exploratory project work, links back to [[hub]].
 `,
 };
 
-export function createFixtureBridge(): Bridge {
+/** Tiny non-crypto content hash (FNV-1a): the store wants a value that
+ * changes with the bytes, and the harness has no node:crypto. */
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+/** `openKnowledgeStore` injects the persistent search store (the harness
+ * bootstrap passes core's SQL store over the wasm driver), mirroring how the
+ * desktop shell injects the node:sqlite store into KnowledgeManager. */
+export function createFixtureBridge(openKnowledgeStore: (root: string) => KnowledgeStore): Bridge {
   const vault = new Map<string, string>([
     ...Object.entries(SAMPLE_NOTES),
     ...Object.entries(SAMPLE_ASSETS),
@@ -612,6 +630,10 @@ export function createFixtureBridge(): Bridge {
   // Pre-run copies keyed by delegation id — the in-memory twin of the host's
   // ~/.inteligir/snapshots store, so "Restore original" is exercisable.
   const snapshots = new Map<string, { path: string; content: string }>();
+  // The pending simulated-run timer per delegation id, so cancelDelegation
+  // can really pull a "running" run back (clearTimeout = the harness twin of
+  // the host's agent interrupt).
+  const delegationTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
   // Sync — an in-memory stand-in so the settings Sync section is demoable
@@ -668,17 +690,44 @@ export function createFixtureBridge(): Bridge {
       kind: isDocPath(path) ? "doc" : "other",
     }));
 
-  // A REAL knowledge index over the in-memory vault — the same core engine
-  // the host runs — so backlinks/graph/search/autocomplete are exercisable
-  // in the harness with live data.
-  const knowledge = new KnowledgeIndex();
+  // The REAL knowledge engine over the in-memory vault, in the SAME
+  // composition the desktop host runs (knowledge-manager.ts): the pure
+  // LinkGraphIndex resolves links/tags/graph in memory, and the injected SQL
+  // KnowledgeStore (wasm-backed here, node:sqlite on desktop) owns FTS5 bm25
+  // search — so harness search ranks exactly like the product.
+  const linkGraph = new LinkGraphIndex();
+  const knowledgeStore = openKnowledgeStore(FIXTURE_ROOT);
+  // Stat identity is fabricated (no filesystem behind the Map): a fresh
+  // monotonic fingerprint per write — nothing in the harness diffs it.
+  let fingerprintSeq = 0;
   const indexEntry = (path: string): void => {
     const content = vault.get(path);
     if (content === undefined) return;
-    if (isDocPath(path)) knowledge.setDoc(path, content);
-    else knowledge.setOther(path);
+    if (isDocPath(path)) {
+      const projection = projectDoc(path, content);
+      linkGraph.applyDoc(path, projection);
+      fingerprintSeq++;
+      knowledgeStore.upsertDoc(
+        {
+          path,
+          fingerprint: { mtimeMs: fingerprintSeq, size: content.length, ino: fingerprintSeq },
+          contentHash: fnv1a(content),
+          projection,
+        },
+        content,
+      );
+    } else {
+      linkGraph.setOther(path);
+      knowledgeStore.upsertOther(path);
+    }
   };
-  for (const path of vault.keys()) indexEntry(path);
+  const removeEntry = (path: string): void => {
+    linkGraph.remove(path);
+    knowledgeStore.remove(path);
+  };
+  knowledgeStore.transaction(() => {
+    for (const path of vault.keys()) indexEntry(path);
+  });
   let knowledgeRevision = 0;
   const touchVault = (): void => {
     vaultEvents.emit({ root: FIXTURE_ROOT });
@@ -821,7 +870,7 @@ export function createFixtureBridge(): Bridge {
     deleteVaultEntry: async ({ path }) => {
       const removed = vault.delete(path);
       if (removed) {
-        knowledge.remove(path);
+        removeEntry(path);
         touchVault();
         // Mirror the host: deleting a conflict copy resolves its conflict row.
         if (syncState.conflicts.some((conflict) => conflict.path === path)) {
@@ -837,20 +886,43 @@ export function createFixtureBridge(): Bridge {
     renameVaultEntry: async ({ from, to }) => {
       const content = vault.get(from);
       if (content === undefined) return { ok: false, error: `no such file: ${from}` };
-      if (vault.has(to)) return { ok: false, error: `already exists: ${to}` };
+      // Host parity: the destination basename passes the note-name gate.
+      const verdict = checkNoteName(to.split("/").at(-1) ?? to);
+      if (!verdict.ok) return { ok: false, error: noteNameErrorMessage(verdict.reason) };
+      // Host parity: case-insensitive occupied check (a DIFFERENT file
+      // claiming the name refuses; a case-only self-rename passes).
+      const wanted = to.normalize("NFC").toLowerCase();
+      for (const path of vault.keys()) {
+        if (path === from) continue;
+        if (path.normalize("NFC").toLowerCase() === wanted) {
+          return { ok: false, error: `already exists: ${to}` };
+        }
+      }
       // Mirror the host: rename, then rewrite every link that pointed at the
-      // old path (same pure core edit computation).
+      // old path (same pure core edit computation), then record the old stem
+      // as an alias on the moved doc (rename-rewrite's phase 3).
       const docs = new Map<string, string>();
       for (const [path, text] of vault) {
         if (isDocPath(path)) docs.set(path, text);
       }
       const edits = computeRenameEdits(docs, vault.keys(), from, to);
       vault.delete(from);
-      knowledge.remove(from);
-      vault.set(to, content);
-      for (const [path, text] of edits) vault.set(path, text);
+      removeEntry(from);
+      const oldStem = titleFromPath(from);
+      const recordAlias =
+        isDocPath(from) &&
+        isDocPath(to) &&
+        oldStem !== "" &&
+        oldStem.toLowerCase() !== titleFromPath(to).toLowerCase();
+      const moved = edits.get(to) ?? content;
+      vault.set(to, recordAlias ? (addFrontmatterAlias(moved, oldStem) ?? moved) : moved);
+      for (const [path, text] of edits) {
+        if (path !== to) vault.set(path, text);
+      }
       indexEntry(to);
-      for (const path of edits.keys()) indexEntry(path);
+      for (const path of edits.keys()) {
+        if (path !== to) indexEntry(path);
+      }
       touchVault();
       return { ok: true };
     },
@@ -879,6 +951,12 @@ export function createFixtureBridge(): Bridge {
     // No live token store in the harness (no vault-app:// protocol) — the
     // revoke call is a no-op, matching the mint stub above.
     revokeHtmlAppToken: async () => {},
+    // The real probe reads live disk; the harness's "disk" is the Map — same
+    // fail-closed verdict shape (notePrivacy + absent) as the host handler.
+    probeNotePrivacy: async ({ path }) => {
+      const content = vault.get(path);
+      return content === undefined ? "absent" : notePrivacy(content);
+    },
     // No filesystem to watch in the harness — the in-memory Map fires touchVault
     // directly on every write, so there is no external-edit channel to arm.
     setWatchedNote: async () => {},
@@ -887,14 +965,32 @@ export function createFixtureBridge(): Bridge {
     refreshVault: async () => touchVault(),
     onVaultChanged: vaultEvents.subscribe,
 
-    // Knowledge — live queries against the in-memory index.
-    getBacklinks: async ({ path }) => knowledge.backlinks(path),
-    getForwardLinks: async ({ path }) => knowledge.forwardLinks(path),
-    getLinkGraph: async () => knowledge.graph(),
-    searchVault: async ({ query, limit }) => knowledge.search(query, limit),
-    listWikiTargets: async () => knowledge.wikiTargets(),
-    listTags: async () => knowledge.tags(),
-    getNotesByTag: async ({ tag }) => knowledge.notesWithTag(tag),
+    // Knowledge — live queries: link graph in memory, search through FTS5.
+    getBacklinks: async ({ path }) => linkGraph.backlinks(path),
+    getForwardLinks: async ({ path }) => linkGraph.forwardLinks(path),
+    getLinkGraph: async () => linkGraph.graph(),
+    searchVault: async ({ query, limit }) =>
+      knowledgeStore.search(query, limit ?? SEARCH_DEFAULT_LIMIT),
+    listWikiTargets: async () => linkGraph.wikiTargets(),
+    listTags: async () => linkGraph.tags(),
+    getNotesByTag: async ({ tag }) => linkGraph.notesWithTag(tag),
+    listVaultTasks: async () => linkGraph.tasks(),
+    // The REAL guarded toggle over the in-memory vault — same ordinal +
+    // raw-equality contract as the host handler; refusals are values.
+    toggleVaultTask: async ({ path, ordinal, expectedRaw }) => {
+      const content = vault.get(path);
+      if (content === undefined) {
+        return { ok: false, reason: "line-missing", error: `no such file: ${path}` };
+      }
+      const result = toggleTaskAtOrdinal(content, ordinal, expectedRaw);
+      if (!result.ok) {
+        return { ok: false, reason: result.reason, error: "The note changed under the task list." };
+      }
+      vault.set(path, result.content);
+      indexEntry(path);
+      touchVault();
+      return { ok: true, checked: result.checked };
+    },
     onKnowledgeUpdated: knowledgeEvents.subscribe,
 
     // Delegation — no background agent, but the run is simulated against the
@@ -925,7 +1021,8 @@ export function createFixtureBridge(): Bridge {
       };
       delegations.push(delegation);
       delegationEvents.emit({ delegations: [...delegations] });
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        delegationTimers.delete(id);
         const content = vault.get(delegation.sourceFile);
         const edited = content === undefined ? null : simulateDelegationEdit(content, index);
         if (content === undefined || edited === null) {
@@ -933,11 +1030,15 @@ export function createFixtureBridge(): Bridge {
           delegation.error = "That checkbox is no longer in the file.";
         } else {
           // Mirror the host's ordering: snapshot the pre-run bytes FIRST, then
-          // let the "agent" edit, then finish done.
+          // let the "agent" edit, then finish done. Completion re-indexes +
+          // broadcasts (the host's onRunSettled vault refresh — vault
+          // liveness, CLAUDE.md § Decisions) so
+          // knowledge consumers — the tasks view included — see the edit.
           snapshots.set(id, { path: delegation.sourceFile, content });
           delegation.hasSnapshot = true;
           vault.set(delegation.sourceFile, edited.content);
-          vaultEvents.emit({ root: FIXTURE_ROOT });
+          indexEntry(delegation.sourceFile);
+          touchVault();
           delegation.status = "done";
           delegation.anchor = { index, text: edited.taskText, heading: null };
           delegation.lineText = edited.lineText;
@@ -946,10 +1047,29 @@ export function createFixtureBridge(): Bridge {
         delegation.finishedAt = Date.now();
         delegationEvents.emit({ delegations: [...delegations] });
       }, 800);
+      delegationTimers.set(id, timer);
       return { ok: true, delegation };
     },
     listDelegations: async () => ({ delegations: [...delegations] }),
-    cancelDelegation: async () => ({ ok: false }),
+    // A REAL cancel over the simulated run (a throw here would be swallowed
+    // by delegation-store's fire-and-forget .catch): pull the pending timer
+    // and land the host's stop outcome — status "failed", error "Stopped." —
+    // so the dock badge visibly flips. A finished/unknown id can't be pulled
+    // back, exactly like the host manager.
+    cancelDelegation: async (id) => {
+      const delegation = delegations.find((d) => d.id === id);
+      const timer = delegationTimers.get(id);
+      if (!delegation || delegation.status !== "running" || timer === undefined) {
+        return { ok: false };
+      }
+      clearTimeout(timer);
+      delegationTimers.delete(id);
+      delegation.status = "failed";
+      delegation.error = "Stopped.";
+      delegation.finishedAt = Date.now();
+      delegationEvents.emit({ delegations: [...delegations] });
+      return { ok: true };
+    },
     restoreDelegationSnapshot: async (id) => {
       const delegation = delegations.find((d) => d.id === id);
       if (!delegation) return { ok: false, error: "Unknown delegation." };
@@ -967,6 +1087,26 @@ export function createFixtureBridge(): Bridge {
     },
     onDelegationsUpdated: delegationEvents.subscribe,
     onDelegationStreamed: () => () => {},
+
+    // AI-write checkpoints — the harness chat agent is a canned echo that
+    // never edits notes, so no capture event ever fires; a restore arriving
+    // anyway is a wiring bug worth hearing.
+    onAgentEditCaptured: () => () => {},
+    restoreAgentEdits: async ({ ids }) => {
+      throw new Error(
+        `fixture bridge: restoreAgentEdits(${ids.join(",")}) — no chat checkpoints exist in the harness`,
+      );
+    },
+
+    // Deep-link capture — no URL scheme reaches a browser tab, so the apply
+    // event never fires; an ack arriving anyway is a wiring bug worth hearing.
+    onCaptureApply: () => () => {},
+    ackCapture: async ({ id }) => {
+      throw new Error(`fixture bridge: ackCapture(${id}) — no capture inbox exists in the harness`);
+    },
+    onDeepLinkNav: () => () => {},
+    // Genuinely nothing parked — a browser tab has no OS URL handler.
+    takePendingDeepLinkNav: async () => null,
 
     // Inline AI — canned intent classification + streamed generations + a
     // deterministic edit rewrite, so the whole AI menu is drivable.
@@ -1033,12 +1173,20 @@ export function createFixtureBridge(): Bridge {
     addGraphqlIntegration: async () => {
       throw unavailable("executor");
     },
-    removeExecutorIntegration: async () => ({ removed: false }),
+    // Loud, not `{ removed: false }`: a silent "nothing removed" reads as a
+    // successful no-op in the Extensions panel. (Heads-up for harness drives:
+    // connector-install.ts's cleanup path swallows removeExecutorIntegration
+    // rejections — its direct remove paths propagate.)
+    removeExecutorIntegration: async () => {
+      throw unavailable("executor");
+    },
     listExecutorConnections: async () => [],
     createExecutorConnection: async () => {
       throw unavailable("executor");
     },
-    removeExecutorConnection: async () => ({ removed: false }),
+    removeExecutorConnection: async () => {
+      throw unavailable("executor");
+    },
     listExecutorOAuthClients: async () => [],
     createExecutorOAuthClient: async () => {
       throw unavailable("executor");
@@ -1054,7 +1202,10 @@ export function createFixtureBridge(): Bridge {
       throw unavailable("executor");
     },
     executorOAuthAwait: async () => null,
-    executorOpenExternal: async () => {},
+    // A silent no-op would look like a browser that just failed to open.
+    executorOpenExternal: async () => {
+      throw unavailable("executor");
+    },
 
     // Sync — an in-memory account so the settings Sync section is drivable:
     // toggle enable, set a URL, sign in (always succeeds), sync now (stub
@@ -1114,6 +1265,7 @@ export function createFixtureBridge(): Bridge {
         pulled: 1,
         deleted: 0,
         conflicts: copies.length,
+        merged: 1,
         conflictPaths: copies,
       } as const;
       syncState = { ...syncState, status: { ...outcome, phase: "ok" }, conflicts };
@@ -1152,9 +1304,25 @@ export function createFixtureBridge(): Bridge {
     },
     onRemoteAccessChanged: remoteAccessEvents.subscribe,
 
-    // Skills / integrations
-    listSkills: async () => ({ skills: [] }),
-    listIntegrations: async () => [],
-    repairIntegrations: async () => {},
+    // Skills / integrations — one seeded row each so the Settings panels
+    // render their POPULATED state ("zero installed" is a legitimate state,
+    // but the harness should demo rows). Repair mutates real binaries on the
+    // host, so it rejects loudly instead of pretending to succeed.
+    listSkills: async () => ({
+      skills: [
+        {
+          name: "summarize-note",
+          description: "Summarize the open note into a short digest (dev-harness fixture).",
+          source: "user",
+          scope: "user",
+          filePath: "/fixture/.inteligir/skills/summarize-note/SKILL.md",
+          disableModelInvocation: false,
+        },
+      ],
+    }),
+    listIntegrations: async () => [{ name: "fixture-cli", expected: "1.2.3", installed: "1.2.3" }],
+    repairIntegrations: async () => {
+      throw unavailable("integrations repair");
+    },
   };
 }

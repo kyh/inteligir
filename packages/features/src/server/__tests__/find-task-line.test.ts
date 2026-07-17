@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { scanTaskItems } from "@repo/core/knowledge/link-extract";
+
 import { findTaskLine } from "../delegation/find-task-line";
 
 const DOC = [
@@ -116,5 +118,62 @@ describe("findTaskLine", () => {
 
   it("keeps inline markdown verbatim in the resolved text (no normalization)", () => {
     expect(findTaskLine("- [ ] **buy** milk", 0)?.text).toBe("**buy** milk");
+  });
+
+  it("ignores checkbox-shaped lines inside YAML frontmatter (ordinal-drift fix)", () => {
+    // Without remark-frontmatter the leading `---` parses as a thematic break
+    // and the YAML's `- [ ]` line would consume ordinal 0 — while scanDoc and
+    // the Plate pipeline (both frontmatter-aware) skip it. Pin the fix.
+    const md = ["---", "checklist:", "  - [ ] yaml lookalike", "---", "", "- [ ] real task"].join(
+      "\n",
+    );
+    expect(findTaskLine(md, 0)?.text).toBe("real task");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+});
+
+describe("findTaskLine ↔ scanTaskItems ordinal lockstep", () => {
+  // The three counters (findTaskLine here, core scanTaskItems feeding the
+  // projection + guarded toggle, Plate's todoIndex) must agree by POSITION.
+  // This fixture stresses every divergence candidate: frontmatter lookalikes,
+  // fenced + indented code, plain bullets, empty checkboxes, nesting, checked
+  // items, alternate bullet chars, and duplicate labels.
+  const FIXTURE = [
+    "---",
+    "tasks:",
+    "  - [ ] frontmatter lookalike",
+    "---",
+    "",
+    "# Plan",
+    "",
+    "- [ ] alpha",
+    "- plain bullet",
+    "- [ ] ",
+    "- [x] beta",
+    "  - [ ] nested gamma",
+    "",
+    "```",
+    "- [ ] fenced lookalike",
+    "```",
+    "",
+    "    - [ ] indented-code lookalike",
+    "",
+    "* [ ] delta",
+    "+ [ ] alpha", // duplicate label, distinct ordinal
+  ].join("\n");
+
+  it("counts the same items at the same lines, ordinal for ordinal", () => {
+    const tasks = scanTaskItems(FIXTURE);
+    expect(tasks.map((t) => t.text)).toEqual(["alpha", "beta", "nested gamma", "delta", "alpha"]);
+    for (const task of tasks) {
+      if (task.checked) continue; // findTaskLine refuses checked items by design
+      const match = findTaskLine(FIXTURE, task.ordinal);
+      expect(match).not.toBeNull();
+      expect(match?.lineIndex).toBe(task.line - 1);
+      expect(match?.lineText).toBe(task.raw);
+      expect(match?.text).toBe(task.text);
+    }
+    // Past-the-end agrees too.
+    expect(findTaskLine(FIXTURE, tasks.length)).toBeNull();
   });
 });

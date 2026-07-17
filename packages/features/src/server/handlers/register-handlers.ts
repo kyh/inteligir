@@ -6,6 +6,8 @@
 import type { HandlerRegistrar } from "../lib/handler-registry";
 import { registerAgentHandlers } from "./agent-handlers";
 import { registerAiHandlers } from "./ai-handlers";
+import { registerCaptureHandlers } from "./capture-handlers";
+import { registerCheckpointHandlers } from "./checkpoint-handlers";
 import { registerDelegationHandlers } from "./delegation-handlers";
 import { registerExecutorHandlers } from "./executor-handlers";
 import { registerKnowledgeHandlers } from "./knowledge-handlers";
@@ -28,6 +30,8 @@ export function registerAllHandlers(handle: HandlerRegistrar): void {
   registerVaultHandlers(handle);
   registerKnowledgeHandlers(handle);
   registerDelegationHandlers(handle);
+  registerCheckpointHandlers(handle);
+  registerCaptureHandlers(handle);
   registerAiHandlers(handle);
   registerSkillsHandlers(handle);
   registerSyncHandlers(handle);

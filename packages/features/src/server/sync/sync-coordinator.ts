@@ -36,13 +36,15 @@ function toStatus(outcome: CoreSyncOutcome): SyncStatus {
         pulled: outcome.pulled,
         deleted: outcome.deleted,
         conflicts: outcome.conflicts,
+        merged: outcome.merged,
       }
     : { phase: "error", message: outcome.message };
 }
 
 const DISABLED_REASON = "Enable sync and sign in first.";
 
-// Periodic reconcile cadence while sync is live (ADR-0001): with no recursive
+// Periodic reconcile cadence while sync is live (vault liveness — CLAUDE.md
+// § Decisions): with no recursive
 // watcher, a peer's remote push already wakes us through the remote-change
 // subscription, but this interval is the backstop that also flushes local
 // edits made between focus events. Policy, not law — revisit with real usage.

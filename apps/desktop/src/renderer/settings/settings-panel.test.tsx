@@ -26,11 +26,18 @@ vi.stubGlobal(
 );
 
 import type { Bridge } from "@repo/features/ipc";
+import { createSqlKnowledgeStore } from "@repo/core/knowledge/sql-knowledge-store";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import { createFixtureBridge } from "../../../dev/fixture-bridge";
+import { createWasmSqlDriver, loadSqlite3 } from "../../../dev/wasm-sql-driver";
 import { installBridge } from "@renderer/lib/bridge";
 import { VaultProvider } from "@renderer/workspace/vault-context";
 import { SettingsPanel } from "./settings-panel";
+
+// The fixture bridge takes the harness's injected knowledge store (wasm SQL).
+const sqlite3 = await loadSqlite3();
+const newBridge = () =>
+  createFixtureBridge((root) => createSqlKnowledgeStore(createWasmSqlDriver(sqlite3), root));
 
 function renderPanel(bridge: Bridge) {
   installBridge(bridge);
@@ -46,7 +53,7 @@ function renderPanel(bridge: Bridge) {
 describe("RemoteAccessSection", () => {
   it("shows an inline error when the toggle's bridge call rejects", async () => {
     const bridge: Bridge = {
-      ...createFixtureBridge(),
+      ...newBridge(),
       setRemoteAccessConfig: () => Promise.reject(new Error("rebind interrupted")),
     };
     renderPanel(bridge);
@@ -60,7 +67,7 @@ describe("RemoteAccessSection", () => {
   });
 
   it("renders the unencrypted-network caveat under the toggle", async () => {
-    renderPanel(createFixtureBridge());
+    renderPanel(newBridge());
     await screen.findByRole("switch", { name: "Allow other devices" });
     expect(screen.getByText(/Connections on your local network are unencrypted\./)).toBeTruthy();
   });

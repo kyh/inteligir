@@ -12,6 +12,7 @@ import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi
 import type { BacklinkEntry, SearchResult } from "@repo/core/knowledge/knowledge-index";
 
 import { isRecord, type SetupProgress } from "@repo/features/ipc";
+import type { NotePrivacyProbe } from "@repo/features/ipc-registry";
 import type { ExecutorExecuteResult } from "@repo/features/executor";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,13 @@ export type ExecutorPort = {
 };
 
 /** Knowledge-engine access (derived indexes live OUTSIDE the vault, so the
- * agent's file tools can't reach them — hence a port). Read-only. */
+ * agent's file tools can't reach them — hence a port). Read-only.
+ *
+ * PRIVACY CONTRACT: results are privacy-FILTERED — a `private: true` note
+ * never appears (no path, no snippet; a private backlinks target reads as
+ * "no backlinks", indistinguishable from none). The implementation
+ * (lib/agent-knowledge-port.ts) excludes private at the index AND re-probes
+ * every survivor against live disk, closing the index-lag TOCTOU. */
 export type KnowledgePort = {
   search(query: string, limit?: number): SearchResult[];
   backlinks(path: string): BacklinkEntry[];
@@ -49,9 +56,56 @@ export type KnowledgePort = {
   notesWithTag(tag: string): string[];
 };
 
+/** A note's live-disk privacy verdict: notePrivacy's three states plus
+ * `absent` (no such file). Anything that can't be read/typed probes
+ * `indeterminate` — the gate treats it as private (fail-closed). The SAME
+ * union the vault:probe-note-privacy channel carries — one probe contract,
+ * host and renderer side. */
+export type PrivacyProbe = NotePrivacyProbe;
+
+/** Vault-privacy capability behind the agent tool gate (privacy/extension.ts).
+ * Built host-side in agent-lifecycle.ts over the live Vault/Knowledge
+ * singletons; the gate itself stays a pure decision core. */
+export type PrivacyPort = {
+  /** LIVE disk frontmatter probe for a vault-relative path — never the index. */
+  probe(rel: string): PrivacyProbe;
+  /** realpath of the vault root, or null when it can't be resolved — the gate
+   * then FAILS CLOSED for anything vault-shaped rather than allowing it. */
+  vaultRealRoot(): string | null;
+  /** The configured root, lexically resolved (no fs) — the fail-closed
+   * fallback prefix used only while vaultRealRoot is null. */
+  vaultLexicalRoot(): string | null;
+  /** Indexed private note paths (vault-relative) — the PREFILTER feeding the
+   * best-effort bash/execute heuristics and directory-scan checks. Lags the
+   * index debounce; file tools never rely on it (they probe live). */
+  privateIndexPaths(): string[];
+};
+
+/** A pi `edit`/`write` whose parity-resolved target is an in-vault markdown
+ * doc — the checkpoint seam's capture coordinate (privacy/gate.ts
+ * classifyVaultDocWrite produces it). `rel` is vault-relative. */
+export type VaultDocWrite = { rel: string; tool: "edit" | "write" };
+
+/** Pre-write checkpoint capture for ALLOWED in-vault doc mutations — the chat
+ * agent's undo point (checkpoints/checkpoint-manager.ts behind it). The tool
+ * gate invokes it strictly after privacy allows a call and strictly before pi
+ * executes the tool. MUST throw when capture fails: the gate handler lets the
+ * throw propagate and pi converts it into an error tool result, blocking the
+ * write — an AI edit with no undo point must never happen (the same rule
+ * delegation's pre-run snapshot enforces). */
+export type AgentCheckpointPort = {
+  capture(target: VaultDocWrite): void;
+};
+
 export type AgentPorts = {
   executor: ExecutorPort;
   knowledge: KnowledgePort;
+  privacy: PrivacyPort;
+  /** null on sessions whose writes must not feed the chat undo surface: the
+   * background delegation agent (its target-file undo is the pre-run
+   * delegation snapshot + the dock's "Restore original"; hook captures there
+   * would surface nowhere). Sessions without file tools never invoke it. */
+  checkpoints: AgentCheckpointPort | null;
 };
 
 /**

@@ -9,13 +9,20 @@
 
 import fs from "node:fs";
 
+import { notePrivacy } from "@repo/core/markdown/frontmatter";
+
 import { login, resetAuthStorage } from "../agent/auth";
-import type { AgentPorts } from "../agent/extension";
+import type { AgentPorts, PrivacyProbe } from "../agent/extension";
+import { buildAgentKnowledgePort } from "./agent-knowledge-port";
+import { isEnoent } from "./fs-errors";
 import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "./host-lock";
+import { resetCaptureManager } from "../capture/capture-manager";
+import { getCheckpointManager, resetCheckpointManager } from "../checkpoints/checkpoint-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
+import { resetSnapshotStore } from "../snapshots/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../executor/executor-client";
 import {
@@ -58,14 +65,60 @@ export function getAgentPorts(): AgentPorts {
       execute: executeEnsuringDaemon,
       resume: resumeEnsuringDaemon,
     },
-    // Read-only knowledge queries. Defers to the live singleton so a
-    // logout/login vault reset stays transparent (mirrors executor above).
-    knowledge: {
-      search: (query, limit) => getKnowledgeManager().search(query, limit),
-      backlinks: (path) => getKnowledgeManager().backlinks(path),
-      notesWithTag: (tag) => getKnowledgeManager().notesWithTag(tag),
+    // Read-only knowledge queries, PRIVACY-FILTERED (agent-knowledge-port.ts):
+    // private notes are excluded at the index and every survivor is re-probed
+    // against live disk — a private path/snippet never reaches the model.
+    // Defers to the live singleton so a logout/login vault reset stays
+    // transparent (mirrors executor above).
+    knowledge: buildAgentKnowledgePort({
+      queries: () => getKnowledgeManager(),
+      probe: probeVaultPrivacy,
+    }),
+    // Vault-privacy capability for the tool gate (agent/privacy). probe reads
+    // LIVE disk through VaultManager (resolve() confinement included): a path
+    // that escapes the vault or fails to read probes "indeterminate", which
+    // the gate blocks — fail-closed on every error path.
+    privacy: {
+      probe: probeVaultPrivacy,
+      vaultRealRoot: () => {
+        try {
+          return fs.realpathSync(getVaultManager().getRoot());
+        } catch {
+          return null; // the gate fails closed for vault-shaped paths
+        }
+      },
+      vaultLexicalRoot: () => {
+        try {
+          return getVaultManager().getRoot();
+        } catch {
+          return null;
+        }
+      },
+      privateIndexPaths: () => getKnowledgeManager().privatePaths(),
+    },
+    // Pre-write checkpoint capture for allowed in-vault doc edits/writes —
+    // the chat agent's undo point (the tool gate invokes it post-allow,
+    // pre-execution). The background delegation agent OVERRIDES this to null
+    // (background-agent.ts): its undo is the pre-run delegation snapshot, and
+    // hook captures there would leak into the chat undo toast. Defers to the
+    // live singleton like everything else here.
+    checkpoints: {
+      capture: (target) => getCheckpointManager().capture(target),
     },
   };
+}
+
+/** LIVE disk frontmatter probe, shared by the tool gate, the knowledge port,
+ * and the renderer's context-hint check (the vault:probe-note-privacy
+ * channel — one probe, no drift). Reads through VaultManager (resolve()
+ * confinement): an escaping path or any read failure probes "indeterminate"
+ * — treated private, fail-closed. */
+export function probeVaultPrivacy(rel: string): PrivacyProbe {
+  try {
+    return notePrivacy(getVaultManager().readText(rel));
+  } catch (err) {
+    return isEnoent(err) ? "absent" : "indeterminate";
+  }
 }
 
 /** Seed agent resources (dirs, bundled skills/AGENTS.md, bundle setups). */
@@ -111,7 +164,10 @@ export function teardownAgentResources(): void {
   // in-memory cache after the rm.
   resetAuthStorage();
   resetNotifications();
+  resetCaptureManager();
+  resetCheckpointManager();
   resetDelegationManager();
+  resetSnapshotStore();
   resetExecutorDaemon();
   resetSyncCoordinator();
   // Also revokes every paired remote device and pairing token, which closes

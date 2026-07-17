@@ -15,24 +15,33 @@
 
 import type { VaultChangeKind } from "./vault/vault";
 import type { StoreRecoveryEvent } from "./lib/json-store";
+import type { DeepLinkNavEvent } from "@repo/features/deep-link";
 import type { Delegation } from "@repo/features/delegation";
+import type { AgentEditCaptured, CaptureApplyEvent } from "@repo/features/ipc-registry";
 import type { SyncState } from "@repo/features/sync";
 
-/** The six host notifier slots, composed by the host and fired by the graph.
+/** The host notifier slots, composed by the host and fired by the graph.
  * Each is a plain callback that fans into `emitEvent(...)` / the notifications
  * manager — that wiring lives in the composition root, not here. */
 export type HostNotifiers = {
   /** A JsonStore quarantined a data file (json-store's default recovery seam). */
   storeRecovery: (event: StoreRecoveryEvent) => void;
   /** The vault changed. `refresh` broadcasts onVaultChanged + reindexes; `save`
-   * (an autosave content overwrite) reindexes only — no broadcast (ADR-0001). */
+   * (an autosave content overwrite) reindexes only — no broadcast (vault
+   * liveness — CLAUDE.md § Decisions). */
   vaultChange: (root: string, kind: VaultChangeKind) => void;
   /** The delegation list changed (drives inline badges). */
   delegationsChanged: (delegations: Delegation[]) => void;
   /** A delegation's live transcript advanced (drives the response dock). */
   delegationStream: (id: string, text: string) => void;
+  /** A chat-agent write was checkpointed (drives the post-turn undo toast). */
+  agentEditCaptured: (event: AgentEditCaptured) => void;
   /** Inline-AI generation streamed a text delta (drives live insertion). */
   inlineAiStream: (requestId: string, delta: string) => void;
+  /** A deep-link capture wants applying to the open note's live buffer. */
+  captureApply: (event: CaptureApplyEvent) => void;
+  /** A deep-link nav verb wants the renderer to navigate. */
+  deepLinkNav: (event: DeepLinkNavEvent) => void;
   /** Vault-sync config / auth / status changed (drives the settings Sync UI). */
   syncStateChanged: (state: SyncState) => void;
 };

@@ -27,6 +27,7 @@
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "./events";
+import { getCheckpointManager } from "./checkpoints/checkpoint-manager";
 import { getDelegationManager } from "./delegation/delegation-manager";
 import { getExecutorDaemon } from "./executor/executor-daemon";
 import { getKnowledgeManager } from "./knowledge/knowledge-manager";
@@ -46,7 +47,8 @@ function buildHostNotifiers(): HostNotifiers {
     vaultChange: (root, kind) => {
       // A `save` (autosave content overwrite) keeps the knowledge index live but
       // must NOT broadcast — the user's own typing generates zero vault-changed
-      // traffic (ADR-0001); the open-note watcher covers the open file's own
+      // traffic (vault liveness — CLAUDE.md § Decisions); the open-note
+      // watcher covers the open file's own
       // reloads. A `refresh` is a structural/external/on-demand change: broadcast
       // so the sidebar re-lists and the editor reloads, and reindex.
       if (kind === "refresh") emitEvent("onVaultChanged", { root });
@@ -54,7 +56,10 @@ function buildHostNotifiers(): HostNotifiers {
     },
     delegationsChanged: (delegations) => emitEvent("onDelegationsUpdated", { delegations }),
     delegationStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
+    agentEditCaptured: (event) => emitEvent("onAgentEditCaptured", event),
     inlineAiStream: (requestId, delta) => emitEvent("onAiStreamed", { requestId, delta }),
+    captureApply: (event) => emitEvent("onCaptureApply", event),
+    deepLinkNav: (event) => emitEvent("onDeepLinkNav", event),
     syncStateChanged: (state) => emitEvent("onSyncStateChanged", state),
   };
 }
@@ -88,6 +93,7 @@ export function constructHostSingletons(): HostNotifiers {
   getVaultManager(); // paths (watcher stays off until start() wires it post-ensureReady)
   getKnowledgeManager(); // vault
   getDelegationManager(); // vault + delegation notifiers (installed above)
+  getCheckpointManager(); // shared snapshot store + checkpoint notifier (installed above)
   getExecutorDaemon(); // paths
   getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
 

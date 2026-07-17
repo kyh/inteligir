@@ -27,7 +27,10 @@ function noopNotifiers(capture: (state: SyncState) => void): HostNotifiers {
     vaultChange: () => {},
     delegationsChanged: () => {},
     delegationStream: () => {},
+    agentEditCaptured: () => {},
     inlineAiStream: () => {},
+    captureApply: () => {},
+    deepLinkNav: () => {},
     syncStateChanged: capture,
   };
 }
@@ -118,7 +121,7 @@ describe("SyncCoordinator", () => {
 // A live engine over an in-memory port/vault (no network), wired through the
 // injectable `SyncEngineFactory` — proves a DEBOUNCED pass (onVaultChanged,
 // never syncNow()) surfaces its conflict into `getState().conflicts` through
-// the SAME `onOutcome` path syncNow uses (plan 022, item 2).
+// the SAME `onOutcome` path syncNow uses.
 // ---------------------------------------------------------------------------
 
 const VAULT_ID = "vault-coordinator-test";
@@ -183,6 +186,7 @@ describe("SyncCoordinator — debounced-pass conflicts (item 2)", () => {
         port,
         vault: vault.io,
         basePath: path.join(tmp, "sync-base.json"),
+        blobsDir: path.join(tmp, "sync-blobs"),
         debounceMs: 0,
         onOutcome: opts.onOutcome,
       });

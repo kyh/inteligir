@@ -58,6 +58,13 @@ export type HostPlatform = {
   /** Open a URL in the user's default browser (OAuth consent, links). */
   openExternal: (url: string) => Promise<void>;
 
+  /** Move a file to the OS trash (user-initiated note deletes — recoverable
+   * through the OS trash UI, no in-app trash view). Throws when the platform
+   * has no trash implementation (some Linux configurations) — VaultManager
+   * falls back to a permanent remove. Required, not optional: an optional
+   * capability invites silent no-op shells. */
+  trashItem: (absolutePath: string) => Promise<void>;
+
   /** Native directory picker for the vault chooser. */
   pickDirectory: (opts: { title: string; defaultPath: string }) => Promise<string | null>;
 

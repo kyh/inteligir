@@ -6,6 +6,8 @@ import {
   FolderIcon,
   HashIcon,
   LayoutTemplateIcon,
+  ListTodoIcon,
+  LockIcon,
   MoonIcon,
   RefreshCwIcon,
   SunIcon,
@@ -20,9 +22,15 @@ import {
   CommandItem,
   CommandList,
 } from "@repo/ui/components/command";
+import { toast } from "@repo/ui/components/sonner";
+
+import { notePrivacy, setNotePrivate } from "@repo/core/markdown/frontmatter";
+
+import { TEMPLATES_DIR, isTemplatePath } from "@repo/features/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
-import { TEMPLATES_DIR, isTemplatePath } from "@renderer/lib/apply-template";
+import { getLiveEditor } from "@renderer/editor/live-editor";
+import { toggleEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
 import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
@@ -70,11 +78,29 @@ function templateLabel(path: string): string {
 export function CommandPalette({
   open,
   onOpenChange,
+  seedQuery,
+  onSeedConsumed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** One-shot root-query prefill (deep-link search). Applied when the
+   * palette is open and a seed is set, then reported consumed. */
+  seedQuery?: string | null;
+  onSeedConsumed?: () => void;
 }) {
-  const { entries, openFile, createFile, changeFolder, refreshVault } = useVault();
+  const {
+    entries,
+    openFile,
+    createFile,
+    changeFolder,
+    refreshVault,
+    editor,
+    editNote,
+    openPath,
+    isMarkdownOpen,
+    mode,
+    openNoteIsPrivate,
+  } = useVault();
   const createFromTemplate = useCreateFromTemplate();
   const openDailyNote = useOpenDailyNote();
   const setSurface = useViewStore((s) => s.setSurface);
@@ -98,6 +124,16 @@ export function CommandPalette({
       setPhase({ kind: "root" });
     }
   }, [open]);
+
+  // Deep-link search prefill: while open with a pending seed, adopt it as the
+  // root query and consume it — the close-reset above still wins on the next
+  // dismiss, so a later ⌘K opens clean.
+  useEffect(() => {
+    if (!open || typeof seedQuery !== "string") return;
+    setPhase({ kind: "root" });
+    setQuery(seedQuery);
+    onSeedConsumed?.();
+  }, [open, seedQuery, onSeedConsumed]);
 
   // Load the tag list once per open — the `#` flow filters it client-side, and
   // it's a small, cheap index read that the tag counts depend on.
@@ -154,6 +190,28 @@ export function CommandPalette({
   }, [query, open, phase.kind]);
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+
+  // Toggle the open note's `private: true` flag. ONE write path per mode:
+  // rich edits the frontmatter NODE (the Page-details seam — Plate serialize →
+  // editNote persists it); raw rewrites the text through the same core YAML
+  // helpers and lands via editNote. Unreadable frontmatter is refused — what
+  // we can't read, we never rewrite (the properties panel's rule).
+  const togglePrivate = useCallback(() => {
+    if (openPath === null || !isMarkdownOpen) return;
+    if (mode === "rich") {
+      const live = getLiveEditor(openPath);
+      if (live === null || !toggleEditorNotePrivate(live)) {
+        toast.error("Couldn't toggle private — fix the note's frontmatter first.");
+      }
+      return;
+    }
+    const next = setNotePrivate(editor.content, notePrivacy(editor.content) !== "private");
+    if (next === null) {
+      toast.error("Couldn't toggle private — fix the note's frontmatter first.");
+      return;
+    }
+    editNote(openPath, next);
+  }, [openPath, isMarkdownOpen, mode, editor.content, editNote]);
 
   // Run an action then dismiss — every leaf item closes the palette.
   const run = useCallback(
@@ -383,12 +441,30 @@ export function CommandPalette({
       onSelect: () => setSurface("graph"),
     },
     {
+      value: "tasks",
+      keywords: "open tasks view todo checkbox list",
+      icon: <ListTodoIcon />,
+      label: "Open tasks view",
+      onSelect: () => setSurface("tasks"),
+    },
+    {
       value: "theme",
       keywords: "toggle theme dark light appearance",
       icon: resolved === "dark" ? <SunIcon /> : <MoonIcon />,
       label: `Switch to ${resolved === "dark" ? "light" : "dark"} theme`,
       onSelect: () => setTheme(resolved === "dark" ? "light" : "dark"),
     },
+    ...(openPath !== null && isMarkdownOpen
+      ? [
+          {
+            value: "toggle-private",
+            keywords: "toggle private note lock privacy ai off exclude",
+            icon: <LockIcon />,
+            label: openNoteIsPrivate ? "Remove private mark from note" : "Mark note as private",
+            onSelect: () => togglePrivate(),
+          },
+        ]
+      : []),
     {
       value: "refresh",
       keywords: "refresh vault reload rescan files sync snapshot",

@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
+import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@renderer/editor/editor-chrome";
 import { MarkdownEditor } from "@renderer/editor/markdown-editor";
 import { BacklinksPanel, ForwardLinksPanel } from "@renderer/workspace/links-panel";
 import { useVault } from "@renderer/workspace/vault-context";
+import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 
 /**
  * The editor body: the open note's page title + document (+ backlinks). One
@@ -70,7 +72,16 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       if (titleRef.current) titleRef.current.textContent = displayName;
       return;
     }
-    void renameEntry(path, `${dir}${next}${ext}`).then((ok) => {
+    // Validate the would-be basename (title + extension) before any rename: a
+    // `/` used to silently create folders, and `: * ? " < > |` mint names that
+    // break on Windows/sync. Reject + rollback + toast — never sanitize.
+    const verdict = checkNoteName(`${next}${ext}`);
+    if (!verdict.ok) {
+      toast.error(noteNameErrorMessage(verdict.reason));
+      if (titleRef.current) titleRef.current.textContent = displayName;
+      return;
+    }
+    void renameEntry(path, `${dir}${verdict.name}`).then((ok) => {
       // On success the path changes and the renamed note mounts a fresh pane;
       // on failure roll the contentEditable back to the real filename so the
       // title never shows a name that was never saved.
@@ -78,6 +89,36 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       return undefined;
     });
   };
+
+  // Title settle rails beyond blur/Enter: `editingRef` is armed on focus and
+  // disarmed by the element's own blur-commit, so these only fire for edits
+  // the normal path never saw. (1) Window blur — ⌘Tab away mid-edit routes
+  // through the element blur, i.e. the normal commit. (2) Pane unmount — an
+  // external note switch/teardown while the title is still focused commits
+  // the pending text directly. A ⌘Q straight from the title remains the
+  // documented edge: the async rename can't finish during quit (content is
+  // safe via the runtime flush; only the retitle is lost).
+  const editingRef = useRef(false);
+  const commitTitleRef = useRef(commitTitle);
+  useEffect(() => {
+    commitTitleRef.current = commitTitle;
+  });
+  useEffect(() => {
+    const onWindowBlur = () => {
+      if (editingRef.current) titleRef.current?.blur();
+    };
+    window.addEventListener("blur", onWindowBlur);
+    return () => window.removeEventListener("blur", onWindowBlur);
+  }, []);
+  useEffect(
+    () => () => {
+      if (editingRef.current) {
+        editingRef.current = false;
+        commitTitleRef.current(titleRef.current?.textContent ?? "");
+      }
+    },
+    [],
+  );
 
   // Enter in the title drops the caret into the body (potion behavior): the
   // editor's editable in Rich mode, the textarea in Raw. The body mounts as a
@@ -108,7 +149,16 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
-        onBlur={(e) => commitTitle(e.currentTarget.textContent ?? "")}
+        onFocus={() => {
+          editingRef.current = true;
+        }}
+        onBlur={(e) => {
+          // Disarm BEFORE committing: a successful rename remounts the pane,
+          // and the unmount flush must not re-commit the same edit against
+          // the now-stale old path.
+          editingRef.current = false;
+          commitTitle(e.currentTarget.textContent ?? "");
+        }}
         onKeyDown={onTitleKeyDown}
         className={cn(
           EDITOR_COLUMN_PX,

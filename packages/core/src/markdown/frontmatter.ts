@@ -47,6 +47,17 @@ function isPlainRecord(value: unknown): value is Properties {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** The raw yaml source inside a doc's leading frontmatter fences (no fences,
+ * no trailing line terminator — the shape `parseProperties` expects), or
+ * `null` when the doc has no frontmatter block. The one place besides
+ * `splitFrontmatter` allowed to know the fence grammar, so consumers that need
+ * the header's SOURCE (the sync merge ladder) never fork the regex. */
+export function frontmatterYaml(text: string): string | null {
+  const match = FRONTMATTER_RE.exec(text);
+  if (!match) return null;
+  return match[1] ?? "";
+}
+
 /** Split raw doc text into `{ properties, body }`. Never throws on malformed
  * yaml — a block that doesn't parse to a mapping yields empty properties with
  * `hadFrontmatter: true` so the caller can decide, and the body is always the
@@ -86,7 +97,7 @@ export function applyPropertiesPatch(current: Properties, patch: PropertiesPatch
 
 // ---------------------------------------------------------------------------
 // Typed properties — the file-properties panel's parse/serialize contract
-// (plan 017, hubble ADR-0003: the markdown file is the ONLY property store).
+// (CLAUDE.md § Decisions: the markdown file is the ONLY property store).
 // This sits ONE layer above splitFrontmatter: the panel already holds the
 // frontmatter block's raw yaml (the Plate frontmatter node's `value`), so these
 // helpers work on that yaml text directly. Kept here beside the split seam so
@@ -174,6 +185,101 @@ export function parseProperties(yamlText: string): ParsedProperties {
   return { kind: "valid", properties };
 }
 
+/** A note's `private: true` verdict, read from its raw text. `indeterminate`
+ * means frontmatter exists but can't be typed (malformed yaml, duplicate keys,
+ * non-mapping root) — AI paths treat that as private (fail-closed: what we
+ * can't read, we don't send to a model); user-facing UI treats it as
+ * not-private (no lock badge for a yaml typo). */
+export type NotePrivacy = "public" | "private" | "indeterminate";
+
+/** The ONE `private` verdict kernel, over already-parsed frontmatter: an
+ * empty block is public, an untypeable one is indeterminate, and only a
+ * boolean `private: true` checkbox reads private (`yes`/`"true"` stay text
+ * and read public, exactly like the properties panel shows them). Every
+ * privacy read — notePrivacy here, the index's projection, the editor's
+ * live probe — calls this; each caller keeps only its own substrate read and
+ * its fail-open vs fail-closed mapping of `indeterminate`. */
+export function privacyOfParsed(parsed: ParsedProperties): NotePrivacy {
+  if (parsed.kind === "none") return "public";
+  if (parsed.kind === "invalid") return "indeterminate";
+  const prop = parsed.properties.find((p) => p.key === "private");
+  return prop !== undefined && prop.type === "checkbox" && prop.value ? "private" : "public";
+}
+
+/** The `private`-flag toggle transform shared by the raw-text and editor-node
+ * writers: ON replaces any existing `private` key with an appended
+ * `private: true`; OFF removes the key (absent == public). */
+export function withPrivateFlag(properties: TypedProperty[], on: boolean): TypedProperty[] {
+  const rest = properties.filter((p) => p.key !== "private");
+  return on ? [...rest, { key: "private", type: "checkbox", value: true }] : rest;
+}
+
+/** Classify a doc's privacy from its raw text — privacyOfParsed over the
+ * leading frontmatter block. No frontmatter is public. */
+export function notePrivacy(text: string): NotePrivacy {
+  const yaml = frontmatterYaml(text);
+  if (yaml === null) return "public";
+  return privacyOfParsed(parseProperties(yaml));
+}
+
+/** Set/clear a doc's `private` flag at the TEXT level (the raw-mode path of
+ * the palette toggle; rich mode edits the frontmatter node instead — both
+ * flow through parseProperties/serializeProperties, one YAML brain). Turning
+ * ON appends `private: true`; turning OFF removes the key (absent == public,
+ * and an emptied block disappears entirely). Returns null when the existing
+ * frontmatter can't be typed — what we can't read, we never rewrite. */
+export function setNotePrivate(text: string, value: boolean): string | null {
+  const yaml = frontmatterYaml(text);
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") return null;
+  const next = withPrivateFlag(parsed.kind === "valid" ? parsed.properties : [], value);
+  const nextYaml = serializeProperties(next, yaml ?? "");
+  const body = splitFrontmatter(text).body;
+  return nextYaml === "" ? body : `---\n${nextYaml}\n---\n${body}`;
+}
+
+/** Record `alias` in a doc's frontmatter `aliases:` — the byte-preserving
+ * writer the rename pipeline uses so an old title keeps resolving. Runs over
+ * the yaml Document API (serializeProperties), NOT splitFrontmatter +
+ * serializeDoc, so untouched keys keep their exact source bytes, comments
+ * included. Returns null (write NOTHING) when:
+ *   - the frontmatter can't be typed (`invalid` — never rewrite what we
+ *     can't read),
+ *   - the alias list key exists but is not a plain string array,
+ *   - the alias is already present case-insensitively.
+ * The legacy `alias:` key is honored when it is the doc's only alias list
+ * (extraction prefers `aliases`, so minting `aliases` beside an existing
+ * `alias` would silently shadow the old entries). A doc with no frontmatter
+ * gains a block; the body is preserved byte-exactly. */
+export function addFrontmatterAlias(content: string, alias: string): string | null {
+  const trimmed = alias.trim();
+  if (trimmed === "") return null;
+  const yaml = frontmatterYaml(content);
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") return null;
+  const props = parsed.kind === "valid" ? parsed.properties : [];
+  const key =
+    props.some((p) => p.key === "aliases") || !props.some((p) => p.key === "alias")
+      ? "aliases"
+      : "alias";
+  const existing = props.find((p) => p.key === key);
+  if (existing !== undefined && existing.type !== "tags") return null;
+  const current = existing === undefined ? [] : existing.value;
+  if (current.some((a) => a.trim().toLowerCase() === trimmed.toLowerCase())) return null;
+  const nextProps: TypedProperty[] =
+    existing === undefined
+      ? [...props, { key, type: "tags", value: [trimmed] }]
+      : props.map(
+          (p): TypedProperty =>
+            p.key === key && p.type === "tags"
+              ? { key: p.key, type: "tags", value: [...p.value, trimmed] }
+              : p,
+        );
+  const nextYaml = serializeProperties(nextProps, yaml ?? "");
+  const body = splitFrontmatter(content).body;
+  return `---\n${nextYaml}\n---\n${body}`;
+}
+
 /** Type a single new key from a user-entered raw value (the panel's "Add
  * property" flow): the value is read as a YAML scalar so `true`, `42`,
  * `2026-07-01`, `[a, b]` type naturally, exactly as if it had been typed into
@@ -193,7 +299,9 @@ function typedValue(prop: TypedProperty): unknown {
   return prop.type === "unsupported" ? undefined : prop.value;
 }
 
-function valueEqual(a: unknown, b: unknown): boolean {
+/** Property-value equality as the panel (and the sync merge ladder) define it:
+ * strict for scalars, element-wise for the flat string arrays `tags` carries. */
+export function valueEqual(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => item === b[i]);
   }

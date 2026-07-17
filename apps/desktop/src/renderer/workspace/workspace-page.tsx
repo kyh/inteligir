@@ -13,22 +13,26 @@ import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
 import { AppSidebar } from "@renderer/sidebar/app-sidebar";
 import { HtmlAppView } from "@renderer/workspace/html-app-view";
+import { useAgentEditUndo } from "@renderer/workspace/use-agent-edit-undo";
+import { useDeepLinkNav } from "@renderer/workspace/use-deep-link";
 import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { VaultProvider, useVault } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useDelegationStore } from "@renderer/stores/delegation-store";
-import { useViewStore } from "@renderer/stores/view-store";
+import { useViewStore, type WorkspaceSurface } from "@renderer/stores/view-store";
 import { useVoiceStore } from "@renderer/stores/voice-store";
 
-// The graph view stays out of the main chunk: it (and its d3-force dependency)
-// loads on first open.
+// The graph and tasks views stay out of the main chunk: each (and the graph's
+// d3-force dependency) loads on first open.
 const GraphView = lazy(() => import("@renderer/workspace/graph-view"));
+const TasksView = lazy(() => import("@renderer/workspace/tasks-view"));
 
-/** The main surface: the graph, an HTML App (open `.html` shown as an app), or
- * the editor. Lives inside VaultProvider so it can read `isHtmlApp`. */
-function MainSurface({ surface }: { surface: "editor" | "graph" }) {
+/** The main surface: the graph, the tasks view, an HTML App (open `.html`
+ * shown as an app), or the editor. Lives inside VaultProvider so it can read
+ * `isHtmlApp`. */
+function MainSurface({ surface }: { surface: WorkspaceSurface }) {
   const { isHtmlApp } = useVault();
-  if (surface === "graph") {
+  if (surface === "graph" || surface === "tasks") {
     return (
       <Suspense
         fallback={
@@ -37,11 +41,26 @@ function MainSurface({ surface }: { surface: "editor" | "graph" }) {
           </div>
         }
       >
-        <GraphView />
+        {surface === "graph" ? <GraphView /> : <TasksView />}
       </Suspense>
     );
   }
   return isHtmlApp ? <HtmlAppView /> : <EditorPane />;
+}
+
+/** inteligir:// nav verbs (today / note / search). Lives inside VaultProvider
+ * so it can open notes; search opens the palette prefilled; renders nothing. */
+function DeepLinkNav({ onSearch }: { onSearch: (query: string) => void }) {
+  useDeepLinkNav(onSearch);
+  return null;
+}
+
+/** Post-turn undo toast for chat-agent vault edits. Lives inside
+ * VaultProvider so flush-first can reach the registered open-note flush;
+ * renders nothing. */
+function AgentEditUndo() {
+  useAgentEditUndo();
+  return null;
 }
 
 /** ⌘D / Ctrl+D → open-or-create today's daily note. Lives inside VaultProvider
@@ -76,6 +95,14 @@ export function WorkspacePage() {
   useEffect(() => initDelegations(), [initDelegations]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // Deep-link search prefill: the seed rides into the palette once per
+  // delivery, then clears (consumed) so a later ⌘K opens clean.
+  const [paletteSeed, setPaletteSeed] = useState<string | null>(null);
+  const openSearch = useCallback((query: string) => {
+    setPaletteSeed(query);
+    setPaletteOpen(true);
+  }, []);
+  const consumeSeed = useCallback(() => setPaletteSeed(null), []);
   const surface = useViewStore((s) => s.surface);
 
   useEffect(() => {
@@ -103,6 +130,8 @@ export function WorkspacePage() {
   return (
     <VaultProvider>
       <DailyNoteHotkey />
+      <DeepLinkNav onSearch={openSearch} />
+      <AgentEditUndo />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
         {/* Flush Attio-style editor pane: a full-height column butted against
@@ -132,7 +161,12 @@ export function WorkspacePage() {
           <SaveIndicator />
         </div>
       </SidebarProvider>
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        seedQuery={paletteSeed}
+        onSeedConsumed={consumeSeed}
+      />
     </VaultProvider>
   );
 }
