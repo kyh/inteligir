@@ -12,12 +12,12 @@
 // machinery to write.
 // ---------------------------------------------------------------------------
 
-import type { ExtractedLink } from "./link-extract";
+import type { ExtractedLink, ExtractedTask } from "./link-extract";
 import { scanDoc, titleFromPath } from "./link-extract";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
-export const PROJECTION_VERSION = 3; // 3: docs gained `aliases` (frontmatter aliases:)
+export const PROJECTION_VERSION = 4; // 4: docs gained `tasks` (GFM task items)
 
 const SNIPPET_MAX = 200;
 
@@ -46,6 +46,10 @@ export type DocProjection = {
   /** Frontmatter `private: true` (malformed frontmatter reads true — the
    * index prefilters fail-closed; AI surfaces re-probe live disk anyway). */
   private: boolean;
+  /** The doc's GFM task items in ordinal order (empty under the `tasks:
+   * false` opt-out) — the Tasks view's whole-vault query source. Persisted
+   * child-keyed by (path, ordinal), never by offsets. */
+  tasks: ExtractedTask[];
 };
 
 /** Parse a doc once into its projection. Pure: same bytes, same output. */
@@ -62,5 +66,6 @@ export function projectDoc(path: string, content: string): DocProjection {
     tags: scan.tags,
     aliases: scan.aliases,
     private: scan.private,
+    tasks: scan.tasks,
   };
 }

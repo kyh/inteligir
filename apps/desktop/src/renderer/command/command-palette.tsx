@@ -6,6 +6,7 @@ import {
   FolderIcon,
   HashIcon,
   LayoutTemplateIcon,
+  ListTodoIcon,
   LockIcon,
   MoonIcon,
   RefreshCwIcon,
@@ -438,6 +439,13 @@ export function CommandPalette({
       icon: <WaypointsIcon />,
       label: "Open graph view",
       onSelect: () => setSurface("graph"),
+    },
+    {
+      value: "tasks",
+      keywords: "open tasks view todo checkbox list",
+      icon: <ListTodoIcon />,
+      label: "Open tasks view",
+      onSelect: () => setSurface("tasks"),
     },
     {
       value: "theme",

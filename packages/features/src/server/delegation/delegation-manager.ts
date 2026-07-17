@@ -479,7 +479,11 @@ export class DelegationManager {
     }
     const fresh: Delegation = {
       ...delegation,
-      lineText: match.lineText.trim(),
+      // UNTRIMMED, deliberately: this is the exact raw line the run was
+      // resolved against — the guarded-write input (guarded-line-edit's
+      // expectedRaw contract) — so any future host-side write-back has its
+      // guard bytes on record. Same string shape, no schema bump.
+      lineText: match.lineText,
       anchor: { ...delegation.anchor, heading: match.heading },
     };
     // Persist the refreshed line so the inline badge tracks it too.

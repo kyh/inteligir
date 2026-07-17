@@ -20,6 +20,7 @@
     "better-auth": "catalog:",
     "ignore": "^7.0.5",
     "open": "^11.0.0",
+    "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "sherpa-onnx-node": "^1.13.4",

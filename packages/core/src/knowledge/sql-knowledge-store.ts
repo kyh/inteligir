@@ -20,6 +20,7 @@
 
 import type { SearchResult } from "./knowledge-index";
 import type { KnowledgeStore, StoredDocRow, StoredFingerprint } from "./knowledge-store";
+import type { ExtractedTask } from "./link-extract";
 import type { DocProjection, StoredLink } from "./projection";
 import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";
@@ -33,7 +34,7 @@ function docStem(path: string): string {
 }
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 3; // 3: aliases table + files.stem/stem_ci + doc_keys view
+export const KNOWLEDGE_SCHEMA_VERSION = 4; // 4: tasks table (GFM task items, keyed by ordinal)
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 export type SqlValue = null | number | string;
@@ -124,6 +125,16 @@ CREATE TABLE aliases (
   PRIMARY KEY (path, ord)
 );
 CREATE INDEX aliases_alias_ci ON aliases(alias_ci);
+CREATE TABLE tasks (
+  path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL,
+  line INTEGER NOT NULL,
+  raw TEXT NOT NULL,
+  text TEXT NOT NULL,
+  checked INTEGER NOT NULL,
+  wiki_targets TEXT NOT NULL,
+  PRIMARY KEY (path, ordinal)
+);
 CREATE VIEW doc_keys (path, key, key_ci, source) AS
   SELECT path, stem, stem_ci, 'name' FROM files WHERE kind = 'doc' AND stem IS NOT NULL
   UNION ALL
@@ -203,6 +214,33 @@ function columnNumberOrNull(row: SqlRow, key: string): number | null {
 function parseLinkKind(value: string): StoredLink["kind"] {
   if (value === "wiki" || value === "md" || value === "image") return value;
   throw new Error(`knowledge-store: unknown link kind ${value}`);
+}
+
+/** The `wiki_targets` column is a JSON string array — parse at the SQL
+ * boundary like every other column, throwing on any malformed row (the store
+ * guards treat that as corruption and wipe-rebuild). */
+function parseWikiTargets(row: SqlRow): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(columnString(row, "wiki_targets"));
+  } catch {
+    throw new Error("knowledge-store: column wiki_targets is not valid JSON");
+  }
+  if (Array.isArray(parsed) && parsed.every((t): t is string => typeof t === "string")) {
+    return parsed;
+  }
+  throw new Error("knowledge-store: column wiki_targets is not a string array");
+}
+
+function parseStoredTask(row: SqlRow): ExtractedTask {
+  return {
+    checked: columnNumber(row, "checked") !== 0,
+    text: columnString(row, "text"),
+    raw: columnString(row, "raw"),
+    line: columnNumber(row, "line"),
+    ordinal: columnNumber(row, "ordinal"),
+    wikiTargets: parseWikiTargets(row),
+  };
 }
 
 function parseStoredLink(row: SqlRow): StoredLink {
@@ -315,6 +353,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
     driver.run("DELETE FROM headings WHERE path = ?", [path]);
     driver.run("DELETE FROM tags WHERE path = ?", [path]);
     driver.run("DELETE FROM aliases WHERE path = ?", [path]);
+    driver.run("DELETE FROM tasks WHERE path = ?", [path]);
   };
 
   open();
@@ -334,6 +373,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
           tags: [],
           aliases: [],
           private: columnNumber(row, "is_private") !== 0,
+          tasks: [],
         };
         docs.set(path, {
           path,
@@ -360,6 +400,12 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
       }
       for (const row of driver.all("SELECT path, alias FROM aliases ORDER BY path, ord", [])) {
         docs.get(columnString(row, "path"))?.projection.aliases.push(columnString(row, "alias"));
+      }
+      for (const row of driver.all(
+        "SELECT path, ordinal, line, raw, text, checked, wiki_targets FROM tasks ORDER BY path, ordinal",
+        [],
+      )) {
+        docs.get(columnString(row, "path"))?.projection.tasks.push(parseStoredTask(row));
       }
       const others = driver
         .all("SELECT path FROM files WHERE kind = 'other' ORDER BY path", [])
@@ -429,6 +475,21 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
             alias,
             alias.toLowerCase(),
           ]);
+        }
+        for (const task of projection.tasks) {
+          driver.run(
+            `INSERT INTO tasks (path, ordinal, line, raw, text, checked, wiki_targets)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+              row.path,
+              task.ordinal,
+              task.line,
+              task.raw,
+              task.text,
+              task.checked ? 1 : 0,
+              JSON.stringify(task.wikiTargets),
+            ],
+          );
         }
         const rowid = rowidOf(row.path);
         if (rowid === null) throw new Error("knowledge-store: upserted file row vanished");

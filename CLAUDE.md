@@ -202,6 +202,15 @@ and full-text search live in the command palette.
   template…" applies `templates/*.md` with `{{date}}`/`{{title}}`
   substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
   Notes configures folder/format).
+- **Tasks view**: a palette-launched alternate main surface like the graph
+  ("Open tasks view") over the projection's per-doc task extraction (every
+  GFM `- [ ]` is a task; per-note `tasks: false` opts out). Scheduling is
+  association — first date-shaped `[[link]]` in the item, else the note's
+  daily-note date — computed renderer-side via `@repo/core/knowledge/task-schedule`.
+  Toggling goes through the guarded `toggleVaultTask` channel
+  (`@repo/core/knowledge/guarded-line-edit`: ordinal-locate + raw-byte
+  equality, refusal values kick an index self-heal); rows delegate through
+  the same (sourceFile, ordinal) delegation store the editor uses.
 
 ### HTML Apps — vault `.html` as sandboxed views
 

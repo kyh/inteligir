@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { isDocPath } from "./doc-file";
-import type { LinkKind } from "./link-extract";
+import type { ExtractedTask, LinkKind } from "./link-extract";
 import { buildResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex, type TagCount } from "./tag-index";
@@ -77,6 +77,20 @@ export type LinkGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
  * the renderer's local resolver. */
 export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; aliases?: string[] };
 
+/** One vault task for the Tasks view: an ExtractedTask flattened with its
+ * doc's identity. `ordinal` doubles as delegation's anchor index and the
+ * guarded toggle's key; `raw` is the toggle's expectedRaw. */
+export type VaultTaskEntry = {
+  path: string;
+  title: string;
+  line: number;
+  raw: string;
+  text: string;
+  checked: boolean;
+  ordinal: number;
+  wikiTargets: string[];
+};
+
 // ---- Engine ------------------------------------------------------------------
 
 /** Query option shared by the privacy-filterable reads. Default false keeps
@@ -85,7 +99,13 @@ export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; a
  * true, and they re-probe live disk on top (the index only prefilters). */
 export type PrivacyOpts = { excludePrivate?: boolean };
 
-type DocRecord = { title: string; links: StoredLink[]; aliases: string[]; private: boolean };
+type DocRecord = {
+  title: string;
+  links: StoredLink[];
+  aliases: string[];
+  private: boolean;
+  tasks: ExtractedTask[];
+};
 
 type ResolvedLink = { link: StoredLink; targetPath: string | null };
 
@@ -109,6 +129,7 @@ export class LinkGraphIndex {
       links: projection.links,
       aliases: projection.aliases,
       private: projection.private,
+      tasks: projection.tasks,
     });
     this.tagIndex.set(path, projection.tags);
     this.resolved = null;
@@ -264,6 +285,28 @@ export class LinkGraphIndex {
     return this.tagIndex.all();
   }
 
+  /** Every task in the vault, sorted by path then ordinal — the Tasks view's
+   * whole-vault query. A flatten over stored projections, no resolution pass
+   * (tasks don't participate in ensureResolved). */
+  tasks(): VaultTaskEntry[] {
+    const out: VaultTaskEntry[] = [];
+    for (const [path, record] of [...this.docs.entries()].toSorted(byKey)) {
+      for (const task of record.tasks) {
+        out.push({
+          path,
+          title: record.title,
+          line: task.line,
+          raw: task.raw,
+          text: task.text,
+          checked: task.checked,
+          ordinal: task.ordinal,
+          wikiTargets: task.wikiTargets,
+        });
+      }
+    }
+    return out;
+  }
+
   /** Vault paths of notes carrying `tag` (case-insensitive), sorted. */
   notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
     const paths = this.tagIndex.notesWithTag(tag);
@@ -310,4 +353,8 @@ export class LinkGraphIndex {
 
 function byPath(a: WikiTarget, b: WikiTarget): number {
   return a.path < b.path ? -1 : 1;
+}
+
+function byKey(a: readonly [string, unknown], b: readonly [string, unknown]): number {
+  return a[0] < b[0] ? -1 : 1;
 }
