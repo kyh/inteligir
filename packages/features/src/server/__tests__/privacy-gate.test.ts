@@ -372,10 +372,14 @@ describe("privacy extension handler (the piece pi invokes)", () => {
   });
 });
 
-describe("classifyVaultDocWrite — the checkpoint seam's capture coordinate", () => {
-  const classify = (toolName: string, input: Record<string, unknown>, e: GateEnv = env()) =>
-    classifyVaultDocWrite({ toolName, input }, e);
+const classify = (toolName: string, input: Record<string, unknown>, e: GateEnv = env()) =>
+  classifyVaultDocWrite({ toolName, input }, e);
 
+/** A minimal pi ToolCallEvent for the handler tests below. */
+const toolCall = (toolName: string, path: string) =>
+  ({ type: "tool_call", toolCallId: "cp-1", toolName, input: { path } }) as const;
+
+describe("classifyVaultDocWrite — the checkpoint seam's capture coordinate", () => {
   it("names the vault-relative target of an in-vault doc edit/write (all path forms)", () => {
     for (const tool of ["edit", "write"] as const) {
       for (const p of [
@@ -437,14 +441,11 @@ describe("privacy extension handler — the checkpoint seam (block wins, fail cl
     };
   }
 
-  const call = (toolName: string, path: string) =>
-    ({ type: "tool_call", toolCallId: "cp-1", toolName, input: { path } }) as const;
-
   it("captures pre-execution for an ALLOWED in-vault doc write, and allows it", () => {
     const captured: VaultDocWrite[] = [];
     const handler = buildToolCallHandler(port(), { capture: (t) => captured.push(t) });
-    expect(handler(call("write", `${REAL_ROOT}/public.md`))).toBeUndefined();
-    expect(handler(call("edit", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(handler(toolCall("write", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(handler(toolCall("edit", `${REAL_ROOT}/public.md`))).toBeUndefined();
     expect(captured).toEqual([
       { rel: "public.md", tool: "write" },
       { rel: "public.md", tool: "edit" },
@@ -454,7 +455,7 @@ describe("privacy extension handler — the checkpoint seam (block wins, fail cl
   it("captures NOTHING for a privacy-BLOCKED write — block wins, the file is never read", () => {
     const captured: VaultDocWrite[] = [];
     const handler = buildToolCallHandler(port(), { capture: (t) => captured.push(t) });
-    const result = handler(call("write", `${REAL_ROOT}/notes/secret.md`));
+    const result = handler(toolCall("write", `${REAL_ROOT}/notes/secret.md`));
     expect(result?.block).toBe(true);
     expect(captured).toEqual([]);
   });
@@ -462,9 +463,9 @@ describe("privacy extension handler — the checkpoint seam (block wins, fail cl
   it("captures nothing for reads and for writes outside the vault", () => {
     const captured: VaultDocWrite[] = [];
     const handler = buildToolCallHandler(port(), { capture: (t) => captured.push(t) });
-    expect(handler(call("read", `${REAL_ROOT}/public.md`))).toBeUndefined();
-    expect(handler(call("write", "/etc/hosts"))).toBeUndefined();
-    expect(handler(call("write", `${REAL_ROOT}/photo.png`))).toBeUndefined();
+    expect(handler(toolCall("read", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(handler(toolCall("write", "/etc/hosts"))).toBeUndefined();
+    expect(handler(toolCall("write", `${REAL_ROOT}/photo.png`))).toBeUndefined();
     expect(captured).toEqual([]);
   });
 
@@ -474,12 +475,14 @@ describe("privacy extension handler — the checkpoint seam (block wins, fail cl
         throw new Error("snapshot disk full");
       },
     });
-    expect(() => handler(call("write", `${REAL_ROOT}/public.md`))).toThrow("snapshot disk full");
+    expect(() => handler(toolCall("write", `${REAL_ROOT}/public.md`))).toThrow(
+      "snapshot disk full",
+    );
   });
 
   it("a null checkpoint port (background agent) gates privacy exactly as before", () => {
     const handler = buildToolCallHandler(port(), null);
-    expect(handler(call("write", `${REAL_ROOT}/public.md`))).toBeUndefined();
-    expect(handler(call("write", `${REAL_ROOT}/notes/secret.md`))?.block).toBe(true);
+    expect(handler(toolCall("write", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(handler(toolCall("write", `${REAL_ROOT}/notes/secret.md`))?.block).toBe(true);
   });
 });

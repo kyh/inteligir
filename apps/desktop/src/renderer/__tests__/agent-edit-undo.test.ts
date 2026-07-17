@@ -85,53 +85,55 @@ describe("connectAgentEditUndo", () => {
   });
 });
 
-describe("describeAgentEdits", () => {
-  const edit = (path: string, kind: "edit" | "create" = "edit"): AgentEditCaptured => ({
-    id: "x",
-    path,
-    kind,
-    capturedAt: 0,
-  });
+const makeEdit = (
+  path: string,
+  overrides?: Partial<Pick<AgentEditCaptured, "id" | "kind">>,
+): AgentEditCaptured => ({
+  id: "x",
+  path,
+  kind: "edit",
+  capturedAt: 0,
+  ...overrides,
+});
 
+describe("describeAgentEdits", () => {
   it("names a single file, distinguishing created from edited", () => {
-    expect(describeAgentEdits([edit("notes/plan.md")])).toBe('Agent edited "plan.md"');
-    expect(describeAgentEdits([edit("plan.md", "create")])).toBe('Agent created "plan.md"');
+    expect(describeAgentEdits([makeEdit("notes/plan.md")])).toBe('Agent edited "plan.md"');
+    expect(describeAgentEdits([makeEdit("plan.md", { kind: "create" })])).toBe(
+      'Agent created "plan.md"',
+    );
   });
 
   it("summarizes several files", () => {
-    expect(describeAgentEdits([edit("a.md"), edit("b.md"), edit("c.md")])).toBe(
+    expect(describeAgentEdits([makeEdit("a.md"), makeEdit("b.md"), makeEdit("c.md")])).toBe(
       "Agent edited 3 notes",
     );
   });
 });
 
 describe("runAgentEditUndo — flush-first open-note coherence", () => {
-  const edit = (id: string, path: string): AgentEditCaptured => ({
-    id,
-    path,
-    kind: "edit",
-    capturedAt: 0,
-  });
-
   it("flushes the open note BEFORE restoring — the buffer must be clean when the write lands", async () => {
     const order: string[] = [];
-    const result = await runAgentEditUndo([edit("cp-1", "a.md"), edit("cp-2", "b.md")], {
-      flushOpenNote: async () => {
-        order.push("flush");
-        return true;
+    const result = await runAgentEditUndo(
+      [makeEdit("a.md", { id: "cp-1" }), makeEdit("b.md", { id: "cp-2" })],
+      {
+        flushOpenNote: async () => {
+          order.push("flush");
+          return true;
+        },
+        restore: async (ids) => {
+          order.push(`restore:${ids.join(",")}`);
+          return { ok: true };
+        },
       },
-      restore: async (ids) => {
-        order.push(`restore:${ids.join(",")}`);
-        return { ok: true };
-      },
-    });
+    );
     expect(order).toEqual(["flush", "restore:cp-1,cp-2"]);
     expect(result).toEqual({ ok: true });
   });
 
   it("still restores after a failed flush — the restore is the user's explicit intent", async () => {
     let restored = false;
-    const result = await runAgentEditUndo([edit("cp-1", "a.md")], {
+    const result = await runAgentEditUndo([makeEdit("a.md", { id: "cp-1" })], {
       flushOpenNote: async () => false,
       restore: async () => {
         restored = true;
@@ -143,7 +145,7 @@ describe("runAgentEditUndo — flush-first open-note coherence", () => {
   });
 
   it("maps a rejected restore into an error VALUE for the toast", async () => {
-    const result = await runAgentEditUndo([edit("cp-1", "a.md")], {
+    const result = await runAgentEditUndo([makeEdit("a.md", { id: "cp-1" })], {
       flushOpenNote: async () => true,
       restore: async () => {
         throw new Error("bridge went away");
