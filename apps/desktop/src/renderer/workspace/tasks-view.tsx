@@ -11,7 +11,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircleIcon,
-  CheckCircle2Icon,
   CheckIcon,
   ChevronRightIcon,
   Clock3Icon,
@@ -358,7 +357,7 @@ function TaskRow({
           {task.title}
         </button>
       )}
-      {delegation !== null && delegation.status !== "done" ? (
+      {delegation !== null && isActiveDelegation(delegation) ? (
         <DelegationBadge
           delegation={delegation}
           onCancel={onCancel}
@@ -382,15 +381,22 @@ function TaskRow({
   );
 }
 
-/** Compact inline status (todo-delegation's badge, sized for list rows).
- * "Done" isn't shown here — the checked box is the durable signal and the
- * row flips as soon as the index refreshes. */
+/** A delegation the badge renders — "done" is excluded at the type level:
+ * the checked box is the durable done signal and the row flips as soon as
+ * the index refreshes, so the badge never sees it. */
+type ActiveDelegation = Delegation & { status: Exclude<Delegation["status"], "done"> };
+
+function isActiveDelegation(delegation: Delegation): delegation is ActiveDelegation {
+  return delegation.status !== "done";
+}
+
+/** Compact inline status (todo-delegation's badge, sized for list rows). */
 function DelegationBadge({
   delegation,
   onCancel,
   onRetry,
 }: {
-  delegation: Delegation;
+  delegation: ActiveDelegation;
   onCancel: (id: string) => void;
   onRetry: () => void;
 }) {
@@ -416,13 +422,6 @@ function DelegationBadge({
         <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
           <Loader2Icon className="size-3 animate-spin" />
           Working…
-        </span>
-      );
-    case "done":
-      return (
-        <span className="flex shrink-0 items-center gap-1 px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2Icon className="size-3" />
-          Done
         </span>
       );
     case "failed":

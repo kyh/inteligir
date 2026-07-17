@@ -12,6 +12,7 @@ import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi
 import type { BacklinkEntry, SearchResult } from "@repo/core/knowledge/knowledge-index";
 
 import { isRecord, type SetupProgress } from "@repo/features/ipc";
+import type { NotePrivacyProbe } from "@repo/features/ipc-registry";
 import type { ExecutorExecuteResult } from "@repo/features/executor";
 
 // ---------------------------------------------------------------------------
@@ -57,8 +58,10 @@ export type KnowledgePort = {
 
 /** A note's live-disk privacy verdict: notePrivacy's three states plus
  * `absent` (no such file). Anything that can't be read/typed probes
- * `indeterminate` — the gate treats it as private (fail-closed). */
-export type PrivacyProbe = "public" | "private" | "absent" | "indeterminate";
+ * `indeterminate` — the gate treats it as private (fail-closed). The SAME
+ * union the vault:probe-note-privacy channel carries — one probe contract,
+ * host and renderer side. */
+export type PrivacyProbe = NotePrivacyProbe;
 
 /** Vault-privacy capability behind the agent tool gate (privacy/extension.ts).
  * Built host-side in agent-lifecycle.ts over the live Vault/Knowledge

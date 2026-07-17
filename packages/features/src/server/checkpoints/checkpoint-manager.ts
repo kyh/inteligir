@@ -20,15 +20,12 @@
 import crypto from "node:crypto";
 
 import { getHostNotifiers } from "../host-notifiers";
+import { isEnoent } from "../lib/fs-errors";
 import { getSnapshotStore, type SnapshotStore } from "../snapshots/snapshot-store";
 import { getVaultManager } from "../vault/vault";
 import type { VaultDocWrite } from "../agent/extension";
 import { toErrorMessage } from "@repo/features/ipc";
 import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
-
-function isEnoent(err: unknown): boolean {
-  return err instanceof Error && "code" in err && err.code === "ENOENT";
-}
 
 export type CheckpointManagerOptions = {
   /** Snapshot store. Defaults to the shared ~/.inteligir-backed singleton. */

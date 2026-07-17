@@ -14,6 +14,7 @@ import { notePrivacy } from "@repo/core/markdown/frontmatter";
 import { login, resetAuthStorage } from "../agent/auth";
 import type { AgentPorts, PrivacyProbe } from "../agent/extension";
 import { buildAgentKnowledgePort } from "./agent-knowledge-port";
+import { isEnoent } from "./fs-errors";
 import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
@@ -118,10 +119,6 @@ export function probeVaultPrivacy(rel: string): PrivacyProbe {
   } catch (err) {
     return isEnoent(err) ? "absent" : "indeterminate";
   }
-}
-
-function isEnoent(err: unknown): boolean {
-  return err instanceof Error && "code" in err && err.code === "ENOENT";
 }
 
 /** Seed agent resources (dirs, bundled skills/AGENTS.md, bundle setups). */

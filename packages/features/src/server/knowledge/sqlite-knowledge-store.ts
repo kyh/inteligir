@@ -16,7 +16,6 @@
 // narrow API used here (DatabaseSync/prepare/exec) is stable per app version.
 // ---------------------------------------------------------------------------
 
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
@@ -24,13 +23,12 @@ import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
 import { createSqlKnowledgeStore, type SqlDriver } from "@repo/core/knowledge/sql-knowledge-store";
 
-import { inteligirPath } from "../lib/json-store";
+import { inteligirPath, shortPathKey } from "../lib/json-store";
 
 /** Per-vault index DB path, keyed by a short hash of the vault root (mirrors
  * sync-manager's baseStorePath pattern — roots contain `/`). */
 export function indexDbPathFor(root: string): string {
-  const key = crypto.createHash("sha256").update(root).digest("hex").slice(0, 16);
-  return inteligirPath("indexes", `${key}.sqlite`);
+  return inteligirPath("indexes", `${shortPathKey(root)}.sqlite`);
 }
 
 const IN_MEMORY = ":memory:";
@@ -47,6 +45,11 @@ function openDatabase(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   // WAL keeps index writes off the readers' path; a no-op for :memory:.
   db.exec("PRAGMA journal_mode = WAL");
+  // NORMAL skips the per-commit fsync (FULL) that dominates small upsert
+  // transactions. Safe by the cache law: the worst a power loss can produce
+  // is a corrupt file, and openDatabaseRecovering / the store's open guards
+  // already wipe-and-rebuild on any unreadable DB.
+  db.exec("PRAGMA synchronous = NORMAL");
   if (dbPath !== IN_MEMORY) {
     // The db body column is the only full plaintext copy of every note (private
     // ones included) — own it 0600 at creation, not just at the next boot's

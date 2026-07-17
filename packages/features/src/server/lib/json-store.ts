@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -10,6 +11,14 @@ const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
 
 export function inteligirPath(...segments: string[]): string {
   return path.join(INTELIGIR_DIR, ...segments);
+}
+
+/** Short stable file-name key for a path-like identifier (vault root,
+ * vaultId — both may contain `/`): sha-256 hex, first 16 chars. The shared
+ * idiom behind every per-vault file under ~/.inteligir (index DBs, sync base
+ * manifests, sync blob dirs). */
+export function shortPathKey(input: string): string {
+  return crypto.createHash("sha256").update(input).digest("hex").slice(0, 16);
 }
 
 export type FsAdapter = {

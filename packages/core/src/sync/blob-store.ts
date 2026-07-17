@@ -16,6 +16,13 @@ import type { Hash } from "./vault-file";
 // conflict-copy behavior, never loses data.
 // ---------------------------------------------------------------------------
 
+/** Whether `name` is a content-addressed blob file name (sha-256 hex). Only
+ * such entries are the store's own — platform prune() implementations must
+ * never touch a foreign file. */
+export function isBlobFileName(name: string): boolean {
+  return /^[0-9a-f]{64}$/.test(name);
+}
+
 export interface BaseBlobStore {
   /** The bytes stored under `hash`, or `null` when missing or integrity-suspect
    * (an implementation that can cheaply re-hash must return `null` on a

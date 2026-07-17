@@ -200,6 +200,10 @@ const AckCaptureSchema = Type.Object(
   { additionalProperties: false },
 );
 
+/** The capture-apply verdict — the ONE declaration; the renderer applier and
+ * the host CaptureManager both import it, so the ack contract can't fork. */
+export type CaptureAckOutcome = Static<typeof AckCaptureSchema>["outcome"];
+
 // ---------------------------------------------------------------------------
 // AI-write checkpoints — pre-write copies of vault notes captured at the chat
 // agent's tool gate (checkpoints/checkpoint-manager.ts). Delegation has its
