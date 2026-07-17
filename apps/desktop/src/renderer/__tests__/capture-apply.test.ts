@@ -97,6 +97,18 @@ async function settle(ms = 30): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Poll `predicate` until it holds — waits exactly as long as the async chain
+ * needs instead of guessing a fixed duration. Used where the result arrives
+ * after a real-timer poll (the deferred-capture retry), which a fixed `settle`
+ * races under a loaded CI scheduler. */
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) throw new Error("waitFor: condition never held");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 describe("rich-mode apply", () => {
   it("inserts through the live editor and acks applied only after flush", async () => {
     const h = harness();
@@ -160,7 +172,9 @@ describe("transient AI session gating", () => {
     expect(h.acks).toEqual([{ id: "c6", outcome: "deferred" }]);
     expect(h.getPersisted()).toBeNull();
     pending = false;
-    await settle();
+    // The re-apply lands on the next retry poll; wait for the applied ack
+    // rather than a fixed sleep (persisted is written before that ack).
+    await waitFor(() => h.acks.length === 2);
     expect(h.acks).toEqual([
       { id: "c6", outcome: "deferred" },
       { id: "c6", outcome: "applied" },
@@ -189,7 +203,8 @@ describe("transient AI session gating", () => {
     await settle(5);
     expect(acks).toEqual([{ id: "c7", outcome: "deferred" }]);
     open = "other/note.md"; // the user navigated away mid-session
-    await settle();
+    // The not-open verdict lands on the next retry poll — wait for it.
+    await waitFor(() => acks.length === 2);
     expect(acks).toEqual([
       { id: "c7", outcome: "deferred" },
       { id: "c7", outcome: "not-open" },
