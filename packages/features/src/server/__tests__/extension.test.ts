@@ -35,6 +35,7 @@ function fakePorts(): AgentPorts {
       vaultLexicalRoot: () => null,
       privateIndexPaths: () => [],
     },
+    checkpoints: null,
   };
 }
 

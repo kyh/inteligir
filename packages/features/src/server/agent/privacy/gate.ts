@@ -40,7 +40,7 @@ import path from "node:path";
 
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 
-import type { PrivacyProbe } from "../extension";
+import type { PrivacyProbe, VaultDocWrite } from "../extension";
 
 /** Everything the decision core needs, injected (no fs in this module). */
 export type GateEnv = {
@@ -116,6 +116,28 @@ export function decideToolCall(
   // allow. A FUTURE tool that can read vault content must be added to the
   // dispatch above with a real decision, never left to this fallthrough.
   return decideOpaqueInput(collectStrings(call.input).join("\n"), env, `${call.toolName} input`);
+}
+
+/** Classify a pi tool call as an in-vault DOC mutation (edit/write) and hand
+ * back its vault-relative target — the checkpoint seam's capture coordinate.
+ * Returns null for everything else: reads, scans, non-vault paths, non-docs,
+ * and the unverifiable-root state (decideToolCall blocks those calls anyway,
+ * so nothing capturable slips past as null here). Runs the SAME classifyPath
+ * / parity resolution as the decision core, so the checkpointed file is the
+ * file pi's tool will actually open — never a re-derivation from the raw
+ * string. Callers run it strictly AFTER an allow decision; it must never
+ * influence one. */
+export function classifyVaultDocWrite(
+  call: { toolName: string; input: Record<string, unknown> },
+  env: GateEnv,
+): VaultDocWrite | null {
+  if (call.toolName !== "edit" && call.toolName !== "write") return null;
+  const inputPath = stringField(call.input, "path");
+  if (inputPath === null) return null;
+  const target = classifyPath(inputPath, env);
+  if (target.kind !== "vault") return null;
+  if (target.rel === "" || !isDocPath(target.rel)) return null;
+  return { rel: target.rel, tool: call.toolName };
 }
 
 /** Every top-level string (and string-array element) of a tool's input — the

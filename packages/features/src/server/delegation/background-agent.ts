@@ -28,7 +28,13 @@ export async function startBackgroundAgent(): Promise<void> {
   const next = new Agent({
     newSession: true,
     sessionDir: BACKGROUND_SESSION_DIR,
-    ports: getAgentPorts(),
+    // Tool-gate checkpoints are the CHAT undo surface — disabled here. This
+    // agent's undo is the pre-run delegation snapshot (delegation-manager)
+    // behind the dock's "Restore original"; hook captures from this session
+    // would surface nowhere and could only mislabel the chat undo toast. Its
+    // off-target edits (files other than the delegated note) remain
+    // uncovered, exactly as before the checkpoint seam existed.
+    ports: { ...getAgentPorts(), checkpoints: null },
   });
   await next.start();
   bgAgent = next;

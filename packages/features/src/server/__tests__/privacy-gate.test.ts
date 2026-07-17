@@ -11,9 +11,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import { decideToolCall, type GateEnv } from "../agent/privacy/gate";
+import { classifyVaultDocWrite, decideToolCall, type GateEnv } from "../agent/privacy/gate";
 import { buildToolCallHandler } from "../agent/privacy/extension";
-import type { PrivacyPort, PrivacyProbe } from "../agent/extension";
+import type { PrivacyPort, PrivacyProbe, VaultDocWrite } from "../agent/extension";
 
 // The secret bytes that must never appear in anything the model sees.
 const SECRET_BODY = "TOP SECRET: the rocket equation notes";
@@ -304,7 +304,7 @@ describe("privacy extension handler (the piece pi invokes)", () => {
   }
 
   it("returns { block, reason } for a private read; the payload the model sees has no content", () => {
-    const handler = buildToolCallHandler(port());
+    const handler = buildToolCallHandler(port(), null);
     const result = handler({
       type: "tool_call",
       toolCallId: "call-1",
@@ -327,7 +327,7 @@ describe("privacy extension handler (the piece pi invokes)", () => {
     // (vaultRealRoot null) that means BLOCK — before the fix the raw string
     // resolved to "<cwd>/@vault/x.md", classified "outside", and was allowed
     // straight through to pi's read, which stripped the @ and read the note.
-    const handler = buildToolCallHandler(port());
+    const handler = buildToolCallHandler(port(), null);
     const result = handler({
       type: "tool_call",
       toolCallId: "call-at",
@@ -338,7 +338,7 @@ describe("privacy extension handler (the piece pi invokes)", () => {
   });
 
   it("returns undefined (allow) for an unrelated tool call", () => {
-    const handler = buildToolCallHandler(port());
+    const handler = buildToolCallHandler(port(), null);
     const result = handler({
       type: "tool_call",
       toolCallId: "call-2",
@@ -356,6 +356,7 @@ describe("privacy extension handler (the piece pi invokes)", () => {
         },
         vaultRealRoot: () => REAL_ROOT,
       }),
+      null,
     );
     // Deliberately NO try/catch in the handler: the throw reaches pi, which
     // converts it into an error tool result (agent-loop.js prepareToolCall
@@ -368,5 +369,120 @@ describe("privacy extension handler (the piece pi invokes)", () => {
         input: { path: `${REAL_ROOT}/public.md` },
       }),
     ).toThrow("probe exploded");
+  });
+});
+
+const classify = (toolName: string, input: Record<string, unknown>, e: GateEnv = env()) =>
+  classifyVaultDocWrite({ toolName, input }, e);
+
+/** A minimal pi ToolCallEvent for the handler tests below. */
+const toolCall = (toolName: string, path: string) =>
+  ({ type: "tool_call", toolCallId: "cp-1", toolName, input: { path } }) as const;
+
+describe("classifyVaultDocWrite — the checkpoint seam's capture coordinate", () => {
+  it("names the vault-relative target of an in-vault doc edit/write (all path forms)", () => {
+    for (const tool of ["edit", "write"] as const) {
+      for (const p of [
+        "./vault/public.md",
+        "vault/public.md",
+        `${CWD}/vault/public.md`,
+        `${REAL_ROOT}/public.md`,
+        `${LEXICAL_ROOT}/public.md`,
+      ]) {
+        expect(classify(tool, { path: p }), `${tool} ${p}`).toEqual({ rel: "public.md", tool });
+      }
+    }
+  });
+
+  it("resolves through pi's normalization — the @-form names the same file", () => {
+    expect(classify("write", { path: "@vault/public.md" })).toEqual({
+      rel: "public.md",
+      tool: "write",
+    });
+  });
+
+  it("returns null for reads, scans, and opaque tools — only mutations checkpoint", () => {
+    for (const tool of ["read", "grep", "find", "ls", "bash", "execute"]) {
+      expect(classify(tool, { path: "./vault/public.md" }), tool).toBeNull();
+    }
+  });
+
+  it("returns null for non-vault paths, non-doc vault files, and the vault root", () => {
+    expect(classify("write", { path: "/etc/hosts" })).toBeNull();
+    expect(classify("write", { path: "./scratch/tmp.md" })).toBeNull();
+    expect(classify("edit", { path: "./vault/photo.png" })).toBeNull();
+    expect(classify("edit", { path: "./vault" })).toBeNull();
+  });
+
+  it("returns null in the unverifiable-root world (the gate blocks those calls anyway)", () => {
+    expect(
+      classify("write", { path: "./vault/public.md" }, env({ vaultRealRoot: null })),
+    ).toBeNull();
+  });
+
+  it("returns null for a schema-less call (no string path)", () => {
+    expect(classify("write", {})).toBeNull();
+    expect(classify("write", { path: 42 })).toBeNull();
+  });
+});
+
+describe("privacy extension handler — the checkpoint seam (block wins, fail closed)", () => {
+  function port(overrides?: Partial<PrivacyPort>): PrivacyPort {
+    return {
+      probe: (rel) => PROBES[rel] ?? "absent",
+      // A WORKING world (unlike the fail-closed handler tests above): the
+      // seam only matters when calls are allowed through. None of these
+      // paths exist on the test machine, so realPathResolve is an identity
+      // over them and classification stays deterministic.
+      vaultRealRoot: () => REAL_ROOT,
+      vaultLexicalRoot: () => LEXICAL_ROOT,
+      privateIndexPaths: () => ["notes/secret.md"],
+      ...overrides,
+    };
+  }
+
+  it("captures pre-execution for an ALLOWED in-vault doc write, and allows it", () => {
+    const captured: VaultDocWrite[] = [];
+    const handler = buildToolCallHandler(port(), { capture: (t) => captured.push(t) });
+    expect(handler(toolCall("write", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(handler(toolCall("edit", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(captured).toEqual([
+      { rel: "public.md", tool: "write" },
+      { rel: "public.md", tool: "edit" },
+    ]);
+  });
+
+  it("captures NOTHING for a privacy-BLOCKED write — block wins, the file is never read", () => {
+    const captured: VaultDocWrite[] = [];
+    const handler = buildToolCallHandler(port(), { capture: (t) => captured.push(t) });
+    const result = handler(toolCall("write", `${REAL_ROOT}/notes/secret.md`));
+    expect(result?.block).toBe(true);
+    expect(captured).toEqual([]);
+  });
+
+  it("captures nothing for reads and for writes outside the vault", () => {
+    const captured: VaultDocWrite[] = [];
+    const handler = buildToolCallHandler(port(), { capture: (t) => captured.push(t) });
+    expect(handler(toolCall("read", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(handler(toolCall("write", "/etc/hosts"))).toBeUndefined();
+    expect(handler(toolCall("write", `${REAL_ROOT}/photo.png`))).toBeUndefined();
+    expect(captured).toEqual([]);
+  });
+
+  it("a capture failure THROWS through — pi blocks the write (fail-closed undo)", () => {
+    const handler = buildToolCallHandler(port(), {
+      capture: () => {
+        throw new Error("snapshot disk full");
+      },
+    });
+    expect(() => handler(toolCall("write", `${REAL_ROOT}/public.md`))).toThrow(
+      "snapshot disk full",
+    );
+  });
+
+  it("a null checkpoint port (background agent) gates privacy exactly as before", () => {
+    const handler = buildToolCallHandler(port(), null);
+    expect(handler(toolCall("write", `${REAL_ROOT}/public.md`))).toBeUndefined();
+    expect(handler(toolCall("write", `${REAL_ROOT}/notes/secret.md`))?.block).toBe(true);
   });
 });

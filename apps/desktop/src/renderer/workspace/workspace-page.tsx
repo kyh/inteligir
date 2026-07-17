@@ -13,6 +13,7 @@ import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
 import { AppSidebar } from "@renderer/sidebar/app-sidebar";
 import { HtmlAppView } from "@renderer/workspace/html-app-view";
+import { useAgentEditUndo } from "@renderer/workspace/use-agent-edit-undo";
 import { useDeepLinkNav } from "@renderer/workspace/use-deep-link";
 import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { VaultProvider, useVault } from "@renderer/workspace/vault-context";
@@ -51,6 +52,14 @@ function MainSurface({ surface }: { surface: WorkspaceSurface }) {
  * so it can open notes; search opens the palette prefilled; renders nothing. */
 function DeepLinkNav({ onSearch }: { onSearch: (query: string) => void }) {
   useDeepLinkNav(onSearch);
+  return null;
+}
+
+/** Post-turn undo toast for chat-agent vault edits. Lives inside
+ * VaultProvider so flush-first can reach the registered open-note flush;
+ * renders nothing. */
+function AgentEditUndo() {
+  useAgentEditUndo();
   return null;
 }
 
@@ -122,6 +131,7 @@ export function WorkspacePage() {
     <VaultProvider>
       <DailyNoteHotkey />
       <DeepLinkNav onSearch={openSearch} />
+      <AgentEditUndo />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
         {/* Flush Attio-style editor pane: a full-height column butted against

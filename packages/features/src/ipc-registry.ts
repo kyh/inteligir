@@ -201,6 +201,33 @@ const AckCaptureSchema = Type.Object(
 );
 
 // ---------------------------------------------------------------------------
+// AI-write checkpoints — pre-write copies of vault notes captured at the chat
+// agent's tool gate (checkpoints/checkpoint-manager.ts). Delegation has its
+// own pre-run snapshot + dock affordance; these channels serve the CHAT undo.
+// ---------------------------------------------------------------------------
+
+/** A chat-agent edit/write on a vault note was checkpointed: the host copied
+ * the pre-write bytes before the tool executed. Fired mid-turn; the renderer
+ * collects them per turn (first capture per path = the pre-turn bytes) and
+ * offers one undo toast when the turn settles. `create` = the write made a
+ * new file, so undo deletes it. */
+export type AgentEditCaptured = {
+  id: string;
+  path: string;
+  kind: "edit" | "create";
+  capturedAt: number;
+};
+
+const RestoreAgentEditsSchema = Type.Object(
+  { ids: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }) },
+  { additionalProperties: false },
+);
+
+/** restoreAgentEdits verdict. Partial failures aggregate into one message —
+ * whatever could be restored was. */
+export type RestoreAgentEditsResult = { ok: true } | { ok: false; error: string };
+
+// ---------------------------------------------------------------------------
 // Vault — the user's local knowledge folder (markdown). Paths are
 // vault-relative; main confines them under the vault root.
 // ---------------------------------------------------------------------------
@@ -537,6 +564,21 @@ export const IPC = {
   /** Fired as a running delegation streams its response text (accumulating,
    * keyed by id) so the response dock can show it live. */
   onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
+
+  // AI-write checkpoints — the chat agent's undo (see the section header on
+  // AgentEditCaptured above).
+  /** A chat-agent write was checkpointed pre-execution — drives the
+   * post-turn undo toast. */
+  onAgentEditCaptured: event<AgentEditCaptured>("checkpoint:captured"),
+  /** Undo a set of chat checkpoints: each `edit` writes its pre-write bytes
+   * back atomically through the vault (no-op when already matching; the
+   * open-note watcher refreshes editors), each `create` moves the created
+   * file to the OS trash. The renderer flushes the open note FIRST so the
+   * restore never fights a dirty buffer. */
+  restoreAgentEdits: invoke<typeof RestoreAgentEditsSchema, RestoreAgentEditsResult>(
+    "checkpoint:restore",
+    RestoreAgentEditsSchema,
+  ),
 
   // Deep-link capture — inteligir://append|task. The host enqueues to a
   // durable inbox and offers the line to the renderer; only the OPEN note is

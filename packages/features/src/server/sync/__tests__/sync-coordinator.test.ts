@@ -27,6 +27,7 @@ function noopNotifiers(capture: (state: SyncState) => void): HostNotifiers {
     vaultChange: () => {},
     delegationsChanged: () => {},
     delegationStream: () => {},
+    agentEditCaptured: () => {},
     inlineAiStream: () => {},
     captureApply: () => {},
     deepLinkNav: () => {},

@@ -25,9 +25,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { PiExtensionBundle, PrivacyPort } from "../extension";
+import type { AgentCheckpointPort, PiExtensionBundle, PrivacyPort } from "../extension";
 import { WORKSPACE_DIR } from "../paths";
-import { decideToolCall, type GateEnv } from "./gate";
+import { classifyVaultDocWrite, decideToolCall, type GateEnv } from "./gate";
 import { resolvePiToolPath } from "./pi-path-parity";
 import type { ToolCallEvent, ToolCallEventResult } from "@repo/features/server/pi/pi-types";
 
@@ -69,16 +69,36 @@ function gateEnv(privacy: PrivacyPort): GateEnv {
 }
 
 /** The tool_call handler, exported for direct unit testing (the bundle wires
- * it verbatim). Returns undefined to allow; a block result to refuse. */
+ * it verbatim). Returns undefined to allow; a block result to refuse.
+ *
+ * `checkpoints` is the AI-write undo seam: when the gate ALLOWS an edit/write
+ * whose parity-resolved target is an in-vault doc, the pre-write bytes are
+ * captured here — before pi executes the tool (this handler IS pi's
+ * pre-execution hook). Ordering is structural, not conventional:
+ *   - BLOCK WINS: capture runs strictly after the allow branch, so a
+ *     privacy-blocked call is never read, copied, or observed — and the
+ *     privacy decision itself is computed exactly as before, untouched.
+ *   - FAIL CLOSED: a capture failure THROWS through this handler; pi catches
+ *     it into an error tool result and the write never executes. An AI edit
+ *     with no undo point must never happen — the same rule delegation's
+ *     pre-run snapshot enforces by aborting the run.
+ * The capture target comes from classifyVaultDocWrite — the gate's own
+ * classifyPath/parity resolution — so checkpoint and gate agree on the file
+ * pi will actually open by construction. */
 export function buildToolCallHandler(
   privacy: PrivacyPort,
+  checkpoints: AgentCheckpointPort | null,
 ): (event: ToolCallEvent) => ToolCallEventResult | undefined {
   return (event) => {
-    const decision = decideToolCall(
-      { toolName: event.toolName, input: event.input },
-      gateEnv(privacy),
-    );
-    return decision.allow ? undefined : { block: true, reason: decision.reason };
+    const call = { toolName: event.toolName, input: event.input };
+    const env = gateEnv(privacy);
+    const decision = decideToolCall(call, env);
+    if (!decision.allow) return { block: true, reason: decision.reason };
+    if (checkpoints !== null) {
+      const target = classifyVaultDocWrite(call, env);
+      if (target !== null) checkpoints.capture(target);
+    }
+    return undefined;
   };
 }
 
@@ -87,7 +107,7 @@ const privacyExtension: PiExtensionBundle = {
   register:
     ({ ports }) =>
     (pi) => {
-      pi.on("tool_call", buildToolCallHandler(ports.privacy));
+      pi.on("tool_call", buildToolCallHandler(ports.privacy, ports.checkpoints));
     },
 };
 
