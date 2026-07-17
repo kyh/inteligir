@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DelegationManager, type DelegationAgent } from "../delegation/delegation-manager";
-import { DelegationSnapshotStore, SNAPSHOT_RETENTION } from "../delegation/delegation-snapshots";
+import { SNAPSHOT_RETENTION, SnapshotStore } from "../snapshots/snapshot-store";
 import type { FsAdapter } from "../lib/json-store";
 import { isRecord } from "@repo/features/ipc";
 
@@ -22,9 +22,9 @@ function memoryFs(): FsAdapter {
 }
 
 /** A snapshot store over an in-memory map — no ~/.inteligir writes in tests. */
-function memorySnapshots(): DelegationSnapshotStore {
+function memorySnapshots(): SnapshotStore {
   const files = new Map<string, string>();
-  return new DelegationSnapshotStore({
+  return new SnapshotStore({
     fs: memoryFs(),
     files: {
       read: (p) => files.get(p) ?? null,
@@ -596,13 +596,16 @@ describe("DelegationManager.restoreSnapshot", () => {
     let now = Date.now();
     vi.spyOn(Date, "now").mockImplementation(() => ++now);
     for (let i = 0; i < SNAPSHOT_RETENTION; i++) {
-      rig.snapshots.capture(`filler-${i}`, "x.md", `filler ${i}`);
+      rig.snapshots.capture(
+        { id: `filler-${i}`, origin: "delegation", path: "x.md", kind: "edit" },
+        `filler ${i}`,
+      );
     }
     rig.mgr.pruneSnapshots();
 
     const result = rig.mgr.restoreSnapshot(id);
     expect(result).toMatchObject({ ok: false });
-    if (!result.ok) expect(result.error).toContain("No snapshot");
+    if (!result.ok) expect(result.error).toContain("No saved copy");
     expect(rig.writes).toEqual([]);
     expect(rig.mgr.getDelegations()[0]?.restoredAt).toBeNull();
     // Prune flips hasSnapshot at the data level, so no surface — present or

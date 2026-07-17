@@ -20,6 +20,7 @@ import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "./host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
+import { resetSnapshotStore } from "../snapshots/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../executor/executor-client";
 import {
@@ -158,6 +159,7 @@ export function teardownAgentResources(): void {
   resetNotifications();
   resetCaptureManager();
   resetDelegationManager();
+  resetSnapshotStore();
   resetExecutorDaemon();
   resetSyncCoordinator();
   // Also revokes every paired remote device and pairing token, which closes

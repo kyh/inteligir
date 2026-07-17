@@ -15,8 +15,8 @@ import { Value } from "@sinclair/typebox/value";
 
 import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
-import { DelegationSnapshotStore } from "./delegation-snapshots";
 import { findTaskLine } from "./find-task-line";
+import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
 import { getHostNotifiers } from "../host-notifiers";
@@ -64,8 +64,10 @@ export type DelegationManagerOptions = {
    * to the live VaultManager. Restore goes through here so editors refresh via
    * the standard onVaultChanged path. */
   writeVault?: (rel: string, content: string) => void;
-  /** Pre-run snapshot store. Defaults to the real ~/.inteligir-backed one. */
-  snapshots?: DelegationSnapshotStore;
+  /** Pre-run snapshot store. Defaults to the shared ~/.inteligir-backed
+   * singleton (chat checkpoints live in the same store, under their own
+   * origin). */
+  snapshots?: SnapshotStore;
   /** Push channel for the editor's inline badges — the delegation list changed.
    * Injected at construction by the composition root so this module never
    * imports the IPC event registry; the live singleton (getDelegationManager)
@@ -87,7 +89,7 @@ export class DelegationManager {
   private readonly store: JsonStore<Delegation[]>;
   private readonly readVault: (rel: string) => string;
   private readonly writeVault: (rel: string, content: string) => void;
-  private readonly snapshots: DelegationSnapshotStore;
+  private readonly snapshots: SnapshotStore;
   private readonly onChanged: ((delegations: Delegation[]) => void) | null;
   private readonly onStream: ((id: string, text: string) => void) | null;
   private readonly onRunSettled: (() => void) | null;
@@ -110,7 +112,7 @@ export class DelegationManager {
     this.readVault = opts?.readVault ?? ((rel) => getVaultManager().readText(rel));
     this.writeVault =
       opts?.writeVault ?? ((rel, content) => getVaultManager().writeText(rel, content));
-    this.snapshots = opts?.snapshots ?? new DelegationSnapshotStore();
+    this.snapshots = opts?.snapshots ?? getSnapshotStore();
     this.onChanged = opts?.onChanged ?? null;
     this.onStream = opts?.onStream ?? null;
     this.onRunSettled = opts?.onRunSettled ?? null;
@@ -289,7 +291,7 @@ export class DelegationManager {
     let changed = false;
     this.store.update((all) =>
       all.map((d) => {
-        const next = remapPath(d.sourceFile, from, to);
+        const next = remapVaultPath(d.sourceFile, from, to);
         if (next === d.sourceFile) return d;
         changed = true;
         return { ...d, sourceFile: next };
@@ -516,7 +518,10 @@ export class DelegationManager {
     // intercept the write itself, and an agent edit with no snapshot is an
     // edit the user can't revert. A capture failure therefore aborts the run.
     try {
-      this.snapshots.capture(delegation.id, fresh.sourceFile, resolved.raw);
+      this.snapshots.capture(
+        { id: delegation.id, origin: "delegation", path: fresh.sourceFile, kind: "edit" },
+        resolved.raw,
+      );
     } catch (err) {
       this.finishRun(
         delegation.id,
@@ -565,15 +570,6 @@ export class DelegationManager {
       resultSummary: result.text.length > 0 ? result.text.trim().slice(0, SUMMARY_LEN) : "Done",
     });
   }
-}
-
-/** Repoint a delegation's source path across a rename/move. Handles an exact
- * file rename and a folder rename (every path under `from/`). Uses `/` — vault
- * paths are POSIX-relative regardless of host OS. */
-function remapPath(path: string, from: string, to: string): string {
-  if (path === from) return to;
-  if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
-  return path;
 }
 
 /** The terminal-failure patch — one shape for every place a run/queue entry ends
