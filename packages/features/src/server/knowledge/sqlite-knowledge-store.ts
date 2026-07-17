@@ -43,10 +43,22 @@ function deleteDbFiles(dbPath: string): void {
 }
 
 function openDatabase(dbPath: string): DatabaseSync {
-  if (dbPath !== IN_MEMORY) fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  if (dbPath !== IN_MEMORY) fs.mkdirSync(path.dirname(dbPath), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(dbPath);
   // WAL keeps index writes off the readers' path; a no-op for :memory:.
   db.exec("PRAGMA journal_mode = WAL");
+  if (dbPath !== IN_MEMORY) {
+    // The db body column is the only full plaintext copy of every note (private
+    // ones included) — own it 0600 at creation, not just at the next boot's
+    // hardenAppDir sweep. WAL/SHM are created by the driver on first write.
+    for (const suffix of ["", "-wal", "-shm"]) {
+      try {
+        fs.chmodSync(`${dbPath}${suffix}`, 0o600);
+      } catch {
+        // -wal/-shm may not exist yet; the boot sweep is the backstop.
+      }
+    }
+  }
   return db;
 }
 

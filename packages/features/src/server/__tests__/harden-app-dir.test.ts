@@ -35,6 +35,12 @@ function buildLegacyInstall(): string {
   // Snapshot bytes (raw note content), 0644 in a 0755 dir.
   writeFile(path.join(root, "snapshots", "abc-def"), 0o644);
   fs.chmodSync(path.join(root, "snapshots"), 0o755);
+  // The knowledge index — full plaintext note bodies — and its WAL/SHM, 0644
+  // in a 0755 dir (the exact gap the boot sweep must close).
+  writeFile(path.join(root, "indexes", "deadbeef.sqlite"), 0o644);
+  writeFile(path.join(root, "indexes", "deadbeef.sqlite-wal"), 0o644);
+  writeFile(path.join(root, "indexes", "deadbeef.sqlite-shm"), 0o644);
+  fs.chmodSync(path.join(root, "indexes"), 0o755);
   // Must be left alone: executables keep the owner exec bit, and non-store
   // top-level files (AGENTS.md) are not data files.
   writeFile(path.join(root, "bin", "some-tool"), 0o755);
@@ -52,6 +58,7 @@ describe("hardenAppDir", () => {
     expect(mode(path.join(root, "sessions", "background"))).toBe(0o700);
     expect(mode(path.join(root, "sessions", "inline-ai"))).toBe(0o700);
     expect(mode(path.join(root, "snapshots"))).toBe(0o700);
+    expect(mode(path.join(root, "indexes"))).toBe(0o700);
 
     expect(mode(path.join(root, "sessions", "user.jsonl"))).toBe(0o600);
     expect(mode(path.join(root, "sessions", "background", "bg.jsonl"))).toBe(0o600);
@@ -60,6 +67,9 @@ describe("hardenAppDir", () => {
     expect(mode(path.join(root, "delegations.json.corrupt-123"))).toBe(0o600);
     expect(mode(path.join(root, "runtime-ui.json.bak-456"))).toBe(0o600);
     expect(mode(path.join(root, "snapshots", "abc-def"))).toBe(0o600);
+    expect(mode(path.join(root, "indexes", "deadbeef.sqlite"))).toBe(0o600);
+    expect(mode(path.join(root, "indexes", "deadbeef.sqlite-wal"))).toBe(0o600);
+    expect(mode(path.join(root, "indexes", "deadbeef.sqlite-shm"))).toBe(0o600);
 
     // Untouched: the exec bit survives, docs stay as they were.
     expect(mode(path.join(root, "bin", "some-tool"))).toBe(0o755);

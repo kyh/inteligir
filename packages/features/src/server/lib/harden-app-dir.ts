@@ -34,6 +34,7 @@ const PRIVATE_DIRS = [
   "sessions/background",
   "sessions/inline-ai",
   "snapshots",
+  "indexes",
   "logs",
   "executor",
   "chrome-profile",
@@ -90,5 +91,13 @@ export function hardenAppDir(root: string = inteligirPath()): void {
   const snapshots = path.join(root, "snapshots");
   for (const name of listFiles(snapshots)) {
     chmodQuiet(path.join(snapshots, name), 0o600);
+  }
+  // The knowledge index sqlite is the ONLY full plaintext copy of every note
+  // body (FTS5 body column — `private: true` notes included; is_private only
+  // prefilters queries). Chmod the whole trio (.sqlite + -wal + -shm) — a WAL
+  // holds unflushed body bytes just like the main db.
+  const indexes = path.join(root, "indexes");
+  for (const name of listFiles(indexes)) {
+    chmodQuiet(path.join(indexes, name), 0o600);
   }
 }
