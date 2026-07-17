@@ -16,6 +16,7 @@ import { initMachine, shutdown } from "./app/app-machine";
 import { subscribeEvents } from "./events";
 import { constructHostSingletons } from "./host-context";
 import { initAgentLog } from "./lib/agent-log";
+import { hardenAppDir } from "./lib/harden-app-dir";
 import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
 import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
 import { registerAllHandlers } from "./handlers/register-handlers";
@@ -85,6 +86,16 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // rm -rf would gut the other process). Throws to the shell, which
       // surfaces it and quits.
       acquireHostLock();
+
+      // Permission sweep before anything else touches app state: normalize
+      // pre-existing installs (0755 session dirs, 0644 transcripts/stores —
+      // note content) to owner-only. Best-effort by design, but keep the
+      // whole call guarded too: a sweep failure must never block boot.
+      try {
+        hardenAppDir();
+      } catch (err) {
+        console.warn("[host] app-dir permission sweep failed:", err);
+      }
 
       // Must run before any pi-coding-agent call that consults getAgentDir().
       configurePaths();
