@@ -120,6 +120,9 @@ export class LinkGraphIndex {
   private readonly others = new Set<string>();
   private readonly tagIndex = new TagIndex();
   private resolved: ResolvedState | null = null;
+  /** Memoized privatePaths() result — the agent gate reads it per bash/execute
+   * tool call. Invalidated exactly where `resolved` is (any mutation). */
+  private privatePathsCache: string[] | null = null;
 
   /** Index (or re-index) a markdown doc from its projection. */
   applyDoc(path: string, projection: DocProjection): void {
@@ -133,6 +136,7 @@ export class LinkGraphIndex {
     });
     this.tagIndex.set(path, projection.tags);
     this.resolved = null;
+    this.privatePathsCache = null;
   }
 
   /** Register a non-doc vault file (image, pdf, …) for link resolution only. */
@@ -140,6 +144,7 @@ export class LinkGraphIndex {
     if (this.docs.delete(path)) this.tagIndex.remove(path);
     this.others.add(path);
     this.resolved = null;
+    this.privatePathsCache = null;
   }
 
   /** Drop a file (doc or other) from the index. */
@@ -147,7 +152,10 @@ export class LinkGraphIndex {
     const wasDoc = this.docs.delete(path);
     if (wasDoc) this.tagIndex.remove(path);
     const wasOther = this.others.delete(path);
-    if (wasDoc || wasOther) this.resolved = null;
+    if (wasDoc || wasOther) {
+      this.resolved = null;
+      this.privatePathsCache = null;
+    }
   }
 
   clear(): void {
@@ -155,6 +163,7 @@ export class LinkGraphIndex {
     this.others.clear();
     this.tagIndex.clear();
     this.resolved = null;
+    this.privatePathsCache = null;
   }
 
   // ---- Queries ---------------------------------------------------------------
@@ -171,12 +180,14 @@ export class LinkGraphIndex {
   }
 
   /** Vault paths of every indexed private doc, sorted — the prefilter the
-   * agent gate's best-effort bash/execute heuristics scan. */
+   * agent gate's best-effort bash/execute heuristics scan. Memoized between
+   * mutations; callers only read it (find/filter), never mutate. */
   privatePaths(): string[] {
-    return [...this.docs.entries()]
+    this.privatePathsCache ??= [...this.docs.entries()]
       .filter(([, record]) => record.private)
       .map(([path]) => path)
       .toSorted();
+    return this.privatePathsCache;
   }
 
   backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[] {

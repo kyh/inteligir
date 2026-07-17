@@ -268,13 +268,14 @@ export class KnowledgeManager {
 
     const seen = new Set<string>();
     const work: Array<{ path: string; fingerprint: StoredFingerprint }> = [];
+    const newOthers: string[] = [];
     for (const entry of vault.listWithStats()) {
       seen.add(entry.path);
       if (entry.kind !== "doc") {
         if (!this.otherPaths.has(entry.path)) {
           this.otherPaths.add(entry.path);
           this.linkGraph.setOther(entry.path);
-          store.upsertOther(entry.path);
+          newOthers.push(entry.path);
           changed = true;
         }
         continue;
@@ -292,20 +293,31 @@ export class KnowledgeManager {
       work.push({ path: entry.path, fingerprint });
     }
 
+    const removals: string[] = [];
     for (const known of this.fingerprints.keys()) {
       if (seen.has(known)) continue;
       this.fingerprints.delete(known);
       this.hashes.delete(known);
       this.linkGraph.remove(known);
-      store.remove(known);
+      removals.push(known);
       changed = true;
     }
     for (const known of this.otherPaths) {
       if (seen.has(known)) continue;
       this.otherPaths.delete(known);
       this.linkGraph.remove(known);
-      store.remove(known);
+      removals.push(known);
       changed = true;
+    }
+    // One transaction for the whole diff phase (mirroring the doc batches
+    // below) instead of an implicit fsync'd txn per upsert/remove. Coarser
+    // atomicity is safe — the store is a wipe-and-rebuild cache. The two sets
+    // are disjoint (newOthers are listed paths, removals vanished ones).
+    if (newOthers.length > 0 || removals.length > 0) {
+      store.transaction(() => {
+        for (const path of newOthers) store.upsertOther(path);
+        for (const path of removals) store.remove(path);
+      });
     }
 
     // Changed docs, in time-budgeted batches with event-loop yields between.

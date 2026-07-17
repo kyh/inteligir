@@ -676,7 +676,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     getBridge()
       ?.listWikiTargets()
       .then((targets) => {
-        setWikiTargets(targets);
+        // Keep the previous reference when the payload is value-identical —
+        // every autosave's knowledge pass re-emits the full list, and a fresh
+        // array would rebuild the resolver + cascade a rerender for nothing.
+        // (JSON compare is fine at wiki-target list size.)
+        setWikiTargets((prev) =>
+          JSON.stringify(prev) === JSON.stringify(targets) ? prev : targets,
+        );
         return undefined;
       })
       .catch(() => {});

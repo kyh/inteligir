@@ -45,6 +45,11 @@ function openDatabase(dbPath: string): DatabaseSync {
   const db = new DatabaseSync(dbPath);
   // WAL keeps index writes off the readers' path; a no-op for :memory:.
   db.exec("PRAGMA journal_mode = WAL");
+  // NORMAL skips the per-commit fsync (FULL) that dominates small upsert
+  // transactions. Safe by the cache law: the worst a power loss can produce
+  // is a corrupt file, and openDatabaseRecovering / the store's open guards
+  // already wipe-and-rebuild on any unreadable DB.
+  db.exec("PRAGMA synchronous = NORMAL");
   if (dbPath !== IN_MEMORY) {
     // The db body column is the only full plaintext copy of every note (private
     // ones included) — own it 0600 at creation, not just at the next boot's
