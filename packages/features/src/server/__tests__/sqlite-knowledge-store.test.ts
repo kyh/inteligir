@@ -91,6 +91,32 @@ describe("sqlite-knowledge-store — round trip", () => {
     expect(docs[0]?.projection.tags).toEqual([]);
   });
 
+  it("round-trips tasks byte-exactly, keyed (path, ordinal)", () => {
+    const store = open(path.join(tmp, "tasks.sqlite"));
+    const content = [
+      "# Plan",
+      "",
+      "- [ ] book [[2026-07-20]] with [[hub|alias]]",
+      "- [x] already done",
+      "  - [ ] nested child",
+    ].join("\n");
+    const row = upsert(store, "plan.md", content);
+    expect(row.projection.tasks).toHaveLength(3); // the projection itself extracted
+    // Reopen from the SAME file: hydration must reconstruct the tasks exactly —
+    // checked/text/RAW (untrimmed, no terminator)/line/ordinal/wikiTargets.
+    store.dispose();
+    const reopened = open(path.join(tmp, "tasks.sqlite"));
+    const loaded = reopened.loadAll().docs[0];
+    expect(loaded?.projection.tasks).toEqual(row.projection.tasks);
+    expect(loaded?.projection.tasks[0]?.wikiTargets).toEqual(["2026-07-20", "hub"]);
+    expect(loaded?.projection.tasks[2]?.raw).toBe("  - [ ] nested child");
+    // Rebuildable: a re-upsert after edits replaces, never appends.
+    upsert(reopened, "plan.md", "- [ ] the only one left\n", 2000);
+    expect(reopened.loadAll().docs[0]?.projection.tasks.map((t) => t.text)).toEqual([
+      "the only one left",
+    ]);
+  });
+
   it("a doc flipping to `other` drops projection rows and its search entry", () => {
     const store = open();
     upsert(store, "weird.md", "# Weird\n\n[[link]]\n");

@@ -18,6 +18,7 @@ import type {
   ForwardLinkEntry,
   LinkGraph,
   PrivacyOpts,
+  VaultTaskEntry,
   WikiTarget,
 } from "./link-graph-index";
 import { titleFromPath } from "./link-extract";
@@ -31,6 +32,7 @@ export type {
   GraphEdge,
   GraphNode,
   LinkGraph,
+  VaultTaskEntry,
   WikiTarget,
 } from "./link-graph-index";
 export type { TagCount } from "./tag-index";
@@ -114,6 +116,10 @@ export class KnowledgeIndex {
 
   tags(): TagCount[] {
     return this.linkGraph.tags();
+  }
+
+  tasks(): VaultTaskEntry[] {
+    return this.linkGraph.tasks();
   }
 
   notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
