@@ -95,12 +95,10 @@ function createMachine(editor: PlateEditor): GhostTextMachine {
         return md.length > 0 ? buildGhostPrompt(md) : null;
       },
       request: async (prompt, requestId) => {
-        const bridge = getBridge();
-        if (!bridge) return { ok: false, error: "No bridge." };
-        return bridge.generateGhostText({ prompt, requestId });
+        return getBridge().generateGhostText({ prompt, requestId });
       },
       cancelRequest: (requestId) => {
-        void getBridge()?.cancelGhostText({ requestId });
+        void getBridge().cancelGhostText({ requestId });
       },
       show: (text) => {
         const block = editor.api.block();

@@ -235,7 +235,7 @@ export function submitAiPrompt(editor: PlateEditor, text: string): void {
   if (refusePrivate(editor)) return;
   const bridge = getBridge();
   const prompt = text.trim();
-  if (!bridge || prompt.length === 0) return;
+  if (prompt.length === 0) return;
   if (editor.getOption(AiSessionPlugin, "status") === "review") unwindGenerate(editor);
   const token = runManager.bumpToken();
   setOptions(editor, { status: "classifying", error: null });
@@ -290,7 +290,6 @@ export function retryLastRun(editor: PlateEditor): void {
 
 function startGenerate(editor: PlateEditor, action: CannedActionId | null, request: string): void {
   const bridge = getBridge();
-  if (!bridge) return;
   const sel = savedSelection(editor) ?? editor.selection;
   if (!sel) return;
   const hasSelection = RangeApi.isExpanded(sel);
@@ -389,7 +388,6 @@ function editTargetPaths(editor: PlateEditor): Path[] {
 
 function startEdit(editor: PlateEditor, instruction: string): void {
   const bridge = getBridge();
-  if (!bridge) return;
   const paths = editTargetPaths(editor);
   const nodes = paths.flatMap((path) => {
     const entry = editor.api.node(path);

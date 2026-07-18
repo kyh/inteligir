@@ -65,7 +65,7 @@ export const runManager = {
     streamOff?.();
     streamOff = null;
     if (activeRequestId !== null) {
-      void getBridge()?.cancelInlineAi({ requestId: activeRequestId });
+      void getBridge().cancelInlineAi({ requestId: activeRequestId });
       activeRequestId = null;
     }
   },

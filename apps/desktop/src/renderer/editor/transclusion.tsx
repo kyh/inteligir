@@ -187,7 +187,6 @@ function useTargetContent(path: string | null): TargetContent {
   useEffect(() => {
     if (path === null) return;
     const bridge = getBridge();
-    if (!bridge) return;
     let live = true;
     const read = () => {
       bridge

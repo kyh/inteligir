@@ -62,10 +62,6 @@ function useVaultAsset(path: string, external: boolean): VaultState {
       return;
     }
     const bridge = getBridge();
-    if (!bridge) {
-      setState({ kind: "error" });
-      return;
-    }
     let objectUrl: string | null = null;
     let cancelled = false;
     setState({ kind: "loading" });

@@ -52,7 +52,6 @@ async function fileToBase64(file: File): Promise<string> {
 // Write each image to the vault and insert its node at the caret, in order.
 async function ingestImageFiles(editor: SlateEditor, files: File[]): Promise<void> {
   const bridge = getBridge();
-  if (!bridge) return;
   for (const file of files) {
     const bytesBase64 = await fileToBase64(file);
     const baseName = file.name !== "" ? file.name : `pasted-image${extFromMime(file.type)}`;

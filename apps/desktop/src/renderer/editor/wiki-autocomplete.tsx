@@ -61,7 +61,7 @@ function WikiInputElement(props: PlateElementProps) {
   useEffect(() => {
     let cancelled = false;
     getBridge()
-      ?.listWikiTargets()
+      .listWikiTargets()
       .then((list) => {
         if (!cancelled) setTargets(list);
         return undefined;
