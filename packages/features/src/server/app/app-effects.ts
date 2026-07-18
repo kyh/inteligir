@@ -83,7 +83,9 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
         await runSetup(deps);
         return { type: "SETUP_OK" };
       } catch (err) {
-        return { type: "SETUP_FAIL", message: toErrorMessage(err) };
+        // RESET-flavored failure: the reducer records `prev: "resetting"` so
+        // RETRY re-runs the RESET (the throw may have preceded the wipe).
+        return { type: "RESET_FAIL", message: toErrorMessage(err) };
       }
     }
 

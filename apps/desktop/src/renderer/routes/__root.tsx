@@ -12,16 +12,18 @@ import type { AppState } from "@repo/features/app-state";
 export const Route = createRootRoute({ component: RootLayout });
 
 type Phase = AppState["phase"];
+type ErrorPrev = Extract<AppState, { phase: "error" }>["prev"];
 
 // No login route: the app boots as a guest (#459). Pre-ready phases show the
 // onboarding/setup surface (a brief splash on warm boots, the seeding
 // progress on a first run); ready is the workspace. An error routes by its
-// prev so a setup failure surfaces on the setup screen and an agent failure
-// surfaces in the workspace banner.
-function phaseToPath(phase: Phase): "/" | "/onboarding" {
+// prev so a setup OR reset failure surfaces on the setup screen (with Retry)
+// and an agent failure surfaces in the workspace banner.
+function phaseToPath(phase: Phase | ErrorPrev): "/" | "/onboarding" {
   switch (phase) {
     case "starting":
     case "setting_up":
+    case "resetting":
       return "/onboarding";
     case "ready":
     case "error":

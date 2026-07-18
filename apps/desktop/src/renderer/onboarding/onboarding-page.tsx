@@ -33,8 +33,12 @@ export function OnboardingPage() {
   const setupProgress = useAgentStore((s) => s.setupProgress);
   const [modelState, setModelState] = useState<VoiceModelStateEvent | null>(null);
 
+  // Setup AND reset failures both land here (the reset error keeps its own
+  // prev so the host's RETRY re-runs the RESET — app-reducer.ts).
   const setupError =
-    appState.phase === "error" && appState.prev === "setting_up" ? appState.message : null;
+    appState.phase === "error" && (appState.prev === "setting_up" || appState.prev === "resetting")
+      ? appState.message
+      : null;
 
   // First-run only: warm boots auto-fire SETUP host-side (initMachine) and
   // never linger in "starting" — a lingering "starting" means the workspace

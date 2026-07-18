@@ -9,7 +9,7 @@
 // future second writer has one obvious place to reintroduce queuing.
 // ---------------------------------------------------------------------------
 
-import { getAgent } from "./app-machine";
+import { getAgent, getAppState } from "./app-machine";
 import type { ImageContent } from "@repo/features/server/pi/pi-types";
 import type { ImageAttachment, TextChatMessage } from "@repo/features/voice";
 
@@ -22,6 +22,13 @@ export function toImageContent(images: ImageAttachment[] | undefined): ImageCont
  * when the command is submitted (or fails) — callers that surface submission
  * errors (e.g. agent-store) await it; fire-and-forget callers ignore it. */
 export async function dispatchAgentCommand(command: TextChatMessage): Promise<void> {
+  // Commands only reach a READY app. During a RESET/SETUP the old agent stays
+  // published until `await agent.stop()` settles inside the effect, so without
+  // this phase gate a delayed IPC submit could grab the tearing-down agent and
+  // run concurrently with its abort/deletion. The machine flips to
+  // "setting_up" BEFORE the effect runs (reducer-first), so the gate covers
+  // the whole teardown window.
+  if (getAppState().phase !== "ready") throw new Error("Agent unavailable");
   const agent = getAgent();
   // Reject rather than silently resolve: a command arriving while the agent is
   // briefly null (e.g. mid newSession/stopAgent) didn't reach it, so awaiters

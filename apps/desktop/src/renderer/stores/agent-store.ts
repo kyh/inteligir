@@ -188,7 +188,14 @@ function subscribeSetupProgress(bridge: Bridge, set: SetFn): () => void {
   });
 }
 
+// Bumped whenever the chat surface is INTENTIONALLY cleared (new session,
+// reset-app-data) so a history fetch still in flight can't land afterward and
+// resurrect the cleared transcript. The empty-log check alone can't catch
+// that race: a just-cleared log is exactly as empty as a fresh boot's.
+let chatGeneration = 0;
+
 async function loadInitialHistory(bridge: Bridge, set: SetFn): Promise<void> {
+  const generation = chatGeneration;
   try {
     const appState = await bridge.getAppState();
     set({ appState });
@@ -196,8 +203,9 @@ async function loadInitialHistory(bridge: Bridge, set: SetFn): Promise<void> {
     const history = await bridge.getAgentHistory();
     if (history.length === 0) return;
 
-    // Only seed an empty log — a reset/new-session that raced this fetch has
-    // already cleared the chat and must not be resurrected with stale history.
+    // Drop a stale response outright (cleared while the fetch was in flight),
+    // and even a current one only seeds an EMPTY log.
+    if (generation !== chatGeneration) return;
     set((s) => (s.log.items.length === 0 ? chatState(logFromHistory(history), s.chatMeta) : s));
   } catch (err) {
     console.warn("[agent-store] failed to load history:", err);
@@ -327,11 +335,13 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   },
 
   newSession: async () => {
+    chatGeneration++; // invalidate any in-flight history load
     set({ ...chatState(emptyChatLog, new Map()), queuedFollowUp: [], queuedSteering: [] });
     await getBridge().transition({ type: "NEW_SESSION" });
   },
 
   resetAppData: async () => {
+    chatGeneration++; // invalidate any in-flight history load
     set({
       ...chatState(emptyChatLog, new Map()),
       queuedFollowUp: [],
