@@ -28,22 +28,19 @@ import { InputGroup, InputGroupButton, InputGroupTextarea } from "@repo/ui/compo
 import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
-const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.addEventListener("loadend", () => {
-        resolve(typeof reader.result === "string" ? reader.result : null);
-      });
-      reader.addEventListener("error", () => resolve(null), { once: true });
-      reader.readAsDataURL(blob);
+// Read a File straight to a base64 `data:` URL. Attachments are staged as
+// data URLs from the moment they're added — previews render them directly and
+// submit needs no blob→base64 conversion pass (and there is no object-URL
+// revocation lifecycle to manage). `loadend` fires after both success and
+// error; on error `reader.result` is null, which resolves null.
+const fileToDataUrl = (file: File): Promise<string | null> =>
+  new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.addEventListener("loadend", () => {
+      resolve(typeof reader.result === "string" ? reader.result : null);
     });
-  } catch {
-    return null;
-  }
-};
+    reader.readAsDataURL(file);
+  });
 
 const filePartWithoutId = ({ id, ...item }: FileUIPart & { id: string }): FileUIPart => {
   void id;
@@ -105,10 +102,10 @@ export const PromptInput = ({
 }: PromptInputProps) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
-  // Guards against re-entrant submits. form.reset() runs synchronously but
-  // hasInput state in consumer components doesn't update until React flushes,
-  // and the file conversion below is async — so without this a rapid second
-  // Enter can fire onSubmit twice with the same payload.
+  // Guards against re-entrant submits. The consumer's draft/has-input state
+  // doesn't clear until React flushes, and awaiting onSubmit's promise below
+  // spans that gap — so without this a rapid second Enter can fire onSubmit
+  // twice with the same payload.
   const submittingRef = useRef(false);
 
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
@@ -117,10 +114,17 @@ export const PromptInput = ({
   // multiple add() calls within a single React batch (e.g., paste + drop) see
   // each other's contributions and don't both think they have full capacity.
   const liveCountRef = useRef(0);
+  // Files reserved by an add() whose data-URL reads are still in flight:
+  // capacity accounting must see them before their setItems commit lands, and
+  // the items-effect re-sync below must not clobber their claim meanwhile.
+  const inFlightRef = useRef(0);
+  // Bumped by clear(): an in-flight add() batch from before the clear belongs
+  // to the emptied tray and must be dropped, not landed late.
+  const trayGenerationRef = useRef(0);
 
   useEffect(() => {
     filesRef.current = items;
-    liveCountRef.current = items.length;
+    liveCountRef.current = items.length + inFlightRef.current;
     onFilesChange?.(items);
   }, [items, onFilesChange]);
 
@@ -171,9 +175,9 @@ export const PromptInput = ({
 
       // Compute capacity from a synchronous ref (not items.length) so back-to-back
       // add() calls within the same React batch account for each other's pending
-      // additions. Side-effecty work (onError, nanoid, blob URLs) stays outside
+      // additions. Side-effecty work (onError, nanoid, file reads) stays outside
       // the setState updater so Strict Mode double-invocation doesn't fire
-      // onError twice or leak object URLs.
+      // onError twice or read files twice.
       const capacity =
         typeof maxFiles === "number" ? Math.max(0, maxFiles - liveCountRef.current) : undefined;
       const capped = typeof capacity === "number" ? sized.slice(0, capacity) : sized;
@@ -181,33 +185,53 @@ export const PromptInput = ({
         onError?.({ code: "max_files", message: "Too many files. Some were not added." });
       }
       if (capped.length === 0) return;
-      const newItems: (FileUIPart & { id: string })[] = capped.map((file) => ({
-        filename: file.name,
-        id: nanoid(),
-        mediaType: file.type,
-        type: "file",
-        url: URL.createObjectURL(file),
-      }));
-      liveCountRef.current += newItems.length;
-      setItems((prev) => [...prev, ...newItems]);
+      // Reserve capacity synchronously — the base64 reads below are async, and
+      // an add() arriving in that gap must see this batch's claim.
+      liveCountRef.current += capped.length;
+      inFlightRef.current += capped.length;
+      const generation = trayGenerationRef.current;
+      void (async () => {
+        const read = await Promise.all(
+          capped.map(async (file) => ({ file, url: await fileToDataUrl(file) })),
+        );
+        inFlightRef.current = Math.max(0, inFlightRef.current - capped.length);
+        if (trayGenerationRef.current !== generation) {
+          // The tray was cleared while these were reading — release the whole
+          // reservation rather than landing stale items in the emptied tray.
+          liveCountRef.current = Math.max(0, liveCountRef.current - capped.length);
+          return;
+        }
+        const newItems: (FileUIPart & { id: string })[] = [];
+        for (const { file, url } of read) {
+          if (url === null) continue; // unreadable file — drop it
+          newItems.push({
+            filename: file.name,
+            id: nanoid(),
+            mediaType: file.type,
+            type: "file",
+            url,
+          });
+        }
+        const failed = capped.length - newItems.length;
+        if (failed > 0) liveCountRef.current = Math.max(0, liveCountRef.current - failed);
+        if (newItems.length > 0) setItems((prev) => [...prev, ...newItems]);
+      })();
     },
     [matchesAccept, maxFiles, maxFileSize, onError],
   );
 
   const remove = useCallback((id: string) => {
-    // Revoke + count adjust outside the updater so it stays pure (consistent
-    // with `add`). filesRef is kept in sync via the useEffect above.
-    const target = filesRef.current.find((file) => file.id === id);
-    if (target?.url) URL.revokeObjectURL(target.url);
+    // Count adjust outside the updater so it stays pure (consistent with
+    // `add`). filesRef is kept in sync via the useEffect above.
     liveCountRef.current = Math.max(0, liveCountRef.current - 1);
     setItems((prev) => prev.filter((file) => file.id !== id));
   }, []);
 
   const clear = useCallback(() => {
-    for (const file of filesRef.current) {
-      if (file.url) URL.revokeObjectURL(file.url);
-    }
-    liveCountRef.current = 0;
+    // Orphan any in-flight add() batch, then release only the committed
+    // items' count — the orphaned batch releases its own reservation.
+    trayGenerationRef.current++;
+    liveCountRef.current = Math.max(0, liveCountRef.current - filesRef.current.length);
     setItems(() => []);
   }, []);
 
@@ -231,15 +255,6 @@ export const PromptInput = ({
       form.removeEventListener("drop", onDrop);
     };
   }, [add]);
-
-  useEffect(
-    () => () => {
-      for (const f of filesRef.current) {
-        if (f.url) URL.revokeObjectURL(f.url);
-      }
-    },
-    [],
-  );
 
   const handleChange: ChangeEventHandler<HTMLInputElement> = useCallback(
     (event) => {
@@ -265,30 +280,21 @@ export const PromptInput = ({
       const text = typeof message === "string" ? message : "";
       form.reset();
 
-      // Snapshot the IDs we're about to submit. Anything the user adds to
-      // the tray during the async gap below must survive the post-submit
-      // cleanup; only items in this set get revoked + removed.
+      // Snapshot the IDs we're about to submit. Anything the user adds to the
+      // tray while onSubmit's promise is pending must survive the post-submit
+      // cleanup; only items in this set get removed.
       const submittedItems = items;
       const submittedIds = new Set(submittedItems.map((item) => item.id));
       const cleanupSubmitted = () => {
-        for (const item of submittedItems) {
-          if (item.url) URL.revokeObjectURL(item.url);
-        }
         liveCountRef.current = Math.max(0, liveCountRef.current - submittedIds.size);
         setItems((prev) => prev.filter((file) => !submittedIds.has(file.id)));
       };
 
       try {
-        const convertedFiles = await Promise.all(
-          submittedItems.map(async (submittedItem): Promise<FileUIPart> => {
-            const item = filePartWithoutId(submittedItem);
-            if (!item.url?.startsWith("blob:")) return item;
-            const dataUrl = await convertBlobUrlToDataUrl(item.url);
-            return Object.assign({}, item, { url: dataUrl ?? item.url });
-          }),
-        );
-
-        const result = onSubmit({ files: convertedFiles, text }, event);
+        // Items were staged as base64 data URLs at add() time — the payload
+        // just strips the tray-internal ids.
+        const files = submittedItems.map(filePartWithoutId);
+        const result = onSubmit({ files, text }, event);
         if (result instanceof Promise) {
           try {
             await result;
