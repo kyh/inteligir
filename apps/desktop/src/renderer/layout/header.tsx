@@ -16,6 +16,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { describeGateReason } from "@renderer/editor/markdown/markdown-doc";
 import { PageDetails } from "@renderer/editor/properties/page-details";
+import { richAvailable } from "@renderer/workspace/open-doc";
 import { useVault } from "@renderer/workspace/vault-context";
 
 /**
@@ -30,16 +31,12 @@ export function Header() {
   const {
     editor,
     folderName,
-    isMarkdownOpen,
-    richAvailable,
-    rawReason,
-    mode,
+    openDoc,
     setMode,
     deleteEntry,
     openIsHtml,
     isHtmlApp,
     showHtmlAsApp,
-    openNoteIsPrivate,
   } = useVault();
   const { state } = useSidebar();
   const path = editor.path;
@@ -97,7 +94,7 @@ export function Header() {
               Open as app
             </Button>
           )}
-          {openNoteIsPrivate && (
+          {openDoc.kind === "markdown" && openDoc.isPrivate && (
             <Badge
               variant="outline"
               className="text-muted-foreground"
@@ -107,26 +104,28 @@ export function Header() {
               Private
             </Badge>
           )}
-          {isMarkdownOpen && rawReason !== null && (
-            <Badge
-              variant="outline"
-              className="text-muted-foreground"
-              title={describeGateReason(rawReason)}
-            >
-              Raw
-            </Badge>
-          )}
-          {richAvailable && (
+          {openDoc.kind === "markdown" &&
+            openDoc.surface.mode === "raw" &&
+            openDoc.surface.reason !== null && (
+              <Badge
+                variant="outline"
+                className="text-muted-foreground"
+                title={describeGateReason(openDoc.surface.reason)}
+              >
+                Raw
+              </Badge>
+            )}
+          {openDoc.kind === "markdown" && richAvailable(openDoc) && (
             <div className="flex items-center rounded-md border border-border p-0.5 text-xs">
               {(["raw", "rich"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
-                  aria-pressed={mode === m}
+                  aria-pressed={openDoc.surface.mode === m}
                   className={cn(
                     "rounded px-2 py-0.5 capitalize transition-colors",
-                    mode === m
+                    openDoc.surface.mode === m
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground",
                   )}
@@ -140,8 +139,8 @@ export function Header() {
               panel used: only a markdown note open in Rich mode has a live
               rich editor to write through. Keyed by path so switching notes
               closes it. */}
-          {isMarkdownOpen && richAvailable && mode === "rich" && (
-            <PageDetails key={path} path={path} />
+          {openDoc.kind === "markdown" && openDoc.surface.mode === "rich" && (
+            <PageDetails key={openDoc.path} path={openDoc.path} />
           )}
           <Button
             variant="ghost"

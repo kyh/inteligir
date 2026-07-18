@@ -27,6 +27,7 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { getBridge } from "@renderer/lib/bridge";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
+import { openDocPath } from "@renderer/workspace/open-doc";
 import { useVault } from "@renderer/workspace/vault-context";
 import type { LinkGraph } from "@repo/core/knowledge/link-graph-index";
 
@@ -106,7 +107,8 @@ function readPalette(canvas: HTMLCanvasElement): Palette {
 }
 
 export default function GraphView() {
-  const { openFile, createFile, openPath } = useVault();
+  const { openFile, createFile, openDoc } = useVault();
+  const openPath = openDocPath(openDoc);
   const setSurface = useViewStore((s) => s.setSurface);
   const { resolved: resolvedTheme } = useTheme();
   const [empty, setEmpty] = useState(false);

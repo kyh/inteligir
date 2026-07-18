@@ -18,7 +18,7 @@ import { basenamePath } from "@repo/core/knowledge/vault-path";
  * padding clears the pinned composer.
  */
 export function EditorPane() {
-  const { editor, openPath, isMarkdownOpen, richAvailable, mode } = useVault();
+  const { editor, openDoc } = useVault();
 
   // Opening a different note starts reading from the top (the workspace
   // <main> is the scroll container and survives the swap, so it must be
@@ -28,7 +28,7 @@ export function EditorPane() {
     if (scroller) scroller.scrollTop = 0;
   }, [editor.path]);
 
-  if (openPath === null) {
+  if (openDoc.kind === "none") {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
         Select a note to edit, or create one. The agent edits these same files.
@@ -38,11 +38,11 @@ export function EditorPane() {
 
   // Still loading (or vanishing) — nothing to show yet; the runtime either
   // fills in content or closes the note.
-  if (editor.path === null) return null;
+  if (openDoc.kind === "loading") return null;
 
-  const showRich = mode === "rich" && isMarkdownOpen && richAvailable;
+  const showRich = openDoc.kind === "markdown" && openDoc.surface.mode === "rich";
   // Keyed by path: a fresh pane (undo history, title contentEditable) per note.
-  return <NotePane key={editor.path} path={editor.path} showRich={showRich} />;
+  return <NotePane key={openDoc.path} path={openDoc.path} showRich={showRich} />;
 }
 
 function NotePane({ path, showRich }: { path: string; showRich: boolean }) {

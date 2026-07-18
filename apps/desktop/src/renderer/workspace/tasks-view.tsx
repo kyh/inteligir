@@ -38,6 +38,7 @@ import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
 import { useViewStore } from "@renderer/stores/view-store";
+import { openDocPath } from "@renderer/workspace/open-doc";
 import { useVault } from "@renderer/workspace/vault-context";
 
 const parseString = (value: unknown): string | undefined =>
@@ -63,7 +64,8 @@ function byNote(
 
 export default function TasksView() {
   const setSurface = useViewStore((s) => s.setSurface);
-  const { openPath, openFile, flush } = useVault();
+  const { openDoc, openFile, flush } = useVault();
+  const openPath = openDocPath(openDoc);
   const delegations = useDelegationStore((s) => s.delegations);
   const delegate = useDelegationStore((s) => s.delegate);
   const cancel = useDelegationStore((s) => s.cancel);
