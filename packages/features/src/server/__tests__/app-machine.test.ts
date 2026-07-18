@@ -124,19 +124,29 @@ describe("AppMachine", () => {
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 
-  it("RESET_APP_DATA failure surfaces as error(setting_up) instead of wedging", async () => {
-    const deps = fakeDeps({
-      stopAgent: vi.fn().mockRejectedValue(new Error("stop broke")),
-    });
+  it("RESET_APP_DATA failure surfaces as error(resetting) — RETRY re-runs the RESET", async () => {
+    // First stop throws (before the wipe could run); the retry's stop works.
+    const stopAgent = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("stop broke"))
+      .mockResolvedValue(undefined);
+    const deps = fakeDeps({ stopAgent });
     const machine = new AppMachine(deps, vi.fn(), { phase: "ready", agent: "idle" });
 
     await machine.send({ type: "RESET_APP_DATA" });
 
     expect(machine.getState()).toEqual({
       phase: "error",
-      prev: "setting_up",
+      prev: "resetting",
       message: "stop broke",
     });
+    expect(deps.teardownResources).not.toHaveBeenCalled();
+
+    // RETRY from a failed reset re-dispatches the RESET effect itself — the
+    // wipe the user asked for finally runs (a plain SETUP would skip it).
+    await machine.send({ type: "RETRY" });
+    expect(deps.teardownResources).toHaveBeenCalledOnce();
+    expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 
   it("NEW_SESSION failure surfaces as error instead of ready-with-no-agent", async () => {

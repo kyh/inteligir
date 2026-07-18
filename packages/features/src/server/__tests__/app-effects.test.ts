@@ -55,22 +55,24 @@ describe("runEffect", () => {
     expect(result).toEqual({ type: "SETUP_OK" });
   });
 
-  it("RESET returns SETUP_FAIL when stopAgent rejects (no throw out of the effect)", async () => {
+  it("RESET returns RESET_FAIL when stopAgent rejects (no throw out of the effect)", async () => {
+    // RESET_FAIL, not SETUP_FAIL: the throw preceded the wipe, so the error
+    // must carry RESET provenance for RETRY to re-run the wipe.
     const deps = makeDeps({
       stopAgent: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("stop broke")),
     });
     const result = await runEffect("RESET", deps);
-    expect(result).toEqual({ type: "SETUP_FAIL", message: "stop broke" });
+    expect(result).toEqual({ type: "RESET_FAIL", message: "stop broke" });
   });
 
-  it("RESET returns SETUP_FAIL when teardownResources throws", async () => {
+  it("RESET returns RESET_FAIL when teardownResources throws", async () => {
     const deps = makeDeps({
       teardownResources: vi.fn(() => {
         throw new Error("rm failed");
       }),
     });
     const result = await runEffect("RESET", deps);
-    expect(result).toEqual({ type: "SETUP_FAIL", message: "rm failed" });
+    expect(result).toEqual({ type: "RESET_FAIL", message: "rm failed" });
   });
 
   it("RESET resumes vault writes even when teardownResources throws (no wedged suspension)", async () => {
@@ -83,7 +85,7 @@ describe("runEffect", () => {
       }),
     });
     const result = await runEffect("RESET", deps);
-    expect(result).toEqual({ type: "SETUP_FAIL", message: "EBUSY: rm failed after suspend" });
+    expect(result).toEqual({ type: "RESET_FAIL", message: "EBUSY: rm failed after suspend" });
     // The finally lifted the suspension despite the throw.
     expect(deps.resumeVaultWrites).toHaveBeenCalledOnce();
   });

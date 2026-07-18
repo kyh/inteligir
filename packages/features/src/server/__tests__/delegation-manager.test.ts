@@ -95,12 +95,14 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 const DOC = "## Today\n\n- [ ] task one\n- [ ] task two\n";
 
-function makeManager(doc = DOC) {
+function makeManager(doc = DOC, opts?: { isProviderConnected?: () => boolean }) {
   return new DelegationManager({
     fs: memoryFs(),
     path: "/delegations.json",
     readVault: () => doc,
     snapshots: memorySnapshots(),
+    // Injected so unit tests never touch the live provider-config/auth.json.
+    isProviderConnected: opts?.isProviderConnected ?? (() => true),
   });
 }
 
@@ -122,6 +124,7 @@ function makeRestoreRig(initial = DOC) {
       state.live = content;
     },
     snapshots,
+    isProviderConnected: () => true,
   });
   return { mgr, state, writes, snapshots };
 }
@@ -133,6 +136,16 @@ describe("DelegationManager.createDelegation", () => {
     const mgr = makeManager();
     const result = mgr.createDelegation({ sourceFile: "n.md", ordinal: 5 }); // out of range
     expect(result.ok).toBe(false);
+    expect(mgr.getDelegations()).toHaveLength(0);
+  });
+
+  it("refuses when the selected provider isn't connected — a guest gets feedback, not a silent queue", () => {
+    const mgr = makeManager(DOC, { isProviderConnected: () => false });
+    const result = mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
+    expect(result).toEqual({
+      ok: false,
+      error: "Connect an AI provider in Settings → AI to delegate.",
+    });
     expect(mgr.getDelegations()).toHaveLength(0);
   });
 

@@ -30,6 +30,11 @@ type AppEvent = Static<typeof AppEventSchema>;
 type InternalEvent =
   | { type: "SETUP_OK" }
   | { type: "SETUP_FAIL"; message: string }
+  // RESET failures carry their own event so the error state records WHICH
+  // effect died: a failed wipe must RETRY as a RESET (the wipe may not have
+  // happened), never quietly downgrade to a plain SETUP that leaves the data
+  // the user asked to destroy intact.
+  | { type: "RESET_FAIL"; message: string }
   | { type: "AGENT_START" }
   | { type: "AGENT_END" }
   | { type: "NEW_SESSION_OK" }
@@ -55,10 +60,16 @@ export const AppStateSchema = Type.Union([
     },
     { additionalProperties: false },
   ),
+  // `prev` records what FAILED (the effect's provenance), not just where to
+  // route the error UI: "resetting" makes RETRY re-run the RESET itself.
   Type.Object(
     {
       phase: Type.Literal("error"),
-      prev: Type.Union([Type.Literal("setting_up"), Type.Literal("ready")]),
+      prev: Type.Union([
+        Type.Literal("setting_up"),
+        Type.Literal("resetting"),
+        Type.Literal("ready"),
+      ]),
       message: Type.String(),
     },
     { additionalProperties: false },

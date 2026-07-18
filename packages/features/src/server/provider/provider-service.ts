@@ -61,6 +61,16 @@ export function listSelectedProviderModels(): Model<Api>[] {
   return listProviderModels(getSelectedProvider().provider);
 }
 
+/** Whether the SELECTED provider can serve a turn right now — credentials
+ * cached on-device, or no login needed (faux). The host-side twin of the
+ * renderer's hasConnectedProvider gate: feature entry points that dispatch a
+ * real turn (delegation) refuse up front through this instead of queueing
+ * work a guest's agent can only fail. */
+export function isSelectedProviderConnected(): boolean {
+  const { provider } = getSelectedProvider();
+  return !providerRequiresAuth(provider) || isProviderAuthed(provider);
+}
+
 /** Run the selected provider's interactive OAuth flow (no-op for faux). The
  * Settings "Connect" and the reauthenticate path both land here. Provider
  * auth is a FEATURE-level concern — it never gates app entry (#459). */

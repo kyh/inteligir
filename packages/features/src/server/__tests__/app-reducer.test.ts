@@ -54,6 +54,21 @@ describe("reduce", () => {
     expect(reduce({ phase: "setting_up" }, { type: "RESET_APP_DATA" })).toBeNull();
   });
 
+  it("RESET_FAIL from setting_up → error with RESET provenance (prev resetting)", () => {
+    const result = reduce({ phase: "setting_up" }, { type: "RESET_FAIL", message: "rm failed" });
+    expect(result).toEqual({
+      next: { phase: "error", prev: "resetting", message: "rm failed" },
+      effect: null,
+    });
+  });
+
+  it("RESET_FAIL from wrong phase → null", () => {
+    expect(reduce({ phase: "starting" }, { type: "RESET_FAIL", message: "x" })).toBeNull();
+    expect(
+      reduce({ phase: "ready", agent: "idle" }, { type: "RESET_FAIL", message: "x" }),
+    ).toBeNull();
+  });
+
   // ---- NEW_SESSION ----------------------------------------------------------
 
   it("NEW_SESSION from ready/idle → NEW_SESSION effect, state unchanged", () => {
@@ -95,6 +110,14 @@ describe("reduce", () => {
     expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP" });
   });
 
+  it("RETRY from error(resetting) → setting_up + RESET (the wipe re-runs, never a plain setup)", () => {
+    const result = reduce(
+      { phase: "error", prev: "resetting", message: "fail" },
+      { type: "RETRY" },
+    );
+    expect(result).toEqual({ next: { phase: "setting_up" }, effect: "RESET" });
+  });
+
   it("RETRY from non-error → null", () => {
     expect(reduce({ phase: "ready", agent: "idle" }, { type: "RETRY" })).toBeNull();
   });
@@ -124,6 +147,7 @@ describe("reduce", () => {
       { phase: "ready", agent: "idle" },
       { phase: "ready", agent: "busy" },
       { phase: "error", prev: "setting_up", message: "m" },
+      { phase: "error", prev: "resetting", message: "m" },
       { phase: "error", prev: "ready", message: "m" },
     ];
     const events: MachineEvent[] = [
@@ -133,6 +157,7 @@ describe("reduce", () => {
       { type: "NEW_SESSION" },
       { type: "SETUP_OK" },
       { type: "SETUP_FAIL", message: "m" },
+      { type: "RESET_FAIL", message: "m" },
       { type: "NEW_SESSION_OK" },
       { type: "NEW_SESSION_FAIL", message: "m" },
       { type: "AGENT_START" },

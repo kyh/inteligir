@@ -18,6 +18,7 @@ import { notePrivacy } from "@repo/core/markdown/frontmatter";
 import { findTaskLine } from "./find-task-line";
 import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
 import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
+import { isSelectedProviderConnected } from "../provider/provider-service";
 import { getVaultManager } from "../vault/vault";
 import { emitEvent } from "../events";
 import { runTextTurn } from "../app/text-turn";
@@ -77,6 +78,10 @@ export type DelegationManagerOptions = {
    * singleton (chat checkpoints live in the same store, under their own
    * origin). */
   snapshots?: SnapshotStore;
+  /** Whether the selected AI provider can serve a turn right now. Defaults to
+   * the live provider service (isSelectedProviderConnected). Injected like
+   * readVault so unit tests stay hermetic. */
+  isProviderConnected?: () => boolean;
   /** Push channel for the editor's inline badges — the delegation list changed.
    * The live singleton (getDelegationManager) wires it to the typed emitEvent;
    * unit tests leave it unset (or inject a recorder). */
@@ -98,6 +103,7 @@ export class DelegationManager {
   private readonly readVault: (rel: string) => string;
   private readonly writeVault: (rel: string, content: string) => void;
   private readonly snapshots: SnapshotStore;
+  private readonly isProviderConnected: () => boolean;
   private readonly onChanged: ((delegations: Delegation[]) => void) | null;
   private readonly onStream: ((id: string, text: string) => void) | null;
   private readonly onRunSettled: (() => void) | null;
@@ -121,6 +127,7 @@ export class DelegationManager {
     this.writeVault =
       opts?.writeVault ?? ((rel, content) => getVaultManager().writeText(rel, content));
     this.snapshots = opts?.snapshots ?? getSnapshotStore();
+    this.isProviderConnected = opts?.isProviderConnected ?? isSelectedProviderConnected;
     this.onChanged = opts?.onChanged ?? null;
     this.onStream = opts?.onStream ?? null;
     this.onRunSettled = opts?.onRunSettled ?? null;
@@ -213,6 +220,12 @@ export class DelegationManager {
    * file first so a stale/edited checkbox is rejected before it queues. */
   createDelegation(params: CreateDelegationParams): CreateDelegationResult {
     if (this.unavailableReason !== null) return { ok: false, error: this.unavailableReason };
+    // A guest is the DEFAULT (#459): with no connected provider the background
+    // agent can only fail the run silently, so refuse up front — a per-attempt
+    // refusal like the private-note one, not a global unavailable latch.
+    if (!this.isProviderConnected()) {
+      return { ok: false, error: "Connect an AI provider in Settings → AI to delegate." };
+    }
     let raw: string;
     try {
       raw = this.readVault(params.sourceFile);

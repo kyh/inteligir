@@ -47,10 +47,17 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
 
     case "RETRY": {
       if (state.phase !== "error") return null;
-      // Both error flavors retry through SETUP: a failed setup re-runs it
-      // (seeding is idempotent — this also covers a failed RESET, whose wipe
-      // already happened), and a dead-agent error restarts the agent the same
-      // way.
+      // A failed RESET retries the RESET itself: the failure may have landed
+      // BEFORE the wipe (stopAgent/teardown threw), so re-running a plain
+      // SETUP would silently keep the data the user asked to destroy. The
+      // wipe + re-seed are both idempotent, so re-running the whole effect is
+      // safe whichever half died.
+      if (state.prev === "resetting") {
+        return { next: { phase: "setting_up" }, effect: "RESET" };
+      }
+      // The other error flavors retry through SETUP: a failed setup re-runs
+      // it (seeding is idempotent), and a dead-agent error restarts the agent
+      // the same way.
       return { next: { phase: "setting_up" }, effect: "SETUP" };
     }
 
@@ -64,6 +71,16 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
       if (state.phase !== "setting_up") return null;
       return {
         next: { phase: "error", prev: "setting_up", message: event.message },
+        effect: null,
+      };
+
+    case "RESET_FAIL":
+      // Same phase as a SETUP failure (a RESET runs through "setting_up"),
+      // but the error records RESET provenance so RETRY re-runs the wipe —
+      // a reset that failed must never masquerade as a setup that failed.
+      if (state.phase !== "setting_up") return null;
+      return {
+        next: { phase: "error", prev: "resetting", message: event.message },
         effect: null,
       };
 

@@ -18,6 +18,12 @@ import type { AuthStorage } from "@repo/features/server/pi/pi-types";
 import { AUTH_PATH } from "./paths";
 
 let authStorage: AuthStorage | null = null;
+// Bumped on every resetAuthStorage() (i.e. a RESET wiped ~/.inteligir). An
+// OAuth flow that was already out in the browser when the wipe happened
+// completes against the OLD storage and would re-write auth.json AFTER the
+// wipe — a "connected" provider surviving the reset. login() checks the
+// epoch after the round-trip and undoes such a stale completion.
+let authEpoch = 0;
 
 export function getAuthStorage(): AuthStorage {
   if (!authStorage) authStorage = createAuthStorage(AUTH_PATH);
@@ -28,6 +34,7 @@ export function getAuthStorage(): AuthStorage {
  * login after logout reads the rebuilt auth.json instead of stale creds. */
 export function resetAuthStorage(): void {
   authStorage = null;
+  authEpoch++;
 }
 
 /** Credentials cached on-device for `provider`. The auth.json existence guard
@@ -41,11 +48,21 @@ export function isProviderAuthed(provider: string): boolean {
 // (resumeShellWrites). That is the host's concern — server/lib/agent-lifecycle.ts
 // wraps this in loginAgent(); call that, not this, from app lifecycle code.
 export async function login(provider: string): Promise<void> {
+  const epoch = authEpoch;
   await loginWithProvider(getAuthStorage(), provider, {
     onAuth: (info) => {
       void open(info.url);
     },
   });
+  if (epoch !== authEpoch) {
+    // A RESET wiped ~/.inteligir while this OAuth round-trip was out in the
+    // browser: the completion just resurrected this provider's credential
+    // post-wipe. Undo it through the CURRENT storage (so credentials a
+    // post-reset re-login legitimately wrote for other providers survive)
+    // and fail the connect — the user asked for a wipe, not a reconnect.
+    logoutProvider(provider);
+    throw new Error("Sign-in was interrupted by an app data reset — connect again.");
+  }
 }
 
 /** Drop `provider`'s credentials from auth.json (Settings "Disconnect"). */
