@@ -21,6 +21,7 @@ import { docExists } from "@renderer/lib/bridge";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 import {
   applyPropertiesPatch,
   serializeDoc,
@@ -107,11 +108,6 @@ function requireDocInput(value: unknown): { body?: string; properties?: Record<s
 
 // ---- Dispatch --------------------------------------------------------------
 
-/** The leaf name of a vault path (its display `name` in list results). */
-function nameOf(path: string): string {
-  return path.split("/").pop() ?? path;
-}
-
 /** Handle one validated broker request. Throws on any invalid input, unknown
  * method, or downstream failure — the caller maps a throw to an error response.
  */
@@ -147,18 +143,18 @@ export async function handleBrokerRequest(
             .filter((result) => taggedSet.has(result.path))
             .map((result) => ({
               path: result.path,
-              name: nameOf(result.path),
+              name: basenamePath(result.path),
               snippet: result.snippet,
             }));
         } else {
-          hits = tagged.slice(0, limit).map((path) => ({ path, name: nameOf(path) }));
+          hits = tagged.slice(0, limit).map((path) => ({ path, name: basenamePath(path) }));
         }
       } else if (opts.query !== undefined) {
         // Ranked lexical search; carry each hit's snippet through to the app.
         const results = await bridge.searchVault({ query: opts.query, limit });
         hits = results.map((result) => ({
           path: result.path,
-          name: nameOf(result.path),
+          name: basenamePath(result.path),
           snippet: result.snippet,
         }));
       } else {

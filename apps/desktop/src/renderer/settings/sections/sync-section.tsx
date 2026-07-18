@@ -7,6 +7,7 @@ import { Label } from "@repo/ui/components/label";
 import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
 import { useVault } from "@renderer/workspace/vault-context";
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 import type { SyncState, SyncStatus } from "@repo/features/sync";
 
 // Human-readable summary of the last reconcile pass for the status line.
@@ -267,7 +268,7 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
                 >
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-xs text-foreground">
-                      {conflict.path.split("/").at(-1) ?? conflict.path}
+                      {basenamePath(conflict.path)}
                     </span>
                     <span className="truncate text-[10px] text-muted-foreground">
                       {conflict.path}

@@ -27,6 +27,7 @@ import { injectHtmlAppRuntime } from "@/html-app-inject";
 import { getBridge } from "@renderer/lib/bridge";
 import { handleBrokerRequest } from "@renderer/workspace/html-app-broker";
 import { useVault } from "@renderer/workspace/vault-context";
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 
 // The postMessage request envelope the runtime sends. Validated before dispatch.
 const RequestEnvelope = Type.Object(
@@ -63,7 +64,7 @@ export function HtmlAppView() {
   // (onVaultChanged fires for any vault edit, and carries no path).
   const lastTextRef = useRef<string | null>(null);
 
-  const fileName = openPath?.split("/").pop() ?? openPath ?? "";
+  const fileName = openPath === null ? "" : basenamePath(openPath);
 
   // Mint the token once per open. Re-minting on every reload raced the
   // remount (a blank frame): the token is stable for the lifetime of the open.

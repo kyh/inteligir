@@ -15,6 +15,7 @@
 // Extracted from the hook (use-agent-edit-undo.ts) so the collection protocol
 // is unit-testable with fakes, mirroring connectDeepLinkNav.
 
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 import type { AppAgentEvent } from "@repo/features/agent-events";
 import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
 
@@ -52,7 +53,7 @@ export function connectAgentEditUndo(ports: AgentEditUndoPorts): () => void {
 export function describeAgentEdits(edits: AgentEditCaptured[]): string {
   const first = edits[0];
   if (edits.length === 1 && first) {
-    const name = first.path.split("/").at(-1) ?? first.path;
+    const name = basenamePath(first.path);
     return first.kind === "create" ? `Agent created "${name}"` : `Agent edited "${name}"`;
   }
   return `Agent edited ${edits.length} notes`;

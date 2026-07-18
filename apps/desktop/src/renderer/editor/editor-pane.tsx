@@ -8,6 +8,7 @@ import { MarkdownEditor } from "@renderer/editor/markdown-editor";
 import { BacklinksPanel, ForwardLinksPanel } from "@renderer/workspace/links-panel";
 import { useVault } from "@renderer/workspace/vault-context";
 import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 
 /**
  * The editor body: the open note's page title + document (+ backlinks). One
@@ -47,7 +48,7 @@ export function EditorPane() {
 function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   const { editor, editNote, registerNoteSerializeFlush, renameEntry } = useVault();
 
-  const fileName = path.split("/").pop() ?? path;
+  const fileName = basenamePath(path);
   const dot = fileName.lastIndexOf(".");
   const displayName = dot > 0 ? fileName.slice(0, dot) : fileName;
 

@@ -23,9 +23,10 @@ import {
 import { getBridge } from "@renderer/lib/bridge";
 import { useVault } from "@renderer/workspace/vault-context";
 import type { BacklinkEntry, ForwardLinkEntry } from "@repo/core/knowledge/link-graph-index";
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 
 function noteTitle(path: string): string {
-  const name = path.split("/").pop() ?? path;
+  const name = basenamePath(path);
   const dot = name.lastIndexOf(".");
   return dot > 0 ? name.slice(0, dot) : name;
 }

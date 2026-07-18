@@ -3,6 +3,7 @@
 // folders that expand. Pure + deterministic so it can be unit-tested and so the
 // sidebar re-renders identically for the same listing.
 
+import { basenamePath } from "@repo/core/knowledge/vault-path";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
 export type VaultTreeNode =
@@ -54,7 +55,7 @@ function materialize(builder: FolderBuilder, prefix: string): VaultTreeNode[] {
 
   const fileNodes: VaultTreeNode[] = builder.files
     .map((entry): VaultTreeNode => {
-      const name = entry.path.split("/").pop() ?? entry.name;
+      const name = basenamePath(entry.path);
       return { type: "file", name, path: entry.path, kind: entry.kind };
     })
     .toSorted((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
