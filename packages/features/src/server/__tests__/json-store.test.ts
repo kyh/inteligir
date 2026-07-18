@@ -79,7 +79,9 @@ describe("JsonStore", () => {
   it("does not expose the cached default by reference", () => {
     const fs = memoryFs();
     const defaultValue = [{ count: 1 }];
-    const store = new JsonStore<{ count: number }[]>("/test.json", RecordsSchema, defaultValue, { fs });
+    const store = new JsonStore<{ count: number }[]>("/test.json", RecordsSchema, defaultValue, {
+      fs,
+    });
 
     const first = store.read();
     const row = first[0];

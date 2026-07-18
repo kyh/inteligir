@@ -11,7 +11,10 @@ type DelegationStore = {
   init: () => () => void;
   /** Delegate a checkbox by its file + ordinal (position among all checkboxes
    * in the document). */
-  delegate: (sourceFile: string, index: number) => Promise<{ ok: true } | { ok: false; error: string }>;
+  delegate: (
+    sourceFile: string,
+    index: number,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   cancel: (id: string) => void;
   /** Overwrite the delegation's file with its pre-run snapshot (cheap undo of
    * the agent's edit). The vault watcher refreshes the open editor. */
