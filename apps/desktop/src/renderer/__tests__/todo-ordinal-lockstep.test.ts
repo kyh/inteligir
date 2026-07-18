@@ -113,51 +113,39 @@ describe("todoIndex ↔ scanTaskItems ordinal lockstep", () => {
   });
 
   // ------------------------------------------------------------------------
-  // KNOWN DIVERGENCES — real wrong-checkbox bugs, documented, NOT accepted.
-  //
-  // Class 1 — container blocks. Tasks nested inside a blockquote, callout,
-  // or <toggle> sit at depth ≥ 2 in the Plate tree, but `todoIndex` counts
-  // only TOP-LEVEL children: every container-nested todo computes its
-  // ordinal as if the container were the boundary, and every todo AFTER the
-  // container skips the nested ones entirely. scanTaskItems (the disk
-  // authority) counts them all in document pre-order. These docs open Rich
-  // (the blockquote doc below is byte-canonical), the Delegate button
-  // renders on every one of these elements, and a click on the task after
-  // the container delegates the CONTAINER's task — the agent does the wrong
-  // task and checks the wrong box.
-  //
-  // Class 2 — indented code. The editor pipeline is MDX
-  // (remark-mdx-agnostic): indented code blocks DO NOT EXIST in MDX, so a
-  // 4-space-indented `- [ ]` line parses as a real nested task and renders a
-  // live checkbox — while scanTaskItems' plain remark-gfm processor reads it
-  // as an indented code block and skips it. Every ordinal after the line is
-  // off by one on the renderer side.
-  //
-  // `it.fails` keeps the suite green while the bugs exist and flips RED the
-  // moment the divergence is fixed — promote each to plain `it` in the same
-  // change that fixes it. Do NOT "fix" a failure here by adjusting
-  // scanTaskItems' counting: disk-side counting is the authority
-  // (find-task-line + the guarded toggle + the tasks view already share it).
-  // ------------------------------------------------------------------------
+  // Container blocks — tasks nested inside a blockquote, callout, or <toggle>
+  // sit at depth ≥ 2 in the Plate tree. `todoIndex` traverses the whole tree
+  // in document pre-order (not top-level only), so a nested todo and the
+  // top-level todo after it get distinct ordinals matching scanTaskItems (the
+  // disk authority) — Delegate targets the right checkbox. (This class was a
+  // real wrong-checkbox bug until todoIndex moved to pre-order traversal.)
 
-  it.fails("KNOWN BUG: a task inside a blockquote desyncs every later ordinal", () => {
+  it("nested: a task inside a blockquote counts in document order", () => {
     assertLockstep(["> - [ ] quoted task", "", "- [ ] after"].join("\n"));
   });
 
-  it.fails("KNOWN BUG: sibling tasks inside one blockquote collide at ordinal 0", () => {
+  it("nested: sibling tasks inside one blockquote count distinctly", () => {
     assertLockstep(["> - [ ] q1", "> - [ ] q2", "", "- [ ] after"].join("\n"));
   });
 
-  it.fails("KNOWN BUG: a task inside a callout desyncs every later ordinal", () => {
+  it("nested: a task inside a callout counts in document order", () => {
     assertLockstep(["> [!NOTE]", "> - [ ] callout task", "", "- [ ] after"].join("\n"));
   });
 
-  it.fails("KNOWN BUG: a task inside a <toggle> desyncs every later ordinal", () => {
+  it("nested: a task inside a <toggle> counts in document order", () => {
     assertLockstep(
       ["<toggle>", "", "- [ ] inside toggle", "", "</toggle>", "", "- [ ] after"].join("\n"),
     );
   });
 
+  // KNOWN BUG (tracked) — indented code. The editor pipeline is MDX, where
+  // indented code blocks DO NOT EXIST, so a 4-space-indented `- [ ]` line
+  // parses as a live task; scanTaskItems' plain remark-gfm reads it as code
+  // and skips it → every later renderer ordinal is off by one. NOT a
+  // traversal issue (a parser mismatch), so pre-order didn't fix it. `it.fails`
+  // keeps the suite green and flips RED the day it's fixed. The fix is a
+  // pipeline decision (align scanTaskItems' parser with MDX, or suppress todo
+  // styling on indented lists) — never adjust the disk-side authority.
   it.fails("KNOWN BUG: an indented-code checkbox is a live task to the editor only", () => {
     assertLockstep(["Notes", "", "    - [ ] indented-code lookalike", "", "- [ ] real"].join("\n"));
   });

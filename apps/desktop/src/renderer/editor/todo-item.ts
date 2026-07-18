@@ -3,7 +3,7 @@
 // against core's `scanTaskItems` — the counting authority the host's
 // find-task-line and the guarded toggle already share.
 
-import type { SlateEditor, TElement } from "platejs";
+import { PathApi, type SlateEditor, type TElement } from "platejs";
 
 // Whether a Plate list node is a genuine todo checkbox (has a `- [ ]` / `- [x]`
 // on disk), as opposed to a phantom.
@@ -28,19 +28,23 @@ export function isTodoItem(node: unknown): boolean {
 }
 
 /** The checkbox's ordinal — its position among all real todo items in the
- * document, counted over the live Plate tree at click time. Plate's flat list
- * model keeps every todo a TOP-LEVEL block (nesting is an indent prop), so
- * counting `editor.children` covers them all. The host counts the same
- * `- [ ]` / `- [x]` items in the raw markdown (core scanTaskItems, via
- * find-task-line and the guarded toggle), so the two agree by position with
- * no text matching and duplicate labels stay distinct. */
+ * document, counted over the live Plate tree at click time. Traversal is
+ * whole-document pre-order (`editor.api.nodes`), NOT top-level only: a todo
+ * nested inside a container block (blockquote, `[!NOTE]` callout, `<toggle>`)
+ * sits at depth ≥ 2, and a top-level-only count would collide it with the
+ * next top-level todo — delegating the wrong checkbox. Pre-order over the
+ * whole tree visits every todo in document order, matching the host's count
+ * of the same `- [ ]` / `- [x]` items in the raw markdown (core
+ * `scanTaskItems`, via find-task-line and the guarded toggle), so the two
+ * agree by position — no text matching, duplicate labels stay distinct.
+ * (The lockstep is pinned by todo-ordinal-lockstep.test.ts.) */
 export function todoIndex(editor: SlateEditor, element: TElement): number {
-  const path = editor.api.findPath(element);
-  const top = path?.[0];
-  if (top === undefined) return -1;
+  const targetPath = editor.api.findPath(element);
+  if (!targetPath) return -1;
   let count = 0;
-  for (let i = 0; i < top; i++) {
-    if (isTodoItem(editor.children[i])) count++;
+  for (const [, path] of editor.api.nodes({ at: [], match: (node) => isTodoItem(node) })) {
+    if (PathApi.equals(path, targetPath)) return count;
+    count += 1;
   }
-  return count;
+  return -1;
 }
