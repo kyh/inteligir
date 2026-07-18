@@ -21,9 +21,9 @@ const parseString = (value: unknown): string | undefined =>
 /** Read a template note's raw bytes, or null when it doesn't exist / is
  * unreadable — the seed is optional in every flow. */
 async function readTemplate(path: string): Promise<string | null> {
-  const bridge = getBridge();
-  if (!bridge) return null;
-  return bridge.readVaultDoc({ path }).catch(() => null);
+  return getBridge()
+    .readVaultDoc({ path })
+    .catch(() => null);
 }
 
 /**

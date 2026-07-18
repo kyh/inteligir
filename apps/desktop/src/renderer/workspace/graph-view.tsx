@@ -210,7 +210,6 @@ export default function GraphView() {
   // Load + live-refresh the graph data, feeding one persistent simulation.
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     let disposed = false;
 
     const apply = (graph: LinkGraph) => {

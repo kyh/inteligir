@@ -95,9 +95,7 @@ export function BacklinksPanel({ path }: { path: string }) {
   const [backlinks, setBacklinks] = useState<BacklinkEntry[]>([]);
 
   const refresh = useCallback((notePath: string) => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    bridge
+    getBridge()
       .getBacklinks({ path: notePath })
       .then((entries) => setBacklinks(entries))
       .catch(() => {});
@@ -105,8 +103,7 @@ export function BacklinksPanel({ path }: { path: string }) {
 
   useEffect(() => {
     refresh(path);
-    const bridge = getBridge();
-    return bridge?.onKnowledgeUpdated(() => refresh(path));
+    return getBridge().onKnowledgeUpdated(() => refresh(path));
   }, [path, refresh]);
 
   if (backlinks.length === 0) return null;
@@ -160,9 +157,7 @@ export function ForwardLinksPanel({ path }: { path: string }) {
   const [links, setLinks] = useState<ForwardLinkEntry[]>([]);
 
   const refresh = useCallback((notePath: string) => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    bridge
+    getBridge()
       .getForwardLinks({ path: notePath })
       .then((entries) => setLinks(entries))
       .catch(() => {});
@@ -170,8 +165,7 @@ export function ForwardLinksPanel({ path }: { path: string }) {
 
   useEffect(() => {
     refresh(path);
-    const bridge = getBridge();
-    return bridge?.onKnowledgeUpdated(() => refresh(path));
+    return getBridge().onKnowledgeUpdated(() => refresh(path));
   }, [path, refresh]);
 
   if (links.length === 0) return null;

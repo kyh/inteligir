@@ -75,10 +75,6 @@ export function HtmlAppView() {
   useEffect(() => {
     if (openPath === null) return;
     const bridge = getBridge();
-    if (!bridge) {
-      setError("No bridge available.");
-      return;
-    }
     let cancelled = false;
     let mintedToken: string | null = null;
     void (async () => {
@@ -109,7 +105,6 @@ export function HtmlAppView() {
       return;
     }
     const bridge = getBridge();
-    if (!bridge) return;
     let cancelled = false;
     let objectUrl: string | null = null;
     void (async () => {
@@ -134,7 +129,6 @@ export function HtmlAppView() {
   useEffect(() => {
     if (openPath === null) return;
     const bridge = getBridge();
-    if (!bridge) return;
     lastTextRef.current = null;
     const unsubscribe = bridge.onVaultChanged(() => {
       void (async () => {
@@ -175,7 +169,6 @@ export function HtmlAppView() {
   // Broker: validate the envelope + frame + token, dispatch, post the response.
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     const onMessage = (event: MessageEvent): void => {
       const frame = iframeRef.current;
       if (!frame || event.source !== frame.contentWindow) return; // wrong frame

@@ -77,24 +77,11 @@ function validNotePath(path: string): string | null {
 }
 
 // IO the editor controller acts through — thin wrappers over the bridge so the
-// controller stays bridge-agnostic and unit-testable. A missing bridge throws,
-// which the controller treats like any read/write failure.
+// controller stays bridge-agnostic and unit-testable.
 const VAULT_IO: VaultIO = {
-  read: (path) => {
-    const bridge = getBridge();
-    if (!bridge) throw new Error("Vault unavailable");
-    return bridge.readVaultDoc({ path });
-  },
-  write: (path, content) => {
-    const bridge = getBridge();
-    if (!bridge) throw new Error("Vault unavailable");
-    return bridge.writeVaultDoc({ path, content });
-  },
-  remove: (path) => {
-    const bridge = getBridge();
-    if (!bridge) throw new Error("Vault unavailable");
-    return bridge.deleteVaultEntry({ path }).then(() => undefined);
-  },
+  read: (path) => getBridge().readVaultDoc({ path }),
+  write: (path, content) => getBridge().writeVaultDoc({ path, content }),
+  remove: (path) => getBridge().deleteVaultEntry({ path }).then(() => undefined),
 };
 
 // The `editor` snapshot rendered while no note is open. Root lives at the
@@ -251,7 +238,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       // This is the only file watched for external edits (vault liveness —
       // CLAUDE.md § Decisions).
       getBridge()
-        ?.setWatchedNote({ path: next })
+        .setWatchedNote({ path: next })
         .catch(() => {});
     },
     [setUiState],
@@ -346,7 +333,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const lastEntriesRef = useRef<VaultEntry[]>([]);
   const refreshList = useCallback(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     const seq = ++listSeq.current;
     void (async () => {
       try {
@@ -392,7 +378,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const path = validNotePath(withDefaultExtension(trimmed));
       if (path === null) return false;
       const bridge = getBridge();
-      if (!bridge) return false;
       // Don't truncate an existing file — it already satisfies "exists".
       if (await docExists(bridge, path)) return true;
       const created = await bridge
@@ -423,7 +408,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const path = validNotePath(withDefaultExtension(trimmed));
       if (path === null) return;
       const bridge = getBridge();
-      if (!bridge) return;
       // Open-or-create: only write (seed) when the file is genuinely new, so a
       // second "open today's note" reopens the existing note byte-for-byte.
       if (!(await docExists(bridge, path))) {
@@ -447,7 +431,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const dest = to.trim();
       if (!dest || dest === from) return true; // nothing to do
       const bridge = getBridge();
-      if (!bridge) return false;
       const wasOpen = openPathRef.current === from;
       // Flush first so an in-flight write of `from` can't recreate it post-move.
       if (wasOpen && !(await flushCurrent())) {
@@ -487,9 +470,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         await runtime.remove();
         dropNote(path);
       } else {
-        const bridge = getBridge();
-        if (!bridge) return;
-        await bridge.deleteVaultEntry({ path }).catch(() => undefined);
+        await getBridge()
+          .deleteVaultEntry({ path })
+          .catch(() => undefined);
       }
       refreshList();
     },
@@ -501,9 +484,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       toast.error("Couldn't save the open file — resolve that before switching folders.");
       return;
     }
-    const bridge = getBridge();
-    if (!bridge) return;
-    const result = await bridge.chooseVaultRoot().catch(() => null);
+    const result = await getBridge()
+      .chooseVaultRoot()
+      .catch(() => null);
     if (!result) return;
     if (!result.ok) {
       if (result.reason === "error") toast.error(result.error);
@@ -520,14 +503,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const refreshVault = useCallback(() => {
     getBridge()
-      ?.refreshVault()
+      .refreshVault()
       .catch(() => {});
   }, []);
 
   // Initial load: adopt the root + list files.
   useEffect(() => {
     getBridge()
-      ?.getVaultRoot()
+      .getVaultRoot()
       .then((r) => {
         rootRef.current = r;
         setRoot(r);
@@ -555,9 +538,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // controller (reload or drop) and re-list the tree. A real root switch drops
   // the note — its relative path belongs to the old vault.
   useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    return bridge.onVaultChanged(({ root: nextRoot }) => {
+    return getBridge().onVaultChanged(({ root: nextRoot }) => {
       const switched = rootRef.current !== "" && nextRoot !== rootRef.current;
       rootRef.current = nextRoot;
       setRoot(nextRoot);
@@ -604,7 +585,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // entry back to the host's disk drain.
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     const applier = createCaptureApplier({
       openPath: () => openPathRef.current,
       liveEditor: getLiveEditor,
@@ -672,7 +652,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [wikiTargets, setWikiTargets] = useState<WikiTarget[]>([]);
   const refreshWikiTargets = useCallback(() => {
     getBridge()
-      ?.listWikiTargets()
+      .listWikiTargets()
       .then((targets) => {
         // Keep the previous reference when the payload is value-identical —
         // every autosave's knowledge pass re-emits the full list, and a fresh
@@ -687,9 +667,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     refreshWikiTargets();
-    const bridge = getBridge();
-    if (!bridge) return;
-    return bridge.onKnowledgeUpdated(() => refreshWikiTargets());
+    return getBridge().onKnowledgeUpdated(() => refreshWikiTargets());
   }, [refreshWikiTargets]);
 
   // Wiki resolution over the live listing — same engine as the host's index,

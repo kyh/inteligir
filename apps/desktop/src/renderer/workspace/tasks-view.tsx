@@ -73,16 +73,14 @@ export default function TasksView() {
 
   const refetch = useCallback(() => {
     getBridge()
-      ?.listVaultTasks()
+      .listVaultTasks()
       .then(setEntries)
       .catch(() => {});
   }, []);
 
   useEffect(() => {
     refetch();
-    const bridge = getBridge();
-    if (!bridge) return;
-    return bridge.onKnowledgeUpdated(() => refetch());
+    return getBridge().onKnowledgeUpdated(() => refetch());
   }, [refetch]);
 
   // Esc returns to the editor, exactly like the graph surface.
@@ -117,10 +115,8 @@ export default function TasksView() {
 
   const handleToggle = useCallback(
     async (task: VaultTaskEntry) => {
-      const bridge = getBridge();
-      if (!bridge) return;
       if (!(await settleOpenNote(task.path))) return;
-      const result = await bridge
+      const result = await getBridge()
         .toggleVaultTask({ path: task.path, ordinal: task.ordinal, expectedRaw: task.raw })
         .catch(() => null);
       if (result === null) {

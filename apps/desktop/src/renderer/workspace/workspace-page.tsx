@@ -124,7 +124,7 @@ export function WorkspacePage() {
       : null;
 
   const handleRetry = useCallback(() => {
-    getBridge()?.transition({ type: "RETRY" });
+    getBridge().transition({ type: "RETRY" });
   }, []);
 
   return (

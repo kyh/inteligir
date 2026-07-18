@@ -50,7 +50,6 @@ async function undoAgentEdits(bridge: Bridge, edits: AgentEditCaptured[]): Promi
 export function useAgentEditUndo(): void {
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     return connectAgentEditUndo({
       subscribeCaptured: bridge.onAgentEditCaptured,
       subscribeAgentEvents: bridge.onAgentEvent,

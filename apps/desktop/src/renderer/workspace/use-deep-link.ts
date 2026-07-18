@@ -86,7 +86,6 @@ export function useDeepLinkNav(onSearch: (query: string) => void): void {
 
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     return connectDeepLinkNav({
       subscribe: (listener) => bridge.onDeepLinkNav(listener),
       takePending: () => bridge.takePendingDeepLinkNav(),
