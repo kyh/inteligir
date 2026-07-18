@@ -58,8 +58,9 @@ engine and knowledge/markdown code through thin adapters.
 
 The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
-`@repo/features/server` backend, communicating through Electron IPC. For
-UI work there is also a backend-free browser dev harness
+`@repo/features/server` backend, communicating over a local WebSocket
+transport (one server, loopback by default). For UI work there is also a
+backend-free browser dev harness
 (`pnpm --filter @repo/desktop dev:harness`) that drives the real UI over an in-memory
 fixture Bridge.
 
@@ -104,11 +105,14 @@ pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm bui
 ## Desktop architecture (@repo/desktop)
 
 Three processes: **main** (Electron), **preload**, **renderer**. The renderer
-(`src/renderer/`) is the whole product UI: `main.tsx` installs
-`window.desktopBridge` and renders `App`. Renderer code is host-agnostic —
-it reaches the backend only through the injected Bridge (`@renderer/lib/bridge`),
-never electron/node/host (lint-enforced). The `agent/` boundary never imports
-`main/` — also lint-enforced; main composes capabilities and hands the agent an
+(`src/renderer/`) is the whole product UI: the preload is bootstrap-only
+(it exposes the ws endpoint + per-boot local token as
+`window.bridgeBootstrap` over one sendSync channel), and `main.tsx` dials it
+with `createWsBridge`, installs the Bridge, and renders `App`. Renderer code
+is host-agnostic — it reaches the backend only through the injected Bridge
+(`@renderer/lib/bridge`), never electron/node/host (lint-enforced). The
+`agent/` boundary never imports the rest of `@repo/features/server` — also
+lint-enforced; the host composes capabilities and hands the agent an
 injected `AgentPorts` (`{ executor, knowledge }`).
 
 ### Data model — the vault
@@ -303,9 +307,11 @@ boundary for AI features, NOT a security boundary.
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
 schema-validated handler map (`packages/features/src/server/handlers/`) that the desktop
-shell folds over Electron `ipcMain` (the preload derives the typed
-`window.desktopBridge` automatically). Add a channel = registry entry + host
-handler + one line in the dev-harness fixture Bridge
+shell serves over ONE local WebSocket server (`startWsHost`,
+`packages/features/src/server/transport/ws-host.ts`); the renderer dials it with
+`createWsBridge` using the endpoint + per-boot token the bootstrap-only
+preload exposes as `window.bridgeBootstrap`. Add a channel = registry entry +
+host handler + one line in the dev-harness fixture Bridge
 (`apps/desktop/dev/fixture-bridge.ts`), which fails typecheck until covered.
 The fixture stub must do something real against the in-memory state or throw
 an error naming the gap — never silently return `[]`/undefined.

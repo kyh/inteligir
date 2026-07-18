@@ -1,8 +1,7 @@
 // ---------------------------------------------------------------------------
 // Typed host event channel. Host code emits registry event-kind payloads
-// here; transports (Electron IPC today, WebSocket later) subscribe and
-// forward. The emitter is module-level to match the one-host-per-process
-// singleton model.
+// here; the transport (the ws host) subscribes and forwards. The emitter is
+// module-level to match the one-host-per-process singleton model.
 // ---------------------------------------------------------------------------
 
 import type { EventMethod, IpcEvent } from "@repo/features/ipc-registry";

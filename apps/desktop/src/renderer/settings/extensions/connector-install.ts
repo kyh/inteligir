@@ -23,9 +23,9 @@ import { runOAuthFlow } from "@renderer/settings/extensions/lib";
 
 /**
  * The connection name credentials are bound under. Tool addresses are
- * connection-scoped (`tools.<integration>.user.<name>.<tool>`) and the seed
- * dashboard widgets (main/seed-widgets.ts) bake `user.default` into their
- * callTool paths — changing either constant breaks them.
+ * connection-scoped (`tools.<integration>.user.<name>.<tool>`); every install
+ * here mints its connection as `user.default`, so agents resolve the exact
+ * address via tools.search rather than a baked-in path.
  */
 export const DEFAULT_CONNECTION_NAME = "default";
 const OWNER: ExecutorOwner = "user";

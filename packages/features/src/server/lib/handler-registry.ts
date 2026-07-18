@@ -2,9 +2,9 @@
 // Typed handler collection. Every host handler is keyed by a method name in
 // the shared IPC registry; the payload schema + result type are looked up
 // from the registry, so a hand-written string can never drift from the
-// Bridge type or the handler signature. Payloads are validated HERE — every
-// transport (Electron IPC, WebSocket) passes raw wire values straight in and
-// gets identical validation.
+// Bridge type or the handler signature. Payloads are validated HERE — the
+// transport (the ws host) passes raw wire values straight in and gets
+// identical validation.
 // ---------------------------------------------------------------------------
 
 import type { TSchema } from "@sinclair/typebox";

@@ -34,9 +34,11 @@ and editor work — it needs no auth, no vault, no Electron.
 pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 ```
 
-`apps/desktop` (thin shell: window/menu/updater + the IPC Bridge fold) boots
+`apps/desktop` (thin shell: window/menu/updater + the ws transport fold) boots
 `@repo/features/server` (real vault, real pi agent, delegation, knowledge indexes) and
-talks to the renderer over Electron IPC. pi auth (OpenAI OAuth) is on-device; if
+serves the Bridge over ONE local WebSocket server (`startWsHost`); the
+renderer dials it with `createWsBridge` using the endpoint + per-boot token
+the bootstrap-only preload exposes. pi auth (OpenAI OAuth) is on-device; if
 this machine is logged in, chat/AI/delegation are fully live. Uses the
 last-opened vault from `~/.inteligir`.
 
@@ -119,7 +121,7 @@ Type-checks passing isn't feature-correct. Drive the running app:
    `collectHandlers` throws at boot on missing/duplicate).
 3. Fixture implementation in `apps/desktop/dev/fixture-bridge.ts` (typed
    `: Bridge` — fails typecheck until covered).
-   The Electron preload derives automatically.
+   The ws transport dispatches from the host handler map automatically.
 
 **Adding an editor node type**: Base + React halves in one
 `apps/desktop/src/renderer/editor/kits/*-kit.tsx`; add the Base half to `base-kit.ts`

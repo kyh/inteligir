@@ -17,17 +17,18 @@ import type { NotePrivacyProbe, SetupProgress } from "@repo/features/ipc-registr
 import type { ExecutorExecuteResult } from "@repo/features/executor";
 
 // ---------------------------------------------------------------------------
-// Ports — main-owned capabilities handed to extensions at register/setup time.
-// agent/ never imports @/main/*; main/lib/agent-lifecycle.ts builds these
-// (structural subsets of the main singletons) and passes them down. The
-// dependency direction stays one-way: main composes, agent receives.
+// Ports — host-owned capabilities handed to extensions at register/setup time.
+// agent/ never imports the rest of @repo/features/server (lint-enforced);
+// server/lib/agent-lifecycle.ts builds these (structural subsets of the host
+// singletons) and passes them down. The dependency direction stays one-way:
+// the host composes, agent receives.
 //
 // The agent reads/writes vault files through the `./vault` workspace symlink
 // using pi's native file tools, so there is no vault port — only capabilities
 // that can't be expressed as plain filesystem access need one.
 // ---------------------------------------------------------------------------
 
-/** Executor daemon access (main/executor/*): install, lifecycle, code mode. */
+/** Executor daemon access (server/executor/*): install, lifecycle, code mode. */
 export type ExecutorPort = {
   /** Pinned CLI metadata for the integrations UI. */
   cli: ExtensionCliInfo;

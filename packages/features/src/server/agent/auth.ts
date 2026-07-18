@@ -29,7 +29,7 @@ export function isLoggedIn(): boolean {
 }
 
 // NOTE: after a successful login the shell write-suspension must be lifted
-// (resumeShellWrites). That is main's concern — main/lib/agent-lifecycle.ts
+// (resumeShellWrites). That is the host's concern — server/lib/agent-lifecycle.ts
 // wraps this in loginAgent(); call that, not this, from app lifecycle code.
 export async function login(): Promise<void> {
   await loginWithProvider(getAuthStorage(), AUTH_PROVIDER, {

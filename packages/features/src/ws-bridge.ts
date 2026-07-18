@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// WS Bridge client — the Bridge implementation over a WebSocket, derived from
-// the IPC registry exactly like the old Electron preload fold. Isomorphic: no
+// WS Bridge client — the Bridge implementation over a WebSocket, derived
+// from the IPC registry. Isomorphic: no
 // node imports — the desktop renderer (browser) and the mobile app (React
 // Native) both run this, injecting their WebSocket implementation. A
 // reconnect supervisor (the ONLY retry owner) keeps one socket alive with

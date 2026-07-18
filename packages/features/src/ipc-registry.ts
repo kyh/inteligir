@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // IPC registry — single source of truth for every channel that crosses the
-// main <-> preload <-> renderer boundary. Each entry pairs a channel name
-// with a TypeBox payload schema (for runtime validation) and a TypeScript
-// result/event type (for compile-time inference). The Bridge type
-// and the preload bridge object are both derived from this registry, so a
-// rename here is a compile error everywhere it matters.
+// host <-> renderer boundary. Each entry pairs a channel name with a TypeBox
+// payload schema (for runtime validation) and a TypeScript result/event type
+// (for compile-time inference). The Bridge type and the ws transport's
+// dispatch are both derived from this registry, so a rename here is a
+// compile error everywhere it matters.
 // ---------------------------------------------------------------------------
 
 import { type Static, type TSchema, Type } from "@sinclair/typebox";
@@ -826,7 +826,8 @@ type MethodToFn<E extends IpcEntry> =
           : never;
 
 /** The transport-agnostic host contract the UI consumes. Derived from the
- * registry; each host (Electron preload today, WS server later) implements it. */
+ * registry; each host (the ws bridge on desktop/mobile, the dev harness's
+ * fixture Bridge) implements it. */
 export type Bridge = {
   [K in IpcMethod]: MethodToFn<IpcRegistry[K]>;
 };

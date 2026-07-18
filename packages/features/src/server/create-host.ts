@@ -6,9 +6,9 @@
 // app-machine), and sequences init/teardown over those singletons. The pieces
 // are process-global singletons reached through getX() (the one DI path, with a
 // lazy test fallback), so the `created` guard makes a second call fail fast
-// rather than silently share module state. A shell (Electron desktop today,
-// WebSocket server later) injects a HostPlatform, folds the returned handler map
-// into its transport, forwards `events`, and drives start()/dispose().
+// rather than silently share module state. A shell (the Electron desktop)
+// injects a HostPlatform, serves the returned handler map over its transport
+// (the ws host), forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
 import { configurePaths } from "./agent/paths";
