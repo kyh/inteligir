@@ -45,14 +45,14 @@ afterEach(() => {
 describe("JsonStore", () => {
   it("returns default value when file missing", () => {
     const fs = memoryFs();
-    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], { fs });
     expect(store.read()).toEqual([]);
   });
 
   it("reads and validates from file", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", JSON.stringify([1, 2, 3]));
-    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], { fs });
     expect(store.read()).toEqual([1, 2, 3]);
   });
 
@@ -79,7 +79,7 @@ describe("JsonStore", () => {
   it("does not expose the cached default by reference", () => {
     const fs = memoryFs();
     const defaultValue = [{ count: 1 }];
-    const store = new JsonStore<{ count: number }[]>("/test.json", RecordsSchema, defaultValue, fs);
+    const store = new JsonStore<{ count: number }[]>("/test.json", RecordsSchema, defaultValue, { fs });
 
     const first = store.read();
     const row = first[0];
@@ -93,7 +93,7 @@ describe("JsonStore", () => {
   it("caches after first read", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", JSON.stringify([1]));
-    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], { fs });
 
     expect(store.read()).toEqual([1]);
     // Modify file — cache should still return old value
@@ -103,7 +103,7 @@ describe("JsonStore", () => {
 
   it("write updates cache and file", () => {
     const fs = memoryFs();
-    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], { fs });
 
     store.write([10, 20]);
     expect(store.read()).toEqual([10, 20]);
@@ -112,7 +112,7 @@ describe("JsonStore", () => {
 
   it("does not retain the caller's written object by reference", () => {
     const fs = memoryFs();
-    const store = new JsonStore<{ count: number }[]>("/test.json", RecordsSchema, [], fs);
+    const store = new JsonStore<{ count: number }[]>("/test.json", RecordsSchema, [], { fs });
     const data = [{ count: 1 }];
 
     store.write(data);
@@ -126,7 +126,7 @@ describe("JsonStore", () => {
   it("update reads, transforms, writes atomically", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", JSON.stringify([1, 2]));
-    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], { fs });
 
     const result = store.update((nums) => [...nums, 3]);
     expect(result).toEqual([1, 2, 3]);
@@ -136,7 +136,7 @@ describe("JsonStore", () => {
   it("invalidate clears cache", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", JSON.stringify([1]));
-    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], { fs });
 
     store.read(); // populate cache
     fs.files.set("/test.json", JSON.stringify([999]));
@@ -151,7 +151,7 @@ describe("JsonStore write-time validation", () => {
   // (encode/decode drift, schema↔generic mismatch).
   it("throws on a write whose value fails the schema, persisting nothing", () => {
     const fs = memoryFs();
-    const store = new JsonStore<unknown[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<unknown[]>("/test.json", NumbersSchema, [], { fs });
 
     expect(() => store.write(["not a number"])).toThrow(
       /refusing to write value that fails schema validation/,
@@ -165,7 +165,7 @@ describe("JsonStore write-time validation", () => {
 
   it("accepts a subsequent valid write after a rejected one", () => {
     const fs = memoryFs();
-    const store = new JsonStore<unknown[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<unknown[]>("/test.json", NumbersSchema, [], { fs });
 
     expect(() => store.write(["bad"])).toThrow(/schema validation/);
     store.write([1, 2]);
@@ -275,7 +275,7 @@ describe("JsonStore corruption recovery", () => {
   it("logs even when no onRecovery handler is registered", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", "][");
-    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], fs);
+    const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], { fs });
 
     expect(store.read()).toEqual([]);
     expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("/test.json"));

@@ -202,22 +202,19 @@ export class JsonStore<T> {
     private readonly filePath: string,
     private readonly schema: TSchema,
     private readonly defaultValue: T,
-    options: JsonStoreOptions<T> | FsAdapter = {},
+    options: JsonStoreOptions<T> = {},
   ) {
-    // Back-compat: tests pass an FsAdapter directly as the fourth arg.
-    const opts: JsonStoreOptions<T> =
-      "read" in options && "write" in options ? { fs: options } : options;
-    this.fs = opts.fs ?? realFs;
-    this.onRecovery = opts.onRecovery;
+    this.fs = options.fs ?? realFs;
+    this.onRecovery = options.onRecovery;
     // `raw as T`: the schema↔generic seam. `raw` was already Value.Check'd
     // against `schema`, but `schema: TSchema` erases its Static type, so the
     // compiler can't connect it to T. Callers omitting `decode` assert
     // Static<schema> is T.
     // oxlint-disable-next-line typescript/consistent-type-assertions -- schema↔generic seam, see doc above
-    this.decode = opts.decode ?? ((raw) => raw as T);
-    this.encode = opts.encode ?? ((value) => value);
-    this.versioning = opts.versioning;
-    this.mode = opts.mode;
+    this.decode = options.decode ?? ((raw) => raw as T);
+    this.encode = options.encode ?? ((value) => value);
+    this.versioning = options.versioning;
+    this.mode = options.mode;
   }
 
   /**
