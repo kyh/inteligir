@@ -44,7 +44,6 @@ export class UiStateManager {
       DEFAULT_STATE,
     );
     this.secrets = secrets ?? getSecretStore();
-    this.migrateLegacySecrets();
   }
 
   getAll(): UiState {
@@ -89,20 +88,6 @@ export class UiStateManager {
    * after the AGENT_DIR rm. */
   closeStore(): void {
     this.store.close();
-  }
-
-  /** One-time upgrade: builds before the SecretStore persisted secret keys
-   * as plaintext strings in ui-state.json. Move any such value into the
-   * encrypted store and replace it with the presence marker. */
-  private migrateLegacySecrets(): void {
-    const all = this.store.read();
-    for (const key of SECRET_KEYS) {
-      const value = all[key];
-      if (typeof value !== "string") continue;
-      const secret = value.trim();
-      if (secret.length > 0) this.secrets.set(key, secret);
-      this.writeValue(key, secret.length > 0 ? true : undefined);
-    }
   }
 }
 

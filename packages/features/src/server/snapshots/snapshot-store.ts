@@ -33,7 +33,6 @@ import { Value } from "@sinclair/typebox/value";
 
 import { atomicWrite } from "../lib/atomic-write";
 import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
-import { isRecord } from "@repo/features/ipc";
 
 // Retention: keep the newest 50 snapshots PER ORIGIN, pruned on host start.
 // A count cap (not an age window) keeps disk usage proportional to actual AI
@@ -184,29 +183,10 @@ export class SnapshotStore {
         fs: opts.fs,
         versioning: {
           current: SNAPSHOTS_VERSION,
-          // No unversioned era — snapshots.json was born versioned.
+          // No unversioned era — snapshots.json was born versioned. The v1
+          // format predates launch (no released build wrote it); a stray
+          // dev-machine file quarantines once and resets.
           fromLegacy: rejectLegacyVersion("snapshots.json"),
-          migrations: {
-            // v1 → v2: delegation-only entries generalized to AI-write
-            // snapshots. Every v1 entry was captured by a delegation before
-            // it ran against an existing file: id = the old delegationId,
-            // origin "delegation", kind "edit".
-            1: (raw) => {
-              if (!isRecord(raw) || !Array.isArray(raw["snapshots"])) {
-                throw new Error("v1 snapshots shape rejected");
-              }
-              return {
-                version: SNAPSHOTS_VERSION,
-                snapshots: raw["snapshots"].map((entry: unknown) => {
-                  if (!isRecord(entry) || typeof entry["delegationId"] !== "string") {
-                    throw new Error("v1 snapshot entry rejected");
-                  }
-                  const { delegationId, ...rest } = entry;
-                  return { ...rest, id: delegationId, origin: "delegation", kind: "edit" };
-                }),
-              };
-            },
-          },
         },
         decode: (raw) => {
           if (!Value.Check(SnapshotsFileSchema, raw)) throw new Error("snapshots shape rejected");

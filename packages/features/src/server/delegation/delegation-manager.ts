@@ -17,7 +17,7 @@ import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
 import { findTaskLine } from "./find-task-line";
 import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
 import { getHostNotifiers } from "../host-notifiers";
 import { runTextTurn } from "../app/text-turn";
@@ -28,7 +28,7 @@ import {
   type Delegation,
   type RestoreSnapshotResult,
 } from "@repo/features/delegation";
-import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/ipc";
 
 // v2: anchor moved from text/heading matching to a positional `index`.
 // v3: pre-run snapshots — records gained `hasSnapshot` + `restoredAt`.
@@ -124,29 +124,10 @@ export class DelegationManager {
         fs: opts?.fs,
         versioning: {
           current: DELEGATIONS_VERSION,
-          fromLegacy: () => ({ version: DELEGATIONS_VERSION, delegations: [] }),
-          // v1 used text/heading anchors the v2 schema can't validate; there's no
-          // file access at load time to recompute indices, so reset cleanly. This
-          // takes the migration path (silent rewrite) instead of the corrupt-file
-          // quarantine path — delegations are transient, so dropping them is fine,
-          // but firing a scary "corrupt file" recovery notice for a known prior
-          // version is not.
-          migrations: {
-            1: () => ({ version: DELEGATIONS_VERSION, delegations: [] }),
-            // v2 → v3: records gained snapshot bookkeeping. A pre-snapshot
-            // record has no snapshot by definition and was never restored.
-            2: (raw) => {
-              if (!isRecord(raw) || !Array.isArray(raw["delegations"])) {
-                throw new Error("v2 delegations shape rejected");
-              }
-              return {
-                version: DELEGATIONS_VERSION,
-                delegations: raw["delegations"].map((d: unknown) =>
-                  isRecord(d) ? { ...d, hasSnapshot: false, restoredAt: null } : d,
-                ),
-              };
-            },
-          },
+          // Pre-v3 formats predate launch — no released build ever wrote them.
+          // A stray dev-machine file quarantines once and resets; delegations
+          // are documented transient, so nothing of value is lost.
+          fromLegacy: rejectLegacyVersion("delegations.json"),
         },
         decode: (raw) => {
           if (!Value.Check(DelegationsFileSchema, raw))

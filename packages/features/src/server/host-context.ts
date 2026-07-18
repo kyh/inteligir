@@ -83,8 +83,8 @@ export function constructHostSingletons(): HostNotifiers {
   // only (disk reads stay lazy inside JsonStore), so this changes nothing
   // observable — it just materializes the graph in one place, in order, with
   // notifiers already installed. Two pieces are deliberately NOT eager:
-  //   - uiState: its constructor reads + migrates ui-state.json; kept lazy so
-  //     that read keeps its original first-access timing.
+  //   - uiState: nothing at boot reads it; kept lazy so ui-state.json keeps
+  //     its original first-access timing.
   //   - authStorage: it is a pi call, which must wait for configurePaths() in
   //     start(); constructing it here would run before that.
   // Both stay reachable via their live getX() accessors.

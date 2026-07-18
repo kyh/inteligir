@@ -10,8 +10,7 @@
 // ELEVENLABS_API_KEY env var is a dev-only fallback (packaged builds
 // launched from Finder/Dock inherit no shell env). Resolved lazily on every
 // connection/availability check so a key saved mid-session takes effect
-// without a restart. Read through getUiState() — constructing the manager
-// runs the one-time legacy plaintext → SecretStore migration.
+// without a restart.
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "../events";
