@@ -9,8 +9,10 @@ vi.mock("../agent/setup", () => ({
 }));
 
 vi.mock("../agent/auth", () => ({
-  isLoggedIn: vi.fn().mockReturnValue(false),
+  isProviderAuthed: vi.fn().mockReturnValue(false),
   login: vi.fn().mockResolvedValue(undefined),
+  logoutProvider: vi.fn(),
+  getAuthStorage: vi.fn(),
   resetAuthStorage: vi.fn(),
 }));
 

@@ -17,6 +17,11 @@ export function hasAuth(authStorage: AuthStorage, provider: string): boolean {
   return authStorage.hasAuth(provider);
 }
 
+/** Remove `provider`'s stored credential (pi persists the removal). */
+export function removeAuth(authStorage: AuthStorage, provider: string): void {
+  authStorage.logout(provider);
+}
+
 /**
  * Run the OAuth login flow for `provider`, calling `callbacks.onAuth` with
  * the URL the user must visit. Resolves once the OAuth round-trip completes

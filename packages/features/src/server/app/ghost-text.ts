@@ -13,10 +13,13 @@
 // ---------------------------------------------------------------------------
 
 import { toErrorMessage } from "@repo/features/ipc";
-import { listModels } from "@repo/features/server/pi/model";
 
 import { Agent } from "../agent/agent";
-import { AUTH_PROVIDER } from "../agent/paths";
+import {
+  getSelectedProvider,
+  listSelectedProviderModels,
+  resolveModelForSelectedProvider,
+} from "../provider/provider-service";
 import { getAgentPorts } from "../lib/agent-lifecycle";
 import { getUiState } from "../ui-state";
 import { runTextTurn } from "./text-turn";
@@ -30,24 +33,28 @@ const GHOST_TIMEOUT_MS = 20_000;
 const RECYCLE_AFTER_TURNS = 24;
 
 let agent: Agent | null = null;
-let agentModelId: string | null = null;
+// Cache key covers provider AND model: a Settings provider switch must not
+// reuse an agent whose model id happens to collide across providers.
+let agentModelKey: string | null = null;
 let turns = 0;
 let currentRequestId: string | null = null;
 // Serializes runs; supersession happens by aborting the current turn so the
 // chain drains fast, never by concurrent sends into one session.
 let queue: Promise<unknown> = Promise.resolve();
 
-/** Models the ghost session can run, for the settings picker. */
+/** Models the ghost session can run — the SELECTED provider's registry — for
+ * the settings picker. */
 export function listGhostModels(): GhostModelsResult {
-  const models = listModels(AUTH_PROVIDER).map((m) => ({ id: m.id, label: m.name }));
+  const models = listSelectedProviderModels().map((m) => ({ id: m.id, label: m.name }));
   return { models, defaultId: defaultGhostModelId() };
 }
 
-/** The fastest tier in the registry: prefer an explicit low-latency ("spark")
- * model, then the cheapest by output cost — price tracks model size, and
- * size tracks latency. Null only if the registry is empty. */
+/** The fastest tier in the selected provider's registry: prefer an explicit
+ * low-latency ("spark") model, then the cheapest by output cost — price
+ * tracks model size, and size tracks latency. Null only if the registry is
+ * empty. */
 function defaultGhostModelId(): string | null {
-  const models = listModels(AUTH_PROVIDER);
+  const models = listSelectedProviderModels();
   if (models.length === 0) return null;
   const spark = models.find((m) => m.id.includes("spark"));
   if (spark) return spark.id;
@@ -56,10 +63,11 @@ function defaultGhostModelId(): string | null {
 }
 
 /** The model the next request should run: the settings override when it names
- * a real registry model, else the default fast tier. */
+ * a model of the SELECTED provider (a stale override from a previous provider
+ * misses and falls through), else the default fast tier. */
 function resolveGhostModelId(): string | null {
   const stored = getUiState().getAll()[GHOST_TEXT_MODEL_UI_STATE];
-  if (typeof stored === "string" && listModels(AUTH_PROVIDER).some((m) => m.id === stored)) {
+  if (typeof stored === "string" && listSelectedProviderModels().some((m) => m.id === stored)) {
     return stored;
   }
   return defaultGhostModelId();
@@ -68,28 +76,29 @@ function resolveGhostModelId(): string | null {
 export async function stopGhostAgent(): Promise<void> {
   const a = agent;
   agent = null;
-  agentModelId = null;
+  agentModelKey = null;
   turns = 0;
   currentRequestId = null;
   if (a) await a.stop().catch(() => {});
 }
 
-/** (Re)create the agent when missing, when the configured model changed, or
- * when the in-memory thread is due for a recycle. */
+/** (Re)create the agent when missing, when the configured provider/model
+ * changed, or when the in-memory thread is due for a recycle. */
 async function ensureAgent(): Promise<Agent | null> {
   const modelId = resolveGhostModelId();
   if (modelId === null) return null;
-  if (agent && agentModelId === modelId && turns < RECYCLE_AFTER_TURNS) return agent;
+  const modelKey = `${getSelectedProvider().provider}/${modelId}`;
+  if (agent && agentModelKey === modelKey && turns < RECYCLE_AFTER_TURNS) return agent;
   await stopGhostAgent();
   const next = new Agent({
     ports: getAgentPorts(),
     ephemeralSession: true,
     allowedToolNames: [], // pure text completer — no tools at all
-    modelId,
+    resolveModel: () => resolveModelForSelectedProvider(modelId),
   });
   await next.start();
   agent = next;
-  agentModelId = modelId;
+  agentModelKey = modelKey;
   return next;
 }
 

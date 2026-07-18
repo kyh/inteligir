@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { Agent } from "../agent/agent";
-import { isLoggedIn } from "../agent/auth";
+import { isSelectedProviderAuthed, resolveSelectedModel } from "../provider/provider-service";
 import { isSetupComplete } from "../agent/setup";
 import { getExecutorDaemon } from "../executor/executor-daemon";
 import { reduce } from "./app-reducer";
@@ -153,7 +153,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
-  const next = new Agent({ ...opts, ports: getAgentPorts() });
+  const next = new Agent({ ...opts, ports: getAgentPorts(), resolveModel: resolveSelectedModel });
   // Start the dedicated background delegation agent concurrently — it shares no
   // session state with the user agent and the executor daemon's start() is
   // idempotent under concurrency. Non-fatal: a background failure must not block
@@ -244,6 +244,24 @@ export async function reauthenticate(): Promise<{ ok: true } | { ok: false; erro
       console.error("[machine] reauthenticate failed:", message);
       return { ok: false, error: message };
     }
+  });
+}
+
+/**
+ * Roll the agent sessions so the NEXT turn resolves the newly selected
+ * provider+model (Settings → AI switch/connect). Resumes the current thread —
+ * unlike reauthenticate's newSession, nothing about the conversation is
+ * invalid, only the model serving it. Serialized through the machine queue
+ * like reauthenticate; a no-op unless the app is ready (a pre-ready selection
+ * change is picked up by the normal LOGIN/SETUP path).
+ */
+export async function applySelectedProviderChange(): Promise<void> {
+  const m = machine;
+  if (!m) return;
+  await m.enqueueAsync(async () => {
+    if (m.getState().phase !== "ready") return;
+    await stopAgent();
+    await startAgent();
   });
 }
 
@@ -362,7 +380,7 @@ export function transition(event: MachineEvent): void {
  * The delegation + inline-AI push channels are no longer wired here — they
  * emit straight to the typed event bus at their firing sites. */
 export function initMachine(): void {
-  const loggedIn = isLoggedIn();
+  const loggedIn = isSelectedProviderAuthed();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);
 

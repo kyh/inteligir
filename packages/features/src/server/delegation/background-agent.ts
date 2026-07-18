@@ -16,6 +16,7 @@
 
 import { Agent } from "../agent/agent";
 import { BACKGROUND_SESSION_DIR } from "../agent/paths";
+import { resolveSelectedModel } from "../provider/provider-service";
 import { getAgentPorts } from "../lib/agent-lifecycle";
 
 let bgAgent: Agent | null = null;
@@ -28,6 +29,7 @@ export async function startBackgroundAgent(): Promise<void> {
   const next = new Agent({
     newSession: true,
     sessionDir: BACKGROUND_SESSION_DIR,
+    resolveModel: resolveSelectedModel,
     // Tool-gate checkpoints are the CHAT undo surface — disabled here. This
     // agent's undo is the pre-run delegation snapshot (delegation-manager)
     // behind the dock's "Restore original"; hook captures from this session

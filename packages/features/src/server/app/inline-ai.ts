@@ -12,6 +12,7 @@
 
 import { Agent } from "../agent/agent";
 import { INLINE_AI_SESSION_DIR } from "../agent/paths";
+import { resolveSelectedModel } from "../provider/provider-service";
 import { getAgentPorts } from "../lib/agent-lifecycle";
 import { emitEvent } from "../events";
 import { runTextTurn } from "./text-turn";
@@ -43,6 +44,7 @@ export async function startInlineAiAgent(): Promise<void> {
     newSession: true,
     sessionDir: INLINE_AI_SESSION_DIR,
     ports: getAgentPorts(),
+    resolveModel: resolveSelectedModel,
     allowedToolNames: [], // pure text generator — no tools at all
   });
   await next.start();
