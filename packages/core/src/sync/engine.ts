@@ -11,6 +11,7 @@
 //   - `io`    reads/writes the local vault bytes
 //   - `port`  is the remote transport
 //   - `base`  persists the last-synced anchor
+//   - `blobs` holds last-synced base BYTES (markdown) for the merge ladder
 //   - `hash`  content-addresses local files (async — RN/web have no sync sha256)
 //   - `stamp` names conflict copies with a filesystem-safe timestamp
 // Only VAULT FILES are synced; derived state (the knowledge index and all
@@ -111,11 +112,9 @@ export type SyncEngineOptions = {
   readonly hash: Hasher;
   /** Filesystem-safe timestamp source for conflict-copy names. */
   readonly stamp: Clock;
-  /** OPTIONAL content-addressed store for last-synced base BYTES (markdown
-   * only) — what arms the merge ladder with a true 3-way base. Absent →
-   * byte-identical to pre-ladder behavior: every both-sides-changed file
-   * resolves as a conflict copy. */
-  readonly blobs?: BaseBlobStore | undefined;
+  /** Content-addressed store for last-synced base BYTES (markdown only) —
+   * what arms the merge ladder with a true 3-way base. */
+  readonly blobs: BaseBlobStore;
   /** Debounce window (ms) for `scheduleSync`. Default 300ms. */
   readonly debounceMs?: number | undefined;
   /** Fires after EVERY completed pass — whether triggered by an explicit
@@ -139,7 +138,7 @@ export class SyncEngine {
   private readonly base: BaseStore;
   private readonly hash: Hasher;
   private readonly stamp: Clock;
-  private readonly blobs: BaseBlobStore | undefined;
+  private readonly blobs: BaseBlobStore;
   private readonly debounceMs: number;
   private readonly onOutcome: ((outcome: SyncOutcome) => void) | undefined;
 
@@ -266,13 +265,11 @@ export class SyncEngine {
       // Blob GC: the new base is the ONLY thing base bytes serve — drop every
       // blob it no longer references. Over-deleting degrades to a conflict
       // copy (safe); this keeps the shadow from outgrowing the vault.
-      if (this.blobs) {
-        const keep = new Set<Hash>();
-        for (const file of converged.values()) {
-          if (isMarkdownPath(file.path)) keep.add(file.contentHash);
-        }
-        this.blobs.prune(keep);
+      const keep = new Set<Hash>();
+      for (const file of converged.values()) {
+        if (isMarkdownPath(file.path)) keep.add(file.contentHash);
       }
+      this.blobs.prune(keep);
       return { status: "ok", ...counts, conflictPaths };
     } catch (err) {
       // A partial apply left local/remote in a half-converged state; the NEXT
@@ -377,11 +374,10 @@ export class SyncEngine {
     localBytes: Uint8Array,
     converged: Map<VaultPath, VaultFile>,
   ): Promise<boolean> {
-    const blobs = this.blobs;
-    if (!blobs || !isMarkdownPath(path) || localBytes.length > MAX_MERGE_BYTES) return false;
+    if (!isMarkdownPath(path) || localBytes.length > MAX_MERGE_BYTES) return false;
     let base: MergeBase = { kind: "absent" };
     if (baseHash !== null) {
-      const bytes = blobs.get(baseHash);
+      const bytes = this.blobs.get(baseHash);
       // A base manifest entry whose bytes we no longer (or never — legacy)
       // hold is UNAVAILABLE, not absent: rungs that would guess refuse it.
       base = bytes === null ? { kind: "unavailable" } : { kind: "bytes", bytes };
@@ -391,7 +387,7 @@ export class SyncEngine {
       if (!got.ok) return false; // remote vanished mid-flight — the caller's fallback reconciles
       // Capture the fetched remote bytes now — if the merge lands hash-equal,
       // this is the new base's blob (not stored anywhere else until next pass).
-      blobs.put(got.file.contentHash, got.content);
+      this.blobs.put(got.file.contentHash, got.content);
       if (got.content.length > MAX_MERGE_BYTES) return false;
       const result = mergeLadder({ base, local: localBytes, remote: got.content });
       if (result.kind === "conflict") return false;
@@ -408,7 +404,7 @@ export class SyncEngine {
         this.io.write(path, result.bytes);
         this.hashCache.delete(path);
         converged.set(path, res.file);
-        blobs.put(res.file.contentHash, result.bytes);
+        this.blobs.put(res.file.contentHash, result.bytes);
         return true;
       }
       // version-conflict: a peer committed between our getFile and putFile —
@@ -492,7 +488,7 @@ export class SyncEngine {
   /** Shadow markdown bytes into the blob store at a moment the engine already
    * holds bytes + hash — atomic with base advancement, so the shadow is EXACT. */
   private captureBlob(path: VaultPath, contentHash: Hash, bytes: Uint8Array): void {
-    if (this.blobs && isMarkdownPath(path)) this.blobs.put(contentHash, bytes);
+    if (isMarkdownPath(path)) this.blobs.put(contentHash, bytes);
   }
 
   private async buildLocalManifest(): Promise<LocalManifest> {

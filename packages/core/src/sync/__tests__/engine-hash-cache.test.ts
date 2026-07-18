@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { InMemorySyncPort } from "./in-memory-sync-port";
 import { SyncEngine, type Clock, type Hasher, type SyncIo } from "../engine";
 import { InMemoryBaseStore } from "../base-store";
+import { InMemoryBaseBlobStore } from "../blob-store";
 import type { VaultPath } from "../vault-file";
 
 // Verifies the stat-keyed hash cache: a pass reuses a file's hash when its
@@ -123,6 +124,7 @@ function newEngine(io: SyncIo, hash: Hasher): SyncEngine {
     port,
     io,
     base,
+    blobs: new InMemoryBaseBlobStore(),
     hash,
     stamp: fixedStamp,
     debounceMs: 0,

@@ -53,8 +53,20 @@ function fakeFetch(respond: (call: Recorded) => Response | Promise<Response>): {
   return { fetchImpl, calls };
 }
 
+// The fake hasher mirrors the test file's own `sha256Hex(text)` — it just
+// decodes the bytes back to text first, so it agrees with whatever hash a
+// well-formed response header carries in these tests.
+const fakeHasher = async (bytes: Uint8Array): Promise<string> =>
+  sha256Hex(new TextDecoder().decode(bytes));
+
 function newPort(fetchImpl: FetchFn): HttpSyncPort {
-  return createHttpSyncPort({ baseUrl: BASE_URL, vaultId: VAULT_ID, token: TOKEN, fetchImpl });
+  return createHttpSyncPort({
+    baseUrl: BASE_URL,
+    vaultId: VAULT_ID,
+    token: TOKEN,
+    fetchImpl,
+    hasher: fakeHasher,
+  });
 }
 
 describe("HttpSyncPort", () => {
@@ -113,23 +125,7 @@ describe("HttpSyncPort", () => {
     await expect(newPort(fetchImpl).getFile("x.md")).rejects.toThrow(/version or content-hash/);
   });
 
-  describe("client-side hash verification (a wired hasher)", () => {
-    // The fake hasher mirrors the test file's own `sha256Hex(text)` — it just
-    // decodes the bytes back to text first, so it agrees with whatever hash the
-    // response header carries in these tests.
-    const fakeHasher = async (bytes: Uint8Array): Promise<string> =>
-      sha256Hex(new TextDecoder().decode(bytes));
-
-    function portWithHasher(fetchImpl: FetchFn): HttpSyncPort {
-      return createHttpSyncPort({
-        baseUrl: BASE_URL,
-        vaultId: VAULT_ID,
-        token: TOKEN,
-        fetchImpl,
-        hasher: fakeHasher,
-      });
-    }
-
+  describe("client-side hash verification", () => {
     it("succeeds when the body's hash matches the reported header", async () => {
       const body = "hello world";
       const { fetchImpl } = fakeFetch(
@@ -140,7 +136,7 @@ describe("HttpSyncPort", () => {
           }),
       );
 
-      const got = await portWithHasher(fetchImpl).getFile("x.md");
+      const got = await newPort(fetchImpl).getFile("x.md");
 
       expect(got.ok).toBe(true);
     });
@@ -157,24 +153,9 @@ describe("HttpSyncPort", () => {
           }),
       );
 
-      await expect(portWithHasher(fetchImpl).getFile("x.md")).rejects.toThrow(
+      await expect(newPort(fetchImpl).getFile("x.md")).rejects.toThrow(
         /don't match the reported content hash/,
       );
-    });
-
-    it("skips verification when no hasher is supplied (backward-compatible default)", async () => {
-      const body = "hello world";
-      const { fetchImpl } = fakeFetch(
-        () =>
-          new Response(body, {
-            status: 200,
-            headers: { [HEADER_VERSION]: "7", [HEADER_CONTENT_HASH]: sha256Hex("some other body") },
-          }),
-      );
-
-      // No `hasher` option -> newPort() -> trusts the (here, mismatched) header.
-      const got = await newPort(fetchImpl).getFile("x.md");
-      expect(got.ok).toBe(true);
     });
   });
 
