@@ -10,8 +10,13 @@ export function installBridge(bridge: Bridge): void {
   installed = bridge;
 }
 
-/** Access the installed bridge. Null only if the host never installed one. */
-export function getBridge(): Bridge | null {
+/** Access the installed bridge. Both entry points install the bridge before
+ * the first render, so any null here is a boot-order bug — throw loudly
+ * instead of making every call site carry a dead guard. */
+export function getBridge(): Bridge {
+  if (installed === null) {
+    throw new Error("getBridge() before installBridge — boot-order bug");
+  }
   return installed;
 }
 
