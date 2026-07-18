@@ -31,11 +31,14 @@ import { addFrontmatterAlias } from "@repo/core/markdown/frontmatter";
 
 import type { VaultManager } from "../vault/vault";
 
+/** `docsRewritten` counts the docs the rewrite loop actually wrote — the
+ * notes whose links were retargeted (a standalone alias-only write on the
+ * moved doc is not a link rewrite and is not counted). */
 export function renameWithLinkRewrite(
   vault: VaultManager,
   from: string,
   to: string,
-): { ok: true } | { ok: false; error: string } {
+): { ok: true; docsRewritten: number } | { ok: false; error: string } {
   // Snapshot before the rename; a failure here degrades to a plain rename.
   let snapshot: { docs: Map<string, string>; files: string[] } | null = null;
   try {
@@ -55,7 +58,8 @@ export function renameWithLinkRewrite(
   }
 
   const result = vault.rename(from, to);
-  if (!result.ok || snapshot === null) return result;
+  if (!result.ok) return result;
+  if (snapshot === null) return { ok: true, docsRewritten: 0 };
 
   // Phase 3 precondition: record the old stem as an alias only for a doc
   // whose resolvable NAME actually changed — never for dir-only moves (stem
@@ -68,6 +72,7 @@ export function renameWithLinkRewrite(
     oldStem !== "" &&
     oldStem.toLowerCase() !== titleFromPath(to).toLowerCase();
 
+  let docsRewritten = 0;
   try {
     const edits = computeRenameEdits(snapshot.docs, snapshot.files, from, to);
     for (const [postPath, content] of edits) {
@@ -91,6 +96,7 @@ export function renameWithLinkRewrite(
           ? (addFrontmatterAlias(content, oldStem) ?? content)
           : content;
       vault.writeText(postPath, next);
+      docsRewritten++;
     }
     if (recordAlias && !edits.has(to)) {
       // No rewrite touched the moved doc — read it, snapshot-verify (its
@@ -102,7 +108,7 @@ export function renameWithLinkRewrite(
     // leaves stale links (repairable), never inconsistent views.
     console.warn("[knowledge] link rewrite after rename failed:", err);
   }
-  return result;
+  return { ok: true, docsRewritten };
 }
 
 function recordAliasStandalone(

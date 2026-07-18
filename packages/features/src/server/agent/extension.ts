@@ -42,7 +42,9 @@ export type ExecutorPort = {
 };
 
 /** Knowledge-engine access (derived indexes live OUTSIDE the vault, so the
- * agent's file tools can't reach them — hence a port). Read-only.
+ * agent's file tools can't reach them — hence a port). Read-only queries plus
+ * `rename` — the one mutation, and it exists precisely because the agent's
+ * raw file tools CAN move a file but can't rewrite the vault's links to it.
  *
  * PRIVACY CONTRACT: results are privacy-FILTERED — a `private: true` note
  * never appears (no path, no snippet; a private backlinks target reads as
@@ -54,7 +56,22 @@ export type KnowledgePort = {
   backlinks(path: string): BacklinkEntry[];
   /** Vault paths of notes carrying a tag (case-insensitive). */
   notesWithTag(tag: string): string[];
+  /** Rename/move a vault file through the SAME pipeline the user-facing
+   * renameVaultEntry handler runs: note-name gate on the destination
+   * basename, then snapshot-verified vault-wide link rewrite + old-title
+   * alias recording (knowledge/rename-rewrite.ts). Refusals are VALUES,
+   * never throws (guarded-edit style). */
+  rename(from: string, to: string): RenameNoteResult;
 };
+
+/** KnowledgePort.rename outcome. `linksRewritten` counts the NOTES whose
+ * links were rewritten to follow the move (0 when nothing pointed at the
+ * file, or when wiki-links were already location-independent). A failure
+ * `reason` is one model-safe sentence: invalid destination name, missing
+ * source, occupied destination, or a private/unreadable source. */
+export type RenameNoteResult =
+  | { ok: true; from: string; to: string; linksRewritten: number }
+  | { ok: false; reason: string };
 
 /** A note's live-disk privacy verdict: notePrivacy's three states plus
  * `absent` (no such file). Anything that can't be read/typed probes

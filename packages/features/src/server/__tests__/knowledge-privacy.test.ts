@@ -50,7 +50,15 @@ function diskProbe(overrides: Record<string, string> = {}): (rel: string) => Pri
 
 function buildPort(overrides: Record<string, string> = {}): KnowledgePort {
   const index = seededIndex();
-  return buildAgentKnowledgePort({ queries: () => index, probe: diskProbe(overrides) });
+  return buildAgentKnowledgePort({
+    queries: () => index,
+    probe: diskProbe(overrides),
+    // These tests are fs-free; rename (which writes through the real
+    // VaultManager) is covered by knowledge-rename-port.test.ts.
+    vault: () => {
+      throw new Error("rename is not under test in knowledge-privacy tests");
+    },
+  });
 }
 
 // Capture the extension's registered tools so their execute() closures run

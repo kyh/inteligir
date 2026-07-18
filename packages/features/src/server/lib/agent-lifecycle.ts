@@ -65,14 +65,16 @@ export function getAgentPorts(): AgentPorts {
       execute: executeEnsuringDaemon,
       resume: resumeEnsuringDaemon,
     },
-    // Read-only knowledge queries, PRIVACY-FILTERED (agent-knowledge-port.ts):
+    // Knowledge queries + rename, PRIVACY-FILTERED (agent-knowledge-port.ts):
     // private notes are excluded at the index and every survivor is re-probed
-    // against live disk — a private path/snippet never reaches the model.
-    // Defers to the live singleton so a logout/login vault reset stays
-    // transparent (mirrors executor above).
+    // against live disk — a private path/snippet never reaches the model —
+    // and rename routes through the SAME renameWithLinkRewrite pipeline the
+    // renameVaultEntry handler runs. Defers to the live singletons so a
+    // logout/login vault reset stays transparent (mirrors executor above).
     knowledge: buildAgentKnowledgePort({
       queries: () => getKnowledgeManager(),
       probe: probeVaultPrivacy,
+      vault: getVaultManager,
     }),
     // Vault-privacy capability for the tool gate (agent/privacy). probe reads
     // LIVE disk through VaultManager (resolve() confinement included): a path

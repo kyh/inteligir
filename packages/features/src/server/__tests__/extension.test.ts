@@ -28,6 +28,7 @@ function fakePorts(): AgentPorts {
       search: () => [],
       backlinks: () => [],
       notesWithTag: () => [],
+      rename: () => ({ ok: false, reason: "not wired in this test" }),
     },
     privacy: {
       probe: () => "indeterminate",

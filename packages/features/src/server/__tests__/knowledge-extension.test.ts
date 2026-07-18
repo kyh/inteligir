@@ -51,7 +51,12 @@ function backlink(sourcePath: string, line: number): BacklinkEntry {
   return { sourcePath, line, snippet: "", kind: "wiki", embed: false };
 }
 
-const emptyPort: KnowledgePort = { search: () => [], backlinks: () => [], notesWithTag: () => [] };
+const emptyPort: KnowledgePort = {
+  search: () => [],
+  backlinks: () => [],
+  notesWithTag: () => [],
+  rename: () => ({ ok: false, reason: "not wired in this test" }),
+};
 
 describe("knowledge extension tools", () => {
   it("registers search_vault and get_backlinks with valid schemas", () => {
