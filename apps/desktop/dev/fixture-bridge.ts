@@ -817,8 +817,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         case "RESET_APP_DATA":
           // The harness twin of the host's full ~/.inteligir wipe + re-setup:
           // clear chat history, sign the sync account out and disable it, and
-          // drop every simulated provider connection — then land back ready
-          // as a fresh guest.
+          // drop every simulated provider connection. Phase mimics the real
+          // machine — setting_up first, ready after a beat — because renderer
+          // consumers key refreshes off the setting_up→ready transition (the
+          // ai-provider store re-snapshots there).
           history.length = 0;
           syncState = {
             enabled: false,
@@ -830,7 +832,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
           };
           emitSync();
           for (const id of aiConnected.keys()) aiConnected.set(id, false);
-          setAppState({ phase: "ready", agent: "idle" });
+          setAppState({ phase: "setting_up" });
+          setTimeout(() => setAppState({ phase: "ready", agent: "idle" }), 400);
           return;
       }
     },

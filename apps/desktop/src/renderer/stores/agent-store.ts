@@ -27,6 +27,7 @@ import {
   openNoteIsPrivate,
   openNotePath,
 } from "@renderer/workspace/open-note-flush";
+import { useAiProviderStore } from "@renderer/stores/ai-provider-store";
 import { onUserTranscript, useVoiceStore } from "@renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -162,10 +163,22 @@ function subscribeAgentEvents(bridge: Bridge, set: SetFn, get: GetFn): () => voi
   });
 }
 
-function subscribeAppState(bridge: Bridge, set: SetFn): () => void {
+function subscribeAppState(bridge: Bridge, set: SetFn, get: GetFn): () => void {
   return bridge.onAppState((appState: unknown) => {
     if (!Value.Check(AppStateSchema, appState)) return;
+    const wasReady = get().appState.phase === "ready";
     set({ appState });
+    // Entering ready (boot setup done, reset-app-data finished, retry
+    // recovered) can mean the world behind the AI-provider snapshot changed —
+    // a reset wipes provider credentials entirely. Refresh the shared store
+    // so the composer affordance and editor gates reflect the new truth.
+    // Ready→ready churn (agent busy/idle) is excluded on purpose.
+    if (!wasReady && appState.phase === "ready") {
+      void useAiProviderStore
+        .getState()
+        .refresh()
+        .catch(() => {});
+    }
   });
 }
 
@@ -220,7 +233,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const bridge = getBridge();
 
     const unsubAgent = subscribeAgentEvents(bridge, set, get);
-    const unsubState = subscribeAppState(bridge, set);
+    const unsubState = subscribeAppState(bridge, set, get);
     const unsubProgress = subscribeSetupProgress(bridge, set);
     // A completed voice transcript is just a user turn: route it through the
     // SAME send() as a typed message, so flush, note-context, failed-flush
