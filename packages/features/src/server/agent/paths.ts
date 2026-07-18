@@ -15,12 +15,6 @@ export function inteligirPath(...segments: string[]): string {
   return path.join(INTELIGIR_DIR, ...segments);
 }
 
-/** Provider in pi-ai's model registry. */
-export const AUTH_PROVIDER = "openai-codex";
-
-/** Default model id for new sessions. */
-export const MODEL_ID = "gpt-5.5";
-
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here. */
 export const AGENT_DIR = inteligirPath();
 export const AUTH_PATH = inteligirPath("auth.json");

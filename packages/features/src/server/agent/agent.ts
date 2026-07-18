@@ -9,14 +9,18 @@
 // agent/extension.ts).
 
 import { PiAgent } from "@repo/features/server/pi/agent";
-import { resolveModel } from "@repo/features/server/pi/model";
 import { SessionManager } from "@repo/features/server/pi/pi-types";
-import type { AgentSessionEvent, ImageContent } from "@repo/features/server/pi/pi-types";
+import type {
+  Api,
+  AgentSessionEvent,
+  ImageContent,
+  Model,
+} from "@repo/features/server/pi/pi-types";
 
 import { getAuthStorage } from "./auth";
 import { EXTENSION_BUNDLES } from "./bundles";
 import { buildValidatedFactories, type AgentPorts } from "./extension";
-import { AGENT_DIR, AUTH_PROVIDER, MODEL_ID, SESSION_DIR, WORKSPACE_DIR } from "./paths";
+import { AGENT_DIR, SESSION_DIR, WORKSPACE_DIR } from "./paths";
 import { buildRegisterContext } from "./setup";
 import type { SessionStatus } from "@repo/features/agent-events";
 
@@ -30,6 +34,12 @@ export type AgentOptions = {
   /** Main-owned capabilities (executor) handed to extension bundles at register
    * time. Built main-side by agent-lifecycle.ts. */
   ports: AgentPorts;
+  /** Resolve the session's model — host-composed (the selected provider+model
+   * from the provider-config store; ghost-text composes its fast-model
+   * override). A thunk, invoked lazily inside start(), so resolution failures
+   * surface through the async start() path like every other construction
+   * error — agent/ never chooses a provider itself. */
+  resolveModel: () => Model<Api>;
   /** If true, start a fresh session instead of resuming the most recent one. */
   newSession?: boolean;
   /** Session directory to read/write. Defaults to SESSION_DIR (the user-facing
@@ -40,9 +50,6 @@ export type AgentOptions = {
    * the inline-AI session, which is a pure text generator with no file/executor
    * access. Unset keeps the default active tool set. */
   allowedToolNames?: string[];
-  /** Model id override (must exist in pi-ai's registry for AUTH_PROVIDER).
-   * Defaults to MODEL_ID — the ghost-text session passes its fast model. */
-  modelId?: string;
   /** Keep the session entirely in memory (never written to disk). Used by the
    * ghost-text session: high-frequency throwaway turns that should neither
    * pile up session files nor be resumable. Takes precedence over
@@ -69,7 +76,7 @@ export class Agent {
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,
         authStorage: getAuthStorage(),
-        model: resolveModel(AUTH_PROVIDER, this.opts.modelId ?? MODEL_ID),
+        model: this.opts.resolveModel(),
         sessionManager,
         // A hard allowlist (even `[]`) replaces the default active-tool set.
         ...(this.opts.allowedToolNames !== undefined

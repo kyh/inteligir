@@ -6,6 +6,7 @@ import { Label } from "@repo/ui/components/label";
 import { SegmentedControl } from "@renderer/components/segmented-control";
 import { getBridge } from "@renderer/lib/bridge";
 import { useTheme, type Theme } from "@renderer/lib/use-theme";
+import { AiProviderSection } from "@renderer/settings/sections/ai-provider-section";
 import { EditorAiSection } from "@renderer/settings/sections/editor-ai-section";
 import { NotesSection } from "@renderer/settings/sections/notes-section";
 import { RemoteAccessSection } from "@renderer/settings/sections/remote-access-section";
@@ -29,26 +30,12 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
 
   const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
-  const [reauthBusy, setReauthBusy] = useState(false);
 
   useEffect(() => {
     void getBridge()
       .getNotificationSettings()
       .then(setNotifications)
       .catch(() => {});
-  }, []);
-
-  const handleLogout = useCallback(() => {
-    getBridge().transition({ type: "LOGOUT" });
-  }, []);
-
-  const handleReauthenticate = useCallback(async () => {
-    setReauthBusy(true);
-    try {
-      await getBridge().reauthenticate();
-    } finally {
-      setReauthBusy(false);
-    }
   }, []);
 
   const handleNewSession = useCallback(() => {
@@ -65,37 +52,7 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
 
   return (
     <div className="flex flex-col gap-4 p-3">
-      <div className="flex flex-col gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">OpenAI Account</Label>
-        {isReady ? (
-          <div className="flex items-center justify-between rounded-[10px] bg-muted px-3 py-2">
-            <span className="text-xs text-foreground">Connected</span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleReauthenticate}
-                disabled={reauthBusy}
-                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
-              >
-                {reauthBusy ? "Opening…" : "Re-authenticate"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
-              >
-                Log out
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-[10px] bg-muted px-3 py-2">
-            <span className="text-xs text-muted-foreground">Not connected</span>
-          </div>
-        )}
-      </div>
+      <AiProviderSection />
 
       <div className="flex flex-col gap-2">
         <Label className="text-xs font-medium text-muted-foreground">Appearance</Label>

@@ -11,7 +11,9 @@ import fs from "node:fs";
 
 import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
-import { login, resetAuthStorage } from "../agent/auth";
+import { resetAuthStorage } from "../agent/auth";
+import { loginSelectedProvider } from "../provider/provider-service";
+import { resetProviderConfig } from "../provider/provider-config";
 import type { AgentPorts, PrivacyProbe } from "../agent/extension";
 import { buildAgentKnowledgePort } from "./agent-knowledge-port";
 import { isEnoent } from "./fs-errors";
@@ -154,11 +156,12 @@ export async function seedAgentResources(onProgress: (p: SetupProgress) => void)
   getVaultManager().ensureReady();
 }
 
-/** Run the provider OAuth flow, then lift the vault write suspension that a
- * previous logout put in place — after successful re-auth the workspace may
- * materialize again on the next write. */
+/** Run the SELECTED provider's OAuth flow (a no-op for auth-free providers,
+ * i.e. faux), then lift the vault write suspension that a previous logout put
+ * in place — after successful re-auth the workspace may materialize again on
+ * the next write. */
 export async function loginAgent(): Promise<void> {
-  await login();
+  await loginSelectedProvider();
   resumeVaultWrites();
 }
 
@@ -179,6 +182,7 @@ export function teardownAgentResources(): void {
   resetRemoteAccessManager();
   resetUiState();
   resetSecretStore();
+  resetProviderConfig();
   // Suspend vault writes BEFORE wiping ~/.inteligir, so a late autosave from a
   // still-mounted panel can't rebuild a fresh manager at the default root and
   // write the user's edits there (or recreate app data).

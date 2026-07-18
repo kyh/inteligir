@@ -11,6 +11,7 @@
 // a stub that answers wrong is worse than an error that names itself.
 // ---------------------------------------------------------------------------
 
+import type { AiProviderSettings } from "@repo/features/ai-provider";
 import type { AppAgentEvent } from "@repo/features/agent-events";
 import type { AppState } from "@repo/features/app-state";
 import type { Delegation, ListDelegationsResult } from "@repo/features/delegation";
@@ -664,6 +665,52 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     ],
   };
 
+  // AI provider — an in-memory mirror of the host's provider-service so the
+  // Settings AI section is fully drivable: switch (defaults the model like
+  // applySelectionPatch), connect (simulates a COMPLETED OAuth round-trip —
+  // the real host opens the system browser here), disconnect.
+  const aiProviderCatalog = [
+    {
+      id: "openai-codex",
+      label: "OpenAI",
+      requiresAuth: true,
+      defaultModelId: "gpt-5.5",
+      models: [
+        { id: "gpt-5.5", label: "GPT-5.5" },
+        { id: "gpt-5.4", label: "GPT-5.4" },
+        { id: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark" },
+      ],
+    },
+    {
+      id: "anthropic",
+      label: "Claude",
+      requiresAuth: true,
+      defaultModelId: "claude-sonnet-4-6",
+      models: [
+        { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+        { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
+        { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (latest)" },
+      ],
+    },
+  ];
+  const aiConnected = new Map<string, boolean>([
+    ["openai-codex", true],
+    ["anthropic", false],
+  ]);
+  let aiSelection = { provider: "openai-codex", modelId: "gpt-5.5" };
+  const aiProviderSettings = (): AiProviderSettings => ({
+    selected: { ...aiSelection },
+    providers: aiProviderCatalog.map((entry) => ({
+      ...entry,
+      connected: aiConnected.get(entry.id) === true,
+    })),
+  });
+  const aiProviderEntry = (provider: string) => {
+    const entry = aiProviderCatalog.find((candidate) => candidate.id === provider);
+    if (!entry) throw new Error(`Unknown AI provider "${provider}"`);
+    return entry;
+  };
+
   const agentEvents = new Emitter<AppAgentEvent>();
   const appStateEvents = new Emitter<AppState>();
   const sttEvents = new Emitter<{ text: string; isFinal: boolean }>();
@@ -788,6 +835,32 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
     getAgentHistory: async () => [...history],
     reauthenticate: async () => ({ ok: true }),
+
+    // AI provider — the in-memory mirror above; switch/connect/disconnect all
+    // mutate it so the Settings section's states are exercisable.
+    getAiProviderSettings: async () => aiProviderSettings(),
+    setAiProviderConfig: async (patch) => {
+      const provider = patch.provider ?? aiSelection.provider;
+      const entry = aiProviderEntry(provider);
+      const modelId =
+        patch.modelId ??
+        (provider === aiSelection.provider ? aiSelection.modelId : entry.defaultModelId);
+      if (!entry.models.some((model) => model.id === modelId)) {
+        throw new Error(`Model "${modelId}" is not available for AI provider "${provider}"`);
+      }
+      aiSelection = { provider, modelId };
+      return aiProviderSettings();
+    },
+    connectAiProvider: async ({ provider }) => {
+      aiProviderEntry(provider);
+      aiConnected.set(provider, true);
+      return { ok: true };
+    },
+    disconnectAiProvider: async ({ provider }) => {
+      aiProviderEntry(provider);
+      aiConnected.set(provider, false);
+      return aiProviderSettings();
+    },
 
     // Voice — TTS reports unavailable; STT is SIMULATED: startStt arms timers
     // that stream a canned transcript so the listening capsule is demoable.
