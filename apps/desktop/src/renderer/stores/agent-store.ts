@@ -27,6 +27,7 @@ import {
   openNoteIsPrivate,
   openNotePath,
 } from "@renderer/workspace/open-note-flush";
+import { useAiProviderStore } from "@renderer/stores/ai-provider-store";
 import { onUserTranscript, useVoiceStore } from "@renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,9 @@ type AgentStore = {
   ) => Promise<{ flushed: boolean }>;
   interrupt: () => void;
   newSession: () => Promise<void>;
+  /** "Reset app data" (Settings): clear the chat surface locally, then ask the
+   * host for the full ~/.inteligir wipe + re-setup (RESET_APP_DATA). */
+  resetAppData: () => Promise<void>;
 };
 
 function sameStrings(a: readonly string[], b: readonly string[]): boolean {
@@ -159,19 +163,21 @@ function subscribeAgentEvents(bridge: Bridge, set: SetFn, get: GetFn): () => voi
   });
 }
 
-function subscribeAppState(bridge: Bridge, set: SetFn): () => void {
+function subscribeAppState(bridge: Bridge, set: SetFn, get: GetFn): () => void {
   return bridge.onAppState((appState: unknown) => {
     if (!Value.Check(AppStateSchema, appState)) return;
+    const wasReady = get().appState.phase === "ready";
     set({ appState });
-
-    if (appState.phase === "logged_out") {
-      set({
-        ...chatState(emptyChatLog, new Map()),
-        queuedFollowUp: [],
-        queuedSteering: [],
-        setupProgress: null,
-      });
-      useVoiceStore.getState().reset();
+    // Entering ready (boot setup done, reset-app-data finished, retry
+    // recovered) can mean the world behind the AI-provider snapshot changed —
+    // a reset wipes provider credentials entirely. Refresh the shared store
+    // so the composer affordance and editor gates reflect the new truth.
+    // Ready→ready churn (agent busy/idle) is excluded on purpose.
+    if (!wasReady && appState.phase === "ready") {
+      void useAiProviderStore
+        .getState()
+        .refresh()
+        .catch(() => {});
     }
   });
 }
@@ -187,16 +193,12 @@ async function loadInitialHistory(bridge: Bridge, set: SetFn): Promise<void> {
     const appState = await bridge.getAppState();
     set({ appState });
 
-    if (appState.phase === "logged_out") return;
-
     const history = await bridge.getAgentHistory();
     if (history.length === 0) return;
 
-    set((s) =>
-      s.log.items.length === 0 && s.appState.phase !== "logged_out"
-        ? chatState(logFromHistory(history), s.chatMeta)
-        : s,
-    );
+    // Only seed an empty log — a reset/new-session that raced this fetch has
+    // already cleared the chat and must not be resurrected with stale history.
+    set((s) => (s.log.items.length === 0 ? chatState(logFromHistory(history), s.chatMeta) : s));
   } catch (err) {
     console.warn("[agent-store] failed to load history:", err);
   }
@@ -222,7 +224,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   log: emptyChatLog,
   chatMeta: new Map(),
   messages: [],
-  appState: { phase: "logged_out" },
+  appState: { phase: "starting" },
   setupProgress: null,
   queuedFollowUp: [],
   queuedSteering: [],
@@ -231,7 +233,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const bridge = getBridge();
 
     const unsubAgent = subscribeAgentEvents(bridge, set, get);
-    const unsubState = subscribeAppState(bridge, set);
+    const unsubState = subscribeAppState(bridge, set, get);
     const unsubProgress = subscribeSetupProgress(bridge, set);
     // A completed voice transcript is just a user turn: route it through the
     // SAME send() as a typed message, so flush, note-context, failed-flush
@@ -301,9 +303,11 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
           ? bufferPublicPath
           : undefined;
       sentText = buildNoteContext(text, activeNote);
-      // The flush may have awaited a moment — bail if the session ended meanwhile
-      // (e.g. a voice turn queued behind a flush while the user logged out).
-      if (get().appState.phase === "logged_out") return { flushed };
+      // The flush may have awaited a moment — bail if the world is being torn
+      // down/rebuilt meanwhile (a reset or retry kicked in while a voice turn
+      // was queued behind the flush): the agent is definitionally absent and
+      // the chat may have just been cleared.
+      if (get().appState.phase === "setting_up") return { flushed };
     }
 
     sendCommandSurfacingFailure(bridge, set, {
@@ -325,5 +329,16 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   newSession: async () => {
     set({ ...chatState(emptyChatLog, new Map()), queuedFollowUp: [], queuedSteering: [] });
     await getBridge().transition({ type: "NEW_SESSION" });
+  },
+
+  resetAppData: async () => {
+    set({
+      ...chatState(emptyChatLog, new Map()),
+      queuedFollowUp: [],
+      queuedSteering: [],
+      setupProgress: null,
+    });
+    useVoiceStore.getState().reset();
+    await getBridge().transition({ type: "RESET_APP_DATA" });
   },
 }));

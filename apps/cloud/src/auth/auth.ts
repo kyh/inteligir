@@ -41,21 +41,32 @@ function trustedOrigins(env: Env): string[] {
 }
 
 /**
- * Social-provider seam. Providers are enabled only when BOTH the client id and
+ * Social-provider seam. A provider is enabled only when BOTH its client id and
  * secret are present in the env (set the pair via `wrangler secret put`); add a
- * new provider by mirroring the `github` branch. Returns an empty object when
- * none are configured, so nothing is passed to `betterAuth` unless real
- * credentials exist.
+ * new provider by extending the credential table. Absent creds = the provider
+ * simply doesn't exist: it's not passed to `betterAuth`, it's not listed by
+ * `/v1/capabilities`, and no client renders its button.
  */
-function socialProviders(env: Env) {
+function socialCredentials(env: Env): Record<string, { clientId: string; clientSecret: string }> {
+  const providers: Record<string, { clientId: string; clientSecret: string }> = {};
   if (env.GITHUB_CLIENT_ID !== undefined && env.GITHUB_CLIENT_SECRET !== undefined) {
-    return {
-      socialProviders: {
-        github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
-      },
-    };
+    providers.github = { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET };
   }
-  return {};
+  if (env.GOOGLE_CLIENT_ID !== undefined && env.GOOGLE_CLIENT_SECRET !== undefined) {
+    providers.google = { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET };
+  }
+  return providers;
+}
+
+/** The social providers this deployment can actually serve — what
+ * `/v1/capabilities` reports so clients render exactly the right buttons. */
+export function enabledSocialProviders(env: Env): string[] {
+  return Object.keys(socialCredentials(env));
+}
+
+function socialProviders(env: Env) {
+  const providers = socialCredentials(env);
+  return Object.keys(providers).length > 0 ? { socialProviders: providers } : {};
 }
 
 /** Build the request-scoped Better Auth instance from the Worker `env`. The

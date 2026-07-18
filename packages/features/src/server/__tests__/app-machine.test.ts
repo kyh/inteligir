@@ -22,12 +22,13 @@ vi.mock("../agent/agent", () => ({
 
 function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
-    login: vi.fn().mockResolvedValue(undefined),
     seedResources: vi.fn().mockResolvedValue(undefined),
     downloadVoiceModel: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(undefined),
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
+    resumeVaultWrites: vi.fn(),
+    rehardenAppDir: vi.fn(),
     newSession: vi.fn().mockResolvedValue(undefined),
     reportSetupProgress: vi.fn(),
     ...overrides,
@@ -35,86 +36,107 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
 }
 
 describe("AppMachine", () => {
-  it("starts in logged_out by default", () => {
+  it("starts in starting by default — a guest, never a login phase", () => {
     const machine = new AppMachine(fakeDeps(), vi.fn());
-    expect(machine.getState()).toEqual({ phase: "logged_out" });
+    expect(machine.getState()).toEqual({ phase: "starting" });
   });
 
   it("accepts custom initial state", () => {
-    const machine = new AppMachine(fakeDeps(), vi.fn(), { phase: "logged_in" });
-    expect(machine.getState()).toEqual({ phase: "logged_in" });
+    const machine = new AppMachine(fakeDeps(), vi.fn(), { phase: "ready", agent: "idle" });
+    expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 
-  it("LOGIN -> logging_in -> login() -> logged_in", async () => {
+  it("guest boot: SETUP -> setting_up -> seedResources() + startAgent() -> ready, no login", async () => {
     const broadcasts: AppState[] = [];
     const deps = fakeDeps();
     const machine = new AppMachine(deps, (s) => broadcasts.push(s));
-
-    await machine.send({ type: "LOGIN" });
-
-    expect(deps.login).toHaveBeenCalledOnce();
-    expect(machine.getState()).toEqual({ phase: "logged_in" });
-    expect(broadcasts).toEqual([{ phase: "logging_in" }, { phase: "logged_in" }]);
-  });
-
-  it("LOGIN failure -> error state", async () => {
-    const deps = fakeDeps({
-      login: vi.fn().mockRejectedValue(new Error("auth failed")),
-    });
-    const machine = new AppMachine(deps, vi.fn());
-
-    await machine.send({ type: "LOGIN" });
-
-    expect(machine.getState()).toEqual({
-      phase: "error",
-      prev: "logging_in",
-      message: "auth failed",
-    });
-  });
-
-  it("SETUP -> setting_up -> seedResources() + startAgent() -> ready", async () => {
-    const deps = fakeDeps();
-    const machine = new AppMachine(deps, vi.fn(), { phase: "logged_in" });
 
     await machine.send({ type: "SETUP" });
 
     expect(deps.seedResources).toHaveBeenCalledOnce();
     expect(deps.startAgent).toHaveBeenCalledOnce();
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
+    expect(broadcasts).toEqual([{ phase: "setting_up" }, { phase: "ready", agent: "idle" }]);
   });
 
-  it("LOGOUT -> logging_out -> teardown -> logged_out", async () => {
-    const deps = fakeDeps();
-    const machine = new AppMachine(deps, vi.fn(), { phase: "ready", agent: "idle" });
-
-    await machine.send({ type: "LOGOUT" });
-
-    expect(deps.teardownResources).toHaveBeenCalledOnce();
-    expect(machine.getState()).toEqual({ phase: "logged_out" });
-  });
-
-  it("LOGOUT failure surfaces as error instead of wedging in logging_out", async () => {
-    // First attempt rejects, the retry succeeds.
-    const stopAgent = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(new Error("stop broke"))
-      .mockResolvedValue(undefined);
-    const machine = new AppMachine(fakeDeps({ stopAgent }), vi.fn(), {
-      phase: "ready",
-      agent: "idle",
+  it("SETUP failure -> error(setting_up)", async () => {
+    const deps = fakeDeps({
+      startAgent: vi.fn().mockRejectedValue(new Error("agent broke")),
     });
+    const machine = new AppMachine(deps, vi.fn());
 
-    await machine.send({ type: "LOGOUT" });
+    await machine.send({ type: "SETUP" });
 
     expect(machine.getState()).toEqual({
       phase: "error",
-      prev: "logging_out",
-      message: "stop broke",
+      prev: "setting_up",
+      message: "agent broke",
     });
 
-    // RETRY re-runs the logout; with a healthy stopAgent it now completes.
-    await machine.send({ type: "RETRY" });
-    expect(machine.getState()).toEqual({ phase: "logged_out" });
+    // RETRY re-runs setup; with a healthy startAgent it completes.
+    const healthy = fakeDeps();
+    const retryMachine = new AppMachine(healthy, vi.fn(), {
+      phase: "error",
+      prev: "setting_up",
+      message: "agent broke",
+    });
+    await retryMachine.send({ type: "RETRY" });
+    expect(retryMachine.getState()).toEqual({ phase: "ready", agent: "idle" });
+  });
+
+  it("RESET_APP_DATA -> stop + teardown + resume writes + re-setup -> ready", async () => {
+    const calls: string[] = [];
+    const deps = fakeDeps({
+      stopAgent: vi.fn().mockImplementation(async () => {
+        calls.push("stopAgent");
+      }),
+      teardownResources: vi.fn().mockImplementation(() => {
+        calls.push("teardownResources");
+      }),
+      resumeVaultWrites: vi.fn().mockImplementation(() => {
+        calls.push("resumeVaultWrites");
+      }),
+      seedResources: vi.fn().mockImplementation(async () => {
+        calls.push("seedResources");
+      }),
+      startAgent: vi.fn().mockImplementation(async () => {
+        calls.push("startAgent");
+      }),
+      rehardenAppDir: vi.fn().mockImplementation(() => {
+        calls.push("rehardenAppDir");
+      }),
+    });
+    const machine = new AppMachine(deps, vi.fn(), { phase: "ready", agent: "idle" });
+
+    await machine.send({ type: "RESET_APP_DATA" });
+
+    // Teardown strictly before re-seed, with the write suspension lifted in
+    // between — the wipe and the rebuild are one serialized effect — and perms
+    // re-hardened last, after the agent (and its 0644 files) exist.
+    expect(calls).toEqual([
+      "stopAgent",
+      "teardownResources",
+      "resumeVaultWrites",
+      "seedResources",
+      "startAgent",
+      "rehardenAppDir",
+    ]);
+    expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
+  });
+
+  it("RESET_APP_DATA failure surfaces as error(setting_up) instead of wedging", async () => {
+    const deps = fakeDeps({
+      stopAgent: vi.fn().mockRejectedValue(new Error("stop broke")),
+    });
+    const machine = new AppMachine(deps, vi.fn(), { phase: "ready", agent: "idle" });
+
+    await machine.send({ type: "RESET_APP_DATA" });
+
+    expect(machine.getState()).toEqual({
+      phase: "error",
+      prev: "setting_up",
+      message: "stop broke",
+    });
   });
 
   it("NEW_SESSION failure surfaces as error instead of ready-with-no-agent", async () => {
@@ -144,22 +166,26 @@ describe("AppMachine", () => {
 
   it("ignores invalid events", async () => {
     const machine = new AppMachine(fakeDeps(), vi.fn());
-    await machine.send({ type: "SETUP" }); // invalid from logged_out
-    expect(machine.getState()).toEqual({ phase: "logged_out" });
+    await machine.send({ type: "RESET_APP_DATA" }); // invalid from starting
+    expect(machine.getState()).toEqual({ phase: "starting" });
   });
 
   it("serializes concurrent sends", async () => {
     const deps = fakeDeps({
-      login: vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 50))),
+      seedResources: vi
+        .fn()
+        .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 50))),
     });
     const machine = new AppMachine(deps, vi.fn());
 
-    const p1 = machine.send({ type: "LOGIN" });
-    const p2 = machine.send({ type: "SETUP" });
+    const p1 = machine.send({ type: "SETUP" });
+    const p2 = machine.send({ type: "NEW_SESSION" });
 
     await Promise.all([p1, p2]);
 
+    // SETUP completes first (ready/idle), then NEW_SESSION runs from ready.
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
+    expect(deps.newSession).toHaveBeenCalledOnce();
   });
 
   it("shutdown prevents further transitions", async () => {
@@ -168,7 +194,7 @@ describe("AppMachine", () => {
 
     await machine.shutdown();
 
-    await machine.send({ type: "LOGOUT" });
+    await machine.send({ type: "RESET_APP_DATA" });
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 });

@@ -1,47 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { reduce } from "../app/app-reducer";
+import type { AppState, MachineEvent } from "@repo/features/app-state";
 
 describe("reduce", () => {
-  // ---- LOGIN ----------------------------------------------------------------
-
-  it("LOGIN from logged_out → logging_in + LOGIN effect", () => {
-    const result = reduce({ phase: "logged_out" }, { type: "LOGIN" });
-    expect(result).toEqual({ next: { phase: "logging_in" }, effect: "LOGIN" });
-  });
-
-  it("LOGIN from non-logged_out → null", () => {
-    expect(reduce({ phase: "logging_in" }, { type: "LOGIN" })).toBeNull();
-    expect(reduce({ phase: "ready", agent: "idle" }, { type: "LOGIN" })).toBeNull();
-  });
-
-  // ---- LOGIN_OK / LOGIN_FAIL ------------------------------------------------
-
-  it("LOGIN_OK from logging_in → logged_in", () => {
-    const result = reduce({ phase: "logging_in" }, { type: "LOGIN_OK" });
-    expect(result).toEqual({ next: { phase: "logged_in" }, effect: null });
-  });
-
-  it("LOGIN_FAIL from logging_in → error", () => {
-    const result = reduce({ phase: "logging_in" }, { type: "LOGIN_FAIL", message: "bad creds" });
-    expect(result).toEqual({
-      next: { phase: "error", prev: "logging_in", message: "bad creds" },
-      effect: null,
-    });
-  });
-
-  it("LOGIN_OK from wrong phase → null", () => {
-    expect(reduce({ phase: "logged_out" }, { type: "LOGIN_OK" })).toBeNull();
-  });
-
   // ---- SETUP ----------------------------------------------------------------
 
-  it("SETUP from logged_in → setting_up + SETUP effect", () => {
-    const result = reduce({ phase: "logged_in" }, { type: "SETUP" });
+  it("SETUP from starting → setting_up + SETUP effect", () => {
+    const result = reduce({ phase: "starting" }, { type: "SETUP" });
     expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP" });
   });
 
-  it("SETUP from wrong phase → null", () => {
-    expect(reduce({ phase: "logged_out" }, { type: "SETUP" })).toBeNull();
+  it("SETUP from wrong phase → null (no double-run while setting_up)", () => {
+    expect(reduce({ phase: "setting_up" }, { type: "SETUP" })).toBeNull();
+    expect(reduce({ phase: "ready", agent: "idle" }, { type: "SETUP" })).toBeNull();
   });
 
   // ---- SETUP_OK / SETUP_FAIL ------------------------------------------------
@@ -59,48 +30,39 @@ describe("reduce", () => {
     });
   });
 
-  // ---- LOGOUT ---------------------------------------------------------------
-
-  it("LOGOUT from ready → logging_out + LOGOUT effect", () => {
-    const result = reduce({ phase: "ready", agent: "idle" }, { type: "LOGOUT" });
-    expect(result).toEqual({ next: { phase: "logging_out" }, effect: "LOGOUT" });
+  it("SETUP_OK from wrong phase → null", () => {
+    expect(reduce({ phase: "starting" }, { type: "SETUP_OK" })).toBeNull();
   });
 
-  it("LOGOUT from error → logging_out + LOGOUT effect", () => {
-    const result = reduce({ phase: "error", prev: "ready", message: "oops" }, { type: "LOGOUT" });
-    expect(result).toEqual({ next: { phase: "logging_out" }, effect: "LOGOUT" });
+  // ---- RESET_APP_DATA -------------------------------------------------------
+
+  it("RESET_APP_DATA from ready → setting_up + RESET effect", () => {
+    const result = reduce({ phase: "ready", agent: "idle" }, { type: "RESET_APP_DATA" });
+    expect(result).toEqual({ next: { phase: "setting_up" }, effect: "RESET" });
   });
 
-  it("LOGOUT from wrong phase → null", () => {
-    expect(reduce({ phase: "logged_in" }, { type: "LOGOUT" })).toBeNull();
+  it("RESET_APP_DATA from error → setting_up + RESET effect", () => {
+    const result = reduce(
+      { phase: "error", prev: "ready", message: "oops" },
+      { type: "RESET_APP_DATA" },
+    );
+    expect(result).toEqual({ next: { phase: "setting_up" }, effect: "RESET" });
   });
 
-  // ---- LOGOUT_OK / LOGOUT_FAIL ------------------------------------------------
-
-  it("LOGOUT_OK from logging_out → logged_out", () => {
-    const result = reduce({ phase: "logging_out" }, { type: "LOGOUT_OK" });
-    expect(result).toEqual({ next: { phase: "logged_out" }, effect: null });
+  it("RESET_APP_DATA from pre-ready phases → null", () => {
+    expect(reduce({ phase: "starting" }, { type: "RESET_APP_DATA" })).toBeNull();
+    expect(reduce({ phase: "setting_up" }, { type: "RESET_APP_DATA" })).toBeNull();
   });
 
-  it("LOGOUT_FAIL from logging_out → error(logging_out), not a wedged logging_out", () => {
-    const result = reduce({ phase: "logging_out" }, { type: "LOGOUT_FAIL", message: "rm failed" });
-    expect(result).toEqual({
-      next: { phase: "error", prev: "logging_out", message: "rm failed" },
-      effect: null,
-    });
-  });
-
-  it("LOGOUT_FAIL from wrong phase → null", () => {
-    expect(
-      reduce({ phase: "ready", agent: "idle" }, { type: "LOGOUT_FAIL", message: "x" }),
-    ).toBeNull();
-  });
-
-  // ---- NEW_SESSION_OK / NEW_SESSION_FAIL --------------------------------------
+  // ---- NEW_SESSION ----------------------------------------------------------
 
   it("NEW_SESSION from ready/idle → NEW_SESSION effect, state unchanged", () => {
     const result = reduce({ phase: "ready", agent: "idle" }, { type: "NEW_SESSION" });
     expect(result).toEqual({ next: { phase: "ready", agent: "idle" }, effect: "NEW_SESSION" });
+  });
+
+  it("NEW_SESSION while busy → null", () => {
+    expect(reduce({ phase: "ready", agent: "busy" }, { type: "NEW_SESSION" })).toBeNull();
   });
 
   it("NEW_SESSION_FAIL from ready → error(ready) so RETRY can restart the agent", () => {
@@ -115,18 +77,10 @@ describe("reduce", () => {
   });
 
   it("NEW_SESSION_FAIL from wrong phase → null", () => {
-    expect(reduce({ phase: "logged_in" }, { type: "NEW_SESSION_FAIL", message: "x" })).toBeNull();
+    expect(reduce({ phase: "starting" }, { type: "NEW_SESSION_FAIL", message: "x" })).toBeNull();
   });
 
   // ---- RETRY ----------------------------------------------------------------
-
-  it("RETRY from error(logging_in) → logging_in + LOGIN", () => {
-    const result = reduce(
-      { phase: "error", prev: "logging_in", message: "fail" },
-      { type: "RETRY" },
-    );
-    expect(result).toEqual({ next: { phase: "logging_in" }, effect: "LOGIN" });
-  });
 
   it("RETRY from error(setting_up) → setting_up + SETUP", () => {
     const result = reduce(
@@ -139,14 +93,6 @@ describe("reduce", () => {
   it("RETRY from error(ready) → setting_up + SETUP", () => {
     const result = reduce({ phase: "error", prev: "ready", message: "fail" }, { type: "RETRY" });
     expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP" });
-  });
-
-  it("RETRY from error(logging_out) → logging_out + LOGOUT", () => {
-    const result = reduce(
-      { phase: "error", prev: "logging_out", message: "fail" },
-      { type: "RETRY" },
-    );
-    expect(result).toEqual({ next: { phase: "logging_out" }, effect: "LOGOUT" });
   });
 
   it("RETRY from non-error → null", () => {
@@ -166,14 +112,47 @@ describe("reduce", () => {
   });
 
   it("AGENT_START from non-ready → null", () => {
-    expect(reduce({ phase: "logged_in" }, { type: "AGENT_START" })).toBeNull();
+    expect(reduce({ phase: "starting" }, { type: "AGENT_START" })).toBeNull();
+  });
+
+  // ---- Guest invariant ------------------------------------------------------
+
+  it("no event ever produces a login-flavored phase (guest is the only identity)", () => {
+    const states: AppState[] = [
+      { phase: "starting" },
+      { phase: "setting_up" },
+      { phase: "ready", agent: "idle" },
+      { phase: "ready", agent: "busy" },
+      { phase: "error", prev: "setting_up", message: "m" },
+      { phase: "error", prev: "ready", message: "m" },
+    ];
+    const events: MachineEvent[] = [
+      { type: "SETUP" },
+      { type: "RESET_APP_DATA" },
+      { type: "RETRY" },
+      { type: "NEW_SESSION" },
+      { type: "SETUP_OK" },
+      { type: "SETUP_FAIL", message: "m" },
+      { type: "NEW_SESSION_OK" },
+      { type: "NEW_SESSION_FAIL", message: "m" },
+      { type: "AGENT_START" },
+      { type: "AGENT_END" },
+    ];
+    const reachable = new Set<string>();
+    for (const state of states) {
+      for (const event of events) {
+        const result = reduce(state, event);
+        if (result) reachable.add(result.next.phase);
+      }
+    }
+    expect([...reachable].toSorted()).toEqual(["error", "ready", "setting_up"]);
   });
 
   // ---- Unknown events -------------------------------------------------------
 
   it("unknown event type → null", () => {
     expect(
-      Reflect.apply(reduce, undefined, [{ phase: "logged_out" }, { type: "UNKNOWN" }]),
+      Reflect.apply(reduce, undefined, [{ phase: "starting" }, { type: "UNKNOWN" }]),
     ).toBeNull();
   });
 });

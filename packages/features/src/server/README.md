@@ -28,7 +28,7 @@ The reducer returns an `EffectTag` (a string), not the effect itself. The runner
 2. Add a `case` in `app-reducer.ts` returning `{ next, effect }` — guard with the source phase.
 3. If it triggers an effect, add the tag to `EffectTag` and a case in `runEffect`.
 
-Internal events (`LOGIN_OK`/`LOGIN_FAIL`, `SETUP_OK`/`SETUP_FAIL`, `LOGOUT_OK`/`LOGOUT_FAIL`, `NEW_SESSION_OK`/`NEW_SESSION_FAIL`, `AGENT_START`/`AGENT_END`) are emitted only by the effect runner, never by the renderer. Each `*_FAIL` carries a `message`; the reducer routes it into the `error` phase, which records `prev` so `RETRY` knows where to resume.
+Internal events (`SETUP_OK`/`SETUP_FAIL`, `NEW_SESSION_OK`/`NEW_SESSION_FAIL`, `AGENT_START`/`AGENT_END`) are emitted only by the effect runner, never by the renderer. Each `*_FAIL` carries a `message`; the reducer routes it into the `error` phase, which records `prev` so `RETRY` knows where to resume. There is no login phase — the app boots as a guest (#459); the only full-teardown path is the `RESET_APP_DATA` external event (the `RESET` effect: stop → wipe → resume writes → re-seed → re-harden perms).
 
 **New phase**:
 

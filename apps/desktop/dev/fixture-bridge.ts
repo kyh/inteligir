@@ -808,15 +808,32 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     getAppState: async () => appState,
     transition: async (event) => {
       switch (event.type) {
-        case "LOGIN":
         case "SETUP":
         case "RETRY":
         case "NEW_SESSION":
           history.length = 0;
           setAppState({ phase: "ready", agent: "idle" });
           return;
-        case "LOGOUT":
-          setAppState({ phase: "logged_out" });
+        case "RESET_APP_DATA":
+          // The harness twin of the host's full ~/.inteligir wipe + re-setup:
+          // clear chat history, sign the sync account out and disable it, and
+          // drop every simulated provider connection. Phase mimics the real
+          // machine — setting_up first, ready after a beat — because renderer
+          // consumers key refreshes off the setting_up→ready transition (the
+          // ai-provider store re-snapshots there).
+          history.length = 0;
+          syncState = {
+            enabled: false,
+            signedIn: false,
+            email: null,
+            coordinatorUrl: "",
+            status: { phase: "idle" },
+            conflicts: [],
+          };
+          emitSync();
+          for (const id of aiConnected.keys()) aiConnected.set(id, false);
+          setAppState({ phase: "setting_up" });
+          setTimeout(() => setAppState({ phase: "ready", agent: "idle" }), 400);
           return;
       }
     },
@@ -1305,6 +1322,20 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       emitSync();
       return { ok: true };
     },
+    // Sign-up = sign-in in the harness (no real user table): the section's
+    // create-account flow lands signed in, like the host's signUp does.
+    syncSignUp: async ({ email }) => {
+      syncState = { ...syncState, signedIn: true, email };
+      emitSync();
+      return { ok: true };
+    },
+    // Host parity: social sign-in only INITIATES (opens a browser); auth state
+    // does not change. The harness has no browser to open, so ok=true with no
+    // state change mirrors the host contract exactly.
+    syncSocialSignIn: async () => ({ ok: true }),
+    // Both providers listed so the Account section's social buttons render and
+    // are drivable in the harness.
+    getAccountCapabilities: async () => ({ socialProviders: ["github", "google"] }),
     syncSignOut: async () => {
       syncState = { ...syncState, signedIn: false, email: null, status: { phase: "idle" } };
       emitSync();

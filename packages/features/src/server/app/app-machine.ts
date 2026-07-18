@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { Agent } from "../agent/agent";
-import { isSelectedProviderAuthed, resolveSelectedModel } from "../provider/provider-service";
+import { resolveSelectedModel } from "../provider/provider-service";
 import { isSetupComplete } from "../agent/setup";
 import { getExecutorDaemon } from "../executor/executor-daemon";
 import { reduce } from "./app-reducer";
@@ -14,6 +14,8 @@ import {
   seedAgentResources,
   teardownAgentResources,
 } from "../lib/agent-lifecycle";
+import { resumeVaultWrites } from "../vault/vault";
+import { hardenAppDir } from "../lib/harden-app-dir";
 import { emitEvent } from "../events";
 import {
   getBackgroundAgent,
@@ -228,7 +230,7 @@ export function getAgent(): Agent | null {
 /**
  * Re-run the provider OAuth flow and restart the session so the next turn
  * uses fresh credentials. Runs through the AppMachine's serialized queue so
- * a concurrent LOGIN/LOGOUT/SETUP can't race with the reauth's stopAgent +
+ * a concurrent SETUP/RESET can't race with the reauth's stopAgent +
  * startAgent. Used by the "Re-authenticate" Settings affordance and the
  * empty-turn modal.
  */
@@ -253,7 +255,7 @@ export async function reauthenticate(): Promise<{ ok: true } | { ok: false; erro
  * unlike reauthenticate's newSession, nothing about the conversation is
  * invalid, only the model serving it. Serialized through the machine queue
  * like reauthenticate; a no-op unless the app is ready (a pre-ready selection
- * change is picked up by the normal LOGIN/SETUP path).
+ * change is picked up by the normal SETUP path).
  */
 export async function applySelectedProviderChange(): Promise<void> {
   const m = machine;
@@ -279,7 +281,7 @@ export class AppMachine {
   constructor(
     private readonly deps: EffectDeps,
     private readonly broadcastState: Broadcast,
-    initial: AppState = { phase: "logged_out" },
+    initial: AppState = { phase: "starting" },
   ) {
     this.state = initial;
   }
@@ -358,33 +360,36 @@ async function downloadVoiceModel(): Promise<void> {
 }
 
 const realDeps: EffectDeps = {
-  login: loginAgent,
   seedResources: seedAgentResources,
   downloadVoiceModel,
   startAgent,
   stopAgent,
   teardownResources: teardownAgentResources,
+  resumeVaultWrites,
+  rehardenAppDir: () => hardenAppDir(),
   newSession,
   reportSetupProgress: (progress) => emitEvent("onSetupProgress", progress),
 };
 
 export function getAppState(): AppState {
-  return machine?.getState() ?? { phase: "logged_out" };
+  return machine?.getState() ?? { phase: "starting" };
 }
 
 export function transition(event: MachineEvent): void {
   machine?.ingest(event);
 }
 
-/** Determine initial state from persisted auth/setup and auto-start if ready.
- * The delegation + inline-AI push channels are no longer wired here — they
- * emit straight to the typed event bus at their firing sites. */
+/** Boot the machine in "starting" and auto-fire SETUP on a warm boot. A guest
+ * boots straight toward the workspace regardless of provider/account state —
+ * only a genuine FIRST RUN (workspace not yet seeded) lingers in "starting"
+ * until the onboarding surface fires SETUP, so the renderer is connected to
+ * watch the seeding progress. The delegation + inline-AI push channels are no
+ * longer wired here — they emit straight to the typed event bus at their
+ * firing sites. */
 export function initMachine(): void {
-  const loggedIn = isSelectedProviderAuthed();
-  const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
-  machine = new AppMachine(realDeps, broadcastAppState, initial);
+  machine = new AppMachine(realDeps, broadcastAppState, { phase: "starting" });
 
-  if (loggedIn && isSetupComplete()) {
+  if (isSetupComplete()) {
     void machine.send({ type: "SETUP" }).catch((err) => {
       console.error("[machine] init setup failed:", err);
     });

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
@@ -34,19 +33,16 @@ function formatSyncStatus(status: SyncStatus): string {
   }
 }
 
-// Vault sync — reconcile the local vault against the coordinator Worker. The
-// whole surface reaches the backend through the injected Bridge only; the host
-// owns the config store, the bearer session, and the engine lifecycle. The
-// onSyncStateChanged subscription keeps this reactive across config/auth/status
-// changes (including a background pass finishing). The coordinator URL field is
-// kept local so an in-flight edit isn't clobbered by a pushed state update.
+// Vault sync — reconcile the local vault against the coordinator Worker. Sync
+// CONSUMES the account the Account section establishes (#459): the sign-in
+// form, server URL, and session live there — this section is only the enable
+// toggle, the status line, and the conflict list. Signed out, it defers to
+// the Account section instead of duplicating a login. The whole surface
+// reaches the backend through the injected Bridge only; onSyncStateChanged
+// keeps it reactive across config/auth/status changes.
 export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) | undefined }) {
   const [state, setSyncView] = useState<SyncState | null>(null);
-  const [urlInput, setUrlInput] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { openFile, deleteEntry } = useVault();
 
   useEffect(() => {
@@ -55,61 +51,17 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
       .getSyncState()
       .then((initial) => {
         setSyncView(initial);
-        setUrlInput(initial.coordinatorUrl);
         return undefined;
       })
       .catch(() => {});
     return bridge.onSyncStateChanged(setSyncView);
   }, []);
 
-  const patchConfig = useCallback(async (patch: { enabled?: boolean; coordinatorUrl?: string }) => {
-    const bridge = getBridge();
-    setError(null);
-    const next = await bridge.setSyncConfig(patch);
-    setSyncView(next);
-  }, []);
-
-  const handleToggle = useCallback(
-    (next: boolean) => {
-      void patchConfig({ enabled: next });
-    },
-    [patchConfig],
-  );
-
-  const handleSaveUrl = useCallback(() => {
-    void patchConfig({ coordinatorUrl: urlInput.trim() });
-  }, [patchConfig, urlInput]);
-
-  const handleSignIn = useCallback(async () => {
-    const bridge = getBridge();
-    setBusy(true);
-    setError(null);
-    try {
-      // Persist any pending URL edit first so sign-in hits the right coordinator.
-      if (urlInput.trim() !== (state?.coordinatorUrl ?? "")) {
-        await bridge.setSyncConfig({ coordinatorUrl: urlInput.trim() });
-      }
-      const result = await bridge.syncSignIn({ email, password });
-      if (result.ok) {
-        setPassword("");
-      } else {
-        setError(result.error);
-      }
-    } catch {
-      setError("Sign-in failed.");
-    } finally {
-      setBusy(false);
-    }
-  }, [email, password, urlInput, state]);
-
-  const handleSignOut = useCallback(async () => {
-    const bridge = getBridge();
-    setBusy(true);
-    try {
-      await bridge.syncSignOut();
-    } finally {
-      setBusy(false);
-    }
+  const handleToggle = useCallback((next: boolean) => {
+    void getBridge()
+      .setSyncConfig({ enabled: next })
+      .then(setSyncView)
+      .catch(() => {});
   }, []);
 
   const handleSyncNow = useCallback(async () => {
@@ -170,69 +122,16 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
         />
         <div className="flex flex-col gap-2 px-3 pb-2">
           <p className="text-[10px] text-muted-foreground">
-            Mirror your vault to the coordinator. Only markdown and attachments sync — never the
+            Mirror your vault to the server. Only markdown and attachments sync — never the
             knowledge index or AI state. Notes marked <code>private: true</code> are excluded from
             AI features on this device but still sync to the server unencrypted.
           </p>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] text-muted-foreground">Coordinator URL</span>
-            <Input
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onBlur={handleSaveUrl}
-              placeholder="https://sync.inteligir.app"
-              className="h-7 text-xs"
-              disabled={loading}
-            />
-          </div>
-
-          {signedIn ? (
-            <div className="flex items-center justify-between rounded-[8px] bg-card px-2.5 py-1.5">
-              <span className="flex flex-col">
-                <span className="text-xs text-foreground">Signed in</span>
-                <span className="text-[10px] text-muted-foreground">{state?.email ?? ""}</span>
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void handleSignOut()}
-                disabled={busy}
-                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
-              >
-                Sign out
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              <Input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                type="email"
-                autoComplete="username"
-                className="h-7 text-xs"
-                disabled={loading}
-              />
-              <Input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                type="password"
-                autoComplete="current-password"
-                className="h-7 text-xs"
-                disabled={loading}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void handleSignIn()}
-                disabled={busy || loading || email.trim() === "" || password === ""}
-                className="h-7 self-start px-3 text-[10px]"
-              >
-                {busy ? "Signing in…" : "Sign in"}
-              </Button>
-            </div>
+          {!signedIn && (
+            <p className="rounded-[8px] bg-card px-2.5 py-1.5 text-[10px] text-muted-foreground">
+              Cloud saves need an account — sign in under Account above. Everything else already
+              works without one.
+            </p>
           )}
 
           <div className="flex items-center justify-between border-t border-border pt-2">
@@ -292,8 +191,6 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
               ))}
             </div>
           )}
-
-          {error && <span className="text-[10px] text-destructive">{error}</span>}
         </div>
       </div>
     </div>

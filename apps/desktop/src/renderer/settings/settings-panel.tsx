@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
+import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Label } from "@repo/ui/components/label";
 
 import { SegmentedControl } from "@renderer/components/segmented-control";
 import { getBridge } from "@renderer/lib/bridge";
 import { useTheme, type Theme } from "@renderer/lib/use-theme";
+import { AccountSection } from "@renderer/settings/sections/account-section";
 import { AiProviderSection } from "@renderer/settings/sections/ai-provider-section";
 import { EditorAiSection } from "@renderer/settings/sections/editor-ai-section";
 import { NotesSection } from "@renderer/settings/sections/notes-section";
@@ -25,6 +27,7 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: typeof SunIcon }[] = [
 export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void }) {
   const appState = useAgentStore((s) => s.appState);
   const newSession = useAgentStore((s) => s.newSession);
+  const resetAppData = useAgentStore((s) => s.resetAppData);
   const isReady = appState.phase === "ready";
   const canStartNewSession = isReady && appState.agent === "idle";
 
@@ -49,6 +52,23 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
       }),
     );
   }, []);
+
+  // The ONLY full teardown (#459 teardown decouple): provider disconnect and
+  // account sign-out are independent actions in their own sections; this one
+  // wipes ~/.inteligir (chat history, provider credentials, account session,
+  // app settings) and re-runs setup. The vault — the user's notes — is
+  // untouched: it lives outside ~/.inteligir by design.
+  const handleResetAppData = useCallback(async () => {
+    const confirmed = await confirm({
+      title: "Reset app data?",
+      body: "Chat history, AI provider connections, your account session, and app settings on this device will be erased, then the app sets itself up again fresh. Your notes are NOT touched — the vault stays exactly where it is.",
+      confirmLabel: "Reset app data",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    onRequestClose?.();
+    await resetAppData();
+  }, [onRequestClose, resetAppData]);
 
   return (
     <div className="flex flex-col gap-4 p-3">
@@ -112,6 +132,8 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
 
       <NotesSection />
 
+      <AccountSection />
+
       <SyncSection onRequestClose={onRequestClose} />
 
       <RemoteAccessSection />
@@ -119,6 +141,27 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
       <EditorAiSection />
 
       <VoiceSection />
+
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs font-medium text-muted-foreground">App data</Label>
+        <div className="flex items-center justify-between rounded-[10px] bg-muted px-3 py-2">
+          <span className="flex flex-col">
+            <span className="text-xs text-foreground">Reset app data</span>
+            <span className="text-[10px] text-muted-foreground">
+              Erase chat history, connections, and settings on this device. Notes are not touched.
+            </span>
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleResetAppData()}
+            disabled={!isReady && appState.phase !== "error"}
+            className="h-auto px-2 py-0.5 text-[10px] text-destructive"
+          >
+            Reset…
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { HEADER_CONTENT_HASH, HEADER_VERSION } from "@repo/core/sync/wire";
 import { eq } from "drizzle-orm";
-import { createAuth } from "./auth/auth";
+import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { createDb } from "./db/client";
 import { vaultOwner } from "./db/schema";
 import { matchRoute } from "./route";
@@ -85,6 +85,14 @@ export default {
     // match whatever host served the request (localhost/preview/prod).
     if (url.pathname.startsWith("/api/auth/")) {
       return withCors(request, await createAuth(env, url.origin).handler(request));
+    }
+
+    // Capability discovery — which social providers this deployment serves,
+    // so clients render exactly the configured buttons (env-gated end to
+    // end). Unauthenticated by design: it reveals nothing a sign-in page
+    // wouldn't.
+    if (request.method === "GET" && url.pathname === "/v1/capabilities") {
+      return withCors(request, Response.json({ socialProviders: enabledSocialProviders(env) }));
     }
 
     // Sync surface.

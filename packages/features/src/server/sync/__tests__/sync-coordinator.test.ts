@@ -4,7 +4,7 @@
 // engine + node adapters are covered separately (sync-manager.test.ts + the
 // @repo/core engine tests).
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -229,6 +229,86 @@ describe("SyncCoordinator — debounced-pass conflicts (item 2)", () => {
     expect(state.conflicts).toHaveLength(1);
     expect(state.status.phase).toBe("ok");
     expect(vault.readText("note.md")).toBe("remote-wins");
+
+    coordinator.dispose();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Guest→account upgrade (#459): a guest's existing local vault is ADOPTED by
+// the first sync after signing in + enabling — pushed to the empty
+// coordinator, never wiped or replaced.
+// ---------------------------------------------------------------------------
+
+describe("SyncCoordinator — guest→account upgrade", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("adopts the guest's existing local vault on sign-in + enable (pushes, never wipes)", async () => {
+    // 1. Guest life: local notes exist, no account, no engine. The vault id
+    // is pinned BEFORE the account is constructed so the engine built after
+    // sign-in matches the fake port's.
+    fs.writeFileSync(
+      path.join(tmp, "sync-vault-id.json"),
+      JSON.stringify({ version: 1, vaultId: VAULT_ID }),
+    );
+    const vault = new MemoryVault();
+    vault.writeText("journal/2026-07-18.md", "guest note one");
+    vault.writeText("ideas.md", "guest note two");
+
+    const account = new SyncAccount({
+      configPath: path.join(tmp, "sync-config.json"),
+      authPath: path.join(tmp, "sync-auth.json"),
+      vaultIdPath: path.join(tmp, "sync-vault-id.json"),
+    });
+    const port = new InMemorySyncPort(VAULT_ID);
+    const buildEngine: SyncEngineFactory = (opts) =>
+      createSyncManager({
+        vaultId: opts.vaultId,
+        port,
+        vault: vault.io,
+        basePath: path.join(tmp, "sync-base.json"),
+        blobsDir: path.join(tmp, "sync-blobs"),
+        debounceMs: 0,
+        onOutcome: opts.onOutcome,
+      });
+    const coordinator = new SyncCoordinator(account, () => vault.io.list(), buildEngine);
+    coordinator.start();
+    expect(coordinator.getState().signedIn).toBe(false);
+    // No engine while guest — syncNow refuses, files untouched.
+    expect((await coordinator.syncNow()).status).toBe("error");
+
+    // 2. The upgrade, exactly as the settings UI drives it: set the server
+    // URL (Account section), sign in through the REAL coordinator.signIn
+    // (Better Auth stubbed at the fetch layer — the engine's port is
+    // in-memory and never touches fetch), then enable sync (Sync section).
+    coordinator.setConfig({ coordinatorUrl: "https://sync.example" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { user: { id: "u1", email: "upgraded@example.com" }, token: "t" },
+          { headers: { "set-auth-token": "fresh-token" } },
+        ),
+      ),
+    );
+    expect(await coordinator.signIn("upgraded@example.com", "pw")).toEqual({ ok: true });
+    coordinator.setConfig({ enabled: true });
+    expect(coordinator.getState().signedIn).toBe(true);
+
+    // 3. The initial reconcile ADOPTS the local vault: both guest files land
+    // on the (empty) coordinator...
+    for (let i = 0; i < 50 && !(await port.getFile("ideas.md")).ok; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect((await port.getFile("journal/2026-07-18.md")).ok).toBe(true);
+    expect((await port.getFile("ideas.md")).ok).toBe(true);
+
+    // ...and the local bytes are byte-identical to before the upgrade —
+    // nothing was wiped, replaced, or "migrated".
+    expect(vault.readText("journal/2026-07-18.md")).toBe("guest note one");
+    expect(vault.readText("ideas.md")).toBe("guest note two");
 
     coordinator.dispose();
   });

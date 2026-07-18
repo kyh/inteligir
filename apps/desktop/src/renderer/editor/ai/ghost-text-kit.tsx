@@ -19,6 +19,7 @@ import { hasTransientAiState } from "@renderer/editor/ai/transient";
 import { MD_STRINGIFY } from "@renderer/editor/markdown/markdown-doc";
 import { isEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useAiSettingsStore } from "@renderer/stores/ai-settings-store";
+import { useAiProviderConnected, useAiProviderStore } from "@renderer/stores/ai-provider-store";
 
 const DEBOUNCE_MS = 600;
 
@@ -157,11 +158,17 @@ const GhostTextPlugin = createTPlatePlugin<PluginConfig<"ghostText", GhostTextOp
   useHooks: ({ editor }) => {
     const enabled = useAiSettingsStore((s) => s.ghostTextEnabled);
     const init = useAiSettingsStore((s) => s.init);
+    // No provider connected → the ghost goes hard-off (mirrors the
+    // private-note gate above, but for capability instead of privacy): the
+    // machine never even arms, so a typing pause can't fire a doomed request.
+    const providerConnected = useAiProviderConnected();
+    const initProviders = useAiProviderStore((s) => s.init);
     React.useEffect(() => {
       void init();
-    }, [init]);
+      void initProviders();
+    }, [init, initProviders]);
     React.useEffect(() => {
-      if (!enabled) return;
+      if (!enabled || !providerConnected) return;
       const machine = createMachine(editor);
       machines.set(editor, machine);
       // Tab/Escape ride a CAPTURE-phase DOM listener on the editable, not a
@@ -191,7 +198,7 @@ const GhostTextPlugin = createTPlatePlugin<PluginConfig<"ghostText", GhostTextOp
         machines.delete(editor);
         editor.setOptions(GhostTextPlugin, { anchorKey: null, text: null });
       };
-    }, [editor, enabled]);
+    }, [editor, enabled, providerConnected]);
   },
 }).overrideEditor(({ editor, tf: { apply } }) => ({
   transforms: {

@@ -5,6 +5,9 @@ export function registerSyncHandlers(handle: HandlerRegistrar): void {
   handle("getSyncState", () => getSyncCoordinator().getState());
   handle("setSyncConfig", (patch) => getSyncCoordinator().setConfig(patch));
   handle("syncSignIn", ({ email, password }) => getSyncCoordinator().signIn(email, password));
+  handle("syncSignUp", ({ email, password }) => getSyncCoordinator().signUp(email, password));
+  handle("syncSocialSignIn", ({ provider }) => getSyncCoordinator().socialSignIn(provider));
+  handle("getAccountCapabilities", () => getSyncCoordinator().getCapabilities());
   handle("syncSignOut", () => getSyncCoordinator().signOut());
   handle("syncNow", () => getSyncCoordinator().syncNow());
 }

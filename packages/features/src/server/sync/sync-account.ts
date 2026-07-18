@@ -16,10 +16,11 @@
 import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 import { createAuthClient } from "better-auth/client";
+import open from "open";
 
 import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
-import { toErrorMessage } from "@repo/features/ipc";
-import type { SyncSignInResult } from "@repo/features/sync";
+import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import type { AccountCapabilities, SyncSignInResult } from "@repo/features/sync";
 
 // ---------------------------------------------------------------------------
 // Store schemas — each versioned; a legacy/corrupt file resets to the default
@@ -78,6 +79,9 @@ export type SyncAccountOptions = {
   configPath?: string;
   authPath?: string;
   vaultIdPath?: string;
+  /** Open a URL in the system browser (social sign-in). Injectable so tests
+   * never launch a real browser; defaults to the `open` package. */
+  openExternal?: (url: string) => void;
 };
 
 /** Signing/persistence for vault sync — the config gate, the bearer session,
@@ -86,8 +90,14 @@ export class SyncAccount {
   private readonly configStore: JsonStore<StoredConfig>;
   private readonly authStore: JsonStore<StoredAuth>;
   private readonly vaultIdStore: JsonStore<StoredVaultId>;
+  private readonly openExternal: (url: string) => void;
 
   constructor(opts: SyncAccountOptions = {}) {
+    this.openExternal =
+      opts.openExternal ??
+      ((url) => {
+        void open(url);
+      });
     this.configStore = new JsonStore<StoredConfig>(
       opts.configPath ?? inteligirPath("sync-config.json"),
       SyncConfigSchema,
@@ -154,35 +164,117 @@ export class SyncAccount {
     return id;
   }
 
-  /** Email+password sign-in against the configured coordinator. Captures the
-   * bearer token from the `set-auth-token` header and persists it. */
-  async signIn(email: string, password: string): Promise<SyncSignInResult> {
+  /** A Better Auth client for the configured coordinator that captures the
+   * bearer token from the `set-auth-token` response header (the bearer()
+   * plugin contract both sign-in and sign-up speak). Null when no coordinator
+   * URL is set. */
+  private tokenCapturingClient(): {
+    client: ReturnType<typeof createAuthClient>;
+    token: () => string | null;
+  } | null {
     const { coordinatorUrl } = this.getConfig();
-    if (coordinatorUrl.trim() === "") {
-      return { ok: false, error: "Set a coordinator URL first." };
-    }
-    let capturedToken: string | null = null;
+    if (coordinatorUrl.trim() === "") return null;
+    let captured: string | null = null;
     const client = createAuthClient({
       baseURL: coordinatorUrl,
       fetchOptions: {
         onSuccess: (ctx) => {
           const token = ctx.response.headers.get("set-auth-token");
-          if (token !== null && token !== "") capturedToken = token;
+          if (token !== null && token !== "") captured = token;
         },
       },
     });
+    return { client, token: () => captured };
+  }
+
+  /** Persist a captured session, or explain why there is none. */
+  private adoptSession(
+    email: string,
+    error: { message?: string | null | undefined } | null,
+    token: string | null,
+  ): SyncSignInResult {
+    if (error) {
+      return { ok: false, error: error.message ?? "Authentication failed." };
+    }
+    if (token === null) {
+      return { ok: false, error: "Coordinator did not return a session token." };
+    }
+    this.authStore.write({ version: AUTH_VERSION, token, email });
+    return { ok: true };
+  }
+
+  /** Email+password sign-in against the configured coordinator. Captures the
+   * bearer token from the `set-auth-token` header and persists it. */
+  async signIn(email: string, password: string): Promise<SyncSignInResult> {
+    const session = this.tokenCapturingClient();
+    if (session === null) return { ok: false, error: "Set a coordinator URL first." };
     try {
-      const result = await client.signIn.email({ email, password });
+      const result = await session.client.signIn.email({ email, password });
+      return this.adoptSession(email, result.error, session.token());
+    } catch (err) {
+      return { ok: false, error: toErrorMessage(err) };
+    }
+  }
+
+  /** Email+password sign-UP — the guest→account upgrade's front door. Better
+   * Auth requires a display name; the email's local part serves (editable
+   * later server-side, never consulted by the app). A success signs the new
+   * account straight in (same token capture as signIn). */
+  async signUp(email: string, password: string): Promise<SyncSignInResult> {
+    const session = this.tokenCapturingClient();
+    if (session === null) return { ok: false, error: "Set a coordinator URL first." };
+    const name = email.split("@")[0] ?? email;
+    try {
+      const result = await session.client.signUp.email({ email, password, name });
+      return this.adoptSession(email, result.error, session.token());
+    } catch (err) {
+      return { ok: false, error: toErrorMessage(err) };
+    }
+  }
+
+  /** INITIATE a social OAuth sign-in: ask the coordinator for the provider's
+   * authorization URL and open it in the system browser. The round-trip
+   * finishes there — capturing the resulting session on this device needs the
+   * deep-link callback (Phase 4), so success here means "browser opened",
+   * not "signed in". */
+  async socialSignIn(provider: string): Promise<SyncSignInResult> {
+    const session = this.tokenCapturingClient();
+    if (session === null) return { ok: false, error: "Set a coordinator URL first." };
+    try {
+      const result = await session.client.signIn.social({ provider, disableRedirect: true });
       if (result.error) {
-        return { ok: false, error: result.error.message ?? "Authentication failed." };
+        return { ok: false, error: result.error.message ?? "Social sign-in failed." };
       }
-      if (capturedToken === null) {
-        return { ok: false, error: "Coordinator did not return a session token." };
+      const url = result.data?.url;
+      if (typeof url !== "string" || url === "") {
+        return { ok: false, error: "Coordinator did not return an authorization URL." };
       }
-      this.authStore.write({ version: AUTH_VERSION, token: capturedToken, email });
+      this.openExternal(url);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: toErrorMessage(err) };
+    }
+  }
+
+  /** What the configured coordinator can serve (social buttons). Fail-soft:
+   * no URL / unreachable / malformed all report no capabilities — the account
+   * UI just renders without social buttons. */
+  async getCapabilities(): Promise<AccountCapabilities> {
+    const { coordinatorUrl } = this.getConfig();
+    const base = coordinatorUrl.trim();
+    if (base === "") return { socialProviders: [] };
+    try {
+      const response = await fetch(`${base.replace(/\/+$/, "")}/v1/capabilities`);
+      if (!response.ok) return { socialProviders: [] };
+      const body: unknown = await response.json();
+      if (!isRecord(body)) return { socialProviders: [] };
+      const listed = body.socialProviders;
+      if (!Array.isArray(listed)) return { socialProviders: [] };
+      return {
+        socialProviders: listed.filter((entry): entry is string => typeof entry === "string"),
+      };
+    } catch {
+      return { socialProviders: [] };
     }
   }
 

@@ -13,16 +13,17 @@ export const Route = createRootRoute({ component: RootLayout });
 
 type Phase = AppState["phase"];
 
-function phaseToPath(phase: Phase): "/" | "/login" | "/onboarding" {
+// No login route: the app boots as a guest (#459). Pre-ready phases show the
+// onboarding/setup surface (a brief splash on warm boots, the seeding
+// progress on a first run); ready is the workspace. An error routes by its
+// prev so a setup failure surfaces on the setup screen and an agent failure
+// surfaces in the workspace banner.
+function phaseToPath(phase: Phase): "/" | "/onboarding" {
   switch (phase) {
-    case "logged_out":
-    case "logging_in":
-      return "/login";
-    case "logged_in":
+    case "starting":
     case "setting_up":
       return "/onboarding";
     case "ready":
-    case "logging_out":
     case "error":
       return "/";
   }
