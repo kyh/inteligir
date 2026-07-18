@@ -18,6 +18,7 @@ import { useSyncExternalStore } from "react";
 import { createJsonFileBaseStore } from "@repo/core/sync/base-store";
 import { SyncEngine, type SyncOutcome } from "@repo/core/sync/engine";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
+import { statusFromOutcome, type SyncStatus } from "@repo/core/sync/status";
 
 import { getBearerToken } from "../auth";
 import { getCoordinatorUrl } from "../base-url";
@@ -30,37 +31,7 @@ import { createExpoVaultFs } from "./expo-vault-fs";
 import { createSyncIo } from "./sync-io";
 import { getOrCreateVaultId } from "./vault-id";
 
-/** The last sync pass's outcome, as the UI renders it. */
-export type SyncStatus =
-  | { readonly kind: "idle" }
-  | { readonly kind: "syncing" }
-  | {
-      readonly kind: "ok";
-      readonly pushed: number;
-      readonly pulled: number;
-      readonly deleted: number;
-      readonly conflicts: number;
-      /** Both-sides-changed files the merge ladder resolved (no copy forked). */
-      readonly merged: number;
-      readonly at: number;
-    }
-  | { readonly kind: "error"; readonly message: string };
-
-const statusStore = createExternalStore<SyncStatus>({ kind: "idle" });
-
-function statusFromOutcome(outcome: SyncOutcome): SyncStatus {
-  return outcome.status === "ok"
-    ? {
-        kind: "ok",
-        pushed: outcome.pushed,
-        pulled: outcome.pulled,
-        deleted: outcome.deleted,
-        conflicts: outcome.conflicts,
-        merged: outcome.merged,
-        at: Date.now(),
-      }
-    : { kind: "error", message: outcome.message };
-}
+const statusStore = createExternalStore<SyncStatus>({ phase: "idle" });
 
 /** A SyncEngine whose every pass request flips the reactive status to
  * `syncing`. The engine's own debounced passes (`scheduleSync`) call
@@ -69,7 +40,7 @@ function statusFromOutcome(outcome: SyncOutcome): SyncStatus {
  * (below) lands the result status either way. */
 class StatusReportingSyncEngine extends SyncEngine {
   override syncOnce(): Promise<SyncOutcome> {
-    statusStore.set({ kind: "syncing" });
+    statusStore.set({ phase: "syncing" });
     return super.syncOnce();
   }
 }
@@ -109,13 +80,13 @@ function currentToken(): string | null {
 /**
  * Run one reconcile+execute pass against the coordinator. Never throws — a
  * transport/auth failure lands in the status (and the returned outcome) as
- * `{ kind: "error" }`, leaving the base manifest untouched for the next retry.
+ * `{ phase: "error" }`, leaving the base manifest untouched for the next retry.
  */
 export async function syncOnce(): Promise<SyncOutcome> {
   const token = currentToken();
   if (token === null) {
     const message = "not signed in";
-    statusStore.set({ kind: "error", message });
+    statusStore.set({ phase: "error", message });
     return { status: "error", message };
   }
   return engineFor(token).syncOnce();
@@ -126,7 +97,7 @@ export async function syncOnce(): Promise<SyncOutcome> {
 export function scheduleSync(): void {
   const token = currentToken();
   if (token === null) {
-    statusStore.set({ kind: "error", message: "not signed in" });
+    statusStore.set({ phase: "error", message: "not signed in" });
     return;
   }
   engineFor(token).scheduleSync();

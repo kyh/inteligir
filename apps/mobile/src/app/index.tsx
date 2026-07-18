@@ -13,10 +13,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import type { SyncStatus } from "@repo/core/sync/status";
+
 import { authClient, clearBearerToken } from "@/lib/auth";
 import { useHostStatus } from "@/lib/host/connection";
 import { hostStatusDotClass } from "@/lib/host/status-display";
-import { syncOnce, useSyncStatus, type SyncStatus } from "@/lib/sync/manager";
+import { syncOnce, useSyncStatus } from "@/lib/sync/manager";
 import { useRealtimeSync } from "@/lib/sync/realtime-manager";
 import { listVaultFiles } from "@/lib/sync/vault-access";
 
@@ -182,7 +184,7 @@ function NavPill({
 // ---- vault ----------------------------------------------------------------
 
 function describeStatus(status: SyncStatus): string {
-  switch (status.kind) {
+  switch (status.phase) {
     case "idle":
       return "Not synced yet";
     case "syncing":
@@ -212,7 +214,7 @@ function VaultScreen() {
   // A realtime/foreground pass lands outside `runSync` below — refresh the
   // listing whenever any pass completes so pulled files appear without a pull.
   useEffect(() => {
-    if (status.kind === "ok") reload();
+    if (status.phase === "ok") reload();
   }, [status, reload]);
 
   const runSync = useCallback(async () => {
