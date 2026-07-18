@@ -31,6 +31,7 @@
     "./knowledge/guarded-line-edit": "./src/knowledge/guarded-line-edit.ts",
     "./knowledge/task-schedule": "./src/knowledge/task-schedule.ts",
     "./knowledge/link-graph-index": "./src/knowledge/link-graph-index.ts",
+    "./knowledge/tag-index": "./src/knowledge/tag-index.ts",
     "./knowledge/knowledge-store": "./src/knowledge/knowledge-store.ts",
     "./knowledge/sql-knowledge-store": "./src/knowledge/sql-knowledge-store.ts",
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",

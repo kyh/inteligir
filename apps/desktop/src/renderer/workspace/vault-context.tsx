@@ -35,7 +35,7 @@ import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-ru
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
-import type { WikiTarget } from "@repo/core/knowledge/knowledge-index";
+import type { WikiTarget } from "@repo/core/knowledge/link-graph-index";
 import { buildResolver } from "@repo/core/knowledge/link-resolve";
 import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/core/knowledge/vault-path";

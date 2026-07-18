@@ -22,7 +22,7 @@ import {
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useVault } from "@renderer/workspace/vault-context";
-import type { BacklinkEntry, ForwardLinkEntry } from "@repo/core/knowledge/knowledge-index";
+import type { BacklinkEntry, ForwardLinkEntry } from "@repo/core/knowledge/link-graph-index";
 
 function noteTitle(path: string): string {
   const name = path.split("/").pop() ?? path;

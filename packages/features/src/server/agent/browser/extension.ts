@@ -25,7 +25,7 @@ import { runCli } from "@repo/features/server/agent-runtime/run-cli";
 import { inteligirPath } from "../paths";
 import type { PiExtensionBundle } from "../extension";
 import { formatCliOutput, textResult } from "../extension-helpers";
-import type { SetupProgress } from "@repo/features/ipc";
+import type { SetupProgress } from "@repo/features/ipc-registry";
 
 const AGENT_BROWSER_VERSION = "0.26.0";
 

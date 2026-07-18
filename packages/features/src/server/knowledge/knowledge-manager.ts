@@ -21,17 +21,17 @@
 
 import crypto from "node:crypto";
 
-import type {
-  BacklinkEntry,
-  ForwardLinkEntry,
-  LinkGraph,
-  SearchResult,
-  TagCount,
-  VaultTaskEntry,
-  WikiTarget,
-} from "@repo/core/knowledge/knowledge-index";
-import { SEARCH_DEFAULT_LIMIT } from "@repo/core/knowledge/knowledge-index";
-import { LinkGraphIndex, type PrivacyOpts } from "@repo/core/knowledge/link-graph-index";
+import { SEARCH_DEFAULT_LIMIT, type SearchResult } from "@repo/core/knowledge/knowledge-index";
+import {
+  LinkGraphIndex,
+  type BacklinkEntry,
+  type ForwardLinkEntry,
+  type LinkGraph,
+  type PrivacyOpts,
+  type VaultTaskEntry,
+  type WikiTarget,
+} from "@repo/core/knowledge/link-graph-index";
+import type { TagCount } from "@repo/core/knowledge/tag-index";
 import type { KnowledgeStore, StoredFingerprint } from "@repo/core/knowledge/knowledge-store";
 import { projectDoc, type DocProjection } from "@repo/core/knowledge/projection";
 

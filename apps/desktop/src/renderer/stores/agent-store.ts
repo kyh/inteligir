@@ -5,7 +5,7 @@ import type { AppAgentEvent } from "@repo/features/agent-events";
 import { Value } from "@sinclair/typebox/value";
 
 import { AppStateSchema, type AppState } from "@repo/features/app-state";
-import type { Bridge, SetupProgress } from "@repo/features/ipc";
+import type { Bridge, SetupProgress } from "@repo/features/ipc-registry";
 import { buildNoteContext, stripNoteContext } from "@repo/features/note-context";
 import type { ImageAttachment } from "@repo/features/voice";
 import { getBridge } from "@renderer/lib/bridge";

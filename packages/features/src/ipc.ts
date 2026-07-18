@@ -1,25 +1,8 @@
 // ---------------------------------------------------------------------------
-// IPC public surface for renderer + main consumers. The channel-and-schema
-// registry lives in ipc-registry.ts; this file is the renderer-facing
-// re-export of the types that actually flow through it, plus a handful of
-// adjacent helpers (Skills, Integrations, isRecord/isHttpUrl/extractText).
-// Specialized payload types (executor, IPC registry internals) are imported
-// directly from their owning modules.
-// ---------------------------------------------------------------------------
-
-export type {
-  ChatHistoryEntry,
-  Bridge,
-  ExecutorStatus,
-  IntegrationInfo,
-  NotificationSettings,
-  SetupProgress,
-  SkillInfo,
-  VoiceModelStateEvent,
-} from "./ipc-registry";
-
-// ---------------------------------------------------------------------------
-// Helpers
+// Small helpers shared across the IPC seam (host, transports, renderer,
+// mobile): error stringification, wire-value guards, message-text extraction.
+// The channel-and-schema registry — and every type that flows through it —
+// lives in ipc-registry.ts; import those from there directly.
 // ---------------------------------------------------------------------------
 
 export function toErrorMessage(error: unknown): string {

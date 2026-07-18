@@ -17,7 +17,7 @@ import {
   type ExecutorConnection,
   type ExecutorOwner,
 } from "@repo/features/executor";
-import type { Bridge } from "@repo/features/ipc";
+import type { Bridge } from "@repo/features/ipc-registry";
 import type { CatalogConnector } from "@renderer/settings/extensions/connector-catalog";
 import { runOAuthFlow } from "@renderer/settings/extensions/lib";
 

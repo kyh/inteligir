@@ -12,7 +12,8 @@ import {
 } from "@repo/features/server/pi/pi-types";
 
 import { inteligirPath } from "../lib/json-store";
-import { isRecord, type ChatHistoryEntry } from "@repo/features/ipc";
+import { isRecord } from "@repo/features/ipc";
+import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
 
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");

@@ -1,9 +1,7 @@
 // ---------------------------------------------------------------------------
 // KnowledgeIndex — the self-contained, dependency-free composition of the
 // vault knowledge engine: LinkGraphIndex (links/tags/graph, fed projections)
-// plus the pure in-memory SearchIndex, driven directly from doc content. The
-// wire types the Bridge channels return are re-exported here (their historical
-// home) so consumers never chase the refactor.
+// plus the pure in-memory SearchIndex, driven directly from doc content.
 //
 // Production surfaces (desktop host, dev harness) compose LinkGraphIndex with
 // a persistent KnowledgeStore instead — FTS5 search, projections hydrated from
@@ -25,17 +23,6 @@ import { titleFromPath } from "./link-extract";
 import { clipSnippet, projectDoc } from "./projection";
 import { SearchIndex, tokenize } from "./search-index";
 import type { TagCount } from "./tag-index";
-
-export type {
-  BacklinkEntry,
-  ForwardLinkEntry,
-  GraphEdge,
-  GraphNode,
-  LinkGraph,
-  VaultTaskEntry,
-  WikiTarget,
-} from "./link-graph-index";
-export type { TagCount } from "./tag-index";
 
 export type SearchResult = { path: string; title: string; snippet: string; score: number };
 

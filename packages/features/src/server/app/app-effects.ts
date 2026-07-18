@@ -3,7 +3,8 @@
 // Returns a completion MachineEvent to feed back into the reducer.
 // ---------------------------------------------------------------------------
 
-import { toErrorMessage, type SetupProgress } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/ipc";
+import type { SetupProgress } from "@repo/features/ipc-registry";
 import type { MachineEvent } from "@repo/features/app-state";
 import type { EffectTag } from "./app-reducer";
 

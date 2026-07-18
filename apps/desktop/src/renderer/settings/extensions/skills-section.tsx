@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
-import type { SkillInfo } from "@repo/features/ipc";
+import type { SkillInfo } from "@repo/features/ipc-registry";
 
 const SKILL_SCOPE_LABELS: Record<string, string> = {
   user: "User",

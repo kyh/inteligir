@@ -1,4 +1,4 @@
-import type { Bridge } from "@repo/features/ipc";
+import type { Bridge } from "@repo/features/ipc-registry";
 
 // Module-level slot, filled once by the host entry (Electron preload bridge,
 // dev-harness fixture, later a WS client) before the first render — the app

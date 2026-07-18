@@ -48,15 +48,15 @@ import {
   type GhostModelsResult,
   type GhostTextResult,
 } from "./inline-ai";
+import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
 import type {
   BacklinkEntry,
   ForwardLinkEntry,
   LinkGraph,
-  SearchResult,
-  TagCount,
   VaultTaskEntry,
   WikiTarget,
-} from "@repo/core/knowledge/knowledge-index";
+} from "@repo/core/knowledge/link-graph-index";
+import type { TagCount } from "@repo/core/knowledge/tag-index";
 import type { NotePrivacy } from "@repo/core/markdown/frontmatter";
 import {
   RemoteAccessSetConfigSchema,
@@ -258,7 +258,8 @@ export type NotePrivacyProbe = NotePrivacy | "absent";
 // ---------------------------------------------------------------------------
 // Knowledge — the host's link + lexical search indexes over the vault
 // (backlinks, graph, palette search, wiki autocomplete). Result shapes live
-// in knowledge/knowledge-index.ts next to the engine that produces them.
+// in @repo/core/knowledge next to the engine that produces them
+// (link-graph-index, tag-index, knowledge-index).
 // ---------------------------------------------------------------------------
 
 const KnowledgeSearchSchema = Type.Object(

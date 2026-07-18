@@ -22,7 +22,7 @@ import {
   type ExtensionSetupContext,
 } from "./extension";
 import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "./paths";
-import type { IntegrationInfo, SetupProgress, SkillInfo } from "@repo/features/ipc";
+import type { IntegrationInfo, SetupProgress, SkillInfo } from "@repo/features/ipc-registry";
 
 /** Where the app's bundled agent assets (skills/, AGENTS.md) live, resolved
  * by the shell (HostPlatform) and injected by lib/agent-lifecycle.ts.

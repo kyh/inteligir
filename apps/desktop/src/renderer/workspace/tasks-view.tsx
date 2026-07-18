@@ -23,7 +23,7 @@ import {
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 
-import type { VaultTaskEntry } from "@repo/core/knowledge/knowledge-index";
+import type { VaultTaskEntry } from "@repo/core/knowledge/link-graph-index";
 import { groupTasks } from "@repo/core/knowledge/task-schedule";
 import { formatIsoDate } from "@repo/core/notes/daily-path";
 import {

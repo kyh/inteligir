@@ -29,7 +29,8 @@
 // results and asserts the private note never appears.
 // ---------------------------------------------------------------------------
 
-import type { BacklinkEntry, SearchResult } from "@repo/core/knowledge/knowledge-index";
+import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
+import type { BacklinkEntry } from "@repo/core/knowledge/link-graph-index";
 import type { PrivacyOpts } from "@repo/core/knowledge/link-graph-index";
 import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { basenamePath } from "@repo/core/knowledge/vault-path";
