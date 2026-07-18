@@ -74,6 +74,9 @@ import type { SyncOutcome } from "@repo/core/sync/engine";
 import {
   SyncSetConfigSchema,
   SyncSignInSchema,
+  SyncSignUpSchema,
+  SyncSocialSignInSchema,
+  type AccountCapabilities,
   type SyncSignInResult,
   type SyncState,
 } from "./sync";
@@ -722,6 +725,18 @@ export const IPC = {
   ),
   /** Email+password sign-in against the configured coordinator. */
   syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>("sync:sign-in", SyncSignInSchema),
+  /** Email+password sign-UP (guest→account upgrade); success signs in. */
+  syncSignUp: invoke<typeof SyncSignUpSchema, SyncSignInResult>("sync:sign-up", SyncSignUpSchema),
+  /** INITIATE social OAuth for a capability-listed provider: opens the system
+   * browser at the coordinator's authorization URL. ok = browser opened —
+   * completing the session on-device is Phase 4 (deep-link callback). */
+  syncSocialSignIn: invoke<typeof SyncSocialSignInSchema, SyncSignInResult>(
+    "sync:social-sign-in",
+    SyncSocialSignInSchema,
+  ),
+  /** Which social providers the configured coordinator serves (env-gated
+   * server-side) — drives the Account section's social buttons. */
+  getAccountCapabilities: invokeVoid<AccountCapabilities>("sync:account-capabilities"),
   /** Clear the local session (best-effort remote revoke). */
   syncSignOut: invokeVoid<void>("sync:sign-out"),
   /** Force one reconcile pass now; returns the outcome. */

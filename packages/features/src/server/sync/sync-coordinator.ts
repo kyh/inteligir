@@ -21,7 +21,12 @@ import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/core/sync/reconcile";
 import { statusFromOutcome, type SyncStatus } from "@repo/core/sync/status";
 import type { SyncEngine, SyncOutcome } from "@repo/core/sync/engine";
-import type { SyncConflict, SyncSignInResult, SyncState } from "@repo/features/sync";
+import type {
+  AccountCapabilities,
+  SyncConflict,
+  SyncSignInResult,
+  SyncState,
+} from "@repo/features/sync";
 
 const DISABLED_REASON = "Enable sync and sign in first.";
 
@@ -118,6 +123,26 @@ export class SyncCoordinator {
     if (result.ok) this.rebuild({ kickInitial: true });
     this.emit();
     return result;
+  }
+
+  /** Guest→account upgrade: a successful sign-up signs straight in, and the
+   * rebuild adopts the EXISTING local vault (reconcile pushes it; nothing is
+   * wiped — the vault on disk stays canonical). */
+  async signUp(email: string, password: string): Promise<SyncSignInResult> {
+    const result = await this.account.signUp(email, password);
+    if (result.ok) this.rebuild({ kickInitial: true });
+    this.emit();
+    return result;
+  }
+
+  /** Social OAuth INITIATION — opens the system browser; auth state does not
+   * change here (session capture is Phase 4's deep-link callback). */
+  async socialSignIn(provider: string): Promise<SyncSignInResult> {
+    return this.account.socialSignIn(provider);
+  }
+
+  getCapabilities(): Promise<AccountCapabilities> {
+    return this.account.getCapabilities();
   }
 
   async signOut(): Promise<void> {

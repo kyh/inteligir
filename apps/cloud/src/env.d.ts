@@ -12,6 +12,9 @@ interface Env {
   /** Optional GitHub OAuth credentials — the provider is enabled only when both exist. */
   readonly GITHUB_CLIENT_ID?: string;
   readonly GITHUB_CLIENT_SECRET?: string;
+  /** Optional Google OAuth credentials — same both-or-nothing gate as GitHub. */
+  readonly GOOGLE_CLIENT_ID?: string;
+  readonly GOOGLE_CLIENT_SECRET?: string;
   /**
    * Set to "true" ONLY in tests to disable auth rate limiting: the in-process
    * test Worker serves every request from one IP, so a suite that signs up

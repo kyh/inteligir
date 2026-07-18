@@ -1319,6 +1319,20 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       emitSync();
       return { ok: true };
     },
+    // Sign-up = sign-in in the harness (no real user table): the section's
+    // create-account flow lands signed in, like the host's signUp does.
+    syncSignUp: async ({ email }) => {
+      syncState = { ...syncState, signedIn: true, email };
+      emitSync();
+      return { ok: true };
+    },
+    // Host parity: social sign-in only INITIATES (opens a browser); auth state
+    // does not change. The harness has no browser to open, so ok=true with no
+    // state change mirrors the host contract exactly.
+    syncSocialSignIn: async () => ({ ok: true }),
+    // Both providers listed so the Account section's social buttons render and
+    // are drivable in the harness.
+    getAccountCapabilities: async () => ({ socialProviders: ["github", "google"] }),
     syncSignOut: async () => {
       syncState = { ...syncState, signedIn: false, email: null, status: { phase: "idle" } };
       emitSync();

@@ -37,6 +37,25 @@ export const SyncSignInSchema = Type.Object(
   { additionalProperties: false },
 );
 
+/** Sign-up mirrors the sign-in shape — Better Auth derives the display name
+ * from the email host-side, so no extra field crosses the wire. */
+export const SyncSignUpSchema = Type.Object(
+  {
+    email: Type.String({ minLength: 1 }),
+    password: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
+
+/** Social sign-in INITIATION: names the provider to start OAuth against (must
+ * be one the coordinator reports via account capabilities). The round-trip
+ * completes in the system browser; capturing the resulting session on the
+ * desktop is Phase 4 (deep-link callback). */
+export const SyncSocialSignInSchema = Type.Object(
+  { provider: Type.String({ minLength: 1 }) },
+  { additionalProperties: false },
+);
+
 // ---------------------------------------------------------------------------
 // Result / event shapes (host → renderer).
 // ---------------------------------------------------------------------------
@@ -65,3 +84,10 @@ export type SyncState = {
 };
 
 export type SyncSignInResult = { ok: true } | { ok: false; error: string };
+
+/** What the configured coordinator can serve the account UI — today just the
+ * social providers whose buttons should render (env-gated server-side; an
+ * unreachable/unset coordinator reports none). */
+export type AccountCapabilities = {
+  readonly socialProviders: readonly string[];
+};
