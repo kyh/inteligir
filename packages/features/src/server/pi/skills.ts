@@ -1,24 +1,6 @@
 import { loadSkills } from "@mariozechner/pi-coding-agent";
 
-/**
- * Plain projection of pi's `Skill` so callers can serialize it over IPC.
- * Structurally mirrors core's `SkillInfo` (the IPC contract type); the two are
- * kept in lockstep at the host boundary, where `listSkills()` here feeds
- * `host/agent/setup.ts::listSkills(): SkillInfo[]` — a drift makes that
- * assignment a type error. Defined locally so this vendor wrapper stays a leaf
- * (no @repo/features dependency, no pulling core's module graph into its compile).
- */
-export type PiAgentSkill = {
-  name: string;
-  description: string;
-  /** Where the skill came from, e.g. "user", "project", or a package name. */
-  source: string;
-  /** "user" (<agentDir>/skills) or "project" (<cwd>/.pi/skills). */
-  scope: string;
-  filePath: string;
-  /** True when the skill is invoke-only (excluded from the model's prompt). */
-  disableModelInvocation: boolean;
-};
+import type { SkillInfo } from "@repo/features/ipc-registry";
 
 export type ListSkillsOptions = {
   /** Working directory — project skills live under `<cwd>/.pi/skills`. */
@@ -31,9 +13,10 @@ export type ListSkillsOptions = {
  * Discover skills the same way pi does at session start, straight from disk so
  * it works regardless of agent lifecycle state. Covers both the user scope
  * (`<agentDir>/skills`) and the project scope (`<cwd>/.pi/skills`), with name
- * collisions already resolved.
+ * collisions already resolved. Returns the IPC contract's `SkillInfo` — a
+ * plain projection of pi's `Skill` that serializes over the Bridge.
  */
-export function listSkills(options: ListSkillsOptions): PiAgentSkill[] {
+export function listSkills(options: ListSkillsOptions): SkillInfo[] {
   const { skills } = loadSkills({
     cwd: options.cwd,
     agentDir: options.agentDir,

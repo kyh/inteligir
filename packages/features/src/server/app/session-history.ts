@@ -4,27 +4,18 @@
 
 import {
   SessionManager,
-  type Message,
   type SessionMessageEntry,
-  type TextContent,
   type ToolCall,
   type ToolResultMessage,
 } from "@repo/features/server/pi/pi-types";
 
-import { inteligirPath } from "../lib/json-store";
-import { isRecord } from "@repo/features/ipc";
+import { SESSION_DIR, WORKSPACE_DIR } from "../agent/paths";
+import { extractTextFromContent, isRecord } from "@repo/features/ipc";
 import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
-
-const SESSION_DIR = inteligirPath("sessions");
-const WORKSPACE_DIR = inteligirPath("workspace");
 
 // ---------------------------------------------------------------------------
 // Type guards for pi-ai content blocks
 // ---------------------------------------------------------------------------
-
-function isTextContent(block: unknown): block is TextContent {
-  return isRecord(block) && block.type === "text" && typeof block.text === "string";
-}
 
 function isToolCall(block: unknown): block is ToolCall {
   return (
@@ -41,15 +32,6 @@ function isToolResult(msg: unknown): msg is ToolResultMessage {
 
 function isSessionMessageEntry(entry: unknown): entry is SessionMessageEntry {
   return isRecord(entry) && entry.type === "message" && "message" in entry;
-}
-
-function extractTextFromContent(content: Message["content"]): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .filter(isTextContent)
-    .map((b) => b.text)
-    .join("");
 }
 
 // ---------------------------------------------------------------------------
