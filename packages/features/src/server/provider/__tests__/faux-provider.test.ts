@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function userContext(text: string): Context {
-  return { messages: [{ role: "user", content: text }] };
+  return { messages: [{ role: "user", content: text, timestamp: Date.now() }] };
 }
 
 function textOf(content: { type: string }[]): string {

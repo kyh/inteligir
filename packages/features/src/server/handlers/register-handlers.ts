@@ -6,6 +6,7 @@
 import type { HandlerRegistrar } from "../lib/handler-registry";
 import { registerAgentHandlers } from "./agent-handlers";
 import { registerAiHandlers } from "./ai-handlers";
+import { registerAiProviderHandlers } from "./ai-provider-handlers";
 import { registerCaptureHandlers } from "./capture-handlers";
 import { registerCheckpointHandlers } from "./checkpoint-handlers";
 import { registerDelegationHandlers } from "./delegation-handlers";
@@ -22,6 +23,7 @@ import { registerVoiceHandlers } from "./voice-handlers";
 
 export function registerAllHandlers(handle: HandlerRegistrar): void {
   registerAgentHandlers(handle);
+  registerAiProviderHandlers(handle);
   registerLifecycleHandlers(handle);
   registerVoiceHandlers(handle);
   registerNotificationHandlers(handle);

@@ -10,6 +10,12 @@
 import { type Static, type TSchema, Type } from "@sinclair/typebox";
 
 import type { AppAgentEvent } from "./agent-events";
+import {
+  AiProviderRefSchema,
+  AiProviderSetConfigSchema,
+  type AiConnectResult,
+  type AiProviderSettings,
+} from "./ai-provider";
 import { AppEventSchema, type AppState } from "./app-state";
 import type { DeepLinkNavEvent } from "./deep-link";
 import {
@@ -377,6 +383,29 @@ export const IPC = {
   ),
   getAgentHistory: invokeVoid<ChatHistoryEntry[]>("agent:history"),
   reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>("agent:reauthenticate"),
+
+  // AI provider — WHICH pi provider+model the agent surfaces run on. These
+  // channels move only the SELECTION and per-provider connected booleans;
+  // tokens stay on-device in pi's auth.json and never cross the Bridge.
+  /** Selection + every offered provider with connected state and model menu. */
+  getAiProviderSettings: invokeVoid<AiProviderSettings>("ai-provider:get"),
+  /** Patch the selection (partial; a provider switch defaults the model).
+   * Rolls the live sessions so the next turn runs the new provider+model. */
+  setAiProviderConfig: invoke<typeof AiProviderSetConfigSchema, AiProviderSettings>(
+    "ai-provider:set-config",
+    AiProviderSetConfigSchema,
+  ),
+  /** Run the interactive OAuth connect flow for one provider (opens the
+   * system browser; resolves when credentials land in pi's auth.json). */
+  connectAiProvider: invoke<typeof AiProviderRefSchema, AiConnectResult>(
+    "ai-provider:connect",
+    AiProviderRefSchema,
+  ),
+  /** Drop one provider's on-device credentials. */
+  disconnectAiProvider: invoke<typeof AiProviderRefSchema, AiProviderSettings>(
+    "ai-provider:disconnect",
+    AiProviderRefSchema,
+  ),
 
   // Voice
   isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
