@@ -28,6 +28,7 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
     resumeVaultWrites: vi.fn(),
+    rehardenAppDir: vi.fn(),
     newSession: vi.fn().mockResolvedValue(undefined),
     reportSetupProgress: vi.fn(),
     ...overrides,
@@ -101,19 +102,24 @@ describe("AppMachine", () => {
       startAgent: vi.fn().mockImplementation(async () => {
         calls.push("startAgent");
       }),
+      rehardenAppDir: vi.fn().mockImplementation(() => {
+        calls.push("rehardenAppDir");
+      }),
     });
     const machine = new AppMachine(deps, vi.fn(), { phase: "ready", agent: "idle" });
 
     await machine.send({ type: "RESET_APP_DATA" });
 
     // Teardown strictly before re-seed, with the write suspension lifted in
-    // between — the wipe and the rebuild are one serialized effect.
+    // between — the wipe and the rebuild are one serialized effect — and perms
+    // re-hardened last, after the agent (and its 0644 files) exist.
     expect(calls).toEqual([
       "stopAgent",
       "teardownResources",
       "resumeVaultWrites",
       "seedResources",
       "startAgent",
+      "rehardenAppDir",
     ]);
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });

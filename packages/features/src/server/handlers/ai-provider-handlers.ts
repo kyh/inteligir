@@ -36,5 +36,16 @@ export function registerAiProviderHandlers(handle: HandlerRegistrar): void {
     return result;
   });
 
-  handle("disconnectAiProvider", ({ provider }) => disconnectAiProvider(provider));
+  // Disconnecting the SELECTED provider also rolls the sessions (symmetric
+  // with connect) so the live agent drops the now-removed provider's in-memory
+  // creds instead of serving one more turn on them. The next turn then hits
+  // the not-authed path and the composer's connect affordance takes over.
+  handle("disconnectAiProvider", async ({ provider }) => {
+    const wasSelected = provider === getSelectedProvider().provider;
+    const settings = disconnectAiProvider(provider);
+    if (wasSelected) {
+      await applySelectedProviderChange();
+    }
+    return settings;
+  });
 }

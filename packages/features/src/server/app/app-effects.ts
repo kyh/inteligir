@@ -18,6 +18,12 @@ export type EffectDeps = {
   /** Lift the vault-write suspension teardownResources put in place, before
    * the RESET effect re-seeds the workspace. */
   resumeVaultWrites: () => void;
+  /** Re-assert owner-only perms (0700 dirs / 0600 note-content files) after a
+   * (re)seed — mirrors the boot-time sweep. seedResources' mkdirs run at the
+   * umask default (0755) and pi then writes auth.json + transcripts 0644, so
+   * without this a RESET would leave note content world-readable until the
+   * next restart (CLAUDE.md § Decisions: ~/.inteligir is owner-only). */
+  rehardenAppDir: () => void;
   newSession: () => Promise<void>;
   reportSetupProgress: (progress: SetupProgress) => void;
 };
@@ -35,6 +41,12 @@ async function runSetup(deps: EffectDeps): Promise<void> {
   await deps.seedResources(deps.reportSetupProgress);
   deps.reportSetupProgress({ step: "Starting agent", percent: null });
   await deps.startAgent();
+  // Sweep perms AFTER seed + agent start, so the dirs seedResources just
+  // created (0755) and the auth.json/session files pi just wrote (0644) all
+  // land owner-only, and later transcripts sit under 0700 dirs — the same
+  // guarantee the boot-time hardenAppDir gives. Best-effort by contract (it
+  // never throws), so it can't fail setup.
+  deps.rehardenAppDir();
   deps.reportSetupProgress({ step: "done", percent: 100 });
 }
 
@@ -57,8 +69,17 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
       // completion event — a throw here would otherwise wedge "setting_up".
       try {
         await deps.stopAgent();
-        deps.teardownResources();
-        deps.resumeVaultWrites();
+        // teardownResources suspends vault writes, THEN rm -rf's ~/.inteligir
+        // and re-asserts the host lock — either of which can throw (EBUSY on a
+        // lingering executor/sqlite handle, EPERM). The suspension MUST be
+        // lifted regardless, or a RETRY reaches "ready" with writes wedged and
+        // every autosave throws "Vault is signed out" silently. The finally
+        // guarantees the resume on both the success and throw paths.
+        try {
+          deps.teardownResources();
+        } finally {
+          deps.resumeVaultWrites();
+        }
         await runSetup(deps);
         return { type: "SETUP_OK" };
       } catch (err) {

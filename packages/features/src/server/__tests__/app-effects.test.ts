@@ -9,6 +9,7 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
     resumeVaultWrites: vi.fn(),
+    rehardenAppDir: vi.fn(),
     newSession: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     reportSetupProgress: vi.fn(),
     ...overrides,
@@ -25,6 +26,8 @@ describe("runEffect", () => {
     expect(deps.startAgent).toHaveBeenCalledOnce();
     // Plain SETUP never tears anything down — that's RESET's job.
     expect(deps.teardownResources).not.toHaveBeenCalled();
+    // Perms are re-asserted after the (re)seed, mirroring boot (owner-only).
+    expect(deps.rehardenAppDir).toHaveBeenCalledOnce();
     expect(result).toEqual({ type: "SETUP_OK" });
   });
 
@@ -40,7 +43,7 @@ describe("runEffect", () => {
 
   // ---- RESET ----------------------------------------------------------------
 
-  it("RESET stops, tears down, resumes vault writes, then re-runs setup", async () => {
+  it("RESET stops, tears down, resumes vault writes, re-runs setup, re-hardens perms", async () => {
     const deps = makeDeps();
     const result = await runEffect("RESET", deps);
     expect(deps.stopAgent).toHaveBeenCalledOnce();
@@ -48,6 +51,7 @@ describe("runEffect", () => {
     expect(deps.resumeVaultWrites).toHaveBeenCalledOnce();
     expect(deps.seedResources).toHaveBeenCalledOnce();
     expect(deps.startAgent).toHaveBeenCalledOnce();
+    expect(deps.rehardenAppDir).toHaveBeenCalledOnce();
     expect(result).toEqual({ type: "SETUP_OK" });
   });
 
@@ -67,6 +71,21 @@ describe("runEffect", () => {
     });
     const result = await runEffect("RESET", deps);
     expect(result).toEqual({ type: "SETUP_FAIL", message: "rm failed" });
+  });
+
+  it("RESET resumes vault writes even when teardownResources throws (no wedged suspension)", async () => {
+    // teardownResources suspends writes THEN wipes the dir; a throw from the
+    // wipe (EBUSY on a lingering handle) must not leave writes suspended, or
+    // the app reaches ready with every autosave silently failing.
+    const deps = makeDeps({
+      teardownResources: vi.fn(() => {
+        throw new Error("EBUSY: rm failed after suspend");
+      }),
+    });
+    const result = await runEffect("RESET", deps);
+    expect(result).toEqual({ type: "SETUP_FAIL", message: "EBUSY: rm failed after suspend" });
+    // The finally lifted the suspension despite the throw.
+    expect(deps.resumeVaultWrites).toHaveBeenCalledOnce();
   });
 
   // ---- NEW_SESSION ------------------------------------------------------------
