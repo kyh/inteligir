@@ -111,7 +111,11 @@ function QueuedRow({ msg, icon }: { msg: QueuedMessage; icon: ReactNode }) {
  * confirmed transcript lands in the draft for review, never auto-sent.
  */
 export function Composer() {
-  const [hasInput, setHasInput] = useState(false);
+  // The draft is controlled state owned here: the textarea renders it and
+  // every mutation — typing, voice transcripts, submit/Escape clears — goes
+  // through setDraft. "Has input" is derived, never synced from the DOM.
+  const [draft, setDraft] = useState("");
+  const hasInput = draft.trim().length > 0;
   // Attachment presence, lifted out of PromptInput (its onFilesChange prop) so
   // the collapse logic below can hold the capsule open while files are staged
   // even though the tray lives inside the form.
@@ -122,6 +126,8 @@ export function Composer() {
   const engage = useCallback(() => setEngaged(true), []);
   const pendingSteerRef = useRef(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  // Focus management only — the draft VALUE never travels through the DOM.
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const appState = useAgentStore((s) => s.appState);
   const send = useAgentStore((s) => s.send);
@@ -134,12 +140,6 @@ export function Composer() {
   useEffect(() => {
     if (!busy) pendingSteerRef.current = false;
   }, [busy]);
-
-  const findTextarea = useCallback(
-    () =>
-      wrapperRef.current?.querySelector<HTMLTextAreaElement>('textarea[name="message"]') ?? null,
-    [],
-  );
 
   // --- Voice capture ---------------------------------------------------------
 
@@ -154,19 +154,18 @@ export function Composer() {
   const expanded = engaged || busy || voiceActive || hasInput || hasAttachments;
 
   /** Confirm listening: the final transcript is appended to the draft for
-   * review — never auto-sent. */
+   * review — never auto-sent. Committing a new value collapses the caret to
+   * the end, and the return-from-listening focus effect below then focuses the
+   * textarea — so the cursor lands after the appended transcript. */
   const { confirm: confirmVoice } = voice;
   const confirmListening = useCallback(async () => {
     const text = await confirmVoice();
     if (!text) return;
-    const ta = findTextarea();
-    if (!ta) return;
-    const existing = ta.value.replace(/\s+$/, "");
-    const next = existing ? `${existing} ${text}` : text;
-    ta.value = next;
-    ta.setSelectionRange(next.length, next.length);
-    setHasInput(next.trim().length > 0);
-  }, [confirmVoice, findTextarea]);
+    setDraft((prev) => {
+      const existing = prev.replace(/\s+$/, "");
+      return existing ? `${existing} ${text}` : text;
+    });
+  }, [confirmVoice]);
 
   // Escape cancels listening (the textarea's own Escape handler is inert
   // while the input surface is hidden).
@@ -209,45 +208,43 @@ export function Composer() {
     const prev = prevSurfaceRef.current;
     prevSurfaceRef.current = { expanded, voiceActive };
     if (expanded && !voiceActive && (!prev.expanded || prev.voiceActive)) {
-      findTextarea()?.focus();
+      textareaRef.current?.focus();
     }
-  }, [expanded, voiceActive, findTextarea]);
+  }, [expanded, voiceActive]);
 
   // --- Submission ------------------------------------------------------------
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
-      const syncHasInputFromDOM = () => {
-        const ta = findTextarea();
-        setHasInput(!!(ta && ta.value.trim().length > 0));
-      };
       const wantsSteer = pendingSteerRef.current;
       pendingSteerRef.current = false;
-      try {
-        const text = message.text.trim();
-        const fileImages = message.files.filter(isImagePromptInputFile);
-        if (!text && fileImages.length === 0) return;
-        const converted = fileImages.map((f) => dataUrlToImageAttachment(f.url, f.mediaType));
-        const images = converted.filter((img): img is ImageAttachment => img !== null);
-        if (!text && images.length === 0) {
-          throw new Error("composer: nothing to submit after attachment conversion");
-        }
-        // send() persists the open note and tags the turn with it; it returns
-        // whether the save landed so we can warn (a failed flush means the agent
-        // won't see the latest edits) — but the message still goes out.
-        const { flushed } = await send(
-          text,
-          images.length > 0 ? images : undefined,
-          wantsSteer ? { intent: "steer" } : undefined,
-        );
-        if (!flushed) {
-          toast.warning("Couldn't save your latest edits — the agent won't see them this turn.");
-        }
-      } finally {
-        syncHasInputFromDOM();
+      // The controlled draft is the payload (message.text mirrors it — the
+      // form reads the same textarea — but state is the authority). Clear it
+      // immediately: submit empties the input whether or not the send lands; a
+      // failed send warns via toast rather than restoring the draft. Anything
+      // typed while the send is in flight flows into a fresh draft as normal.
+      const text = draft.trim();
+      setDraft("");
+      const fileImages = message.files.filter(isImagePromptInputFile);
+      if (!text && fileImages.length === 0) return;
+      const converted = fileImages.map((f) => dataUrlToImageAttachment(f.url, f.mediaType));
+      const images = converted.filter((img): img is ImageAttachment => img !== null);
+      if (!text && images.length === 0) {
+        throw new Error("composer: nothing to submit after attachment conversion");
+      }
+      // send() persists the open note and tags the turn with it; it returns
+      // whether the save landed so we can warn (a failed flush means the agent
+      // won't see the latest edits) — but the message still goes out.
+      const { flushed } = await send(
+        text,
+        images.length > 0 ? images : undefined,
+        wantsSteer ? { intent: "steer" } : undefined,
+      );
+      if (!flushed) {
+        toast.warning("Couldn't save your latest edits — the agent won't see them this turn.");
       }
     },
-    [send, findTextarea],
+    [send, draft],
   );
 
   const onAttachError = useCallback((err: { code: string; message: string }) => {
@@ -328,10 +325,10 @@ export function Composer() {
 
           {/* Resting, the capsule is a compact pill; engaging (click/focus/type/
            * attach/voice/busy) springs it open to the full input. The input
-           * surface unmounts when collapsed — the draft is empty by definition
-           * there, so nothing is lost. While listening the input stays mounted
-           * (it holds the transcript-bound draft) but blurs out of flow so the
-           * capsule can spring down to the listening row. */}
+           * surface unmounts when collapsed — the controlled draft lives in
+           * composer state, so nothing is lost (and it's empty by definition
+           * there anyway). While listening the input stays mounted but blurs
+           * out of flow so the capsule can spring down to the listening row. */}
           <AnimatePresence initial={false} mode="popLayout">
             {expanded ? (
               <motion.div
@@ -359,9 +356,11 @@ export function Composer() {
                    * pinned left and steer/send pinned right — so the controls stay
                    * aligned regardless of how tall the textarea grows. */}
                   <ComposerTextarea
+                    ref={textareaRef}
                     busy={busy}
+                    value={draft}
+                    onDraftChange={setDraft}
                     onInterrupt={interrupt}
-                    onHasInputChange={setHasInput}
                     onEngage={engage}
                   />
                   <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
@@ -489,14 +488,18 @@ function MicButton({ onStart }: { onStart: () => void }) {
 }
 
 function ComposerTextarea({
+  ref,
   busy,
+  value,
+  onDraftChange,
   onInterrupt,
-  onHasInputChange,
   onEngage,
 }: {
+  ref: React.Ref<HTMLTextAreaElement>;
   busy: boolean;
+  value: string;
+  onDraftChange: (draft: string) => void;
   onInterrupt: () => void;
-  onHasInputChange: (has: boolean) => void;
   onEngage: () => void;
 }) {
   const { files, clear } = usePromptInputAttachments();
@@ -508,19 +511,18 @@ function ComposerTextarea({
         onInterrupt();
         return;
       }
-      if (e.currentTarget.value.length > 0) {
-        e.currentTarget.form?.reset();
-        onHasInputChange(false);
-      }
+      if (value.length > 0) onDraftChange("");
       if (files.length > 0) clear();
     },
-    [busy, onInterrupt, onHasInputChange, files.length, clear],
+    [busy, onInterrupt, value, onDraftChange, files.length, clear],
   );
   return (
     <PromptInputTextarea
+      ref={ref}
+      value={value}
       className="max-h-[160px] min-h-9 w-full bg-transparent px-3 pt-3 pb-1 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
       placeholder={busy ? "Queue a message…" : "Ask the agent to edit your notes…"}
-      onChange={(e) => onHasInputChange(e.currentTarget.value.trim().length > 0)}
+      onChange={(e) => onDraftChange(e.currentTarget.value)}
       onKeyDown={handleKeyDown}
       onFocus={onEngage}
     />
