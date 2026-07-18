@@ -23,7 +23,8 @@ import {
   isRenderableMessage,
 } from "@renderer/composer/chat-message";
 import { Composer } from "@renderer/composer/composer";
-import { currentTurnMessages, useAgentStore, type ChatMessage } from "@renderer/stores/agent-store";
+import { useAgentStore } from "@renderer/stores/agent-store";
+import { currentTurnMessages, type ChatMessage } from "@renderer/stores/chat-log-view";
 import { useViewStore } from "@renderer/stores/view-store";
 
 const IDLE_LINGER_MS = 7000;

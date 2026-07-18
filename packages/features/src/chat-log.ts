@@ -1,17 +1,23 @@
 // ---------------------------------------------------------------------------
-// The chat surface as a PURE value: a fold over the desktop agent's event
-// stream (@repo/features/agent-events) plus the persisted-history rehydration.
-// Mirrors the desktop renderer's agent-store semantics — streaming deltas
-// accumulate into one assistant bubble, `message_end` replaces it with the
-// final text (or drops a tool-only empty bubble), tool rows are ephemeral
-// turn decoration (still-running ones are swept on `agent_end`, and history
-// rehydration skips them entirely). chat.tsx owns nothing but
-// `setLog(applyAgentEvent(log, event))`.
+// The chat surface as a PURE value: ONE fold over the agent's event stream
+// (./agent-events) plus the persisted-history rehydration — shared by the
+// desktop renderer (which projects it into AI SDK UIMessages,
+// @renderer/stores/chat-log-view) and the mobile chat screen (which renders
+// the items directly). Iso like ./note-context: no react/node/platform
+// imports. Streaming deltas accumulate into one assistant bubble,
+// `message_end` replaces it with the final text (or drops a tool-only empty
+// bubble), tool rows are ephemeral turn decoration (still-running ones are
+// swept on `agent_end`, and history rehydration skips them entirely).
+//
+// Items are the minimal RENDER list every surface shows; `detail` carries the
+// per-item payload only some surfaces consume (tool args + result text, the
+// turn_error kind that drives desktop's inline Re-authenticate link). Mobile
+// ignores it; the desktop projection joins it back onto the item by id.
 // ---------------------------------------------------------------------------
 
-import type { AppAgentEvent } from "@repo/features/agent-events";
-import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
-import { stripNoteContext } from "@repo/features/note-context";
+import type { AppAgentEvent } from "./agent-events";
+import type { ChatHistoryEntry } from "./ipc-registry";
+import { stripNoteContext } from "./note-context";
 
 export type ChatItem =
   | { readonly kind: "user"; readonly id: string; readonly text: string }
@@ -31,9 +37,27 @@ export type ChatItem =
       readonly state: "running" | "done" | "error";
     };
 
+/** Surface-optional payload attached to an item by id. */
+export type ChatItemDetail =
+  | {
+      readonly kind: "error";
+      /** turn_error's cause ("auth" gets a re-authenticate affordance).
+       * Error items without a detail entry are of unknown cause. */
+      readonly errorKind: "auth" | "unknown";
+    }
+  | {
+      readonly kind: "tool";
+      readonly toolCallId: string;
+      readonly args: unknown;
+      /** Null while running; the tool's result (or error) text once ended. */
+      readonly resultText: string | null;
+    };
+
 export type ChatLog = {
   readonly items: readonly ChatItem[];
-  /** True between agent_start and agent_end — the desktop agent is working. */
+  /** Per-item payload (tool args/result, error kind), keyed by item id. */
+  readonly detail: ReadonlyMap<string, ChatItemDetail>;
+  /** True between agent_start and agent_end — the agent is working. */
   readonly busy: boolean;
   /** Id of the assistant item currently receiving deltas, if any. */
   readonly streamingId: string | null;
@@ -44,6 +68,7 @@ export type ChatLog = {
 
 export const emptyChatLog: ChatLog = {
   items: [],
+  detail: new Map(),
   busy: false,
   streamingId: null,
   tools: new Map(),
@@ -76,10 +101,10 @@ export function appendNotice(log: ChatLog, text: string): ChatLog {
 
 /** Rebuild the log from persisted history (mount / reconnect). Tool entries
  * are skipped — they are live-turn decoration, not conversation. The user's
- * auto-attached `[Context: …]` prefix (@repo/features/note-context) is
- * stripped so bubbles show the user's actual words. Built mutably in one
- * pass: `withItem`'s copy-per-append is fine for live events but O(n²) over a
- * whole history, and this reruns on every reconnect/foreground. */
+ * auto-attached `[Context: …]` prefix (./note-context) is stripped so bubbles
+ * show the user's actual words. Built mutably in one pass: `withItem`'s
+ * copy-per-append is fine for live events but O(n²) over a whole history, and
+ * this reruns on every reconnect/foreground. */
 export function logFromHistory(entries: readonly ChatHistoryEntry[]): ChatLog {
   const items: ChatItem[] = [];
   for (const entry of entries) {
@@ -108,13 +133,20 @@ export function applyAgentEvent(log: ChatLog, event: AppAgentEvent): ChatLog {
     case "agent_end": {
       // Sweep tool rows still marked running — the turn is over, so a row
       // whose end event never arrived would otherwise spin forever.
-      // (Completed rows stay, matching the desktop chat surface.)
+      // (Completed rows stay, with their detail.)
       const running = new Set(log.tools.values());
+      let detail = log.detail;
+      if (running.size > 0) {
+        const swept = new Map(log.detail);
+        for (const id of running) swept.delete(id);
+        detail = swept;
+      }
       return {
         ...log,
         busy: false,
         streamingId: null,
         tools: new Map(),
+        detail,
         items: running.size > 0 ? log.items.filter((item) => !running.has(item.id)) : log.items,
       };
     }
@@ -174,16 +206,30 @@ export function applyAgentEvent(log: ChatLog, event: AppAgentEvent): ChatLog {
       };
     }
 
-    case "turn_error":
-      return appendNotice(log, event.reason);
+    case "turn_error": {
+      const appended = appendNotice(log, event.reason);
+      const id = appended.items[appended.items.length - 1]?.id;
+      if (id === undefined) return appended;
+      const detail = new Map(appended.detail);
+      detail.set(id, { kind: "error", errorKind: event.kind });
+      return { ...appended, detail };
+    }
 
     case "tool_execution_start": {
       const id = allocId(log);
       const tools = new Map(log.tools);
       tools.set(event.toolCallId, id);
+      const detail = new Map(log.detail);
+      detail.set(id, {
+        kind: "tool",
+        toolCallId: event.toolCallId,
+        args: event.args,
+        resultText: null,
+      });
       return {
         ...withItem(log, { kind: "tool", id, toolName: event.toolName, state: "running" }),
         tools,
+        detail,
       };
     }
 
@@ -192,9 +238,15 @@ export function applyAgentEvent(log: ChatLog, event: AppAgentEvent): ChatLog {
       if (id === undefined) return log;
       const tools = new Map(log.tools);
       tools.delete(event.toolCallId);
+      const detail = new Map(log.detail);
+      const existing = detail.get(id);
+      if (existing?.kind === "tool") {
+        detail.set(id, { ...existing, resultText: event.resultText });
+      }
       return {
         ...log,
         tools,
+        detail,
         items: log.items.map((item) =>
           item.id === id && item.kind === "tool"
             ? { ...item, state: event.isError ? "error" : "done" }

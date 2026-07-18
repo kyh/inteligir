@@ -5,7 +5,7 @@ import { Response } from "@renderer/ai-elements/response";
 import { Shimmer } from "@renderer/ai-elements/shimmer";
 
 import { getBridge } from "@renderer/lib/bridge";
-import { currentTurnMessages, type ChatMessage } from "@renderer/stores/agent-store";
+import { currentTurnMessages, type ChatMessage } from "@renderer/stores/chat-log-view";
 import { isRecord } from "@repo/features/ipc";
 
 // Hoisted so the array reference is stable across renders.

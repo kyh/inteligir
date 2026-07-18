@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppAgentEvent } from "@repo/features/agent-events";
-import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
-
+// The reducer is the SHARED @repo/features fold now (it was extracted from
+// this app verbatim); these assertions are intentionally byte-identical to the
+// pre-extraction suite — they are the proof mobile behavior didn't change.
 import {
   appendNotice,
   appendUser,
@@ -10,7 +11,8 @@ import {
   emptyChatLog,
   logFromHistory,
   type ChatLog,
-} from "../chat-log";
+} from "@repo/features/chat-log";
+import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
 
 function fold(log: ChatLog, events: readonly AppAgentEvent[]): ChatLog {
   return events.reduce(applyAgentEvent, log);
