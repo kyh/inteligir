@@ -60,29 +60,29 @@ export function createTTS(): TTSHandle {
   }
 
   const bridge = getBridge();
-  const unsubscribe = bridge?.onTtsAudio((event) => {
+  const unsubscribe = bridge.onTtsAudio((event) => {
     playChunk(event.audio);
   });
 
   return {
     sendText: (text: string) => {
       muted = false;
-      bridge?.ttsSend({ text });
+      bridge.ttsSend({ text });
     },
     flush: () => {
-      bridge?.ttsFlush(undefined);
+      bridge.ttsFlush(undefined);
       muted = false;
     },
     interrupt: () => {
       muted = true;
       stopAllSources();
-      bridge?.ttsInterrupt(undefined);
+      bridge.ttsInterrupt(undefined);
     },
     close: () => {
-      unsubscribe?.();
+      unsubscribe();
       stopAllSources();
       void audioCtx.close();
-      bridge?.ttsInterrupt(undefined);
+      bridge.ttsInterrupt(undefined);
     },
   };
 }

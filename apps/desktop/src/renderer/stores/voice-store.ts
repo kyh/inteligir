@@ -76,7 +76,7 @@ async function runConnect(): Promise<void> {
   // awaiting would replace the module-level `pipeline` — operating on the
   // captured ref guarantees we only ever connect/disconnect THIS session.
   const session = pipeline;
-  if (!bridge || !session) return;
+  if (!session) return;
   const gen = machine.generation;
 
   // Wait for any prior session's main-process stopSession to land before
@@ -156,7 +156,6 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
 
   init: () => {
     const bridge = getBridge();
-    if (!bridge) return () => {};
 
     let cancelled = false;
     unsubscribeMachine?.();

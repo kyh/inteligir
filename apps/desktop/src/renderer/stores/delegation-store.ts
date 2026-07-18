@@ -27,7 +27,6 @@ export const useDelegationStore = create<DelegationStore>((set) => ({
 
   init: () => {
     const bridge = getBridge();
-    if (!bridge) return () => {};
     // A live update can land before the initial list resolves; once it has, the
     // (now-stale) list response must not clobber the fresher state.
     let sawUpdate = false;
@@ -52,23 +51,23 @@ export const useDelegationStore = create<DelegationStore>((set) => ({
   },
 
   delegate: async (sourceFile, ordinal) => {
-    const bridge = getBridge();
-    if (!bridge) return { ok: false, error: "Unavailable" };
-    const result = await bridge.createDelegation({ sourceFile, ordinal }).catch(() => null);
+    const result = await getBridge()
+      .createDelegation({ sourceFile, ordinal })
+      .catch(() => null);
     if (!result) return { ok: false, error: "Couldn't reach the agent." };
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   },
 
   cancel: (id) => {
     getBridge()
-      ?.cancelDelegation(id)
+      .cancelDelegation(id)
       .catch(() => {});
   },
 
   restore: async (id) => {
-    const bridge = getBridge();
-    if (!bridge) return { ok: false, error: "Unavailable" };
-    const result = await bridge.restoreDelegationSnapshot(id).catch(() => null);
+    const result = await getBridge()
+      .restoreDelegationSnapshot(id)
+      .catch(() => null);
     if (!result) return { ok: false, error: "Couldn't restore the snapshot." };
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   },

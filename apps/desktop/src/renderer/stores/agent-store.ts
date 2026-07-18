@@ -467,7 +467,6 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
 
   init: () => {
     const bridge = getBridge();
-    if (!bridge) return () => {};
 
     const unsubAgent = subscribeAgentEvents(bridge, set);
     const unsubState = subscribeAppState(bridge, set);
@@ -498,7 +497,6 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   // Returns `flushed` so a UI caller can warn; resolves once dispatched.
   send: async (text, images, options) => {
     const bridge = getBridge();
-    if (!bridge) return { flushed: true };
 
     const busy = isBusy(get().appState);
     const wantsSteer = options?.intent === "steer";
@@ -554,12 +552,12 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     // Benign if it fails (nothing running to interrupt) — swallow the
     // rejection now that main returns the real submission promise.
     void getBridge()
-      ?.sendAgentCommand({ type: "interrupt" })
+      .sendAgentCommand({ type: "interrupt" })
       .catch(() => {});
   },
 
   newSession: async () => {
     set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
-    await getBridge()?.transition({ type: "NEW_SESSION" });
+    await getBridge().transition({ type: "NEW_SESSION" });
   },
 }));

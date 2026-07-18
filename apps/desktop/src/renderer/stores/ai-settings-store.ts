@@ -39,7 +39,6 @@ export const useAiSettingsStore = create<AiSettingsState>()((set) => ({
     if (initStarted) return;
     initStarted = true;
     const bridge = getBridge();
-    if (!bridge) return;
     const [uiState, ghostModels] = await Promise.all([
       bridge.getUiState().catch((): Record<string, unknown> => ({})),
       bridge.listGhostModels().catch(() => ({ models: [], defaultId: null })),
@@ -59,12 +58,12 @@ export const useAiSettingsStore = create<AiSettingsState>()((set) => ({
 
   setGhostTextEnabled: async (enabled) => {
     set({ ghostTextEnabled: enabled });
-    await getBridge()?.setUiState({ key: GHOST_TEXT_ENABLED_UI_STATE, value: enabled });
+    await getBridge().setUiState({ key: GHOST_TEXT_ENABLED_UI_STATE, value: enabled });
   },
 
   setGhostTextModel: async (id) => {
     set({ ghostTextModel: id });
     // `undefined` clears the key — the host falls back to its default tier.
-    await getBridge()?.setUiState({ key: GHOST_TEXT_MODEL_UI_STATE, value: id ?? undefined });
+    await getBridge().setUiState({ key: GHOST_TEXT_MODEL_UI_STATE, value: id ?? undefined });
   },
 }));

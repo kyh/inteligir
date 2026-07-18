@@ -24,10 +24,7 @@ export async function startSTT(
   onTranscript: TranscriptCallback,
   onError: (error: string) => void,
 ): Promise<STTHandle> {
-  const maybeBridge = getBridge();
-  if (!maybeBridge) throw new Error("Desktop bridge unavailable");
-  // Capture in a const so TS narrowing survives into nested closures below.
-  const bridge = maybeBridge;
+  const bridge = getBridge();
 
   // Request mic permission BEFORE starting the main-process recognizer
   // session — if the user denies, there's no main-process state to leak.

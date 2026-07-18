@@ -27,7 +27,7 @@ function scheduleFlush(key: string, value: unknown): void {
     key,
     setTimeout(() => {
       flushTimers.delete(key);
-      void getBridge()?.setUiState({ key, value });
+      void getBridge().setUiState({ key, value });
     }, FLUSH_DELAY_MS),
   );
 }
@@ -40,12 +40,7 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
 
   init: () => {
     if (initPromise) return initPromise;
-    const bridge = getBridge();
-    if (!bridge) {
-      set({ loaded: true });
-      return Promise.resolve();
-    }
-    initPromise = bridge
+    initPromise = getBridge()
       .getUiState()
       .then((values) => set({ values: values ?? {}, loaded: true }))
       .catch((err) => {
