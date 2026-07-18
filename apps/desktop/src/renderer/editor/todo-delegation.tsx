@@ -20,30 +20,15 @@ import {
   XIcon,
 } from "lucide-react";
 import type { Descendant, TElement } from "platejs";
-import { type PlateEditor, useEditorRef } from "platejs/react";
+import { useEditorRef } from "platejs/react";
 
 import { toast } from "@repo/ui/components/sonner";
 import { Button } from "@repo/ui/components/button";
 
-import { isTodoItem } from "@renderer/editor/todo-item";
+import { isTodoItem, todoIndex } from "@renderer/editor/todo-item";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
 import { useVault } from "@renderer/workspace/vault-context";
 import type { Delegation } from "@repo/features/delegation";
-
-// The checkbox's ordinal — its position among all real todo items in the
-// document. main counts the same `- [ ]` / `- [x]` lines in the raw markdown, so
-// the two agree by position with no text matching and duplicate labels stay
-// distinct.
-function todoIndex(editor: PlateEditor, element: TElement): number {
-  const path = editor.api.findPath(element);
-  const top = path?.[0];
-  if (top === undefined) return -1;
-  let count = 0;
-  for (let i = 0; i < top; i++) {
-    if (isTodoItem(editor.children[i])) count++;
-  }
-  return count;
-}
 
 function DelegateControl({ element, checked }: { element: TElement; checked: boolean }) {
   const { editor: vaultEditor, flush } = useVault();
