@@ -13,9 +13,9 @@ import { PathApi, type SlateEditor, type TElement } from "platejs";
 // field. A real todo always carries `checked: boolean` (false for `[ ]`, true
 // for `[x]`); a phantom plain bullet has `checked: undefined`. Requiring
 // `checked` keeps the renderer's delegation ordinal (`todoIndex` below) in
-// lockstep with core's count (scanTaskItems), which parses the same markdown
-// with the same remark-gfm — so delegation never targets a checkbox that
-// isn't on disk.
+// lockstep with core's count (scanTaskItems), which reads the same markdown
+// under the same grammar (the canonical flavor's no-indented-code reading)
+// — so delegation never targets a checkbox that isn't on disk.
 export function isTodoItem(node: unknown): boolean {
   return (
     typeof node === "object" &&

@@ -80,12 +80,15 @@ describe("findTaskLine", () => {
     expect(findTaskLine(md, 0)?.heading).toBe("Real heading");
   });
 
-  it("excludes a checkbox inside an indented (4-space) code block", () => {
-    // An indented code block is code to remark/Plate, not a task — so a
-    // checkbox-like line inside it must not shift the ordinal.
+  it("counts a 4-space-indented checkbox (no indented code in the canonical flavor)", () => {
+    // The MDX vocabulary has no indented-code construct, so the editor renders
+    // this line as a live task — scanTaskItems reads the same grammar and the
+    // ordinal counts it (previously plain remark-gfm read it as code and
+    // every later ordinal desynced from the renderer).
     const md = ["Notes", "", "    - [ ] alpha", "", "- [ ] real"].join("\n");
-    expect(findTaskLine(md, 0)?.text).toBe("real");
-    expect(findTaskLine(md, 1)).toBeNull();
+    expect(findTaskLine(md, 0)?.text).toBe("alpha");
+    expect(findTaskLine(md, 1)?.text).toBe("real");
+    expect(findTaskLine(md, 2)).toBeNull();
   });
 
   it("counts nested task items in document order", () => {
@@ -136,7 +139,8 @@ describe("findTaskLine ↔ scanTaskItems ordinal lockstep", () => {
   // The three counters (findTaskLine here, core scanTaskItems feeding the
   // projection + guarded toggle, Plate's todoIndex) must agree by POSITION.
   // This fixture stresses every divergence candidate: frontmatter lookalikes,
-  // fenced + indented code, plain bullets, empty checkboxes, nesting, checked
+  // fenced code, an indented item (a LIVE task — the canonical MDX flavor has
+  // no indented code), plain bullets, empty checkboxes, nesting, checked
   // items, alternate bullet chars, and duplicate labels.
   const FIXTURE = [
     "---",
@@ -156,7 +160,7 @@ describe("findTaskLine ↔ scanTaskItems ordinal lockstep", () => {
     "- [ ] fenced lookalike",
     "```",
     "",
-    "    - [ ] indented-code lookalike",
+    "    - [ ] indented live task", // indented ≠ code in the canonical flavor
     "",
     "* [ ] delta",
     "+ [ ] alpha", // duplicate label, distinct ordinal
@@ -164,7 +168,14 @@ describe("findTaskLine ↔ scanTaskItems ordinal lockstep", () => {
 
   it("counts the same items at the same lines, ordinal for ordinal", () => {
     const tasks = scanTaskItems(FIXTURE);
-    expect(tasks.map((t) => t.text)).toEqual(["alpha", "beta", "nested gamma", "delta", "alpha"]);
+    expect(tasks.map((t) => t.text)).toEqual([
+      "alpha",
+      "beta",
+      "nested gamma",
+      "indented live task",
+      "delta",
+      "alpha",
+    ]);
     for (const task of tasks) {
       if (task.checked) continue; // findTaskLine refuses checked items by design
       const match = findTaskLine(FIXTURE, task.ordinal);

@@ -138,15 +138,14 @@ describe("todoIndex ↔ scanTaskItems ordinal lockstep", () => {
     );
   });
 
-  // KNOWN BUG (tracked) — indented code. The editor pipeline is MDX, where
-  // indented code blocks DO NOT EXIST, so a 4-space-indented `- [ ]` line
-  // parses as a live task; scanTaskItems' plain remark-gfm reads it as code
-  // and skips it → every later renderer ordinal is off by one. NOT a
-  // traversal issue (a parser mismatch), so pre-order didn't fix it. `it.fails`
-  // keeps the suite green and flips RED the day it's fixed. The fix is a
-  // pipeline decision (align scanTaskItems' parser with MDX, or suppress todo
-  // styling on indented lists) — never adjust the disk-side authority.
-  it.fails("KNOWN BUG: an indented-code checkbox is a live task to the editor only", () => {
+  // Indented code — the app's canonical flavor is the MDX vocabulary, where
+  // indented code blocks DO NOT EXIST (micromark-extension-mdx-md disables
+  // `codeIndented`), so a 4-space-indented `- [ ]` line parses as a live
+  // task in the editor. scanTaskItems reads the same grammar (link-extract's
+  // remarkNoIndentedCode), so the disk-side count agrees ordinal-for-ordinal.
+  // (This was a tracked parser-mismatch bug: plain remark-gfm read the line
+  // as code, skipped it, and every later renderer ordinal was off by one.)
+  it("an indented (4-space) checkbox is a live task on both sides", () => {
     assertLockstep(["Notes", "", "    - [ ] indented-code lookalike", "", "- [ ] real"].join("\n"));
   });
 });

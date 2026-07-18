@@ -62,18 +62,17 @@ describe("scanDoc — wiki links", () => {
     expect(sliceTarget(src, link)).toBe("héllo wörld");
   });
 
-  it("ignores links inside fenced code, inline code, and indented code", () => {
-    const src = [
-      "```",
-      "[[fenced]]",
-      "```",
-      "",
-      "some `[[inline code]]` here",
-      "",
-      "    [[indented code]]",
-      "",
-    ].join("\n");
+  it("ignores links inside fenced code and inline code", () => {
+    const src = ["```", "[[fenced]]", "```", "", "some `[[inline code]]` here", ""].join("\n");
     expect(links(src)).toHaveLength(0);
+  });
+
+  it("extracts a 4-space-indented link (no indented code in the canonical flavor)", () => {
+    // The MDX vocabulary disables `codeIndented`, so the editor renders this
+    // as a live link — the scan reads the same grammar (remarkNoIndentedCode)
+    // and indexes it.
+    const src = "Notes\n\n    [[indented live link]]\n";
+    expect(links(src).map((l) => l.target)).toEqual(["indented live link"]);
   });
 
   it("ignores escaped brackets", () => {
@@ -319,7 +318,10 @@ describe("scanDoc — task extraction", () => {
     expect(tasks[0]?.line).toBe(3);
   });
 
-  it("skips plain bullets, empty checkboxes, and code-fence lookalikes", () => {
+  it("skips plain bullets, empty checkboxes, and fenced lookalikes — but counts an indented item", () => {
+    // A 4-space-indented `- [ ]` is a LIVE task: the canonical MDX flavor has
+    // no indented code, and the editor renders it as a checkbox — the count
+    // must agree (ordinal lockstep) with `raw` keeping the exact indent.
     const src = [
       "- plain bullet",
       "- [ ] ",
@@ -328,12 +330,15 @@ describe("scanDoc — task extraction", () => {
       "- [ ] fenced lookalike",
       "```",
       "",
-      "    - [ ] indented-code lookalike",
+      "    - [ ] indented live task",
       "",
       "- [ ] the real one",
     ].join("\n");
     const tasks = scanDoc(src).tasks;
-    expect(tasks.map((t) => [t.ordinal, t.text])).toEqual([[0, "the real one"]]);
+    expect(tasks.map((t) => [t.ordinal, t.text, t.raw])).toEqual([
+      [0, "indented live task", "    - [ ] indented live task"],
+      [1, "the real one", "- [ ] the real one"],
+    ]);
   });
 
   it("collects wiki targets from the item's first paragraph only, in doc order", () => {

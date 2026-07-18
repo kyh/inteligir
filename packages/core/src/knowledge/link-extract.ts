@@ -11,6 +11,8 @@
 // they only re-shape nodes whose TEXT content still parses here (links inside
 // `<toggle>` bodies etc. are separated from the tag by blank lines in the
 // canonical form). Links inside raw block-level HTML runs are not extracted.
+// Indented code, however, is disabled to match the editor's MDX grammar
+// (see remarkNoIndentedCode below) — task ordinals depend on it.
 //
 // Span contract: `targetSpan` is emitted only after the bytes are verified
 // (the raw slice re-derives the parsed target). A link that fails verification
@@ -18,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import type { ListItem, Nodes } from "mdast";
+import type { Plugin, Processor } from "unified";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
@@ -98,8 +101,23 @@ export type DocScan = {
   tasks: ExtractedTask[];
 };
 
+// The vault's canonical flavor is the MDX vocabulary (md-plugins.ts), where
+// indented code DOES NOT EXIST — micromark-extension-mdx-md disables
+// `codeIndented`, so the editor renders a 4-space-indented `- [ ]` as a live
+// task and an indented `[[link]]` as a live link. The scan must read the SAME
+// grammar or its task count desyncs from the renderer's todoIndex (the
+// Delegate/toggle anchor is (sourceFile, ordinal)). Only this ONE disable is
+// adopted: the full MDX pipeline throws on out-of-vocabulary docs (the scan
+// stays total — Raw-mode docs keep indexing), and mdx-md's other disables
+// (autolink/html) would change tag/link extraction in unrelated edge cases.
+const remarkNoIndentedCode: Plugin = function (this: Processor): undefined {
+  const data = this.data();
+  (data.micromarkExtensions ??= []).push({ disable: { null: ["codeIndented"] } });
+};
+
 const processor = unified()
   .use(remarkParse)
+  .use(remarkNoIndentedCode)
   .use(remarkFrontmatter)
   .use(remarkGfm)
   .use(remarkWikiLink);

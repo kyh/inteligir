@@ -3,10 +3,12 @@
 // authority, the same counter behind the guarded toggle
 // (guarded-line-edit's `toggleTaskAtOrdinal`) — so this locator can never
 // drift from the index or the toggle. The renderer's `todoIndex`
-// (todo-item.ts) parses the same markdown through the same remark-gfm, so
-// ordinals agree by position with no text matching, and duplicate labels stay
-// distinct. Frontmatter-awareness (a checkbox-shaped line inside a leading
-// `---` block never counts) is scanTaskItems' own contract.
+// (todo-item.ts) counts the same items over the editor's parse of the same
+// markdown (scanTaskItems reads the canonical flavor's grammar — no indented
+// code, matching MDX), so ordinals agree by position with no text matching,
+// and duplicate labels stay distinct. Frontmatter-awareness (a checkbox-shaped
+// line inside a leading `---` block never counts) is scanTaskItems' own
+// contract.
 //
 // Heading + section are read at the located item as agent-prompt context only
 // — the local parse below serves ONLY that context, never the ordinal.
