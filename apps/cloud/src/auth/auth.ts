@@ -74,7 +74,9 @@ export function createAuth(env: Env, baseURL: string) {
     // throttles credential-stuffing against the auth routes. Cloudflare's WAF can
     // rate-limit at the edge too; this is defense-in-depth at the app layer.
     rateLimit: {
-      enabled: true,
+      // Off only when RATE_LIMIT_DISABLED === "true" (tests: the in-process test
+      // Worker shares one IP, so a multi-user suite would trip the limiter).
+      enabled: env.RATE_LIMIT_DISABLED !== "true",
       storage: "database",
       window: 60,
       max: 10,

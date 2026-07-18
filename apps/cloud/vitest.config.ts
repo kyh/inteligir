@@ -40,6 +40,9 @@ export default defineConfig({
         bindings: {
           TEST_SCHEMA,
           BETTER_AUTH_SECRET: "test-better-auth-secret-000000000000",
+          // Tests hit the in-process Worker from one IP; keep the auth limiter
+          // off so multi-user suites don't 429. Rate limiting is covered in prod.
+          RATE_LIMIT_DISABLED: "true",
         },
       },
     }),
