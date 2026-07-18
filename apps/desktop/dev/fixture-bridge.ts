@@ -1083,6 +1083,16 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // exercisable. The brief "running" beat matters: the dock only tracks
     // delegations it saw go active this session.
     createDelegation: async ({ sourceFile, ordinal }) => {
+      // Mirror the host's provider feature gate (#459): a guest — selected
+      // provider not connected — gets the same graceful refusal, never a
+      // silently queued run.
+      const selectedEntry = aiProviderCatalog.find((entry) => entry.id === aiSelection.provider);
+      const selectedConnected =
+        selectedEntry !== undefined &&
+        (!selectedEntry.requiresAuth || aiConnected.get(selectedEntry.id) === true);
+      if (!selectedConnected) {
+        return { ok: false, error: "Connect an AI provider in Settings → AI to delegate." };
+      }
       const now = Date.now();
       const id = `fixture-${now}-${ordinal}`;
       // Resolve the checkbox up front (as the host does) so the dock card has

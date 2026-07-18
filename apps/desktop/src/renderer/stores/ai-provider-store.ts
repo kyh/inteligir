@@ -19,18 +19,22 @@ import type { AiProviderSettings } from "@repo/features/ai-provider";
 import { getBridge } from "@renderer/lib/bridge";
 
 /**
- * "Any provider can serve a turn right now" — the AI feature gate. Providers
- * that need no login (the dev faux provider) report connected: true, so the
- * faux path keeps the gate open. `null` (snapshot not loaded yet) reads as
- * connected: the gates fail OPEN pre-load so the connect affordance never
- * flashes during boot — a genuinely disconnected state settles within the
- * first snapshot, and an early AI call just fails loudly host-side. (Contrast
- * with private notes, which fail CLOSED — that gate prevents leaks; this one
- * only prevents dead-end UI.)
+ * "The SELECTED provider can serve a turn right now" — the AI feature gate.
+ * Every turn resolves the SELECTED provider host-side (resolveSelectedModel),
+ * so a connected-but-not-selected provider must NOT open the gate: connect
+ * Claude while OpenAI is selected and every turn would still target
+ * disconnected OpenAI and fail. Providers that need no login (the dev faux
+ * provider) report connected: true, so the faux path keeps the gate open.
+ * `null` (snapshot not loaded yet) reads as connected: the gates fail OPEN
+ * pre-load so the connect affordance never flashes during boot — a genuinely
+ * disconnected state settles within the first snapshot, and an early AI call
+ * just fails loudly host-side. (Contrast with private notes, which fail
+ * CLOSED — that gate prevents leaks; this one only prevents dead-end UI.)
  */
 export function hasConnectedProvider(settings: AiProviderSettings | null): boolean {
   if (settings === null) return true;
-  return settings.providers.some((provider) => provider.connected);
+  const selected = settings.providers.find((p) => p.id === settings.selected.provider);
+  return selected?.connected ?? false;
 }
 
 type AiProviderStore = {
