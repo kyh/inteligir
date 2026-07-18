@@ -37,9 +37,13 @@ export function OnboardingPage() {
   const setupError =
     appState.phase === "error" && appState.prev === "setting_up" ? appState.message : null;
 
-  // Auto-trigger setup on mount
+  // First-run only: warm boots auto-fire SETUP host-side (initMachine) and
+  // never linger in "starting" — a lingering "starting" means the workspace
+  // has never been seeded, so this surface drives the setup and shows its
+  // progress. Setup is a vault/workspace concern, not identity: the guest
+  // lands in the workspace either way (#459).
   useEffect(() => {
-    if (appState.phase === "logged_in" && !triggered.current) {
+    if (appState.phase === "starting" && !triggered.current) {
       triggered.current = true;
       getBridge().transition({ type: "SETUP" });
     }

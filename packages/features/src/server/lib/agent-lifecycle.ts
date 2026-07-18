@@ -157,14 +157,21 @@ export async function seedAgentResources(onProgress: (p: SetupProgress) => void)
 }
 
 /** Run the SELECTED provider's OAuth flow (a no-op for auth-free providers,
- * i.e. faux), then lift the vault write suspension that a previous logout put
- * in place — after successful re-auth the workspace may materialize again on
- * the next write. */
+ * i.e. faux), then lift any vault write suspension a teardown put in place —
+ * after successful re-auth the workspace may materialize again on the next
+ * write. Reached from reauthenticate (Settings "Re-authenticate" + the
+ * empty-turn dialog); app boot never runs it (#459: no login gate). */
 export async function loginAgent(): Promise<void> {
   await loginSelectedProvider();
   resumeVaultWrites();
 }
 
+/** The FULL ~/.inteligir wipe — the app-machine's RESET effect ("Reset app
+ * data"). This is deliberately the ONLY place provider credentials, the sync
+ * account, and every other app store die together; provider disconnect and
+ * account sign-out are independent actions that touch only their own storage
+ * (#459 teardown decouple). Leaves vault writes SUSPENDED — the RESET effect
+ * resumes them before re-seeding. */
 export function teardownAgentResources(): void {
   // Drop singletons that hold JsonStore caches BEFORE removing the directory,
   // so an in-flight debounced write can't resurrect a store file from a warm
@@ -190,6 +197,6 @@ export function teardownAgentResources(): void {
   resetVaultManager();
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
   // The rm just deleted our own host.lock — re-assert it so another host
-  // can't boot beside us between logout and the next login.
+  // can't boot beside us between the wipe and the re-setup.
   reassertHostLock();
 }

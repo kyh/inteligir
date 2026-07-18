@@ -116,12 +116,11 @@ export function WorkspacePage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Recoverable error states (agent restart / logout) route back here.
+  // Recoverable agent errors route back here (setup errors surface on the
+  // onboarding screen — see routes/__root.tsx).
   const appState = useAgentStore((s) => s.appState);
   const workspaceError =
-    appState.phase === "error" && (appState.prev === "ready" || appState.prev === "logging_out")
-      ? appState.message
-      : null;
+    appState.phase === "error" && appState.prev === "ready" ? appState.message : null;
 
   const handleRetry = useCallback(() => {
     getBridge().transition({ type: "RETRY" });

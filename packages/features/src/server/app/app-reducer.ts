@@ -1,11 +1,16 @@
 // ---------------------------------------------------------------------------
 // Pure state machine reducer — zero imports from Electron or agent layer.
 // (state, event) → { next, effect } | null
+//
+// App lifecycle only: starting → setting_up → ready, plus error/RETRY and the
+// explicit RESET_APP_DATA full wipe. There is no login phase — a guest boots
+// straight through SETUP to the workspace (#459); provider/account auth are
+// feature-level concerns outside this machine.
 // ---------------------------------------------------------------------------
 
 import type { AppState, MachineEvent } from "@repo/features/app-state";
 
-export type EffectTag = "LOGIN" | "SETUP" | "LOGOUT" | "NEW_SESSION";
+export type EffectTag = "SETUP" | "RESET" | "NEW_SESSION";
 
 export type ReducerResult = {
   next: AppState;
@@ -20,17 +25,17 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
   switch (event.type) {
     // ---- External events (from renderer) ------------------------------------
 
-    case "LOGIN":
-      if (state.phase !== "logged_out") return null;
-      return { next: { phase: "logging_in" }, effect: "LOGIN" };
-
     case "SETUP":
-      if (state.phase !== "logged_in") return null;
+      if (state.phase !== "starting") return null;
       return { next: { phase: "setting_up" }, effect: "SETUP" };
 
-    case "LOGOUT":
+    case "RESET_APP_DATA":
+      // The full ~/.inteligir wipe + re-setup — the ONLY full-teardown action
+      // (provider disconnect and account sign-out are independent and touch
+      // only their own storage). Re-runs setup in the same effect, so the app
+      // lands back in the workspace as a fresh guest.
       if (state.phase !== "ready" && state.phase !== "error") return null;
-      return { next: { phase: "logging_out" }, effect: "LOGOUT" };
+      return { next: { phase: "setting_up" }, effect: "RESET" };
 
     case "NEW_SESSION":
       if (state.phase !== "ready" || state.agent !== "idle") return null;
@@ -42,31 +47,14 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
 
     case "RETRY": {
       if (state.phase !== "error") return null;
-      switch (state.prev) {
-        case "logging_in":
-          return { next: { phase: "logging_in" }, effect: "LOGIN" };
-        case "setting_up":
-        case "ready":
-          return { next: { phase: "setting_up" }, effect: "SETUP" };
-        case "logging_out":
-          return { next: { phase: "logging_out" }, effect: "LOGOUT" };
-        default:
-          return null;
-      }
+      // Both error flavors retry through SETUP: a failed setup re-runs it
+      // (seeding is idempotent — this also covers a failed RESET, whose wipe
+      // already happened), and a dead-agent error restarts the agent the same
+      // way.
+      return { next: { phase: "setting_up" }, effect: "SETUP" };
     }
 
     // ---- Internal events (from effect runner) ---------------------------------
-
-    case "LOGIN_OK":
-      if (state.phase !== "logging_in") return null;
-      return { next: { phase: "logged_in" }, effect: null };
-
-    case "LOGIN_FAIL":
-      if (state.phase !== "logging_in") return null;
-      return {
-        next: { phase: "error", prev: "logging_in", message: event.message },
-        effect: null,
-      };
 
     case "SETUP_OK":
       if (state.phase !== "setting_up") return null;
@@ -76,19 +64,6 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
       if (state.phase !== "setting_up") return null;
       return {
         next: { phase: "error", prev: "setting_up", message: event.message },
-        effect: null,
-      };
-
-    case "LOGOUT_OK":
-      if (state.phase !== "logging_out") return null;
-      return { next: { phase: "logged_out" }, effect: null };
-
-    case "LOGOUT_FAIL":
-      // A wedged "logging_out" would absorb every further event; surface the
-      // failure instead so RETRY (→ LOGOUT) and LOGOUT both stay available.
-      if (state.phase !== "logging_out") return null;
-      return {
-        next: { phase: "error", prev: "logging_out", message: event.message },
         effect: null,
       };
 

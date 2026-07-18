@@ -1,5 +1,11 @@
 // ---------------------------------------------------------------------------
-// App lifecycle state machine types
+// App lifecycle state machine types.
+//
+// The machine models APP LIFECYCLE ONLY — provider login is NOT an app phase
+// (auth Phase 2, #459): the app boots as a guest straight toward the
+// workspace; AI-provider connection lives in the provider layer (Settings →
+// AI, `connectAiProvider`/`disconnectAiProvider`) and the optional account
+// (Better Auth) lives in the sync layer. Neither gates app entry.
 // ---------------------------------------------------------------------------
 
 import { type Static, Type } from "@sinclair/typebox";
@@ -9,9 +15,8 @@ import { type Static, Type } from "@sinclair/typebox";
 // ---------------------------------------------------------------------------
 
 export const AppEventSchema = Type.Union([
-  Type.Object({ type: Type.Literal("LOGIN") }, { additionalProperties: false }),
   Type.Object({ type: Type.Literal("SETUP") }, { additionalProperties: false }),
-  Type.Object({ type: Type.Literal("LOGOUT") }, { additionalProperties: false }),
+  Type.Object({ type: Type.Literal("RESET_APP_DATA") }, { additionalProperties: false }),
   Type.Object({ type: Type.Literal("RETRY") }, { additionalProperties: false }),
   Type.Object({ type: Type.Literal("NEW_SESSION") }, { additionalProperties: false }),
 ]);
@@ -23,12 +28,8 @@ type AppEvent = Static<typeof AppEventSchema>;
 // ---------------------------------------------------------------------------
 
 type InternalEvent =
-  | { type: "LOGIN_OK" }
-  | { type: "LOGIN_FAIL"; message: string }
   | { type: "SETUP_OK" }
   | { type: "SETUP_FAIL"; message: string }
-  | { type: "LOGOUT_OK" }
-  | { type: "LOGOUT_FAIL"; message: string }
   | { type: "AGENT_START" }
   | { type: "AGENT_END" }
   | { type: "NEW_SESSION_OK" }
@@ -42,9 +43,10 @@ export type MachineEvent = AppEvent | InternalEvent;
 // ---------------------------------------------------------------------------
 
 export const AppStateSchema = Type.Union([
-  Type.Object({ phase: Type.Literal("logged_out") }, { additionalProperties: false }),
-  Type.Object({ phase: Type.Literal("logging_in") }, { additionalProperties: false }),
-  Type.Object({ phase: Type.Literal("logged_in") }, { additionalProperties: false }),
+  // Waiting for the first SETUP trigger. Warm boots leave it immediately
+  // (initMachine auto-fires SETUP when setup is already complete); a genuine
+  // first run lingers here until the onboarding surface fires SETUP.
+  Type.Object({ phase: Type.Literal("starting") }, { additionalProperties: false }),
   Type.Object({ phase: Type.Literal("setting_up") }, { additionalProperties: false }),
   Type.Object(
     {
@@ -53,16 +55,10 @@ export const AppStateSchema = Type.Union([
     },
     { additionalProperties: false },
   ),
-  Type.Object({ phase: Type.Literal("logging_out") }, { additionalProperties: false }),
   Type.Object(
     {
       phase: Type.Literal("error"),
-      prev: Type.Union([
-        Type.Literal("logging_in"),
-        Type.Literal("setting_up"),
-        Type.Literal("ready"),
-        Type.Literal("logging_out"),
-      ]),
+      prev: Type.Union([Type.Literal("setting_up"), Type.Literal("ready")]),
       message: Type.String(),
     },
     { additionalProperties: false },

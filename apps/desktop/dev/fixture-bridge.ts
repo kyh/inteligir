@@ -808,15 +808,29 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     getAppState: async () => appState,
     transition: async (event) => {
       switch (event.type) {
-        case "LOGIN":
         case "SETUP":
         case "RETRY":
         case "NEW_SESSION":
           history.length = 0;
           setAppState({ phase: "ready", agent: "idle" });
           return;
-        case "LOGOUT":
-          setAppState({ phase: "logged_out" });
+        case "RESET_APP_DATA":
+          // The harness twin of the host's full ~/.inteligir wipe + re-setup:
+          // clear chat history, sign the sync account out and disable it, and
+          // drop every simulated provider connection — then land back ready
+          // as a fresh guest.
+          history.length = 0;
+          syncState = {
+            enabled: false,
+            signedIn: false,
+            email: null,
+            coordinatorUrl: "",
+            status: { phase: "idle" },
+            conflicts: [],
+          };
+          emitSync();
+          for (const id of aiConnected.keys()) aiConnected.set(id, false);
+          setAppState({ phase: "ready", agent: "idle" });
           return;
       }
     },

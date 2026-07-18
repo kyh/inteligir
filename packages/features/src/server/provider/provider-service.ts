@@ -61,17 +61,9 @@ export function listSelectedProviderModels(): Model<Api>[] {
   return listProviderModels(getSelectedProvider().provider);
 }
 
-/** Whether the selected provider can serve a turn right now: faux always can;
- * OAuth providers need cached credentials. The app-machine's initial
- * logged_in/logged_out phase keys off this. */
-export function isSelectedProviderAuthed(): boolean {
-  const { provider } = getSelectedProvider();
-  if (!providerRequiresAuth(provider)) return true;
-  return isProviderAuthed(provider);
-}
-
 /** Run the selected provider's interactive OAuth flow (no-op for faux). The
- * app-machine's LOGIN effect and the Settings "Connect" both land here. */
+ * Settings "Connect" and the reauthenticate path both land here. Provider
+ * auth is a FEATURE-level concern — it never gates app entry (#459). */
 export async function loginSelectedProvider(): Promise<void> {
   const { provider } = getSelectedProvider();
   if (!providerRequiresAuth(provider)) return;

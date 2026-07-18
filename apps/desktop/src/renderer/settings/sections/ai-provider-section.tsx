@@ -3,7 +3,6 @@ import { Button } from "@repo/ui/components/button";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
-import { useAgentStore } from "@renderer/stores/agent-store";
 import type { AiProviderSettings } from "@repo/features/ai-provider";
 
 // AI provider — pick which provider+model the agent runs on, and manage the
@@ -11,11 +10,10 @@ import type { AiProviderSettings } from "@repo/features/ai-provider";
 // Everything renders from the host's AiProviderSettings snapshot: every
 // mutating call returns (or is followed by) a fresh snapshot, so the section
 // needs no push channel. Switching applies to the next reply — the host rolls
-// the live sessions, no app restart.
+// the live sessions, no app restart. Disconnect touches ONLY this provider's
+// credentials (pi auth.json) — the app stays in the workspace as a guest and
+// the sync account is untouched (#459 teardown decouple).
 export function AiProviderSection() {
-  const appState = useAgentStore((s) => s.appState);
-  const isReady = appState.phase === "ready";
-
   const [settings, setSettings] = useState<AiProviderSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +82,6 @@ export function AiProviderSection() {
       setBusy(false);
     }
   }, [refresh]);
-
-  const handleLogout = useCallback(() => {
-    getBridge().transition({ type: "LOGOUT" });
-  }, []);
 
   return (
     <div className="flex flex-col gap-2">
@@ -173,16 +167,6 @@ export function AiProviderSection() {
                     className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
                   >
                     {busy ? "Opening…" : "Connect"}
-                  </Button>
-                )}
-                {isReady && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
-                  >
-                    Log out
                   </Button>
                 )}
               </div>

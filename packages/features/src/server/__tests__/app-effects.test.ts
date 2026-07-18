@@ -3,12 +3,12 @@ import { runEffect, type EffectDeps } from "../app/app-effects";
 
 function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
-    login: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     seedResources: vi.fn<EffectDeps["seedResources"]>().mockResolvedValue(undefined),
     downloadVoiceModel: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
+    resumeVaultWrites: vi.fn(),
     newSession: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     reportSetupProgress: vi.fn(),
     ...overrides,
@@ -16,23 +16,6 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
 }
 
 describe("runEffect", () => {
-  // ---- LOGIN ----------------------------------------------------------------
-
-  it("LOGIN calls deps.login and returns LOGIN_OK on success", async () => {
-    const deps = makeDeps();
-    const result = await runEffect("LOGIN", deps);
-    expect(deps.login).toHaveBeenCalledOnce();
-    expect(result).toEqual({ type: "LOGIN_OK" });
-  });
-
-  it("LOGIN returns LOGIN_FAIL when login rejects", async () => {
-    const deps = makeDeps({
-      login: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("auth failed")),
-    });
-    const result = await runEffect("LOGIN", deps);
-    expect(result).toEqual({ type: "LOGIN_FAIL", message: "auth failed" });
-  });
-
   // ---- SETUP ----------------------------------------------------------------
 
   it("SETUP calls deps.seedResources and deps.startAgent, returns SETUP_OK", async () => {
@@ -40,6 +23,8 @@ describe("runEffect", () => {
     const result = await runEffect("SETUP", deps);
     expect(deps.seedResources).toHaveBeenCalledOnce();
     expect(deps.startAgent).toHaveBeenCalledOnce();
+    // Plain SETUP never tears anything down — that's RESET's job.
+    expect(deps.teardownResources).not.toHaveBeenCalled();
     expect(result).toEqual({ type: "SETUP_OK" });
   });
 
@@ -53,31 +38,35 @@ describe("runEffect", () => {
     expect(result).toEqual({ type: "SETUP_FAIL", message: "seed broke" });
   });
 
-  // ---- LOGOUT ---------------------------------------------------------------
+  // ---- RESET ----------------------------------------------------------------
 
-  it("LOGOUT calls deps.teardownResources and returns LOGOUT_OK", async () => {
+  it("RESET stops, tears down, resumes vault writes, then re-runs setup", async () => {
     const deps = makeDeps();
-    const result = await runEffect("LOGOUT", deps);
+    const result = await runEffect("RESET", deps);
+    expect(deps.stopAgent).toHaveBeenCalledOnce();
     expect(deps.teardownResources).toHaveBeenCalledOnce();
-    expect(result).toEqual({ type: "LOGOUT_OK" });
+    expect(deps.resumeVaultWrites).toHaveBeenCalledOnce();
+    expect(deps.seedResources).toHaveBeenCalledOnce();
+    expect(deps.startAgent).toHaveBeenCalledOnce();
+    expect(result).toEqual({ type: "SETUP_OK" });
   });
 
-  it("LOGOUT returns LOGOUT_FAIL when stopAgent rejects (no throw out of the effect)", async () => {
+  it("RESET returns SETUP_FAIL when stopAgent rejects (no throw out of the effect)", async () => {
     const deps = makeDeps({
       stopAgent: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("stop broke")),
     });
-    const result = await runEffect("LOGOUT", deps);
-    expect(result).toEqual({ type: "LOGOUT_FAIL", message: "stop broke" });
+    const result = await runEffect("RESET", deps);
+    expect(result).toEqual({ type: "SETUP_FAIL", message: "stop broke" });
   });
 
-  it("LOGOUT returns LOGOUT_FAIL when teardownResources throws", async () => {
+  it("RESET returns SETUP_FAIL when teardownResources throws", async () => {
     const deps = makeDeps({
       teardownResources: vi.fn(() => {
         throw new Error("rm failed");
       }),
     });
-    const result = await runEffect("LOGOUT", deps);
-    expect(result).toEqual({ type: "LOGOUT_FAIL", message: "rm failed" });
+    const result = await runEffect("RESET", deps);
+    expect(result).toEqual({ type: "SETUP_FAIL", message: "rm failed" });
   });
 
   // ---- NEW_SESSION ------------------------------------------------------------
