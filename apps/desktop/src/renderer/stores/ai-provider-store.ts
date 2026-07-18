@@ -63,7 +63,11 @@ export const useAiProviderStore = create<AiProviderStore>()((set) => ({
     try {
       set({ settings: await getBridge().getAiProviderSettings() });
     } catch {
-      // Leave null — gates fail open, the section shows its loading state.
+      // Leave null — gates fail open, the section shows its loading state —
+      // but UN-latch so a later init() (another consumer mounting, a settings
+      // open) retries instead of the first transient failure freezing the
+      // snapshot at null until app restart.
+      initStarted = false;
     }
   },
 

@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AiProviderSettings } from "@repo/features/ai-provider";
 
-import { hasConnectedProvider } from "./ai-provider-store";
+// The store reaches the host only through getBridge(); stub it so init() is
+// testable without a transport (same pattern as agent-gateway.test.ts).
+const { getBridge } = vi.hoisted(() => ({ getBridge: vi.fn() }));
+vi.mock("@renderer/lib/bridge", () => ({ getBridge }));
+
+import { hasConnectedProvider, useAiProviderStore } from "./ai-provider-store";
 
 function settings(
   providers: { id: string; requiresAuth: boolean; connected: boolean }[],
@@ -76,5 +81,27 @@ describe("hasConnectedProvider — the AI feature gate (#459)", () => {
     expect(
       hasConnectedProvider(settings([{ id: "faux", requiresAuth: false, connected: true }])),
     ).toBe(true);
+  });
+});
+
+describe("useAiProviderStore.init — a transient fetch failure must not latch forever", () => {
+  it("un-latches on failure so a later init() retries, then latches on success", async () => {
+    const fetchSettings = vi.fn();
+    getBridge.mockReturnValue({ getAiProviderSettings: fetchSettings });
+
+    // First load rejects (transient WS hiccup) — settings stay null.
+    fetchSettings.mockRejectedValueOnce(new Error("ws hiccup"));
+    await useAiProviderStore.getState().init();
+    expect(useAiProviderStore.getState().settings).toBeNull();
+
+    // A later init() (another consumer mounting) retries and succeeds.
+    const snapshot = settings([{ id: "openai-codex", requiresAuth: true, connected: true }]);
+    fetchSettings.mockResolvedValue(snapshot);
+    await useAiProviderStore.getState().init();
+    expect(useAiProviderStore.getState().settings).toEqual(snapshot);
+
+    // Latched on SUCCESS: further init()s stay no-ops.
+    await useAiProviderStore.getState().init();
+    expect(fetchSettings).toHaveBeenCalledTimes(2);
   });
 });

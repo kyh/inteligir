@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@repo/ui/components/button";
 
@@ -31,7 +31,6 @@ function modelStatusLabel(state: VoiceModelStateEvent | null): string | null {
 export function OnboardingPage() {
   const appState = useAgentStore((s) => s.appState);
   const setupProgress = useAgentStore((s) => s.setupProgress);
-  const triggered = useRef(false);
   const [modelState, setModelState] = useState<VoiceModelStateEvent | null>(null);
 
   const setupError =
@@ -42,11 +41,22 @@ export function OnboardingPage() {
   // has never been seeded, so this surface drives the setup and shows its
   // progress. Setup is a vault/workspace concern, not identity: the guest
   // lands in the workspace either way (#459).
+  //
+  // Re-dispatched on an interval while the host still reports "starting": the
+  // dispatch rides the local WS, so a one-shot fire-and-forget would wedge
+  // first-run setup until restart if that single send failed transiently. A
+  // duplicate SETUP is harmless by construction — the reducer accepts it only
+  // in "starting" — so retrying needs no latch.
   useEffect(() => {
-    if (appState.phase === "starting" && !triggered.current) {
-      triggered.current = true;
-      getBridge().transition({ type: "SETUP" });
-    }
+    if (appState.phase !== "starting") return;
+    const dispatch = () => {
+      void getBridge()
+        .transition({ type: "SETUP" })
+        .catch(() => {});
+    };
+    dispatch();
+    const timer = setInterval(dispatch, 1500);
+    return () => clearInterval(timer);
   }, [appState.phase]);
 
   // Subscribe to model-download progress events so we can show progress
