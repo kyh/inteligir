@@ -81,7 +81,10 @@ function validNotePath(path: string): string | null {
 const VAULT_IO: VaultIO = {
   read: (path) => getBridge().readVaultDoc({ path }),
   write: (path, content) => getBridge().writeVaultDoc({ path, content }),
-  remove: (path) => getBridge().deleteVaultEntry({ path }).then(() => undefined),
+  remove: (path) =>
+    getBridge()
+      .deleteVaultEntry({ path })
+      .then(() => undefined),
 };
 
 // The `editor` snapshot rendered while no note is open. Root lives at the
