@@ -42,6 +42,7 @@ import {
   resumeVaultWrites,
   suspendVaultWrites,
 } from "../vault/vault";
+import { remapNoteMetadata } from "../vault/rename-metadata";
 import type { SetupProgress } from "@repo/features/ipc";
 
 /** Bundled agent assets (skills/, AGENTS.md), resolved by the shell. */
@@ -75,6 +76,7 @@ export function getAgentPorts(): AgentPorts {
       queries: () => getKnowledgeManager(),
       probe: probeVaultPrivacy,
       vault: getVaultManager,
+      afterRename: remapNoteMetadata,
     }),
     // Vault-privacy capability for the tool gate (agent/privacy). probe reads
     // LIVE disk through VaultManager (resolve() confinement included): a path

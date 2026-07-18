@@ -58,6 +58,9 @@ function buildPort(overrides: Record<string, string> = {}): KnowledgePort {
     vault: () => {
       throw new Error("rename is not under test in knowledge-privacy tests");
     },
+    afterRename: () => {
+      throw new Error("rename is not under test in knowledge-privacy tests");
+    },
   });
 }
 

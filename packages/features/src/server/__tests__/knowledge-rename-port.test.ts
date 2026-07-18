@@ -23,6 +23,7 @@ let tmp: string;
 let root: string;
 let vault: VaultManager;
 let port: KnowledgePort;
+let afterRenameCalls: Array<[string, string]>;
 
 /** Mirror of agent-lifecycle's probeVaultPrivacy over the test vault: live
  * disk read, any failure short of a real verdict reads "absent" (none of
@@ -44,11 +45,13 @@ beforeEach(() => {
     manageAgentLink: false,
   });
   vault.ensureReady();
+  afterRenameCalls = [];
   port = buildAgentKnowledgePort({
     // rename never touches the queries; give it an inert set.
     queries: () => ({ search: () => [], backlinks: () => [], notesWithTag: () => [] }),
     probe,
     vault: () => vault,
+    afterRename: (from, to) => afterRenameCalls.push([from, to]),
   });
 });
 
@@ -116,6 +119,22 @@ describe("KnowledgePort.rename — link rewrite + alias, user-rename parity", ()
       ok: false,
       reason: "Not found: ghost.md",
     });
+  });
+
+  it("runs the metadata remap on success, and NOT on any refusal", () => {
+    vault.writeText("B.md", "# B\n");
+    // Success → the delegation/checkpoint remap fires with the exact paths.
+    expect(port.rename("B.md", "C.md").ok).toBe(true);
+    expect(afterRenameCalls).toEqual([["B.md", "C.md"]]);
+
+    // Every refusal path leaves the remap untouched (no stale repoint).
+    afterRenameCalls = [];
+    port.rename("ghost.md", "new.md"); // missing source
+    port.rename("C.md", "con.md"); // invalid name
+    // The live probe reads this file's frontmatter → private → refused.
+    vault.writeText("secret.md", "---\nprivate: true\n---\n");
+    port.rename("secret.md", "x.md"); // private
+    expect(afterRenameCalls).toEqual([]);
   });
 });
 

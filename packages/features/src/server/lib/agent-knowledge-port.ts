@@ -56,6 +56,10 @@ export function buildAgentKnowledgePort(deps: {
   /** Live VaultManager accessor (defer-to-singleton, like `queries`) — the
    * rename capability writes through it. */
   vault: () => VaultManager;
+  /** Best-effort metadata remap run after a successful rename (delegations +
+   * AI-write checkpoints repointed at the new path) — the SAME remap the
+   * user-facing rename handler uses, injected so the two paths can't drift. */
+  afterRename: (from: string, to: string) => void;
 }): KnowledgePort {
   const isPublicNow = (rel: string): boolean => deps.probe(rel) === "public";
   return {
@@ -88,7 +92,11 @@ export function buildAgentKnowledgePort(deps: {
  * the same refusal wording family the file tools use. Refusals are values,
  * never throws. */
 function renameNote(
-  deps: { probe: (rel: string) => PrivacyProbe; vault: () => VaultManager },
+  deps: {
+    probe: (rel: string) => PrivacyProbe;
+    vault: () => VaultManager;
+    afterRename: (from: string, to: string) => void;
+  },
   from: string,
   to: string,
 ): RenameNoteResult {
@@ -116,5 +124,7 @@ function renameNote(
   }
   const result = renameWithLinkRewrite(deps.vault(), from, to);
   if (!result.ok) return { ok: false, reason: result.error };
+  // Parity with the user-facing rename: repoint delegations + checkpoints.
+  deps.afterRename(from, to);
   return { ok: true, from, to, linksRewritten: result.docsRewritten };
 }

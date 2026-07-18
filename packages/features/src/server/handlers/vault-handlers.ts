@@ -1,5 +1,4 @@
-import { getDelegationManager } from "../delegation/delegation-manager";
-import { getSnapshotStore } from "../snapshots/snapshot-store";
+import { remapNoteMetadata } from "../vault/rename-metadata";
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import { probeVaultPrivacy } from "../lib/agent-lifecycle";
 import { getPlatform } from "../platform-instance";
@@ -113,21 +112,10 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
     // Rename, then rewrite [[wiki]] / relative md links vault-wide so nothing
     // dangles (snapshot-verified byte surgery — see knowledge/rename-rewrite).
     const result = renameWithLinkRewrite(getVaultManager(), from, to);
-    // Repoint any delegations so badges keep matching and queued runs target the
-    // new path (rename preserves content, so their positional anchors hold). The
-    // disk rename is the source of truth — if this best-effort metadata remap
-    // throws, log it but still report the rename that actually happened, rather
-    // than tell the renderer it failed and leave the two views inconsistent.
-    if (result.ok) {
-      try {
-        getDelegationManager().renameSource(from, to);
-        // Same story for AI-write snapshots: a chat checkpoint's entry path
-        // is its restore target, so undo must follow the moved file.
-        getSnapshotStore().renamePath(from, to);
-      } catch (err) {
-        console.warn("[vault] delegation remap after rename failed:", err);
-      }
-    }
+    // Repoint delegations + AI-write checkpoints at the new path — the single
+    // shared remap the agent's rename_note tool uses too, so the two rename
+    // paths can't drift.
+    if (result.ok) remapNoteMetadata(from, to);
     return result;
   });
 
