@@ -231,7 +231,12 @@ export type VaultEntry = {
   kind: "doc" | "other";
 };
 
-export type ChooseVaultResult = { root: string } | { canceled: true } | { error: string };
+/** chooseVaultRoot's verdict — tagged so consumers switch instead of probing
+ * properties. `canceled` is the user dismissing the picker, not a failure. */
+export type ChooseVaultResult =
+  | { ok: true; root: string }
+  | { ok: false; reason: "canceled" }
+  | { ok: false; reason: "error"; error: string };
 
 const VaultRenameSchema = Type.Object(
   { from: Type.String(), to: Type.String() },
@@ -371,7 +376,7 @@ export const IPC = {
     TextChatMessageSchema,
   ),
   getAgentHistory: invokeVoid<ChatHistoryEntry[]>("agent:history"),
-  reauthenticate: invokeVoid<{ ok: boolean; error?: string }>("agent:reauthenticate"),
+  reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>("agent:reauthenticate"),
 
   // Voice
   isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
@@ -379,13 +384,15 @@ export const IPC = {
   ttsFlush: send<ReturnType<typeof Type.Undefined>>("voice:tts:flush", Type.Undefined()),
   ttsInterrupt: send<ReturnType<typeof Type.Undefined>>("voice:tts:interrupt", Type.Undefined()),
   onTtsAudio: event<{ audio: ArrayBuffer }>("voice:tts:audio"),
-  startStt: invokeVoid<{ ok: boolean; reason?: string }>("voice:stt:start"),
+  startStt: invokeVoid<{ ok: true } | { ok: false; error: string }>("voice:stt:start"),
   // ArrayBuffer / ArrayBufferView can't be expressed in TypeBox; pass through.
   sendSttAudio: send<typeof BinaryAudioSchema>("voice:stt:audio", BinaryAudioSchema),
   stopStt: invokeVoid<Array<{ text: string; isFinal: boolean }>>("voice:stt:stop"),
   onSttTranscript: event<{ text: string; isFinal: boolean }>("voice:stt:transcript"),
   getVoiceModelStatus: invokeVoid<"ready" | "missing">("voice:model:status"),
-  downloadVoiceModel: invokeVoid<{ ok: boolean; error?: string }>("voice:model:download"),
+  downloadVoiceModel: invokeVoid<{ ok: true } | { ok: false; error: string }>(
+    "voice:model:download",
+  ),
   onVoiceModelState: event<VoiceModelStateEvent>("voice:model:state"),
 
   // Notifications

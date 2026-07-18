@@ -59,14 +59,14 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
       title: "Choose vault folder",
       defaultPath: getVaultManager().getRoot(),
     });
-    if (chosen === null) return { canceled: true };
+    if (chosen === null) return { ok: false, reason: "canceled" };
     try {
       // setRoot rejects a folder inside ~/.inteligir (wiped on logout).
       getVaultManager().setRoot(chosen);
     } catch (err) {
-      return { error: toErrorMessage(err) };
+      return { ok: false, reason: "error", error: toErrorMessage(err) };
     }
-    return { root: getVaultManager().getRoot() };
+    return { ok: true, root: getVaultManager().getRoot() };
   });
 
   handle("listVault", () => getVaultManager().list());

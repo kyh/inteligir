@@ -841,7 +841,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
 
     // Vault — an in-memory Map seeded with sample notes.
     getVaultRoot: async () => FIXTURE_ROOT,
-    chooseVaultRoot: async () => ({ canceled: true }),
+    chooseVaultRoot: async () => ({ ok: false, reason: "canceled" }),
     listVault: async () => listEntries(),
     readVaultDoc: async ({ path }) => {
       const content = vault.get(path);

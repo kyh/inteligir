@@ -42,7 +42,7 @@ export async function startSTT(
   }
   if (!startResult.ok) {
     stream.getTracks().forEach((t) => t.stop());
-    throw new Error(startResult.reason ?? "Failed to start STT");
+    throw new Error(startResult.error);
   }
 
   const audioContext = new AudioContext({ sampleRate: 16000 });

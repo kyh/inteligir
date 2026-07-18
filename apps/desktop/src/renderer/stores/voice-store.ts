@@ -123,7 +123,7 @@ async function runConnect(): Promise<void> {
     if (!result.ok) {
       machine.dispatch({
         type: "model_download_failed",
-        message: result.error ?? "Failed to download speech model",
+        message: result.error,
       });
       return;
     }

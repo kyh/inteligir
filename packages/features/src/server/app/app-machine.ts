@@ -232,7 +232,7 @@ export function getAgent(): Agent | null {
  * startAgent. Used by the "Re-authenticate" Settings affordance and the
  * empty-turn modal.
  */
-export async function reauthenticate(): Promise<{ ok: boolean; error?: string }> {
+export async function reauthenticate(): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!machine) return { ok: false, error: "Machine not initialized" };
   return machine.enqueueAsync(async () => {
     try {

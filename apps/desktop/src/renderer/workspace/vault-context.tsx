@@ -505,17 +505,15 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     if (!bridge) return;
     const result = await bridge.chooseVaultRoot().catch(() => null);
     if (!result) return;
-    if ("error" in result) {
-      toast.error(result.error);
+    if (!result.ok) {
+      if (result.reason === "error") toast.error(result.error);
       return;
     }
-    if ("root" in result) {
-      rootRef.current = result.root;
-      setRoot(result.root);
-      disposeRuntime();
-      applyOpenPath(null);
-      refreshList();
-    }
+    rootRef.current = result.root;
+    setRoot(result.root);
+    disposeRuntime();
+    applyOpenPath(null);
+    refreshList();
   }, [applyOpenPath, disposeRuntime, flushCurrent, refreshList]);
 
   const flush = useCallback((): Promise<boolean> => flushCurrent(), [flushCurrent]);

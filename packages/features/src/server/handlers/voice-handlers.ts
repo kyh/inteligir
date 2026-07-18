@@ -12,7 +12,7 @@ export function registerVoiceHandlers(handle: HandlerRegistrar): void {
 
   handle("startStt", async () => {
     const result = await initParakeet();
-    if (!result.ok) return { ok: false, reason: result.reason };
+    if (!result.ok) return { ok: false, error: result.reason };
     startSession();
     return { ok: true };
   });
