@@ -131,14 +131,14 @@ afterEach(() => vi.restoreAllMocks());
 describe("DelegationManager.createDelegation", () => {
   it("rejects a checkbox that isn't in the file", () => {
     const mgr = makeManager();
-    const result = mgr.createDelegation({ sourceFile: "n.md", index: 5 }); // out of range
+    const result = mgr.createDelegation({ sourceFile: "n.md", ordinal: 5 }); // out of range
     expect(result.ok).toBe(false);
     expect(mgr.getDelegations()).toHaveLength(0);
   });
 
   it("refuses a private note — its content must not reach the AI provider", () => {
     const mgr = makeManager(`---\nprivate: true\n---\n${DOC}`);
-    const result = mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    const result = mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     expect(result).toEqual({
       ok: false,
       error: "This note is private — delegating would send its content to the AI provider.",
@@ -148,24 +148,24 @@ describe("DelegationManager.createDelegation", () => {
 
   it("refuses unreadable frontmatter too (fail-closed)", () => {
     const mgr = makeManager(`---\n[not: valid: yaml\n---\n${DOC}`);
-    const result = mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    const result = mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     expect(result.ok).toBe(false);
     expect(mgr.getDelegations()).toHaveLength(0);
   });
 
   it("queues a valid checkbox with its resolved anchor", () => {
     const mgr = makeManager();
-    const result = mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    const result = mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     expect(result.ok).toBe(true);
     const [d] = mgr.getDelegations();
     expect(d?.status).toBe("queued");
-    expect(d?.anchor).toEqual({ index: 0, text: "task one", heading: "Today" });
+    expect(d?.anchor).toEqual({ ordinal: 0, text: "task one", heading: "Today" });
     expect(d?.lineText).toBe("- [ ] task one");
   });
 
   it("never silently drops queued work at the cap (only terminal records evict)", () => {
     const mgr = makeManager(); // no runner → everything stays queued
-    for (let i = 0; i < 205; i++) mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    for (let i = 0; i < 205; i++) mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     const all = mgr.getDelegations();
     // With no terminal (done/failed) records to evict, the queue is kept intact
     // past MAX_DELEGATIONS rather than blind-slicing off the oldest queued ones.
@@ -177,7 +177,7 @@ describe("DelegationManager.createDelegation", () => {
 describe("DelegationManager.markUnavailable", () => {
   it("fails queued delegations and rejects new ones with the reason", () => {
     const mgr = makeManager();
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     expect(mgr.getDelegations()[0]?.status).toBe("queued");
 
     mgr.markUnavailable("agent down");
@@ -185,7 +185,7 @@ describe("DelegationManager.markUnavailable", () => {
     expect(d?.status).toBe("failed");
     expect(d?.error).toBe("agent down");
 
-    expect(mgr.createDelegation({ sourceFile: "n.md", index: 1 })).toEqual({
+    expect(mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 })).toEqual({
       ok: false,
       error: "agent down",
     });
@@ -194,10 +194,10 @@ describe("DelegationManager.markUnavailable", () => {
   it("clears unavailability once a runner is wired", () => {
     const mgr = makeManager();
     mgr.markUnavailable("agent down");
-    expect(mgr.createDelegation({ sourceFile: "n.md", index: 0 }).ok).toBe(false);
+    expect(mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 }).ok).toBe(false);
 
     mgr.setRunner(() => fakeAgent().agent);
-    expect(mgr.createDelegation({ sourceFile: "n.md", index: 1 }).ok).toBe(true);
+    expect(mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 }).ok).toBe(true);
   });
 });
 
@@ -207,7 +207,7 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     await flush();
 
     expect(mgr.getDelegations()[0]?.status).toBe("running");
@@ -231,7 +231,7 @@ describe("DelegationManager run lifecycle", () => {
       readVault: () => live,
       snapshots: memorySnapshots(),
     });
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 }); // anchor = "task one"
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 }); // anchor = "task one"
 
     // A non-checkbox paragraph is inserted above: the ordinal is unchanged and
     // the task text still matches, so the run proceeds against fresh bytes.
@@ -252,10 +252,10 @@ describe("DelegationManager run lifecycle", () => {
       readVault: () => live,
       snapshots: memorySnapshots(),
     });
-    mgr.createDelegation({ sourceFile: "n.md", index: 1 }); // anchor = "task two"
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 }); // anchor = "task two"
     expect(mgr.getDelegations()[0]?.anchor.text).toBe("task two");
 
-    // A NEW checkbox is inserted above while queued: index 1 now points at
+    // A NEW checkbox is inserted above while queued: ordinal 1 now points at
     // "task one". Re-targeting would make the agent do the wrong task, so fail.
     live = "## Today\n\n- [ ] inserted\n- [ ] task one\n- [ ] task two\n";
     const fake = fakeAgent();
@@ -276,7 +276,7 @@ describe("DelegationManager run lifecycle", () => {
       readVault: () => live,
       snapshots: memorySnapshots(),
     });
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
 
     live = "## Today\n\n(all tasks removed)\n";
     const fake = fakeAgent();
@@ -294,7 +294,7 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     await flush();
     fake.timeOut();
     await flush();
@@ -309,8 +309,8 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
-    mgr.createDelegation({ sourceFile: "n.md", index: 1 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 });
     await flush();
 
     // Only the first is running; the second stays queued.
@@ -328,7 +328,7 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     await flush();
     expect(mgr.getDelegations()[0]?.status).toBe("running");
 
@@ -339,7 +339,7 @@ describe("DelegationManager run lifecycle", () => {
 
     // The lock is released: a fresh runner drains new work.
     mgr.setRunner(() => fakeAgent().agent);
-    mgr.createDelegation({ sourceFile: "n.md", index: 1 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 });
     await flush();
     expect(mgr.getDelegations()[1]?.status).toBe("running");
   });
@@ -349,7 +349,7 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     await flush();
     expect(mgr.getDelegations()[0]?.status).toBe("running");
 
@@ -370,8 +370,8 @@ describe("DelegationManager run lifecycle", () => {
     const a1 = fakeAgent();
     mgr.setRunner(() => a1.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
-    mgr.createDelegation({ sourceFile: "n.md", index: 1 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 });
     await flush();
     expect(mgr.getDelegations().map((d) => d.status)).toEqual(["running", "queued"]);
 
@@ -394,9 +394,9 @@ describe("DelegationManager run lifecycle", () => {
   it("repoints delegations across a file and a folder rename", async () => {
     const mgr = makeManager();
     mgr.setRunner(() => fakeAgent().agent);
-    mgr.createDelegation({ sourceFile: "notes/a.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "notes/a.md", ordinal: 0 });
     await flush();
-    mgr.createDelegation({ sourceFile: "notes/b.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "notes/b.md", ordinal: 0 });
 
     mgr.renameSource("notes/a.md", "notes/renamed.md"); // exact file
     expect(mgr.getDelegations()[0]?.sourceFile).toBe("notes/renamed.md");
@@ -414,8 +414,8 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    const first = mgr.createDelegation({ sourceFile: "n.md", index: 0 });
-    const second = mgr.createDelegation({ sourceFile: "n.md", index: 1 });
+    const first = mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
+    const second = mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 });
     await flush();
     const firstId = first.ok ? first.delegation.id : "";
     const secondId = second.ok ? second.delegation.id : "";
@@ -443,7 +443,7 @@ describe("DelegationManager run lifecycle", () => {
     };
     mgr.setRunner(() => fake.agent);
 
-    const created = mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    const created = mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     await flush();
 
     expect(order).toEqual(["capture", "dispatch"]);
@@ -461,7 +461,7 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     await flush();
 
     const d = mgr.getDelegations()[0];
@@ -474,10 +474,10 @@ describe("DelegationManager run lifecycle", () => {
 
 describe("DelegationManager.restoreSnapshot", () => {
   /** Run one delegation to completion and return its id. */
-  async function runOne(rig: ReturnType<typeof makeRestoreRig>, index = 0): Promise<string> {
+  async function runOne(rig: ReturnType<typeof makeRestoreRig>, ordinal = 0): Promise<string> {
     const fake = fakeAgent();
     rig.mgr.setRunner(() => fake.agent);
-    const created = rig.mgr.createDelegation({ sourceFile: "n.md", index });
+    const created = rig.mgr.createDelegation({ sourceFile: "n.md", ordinal });
     await flush();
     fake.finish();
     await flush();
@@ -520,7 +520,7 @@ describe("DelegationManager.restoreSnapshot", () => {
     const rig = makeRestoreRig();
     const fake = fakeAgent();
     rig.mgr.setRunner(() => fake.agent);
-    const created = rig.mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    const created = rig.mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     const id = created.ok ? created.delegation.id : "";
     await flush();
     expect(rig.mgr.getDelegations()[0]?.status).toBe("running");
@@ -535,7 +535,7 @@ describe("DelegationManager.restoreSnapshot", () => {
     expect(rig.mgr.restoreSnapshot("nope").ok).toBe(false);
 
     // Queued (no runner) → never ran, no snapshot, and also not terminal.
-    const created = rig.mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    const created = rig.mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     const id = created.ok ? created.delegation.id : "";
     expect(rig.mgr.restoreSnapshot(id).ok).toBe(false);
     expect(rig.writes).toEqual([]);
@@ -549,8 +549,8 @@ describe("DelegationManager.restoreSnapshot", () => {
     const rig = makeRestoreRig();
     const fake = fakeAgent();
     rig.mgr.setRunner(() => fake.agent);
-    const first = rig.mgr.createDelegation({ sourceFile: "n.md", index: 0 });
-    const second = rig.mgr.createDelegation({ sourceFile: "n.md", index: 1 });
+    const first = rig.mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
+    const second = rig.mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 });
     const firstId = first.ok ? first.delegation.id : "";
     const secondId = second.ok ? second.delegation.id : "";
     await flush();

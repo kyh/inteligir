@@ -45,7 +45,7 @@ describe("fixture bridge delegation cancel", () => {
     const bridge = newBridge();
     const before = await bridge.readVaultDoc({ path: SOURCE });
 
-    const created = await bridge.createDelegation({ sourceFile: SOURCE, index: 0 });
+    const created = await bridge.createDelegation({ sourceFile: SOURCE, ordinal: 0 });
     if (!created.ok) throw new Error("fixture delegation refused");
     expect(created.delegation.status).toBe("running");
 
@@ -70,7 +70,7 @@ describe("fixture bridge delegation cancel", () => {
     const bridge = newBridge();
     const before = await bridge.readVaultDoc({ path: SOURCE });
 
-    const created = await bridge.createDelegation({ sourceFile: SOURCE, index: 0 });
+    const created = await bridge.createDelegation({ sourceFile: SOURCE, ordinal: 0 });
     if (!created.ok) throw new Error("fixture delegation refused");
     vi.advanceTimersByTime(2000); // let the simulated run finish
 

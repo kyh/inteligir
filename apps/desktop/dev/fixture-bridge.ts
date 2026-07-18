@@ -302,16 +302,16 @@ Self embed (cycle guard): ![[digest]]
 `,
 };
 
-/** Simulate the background agent's edit: check the `index`-th task item off
+/** Simulate the background agent's edit: check the `ordinal`-th task item off
  * (the REAL core primitives — scanTaskItems locates by the shared ordinal
  * contract, toggleCheckboxLine flips only the marker char) and append a
  * nested one-line result under it. Null when the ordinal doesn't land on an
  * unchecked task item, mirroring the host's findTaskLine rejections. */
 function simulateDelegationEdit(
   content: string,
-  index: number,
+  ordinal: number,
 ): { content: string; taskText: string; lineText: string } | null {
-  const task = scanTaskItems(content).find((t) => t.ordinal === index);
+  const task = scanTaskItems(content).find((t) => t.ordinal === ordinal);
   if (!task || task.checked) return null;
   const toggled = toggleCheckboxLine(content, task.line - 1, task.raw);
   if (!toggled.ok) return null;
@@ -992,17 +992,17 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // done) so the badge, dock, and "Restore original" plumbing are all
     // exercisable. The brief "running" beat matters: the dock only tracks
     // delegations it saw go active this session.
-    createDelegation: async ({ sourceFile, index }) => {
+    createDelegation: async ({ sourceFile, ordinal }) => {
       const now = Date.now();
-      const id = `fixture-${now}-${index}`;
+      const id = `fixture-${now}-${ordinal}`;
       // Resolve the checkbox up front (as the host does) so the dock card has
       // a title while the simulated run is still "running".
       const initial = vault.get(sourceFile);
-      const resolved = initial === undefined ? null : simulateDelegationEdit(initial, index);
+      const resolved = initial === undefined ? null : simulateDelegationEdit(initial, ordinal);
       const delegation: Extract<Delegation, { status: "running" }> = {
         id,
         sourceFile,
-        anchor: { index, text: resolved?.taskText ?? "", heading: null },
+        anchor: { ordinal, text: resolved?.taskText ?? "", heading: null },
         lineText: resolved?.lineText ?? "",
         status: "running",
         createdAt: now,
@@ -1018,7 +1018,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       const timer = setTimeout(() => {
         delegationTimers.delete(id);
         const content = vault.get(delegation.sourceFile);
-        const edited = content === undefined ? null : simulateDelegationEdit(content, index);
+        const edited = content === undefined ? null : simulateDelegationEdit(content, ordinal);
         if (content === undefined || edited === null) {
           replaceDelegation({
             ...delegation,
@@ -1040,7 +1040,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         replaceDelegation({
           ...delegation,
           status: "done",
-          anchor: { index, text: edited.taskText, heading: null },
+          anchor: { ordinal, text: edited.taskText, heading: null },
           lineText: edited.lineText,
           resultSummary: "Checked it off in the dev harness (simulated).",
           hasSnapshot: true,

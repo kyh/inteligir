@@ -13,7 +13,7 @@ type DelegationStore = {
    * in the document). */
   delegate: (
     sourceFile: string,
-    index: number,
+    ordinal: number,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
   cancel: (id: string) => void;
   /** Overwrite the delegation's file with its pre-run snapshot (cheap undo of
@@ -51,10 +51,10 @@ export const useDelegationStore = create<DelegationStore>((set) => ({
     };
   },
 
-  delegate: async (sourceFile, index) => {
+  delegate: async (sourceFile, ordinal) => {
     const bridge = getBridge();
     if (!bridge) return { ok: false, error: "Unavailable" };
-    const result = await bridge.createDelegation({ sourceFile, index }).catch(() => null);
+    const result = await bridge.createDelegation({ sourceFile, ordinal }).catch(() => null);
     if (!result) return { ok: false, error: "Couldn't reach the agent." };
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   },
@@ -80,11 +80,11 @@ export const useDelegationStore = create<DelegationStore>((set) => ({
 export function findDelegation(
   delegations: Delegation[],
   sourceFile: string,
-  index: number,
+  ordinal: number,
 ): Delegation | null {
   let match: Delegation | null = null;
   for (const d of delegations) {
-    if (d.sourceFile === sourceFile && d.anchor.index === index) {
+    if (d.sourceFile === sourceFile && d.anchor.ordinal === ordinal) {
       if (!match || d.createdAt >= match.createdAt) match = d;
     }
   }

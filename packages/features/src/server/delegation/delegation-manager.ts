@@ -32,7 +32,10 @@ import { toErrorMessage } from "@repo/features/ipc";
 
 // v2: anchor moved from text/heading matching to a positional `index`.
 // v3: pre-run snapshots — records gained `hasSnapshot` + `restoredAt`.
-const DELEGATIONS_VERSION = 3;
+// v4: anchor field `index` renamed `ordinal` (the name every other task
+//     surface uses) — a v3 file quarantines + resets rather than silently
+//     reading `undefined` anchors.
+const DELEGATIONS_VERSION = 4;
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_DELEGATIONS = 200;
 const SUMMARY_LEN = 200;
@@ -225,7 +228,7 @@ export class DelegationManager {
         error: "This note is private — delegating would send its content to the AI provider.",
       };
     }
-    const match = findTaskLine(raw, params.index);
+    const match = findTaskLine(raw, params.ordinal);
     if (!match) {
       return {
         ok: false,
@@ -236,7 +239,7 @@ export class DelegationManager {
     const delegation: Delegation = {
       id: crypto.randomUUID(),
       sourceFile: params.sourceFile,
-      anchor: { index: params.index, text: match.text, heading: match.heading },
+      anchor: { ordinal: params.ordinal, text: match.text, heading: match.heading },
       lineText: match.lineText.trim(),
       status: "queued",
       createdAt: Date.now(),
@@ -458,12 +461,12 @@ export class DelegationManager {
         error: "This note is private — delegating would send its content to the AI provider.",
       };
     }
-    const match = findTaskLine(raw, delegation.anchor.index);
+    const match = findTaskLine(raw, delegation.anchor.ordinal);
     if (!match) {
       return { ok: false, error: "That checkbox is no longer in the file." };
     }
-    // The index is an ORDINAL — if a checkbox was inserted/removed above this one
-    // while it sat queued, the index now lands on a DIFFERENT task. Both texts are
+    // The anchor is an ORDINAL — if a checkbox was inserted/removed above this
+    // one while it sat queued, it now lands on a DIFFERENT task. Both texts are
     // this module's own extraction (captured at create time vs now), so comparing
     // them is consistent. On a mismatch, fail safe rather than have the agent act
     // on the wrong task — a delegated action can be irreversible (email, calendar).

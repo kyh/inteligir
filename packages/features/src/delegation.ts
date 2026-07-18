@@ -8,14 +8,15 @@ import { type Static, Type } from "@sinclair/typebox";
 // the delegated line.
 // ---------------------------------------------------------------------------
 
-/** Positional locator for the checkbox. `index` is its ordinal among ALL todo
- * checkboxes in the file (document order, checked or not) — identical in the
- * editor's parsed tree and the raw markdown, so it needs no text matching and
- * distinguishes duplicate labels. `text` + `heading` are resolved main-side from
- * that line, purely as context for the agent's prompt. */
+/** Positional locator for the checkbox. `ordinal` is its position among ALL
+ * todo checkboxes in the file (document order, checked or not — core
+ * scanTaskItems' counting) — identical in the editor's parsed tree and the raw
+ * markdown, so it needs no text matching and distinguishes duplicate labels.
+ * `text` + `heading` are resolved host-side from that line, purely as context
+ * for the agent's prompt. */
 const DelegationAnchorSchema = Type.Object(
   {
-    index: Type.Number(),
+    ordinal: Type.Number(),
     text: Type.String(),
     heading: Type.Union([Type.String(), Type.Null()]),
   },
@@ -37,8 +38,8 @@ const delegationBaseFields = {
 // variant instead of documented in comments, so an illegal combination (a
 // queued record with a finishedAt, a done record with an error) cannot be
 // constructed. Every variant still SERIALIZES the same field set — absent
-// states are explicit nulls — so the on-disk v3 shape is unchanged and
-// records written before the union validate as-is (no store version bump).
+// states are explicit nulls — so union modeling alone never changed the
+// on-disk shape (the anchor's index→ordinal rename did: store v4).
 export const DelegationSchema = Type.Union([
   // Created, waiting for the background agent. No run has touched it.
   Type.Object(
@@ -119,7 +120,7 @@ export type Delegation = Static<typeof DelegationSchema>;
 export const CreateDelegationParamsSchema = Type.Object(
   {
     sourceFile: Type.String({ minLength: 1 }),
-    index: Type.Number({ minimum: 0 }),
+    ordinal: Type.Number({ minimum: 0 }),
   },
   { additionalProperties: false },
 );
