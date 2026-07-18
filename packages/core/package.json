@@ -19,6 +19,7 @@
     "./sync/merge/append-union": "./src/sync/merge/append-union.ts",
     "./sync/merge/frontmatter-merge": "./src/sync/merge/frontmatter-merge.ts",
     "./sync/engine": "./src/sync/engine.ts",
+    "./sync/status": "./src/sync/status.ts",
     "./sync/http-sync-port": "./src/sync/http-sync-port.ts",
     "./notes/daily-path": "./src/notes/daily-path.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
