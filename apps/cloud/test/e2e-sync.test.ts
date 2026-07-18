@@ -95,7 +95,13 @@ function engineFor(vaultId: string, token: string, io: SyncIo): SyncEngine {
   return new SyncEngine({
     vaultId,
     io,
-    port: createHttpSyncPort({ baseUrl: ORIGIN, vaultId, token, fetchImpl: fetchSelf }),
+    port: createHttpSyncPort({
+      baseUrl: ORIGIN,
+      vaultId,
+      token,
+      fetchImpl: fetchSelf,
+      hasher: sha256Hex,
+    }),
     base: new InMemoryBaseStore(),
     // Arm the merge ladder like both real clients do — the conflict test below
     // proves an overlapping edit STILL forks a copy with the ladder on.

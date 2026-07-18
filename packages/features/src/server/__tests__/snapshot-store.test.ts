@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import crypto from "node:crypto";
 import nodeFs from "node:fs";
 import os from "node:os";
 import nodePath from "node:path";
@@ -23,9 +22,9 @@ const meta = (id: string, path: string, overrides?: Partial<SnapshotMeta>): Snap
 });
 
 /** One in-memory file map backing both the JsonStore index and the content
- * files, plus direct access for tamper/orphan/migration setups. */
-function makeStore(seed?: Map<string, string>) {
-  const files = seed ?? new Map<string, string>();
+ * files, plus direct access for tamper/orphan setups. */
+function makeStore() {
+  const files = new Map<string, string>();
   const fs: FsAdapter = {
     read: (p) => files.get(p) ?? null,
     write: (p, content) => {
@@ -205,37 +204,6 @@ describe("SnapshotStore", () => {
     expect(store.read("c2")).toMatchObject({ ok: true, path: "moved/deep/b.md" });
     // Prefix match is per-segment: "notes-other" is NOT under "notes".
     expect(store.read("c3")).toMatchObject({ ok: true, path: "notes-other/c.md" });
-  });
-
-  it("migrates a v1 (delegation-era) index: entries readable by delegation id, origin+kind filled", () => {
-    const content = "# pre-run bytes\n";
-    const hash = crypto.createHash("sha256").update(content, "utf8").digest("hex");
-    const seed = new Map<string, string>([
-      [
-        "/snapshots.json",
-        JSON.stringify({
-          version: 1,
-          snapshots: [
-            {
-              delegationId: "legacy-1",
-              path: "notes/legacy.md",
-              snapshotFile: "legacy-1",
-              capturedAt: 123,
-              hash,
-            },
-          ],
-        }),
-      ],
-      [`${DIR}/legacy-1`, content],
-    ]);
-    const { store } = makeStore(seed);
-    expect(store.read("legacy-1")).toEqual({
-      ok: true,
-      origin: "delegation",
-      path: "notes/legacy.md",
-      kind: "edit",
-      content,
-    });
   });
 });
 

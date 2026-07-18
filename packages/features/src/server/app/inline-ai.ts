@@ -13,7 +13,7 @@
 import { Agent } from "../agent/agent";
 import { INLINE_AI_SESSION_DIR } from "../agent/paths";
 import { getAgentPorts } from "../lib/agent-lifecycle";
-import { getHostNotifiers } from "../host-notifiers";
+import { emitEvent } from "../events";
 import { runTextTurn } from "./text-turn";
 import {
   parseAiIntent,
@@ -31,11 +31,10 @@ let busy = false;
 // nothing renderer-side to unwind.
 let currentRequestId: string | null = null;
 
-// Streaming channel — pushes each text delta (keyed by requestId) so the editor
-// can insert the generation live. Sourced from the host notifier bundle
-// (composed by create-host) so this module never imports the IPC event registry.
+// Streaming channel — pushes each text delta (keyed by requestId) over the
+// typed event bus so the editor can insert the generation live.
 function streamDelta(requestId: string, delta: string): void {
-  getHostNotifiers()?.inlineAiStream(requestId, delta);
+  emitEvent("onAiStreamed", { requestId, delta });
 }
 
 export async function startInlineAiAgent(): Promise<void> {

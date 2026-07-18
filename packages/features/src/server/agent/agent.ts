@@ -1,5 +1,5 @@
 // Inteligir's wrapper around PiAgent. Adds:
-//   - Lazy construction so synchronous resolveModel/resolveSessionManager
+//   - Lazy construction so synchronous resolveModel/SessionManager
 //     failures surface through the async start() path, not from `new Agent()`.
 //   - Safe defaults (getState, waitForIdle, interrupt) before start() so the
 //     task scheduler can guard cleanly during boot/teardown.
@@ -26,18 +26,6 @@ import type { SessionStatus } from "@repo/features/agent-events";
  * tools (execute, browser, …) activate as they register. */
 const INITIAL_ACTIVE_TOOLS = ["read", "bash", "edit", "write"];
 
-function resolveSessionManager(sessionDir: string): SessionManager {
-  const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
-  if (sessionFile) {
-    try {
-      return SessionManager.open(sessionFile, sessionDir);
-    } catch (err) {
-      console.warn("[agent] failed to open session file, falling back to continueRecent:", err);
-    }
-  }
-  return SessionManager.continueRecent(WORKSPACE_DIR, sessionDir);
-}
-
 export type AgentOptions = {
   /** Main-owned capabilities (executor) handed to extension bundles at register
    * time. Built main-side by agent-lifecycle.ts. */
@@ -63,7 +51,7 @@ export type AgentOptions = {
 };
 
 export class Agent {
-  // Lazy so synchronous resolveModel/resolveSessionManager throws surface
+  // Lazy so synchronous resolveModel/SessionManager throws surface
   // through the async start() path rather than out of `new Agent()`.
   private pi: PiAgent | null = null;
 
@@ -76,7 +64,7 @@ export class Agent {
         ? SessionManager.inMemory(WORKSPACE_DIR)
         : this.opts.newSession
           ? SessionManager.create(WORKSPACE_DIR, sessionDir)
-          : resolveSessionManager(sessionDir);
+          : SessionManager.continueRecent(WORKSPACE_DIR, sessionDir);
       this.pi = new PiAgent({
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,

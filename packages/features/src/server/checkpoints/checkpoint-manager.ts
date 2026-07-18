@@ -19,7 +19,7 @@
 
 import crypto from "node:crypto";
 
-import { getHostNotifiers } from "../host-notifiers";
+import { emitEvent } from "../events";
 import { isEnoent } from "../lib/fs-errors";
 import { getSnapshotStore, type SnapshotStore } from "../snapshots/snapshot-store";
 import { getVaultManager } from "../vault/vault";
@@ -41,8 +41,8 @@ export type CheckpointManagerOptions = {
    * Defaults to the live VaultManager's trash. */
   trashVault?: (rel: string) => Promise<boolean>;
   /** Push channel for the renderer's undo toast — a chat write was
-   * checkpointed. Injected at construction by the composition root (same
-   * story as the delegation manager's notifiers); unit tests leave it unset. */
+   * checkpointed. The live singleton wires it to the typed emitEvent (same
+   * story as the delegation manager's channels); unit tests leave it unset. */
   onCaptured?: (event: AgentEditCaptured) => void;
 };
 
@@ -143,16 +143,17 @@ export class CheckpointManager {
 }
 
 // ---------------------------------------------------------------------------
-// Lazy singleton — mirrors the delegation manager: the notifier is read from
-// the host bundle at first construction, and reset on logout teardown.
+// Lazy singleton — mirrors the delegation manager: the capture channel wires
+// straight to the typed event bus, and reset on logout teardown.
 // ---------------------------------------------------------------------------
 
 let instance: CheckpointManager | null = null;
 
 export function getCheckpointManager(): CheckpointManager {
   if (!instance) {
-    const notifiers = getHostNotifiers();
-    instance = new CheckpointManager(notifiers ? { onCaptured: notifiers.agentEditCaptured } : {});
+    instance = new CheckpointManager({
+      onCaptured: (event) => emitEvent("onAgentEditCaptured", event),
+    });
   }
   return instance;
 }

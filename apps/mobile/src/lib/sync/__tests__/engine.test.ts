@@ -18,17 +18,19 @@ const FIXED_STAMP = createFsStamp(() => new Date("2026-07-05T12:34:56.000Z"));
 
 let vault: ReturnType<typeof memVaultFs>;
 let baseFile: ReturnType<typeof fakeJsonFile>;
+let blobs: InMemoryBaseBlobStore;
 let port: InMemorySyncPort;
 
-// A fresh engine over the SHARED vault/base/port — two engines share the base
-// store so a second one reads the first's persisted anchor (the mobile client
-// rebuilds a fresh engine per pass over the same on-disk base).
+// A fresh engine over the SHARED vault/base/blobs/port — two engines share the
+// base store so a second one reads the first's persisted anchor (the mobile
+// client rebuilds a fresh engine per pass over the same on-disk base).
 function newEngine(): SyncEngine {
   return new SyncEngine({
     vaultId: VAULT_ID,
     port,
     io: createSyncIo(vault.fs),
     base: createJsonFileBaseStore(baseFile.file),
+    blobs,
     hash: webCryptoHasher(),
     stamp: FIXED_STAMP,
     debounceMs: 0,
@@ -43,6 +45,7 @@ async function remoteText(path: string): Promise<string | null> {
 beforeEach(() => {
   vault = memVaultFs();
   baseFile = fakeJsonFile();
+  blobs = new InMemoryBaseBlobStore();
   port = new InMemorySyncPort(VAULT_ID);
 });
 

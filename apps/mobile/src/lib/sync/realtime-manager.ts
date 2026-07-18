@@ -23,6 +23,7 @@ import { timeoutSchedule } from "@repo/features/backoff";
 import { subscribeAppForeground } from "../app-lifecycle";
 import { getBearerToken } from "../auth";
 import { getCoordinatorUrl } from "../base-url";
+import { createExpoHasher } from "./expo-hasher";
 import { scheduleSync, syncOnce } from "./manager";
 import { createRealtimeSync, type StreamHandlers } from "./realtime";
 import { getOrCreateVaultId } from "./vault-id";
@@ -56,6 +57,9 @@ function openStream(handlers: StreamHandlers): () => void {
     vaultId,
     token,
     fetchImpl: streamingFetch,
+    // Subscribe-only port — no getFile ever runs here, but the hasher is a
+    // required part of the contract (getFile verifies bytes against headers).
+    hasher: createExpoHasher(),
   });
   return port.subscribe(() => handlers.onChange(), handlers.onEnd);
 }

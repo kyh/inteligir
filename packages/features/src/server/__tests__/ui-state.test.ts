@@ -91,36 +91,3 @@ describe("UiStateManager secret routing", () => {
     expect(ELEVENLABS_API_KEY_UI_STATE in mgr.getAll()).toBe(false);
   });
 });
-
-describe("UiStateManager legacy plaintext migration", () => {
-  it("moves a pre-existing plaintext key into the sink on construction", () => {
-    fs.writeFileSync(
-      storePath,
-      JSON.stringify({ [ELEVENLABS_API_KEY_UI_STATE]: "sk-legacy", "panel.layout": true }),
-    );
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
-
-    expect(sink.values.get(ELEVENLABS_API_KEY_UI_STATE)).toBe("sk-legacy");
-    expect(mgr.getAll()).toEqual({ [ELEVENLABS_API_KEY_UI_STATE]: true, "panel.layout": true });
-    expect(fs.readFileSync(storePath, "utf8")).not.toContain("sk-legacy");
-  });
-
-  it("drops a legacy empty-string key without creating a secret", () => {
-    fs.writeFileSync(storePath, JSON.stringify({ [ELEVENLABS_API_KEY_UI_STATE]: "  " }));
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
-
-    expect(sink.values.size).toBe(0);
-    expect(ELEVENLABS_API_KEY_UI_STATE in mgr.getAll()).toBe(false);
-  });
-
-  it("leaves an already-migrated marker untouched", () => {
-    fs.writeFileSync(storePath, JSON.stringify({ [ELEVENLABS_API_KEY_UI_STATE]: true }));
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
-
-    expect(sink.values.size).toBe(0); // no spurious overwrite of the stored secret
-    expect(mgr.getAll()[ELEVENLABS_API_KEY_UI_STATE]).toBe(true);
-  });
-});

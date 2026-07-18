@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { InMemorySyncPort } from "./in-memory-sync-port";
 import { SyncEngine, type Clock, type Hasher, type SyncIo, type SyncOutcome } from "../engine";
 import { InMemoryBaseStore } from "../base-store";
+import { InMemoryBaseBlobStore } from "../blob-store";
 import { conflictCopyName } from "../reconcile";
 import type { VaultPath } from "../vault-file";
 
@@ -67,11 +68,12 @@ function encode(text: string): Uint8Array {
 
 let vault: MemoryVault;
 let base: InMemoryBaseStore;
+let blobs: InMemoryBaseBlobStore;
 let port: InMemorySyncPort;
 
-// A fresh engine over the SHARED vault/base/port — two engines share the base
-// store, so a second one reads the first's persisted anchor (like the desktop's
-// two managers over one base file).
+// A fresh engine over the SHARED vault/base/blobs/port — two engines share the
+// base store, so a second one reads the first's persisted anchor (like the
+// desktop's two managers over one base file).
 function newEngine(
   vaultId: string = VAULT_ID,
   onOutcome?: (outcome: SyncOutcome) => void,
@@ -81,6 +83,7 @@ function newEngine(
     port,
     io: vault.io,
     base,
+    blobs,
     hash: webCryptoHasher(),
     stamp: fixedStamp,
     debounceMs: 0,
@@ -96,6 +99,7 @@ async function remoteText(p: string): Promise<string | null> {
 beforeEach(() => {
   vault = new MemoryVault();
   base = new InMemoryBaseStore();
+  blobs = new InMemoryBaseBlobStore();
   port = new InMemorySyncPort(VAULT_ID);
 });
 
@@ -223,27 +227,6 @@ describe("SyncEngine.syncOnce", () => {
       conflictPaths: [],
     });
     expect(await remoteText("gone.md")).toBeNull();
-  });
-
-  it("without a blob store, a mergeable both-appended .md still resolves as a conflict copy (pre-ladder behavior)", async () => {
-    // Both sides pure-append to a shared base — the merge ladder WOULD union
-    // this (see engine-merge.test.ts), but no `blobs` port is configured, so
-    // the engine must behave byte-identically to before the ladder existed.
-    vault.writeText("journal.md", "base\n");
-    await newEngine().syncOnce();
-    await port.putFile("journal.md", encode("base\nremote line\n"), 1);
-    vault.writeText("journal.md", "base\nlocal line\n");
-
-    const out = await newEngine().syncOnce();
-
-    expect(out.status).toBe("ok");
-    if (out.status === "ok") {
-      expect(out.merged).toBe(0);
-      expect(out.conflicts).toBe(1);
-      expect(out.conflictPaths).toEqual([conflictCopyName("journal.md", STAMP)]);
-    }
-    expect(vault.readText("journal.md")).toBe("base\nremote line\n");
-    expect(vault.readText(conflictCopyName("journal.md", STAMP))).toBe("base\nlocal line\n");
   });
 
   it("reports an error (and leaves base untouched) when the coordinator vault mismatches", async () => {

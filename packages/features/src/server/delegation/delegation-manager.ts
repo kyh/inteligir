@@ -17,9 +17,9 @@ import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
 import { findTaskLine } from "./find-task-line";
 import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
-import { getHostNotifiers } from "../host-notifiers";
+import { emitEvent } from "../events";
 import { runTextTurn } from "../app/text-turn";
 import {
   DelegationSchema,
@@ -28,7 +28,7 @@ import {
   type Delegation,
   type RestoreSnapshotResult,
 } from "@repo/features/delegation";
-import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/ipc";
 
 // v2: anchor moved from text/heading matching to a positional `index`.
 // v3: pre-run snapshots — records gained `hasSnapshot` + `restoredAt`.
@@ -44,6 +44,12 @@ const DelegationsFileSchema = Type.Object(
   { version: Type.Literal(DELEGATIONS_VERSION), delegations: Type.Array(DelegationSchema) },
   { additionalProperties: false },
 );
+
+// Status-narrowed views of the Delegation union — the transition helpers below
+// take the exact variant a transition is legal FROM, so the compiler rejects
+// e.g. failing a done record.
+type QueuedDelegation = Extract<Delegation, { status: "queued" }>;
+type RunningDelegation = Extract<Delegation, { status: "running" }>;
 
 // The subset of the Agent surface a delegation run drives. Structural so the
 // real Agent satisfies it and tests can pass a lightweight fake without casts.
@@ -69,9 +75,8 @@ export type DelegationManagerOptions = {
    * origin). */
   snapshots?: SnapshotStore;
   /** Push channel for the editor's inline badges — the delegation list changed.
-   * Injected at construction by the composition root so this module never
-   * imports the IPC event registry; the live singleton (getDelegationManager)
-   * sources it from the host notifier bundle, unit tests leave it unset. */
+   * The live singleton (getDelegationManager) wires it to the typed emitEvent;
+   * unit tests leave it unset (or inject a recorder). */
   onChanged?: (delegations: Delegation[]) => void;
   /** Streaming transcript channel — a delegation's accumulating response text
    * (keyed by id) for the live response dock. Same injection story as onChanged. */
@@ -124,29 +129,10 @@ export class DelegationManager {
         fs: opts?.fs,
         versioning: {
           current: DELEGATIONS_VERSION,
-          fromLegacy: () => ({ version: DELEGATIONS_VERSION, delegations: [] }),
-          // v1 used text/heading anchors the v2 schema can't validate; there's no
-          // file access at load time to recompute indices, so reset cleanly. This
-          // takes the migration path (silent rewrite) instead of the corrupt-file
-          // quarantine path — delegations are transient, so dropping them is fine,
-          // but firing a scary "corrupt file" recovery notice for a known prior
-          // version is not.
-          migrations: {
-            1: () => ({ version: DELEGATIONS_VERSION, delegations: [] }),
-            // v2 → v3: records gained snapshot bookkeeping. A pre-snapshot
-            // record has no snapshot by definition and was never restored.
-            2: (raw) => {
-              if (!isRecord(raw) || !Array.isArray(raw["delegations"])) {
-                throw new Error("v2 delegations shape rejected");
-              }
-              return {
-                version: DELEGATIONS_VERSION,
-                delegations: raw["delegations"].map((d: unknown) =>
-                  isRecord(d) ? { ...d, hasSnapshot: false, restoredAt: null } : d,
-                ),
-              };
-            },
-          },
+          // Pre-v3 formats predate launch — no released build ever wrote them.
+          // A stray dev-machine file quarantines once and resets; delegations
+          // are documented transient, so nothing of value is lost.
+          fromLegacy: rejectLegacyVersion("delegations.json"),
         },
         decode: (raw) => {
           if (!Value.Check(DelegationsFileSchema, raw))
@@ -189,7 +175,7 @@ export class DelegationManager {
       all.map((d) => {
         if (d.status !== "running") return d;
         changed = true;
-        return { ...d, ...failedPatch("Interrupted — session ended") };
+        return toFailed(d, "Interrupted — session ended");
       }),
     );
     if (changed) this.notify();
@@ -214,7 +200,7 @@ export class DelegationManager {
       all.map((d) => {
         if (d.status !== "queued") return d;
         changed = true;
-        return { ...d, ...failedPatch(reason) };
+        return toFailed(d, reason);
       }),
     );
     if (changed) this.notify();
@@ -360,7 +346,11 @@ export class DelegationManager {
         };
       }
     }
-    this.patch(id, { restoredAt: Date.now() });
+    // The queued/running guard above makes the record terminal here — the only
+    // variants that carry a settable restoredAt.
+    this.patch(id, (d) =>
+      d.status === "done" || d.status === "failed" ? { ...d, restoredAt: Date.now() } : d,
+    );
     return { ok: true };
   }
 
@@ -375,22 +365,25 @@ export class DelegationManager {
     );
   }
 
-  private patch(id: string, patch: Partial<Delegation>): void {
-    this.store.update((all) => all.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  /** Rewrite the record with `id` through `transform` (identity for every
+   * other record) and notify. Transforms narrow on `status` themselves, so an
+   * illegal transition is a compile error, not a runtime surprise. */
+  private patch(id: string, transform: (d: Delegation) => Delegation): void {
+    this.store.update((all) => all.map((d) => (d.id === id ? transform(d) : d)));
     this.notify();
   }
 
-  /** Apply a terminal status, but only while the record is still `running`. A
-   * run can finish (done/timeout/error) after stop() already failed it as
+  /** Apply a terminal transition, but only while the record is still `running`.
+   * A run can finish (done/timeout/error) after stop() already failed it as
    * interrupted, or after a cancel — without this guard that late patch would
    * resurrect the record (e.g. show "done" after the user was told it stopped). */
-  private finishRun(id: string, patch: Partial<Delegation>): void {
+  private finishRun(id: string, transition: (d: RunningDelegation) => Delegation): void {
     let changed = false;
     this.store.update((all) =>
       all.map((d) => {
         if (d.id !== id || d.status !== "running") return d;
         changed = true;
-        return { ...d, ...patch };
+        return transition(d);
       }),
     );
     if (changed) this.notify();
@@ -494,20 +487,22 @@ export class DelegationManager {
       fresh.lineText !== delegation.lineText ||
       fresh.anchor.heading !== delegation.anchor.heading
     ) {
-      this.patch(delegation.id, { lineText: fresh.lineText, anchor: fresh.anchor });
+      this.patch(delegation.id, (d) => ({ ...d, lineText: fresh.lineText, anchor: fresh.anchor }));
     }
     return { ok: true, delegation: fresh, raw };
   }
 
   private async run(agent: DelegationAgent, delegation: Delegation): Promise<void> {
-    this.patch(delegation.id, { status: "running", startedAt: Date.now() });
+    this.patch(delegation.id, (d) =>
+      d.status === "queued" ? { ...d, status: "running", startedAt: Date.now() } : d,
+    );
 
     // Re-resolve the checkbox against CURRENT vault bytes — the file may have
     // changed while this sat queued. Send the agent fresh line coordinates, or
     // fail rather than point it at a stale, moved, or already-checked line.
     const resolved = this.resolveForRun(delegation);
     if (!resolved.ok) {
-      this.finishRun(delegation.id, failedPatch(resolved.error));
+      this.finishRun(delegation.id, (d) => toFailed(d, resolved.error));
       return;
     }
     const fresh = resolved.delegation;
@@ -523,13 +518,12 @@ export class DelegationManager {
         resolved.raw,
       );
     } catch (err) {
-      this.finishRun(
-        delegation.id,
-        failedPatch(`Couldn't snapshot ${fresh.sourceFile} before running: ${toErrorMessage(err)}`),
+      this.finishRun(delegation.id, (d) =>
+        toFailed(d, `Couldn't snapshot ${fresh.sourceFile} before running: ${toErrorMessage(err)}`),
       );
       return;
     }
-    this.patch(delegation.id, { hasSnapshot: true });
+    this.patch(delegation.id, (d) => (d.status === "running" ? { ...d, hasSnapshot: true } : d));
 
     // Build a live transcript for the response dock: the assistant's text deltas
     // + a line per tool call so the user sees what it's doing before it writes
@@ -550,32 +544,34 @@ export class DelegationManager {
     // A thrown send/wait failure fails the run outright and — matching the
     // original catch — is never reinterpreted as a user stop.
     if (!result.ok && result.kind === "error") {
-      this.finishRun(delegation.id, failedPatch(result.error));
+      this.finishRun(delegation.id, (d) => toFailed(d, result.error));
       return;
     }
     // A stop the user requested wins over a timeout, exactly as before (the stop
     // path already interrupted the agent).
     if (this.stopRequested === delegation.id) {
       this.stopRequested = null;
-      this.finishRun(delegation.id, failedPatch("Stopped."));
+      this.finishRun(delegation.id, (d) => toFailed(d, "Stopped."));
       return;
     }
     if (!result.ok) {
-      this.finishRun(delegation.id, failedPatch("Timed out"));
+      this.finishRun(delegation.id, (d) => toFailed(d, "Timed out"));
       return;
     }
-    this.finishRun(delegation.id, {
+    this.finishRun(delegation.id, (d) => ({
+      ...d,
       status: "done",
       finishedAt: Date.now(),
       resultSummary: result.text.length > 0 ? result.text.trim().slice(0, SUMMARY_LEN) : "Done",
-    });
+    }));
   }
 }
 
-/** The terminal-failure patch — one shape for every place a run/queue entry ends
- * in failure (interrupt, unavailable, timeout, error, stale anchor). */
-function failedPatch(error: string): Partial<Delegation> {
-  return { status: "failed", finishedAt: Date.now(), error };
+/** The terminal-failure transition — one shape for every place a queued or
+ * running record ends in failure (interrupt, unavailable, timeout, error,
+ * stale anchor). Only those two variants can fail; a terminal record stays. */
+function toFailed(d: QueuedDelegation | RunningDelegation, error: string): Delegation {
+  return { ...d, status: "failed", finishedAt: Date.now(), error };
 }
 
 /** The instruction the background agent runs. It edits the file directly. */
@@ -603,19 +599,14 @@ let instance: DelegationManager | null = null;
 
 export function getDelegationManager(): DelegationManager {
   if (!instance) {
-    // Inject the change/stream notifiers at construction from the host notifier
-    // bundle (composed by create-host). Rebuilt after a logout/login reset, the
-    // fresh instance re-reads the same bundle so badges/streams stay wired.
-    const notifiers = getHostNotifiers();
-    instance = new DelegationManager(
-      notifiers
-        ? {
-            onChanged: notifiers.delegationsChanged,
-            onStream: notifiers.delegationStream,
-            onRunSettled: () => getVaultManager().refresh(),
-          }
-        : {},
-    );
+    // Wire the push channels straight to the typed event bus (events.ts is a
+    // leaf module — no cycle risk). emitEvent is process-global, so an
+    // instance rebuilt after a logout/login reset stays wired.
+    instance = new DelegationManager({
+      onChanged: (delegations) => emitEvent("onDelegationsUpdated", { delegations }),
+      onStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
+      onRunSettled: () => getVaultManager().refresh(),
+    });
   }
   return instance;
 }
