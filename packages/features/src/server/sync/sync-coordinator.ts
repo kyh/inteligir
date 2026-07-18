@@ -9,11 +9,11 @@
 // `onVaultChanged`, which forwards to whatever engine currently exists (or
 // no-ops) — so the wrapper is installed once and survives engine rebuilds.
 //
-// Every config/auth/status change fires `onSyncStateChanged` through the host
-// notifier bundle, keeping the settings UI reactive without polling.
+// Every config/auth/status change fires `onSyncStateChanged` over the typed
+// event bus, keeping the settings UI reactive without polling.
 // ---------------------------------------------------------------------------
 
-import { getHostNotifiers } from "../host-notifiers";
+import { emitEvent } from "../events";
 import { getVaultManager } from "../vault/vault";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
 import { createNodeHasher, createSyncManager } from "./sync-manager";
@@ -273,7 +273,7 @@ export class SyncCoordinator {
   }
 
   private emit(): void {
-    getHostNotifiers()?.syncStateChanged(this.getState());
+    emitEvent("onSyncStateChanged", this.getState());
   }
 }
 

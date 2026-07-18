@@ -15,15 +15,15 @@
 //   platform/options ──▶ secrets, notifications, bundledResources
 //   secrets          ──▶ uiState
 //   (paths)          ──▶ vault ──▶ knowledge
-//   vault + notifiers ──▶ delegation
+//   vault            ──▶ delegation
 //   (paths)          ──▶ executorDaemon
 //   executorDaemon   ──▶ agentPorts
 //   auth.json        ──▶ authStorage
 //
 // The notifiers are composed here (buildHostNotifiers) and installed BEFORE any
-// piece that fires them is constructed, so delegation gets its two at
-// construction and inline-AI reads its one at call time — no post-hoc
-// setXNotifier mutation from app-machine.
+// piece that fires them is constructed. Only the LOW-LEVEL pieces that must not
+// import the event registry get a slot (json-store, vault); everything else
+// calls the typed emitEvent directly — see host-notifiers.ts.
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "./events";
@@ -36,11 +36,11 @@ import { getSecretStore } from "./secrets";
 import { getSyncCoordinator } from "./sync/sync-coordinator";
 import { getVaultManager } from "./vault/vault";
 import { setStoreRecoveryNotifier } from "./lib/json-store";
-import { installHostNotifiers, type HostNotifiers } from "./host-notifiers";
+import type { HostNotifiers } from "./host-notifiers";
 
-/** Compose the five host notifiers. Each fans into the IPC event bus / the
- * notifications manager — the only place in the host that both owns these
- * closures and is allowed to import the event registry. */
+/** Compose the host notifiers for the registry-free low-level pieces. Each
+ * fans into the IPC event bus / the notifications manager — the only place in
+ * the host that both owns these closures and is allowed to import both ends. */
 function buildHostNotifiers(): HostNotifiers {
   return {
     storeRecovery: (event) => getNotifications().notifyStoreRecovered(event),
@@ -54,26 +54,17 @@ function buildHostNotifiers(): HostNotifiers {
       if (kind === "refresh") emitEvent("onVaultChanged", { root });
       getKnowledgeManager().scheduleRefresh();
     },
-    delegationsChanged: (delegations) => emitEvent("onDelegationsUpdated", { delegations }),
-    delegationStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
-    agentEditCaptured: (event) => emitEvent("onAgentEditCaptured", event),
-    inlineAiStream: (requestId, delta) => emitEvent("onAiStreamed", { requestId, delta }),
-    captureApply: (event) => emitEvent("onCaptureApply", event),
-    deepLinkNav: (event) => emitEvent("onDeepLinkNav", event),
-    syncStateChanged: (state) => emitEvent("onSyncStateChanged", state),
   };
 }
 
 /** Force the initial, dependency-ordered construction of the core host
  * singletons and install the notifier composition. Requires installHostRuntime()
  * to have run (platform installed). Returns the composed notifiers for the
- * caller's start() wiring; every service is reached afterward through its
- * getX() accessor. Constructs the pi-free, read-free core singletons eagerly in
- * order; the notifier-firing pieces receive their notifiers because
- * installHostNotifiers() runs first. */
+ * caller's start() wiring (vaultChange is installed there, post-ensureReady);
+ * every service is reached afterward through its getX() accessor. Constructs
+ * the pi-free, read-free core singletons eagerly in order. */
 export function constructHostSingletons(): HostNotifiers {
   const notifiers = buildHostNotifiers();
-  installHostNotifiers(notifiers);
   // Quarantine notices must be user-visible before any store is read; this is
   // the json-store default recovery seam (a plain callback — json-store never
   // imports the event registry).
@@ -92,8 +83,8 @@ export function constructHostSingletons(): HostNotifiers {
   getNotifications(); // platform.notify
   getVaultManager(); // paths (watcher stays off until start() wires it post-ensureReady)
   getKnowledgeManager(); // vault
-  getDelegationManager(); // vault + delegation notifiers (installed above)
-  getCheckpointManager(); // shared snapshot store + checkpoint notifier (installed above)
+  getDelegationManager(); // vault (push channels wire to emitEvent at construction)
+  getCheckpointManager(); // shared snapshot store (capture channel wires to emitEvent)
   getExecutorDaemon(); // paths
   getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
 

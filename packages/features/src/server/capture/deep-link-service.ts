@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { getCaptureManager } from "./capture-manager";
-import { getHostNotifiers } from "../host-notifiers";
+import { emitEvent } from "../events";
 import { parseDeepLink, type CaptureKind, type DeepLinkNavEvent } from "@repo/features/deep-link";
 
 /** Token bucket: how many URLs may land in a burst… */
@@ -105,7 +105,7 @@ function getService(): DeepLinkService {
     enqueueCapture: (kind, text) => {
       getCaptureManager().enqueue(kind, text);
     },
-    emitNav: (event) => getHostNotifiers()?.deepLinkNav(event),
+    emitNav: (event) => emitEvent("onDeepLinkNav", event),
     now: () => Date.now(),
   });
   return instance;

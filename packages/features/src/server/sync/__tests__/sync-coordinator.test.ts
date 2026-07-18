@@ -12,28 +12,17 @@ import path from "node:path";
 import { SyncAccount } from "../sync-account";
 import { createSyncManager } from "../sync-manager";
 import { SyncCoordinator, type SyncEngineFactory } from "../sync-coordinator";
-import { installHostNotifiers, type HostNotifiers } from "../../host-notifiers";
+import { subscribeEvents } from "../../events";
 import { InMemorySyncPort } from "@repo/core/sync/testing/in-memory-sync-port";
 import type { SyncIo } from "@repo/core/sync/engine";
 import type { VaultPath } from "@repo/core/sync/vault-file";
-import type { SyncState } from "@repo/features/sync";
 
 let tmp: string;
-let emitted: SyncState[];
-
-function noopNotifiers(capture: (state: SyncState) => void): HostNotifiers {
-  return {
-    storeRecovery: () => {},
-    vaultChange: () => {},
-    delegationsChanged: () => {},
-    delegationStream: () => {},
-    agentEditCaptured: () => {},
-    inlineAiStream: () => {},
-    captureApply: () => {},
-    deepLinkNav: () => {},
-    syncStateChanged: capture,
-  };
-}
+// onSyncStateChanged payloads captured off the typed event bus (the
+// coordinator emits straight to it) — `unknown` because the transport-level
+// listener is untyped; assertions compare whole values.
+let emitted: unknown[];
+let unsubscribeEvents: () => void;
 
 function coordinatorAt(dir: string, listVaultPaths?: () => readonly string[]): SyncCoordinator {
   const account = new SyncAccount({
@@ -49,10 +38,13 @@ function coordinatorAt(dir: string, listVaultPaths?: () => readonly string[]): S
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sync-coordinator-"));
   emitted = [];
-  installHostNotifiers(noopNotifiers((state) => emitted.push(state)));
+  unsubscribeEvents = subscribeEvents((method, payload) => {
+    if (method === "onSyncStateChanged") emitted.push(payload);
+  });
 });
 
 afterEach(() => {
+  unsubscribeEvents();
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 

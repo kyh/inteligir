@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // createHost — the composition root for the node backend. It forces the
 // dependency-ordered construction of the backend singletons
-// (constructHostSingletons in host-context.ts), owns the whole notifier
-// composition (the 5 slots are wired at build/start, not mutated from
-// app-machine), and sequences init/teardown over those singletons. The pieces
+// (constructHostSingletons in host-context.ts), owns the notifier composition
+// for the registry-free low-level pieces (store-recovery at build, vault-change
+// at start — everything else emits to the event bus directly), and sequences
+// init/teardown over those singletons. The pieces
 // are process-global singletons reached through getX() (the one DI path, with a
 // lazy test fallback), so the `created` guard makes a second call fail fast
 // rather than silently share module state. A shell (the Electron desktop)
@@ -66,8 +67,8 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // Force the ordered construction of the core singletons and install the
   // notifier composition (store-recovery is wired inside, before any store is
   // read — it used to be an import-time side effect of notifications.ts).
-  // `notifiers` holds the other four; vault-change is wired in start() because
-  // the watcher must not start until ensureReady() has run.
+  // `notifiers` also carries vault-change, wired in start() because the
+  // watcher must not start until ensureReady() has run.
   const notifiers = constructHostSingletons();
 
   const handlers = collectHandlers(registerAllHandlers);

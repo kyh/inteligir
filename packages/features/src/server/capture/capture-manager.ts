@@ -25,7 +25,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
-import { getHostNotifiers } from "../host-notifiers";
+import { emitEvent } from "../events";
 import { getUiState } from "../ui-state";
 import { getVaultManager } from "../vault/vault";
 import { titleFromPath } from "@repo/core/knowledge/link-extract";
@@ -93,7 +93,7 @@ export type CaptureManagerOptions = {
   dailyPath?: () => string;
   /** Raw daily template bytes, or null (defaults to vault templates/daily.md). */
   readTemplate?: () => string | null;
-  /** Push channel for onCaptureApply. Defaults to the host notifier bundle. */
+  /** Push channel for onCaptureApply. Defaults to the typed event bus. */
   onApply?: (event: CaptureApplyEvent) => void;
   /** Ack-timeout override (tests). */
   ackTimeoutMs?: number;
@@ -121,7 +121,7 @@ export class CaptureManager {
   private readonly io: CaptureIo;
   private readonly dailyPath: () => string;
   private readonly readTemplate: () => string | null;
-  private readonly onApply: ((event: CaptureApplyEvent) => void) | null;
+  private readonly onApply: (event: CaptureApplyEvent) => void;
   private readonly ackTimeoutMs: number;
   private readonly now: () => Date;
   private readonly ackTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -149,7 +149,7 @@ export class CaptureManager {
           return null; // template is optional in every flow
         }
       });
-    this.onApply = opts.onApply ?? null;
+    this.onApply = opts.onApply ?? ((event) => emitEvent("onCaptureApply", event));
     this.ackTimeoutMs = opts.ackTimeoutMs ?? ACK_TIMEOUT_MS;
     this.now = opts.now ?? (() => new Date());
     this.store = new JsonStore<CaptureEntry[]>(
@@ -184,9 +184,8 @@ export class CaptureManager {
       createdAt: this.now().toISOString(),
     };
     this.store.update((entries) => [...entries, entry].slice(-MAX_INBOX_ENTRIES));
-    const apply = this.onApply ?? wrapNotifier();
     try {
-      apply?.({
+      this.onApply({
         id: entry.id,
         path: this.dailyPath(),
         line: formatCaptureLine(entry.kind, entry.text),
@@ -297,12 +296,6 @@ export class CaptureManager {
       date: formatIsoDate(this.now()),
     });
   }
-}
-
-/** The live broadcast path, read at CALL time (like inline-AI's notifier) so
- * a manager constructed before composition still reaches the bus. */
-function wrapNotifier(): ((event: CaptureApplyEvent) => void) | null {
-  return getHostNotifiers()?.captureApply ?? null;
 }
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,7 @@ import { findTaskLine } from "./find-task-line";
 import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
 import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
-import { getHostNotifiers } from "../host-notifiers";
+import { emitEvent } from "../events";
 import { runTextTurn } from "../app/text-turn";
 import {
   DelegationSchema,
@@ -75,9 +75,8 @@ export type DelegationManagerOptions = {
    * origin). */
   snapshots?: SnapshotStore;
   /** Push channel for the editor's inline badges — the delegation list changed.
-   * Injected at construction by the composition root so this module never
-   * imports the IPC event registry; the live singleton (getDelegationManager)
-   * sources it from the host notifier bundle, unit tests leave it unset. */
+   * The live singleton (getDelegationManager) wires it to the typed emitEvent;
+   * unit tests leave it unset (or inject a recorder). */
   onChanged?: (delegations: Delegation[]) => void;
   /** Streaming transcript channel — a delegation's accumulating response text
    * (keyed by id) for the live response dock. Same injection story as onChanged. */
@@ -600,19 +599,14 @@ let instance: DelegationManager | null = null;
 
 export function getDelegationManager(): DelegationManager {
   if (!instance) {
-    // Inject the change/stream notifiers at construction from the host notifier
-    // bundle (composed by create-host). Rebuilt after a logout/login reset, the
-    // fresh instance re-reads the same bundle so badges/streams stay wired.
-    const notifiers = getHostNotifiers();
-    instance = new DelegationManager(
-      notifiers
-        ? {
-            onChanged: notifiers.delegationsChanged,
-            onStream: notifiers.delegationStream,
-            onRunSettled: () => getVaultManager().refresh(),
-          }
-        : {},
-    );
+    // Wire the push channels straight to the typed event bus (events.ts is a
+    // leaf module — no cycle risk). emitEvent is process-global, so an
+    // instance rebuilt after a logout/login reset stays wired.
+    instance = new DelegationManager({
+      onChanged: (delegations) => emitEvent("onDelegationsUpdated", { delegations }),
+      onStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
+      onRunSettled: () => getVaultManager().refresh(),
+    });
   }
   return instance;
 }
