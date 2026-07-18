@@ -243,6 +243,33 @@ export function CommandPalette({
     [phase.kind, goto],
   );
 
+  // The dialog scaffold every phase renders — ONE CommandDialog + wired
+  // CommandInput + CommandList. Filtering is app-side (filename terms +
+  // host-ranked full text), hence shouldFilter off. A render helper, not a
+  // component: each phase's return keeps CommandDialog as its root element
+  // type, so phase transitions reconcile in place and never remount the input.
+  const paletteShell = (shell: {
+    placeholder: string;
+    onInputKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+    children: React.ReactNode;
+  }) => (
+    <CommandDialog
+      open={open}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
+      initialFocus={inputRef}
+      shouldFilter={false}
+    >
+      <CommandInput
+        ref={inputRef}
+        value={query}
+        onValueChange={setQuery}
+        onKeyDown={shell.onInputKeyDown}
+        placeholder={shell.placeholder}
+      />
+      <CommandList>{shell.children}</CommandList>
+    </CommandDialog>
+  );
+
   const trimmed = query.trim();
   const lower = trimmed.toLowerCase();
   const exists = entries.some(
@@ -255,21 +282,11 @@ export function CommandPalette({
   if (phase.kind === "pickTemplate") {
     const matches =
       trimmed === "" ? templates : templates.filter((e) => matchesQuery(e.path, trimmed));
-    return (
-      <CommandDialog
-        open={open}
-        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-        initialFocus={inputRef}
-        shouldFilter={false}
-      >
-        <CommandInput
-          ref={inputRef}
-          value={query}
-          onValueChange={setQuery}
-          onKeyDown={handleInputKeyDown}
-          placeholder="Pick a template…  (Esc to go back)"
-        />
-        <CommandList>
+    return paletteShell({
+      placeholder: "Pick a template…  (Esc to go back)",
+      onInputKeyDown: handleInputKeyDown,
+      children: (
+        <>
           <CommandEmpty>No templates found.</CommandEmpty>
           <CommandGroup heading="Templates">
             {matches.map((e) => (
@@ -283,29 +300,19 @@ export function CommandPalette({
               </CommandItem>
             ))}
           </CommandGroup>
-        </CommandList>
-      </CommandDialog>
-    );
+        </>
+      ),
+    });
   }
 
   // ---- Template flow: name the new note ------------------------------------
   if (phase.kind === "nameTemplate") {
     const template = phase.template;
-    return (
-      <CommandDialog
-        open={open}
-        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-        initialFocus={inputRef}
-        shouldFilter={false}
-      >
-        <CommandInput
-          ref={inputRef}
-          value={query}
-          onValueChange={setQuery}
-          onKeyDown={handleInputKeyDown}
-          placeholder={`Name the note from ${templateLabel(template)}…  (Esc to go back)`}
-        />
-        <CommandList>
+    return paletteShell({
+      placeholder: `Name the note from ${templateLabel(template)}…  (Esc to go back)`,
+      onInputKeyDown: handleInputKeyDown,
+      children: (
+        <>
           <CommandEmpty>Type a name for the new note.</CommandEmpty>
           {trimmed.length > 0 && (
             <CommandGroup heading="Create">
@@ -321,9 +328,9 @@ export function CommandPalette({
               </CommandItem>
             </CommandGroup>
           )}
-        </CommandList>
-      </CommandDialog>
-    );
+        </>
+      ),
+    });
   }
 
   // ---- Tag flow: browse a tag's notes --------------------------------------
@@ -331,21 +338,11 @@ export function CommandPalette({
     const tag = phase.tag;
     const matches =
       trimmed === "" ? tagNotes : tagNotes.filter((path) => matchesQuery(path, trimmed));
-    return (
-      <CommandDialog
-        open={open}
-        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-        initialFocus={inputRef}
-        shouldFilter={false}
-      >
-        <CommandInput
-          ref={inputRef}
-          value={query}
-          onValueChange={setQuery}
-          onKeyDown={handleInputKeyDown}
-          placeholder={`Notes tagged #${tag}…  (Esc to go back)`}
-        />
-        <CommandList>
+    return paletteShell({
+      placeholder: `Notes tagged #${tag}…  (Esc to go back)`,
+      onInputKeyDown: handleInputKeyDown,
+      children: (
+        <>
           <CommandEmpty>No notes with this tag.</CommandEmpty>
           <CommandGroup heading={`#${tag}`}>
             {matches.map((path) => (
@@ -355,29 +352,19 @@ export function CommandPalette({
               </CommandItem>
             ))}
           </CommandGroup>
-        </CommandList>
-      </CommandDialog>
-    );
+        </>
+      ),
+    });
   }
 
   // ---- Tag flow: list tags (typed `#` at the root) -------------------------
   if (trimmed.startsWith("#")) {
     const filter = trimmed.slice(1).toLowerCase();
     const matches = filter === "" ? tags : tags.filter((t) => t.tag.toLowerCase().includes(filter));
-    return (
-      <CommandDialog
-        open={open}
-        onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-        initialFocus={inputRef}
-        shouldFilter={false}
-      >
-        <CommandInput
-          ref={inputRef}
-          value={query}
-          onValueChange={setQuery}
-          placeholder="Filter tags…"
-        />
-        <CommandList>
+    return paletteShell({
+      placeholder: "Filter tags…",
+      children: (
+        <>
           <CommandEmpty>No tags.</CommandEmpty>
           <CommandGroup heading="Tags">
             {matches.map((t) => (
@@ -394,9 +381,9 @@ export function CommandPalette({
               </CommandItem>
             ))}
           </CommandGroup>
-        </CommandList>
-      </CommandDialog>
-    );
+        </>
+      ),
+    });
   }
 
   // ---- Root: search + commands ---------------------------------------------
@@ -484,21 +471,10 @@ export function CommandPalette({
     (action) => trimmed === "" || matchesQuery(`${action.label} ${action.keywords}`, trimmed),
   );
 
-  return (
-    <CommandDialog
-      open={open}
-      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
-      initialFocus={inputRef}
-      shouldFilter={false}
-    >
-      {/* Filtering is app-side (filename terms + host-ranked full text). */}
-      <CommandInput
-        ref={inputRef}
-        value={query}
-        onValueChange={setQuery}
-        placeholder="Search notes or run a command…"
-      />
-      <CommandList>
+  return paletteShell({
+    placeholder: "Search notes or run a command…",
+    children: (
+      <>
         <CommandEmpty>No results.</CommandEmpty>
 
         {(nameMatches.length > 0 || contentHits.length > 0) && (
@@ -553,7 +529,7 @@ export function CommandPalette({
             ))}
           </CommandGroup>
         )}
-      </CommandList>
-    </CommandDialog>
-  );
+      </>
+    ),
+  });
 }
