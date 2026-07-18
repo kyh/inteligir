@@ -1,12 +1,15 @@
 /**
  * Knowledge extension — exposes the derived knowledge indexes (lexical search,
- * backlinks) as agent tools. These indexes live OUTSIDE the vault (rebuilt per
- * device, never synced), so the agent's native file tools can't reach them —
- * the capability arrives through `ports.knowledge` (built main-side in
- * agent-lifecycle.ts). Pure in-process: no CLI, no setup().
+ * backlinks) and the link-aware rename as agent tools. The indexes live
+ * OUTSIDE the vault (rebuilt per device, never synced), so the agent's native
+ * file tools can't reach them — and a raw `bash mv` can't rewrite the links
+ * they track — hence the capabilities arrive through `ports.knowledge` (built
+ * main-side in agent-lifecycle.ts). Pure in-process: no CLI, no setup().
  *
- * Both tools are read-only, so there is no confirmation gating (mirrors how
- * the browser/executor tools leave non-mutating calls ungated).
+ * search_vault / get_backlinks are read-only, so there is no confirmation
+ * gating (mirrors how the browser/executor tools leave non-mutating calls
+ * ungated). rename_note mutates, but only via the same reversible pipeline a
+ * user rename takes — no gating there either.
  */
 
 import { Type, type Static } from "@sinclair/typebox";
@@ -43,6 +46,17 @@ const SearchVaultSchema = Type.Object({
 const GetBacklinksSchema = Type.Object({
   path: Type.String({
     description: "Vault-relative note path (e.g. 'notes/ideas.md') to find links pointing to it.",
+  }),
+});
+
+const RenameNoteSchema = Type.Object({
+  from: Type.String({
+    description: "Current vault-relative path of the file to rename or move (e.g. 'notes/old.md').",
+  }),
+  to: Type.String({
+    description:
+      "New vault-relative path (e.g. 'notes/new.md', or 'archive/old.md' to move it). " +
+      "The destination file name must be a valid note name.",
   }),
 });
 
@@ -95,6 +109,34 @@ const knowledgeExtension: PiExtensionBundle = {
           // lines, but the agent only needs the set of linking notes.
           const paths = [...new Set(hits.map((hit) => hit.sourcePath))];
           return textResult(paths.join("\n"));
+        },
+      });
+
+      // The one mutating tool here. Privacy: rename_note is deliberately NOT
+      // in the gate's curated KNOWLEDGE_TOOLS set — it falls through to the
+      // unknown-tool arg screen (privacy/gate.ts decideOpaqueInput), so an
+      // argument naming an indexed private note blocks the call before this
+      // execute runs; the port re-probes the source against live disk on top
+      // (agent-knowledge-port.ts renameNote). Do not add it to the curated
+      // set without giving the gate a real per-path decision for it.
+      pi.registerTool({
+        name: "rename_note",
+        label: "rename_note",
+        description:
+          "Rename or move a vault file, rewriting every [[wiki-link]] and markdown link " +
+          "that pointed at it across the whole vault and recording the old title as a " +
+          "frontmatter alias so stale references still resolve. ALWAYS use this to " +
+          "rename/move notes — never `bash mv` and never write-to-a-new-path + delete, " +
+          "because those bypass the link rewrite and dangle every inbound link.",
+        parameters: RenameNoteSchema,
+        execute: async (_toolCallId, params: Static<typeof RenameNoteSchema>) => {
+          const result = ports.knowledge.rename(params.from, params.to);
+          if (!result.ok) return textResult(`Rename failed: ${result.reason}`);
+          const links =
+            result.linksRewritten === 0
+              ? "No link rewrites were needed."
+              : `Rewrote links in ${result.linksRewritten} note${result.linksRewritten === 1 ? "" : "s"}.`;
+          return textResult(`Renamed ${result.from} to ${result.to}. ${links}`);
         },
       });
     },
