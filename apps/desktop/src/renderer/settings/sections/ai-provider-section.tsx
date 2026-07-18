@@ -3,70 +3,75 @@ import { Button } from "@repo/ui/components/button";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
-import type { AiProviderSettings } from "@repo/features/ai-provider";
+import { useAiProviderStore } from "@renderer/stores/ai-provider-store";
 
 // AI provider — pick which provider+model the agent runs on, and manage the
 // per-provider connection (pi's interactive OAuth; tokens stay on-device).
-// Everything renders from the host's AiProviderSettings snapshot: every
-// mutating call returns (or is followed by) a fresh snapshot, so the section
-// needs no push channel. Switching applies to the next reply — the host rolls
-// the live sessions, no app restart. Disconnect touches ONLY this provider's
-// credentials (pi auth.json) — the app stays in the workspace as a guest and
-// the sync account is untouched (#459 teardown decouple).
+// Everything renders from the shared ai-provider-store snapshot: every
+// mutating call routes through the store so the composer's connect affordance
+// and the editor-AI gates update in the same frame. Switching applies to the
+// next reply — the host rolls the live sessions, no app restart. Disconnect
+// touches ONLY this provider's credentials (pi auth.json) — the app stays in
+// the workspace as a guest and the sync account is untouched (#459 teardown
+// decouple).
 export function AiProviderSection() {
-  const [settings, setSettings] = useState<AiProviderSettings | null>(null);
+  const settings = useAiProviderStore((s) => s.settings);
+  const init = useAiProviderStore((s) => s.init);
+  const refresh = useAiProviderStore((s) => s.refresh);
+  const setConfig = useAiProviderStore((s) => s.setConfig);
+  const connect = useAiProviderStore((s) => s.connect);
+  const disconnect = useAiProviderStore((s) => s.disconnect);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setSettings(await getBridge().getAiProviderSettings());
-  }, []);
-
   useEffect(() => {
-    void refresh().catch(() => {});
-  }, [refresh]);
+    void init();
+  }, [init]);
 
   const selected = settings?.providers.find((p) => p.id === settings.selected.provider) ?? null;
 
-  const patchConfig = useCallback(async (patch: { provider?: string; modelId?: string }) => {
-    setBusy(true);
-    setError(null);
-    try {
-      setSettings(await getBridge().setAiProviderConfig(patch));
-    } catch {
-      setError("Failed to update the AI provider.");
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const patchConfig = useCallback(
+    async (patch: { provider?: string; modelId?: string }) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await setConfig(patch);
+      } catch {
+        setError("Failed to update the AI provider.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [setConfig],
+  );
 
   const handleConnect = useCallback(async () => {
     if (!selected) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await getBridge().connectAiProvider({ provider: selected.id });
+      const result = await connect(selected.id);
       if (!result.ok) setError(result.error);
-      await refresh();
     } catch {
       setError("Failed to connect.");
     } finally {
       setBusy(false);
     }
-  }, [selected, refresh]);
+  }, [selected, connect]);
 
   const handleDisconnect = useCallback(async () => {
     if (!selected) return;
     setBusy(true);
     setError(null);
     try {
-      setSettings(await getBridge().disconnectAiProvider({ provider: selected.id }));
+      await disconnect(selected.id);
     } catch {
       setError("Failed to disconnect.");
     } finally {
       setBusy(false);
     }
-  }, [selected]);
+  }, [selected, disconnect]);
 
   // Re-run the OAuth flow for the SELECTED provider + roll a fresh session
   // (the existing agent:reauthenticate path — for expired credentials, which

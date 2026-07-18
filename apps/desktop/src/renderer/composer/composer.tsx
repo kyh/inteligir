@@ -48,7 +48,9 @@ import {
   ListeningOrb,
   useCapsuleSpring,
 } from "@renderer/composer/capsule-motion";
+import { ConnectProviderRow } from "@renderer/composer/connect-provider-row";
 import { useAgentStore } from "@renderer/stores/agent-store";
+import { useAiProviderConnected, useAiProviderStore } from "@renderer/stores/ai-provider-store";
 import { useVoiceCapture } from "@renderer/voice/use-voice-capture";
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
@@ -136,6 +138,14 @@ export function Composer() {
   const queuedSteering = useAgentStore((s) => s.queuedSteering);
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
+
+  // AI feature gate (#459): with no provider connected the whole input is
+  // replaced by the connect affordance below — the app itself never blocks.
+  const providerConnected = useAiProviderConnected();
+  const initProviders = useAiProviderStore((s) => s.init);
+  useEffect(() => {
+    void initProviders();
+  }, [initProviders]);
 
   useEffect(() => {
     if (!busy) pendingSteerRef.current = false;
@@ -262,6 +272,18 @@ export function Composer() {
   }, []);
 
   const { capsule: capsuleSpring, content: contentSpring, reduceMotion } = useCapsuleSpring();
+
+  // Guest mode with no provider: the capsule becomes the connect affordance.
+  // Placed after every hook so the hook order is stable across the flip.
+  if (!providerConnected) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div style={{ borderRadius: CAPSULE_RADIUS }} className={cn(CAPSULE_SURFACE, "w-full")}>
+          <ConnectProviderRow />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={wrapperRef} onBlur={handleWrapperBlur} className="flex flex-col gap-1.5">
