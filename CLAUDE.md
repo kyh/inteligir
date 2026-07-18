@@ -24,7 +24,10 @@ marketing site + shared packages.
 - **AI Agent**: pi coding agent framework (@mariozechner/pi-coding-agent)
 
 The agent runs locally in the desktop app; agent auth is provider OAuth
-(OpenAI), handled by pi on-device. The vault is a folder of markdown the user
+(OpenAI or Claude — the selection lives in the `provider-config` store under
+`~/.inteligir`, switchable in Settings → AI; pi-ai's `faux` provider joins the
+menu under `INTELIGIR_FAUX_AGENT=1` for deterministic login-free testing),
+handled by pi on-device. The vault is a folder of markdown the user
 owns; the agent reaches it through a `./vault` symlink in its workspace and
 edits files with its native file tools. The only server-side surface is the
 **opt-in vault sync** (apps/cloud: Better Auth sessions + file bytes in R2 +
