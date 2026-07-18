@@ -62,6 +62,16 @@ if (!defaultParagraphSerialize) {
 
 const ALERT_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
 
+// Verbatim bytes: the stringifier emits a raw `html` node's value untouched,
+// and the serialize engine emits whatever node a rule returns (Plate's own `a`
+// defaultRule returns `html` for bare autolinks) — MdRules just over-narrows
+// each rule's return type. The ONE sanctioned escape hatch bridging that
+// over-narrow third-party type; `T` is the rule signature's demanded return.
+function verbatimHtml<T>(value: string): T {
+  // oxlint-disable-next-line typescript/consistent-type-assertions
+  return { type: "html", value } as unknown as T;
+}
+
 // Plate's NodeIdPlugin is a v53 core DEFAULT (disabled only under
 // NODE_ENV=test): every block in a live editor carries an `id`. Plate's own
 // column rules strip it before propsToAttributes, but its callout and media
@@ -203,11 +213,9 @@ export const MD_RULES: MdRules = {
         ((text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
           (`mailto:${text}` === url && GFM_EMAIL_RE.test(text)));
       if (literal) {
-        // Verbatim bytes; the stringifier emits `html` untouched. Plate's own
-        // default `a` rule returns this same shape for bare https links —
-        // MdRules just over-narrows the return type (as with blockquote).
-        // oxlint-disable-next-line typescript/consistent-type-assertions
-        return { type: "html", value: text } as unknown as ReturnType<typeof defaultLinkSerialize>;
+        // Verbatim bytes — guaranteed by the regexes above to re-parse as the
+        // same autolink (as with blockquote's alert emission).
+        return verbatimHtml<ReturnType<typeof defaultLinkSerialize>>(text);
       }
       // Under MD_STRINGIFY's resourceLink: true the default skips its own
       // bare-https html path (hence the interception above) and every link
@@ -388,19 +396,14 @@ export const MD_RULES: MdRules = {
         .trimEnd()
         // The nested pass escapes the marker's leading `[` — undo just that.
         .replace(/^\\(?=\[!)/, "");
-      const html = {
-        type: "html",
-        value: inner
+      // Verbatim `html` is the point here — self-managed `> ` prefixes the
+      // stringifier must not touch.
+      return verbatimHtml<ReturnType<typeof defaultBlockquoteSerialize>>(
+        inner
           .split("\n")
           .map((line) => (line ? `> ${line}` : ">"))
           .join("\n"),
-      };
-      // Plate's MdRules narrows blockquote.serialize to return an mdast
-      // blockquote, but the engine emits whatever node a rule returns (Plate's
-      // own `a` defaultRule returns `html` for bare autolinks). Verbatim `html`
-      // is the point here — bridge the over-narrow third-party type.
-      // oxlint-disable-next-line typescript/consistent-type-assertions
-      return html as unknown as ReturnType<typeof defaultBlockquoteSerialize>;
+      );
     },
   },
 
