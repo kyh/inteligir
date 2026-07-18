@@ -280,6 +280,21 @@ describe("privacy gate — bash/execute/browser/peekaboo (best-effort ONLY)", ()
     expect(decide("resume", { executionId: "x", action: "accept" })).toEqual({ allow: true });
   });
 
+  it("rename_note is covered by the unknown-tool arg screen — a private-note rename blocks", () => {
+    // rename_note is deliberately NOT in the curated KNOWLEDGE_TOOLS set: its
+    // args are real vault paths, so the opaque literal-path screen must apply.
+    // Both sides screen — renaming a private note away, or onto its path.
+    for (const from of ["./vault/notes/secret.md", "vault/notes/secret.md", "notes/secret.md"]) {
+      expect(decide("rename_note", { from, to: "renamed.md" }).allow, from).toBe(false);
+    }
+    expect(decide("rename_note", { from: "public.md", to: "notes/secret.md" }).allow).toBe(false);
+    // A rename touching no indexed private note passes the gate; the
+    // KnowledgePort still live-probes the source (knowledge-rename-port.test).
+    expect(decide("rename_note", { from: "./vault/public.md", to: "renamed.md" })).toEqual({
+      allow: true,
+    });
+  });
+
   it("screens an UNKNOWN tool's args for a private path (no silent fail-open)", () => {
     // A future/connector tool the dispatch doesn't name gets the same
     // best-effort screen bash does, not a blanket allow.
