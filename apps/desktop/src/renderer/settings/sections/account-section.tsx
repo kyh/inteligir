@@ -30,7 +30,6 @@ export function AccountSection() {
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<AccountCapabilities | null>(null);
 
   useEffect(() => {
@@ -75,15 +74,13 @@ export function AccountSection() {
       .catch(() => setError("Failed to save the server URL."));
   }, [urlInput]);
 
-  const runAuth = useCallback(async (run: () => Promise<SyncSignInResult>, initiated?: string) => {
+  const runAuth = useCallback(async (run: () => Promise<SyncSignInResult>) => {
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
       const result = await run();
       if (result.ok) {
         setPassword("");
-        if (initiated !== undefined) setNotice(initiated);
       } else {
         setError(result.error);
       }
@@ -107,21 +104,9 @@ export function AccountSection() {
     );
   }, [mode, email, password, urlInput, coordinatorUrl, runAuth]);
 
-  // Social OAuth INITIATES here (system browser); completing the session on
-  // this device is Phase 4's deep-link callback — the notice says so.
-  const handleSocial = useCallback(
-    (provider: string) =>
-      runAuth(
-        () => getBridge().syncSocialSignIn({ provider }),
-        `Finish signing in with ${socialLabel(provider)} in your browser.`,
-      ),
-    [runAuth],
-  );
-
   const handleSignOut = useCallback(async () => {
     setBusy(true);
     setError(null);
-    setNotice(null);
     try {
       // Clears ONLY the account session (sync-auth.json) — provider
       // credentials and every local note stay untouched; the app remains in
@@ -213,27 +198,33 @@ export function AccountSection() {
                 </button>
               </div>
 
+              {/* Social sign-in seam is wired end to end (coordinator env →
+                  /v1/capabilities → these provider chips), but capturing the
+                  OAuth session ON THIS DEVICE needs the inteligir:// deep-link
+                  callback, which lands in Phase 4. Until then the buttons
+                  render (proving the env-gated capability path) but stay
+                  DISABLED — never a clickable control that silently no-ops. */}
               {socialProviders.length > 0 && (
-                <div className="flex items-center gap-1.5 border-t border-border pt-2">
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
                   <span className="text-[10px] text-muted-foreground">Or continue with</span>
                   {socialProviders.map((provider) => (
                     <Button
                       key={provider}
                       variant="outline"
                       size="sm"
-                      onClick={() => void handleSocial(provider)}
-                      disabled={busy || loading}
+                      disabled
+                      title="Coming soon"
                       className="h-6 px-2 text-[10px]"
                     >
                       {socialLabel(provider)}
                     </Button>
                   ))}
+                  <span className="text-[10px] text-muted-foreground/70">(coming soon)</span>
                 </div>
               )}
             </div>
           )}
 
-          {notice && <span className="text-[10px] text-muted-foreground">{notice}</span>}
           {error && <span className="text-[10px] text-destructive">{error}</span>}
         </div>
       </div>
