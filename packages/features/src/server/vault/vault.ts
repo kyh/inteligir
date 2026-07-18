@@ -34,6 +34,7 @@ import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
+import { atomicWrite } from "../lib/atomic-write";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
@@ -706,17 +707,6 @@ export class VaultManager {
       console.warn("[vault] change notification failed:", err);
     }
   }
-}
-
-// Write to <path>.tmp then rename — atomic on POSIX + NTFS, so a crash
-// mid-write leaves the previous file intact. Mirrors json-store's realFs.write
-// but for arbitrary vault files (no mode restriction — user-owned data). Accepts
-// UTF-8 text (editor path) or raw bytes (sync path); the encoding argument is
-// ignored for a Uint8Array, so one helper serves both.
-function atomicWrite(filePath: string, content: string | Uint8Array): void {
-  const tmp = `${filePath}.tmp`;
-  fs.writeFileSync(tmp, content, "utf8");
-  fs.renameSync(tmp, filePath);
 }
 
 /** Canonical path with symlinks resolved. For a path that doesn't exist yet,

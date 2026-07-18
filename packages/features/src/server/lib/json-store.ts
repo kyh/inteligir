@@ -6,6 +6,7 @@ import { type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import { atomicWrite } from "./atomic-write";
 
 const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
 
@@ -47,9 +48,7 @@ function restrictInteligirDir(filePath: string): void {
   }
 }
 
-// Write to <path>.tmp then rename — atomic on POSIX + NTFS, so a crash mid-write
-// leaves the previous file intact instead of a half-written one. `mode` applies
-// to the tmp file, so the rename carries it to the target.
+// Writes go through the shared tmp-then-rename atomicWrite (lib/atomic-write).
 //
 // Mode DEFAULTS to owner-only (0o600): every JsonStore lives under
 // ~/.inteligir, and several hold credentials or note content (secrets,
@@ -67,14 +66,7 @@ const realFs: FsAdapter = {
   write: (filePath, content, mode) => {
     fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
     restrictInteligirDir(filePath);
-    const tmp = `${filePath}.tmp`;
-    const fileMode = mode ?? 0o600;
-    fs.writeFileSync(tmp, content, { encoding: "utf8", mode: fileMode });
-    // writeFileSync's mode applies only on CREATE — a stale tmp left by a
-    // crash would otherwise carry its old (possibly 0644) mode through the
-    // rename. An explicit chmod makes the mode unconditional.
-    fs.chmodSync(tmp, fileMode);
-    fs.renameSync(tmp, filePath);
+    atomicWrite(filePath, content, { mode: mode ?? 0o600 });
   },
   rename: (from, to) => {
     fs.renameSync(from, to);

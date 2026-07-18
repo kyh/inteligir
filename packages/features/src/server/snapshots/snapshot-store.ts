@@ -31,6 +31,7 @@ import path from "node:path";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
+import { atomicWrite } from "../lib/atomic-write";
 import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
 import { isRecord } from "@repo/features/ipc";
 
@@ -111,12 +112,7 @@ const realFiles: SnapshotFileAdapter = {
     }
   },
   write: (filePath, content) => {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
-    const tmp = `${filePath}.tmp`;
-    fs.writeFileSync(tmp, content, { encoding: "utf8", mode: 0o600 });
-    // Mode applies only on create — heal a stale crash-leftover tmp too.
-    fs.chmodSync(tmp, 0o600);
-    fs.renameSync(tmp, filePath);
+    atomicWrite(filePath, content, { mode: 0o600, dirMode: 0o700 });
   },
   remove: (filePath) => {
     fs.rmSync(filePath, { force: true });
