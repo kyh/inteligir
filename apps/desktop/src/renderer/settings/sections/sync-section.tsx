@@ -8,7 +8,8 @@ import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
 import { useVault } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/core/knowledge/vault-path";
-import type { SyncState, SyncStatus } from "@repo/features/sync";
+import type { SyncStatus } from "@repo/core/sync/status";
+import type { SyncState } from "@repo/features/sync";
 
 // Human-readable summary of the last reconcile pass for the status line.
 function formatSyncStatus(status: SyncStatus): string {

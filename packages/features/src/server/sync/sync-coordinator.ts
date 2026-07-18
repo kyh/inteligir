@@ -19,27 +19,9 @@ import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
 import { createNodeHasher, createSyncManager } from "./sync-manager";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/core/sync/reconcile";
+import { statusFromOutcome, type SyncStatus } from "@repo/core/sync/status";
 import type { SyncEngine, SyncOutcome as CoreSyncOutcome } from "@repo/core/sync/engine";
-import type {
-  SyncConflict,
-  SyncOutcome,
-  SyncSignInResult,
-  SyncState,
-  SyncStatus,
-} from "@repo/features/sync";
-
-function toStatus(outcome: CoreSyncOutcome): SyncStatus {
-  return outcome.status === "ok"
-    ? {
-        phase: "ok",
-        pushed: outcome.pushed,
-        pulled: outcome.pulled,
-        deleted: outcome.deleted,
-        conflicts: outcome.conflicts,
-        merged: outcome.merged,
-      }
-    : { phase: "error", message: outcome.message };
-}
+import type { SyncConflict, SyncOutcome, SyncSignInResult, SyncState } from "@repo/features/sync";
 
 const DISABLED_REASON = "Enable sync and sign in first.";
 
@@ -213,7 +195,7 @@ export class SyncCoordinator {
    * `rebuild()`. */
   private handleOutcome(outcome: CoreSyncOutcome): void {
     this.recordConflicts(outcome);
-    this.status = toStatus(outcome);
+    this.status = statusFromOutcome(outcome);
     this.emit();
   }
 

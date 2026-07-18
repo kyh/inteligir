@@ -5,12 +5,16 @@
 // module is only the wire contract, so it stays node-free and loads in the
 // renderer too.
 //
-// `SyncOutcome` mirrors @repo/core's engine outcome STRUCTURALLY (rather than
-// importing it) so the renderer never has to reach into @repo/core: the desktop
-// coordinator returns core's outcome and it assigns cleanly to this one.
+// `SyncStatus` is @repo/core's — `@repo/core/sync/status` is the one
+// definition every platform shares; consumers (renderer, host) import it from
+// there directly. `SyncOutcome` mirrors @repo/core's engine outcome
+// STRUCTURALLY (rather than importing it) so the desktop coordinator returns
+// core's outcome and it assigns cleanly to this one.
 // ---------------------------------------------------------------------------
 
 import { Type } from "@sinclair/typebox";
+
+import type { SyncStatus } from "@repo/core/sync/status";
 
 // ---------------------------------------------------------------------------
 // Payload schemas (renderer → host) — validated at the handler boundary.
@@ -36,23 +40,6 @@ export const SyncSignInSchema = Type.Object(
 // ---------------------------------------------------------------------------
 // Result / event shapes (host → renderer).
 // ---------------------------------------------------------------------------
-
-/** The most recent pass's status for the settings UI: idle before any pass,
- * syncing while one runs, then the outcome of the last completed pass. */
-export type SyncStatus =
-  | { readonly phase: "idle" }
-  | { readonly phase: "syncing" }
-  | {
-      readonly phase: "ok";
-      readonly pushed: number;
-      readonly pulled: number;
-      readonly deleted: number;
-      readonly conflicts: number;
-      /** Both-sides-changed files the merge ladder resolved cleanly — never
-       * counted in `conflicts`, never listed as conflict rows. */
-      readonly merged: number;
-    }
-  | { readonly phase: "error"; readonly message: string };
 
 /** One unresolved conflict copy sitting in the vault — the sibling file that
  * preserved a conflict's losing bytes. An entry lives until the copy file is
