@@ -626,6 +626,14 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   // can really pull a "running" run back (clearTimeout = the harness twin of
   // the host's agent interrupt).
   const delegationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  // Status transitions build a fresh record (Delegation is a union
+  // discriminated on `status` — in-place mutation can't change variant) and
+  // swap it into the list, then broadcast — the host manager's update+notify.
+  const replaceDelegation = (next: Delegation): void => {
+    const at = delegations.findIndex((d) => d.id === next.id);
+    if (at !== -1) delegations[at] = next;
+    delegationEvents.emit({ delegations: [...delegations] });
+  };
   let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
   // Sync — an in-memory stand-in so the settings Sync section is demoable
@@ -991,7 +999,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       // a title while the simulated run is still "running".
       const initial = vault.get(sourceFile);
       const resolved = initial === undefined ? null : simulateDelegationEdit(initial, index);
-      const delegation: Delegation = {
+      const delegation: Extract<Delegation, { status: "running" }> = {
         id,
         sourceFile,
         anchor: { index, text: resolved?.taskText ?? "", heading: null },
@@ -1012,26 +1020,32 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         const content = vault.get(delegation.sourceFile);
         const edited = content === undefined ? null : simulateDelegationEdit(content, index);
         if (content === undefined || edited === null) {
-          delegation.status = "failed";
-          delegation.error = "That checkbox is no longer in the file.";
-        } else {
-          // Mirror the host's ordering: snapshot the pre-run bytes FIRST, then
-          // let the "agent" edit, then finish done. Completion re-indexes +
-          // broadcasts (the host's onRunSettled vault refresh — vault
-          // liveness, CLAUDE.md § Decisions) so
-          // knowledge consumers — the tasks view included — see the edit.
-          snapshots.set(id, { path: delegation.sourceFile, content });
-          delegation.hasSnapshot = true;
-          vault.set(delegation.sourceFile, edited.content);
-          indexEntry(delegation.sourceFile);
-          touchVault();
-          delegation.status = "done";
-          delegation.anchor = { index, text: edited.taskText, heading: null };
-          delegation.lineText = edited.lineText;
-          delegation.resultSummary = "Checked it off in the dev harness (simulated).";
+          replaceDelegation({
+            ...delegation,
+            status: "failed",
+            error: "That checkbox is no longer in the file.",
+            finishedAt: Date.now(),
+          });
+          return;
         }
-        delegation.finishedAt = Date.now();
-        delegationEvents.emit({ delegations: [...delegations] });
+        // Mirror the host's ordering: snapshot the pre-run bytes FIRST, then
+        // let the "agent" edit, then finish done. Completion re-indexes +
+        // broadcasts (the host's onRunSettled vault refresh — vault
+        // liveness, CLAUDE.md § Decisions) so
+        // knowledge consumers — the tasks view included — see the edit.
+        snapshots.set(id, { path: delegation.sourceFile, content });
+        vault.set(delegation.sourceFile, edited.content);
+        indexEntry(delegation.sourceFile);
+        touchVault();
+        replaceDelegation({
+          ...delegation,
+          status: "done",
+          anchor: { index, text: edited.taskText, heading: null },
+          lineText: edited.lineText,
+          resultSummary: "Checked it off in the dev harness (simulated).",
+          hasSnapshot: true,
+          finishedAt: Date.now(),
+        });
       }, 800);
       delegationTimers.set(id, timer);
       return { ok: true, delegation };
@@ -1050,10 +1064,12 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       }
       clearTimeout(timer);
       delegationTimers.delete(id);
-      delegation.status = "failed";
-      delegation.error = "Stopped.";
-      delegation.finishedAt = Date.now();
-      delegationEvents.emit({ delegations: [...delegations] });
+      replaceDelegation({
+        ...delegation,
+        status: "failed",
+        error: "Stopped.",
+        finishedAt: Date.now(),
+      });
       return { ok: true };
     },
     restoreDelegationSnapshot: async (id) => {
@@ -1061,14 +1077,19 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       if (!delegation) return { ok: false, error: "Unknown delegation." };
       const snapshot = snapshots.get(id);
       if (!snapshot) return { ok: false, error: "No snapshot exists for this delegation." };
+      // Unreachable while a run is in flight (a snapshot only exists once the
+      // simulated run finished) — the guard mirrors the host manager and
+      // narrows to the terminal variants, the only ones carrying restoredAt.
+      if (delegation.status === "queued" || delegation.status === "running") {
+        return { ok: false, error: "Wait for the delegation to finish before restoring." };
+      }
       // No-op success when the bytes already match; otherwise write + notify,
       // mirroring the host's restore semantics.
       if (vault.get(delegation.sourceFile) !== snapshot.content) {
         vault.set(delegation.sourceFile, snapshot.content);
         vaultEvents.emit({ root: FIXTURE_ROOT });
       }
-      delegation.restoredAt = Date.now();
-      delegationEvents.emit({ delegations: [...delegations] });
+      replaceDelegation({ ...delegation, restoredAt: Date.now() });
       return { ok: true };
     },
     onDelegationsUpdated: delegationEvents.subscribe,

@@ -22,37 +22,91 @@ const DelegationAnchorSchema = Type.Object(
   { additionalProperties: false },
 );
 
-const DelegationStatusSchema = Type.Union([
-  Type.Literal("queued"),
-  Type.Literal("running"),
-  Type.Literal("done"),
-  Type.Literal("failed"),
-]);
+/** Fields every delegation carries regardless of status. */
+const delegationBaseFields = {
+  id: Type.String(),
+  /** Vault-relative path of the file the checkbox lives in. */
+  sourceFile: Type.String(),
+  anchor: DelegationAnchorSchema,
+  /** The original `- [ ] …` line, for display. */
+  lineText: Type.String(),
+};
 
-export const DelegationSchema = Type.Object(
-  {
-    id: Type.String(),
-    /** Vault-relative path of the file the checkbox lives in. */
-    sourceFile: Type.String(),
-    anchor: DelegationAnchorSchema,
-    /** The original `- [ ] …` line, for display. */
-    lineText: Type.String(),
-    status: DelegationStatusSchema,
-    createdAt: Type.Number(),
-    startedAt: Type.Union([Type.Number(), Type.Null()]),
-    finishedAt: Type.Union([Type.Number(), Type.Null()]),
-    /** One-line summary of what the agent did (status "done"). */
-    resultSummary: Type.Union([Type.String(), Type.Null()]),
-    /** Failure reason (status "failed"). */
-    error: Type.Union([Type.String(), Type.Null()]),
-    /** True once the host captured the file's pre-run bytes — the undo point
-     * "Restore original" writes back. */
-    hasSnapshot: Type.Boolean(),
-    /** When the user last restored this delegation's snapshot (null = never). */
-    restoredAt: Type.Union([Type.Number(), Type.Null()]),
-  },
-  { additionalProperties: false },
-);
+// A discriminated union on `status` — the status-correlated fields (the
+// timestamps, resultSummary, error, snapshot bookkeeping) are typed per
+// variant instead of documented in comments, so an illegal combination (a
+// queued record with a finishedAt, a done record with an error) cannot be
+// constructed. Every variant still SERIALIZES the same field set — absent
+// states are explicit nulls — so the on-disk v3 shape is unchanged and
+// records written before the union validate as-is (no store version bump).
+export const DelegationSchema = Type.Union([
+  // Created, waiting for the background agent. No run has touched it.
+  Type.Object(
+    {
+      ...delegationBaseFields,
+      status: Type.Literal("queued"),
+      createdAt: Type.Number(),
+      startedAt: Type.Null(),
+      finishedAt: Type.Null(),
+      resultSummary: Type.Null(),
+      error: Type.Null(),
+      hasSnapshot: Type.Literal(false),
+      restoredAt: Type.Null(),
+    },
+    { additionalProperties: false },
+  ),
+  // Dispatched to the agent. `hasSnapshot` flips true once the pre-run bytes
+  // are captured (immediately after dispatch, before the agent may write).
+  Type.Object(
+    {
+      ...delegationBaseFields,
+      status: Type.Literal("running"),
+      createdAt: Type.Number(),
+      startedAt: Type.Number(),
+      finishedAt: Type.Null(),
+      resultSummary: Type.Null(),
+      error: Type.Null(),
+      hasSnapshot: Type.Boolean(),
+      restoredAt: Type.Null(),
+    },
+    { additionalProperties: false },
+  ),
+  // The run finished. `resultSummary` is the agent's one-line outcome.
+  Type.Object(
+    {
+      ...delegationBaseFields,
+      status: Type.Literal("done"),
+      createdAt: Type.Number(),
+      startedAt: Type.Number(),
+      finishedAt: Type.Number(),
+      resultSummary: Type.String(),
+      error: Type.Null(),
+      /** True while the host still holds the file's pre-run bytes — the undo
+       * point "Restore original" writes back (prune clears it). */
+      hasSnapshot: Type.Boolean(),
+      /** When the user last restored this delegation's snapshot (null = never). */
+      restoredAt: Type.Union([Type.Number(), Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  // Terminal failure (interrupt, unavailable, timeout, error, stale anchor).
+  // `startedAt` stays null when it failed straight out of the queue.
+  Type.Object(
+    {
+      ...delegationBaseFields,
+      status: Type.Literal("failed"),
+      createdAt: Type.Number(),
+      startedAt: Type.Union([Type.Number(), Type.Null()]),
+      finishedAt: Type.Number(),
+      resultSummary: Type.Null(),
+      /** Failure reason, for the inline badge / dock card. */
+      error: Type.String(),
+      hasSnapshot: Type.Boolean(),
+      restoredAt: Type.Union([Type.Number(), Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+]);
 
 export type Delegation = Static<typeof DelegationSchema>;
 
