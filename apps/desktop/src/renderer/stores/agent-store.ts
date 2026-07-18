@@ -1,15 +1,27 @@
-import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
 import { create } from "zustand";
 
 import type { AppAgentEvent } from "@repo/features/agent-events";
 import { Value } from "@sinclair/typebox/value";
 
 import { AppStateSchema, type AppState } from "@repo/features/app-state";
+import {
+  appendNotice,
+  appendUser,
+  applyAgentEvent,
+  emptyChatLog,
+  logFromHistory,
+  type ChatLog,
+} from "@repo/features/chat-log";
 import { toErrorMessage } from "@repo/features/ipc";
 import type { Bridge, SetupProgress } from "@repo/features/ipc-registry";
-import { buildNoteContext, stripNoteContext } from "@repo/features/note-context";
+import { buildNoteContext } from "@repo/features/note-context";
 import type { ImageAttachment } from "@repo/features/voice";
 import { getBridge } from "@renderer/lib/bridge";
+import {
+  projectChatLog,
+  type ChatMessage,
+  type ChatMessageMetadata,
+} from "@renderer/stores/chat-log-view";
 import {
   flushOpenNote,
   openNoteIsPrivate,
@@ -18,43 +30,12 @@ import {
 import { onUserTranscript, useVoiceStore } from "@renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
-// Types
-//
-// We model the chat as a flat list of AI SDK UIMessage objects. Each message
-// carries a single content part: user/assistant turns hold a TextUIPart;
-// tool executions hold a DynamicToolUIPart whose state mirrors the agent's
-// run-time status. The "steer" UX concept (a steering nudge sent mid-turn)
-// rides on a user-role message via metadata.steer so the renderer can style
-// it differently without inventing a new role outside the SDK shape.
+// The chat surface is the SHARED @repo/features/chat-log fold (the same
+// reducer the mobile app renders), projected into AI SDK UIMessages by
+// @renderer/stores/chat-log-view. This store owns the desktop-only halves:
+// the per-item metadata (steer, image count), queue state, voice side
+// effects, and the IPC command routing.
 // ---------------------------------------------------------------------------
-
-export type ChatMessageMetadata = {
-  steer?: boolean;
-  imageCount?: number;
-  /** When set, the bubble is styled as a turn-failure surface (red border,
-   * "error" copy) and may show an action button based on the kind:
-   *   - "auth": inline Re-authenticate link (likely auth/credentials issue)
-   *   - "unknown": just the error text (pi-reported error of unspecified cause)
-   * The text content is the human-readable error message. */
-  errorKind?: "auth" | "unknown";
-};
-
-export type ChatMessage = UIMessage<ChatMessageMetadata>;
-
-/**
- * The messages of the CURRENT turn: everything after the last non-steer user
- * message (steer nudges ride mid-turn and don't reset the boundary). This is
- * the one place the turn-boundary rule lives — every consumer that asks "what
- * is the agent doing right now" (thinking flag, activity label) derives from
- * this slice instead of re-walking with its own copy of the steer exception.
- */
-export function currentTurnMessages(messages: ChatMessage[]): ChatMessage[] {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg && msg.role === "user" && !msg.metadata?.steer) return messages.slice(i + 1);
-  }
-  return messages;
-}
 
 type SendOptions = {
   intent?: "steer";
@@ -70,6 +51,12 @@ type SetFn = (
 type GetFn = () => AgentStore;
 
 type AgentStore = {
+  /** The shared platform-neutral chat log — source of truth for the surface. */
+  log: ChatLog;
+  /** Desktop-only per-item metadata (steer flag, image count), by item id.
+   * Written once when the item is appended; reset with the log. */
+  chatMeta: ReadonlyMap<string, ChatMessageMetadata>;
+  /** Derived: `log` projected into UIMessages (identity-stable per item). */
   messages: ChatMessage[];
   appState: AppState;
   /** Latest onboarding setup progress, or null before the first event arrives. */
@@ -93,9 +80,6 @@ type AgentStore = {
   newSession: () => Promise<void>;
 };
 
-let nextMsgId = 0;
-const makeId = () => `m_${nextMsgId++}`;
-
 function sameStrings(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -108,79 +92,12 @@ function isBusy(state: AppState): boolean {
   return state.phase === "ready" && state.agent === "busy";
 }
 
-// ---------------------------------------------------------------------------
-// Helpers for constructing parts
-// ---------------------------------------------------------------------------
-
-function textPart(text: string, state?: TextUIPart["state"]): TextUIPart {
-  return state ? { type: "text", text, state } : { type: "text", text };
-}
-
-function toolPartRunning(toolCallId: string, toolName: string, args: unknown): DynamicToolUIPart {
-  return {
-    type: "dynamic-tool",
-    toolCallId,
-    toolName,
-    state: "input-available",
-    input: args,
-  };
-}
-
-function toolPartDone(
-  toolCallId: string,
-  toolName: string,
-  args: unknown,
-  resultText: string,
-): DynamicToolUIPart {
-  return {
-    type: "dynamic-tool",
-    toolCallId,
-    toolName,
-    state: "output-available",
-    input: args,
-    output: resultText,
-  };
-}
-
-function toolPartError(
-  toolCallId: string,
-  toolName: string,
-  args: unknown,
-  errorText: string,
-): DynamicToolUIPart {
-  return {
-    type: "dynamic-tool",
-    toolCallId,
-    toolName,
-    state: "output-error",
-    input: args,
-    errorText,
-  };
-}
-
-function userMessage(text: string, meta?: ChatMessageMetadata): ChatMessage {
-  return {
-    id: makeId(),
-    role: "user",
-    parts: [textPart(text)],
-    ...(meta ? { metadata: meta } : {}),
-  };
-}
-
-function assistantTextMessage(text: string, streaming = false): ChatMessage {
-  return {
-    id: makeId(),
-    role: "assistant",
-    parts: [textPart(text, streaming ? "streaming" : undefined)],
-  };
-}
-
-function assistantToolMessage(part: DynamicToolUIPart): ChatMessage {
-  return {
-    id: makeId(),
-    role: "assistant",
-    parts: [part],
-  };
+/** The chat-surface slice for a new log: fold result + reprojected messages. */
+function chatState(
+  log: ChatLog,
+  chatMeta: ReadonlyMap<string, ChatMessageMetadata>,
+): Pick<AgentStore, "log" | "chatMeta" | "messages"> {
+  return { log, chatMeta, messages: projectChatLog(log, chatMeta) };
 }
 
 /**
@@ -196,210 +113,48 @@ function sendCommandSurfacingFailure(
 ): void {
   void bridge.sendAgentCommand(command).catch((err: unknown) => {
     const reason = toErrorMessage(err, "The message could not be submitted.");
-    const msg: ChatMessage = {
-      ...assistantTextMessage(`Your message wasn't delivered: ${reason}`),
-      metadata: { errorKind: "unknown" },
-    };
-    set((s) => ({ messages: [...s.messages, msg] }));
+    set((s) =>
+      chatState(appendNotice(s.log, `Your message wasn't delivered: ${reason}`), s.chatMeta),
+    );
   });
-}
-
-// ---------------------------------------------------------------------------
-// Persisted-history → UIMessage[] conversion
-// ---------------------------------------------------------------------------
-
-function historyToChatMessages(
-  history: Awaited<ReturnType<Bridge["getAgentHistory"]>>,
-): ChatMessage[] {
-  const messages: ChatMessage[] = [];
-  for (const entry of history) {
-    switch (entry.role) {
-      case "user":
-        messages.push(userMessage(stripNoteContext(entry.text)));
-        break;
-      case "assistant":
-        messages.push(assistantTextMessage(entry.text));
-        break;
-      case "tool":
-        // Tool activity is ephemeral chat-surface decoration during the live
-        // turn. Once the turn ends the live store sweeps these messages
-        // (agent_end); on rehydrate we skip them entirely so reloaded
-        // history matches the post-sweep state.
-        break;
-    }
-  }
-  return messages;
-}
-
-// ---------------------------------------------------------------------------
-// Mutators that preserve discriminated-union narrowing for parts
-// ---------------------------------------------------------------------------
-
-function mapMessageWithTextPart(
-  msg: ChatMessage,
-  mutate: (part: TextUIPart) => TextUIPart,
-): ChatMessage {
-  const first = msg.parts[0];
-  if (!first || first.type !== "text") return msg;
-  const next = mutate(first);
-  if (next === first) return msg;
-  return { ...msg, parts: [next, ...msg.parts.slice(1)] };
-}
-
-function replaceToolPart(msg: ChatMessage, next: DynamicToolUIPart): ChatMessage {
-  const first = msg.parts[0];
-  if (!first || first.type !== "dynamic-tool") return msg;
-  if (next === first) return msg;
-  return { ...msg, parts: [next, ...msg.parts.slice(1)] };
 }
 
 // ---------------------------------------------------------------------------
 // Subscription handlers (split out of init() for readability)
 // ---------------------------------------------------------------------------
 
-function subscribeAgentEvents(bridge: Bridge, set: SetFn): () => void {
-  let streamingMsgId: string | null = null;
-  const toolMsgIds = new Map<string, string>();
-
+function subscribeAgentEvents(bridge: Bridge, set: SetFn, get: GetFn): () => void {
   return bridge.onAgentEvent((event: AppAgentEvent) => {
-    switch (event.type) {
-      case "agent_end": {
-        streamingMsgId = null;
-        // Sweep the tool messages we created during this turn — only the
-        // final assistant answer (and the user's prompt) should remain on
-        // the chat surface. The activity rows are an ephemeral progress
-        // indicator, not part of the persisted conversation.
-        const sweepIds = new Set(toolMsgIds.values());
-        toolMsgIds.clear();
-        set((s) => ({
-          messages: sweepIds.size > 0 ? s.messages.filter((m) => !sweepIds.has(m.id)) : s.messages,
-          queuedFollowUp: [],
-          queuedSteering: [],
-        }));
-        break;
-      }
+    // Pre-fold streaming state gates the voice side effects below — the same
+    // "is a reply mid-stream" check the inline fold kept in a closure.
+    const wasStreaming = get().log.streamingId !== null;
 
-      case "queue_update":
+    set((s) => {
+      const log = applyAgentEvent(s.log, event);
+      const chat = log === s.log ? null : chatState(log, s.chatMeta);
+      // Desktop-only state riding the same update: queue bookkeeping.
+      if (event.type === "agent_end") {
+        return { ...chat, queuedFollowUp: [], queuedSteering: [] };
+      }
+      if (event.type === "queue_update") {
         // Skip the set() if the queue is identical to what we already hold.
-        // pi can re-emit queue_update for unrelated mutations; an unconditional
-        // set re-renders every Composer subscriber.
-        set((s) =>
-          sameStrings(s.queuedFollowUp, event.followUp) &&
+        // pi can re-emit queue_update for unrelated mutations; an
+        // unconditional set re-renders every Composer subscriber.
+        return sameStrings(s.queuedFollowUp, event.followUp) &&
           sameStrings(s.queuedSteering, event.steering)
-            ? s
-            : {
-                queuedFollowUp: event.followUp,
-                queuedSteering: event.steering,
-              },
-        );
-        break;
-
-      case "message_start": {
-        if (event.role !== "assistant") break;
-        const msg = assistantTextMessage("", true);
-        streamingMsgId = msg.id;
-        set((s) => ({ messages: [...s.messages, msg] }));
-        break;
+          ? s
+          : { queuedFollowUp: event.followUp, queuedSteering: event.steering };
       }
+      return chat ?? s;
+    });
 
-      case "message_update": {
-        if (streamingMsgId === null) break;
-        const sid = streamingMsgId;
-        const delta = event.delta;
-        set((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === sid
-              ? mapMessageWithTextPart(m, (part) => ({
-                  ...part,
-                  text: part.text + delta,
-                }))
-              : m,
-          ),
-        }));
-        const voice = useVoiceStore.getState();
-        if (voice.state.kind === "listening") voice.speakText(delta);
-        break;
-      }
-
-      case "message_end": {
-        if (streamingMsgId === null || event.role !== "assistant") break;
-        const sid = streamingMsgId;
-        const { text } = event;
-        // Error turn: keep the bubble, tag with errorKind, use errorMessage
-        // (or fall back to text) so the failure is visible instead of dropped.
-        // Cause is unknown from pi's perspective — don't claim it's auth.
-        if (event.stopReason === "error") {
-          const errText =
-            event.errorMessage ?? (text.length > 0 ? text : "The model returned no response.");
-          set((s) => ({
-            messages: s.messages.map((m) =>
-              m.id === sid
-                ? {
-                    ...mapMessageWithTextPart(m, () => textPart(errText)),
-                    metadata: { ...m.metadata, errorKind: "unknown" },
-                  }
-                : m,
-            ),
-          }));
-        } else if (text.length === 0) {
-          // Tool-only assistant turns emit message_start/message_end with empty
-          // text. Drop those empty bubbles so the "Thinking..." shimmer doesn't
-          // linger between/after tool calls — the tool messages themselves
-          // already represent the agent's activity.
-          set((s) => ({ messages: s.messages.filter((m) => m.id !== sid) }));
-        } else {
-          set((s) => ({
-            messages: s.messages.map((m) =>
-              m.id === sid ? mapMessageWithTextPart(m, () => textPart(text)) : m,
-            ),
-          }));
-        }
-        streamingMsgId = null;
-        const voice = useVoiceStore.getState();
-        if (voice.state.kind === "listening") voice.flushSpeech();
-        break;
-      }
-
-      case "turn_error": {
-        // Empty-turn fallback from main. Create a fresh assistant bubble
-        // tagged with the error kind so the chat shows the failure (and the
-        // inline Re-authenticate link, if kind === "auth").
-        const msg: ChatMessage = {
-          ...assistantTextMessage(event.reason),
-          metadata: { errorKind: event.kind },
-        };
-        set((s) => ({ messages: [...s.messages, msg] }));
-        break;
-      }
-
-      case "tool_execution_start": {
-        const msg = assistantToolMessage(
-          toolPartRunning(event.toolCallId, event.toolName, event.args),
-        );
-        toolMsgIds.set(event.toolCallId, msg.id);
-        set((s) => ({ messages: [...s.messages, msg] }));
-        break;
-      }
-
-      case "tool_execution_end": {
-        const msgId = toolMsgIds.get(event.toolCallId);
-        if (msgId === undefined) break;
-        toolMsgIds.delete(event.toolCallId);
-        set((s) => ({
-          messages: s.messages.map((m) => {
-            if (m.id !== msgId) return m;
-            const first = m.parts[0];
-            if (!first || first.type !== "dynamic-tool") return m;
-            // Preserve args (input) captured at start — tool_execution_end
-            // doesn't re-send them.
-            const next = event.isError
-              ? toolPartError(first.toolCallId, first.toolName, first.input, event.resultText)
-              : toolPartDone(first.toolCallId, first.toolName, first.input, event.resultText);
-            return replaceToolPart(m, next);
-          }),
-        }));
-        break;
-      }
+    // Voice narration follows the streamed reply (desktop-only side effect).
+    if (event.type === "message_update" && wasStreaming) {
+      const voice = useVoiceStore.getState();
+      if (voice.state.kind === "listening") voice.speakText(event.delta);
+    } else if (event.type === "message_end" && wasStreaming && event.role === "assistant") {
+      const voice = useVoiceStore.getState();
+      if (voice.state.kind === "listening") voice.flushSpeech();
     }
   });
 }
@@ -410,7 +165,12 @@ function subscribeAppState(bridge: Bridge, set: SetFn): () => void {
     set({ appState });
 
     if (appState.phase === "logged_out") {
-      set({ messages: [], queuedFollowUp: [], queuedSteering: [], setupProgress: null });
+      set({
+        ...chatState(emptyChatLog, new Map()),
+        queuedFollowUp: [],
+        queuedSteering: [],
+        setupProgress: null,
+      });
       useVoiceStore.getState().reset();
     }
   });
@@ -433,8 +193,8 @@ async function loadInitialHistory(bridge: Bridge, set: SetFn): Promise<void> {
     if (history.length === 0) return;
 
     set((s) =>
-      s.messages.length === 0 && s.appState.phase !== "logged_out"
-        ? { messages: historyToChatMessages(history) }
+      s.log.items.length === 0 && s.appState.phase !== "logged_out"
+        ? chatState(logFromHistory(history), s.chatMeta)
         : s,
     );
   } catch (err) {
@@ -459,6 +219,8 @@ async function noteIsPublicOnDisk(bridge: Bridge, path: string): Promise<boolean
 // ---------------------------------------------------------------------------
 
 export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
+  log: emptyChatLog,
+  chatMeta: new Map(),
   messages: [],
   appState: { phase: "logged_out" },
   setupProgress: null,
@@ -468,7 +230,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   init: () => {
     const bridge = getBridge();
 
-    const unsubAgent = subscribeAgentEvents(bridge, set);
+    const unsubAgent = subscribeAgentEvents(bridge, set, get);
     const unsubState = subscribeAppState(bridge, set);
     const unsubProgress = subscribeSetupProgress(bridge, set);
     // A completed voice transcript is just a user turn: route it through the
@@ -508,9 +270,13 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     if (images?.length) meta.imageCount = images.length;
     const hasMeta = Object.keys(meta).length > 0;
 
-    set((s) => ({
-      messages: [...s.messages, userMessage(text, hasMeta ? meta : undefined)],
-    }));
+    set((s) => {
+      const log = appendUser(s.log, text);
+      const added = log.items[log.items.length - 1];
+      const chatMeta =
+        hasMeta && added !== undefined ? new Map(s.chatMeta).set(added.id, meta) : s.chatMeta;
+      return chatState(log, chatMeta);
+    });
 
     // The displayed bubble stays the user's plain text. Only a FRESH user turn
     // carries the open note: flush it so the agent reads the latest bytes, and
@@ -557,7 +323,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   },
 
   newSession: async () => {
-    set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
+    set({ ...chatState(emptyChatLog, new Map()), queuedFollowUp: [], queuedSteering: [] });
     await getBridge().transition({ type: "NEW_SESSION" });
   },
 }));
