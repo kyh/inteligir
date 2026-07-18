@@ -190,9 +190,9 @@ function resumeExecution(
 // Variants for the agent's long-lived execute/resume tools: a daemon crash
 // mid-session drops the connection (the exit handler clears it), and without
 // a restart attempt every later tool call fails with "daemon is not running"
-// for the rest of the session. Mirror the widget path (widget-actions.ts),
-// which awaits the idempotent start() before every call — it re-spawns after
-// a crash and is a cheap no-op while the daemon is healthy.
+// for the rest of the session. So every call awaits the idempotent start()
+// first — it re-spawns after a crash and is a cheap no-op while the daemon is
+// healthy.
 
 export async function executeEnsuringDaemon(code: string): Promise<ExecutorExecuteResult> {
   await getExecutorDaemon().start();

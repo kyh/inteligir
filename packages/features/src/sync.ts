@@ -64,20 +64,4 @@ export type SyncState = {
   readonly conflicts: readonly SyncConflict[];
 };
 
-/** One reconcile pass's result. Structurally identical to @repo/core's
- * `SyncOutcome` (engine.ts) so the coordinator can return it directly. */
-export type SyncOutcome =
-  | {
-      readonly status: "ok";
-      readonly pushed: number;
-      readonly pulled: number;
-      readonly deleted: number;
-      readonly conflicts: number;
-      /** Merge-ladder resolutions this pass (see @repo/core engine.ts). */
-      readonly merged: number;
-      /** Conflict-copy paths created by this pass (see @repo/core engine.ts). */
-      readonly conflictPaths: readonly string[];
-    }
-  | { readonly status: "error"; readonly message: string };
-
 export type SyncSignInResult = { ok: true } | { ok: false; error: string };

@@ -12,6 +12,7 @@
 // launches never pay for it.
 // ---------------------------------------------------------------------------
 
+import { toErrorMessage } from "@repo/features/ipc";
 import { listModels } from "@repo/features/server/pi/model";
 
 import { Agent } from "../agent/agent";
@@ -120,7 +121,7 @@ async function runGhost(prompt: string, requestId: string): Promise<GhostTextRes
   try {
     a = await ensureAgent();
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Ghost text failed." };
+    return { ok: false, error: toErrorMessage(err, "Ghost text failed.") };
   }
   if (!a) return { ok: false, error: "No ghost-text model is available." };
   currentRequestId = requestId;

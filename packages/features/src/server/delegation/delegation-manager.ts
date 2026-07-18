@@ -289,7 +289,8 @@ export class DelegationManager {
     if (changed) this.notify();
   }
 
-  /** Cancel a still-queued delegation. A running one can't be pulled back. */
+  /** Cancel a delegation: interrupt it if running (it marks stopped once idle),
+   * or drop it if still queued. Returns whether anything was cancelled. */
   cancelDelegation(id: string): { ok: boolean } {
     // Running: interrupt the agent; the run marks it stopped once it goes idle.
     if (this.getDelegations().some((d) => d.id === id && d.status === "running")) {

@@ -1,9 +1,7 @@
 // ---------------------------------------------------------------------------
 // Agent execute-tool resilience — executeEnsuringDaemon/resumeEnsuringDaemon
 // must attempt a daemon (re)start before each call, so a daemon crash
-// mid-session doesn't permanently break the agent's execute tool (widgets
-// already restart this way via widget-actions; the agent path goes through
-// these wrappers).
+// mid-session doesn't permanently break the agent's execute tool.
 // ---------------------------------------------------------------------------
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

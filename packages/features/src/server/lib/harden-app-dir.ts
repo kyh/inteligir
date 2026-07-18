@@ -26,6 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { inteligirPath } from "./json-store";
+import { SESSION_DIR_SEGMENTS } from "../agent/paths";
 
 /** Subdirectories holding note content, transcripts, or credentials — the
  * durable owner-only boundary for files third parties create inside them. */
@@ -41,8 +42,9 @@ const PRIVATE_DIRS = [
 ];
 
 /** The pi session dirs whose *.jsonl transcripts get file-mode healing (one
- * level deep — pi writes flat files, no nesting). */
-const SESSION_DIRS = ["sessions", "sessions/background", "sessions/inline-ai"];
+ * level deep — pi writes flat files, no nesting). Sourced from agent/paths so
+ * a new session dir can't silently escape the 0600 sweep. */
+const SESSION_DIRS = SESSION_DIR_SEGMENTS;
 
 function chmodQuiet(target: string, mode: number): void {
   try {

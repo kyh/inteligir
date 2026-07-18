@@ -20,8 +20,8 @@ import { createNodeHasher, createSyncManager } from "./sync-manager";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/core/sync/reconcile";
 import { statusFromOutcome, type SyncStatus } from "@repo/core/sync/status";
-import type { SyncEngine, SyncOutcome as CoreSyncOutcome } from "@repo/core/sync/engine";
-import type { SyncConflict, SyncOutcome, SyncSignInResult, SyncState } from "@repo/features/sync";
+import type { SyncEngine, SyncOutcome } from "@repo/core/sync/engine";
+import type { SyncConflict, SyncSignInResult, SyncState } from "@repo/features/sync";
 
 const DISABLED_REASON = "Enable sync and sign in first.";
 
@@ -40,7 +40,7 @@ export type SyncEngineFactory = (opts: {
   vaultId: string;
   coordinatorUrl: string;
   token: string;
-  onOutcome: (outcome: CoreSyncOutcome) => void;
+  onOutcome: (outcome: SyncOutcome) => void;
 }) => SyncEngine;
 
 const defaultEngineFactory: SyncEngineFactory = (opts) =>
@@ -193,7 +193,7 @@ export class SyncCoordinator {
   /** The one place a pass's outcome becomes coordinator state — reached by
    * EVERY pass (explicit or debounced) via the `onOutcome` wired in
    * `rebuild()`. */
-  private handleOutcome(outcome: CoreSyncOutcome): void {
+  private handleOutcome(outcome: SyncOutcome): void {
     this.recordConflicts(outcome);
     this.status = statusFromOutcome(outcome);
     this.emit();
@@ -219,7 +219,7 @@ export class SyncCoordinator {
   }
 
   /** Append this pass's freshly created conflict copies (dedup by path). */
-  private recordConflicts(outcome: CoreSyncOutcome): void {
+  private recordConflicts(outcome: SyncOutcome): void {
     if (outcome.status !== "ok" || outcome.conflictPaths.length === 0) return;
     const detectedAt = new Date().toISOString();
     const known = new Set(this.conflicts.map((conflict) => conflict.path));

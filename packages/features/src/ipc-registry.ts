@@ -64,10 +64,10 @@ import {
   type PairingInfo,
   type RemoteAccessState,
 } from "./remote-access";
+import type { SyncOutcome } from "@repo/core/sync/engine";
 import {
   SyncSetConfigSchema,
   SyncSignInSchema,
-  type SyncOutcome,
   type SyncSignInResult,
   type SyncState,
 } from "./sync";

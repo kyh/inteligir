@@ -14,8 +14,8 @@
       - ws://localhost/127.0.0.1 is Vite's HMR socket; unused in prod.
       - style-src 'unsafe-inline' covers Vite's dev style injection and React
         inline style attributes.
-      img-src allows https:/data: because JSON-UI widgets (Image/Avatar) and
-      chat markdown may render agent-supplied remote images.
+      img-src allows https:/data: because note and chat markdown may render
+      agent-supplied or user-authored remote images.
       frame-src allows the vault-app: scheme so HTML Apps (vault .html files)
       render in their sandboxed iframe; the app document itself gets an opaque
       origin (sandbox has no allow-same-origin) and can't reach the host.

@@ -33,6 +33,10 @@ export const BACKGROUND_SESSION_DIR = inteligirPath("sessions", "background");
 /** Isolated session for inline-AI text generation — kept out of the user's
  * continueRecent pool like the delegation session. */
 export const INLINE_AI_SESSION_DIR = inteligirPath("sessions", "inline-ai");
+/** ~/.inteligir-relative segments of every pi session dir above — the single
+ * source hardenAppDir sweeps for 0600 transcript modes. A new session dir MUST
+ * be added here or its *.jsonl transcripts (note content) stay world-readable. */
+export const SESSION_DIR_SEGMENTS = ["sessions", "sessions/background", "sessions/inline-ai"];
 export const WORKSPACE_DIR = inteligirPath("workspace");
 export const BIN_DIR = inteligirPath("bin");
 export const EXTENSIONS_DIR = inteligirPath("extensions");
