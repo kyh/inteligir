@@ -41,22 +41,20 @@ export function OnboardingPage() {
   useEffect(() => {
     if (appState.phase === "logged_in" && !triggered.current) {
       triggered.current = true;
-      getBridge()?.transition({ type: "SETUP" });
+      getBridge().transition({ type: "SETUP" });
     }
   }, [appState.phase]);
 
   // Subscribe to model-download progress events so we can show progress
   // while seedResources/startAgent hold us in the setting_up phase.
   useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    return bridge.onVoiceModelState((event) => {
+    return getBridge().onVoiceModelState((event) => {
       setModelState(event);
     });
   }, []);
 
   const handleRetry = useCallback(() => {
-    getBridge()?.transition({ type: "RETRY" });
+    getBridge().transition({ type: "RETRY" });
   }, []);
 
   // Prefer the granular model-download progress when the voice model step is

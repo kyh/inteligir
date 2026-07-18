@@ -91,7 +91,6 @@ export function useBridgeResource<T>(
 
   const refresh = useCallback(() => {
     const bridge = getBridge();
-    if (!bridge) return Promise.resolve();
     setError(null);
     return loadRef
       .current(bridge)

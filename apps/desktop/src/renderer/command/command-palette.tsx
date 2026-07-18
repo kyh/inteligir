@@ -141,7 +141,7 @@ export function CommandPalette({
   useEffect(() => {
     if (!open) return;
     getBridge()
-      ?.listTags()
+      .listTags()
       .then((result) => {
         setTags(result);
         return undefined;
@@ -155,7 +155,7 @@ export function CommandPalette({
     const tag = phase.tag;
     let live = true;
     getBridge()
-      ?.getNotesByTag({ tag })
+      .getNotesByTag({ tag })
       .then((paths) => {
         if (live) setTagNotes(paths);
         return undefined;
@@ -180,7 +180,7 @@ export function CommandPalette({
     }
     const timer = setTimeout(() => {
       getBridge()
-        ?.searchVault({ query: trimmedQuery, limit: SEARCH_LIMIT })
+        .searchVault({ query: trimmedQuery, limit: SEARCH_LIMIT })
         .then((results) => {
           if (seq === searchSeq.current) setHits(results);
           return undefined;

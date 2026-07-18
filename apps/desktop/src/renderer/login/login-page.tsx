@@ -14,11 +14,11 @@ export function LoginPage() {
     appState.phase === "error" && appState.prev === "logging_in" ? appState.message : null;
 
   const handleLogin = useCallback(() => {
-    getBridge()?.transition({ type: "LOGIN" });
+    getBridge().transition({ type: "LOGIN" });
   }, []);
 
   const handleRetry = useCallback(() => {
-    getBridge()?.transition({ type: "RETRY" });
+    getBridge().transition({ type: "RETRY" });
   }, []);
 
   return (

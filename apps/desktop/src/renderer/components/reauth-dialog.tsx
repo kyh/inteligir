@@ -22,25 +22,25 @@ export function ReauthDialog() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = getBridge()?.onAgentEvent((event) => {
+    const unsub = getBridge().onAgentEvent((event) => {
       if (event.type === "turn_error" && event.kind === "auth") {
         setReason(event.reason);
         setError(null);
         setOpen(true);
       }
     });
-    return () => unsub?.();
+    return () => unsub();
   }, []);
 
   const handleReauth = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
-      const result = await getBridge()?.reauthenticate();
-      if (result?.ok) {
+      const result = await getBridge().reauthenticate();
+      if (result.ok) {
         setOpen(false);
       } else {
-        setError(result?.error ?? "Re-authentication failed.");
+        setError(result.error);
       }
     } finally {
       setBusy(false);

@@ -19,7 +19,7 @@ export function IntegrationsSection() {
 
   const refresh = useCallback(() => {
     void getBridge()
-      ?.listIntegrations()
+      .listIntegrations()
       .then(setIntegrations)
       .catch(() => setIntegrations([]));
   }, []);
@@ -31,14 +31,14 @@ export function IntegrationsSection() {
   // While repairing, mirror the onboarding progress stream.
   useEffect(() => {
     if (!repairing) return;
-    return getBridge()?.onSetupProgress(setProgress);
+    return getBridge().onSetupProgress(setProgress);
   }, [repairing]);
 
   const handleRepair = useCallback(async () => {
     setRepairing(true);
     setProgress(null);
     try {
-      await getBridge()?.repairIntegrations();
+      await getBridge().repairIntegrations();
       refresh();
     } finally {
       setRepairing(false);

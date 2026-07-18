@@ -20,7 +20,6 @@ export function RemoteAccessSection() {
 
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     void bridge
       .getRemoteAccessState()
       .then(setState)
@@ -30,7 +29,6 @@ export function RemoteAccessSection() {
 
   const handleToggle = useCallback(async (next: boolean) => {
     const bridge = getBridge();
-    if (!bridge) return;
     setError(null);
     if (!next) setPairing(null);
     try {
@@ -43,7 +41,6 @@ export function RemoteAccessSection() {
 
   const handlePair = useCallback(async () => {
     const bridge = getBridge();
-    if (!bridge) return;
     setBusy(true);
     setError(null);
     try {
@@ -57,7 +54,6 @@ export function RemoteAccessSection() {
 
   const handleRevoke = useCallback(async (id: string) => {
     const bridge = getBridge();
-    if (!bridge) return;
     setBusy(true);
     setError(null);
     try {

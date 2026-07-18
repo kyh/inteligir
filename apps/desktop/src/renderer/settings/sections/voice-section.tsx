@@ -22,7 +22,6 @@ export function VoiceSection() {
 
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     void bridge
       .isTtsAvailable()
       .then(setTtsConfigured)
@@ -44,7 +43,7 @@ export function VoiceSection() {
   const handleSave = useCallback(async () => {
     const bridge = getBridge();
     const value = keyInput.trim();
-    if (!bridge || !value) return;
+    if (!value) return;
     setBusy(true);
     setError(null);
     try {
@@ -65,7 +64,6 @@ export function VoiceSection() {
 
   const handleRemove = useCallback(async () => {
     const bridge = getBridge();
-    if (!bridge) return;
     setBusy(true);
     setError(null);
     try {

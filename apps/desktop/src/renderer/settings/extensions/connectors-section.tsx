@@ -114,7 +114,6 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
   const handleConnect = useCallback(
     async (connector: CatalogConnector) => {
       const bridge = getBridge();
-      if (!bridge) return;
 
       // API-key connectors need a secret first; collect it via the dialog, which
       // calls handleApiKeySubmit once the user provides a value. Clear any stale
@@ -159,7 +158,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
     async (value: string) => {
       const connector = apiKeyTarget;
       const bridge = getBridge();
-      if (!connector || !bridge) return;
+      if (!connector) return;
       setApiKeyBusy(true);
       setApiKeyError(null);
       try {
@@ -180,7 +179,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
     async (clientId: string, clientSecret: string) => {
       const connector = googleTarget;
       const bridge = getBridge();
-      if (!connector || !bridge) return;
+      if (!connector) return;
       setGoogleBusy(true);
       setGoogleError(null);
       setMembership(setConnecting, connector.id, true);
@@ -213,7 +212,6 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
   // client with their own GCP app.
   const openGoogleOverride = useCallback(async () => {
     const bridge = getBridge();
-    if (!bridge) return;
     const status = await bridge.executorStatus();
     setGoogleRedirectUri(status.running ? status.redirectUri : null);
     setGoogleError(null);
@@ -223,7 +221,6 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
   const handleGoogleOverrideSubmit = useCallback(
     async (clientId: string, clientSecret: string) => {
       const bridge = getBridge();
-      if (!bridge) return;
       setGoogleBusy(true);
       setGoogleError(null);
       try {
@@ -250,7 +247,6 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
   const handleDisconnect = useCallback(
     async (connector: CatalogConnector) => {
       const bridge = getBridge();
-      if (!bridge) return;
       setMembership(setDisconnecting, connector.id, true);
       onError(null);
       try {
@@ -271,7 +267,6 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
   const handleRemoveCustom = useCallback(
     async (integration: ExecutorIntegration) => {
       const bridge = getBridge();
-      if (!bridge) return;
       try {
         await uninstallConnector(bridge, { slug: integration.slug });
       } catch (err) {

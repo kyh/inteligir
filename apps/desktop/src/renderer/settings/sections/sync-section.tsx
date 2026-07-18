@@ -51,7 +51,6 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
 
   useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
     void bridge
       .getSyncState()
       .then((initial) => {
@@ -65,7 +64,6 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
 
   const patchConfig = useCallback(async (patch: { enabled?: boolean; coordinatorUrl?: string }) => {
     const bridge = getBridge();
-    if (!bridge) return;
     setError(null);
     const next = await bridge.setSyncConfig(patch);
     setSyncView(next);
@@ -84,7 +82,6 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
 
   const handleSignIn = useCallback(async () => {
     const bridge = getBridge();
-    if (!bridge) return;
     setBusy(true);
     setError(null);
     try {
@@ -107,7 +104,6 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
 
   const handleSignOut = useCallback(async () => {
     const bridge = getBridge();
-    if (!bridge) return;
     setBusy(true);
     try {
       await bridge.syncSignOut();
@@ -118,7 +114,6 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
 
   const handleSyncNow = useCallback(async () => {
     const bridge = getBridge();
-    if (!bridge) return;
     setBusy(true);
     try {
       await bridge.syncNow();
@@ -151,8 +146,7 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
       setBusy(true);
       try {
         await deleteEntry(path);
-        const next = await getBridge()?.getSyncState();
-        if (next) setSyncView(next);
+        setSyncView(await getBridge().getSyncState());
       } finally {
         setBusy(false);
       }

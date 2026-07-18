@@ -32,19 +32,20 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
   const [reauthBusy, setReauthBusy] = useState(false);
 
   useEffect(() => {
-    const promise = getBridge()?.getNotificationSettings();
-    if (!promise) return;
-    void promise.then(setNotifications).catch(() => {});
+    void getBridge()
+      .getNotificationSettings()
+      .then(setNotifications)
+      .catch(() => {});
   }, []);
 
   const handleLogout = useCallback(() => {
-    getBridge()?.transition({ type: "LOGOUT" });
+    getBridge().transition({ type: "LOGOUT" });
   }, []);
 
   const handleReauthenticate = useCallback(async () => {
     setReauthBusy(true);
     try {
-      await getBridge()?.reauthenticate();
+      await getBridge().reauthenticate();
     } finally {
       setReauthBusy(false);
     }
@@ -55,10 +56,11 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
   }, [newSession]);
 
   const toggleNotifications = useCallback(async (next: boolean) => {
-    const updated = await getBridge()?.updateNotificationSettings({
-      enabled: next,
-    });
-    if (updated) setNotifications(updated);
+    setNotifications(
+      await getBridge().updateNotificationSettings({
+        enabled: next,
+      }),
+    );
   }, []);
 
   return (

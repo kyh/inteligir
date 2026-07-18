@@ -58,7 +58,7 @@ function ErrorMessage({ text, kind }: { text: string; kind: "auth" | "unknown" }
         {kind === "auth" && (
           <button
             type="button"
-            onClick={() => void getBridge()?.reauthenticate()}
+            onClick={() => void getBridge().reauthenticate()}
             className="self-start text-[10px] underline underline-offset-2 hover:text-destructive/80"
           >
             Re-authenticate

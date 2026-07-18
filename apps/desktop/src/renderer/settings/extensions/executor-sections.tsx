@@ -20,7 +20,7 @@ export function ExecutorSections({ onError, showAdvanced }: ExecutorSectionsProp
 
   const refreshStatus = useCallback(() => {
     void getBridge()
-      ?.executorStatus()
+      .executorStatus()
       .then(setStatus)
       .catch(() => setStatus({ running: false }));
   }, []);

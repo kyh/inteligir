@@ -67,8 +67,8 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
     }
     setError(null);
     try {
-      const results = await getBridge()?.detectExecutorIntegration(trimmed);
-      const best = results?.[0];
+      const results = await getBridge().detectExecutorIntegration(trimmed);
+      const best = results[0];
       if (!best) {
         setError("Couldn't detect a connector type for that URL.");
         return;
@@ -91,7 +91,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
     const trimmedName = name.trim();
     const trimmedEndpoint = endpoint.trim();
     const trimmedBase = baseUrl.trim();
-    if (!bridge || !trimmedName) {
+    if (!trimmedName) {
       setError("Name is required.");
       return;
     }

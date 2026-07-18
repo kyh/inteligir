@@ -28,12 +28,7 @@ export function SkillsSection() {
   const [skills, setSkills] = useState<SkillInfo[] | null>(null);
 
   useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) {
-      setSkills([]);
-      return;
-    }
-    void bridge
+    void getBridge()
       .listSkills()
       .then((list) => setSkills(list.skills))
       .catch(() => setSkills([]));
