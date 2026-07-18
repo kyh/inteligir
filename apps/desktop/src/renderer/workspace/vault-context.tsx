@@ -32,6 +32,7 @@ import {
 import { getLiveEditor } from "@renderer/editor/live-editor";
 import { createCaptureApplier, insertCaptureLine } from "@renderer/workspace/capture-apply";
 import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-runtime";
+import { type OpenDoc, deriveOpenDoc, isMarkdownPath } from "@renderer/workspace/open-doc";
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
@@ -40,9 +41,6 @@ import { buildResolver } from "@repo/core/knowledge/link-resolve";
 import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/core/knowledge/vault-path";
 
-// Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
-// markdown pipeline doesn't round-trip MDX.
-const MARKDOWN_RE = /\.(md|markdown)$/i;
 const HTML_RE = /\.html$/i;
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
@@ -103,8 +101,6 @@ type VaultContextValue = {
   /** Live editor session state of the open note (file, content, dirty,
    * saving). A stable empty snapshot when no note is open. */
   editor: VaultEditorState;
-  /** The open note's path (=== editor.path once its content is loaded). */
-  openPath: string | null;
   /** Flat listing of every file in the vault (the tree is derived from it). */
   entries: VaultEntry[];
   /** The vault root folder name (display only). */
@@ -150,26 +146,16 @@ type VaultContextValue = {
    * The command palette's "Refresh vault" invokes this; window focus does too,
    * debounced (vault liveness — CLAUDE.md § Decisions). */
   refreshVault: () => void;
-  /** Whether the open note is marked `private: true` — the header's lock
-   * badge. USER-FACING semantics: strictly "private" (unreadable frontmatter
-   * shows no lock); the AI paths use their own fail-closed reads. Derived
-   * from the note's live content buffer, so it works in raw AND rich mode. */
-  openNoteIsPrivate: boolean;
-
-  // ---- Editor view (lifted so the header can own the controls) -------------
-  /** Whether the open file is a markdown doc the rich editor can render. */
-  isMarkdownOpen: boolean;
-  /** Whether Rich editing is available: the file parses within the vocabulary
-   * AND round-trips without losing content. Rich normalizes formatting on the
-   * first real edit — only files the pipeline can't represent (rawReason) or
-   * would corrupt (roundtrip-loss) are Raw-only. */
-  richAvailable: boolean;
-  /** Why the open file is Raw-only (parse error / out-of-vocabulary construct
-   * / round-trip content loss), or null. Drives the header's Raw badge
-   * tooltip. */
-  rawReason: GateReason | null;
-  /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
-  mode: "raw" | "rich";
+  // ---- Open document (lifted so the header can own the controls) -----------
+  /** The open document as ONE discriminated union — none / loading /
+   * non-markdown / markdown (path + privacy + effective editing surface).
+   * Illegal combinations of the old flat view fields are unrepresentable;
+   * consumers switch on `openDoc.kind` (see open-doc.ts). */
+  openDoc: OpenDoc;
+  /** The user's raw/rich pick for a rich-capable markdown note (the header
+   * toggle). Honored only while rich is available — a gated note shows Raw
+   * regardless, and the pick survives a mid-session gate flip so a note that
+   * recovers pops back to the surface the user chose. */
   setMode: (mode: "raw" | "rich") => void;
 
   // ---- HTML Apps -----------------------------------------------------------
@@ -692,7 +678,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   // ---- Editor view (mode + parseability) -----------------------------------
-  const isMarkdownOpen = editor.path !== null && MARKDOWN_RE.test(editor.path);
+  const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
   const [mode, setMode] = useState<"raw" | "rich">("raw");
   // Analysis is derived state kept in LOCKSTEP with (path, content) within a
   // single render — the state-adjustment-during-render pattern. Recomputing in
@@ -721,11 +707,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     // The mode (raw/rich) is the user's choice, picked once per file open — a
     // post-save flush (dirty→false, content unchanged) and an external/agent
     // reload of the same file must not yank the user out of the surface they
-    // picked. (`showRich` also requires `richAvailable`, so a file that turns
-    // unparseable out from under us still falls back to raw regardless.)
+    // picked. (The exposed surface is the EFFECTIVE one — deriveOpenDoc shows
+    // rich only while the gate is clear — so a file that turns unparseable
+    // out from under us still falls back to raw regardless.)
     if (pathChanged) setMode(isMarkdownOpen && rawReason === null ? "rich" : "raw");
   }
-  const richAvailable = isMarkdownOpen && analyzed.rawReason === null;
 
   // A mid-session Rich→Raw flip (post-save re-analysis caught a serializer
   // bug, or an external reload landed unrepresentable content) swaps Plate for
@@ -749,11 +735,19 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }
   }, [analyzed, mode]);
 
-  // ---- Privacy badge (UI semantics: strictly "private", no lock for a yaml
-  // typo — the AI paths carry their own fail-closed reads) ---------------------
-  const openNoteIsPrivate = useMemo(
-    () => isMarkdownOpen && editor.path !== null && notePrivacy(editor.content) === "private",
-    [isMarkdownOpen, editor.path, editor.content],
+  // ---- The open document (the exposed ADT) ---------------------------------
+  // Derived in lockstep with (openPath, editor, analysis, mode) — deriveOpenDoc
+  // is pure, so the union can never disagree with the values it came from.
+  const openDoc = useMemo<OpenDoc>(
+    () =>
+      deriveOpenDoc({
+        openPath,
+        loadedPath: editor.path,
+        content: editor.content,
+        rawReason: analyzed.rawReason,
+        chosenMode: mode,
+      }),
+    [openPath, editor.path, editor.content, analyzed.rawReason, mode],
   );
 
   // ---- HTML Apps -----------------------------------------------------------
@@ -765,7 +759,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const value = useMemo<VaultContextValue>(
     () => ({
       editor,
-      openPath,
       entries,
       folderName,
       openFile,
@@ -780,11 +773,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       refreshVault,
-      openNoteIsPrivate,
-      isMarkdownOpen,
-      richAvailable,
-      rawReason: analyzed.rawReason,
-      mode,
+      openDoc,
       setMode,
       openIsHtml,
       isHtmlApp,
@@ -793,7 +782,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }),
     [
       editor,
-      openPath,
       entries,
       folderName,
       openFile,
@@ -808,11 +796,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       refreshVault,
-      openNoteIsPrivate,
-      isMarkdownOpen,
-      richAvailable,
-      analyzed.rawReason,
-      mode,
+      openDoc,
       openIsHtml,
       isHtmlApp,
       showHtmlAsText,

@@ -89,19 +89,8 @@ export function CommandPalette({
   seedQuery?: string | null;
   onSeedConsumed?: () => void;
 }) {
-  const {
-    entries,
-    openFile,
-    createFile,
-    changeFolder,
-    refreshVault,
-    editor,
-    editNote,
-    openPath,
-    isMarkdownOpen,
-    mode,
-    openNoteIsPrivate,
-  } = useVault();
+  const { entries, openFile, createFile, changeFolder, refreshVault, editor, editNote, openDoc } =
+    useVault();
   const createFromTemplate = useCreateFromTemplate();
   const openDailyNote = useOpenDailyNote();
   const setSurface = useViewStore((s) => s.setSurface);
@@ -192,15 +181,15 @@ export function CommandPalette({
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
-  // Toggle the open note's `private: true` flag. ONE write path per mode:
+  // Toggle the open note's `private: true` flag. ONE write path per SURFACE:
   // rich edits the frontmatter NODE (the Page-details seam — Plate serialize →
   // editNote persists it); raw rewrites the text through the same core YAML
   // helpers and lands via editNote. Unreadable frontmatter is refused — what
   // we can't read, we never rewrite (the properties panel's rule).
   const togglePrivate = useCallback(() => {
-    if (openPath === null || !isMarkdownOpen) return;
-    if (mode === "rich") {
-      const live = getLiveEditor(openPath);
+    if (openDoc.kind !== "markdown") return;
+    if (openDoc.surface.mode === "rich") {
+      const live = getLiveEditor(openDoc.path);
       if (live === null || !toggleEditorNotePrivate(live)) {
         toast.error("Couldn't toggle private — fix the note's frontmatter first.");
       }
@@ -211,8 +200,8 @@ export function CommandPalette({
       toast.error("Couldn't toggle private — fix the note's frontmatter first.");
       return;
     }
-    editNote(openPath, next);
-  }, [openPath, isMarkdownOpen, mode, editor.content, editNote]);
+    editNote(openDoc.path, next);
+  }, [openDoc, editor.content, editNote]);
 
   // Run an action then dismiss — every leaf item closes the palette.
   const run = useCallback(
@@ -442,13 +431,13 @@ export function CommandPalette({
       label: `Switch to ${resolved === "dark" ? "light" : "dark"} theme`,
       onSelect: () => setTheme(resolved === "dark" ? "light" : "dark"),
     },
-    ...(openPath !== null && isMarkdownOpen
+    ...(openDoc.kind === "markdown"
       ? [
           {
             value: "toggle-private",
             keywords: "toggle private note lock privacy ai off exclude",
             icon: <LockIcon />,
-            label: openNoteIsPrivate ? "Remove private mark from note" : "Mark note as private",
+            label: openDoc.isPrivate ? "Remove private mark from note" : "Mark note as private",
             onSelect: () => togglePrivate(),
           },
         ]

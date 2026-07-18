@@ -26,6 +26,7 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { injectHtmlAppRuntime } from "@/html-app-inject";
 import { getBridge } from "@renderer/lib/bridge";
 import { handleBrokerRequest } from "@renderer/workspace/html-app-broker";
+import { openDocPath } from "@renderer/workspace/open-doc";
 import { useVault } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/core/knowledge/vault-path";
 import { toErrorMessage } from "@repo/features/ipc";
@@ -51,7 +52,8 @@ function isElectronHost(): boolean {
 }
 
 export function HtmlAppView() {
-  const { openPath, openFile, showHtmlAsText } = useVault();
+  const { openDoc, openFile, showHtmlAsText } = useVault();
+  const openPath = openDocPath(openDoc);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
