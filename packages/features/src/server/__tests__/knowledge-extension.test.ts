@@ -51,12 +51,17 @@ function backlink(sourcePath: string, line: number): BacklinkEntry {
   return { sourcePath, line, snippet: "", kind: "wiki", embed: false };
 }
 
-const emptyPort: KnowledgePort = { search: () => [], backlinks: () => [], notesWithTag: () => [] };
+const emptyPort: KnowledgePort = {
+  search: () => [],
+  backlinks: () => [],
+  notesWithTag: () => [],
+  rename: () => ({ ok: false, reason: "not wired in this test" }),
+};
 
 describe("knowledge extension tools", () => {
-  it("registers search_vault and get_backlinks with valid schemas", () => {
+  it("registers search_vault, get_backlinks, and rename_note with valid schemas", () => {
     const tools = capture(emptyPort);
-    expect([...tools.keys()].toSorted()).toEqual(["get_backlinks", "search_vault"]);
+    expect([...tools.keys()].toSorted()).toEqual(["get_backlinks", "rename_note", "search_vault"]);
     for (const [, tool] of tools) {
       expect(() => validateToolParametersSchema(tool, "knowledge")).not.toThrow();
     }
@@ -121,5 +126,44 @@ describe("knowledge extension tools", () => {
     const tools = capture(emptyPort);
     const result = await tool(tools, "get_backlinks").execute("id", { path: "t.md" });
     expect(text(result)).toBe("No backlinks.");
+  });
+
+  it("rename_note passes both paths to the port and reports the rewrite count", async () => {
+    const rename = vi.fn(() => ({
+      ok: true as const,
+      from: "a.md",
+      to: "b/c.md",
+      linksRewritten: 2,
+    }));
+    const tools = capture({ ...emptyPort, rename });
+    const result = await tool(tools, "rename_note").execute("id", { from: "a.md", to: "b/c.md" });
+    expect(rename).toHaveBeenCalledWith("a.md", "b/c.md");
+    expect(text(result)).toBe("Renamed a.md to b/c.md. Rewrote links in 2 notes.");
+  });
+
+  it("rename_note text is grammatical for one rewrite and honest for zero", async () => {
+    const one = capture({
+      ...emptyPort,
+      rename: () => ({ ok: true, from: "a.md", to: "b.md", linksRewritten: 1 }),
+    });
+    expect(text(await tool(one, "rename_note").execute("id", { from: "a.md", to: "b.md" }))).toBe(
+      "Renamed a.md to b.md. Rewrote links in 1 note.",
+    );
+    const zero = capture({
+      ...emptyPort,
+      rename: () => ({ ok: true, from: "a.md", to: "b.md", linksRewritten: 0 }),
+    });
+    expect(text(await tool(zero, "rename_note").execute("id", { from: "a.md", to: "b.md" }))).toBe(
+      "Renamed a.md to b.md. No link rewrites were needed.",
+    );
+  });
+
+  it("rename_note surfaces a refusal reason verbatim", async () => {
+    const tools = capture({
+      ...emptyPort,
+      rename: () => ({ ok: false, reason: "taken.md already exists" }),
+    });
+    const result = await tool(tools, "rename_note").execute("id", { from: "a.md", to: "taken.md" });
+    expect(text(result)).toBe("Rename failed: taken.md already exists");
   });
 });
