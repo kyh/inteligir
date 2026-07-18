@@ -1,34 +1,27 @@
 // Locate a checkbox in raw markdown by its ORDINAL among the file's task-list
-// items. Parsed with the SAME remark-gfm the renderer's editor uses, so the
-// count is structurally identical to the renderer's — no regex approximation
-// that could disagree with the real parser on fenced/indented code, empty
-// checkboxes, or nesting.
+// items. The item lookup IS core's `scanTaskItems` — the projection's counting
+// authority, the same counter behind the guarded toggle
+// (guarded-line-edit's `toggleTaskAtOrdinal`) — so this locator can never
+// drift from the index or the toggle. The renderer's `todoIndex`
+// (todo-item.ts) parses the same markdown through the same remark-gfm, so
+// ordinals agree by position with no text matching, and duplicate labels stay
+// distinct. Frontmatter-awareness (a checkbox-shaped line inside a leading
+// `---` block never counts) is scanTaskItems' own contract.
 //
-// SHARED COUNTING CONTRACT (kept in lockstep with block-list.tsx's `todoIndex`):
-// both sides count exactly the GFM task-list items remark-gfm recognises — a
-// checkbox with real content, checked or unchecked, at any nesting. A bare/empty
-// checkbox, a plain bullet, and any checkbox-like line inside fenced OR indented
-// code are NOT task items on either side. The renderer parses Plate nodes from
-// the same markdown via the same remark-gfm, so the two agree by position with
-// no text matching, and duplicate labels stay distinct.
-//
-// Heading + section are read at the located item as agent-prompt context only.
+// Heading + section are read at the located item as agent-prompt context only
+// — the local parse below serves ONLY that context, never the ordinal.
 
-import type { Heading, ListItem, Nodes } from "mdast";
+import type { Heading, Nodes } from "mdast";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-// remarkFrontmatter matters for the ordinal contract: without it a leading
-// `---` block parses as a thematic break and a checkbox-shaped line INSIDE
-// the YAML would count as a task item here while scanDoc and the Plate
-// pipeline (both frontmatter-aware) skip it — silently desyncing ordinals.
+import { scanTaskItems } from "@repo/core/knowledge/link-extract";
+
 const processor = unified().use(remarkParse).use(remarkFrontmatter).use(remarkGfm);
 
 const MAX_SECTION_LINES = 60;
-// The list marker + checkbox prefix on a task line; what's left is the item text.
-const MARKER = /^\s*[-*+]\s+\[[ xX]\]\s+/;
 
 export type TaskLineMatch = {
   /** Zero-based index of the matched line in the file. */
@@ -46,43 +39,41 @@ export type TaskLineMatch = {
 
 type HeadingInfo = { line: number; text: string };
 
-/** Find the `index`-th UNCHECKED checkbox in `raw` (per the counting contract
- * above). Returns null if there's no such checkbox or it's already checked
+/** Find the `ordinal`-th UNCHECKED checkbox in `raw` (scanTaskItems' counting
+ * contract). Returns null if there's no such checkbox or it's already checked
  * (stale) — the caller rejects rather than acting on the wrong/old line. */
-export function findTaskLine(raw: string, index: number): TaskLineMatch | null {
+export function findTaskLine(raw: string, ordinal: number): TaskLineMatch | null {
+  // `.find` — not `[ordinal]` — because an item scanTaskItems skipped (no
+  // source position) still consumed its ordinal there.
+  const task = scanTaskItems(raw).find((item) => item.ordinal === ordinal);
+  if (task === undefined) return null;
+  // The ordinal-th task item. Reject if it's already checked (the doc drifted).
+  if (task.checked) return null;
+
+  // `raw`/`text` come straight off the task (same line-split rule as below);
+  // the extra parse here only collects headings for the prompt context.
   const lines = raw.split(/\r\n|\r|\n/);
-  const items: ListItem[] = [];
   const headings: HeadingInfo[] = [];
-  collect(processor.parse(raw), items, headings, lines);
-
-  const item = items[index];
-  if (!item?.position) return null;
-  // The index-th task item. Reject if it's already checked (the doc drifted).
-  if (item.checked === true) return null;
-
-  const lineIndex = item.position.start.line - 1;
-  const lineText = lines[lineIndex] ?? "";
+  collectHeadings(processor.parse(raw), headings, lines);
+  const lineIndex = task.line - 1;
   return {
     lineIndex,
-    lineText,
-    // Verbatim source text after the marker (inline markdown preserved).
-    text: lineText.replace(MARKER, "").trim(),
+    lineText: task.raw,
+    text: task.text,
     heading: nearestHeading(headings, lineIndex),
     section: sectionAround(lines, headings, lineIndex),
   };
 }
 
-/** Pre-order DFS collecting task-list items (`checked` is a boolean) and
- * headings in document order — the same order Plate lays them out, so ordinals
- * line up 1:1 with the renderer's `todoIndex`. */
-function collect(node: Nodes, items: ListItem[], headings: HeadingInfo[], lines: string[]): void {
-  if (node.type === "listItem" && typeof node.checked === "boolean") {
-    items.push(node);
-  } else if (node.type === "heading") {
+/** Pre-order DFS collecting headings in document order, for the prompt
+ * context. Headings inside fenced/indented code aren't parsed as headings,
+ * so they can't act as false boundaries. */
+function collectHeadings(node: Nodes, headings: HeadingInfo[], lines: string[]): void {
+  if (node.type === "heading") {
     pushHeading(node, headings, lines);
   }
   if ("children" in node) {
-    for (const child of node.children) collect(child, items, headings, lines);
+    for (const child of node.children) collectHeadings(child, headings, lines);
   }
 }
 
@@ -101,9 +92,7 @@ function nearestHeading(headings: HeadingInfo[], lineIndex: number): string | nu
 }
 
 /** The lines from the nearest heading at/above the item (inclusive) to the next
- * heading below (exclusive), capped so a giant section doesn't flood the prompt.
- * Headings inside fenced/indented code aren't parsed as headings, so they can't
- * act as false boundaries. */
+ * heading below (exclusive), capped so a giant section doesn't flood the prompt. */
 function sectionAround(lines: string[], headings: HeadingInfo[], lineIndex: number): string {
   let start = 0;
   for (const h of headings) {
