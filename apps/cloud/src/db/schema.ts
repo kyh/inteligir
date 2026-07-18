@@ -78,6 +78,21 @@ export const verification = sqliteTable("verification", {
 });
 
 /**
+ * better-auth's database rate-limit store (`rateLimit.storage = "database"` in
+ * auth.ts). Keyed by IP+path; `key` is unique so the counter upsert is a single
+ * indexed lookup. `lastRequest` is an epoch-ms integer. Mirrors the sqlite shape
+ * `@better-auth/cli generate` emits for the rate-limit store — regenerate rather
+ * than hand-edit if the plugin set changes. Applied via `drizzle-kit push` (this
+ * repo has no migration files); no RLS on D1.
+ */
+export const rateLimit = sqliteTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: integer("last_request").notNull(),
+});
+
+/**
  * Vault ownership (first-writer-wins). `vaultId` is the primary key; the first
  * authenticated user to access a vault inserts a row claiming it. A later request
  * for the same vault by a different user is rejected (403).

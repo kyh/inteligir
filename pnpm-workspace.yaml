@@ -34,7 +34,7 @@ catalog:
   expo-system-ui: ~57.0.0
   expo-web-browser: ~57.0.0
   lucide-react: ^1.24.0
-  nativewind: 5.0.0-preview.3
+  nativewind: 5.0.0-preview.4
   react: ^19.2.7
   react-dom: ^19.2.7
   react-native: ~0.86.0

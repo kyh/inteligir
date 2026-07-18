@@ -68,6 +68,17 @@ export function createAuth(env: Env, baseURL: string) {
     baseURL,
     plugins: [bearer()],
     emailAndPassword: { enabled: true },
+    // Persist rate-limit counters in D1. The default in-memory store keeps
+    // per-isolate counters, so across Workers isolates the effective limit
+    // multiplies and resets whenever an isolate recycles. 10 requests/60s per IP
+    // throttles credential-stuffing against the auth routes. Cloudflare's WAF can
+    // rate-limit at the edge too; this is defense-in-depth at the app layer.
+    rateLimit: {
+      enabled: true,
+      storage: "database",
+      window: 60,
+      max: 10,
+    },
     trustedOrigins: trustedOrigins(env),
     ...socialProviders(env),
   });

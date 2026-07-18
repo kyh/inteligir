@@ -48,7 +48,10 @@
   font-weight: 600;
 }
 
-@source "../../../../apps/**/*.{ts,tsx}";
+/* This package's own components only. Tailwind cannot auto-detect them through
+   the node_modules symlink, but each app's sources are auto-detected from its
+   own build root — scanning apps/** from here would make every app ship every
+   other app's classes. */
 @source "../**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
