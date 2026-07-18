@@ -15,7 +15,6 @@ export type {
   NotificationSettings,
   SetupProgress,
   SkillInfo,
-  UpdateState,
   VoiceModelStateEvent,
 } from "./ipc-registry";
 

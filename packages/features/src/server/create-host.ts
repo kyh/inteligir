@@ -36,8 +36,8 @@ export type HostEvents = {
 
 export type Host = {
   /** One validated handler per non-event registry method the host owns
-   * (UPDATE_METHODS excluded — shell concern). Payloads are schema-checked
-   * inside, so transports pass raw wire values straight in. */
+   * (DESKTOP_SHELL_METHODS excluded — shell concern). Payloads are
+   * schema-checked inside, so transports pass raw wire values straight in. */
   handlers: HostHandlers;
   events: HostEvents;
   /** Boot the backend: pi paths, vault + watcher, app state machine.

@@ -17,7 +17,6 @@ import {
   type DesktopShellMethod,
   type EventMethod,
   type HostMethod,
-  type UpdateMethod,
 } from "@repo/features/ipc-registry";
 import {
   BINARY_STT_AUDIO,
@@ -79,9 +78,9 @@ export type WsHostOptions = {
   host: WsHostSource;
   validator: TokenValidator;
   manager: RemoteAccessManager;
-  /** Shell-owned methods (updater trio + html-app tokens) the platform-
-   * agnostic host has no handler for; host handlers win on overlap. */
-  shellHandlers?: Partial<Record<UpdateMethod | DesktopShellMethod, (raw: unknown) => unknown>>;
+  /** Shell-owned methods (html-app token mint/revoke) the platform-agnostic
+   * host has no handler for; host handlers win on overlap. */
+  shellHandlers?: Partial<Record<DesktopShellMethod, (raw: unknown) => unknown>>;
   /** Liveness ping cadence. Exists so tests can drive the sweep without waiting
    * out the real interval; production has no reason to set it. */
   pingIntervalMs?: number;
@@ -90,8 +89,6 @@ export type WsHostOptions = {
 export type WsHost = {
   /** Actual bound port, or null while not listening. */
   port: () => number | null;
-  /** Push an event to every authed client (the updater's onUpdateState). */
-  broadcastEvent: (method: EventMethod, payload: unknown) => void;
   close: () => Promise<void>;
 };
 
@@ -312,8 +309,8 @@ export function startWsHost(options: WsHostOptions): WsHost {
   const unsubscribeEvents = options.host.events.onAny(broadcastEvent);
 
   /** Push current state as evt frames for the registry's HYDRATED_EVENTS.
-   * Getters resolve through the merged dispatch map, so shell-owned stateful
-   * channels (onUpdateState) hydrate too. Best-effort: a getter that's
+   * Getters resolve through the merged dispatch map, so a shell-owned
+   * stateful channel would hydrate too. Best-effort: a getter that's
    * missing on this host or throws just means no push. */
   function hydrate(sock: WebSocket): void {
     for (const [event, getter] of Object.entries(HYDRATED_EVENTS)) {
@@ -505,7 +502,6 @@ export function startWsHost(options: WsHostOptions): WsHost {
 
   return {
     port: () => actualPort,
-    broadcastEvent,
     close: async () => {
       if (closed) return;
       closed = true;

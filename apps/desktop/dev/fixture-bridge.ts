@@ -3,7 +3,7 @@
 // the real Bridge contract — when the IPC registry changes, this file fails
 // typecheck. Vault reads/writes hit a Map seeded with sample notes; agent
 // chat streams a canned reply; STT streams a canned transcript;
-// TTS/executor/updates report unavailable.
+// TTS/executor report unavailable.
 //
 // Stub convention for new channels: make the stub DO something real against
 // the in-memory state, or throw `unavailable("<feature>")` naming the gap.
@@ -15,7 +15,7 @@ import type { AppAgentEvent } from "@repo/features/agent-events";
 import type { AppState } from "@repo/features/app-state";
 import type { Delegation, ListDelegationsResult } from "@repo/features/delegation";
 import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/features/inline-ai";
-import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/features/ipc";
+import type { Bridge, ChatHistoryEntry } from "@repo/features/ipc";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 import type { RemoteAccessState } from "@repo/features/remote-access";
 import type { SyncState } from "@repo/features/sync";
@@ -357,13 +357,6 @@ class Emitter<T> {
     for (const listener of this.listeners) listener(event);
   }
 }
-
-const IDLE_UPDATE: UpdateState = {
-  status: "idle",
-  version: null,
-  downloadPercent: null,
-  message: null,
-};
 
 const unavailable = (feature: string) =>
   new Error(`${feature} is not available in the dev harness`);
@@ -757,12 +750,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   };
 
   return {
-    // Desktop / updates — nothing to update in a browser tab.
-    checkForUpdates: async () => IDLE_UPDATE,
-    downloadUpdate: async () => ({ accepted: false, state: IDLE_UPDATE }),
-    installUpdate: async () => ({ accepted: false, state: IDLE_UPDATE }),
-    onUpdateState: () => () => {},
-
     // App lifecycle
     getAppState: async () => appState,
     transition: async (event) => {

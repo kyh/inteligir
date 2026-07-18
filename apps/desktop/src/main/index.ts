@@ -90,10 +90,10 @@ process.on("unhandledRejection", (reason) => {
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown — the single path every quit trigger funnels through:
-// cmd+Q / window close (before-quit), SIGINT/SIGTERM, and the auto-update
-// install. Disposes the host (agent + executor daemon + vault watcher) with a
-// hard timeout so a hung teardown can't wedge quit. Idempotent: concurrent
-// triggers share one promise.
+// cmd+Q / window close (before-quit) and SIGINT/SIGTERM. Disposes the host
+// (agent + executor daemon + vault watcher) with a hard timeout so a hung
+// teardown can't wedge quit. Idempotent: concurrent triggers share one
+// promise.
 // ---------------------------------------------------------------------------
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -356,8 +356,8 @@ function createWindow(backgroundColor: string): BrowserWindow {
 // never run a setTimeout fallback, so the watchdog must live outside the
 // process: a detached shell that re-signals us. A second SIGTERM is known to
 // complete the wedged quit immediately; SIGKILL is the last resort. On a
-// normal quit (cmd+Q, auto-update) the process exits in milliseconds and the
-// watchdog's signals hit a dead pid — a no-op.
+// normal quit (cmd+Q) the process exits in milliseconds and the watchdog's
+// signals hit a dead pid — a no-op.
 function quitNow(): void {
   console.log("[desktop] graceful shutdown complete — quitting");
   if (process.platform !== "win32") {
@@ -433,25 +433,16 @@ async function onAppReady(): Promise<void> {
   configureApplicationMenu();
 
   // Transport fold: ONE WebSocket server carries the whole Bridge, before any
-  // renderer can invoke a channel. The desktop-only updater trio and the
-  // html-app token mint (UPDATE_METHODS / DESKTOP_SHELL_METHODS — deliberately
-  // absent from the platform-agnostic host handler map) ride along as
-  // shellHandlers. The updater is constructed first (the ws host needs its
-  // handlers at startup); its broadcast thunk reads the module-level wsHost
-  // lazily — safe, nothing broadcasts before the delayed startup feed check.
+  // renderer can invoke a channel. The html-app token mint/revoke
+  // (DESKTOP_SHELL_METHODS — deliberately absent from the platform-agnostic
+  // host handler map) ride along as shellHandlers.
   const remoteAccess = getRemoteAccessManager();
-  const theUpdater = setupAutoUpdater({
-    isDevelopment,
-    gracefulShutdown: runGracefulShutdown,
-    broadcast: (state) => wsHost?.broadcastEvent("onUpdateState", state),
-  });
-  updater = theUpdater;
+  updater = setupAutoUpdater({ isDevelopment });
   const theWsHost = startWsHost({
     host: theHost,
     validator: remoteAccess.validator,
     manager: remoteAccess,
     shellHandlers: {
-      ...theUpdater.handlers,
       mintHtmlAppToken: () => mintHtmlAppToken(),
       revokeHtmlAppToken: (raw: unknown) => {
         if (isRecord(raw) && typeof raw.token === "string") revokeHtmlAppToken(raw.token);

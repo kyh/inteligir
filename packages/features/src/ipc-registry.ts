@@ -78,33 +78,6 @@ import { TextChatMessageSchema } from "./voice";
 // Shared shapes referenced by registry entries
 // ---------------------------------------------------------------------------
 
-const UpdateStatusSchema = Type.Union([
-  Type.Literal("idle"),
-  Type.Literal("checking"),
-  Type.Literal("available"),
-  Type.Literal("not-available"),
-  Type.Literal("downloading"),
-  Type.Literal("downloaded"),
-  Type.Literal("error"),
-]);
-
-const UpdateStateSchema = Type.Object(
-  {
-    status: UpdateStatusSchema,
-    version: Type.Union([Type.String(), Type.Null()]),
-    downloadPercent: Type.Union([Type.Number(), Type.Null()]),
-    message: Type.Union([Type.String(), Type.Null()]),
-  },
-  { additionalProperties: false },
-);
-
-export type UpdateState = Static<typeof UpdateStateSchema>;
-
-type UpdateResponse = {
-  accepted: boolean;
-  state: UpdateState;
-};
-
 export type VoiceModelStateEvent =
   | { status: "idle" }
   | { status: "downloading"; percent: number; receivedBytes: number; totalBytes: number }
@@ -384,12 +357,6 @@ const event = <E>(channel: string): Event<E> => ({
 // ---------------------------------------------------------------------------
 
 export const IPC = {
-  // Desktop / updates
-  checkForUpdates: invokeVoid<UpdateState>("desktop:update-check"),
-  downloadUpdate: invokeVoid<UpdateResponse>("desktop:update-download"),
-  installUpdate: invokeVoid<UpdateResponse>("desktop:update-install"),
-  onUpdateState: event<UpdateState>("desktop:update-state"),
-
   // App lifecycle
   getAppState: invokeVoid<AppState>("app:get-state"),
   transition: invoke<typeof AppEventSchema, void>("app:transition", AppEventSchema),
@@ -760,9 +727,9 @@ export type IpcMethod = keyof IpcRegistry;
 
 // ---------------------------------------------------------------------------
 // Method partitions — hosts and transports slice the registry along these
-// lines: events are host → UI pushes (no handler), the updater trio is
-// implemented by the desktop shell (electron-updater), everything else is a
-// host-owned handler.
+// lines: events are host → UI pushes (no handler), the desktop-shell methods
+// are implemented by the Electron shell, everything else is a host-owned
+// handler.
 // ---------------------------------------------------------------------------
 
 /** Host → UI push channels. */
@@ -770,35 +737,29 @@ export type EventMethod = {
   [K in IpcMethod]: IpcRegistry[K] extends { kind: "event" } ? K : never;
 }[IpcMethod];
 
-/** Self-update methods only the Electron shell can implement — a non-desktop
- * transport has no handler for these and the UI hides the affordance. */
-export const UPDATE_METHODS = ["checkForUpdates", "downloadUpdate", "installUpdate"] as const;
-export type UpdateMethod = (typeof UPDATE_METHODS)[number];
-
-/** Desktop-shell-only methods beyond the updater trio. `mintHtmlAppToken` and
- * `revokeHtmlAppToken` touch the main-process token store the `vault-app://`
- * protocol checks, so (like the updater) the platform-agnostic host has no
- * handler for them and a non-desktop transport must stub them. */
+/** Desktop-shell-only methods: `mintHtmlAppToken` and `revokeHtmlAppToken`
+ * touch the main-process token store the `vault-app://` protocol checks, so
+ * the platform-agnostic host has no handler for them and a non-desktop
+ * transport must stub them. */
 export const DESKTOP_SHELL_METHODS = ["mintHtmlAppToken", "revokeHtmlAppToken"] as const;
 export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
 
 /** Methods only the LOCAL session (the desktop renderer on loopback) may call
  * over the ws transport. Remote paired devices get the data plane, never the
  * admin plane: the remote-access surface would let a compromised device mint
- * shadow pairings or re-enable remote access after a revoke, and the updater
- * and html-app tokens act on the host machine's shell. The ws host enforces
- * this per-session at dispatch. */
+ * shadow pairings or re-enable remote access after a revoke, and the html-app
+ * tokens act on the host machine's shell. The ws host enforces this
+ * per-session at dispatch. */
 export const LOCAL_ONLY_METHODS = [
   "getRemoteAccessState",
   "setRemoteAccessConfig",
   "createPairingToken",
   "revokeRemoteDevice",
-  ...UPDATE_METHODS,
   ...DESKTOP_SHELL_METHODS,
 ] as const satisfies readonly IpcMethod[];
 
 /** Methods the platform-agnostic host implements. */
-export type HostMethod = Exclude<IpcMethod, EventMethod | UpdateMethod | DesktopShellMethod>;
+export type HostMethod = Exclude<IpcMethod, EventMethod | DesktopShellMethod>;
 
 /** A method's invoke result type (never for sends/events). */
 type ResultOf<K extends IpcMethod> =
@@ -828,10 +789,6 @@ export const HYDRATED_EVENTS = {
   onSyncStateChanged: "getSyncState",
   onAppState: "getAppState",
   onDelegationsUpdated: "listDelegations",
-  // onUpdateState is deliberately absent: its only provable getter
-  // (checkForUpdates) hits the update feed, and hydration runs on EVERY
-  // connect — including each mobile foreground resume. No UI consumes the
-  // event yet; add a side-effect-free getter before hydrating it.
 } as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
 
 // Object.keys returns string[]; the predicate re-proves membership so the

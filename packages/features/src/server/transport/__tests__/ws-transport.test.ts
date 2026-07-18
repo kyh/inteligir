@@ -238,19 +238,18 @@ describe("dispatch", () => {
   it("answers a method nobody implements with a not-available error", async () => {
     const host = await startTestHost({});
     const { bridge } = connectBridge(host.url, host.manager.getLocalToken());
-    await expect(bridge.downloadUpdate()).rejects.toThrow(
-      "downloadUpdate is not available on this host",
+    await expect(bridge.mintHtmlAppToken()).rejects.toThrow(
+      "mintHtmlAppToken is not available on this host",
     );
   });
 
   it("falls back to shellHandlers for shell-owned methods", async () => {
-    const state = { status: "idle", version: null, downloadPercent: null, message: null };
     const host = await startTestHost(
       { getVaultRoot: () => "/v" },
-      { shellHandlers: { checkForUpdates: () => state } },
+      { shellHandlers: { mintHtmlAppToken: () => "tok-1" } },
     );
     const { bridge } = connectBridge(host.url, host.manager.getLocalToken());
-    await expect(bridge.checkForUpdates()).resolves.toEqual(state);
+    await expect(bridge.mintHtmlAppToken()).resolves.toBe("tok-1");
   });
 
   it("delivers fire-and-forget sends to the handler", async () => {
@@ -551,7 +550,7 @@ describe("local-only methods", () => {
           return null;
         },
       },
-      { shellHandlers: { checkForUpdates: () => "shell-state" } },
+      { shellHandlers: { mintHtmlAppToken: () => "shell-state" } },
     );
 
     const pairing = host.manager.createPairingToken();
@@ -573,8 +572,8 @@ describe("local-only methods", () => {
     await expect(device.bridge.revokeRemoteDevice({ id: "other" })).rejects.toThrow(
       "revokeRemoteDevice requires the local device",
     );
-    await expect(device.bridge.checkForUpdates()).rejects.toThrow(
-      "checkForUpdates requires the local device",
+    await expect(device.bridge.mintHtmlAppToken()).rejects.toThrow(
+      "mintHtmlAppToken requires the local device",
     );
     // The data plane still works for the paired device…
     await expect(device.bridge.getVaultRoot()).resolves.toBe("/v");
@@ -582,7 +581,7 @@ describe("local-only methods", () => {
 
     // …and the local session keeps the whole surface.
     const local = connectBridge(host.url, host.manager.getLocalToken());
-    await expect(local.bridge.checkForUpdates()).resolves.toBe("shell-state");
+    await expect(local.bridge.mintHtmlAppToken()).resolves.toBe("shell-state");
     await expect(local.bridge.createPairingToken()).resolves.toBeNull();
   });
 });

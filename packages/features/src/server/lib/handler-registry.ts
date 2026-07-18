@@ -14,15 +14,14 @@ import {
   DESKTOP_SHELL_METHODS,
   IPC,
   IPC_METHODS,
-  UPDATE_METHODS,
   type HostMethod,
   type IpcHandler,
   type IpcMethod,
 } from "@repo/features/ipc-registry";
 
 // Methods the desktop SHELL implements (not the platform-agnostic host): the
-// updater trio + the html-app token mint. Excluded from HOST_METHODS.
-const shellMethods = new Set<string>([...UPDATE_METHODS, ...DESKTOP_SHELL_METHODS]);
+// html-app token mint/revoke. Excluded from HOST_METHODS.
+const shellMethods = new Set<string>(DESKTOP_SHELL_METHODS);
 
 function isHostMethod(method: IpcMethod): method is HostMethod {
   return IPC[method].kind !== "event" && !shellMethods.has(method);

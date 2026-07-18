@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { HOST_METHODS, collectHandlers, type HandlerRegistrar } from "../lib/handler-registry";
-import {
-  DESKTOP_SHELL_METHODS,
-  IPC,
-  IPC_METHODS,
-  UPDATE_METHODS,
-} from "@repo/features/ipc-registry";
+import { DESKTOP_SHELL_METHODS, IPC, IPC_METHODS } from "@repo/features/ipc-registry";
 
 /** Register a stub for every host method, optionally overriding some. */
 function registerAll(overrides: Partial<Record<string, (payload: unknown) => unknown>> = {}) {
@@ -20,11 +15,9 @@ function registerAll(overrides: Partial<Record<string, (payload: unknown) => unk
 }
 
 describe("method partitions", () => {
-  it("host methods + updater trio + desktop-shell methods cover every renderer-initiated method", () => {
+  it("host methods + desktop-shell methods cover every renderer-initiated method", () => {
     const invokable = IPC_METHODS.filter((m) => IPC[m].kind !== "event").toSorted();
-    expect([...HOST_METHODS, ...UPDATE_METHODS, ...DESKTOP_SHELL_METHODS].toSorted()).toEqual(
-      invokable,
-    );
+    expect([...HOST_METHODS, ...DESKTOP_SHELL_METHODS].toSorted()).toEqual(invokable);
   });
 
   it("registry channels are unique", () => {
