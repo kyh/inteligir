@@ -28,6 +28,7 @@ import { getBridge } from "@renderer/lib/bridge";
 import { handleBrokerRequest } from "@renderer/workspace/html-app-broker";
 import { useVault } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/core/knowledge/vault-path";
+import { toErrorMessage } from "@repo/features/ipc";
 
 // The postMessage request envelope the runtime sends. Validated before dispatch.
 const RequestEnvelope = Type.Object(
@@ -89,7 +90,7 @@ export function HtmlAppView() {
         setToken(minted);
         setError(null);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(toErrorMessage(err));
       }
     })();
     return () => {
@@ -119,7 +120,7 @@ export function HtmlAppView() {
         setSrc(objectUrl);
         setError(null);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(toErrorMessage(err));
       }
     })();
     return () => {
@@ -195,7 +196,7 @@ export function HtmlAppView() {
           });
           reply({ ok: true, value });
         } catch (err) {
-          reply({ ok: false, error: err instanceof Error ? err.message : String(err) });
+          reply({ ok: false, error: toErrorMessage(err) });
         }
       })();
     };

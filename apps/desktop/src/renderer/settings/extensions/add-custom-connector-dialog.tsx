@@ -17,13 +17,8 @@ import {
   installConnector,
   type IntegrationSpec,
 } from "@renderer/settings/extensions/connector-install";
-import {
-  blockDismissWhileBusy,
-  errorMessage,
-  parseHeaders,
-  slug,
-} from "@renderer/settings/extensions/lib";
-import { isHttpUrl } from "@repo/features/ipc";
+import { blockDismissWhileBusy, parseHeaders, slug } from "@renderer/settings/extensions/lib";
+import { isHttpUrl, toErrorMessage } from "@repo/features/ipc";
 
 type CustomKind = "mcp" | "openapi" | "graphql" | "google";
 const KINDS: { id: CustomKind; label: string }[] = [
@@ -87,7 +82,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
       setKind(map[best.kind] ?? "mcp");
       if (!name.trim()) setName(best.name);
     } catch (err) {
-      setError(errorMessage(err, "Detection failed."));
+      setError(toErrorMessage(err, "Detection failed."));
     }
   }, [endpoint, name]);
 
@@ -153,7 +148,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
       await onAdded();
       onOpenChange(false);
     } catch (err) {
-      setError(errorMessage(err, "Failed to add connector."));
+      setError(toErrorMessage(err, "Failed to add connector."));
     } finally {
       setBusy(false);
     }

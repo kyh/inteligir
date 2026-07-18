@@ -4,11 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import { getBridge } from "@renderer/lib/bridge";
 import type { OAuthStartInput } from "@repo/features/executor";
+import { toErrorMessage } from "@repo/features/ipc";
 import type { Bridge } from "@repo/features/ipc-registry";
-
-export function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
-}
 
 export function slug(name: string): string {
   return (
@@ -105,7 +102,7 @@ export function useBridgeResource<T>(
         return undefined;
       })
       .catch((err: unknown) => {
-        const message = errorMessage(err, "Failed to load.");
+        const message = toErrorMessage(err, "Failed to load.");
         setError(message);
         onErrorRef.current(message);
       });

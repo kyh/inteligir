@@ -18,11 +18,7 @@ import {
   uninstallConnector,
 } from "@renderer/settings/extensions/connector-install";
 import { GoogleClientDialog } from "@renderer/settings/extensions/google-client-dialog";
-import {
-  errorMessage,
-  useBridgeResource,
-  type SectionProps,
-} from "@renderer/settings/extensions/lib";
+import { useBridgeResource, type SectionProps } from "@renderer/settings/extensions/lib";
 import { SecretPromptDialog } from "@renderer/settings/extensions/secret-prompt-dialog";
 import {
   GOOGLE_AUTHORIZATION_URL,
@@ -30,6 +26,7 @@ import {
   GOOGLE_TOKEN_URL,
   type ExecutorIntegration,
 } from "@repo/features/executor";
+import { toErrorMessage } from "@repo/features/ipc";
 
 /** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
 function setMembership(
@@ -150,7 +147,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
         await installConnector(bridge, catalogInstallRequest(connector));
         await refreshAll();
       } catch (err) {
-        onError(errorMessage(err, `Couldn't connect ${connector.name}.`));
+        onError(toErrorMessage(err, `Couldn't connect ${connector.name}.`));
       } finally {
         setMembership(setConnecting, connector.id, false);
       }
@@ -171,7 +168,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
         onError(null);
         setApiKeyTarget(null);
       } catch (err) {
-        setApiKeyError(errorMessage(err, `Couldn't connect ${connector.name}.`));
+        setApiKeyError(toErrorMessage(err, `Couldn't connect ${connector.name}.`));
       } finally {
         setApiKeyBusy(false);
       }
@@ -202,7 +199,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
         onError(null);
         setGoogleTarget(null);
       } catch (err) {
-        setGoogleError(errorMessage(err, `Couldn't connect ${connector.name}.`));
+        setGoogleError(toErrorMessage(err, `Couldn't connect ${connector.name}.`));
       } finally {
         setGoogleBusy(false);
         setMembership(setConnecting, connector.id, false);
@@ -242,7 +239,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
         onError(null);
         setGoogleOverrideOpen(false);
       } catch (err) {
-        setGoogleError(errorMessage(err, "Couldn't save the Google OAuth client."));
+        setGoogleError(toErrorMessage(err, "Couldn't save the Google OAuth client."));
       } finally {
         setGoogleBusy(false);
       }
@@ -259,7 +256,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
       try {
         await uninstallConnector(bridge, { slug: connector.id });
       } catch (err) {
-        onError(errorMessage(err, `Couldn't disconnect ${connector.name}.`));
+        onError(toErrorMessage(err, `Couldn't disconnect ${connector.name}.`));
       } finally {
         // Always reconcile with server state — a partial failure (e.g. the
         // integration was removed but a later step threw) must not leave a
@@ -278,7 +275,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
       try {
         await uninstallConnector(bridge, { slug: integration.slug });
       } catch (err) {
-        onError(errorMessage(err, "Failed to remove connector."));
+        onError(toErrorMessage(err, "Failed to remove connector."));
       } finally {
         await refreshAll();
       }

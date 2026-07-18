@@ -5,6 +5,7 @@ import type { AppAgentEvent } from "@repo/features/agent-events";
 import { Value } from "@sinclair/typebox/value";
 
 import { AppStateSchema, type AppState } from "@repo/features/app-state";
+import { toErrorMessage } from "@repo/features/ipc";
 import type { Bridge, SetupProgress } from "@repo/features/ipc-registry";
 import { buildNoteContext, stripNoteContext } from "@repo/features/note-context";
 import type { ImageAttachment } from "@repo/features/voice";
@@ -194,7 +195,7 @@ function sendCommandSurfacingFailure(
   command: Parameters<Bridge["sendAgentCommand"]>[0],
 ): void {
   void bridge.sendAgentCommand(command).catch((err: unknown) => {
-    const reason = err instanceof Error ? err.message : "The message could not be submitted.";
+    const reason = toErrorMessage(err, "The message could not be submitted.");
     const msg: ChatMessage = {
       ...assistantTextMessage(`Your message wasn't delivered: ${reason}`),
       metadata: { errorKind: "unknown" },

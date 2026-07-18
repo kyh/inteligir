@@ -17,6 +17,7 @@
 
 import { basenamePath } from "@repo/core/knowledge/vault-path";
 import type { AppAgentEvent } from "@repo/features/agent-events";
+import { toErrorMessage } from "@repo/features/ipc";
 import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
 
 export type AgentEditUndoPorts = {
@@ -86,7 +87,7 @@ export async function runAgentEditUndo(
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "Couldn't restore the notes.",
+      error: toErrorMessage(err, "Couldn't restore the notes."),
     };
   }
 }
