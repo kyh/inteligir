@@ -47,18 +47,23 @@ function composeResetEmail(url: string): { subject: string; text: string; html: 
   };
 }
 
+/** The two env members the send actually uses — narrower than the generated
+ * `Env` (which types the binding always-present) so the absent-binding
+ * degradation is representable and unit-testable without a full Worker env. */
+export type ResetEmailEnv = {
+  readonly EMAIL?: SendEmail;
+  readonly RESET_FROM_ADDRESS?: string;
+};
+
 /** Send the reset email for `sendResetPassword`. Never throws — see header. */
-export async function sendResetEmail(env: Env, to: string, url: string): Promise<void> {
-  // The generated Env types the binding as always-present; runtime configs
-  // without it (stripped-down dev) must degrade to a warning, not a crash.
-  const binding: SendEmail | undefined = env.EMAIL;
-  if (binding === undefined) {
+export async function sendResetEmail(env: ResetEmailEnv, to: string, url: string): Promise<void> {
+  if (env.EMAIL === undefined) {
     console.warn("password reset: no EMAIL binding — reset email not sent");
     return;
   }
   const { subject, text, html } = composeResetEmail(url);
   try {
-    await binding.send({
+    await env.EMAIL.send({
       from: { name: FROM_NAME, email: env.RESET_FROM_ADDRESS ?? DEFAULT_FROM_ADDRESS },
       to,
       subject,
