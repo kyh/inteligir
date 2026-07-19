@@ -35,6 +35,15 @@
     },
   ],
 
+  // Cloudflare Email Sending — the password-reset transport (issue #463).
+  // `env.EMAIL.send({from,to,subject,text,html})` needs NO API key; delivery
+  // starts working the moment the owner runs
+  // `npx wrangler email sending enable inteligir.app` + completes the
+  // dashboard DNS (DKIM/SPF) onboarding. Until then sends fail server-side
+  // (logged), while the reset flow itself stays correct: tokens are issued
+  // before the send and the request response is always neutral.
+  "send_email": [{ "name": "EMAIL" }],
+
   // No `vars`: the Better Auth baseURL is derived per-request from the incoming
   // request origin (so localhost/preview/prod all work with no config), and
   // BETTER_AUTH_SECRET + any OAuth client secrets are secrets — set them with
