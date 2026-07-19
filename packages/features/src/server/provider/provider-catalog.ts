@@ -11,10 +11,14 @@
 // touching disk.
 // ---------------------------------------------------------------------------
 
-import { listModels } from "@repo/features/server/pi/model";
-import type { Api, Model } from "@repo/features/server/pi/pi-types";
+import { listModels } from "@repo/agent/pi/model";
+import type { Api, Model } from "@repo/agent/pi/pi-types";
 
-import { ensureFauxProvider, FAUX_PROVIDER_ID, isFauxAgentEnabled } from "./faux-provider";
+import {
+  ensureFauxProvider,
+  FAUX_PROVIDER_ID,
+  isFauxAgentEnabled,
+} from "@repo/agent/provider/faux-provider";
 
 /** Providers the app can put in front of the user. A store value outside this
  * union is normalized back to the default at read time. */

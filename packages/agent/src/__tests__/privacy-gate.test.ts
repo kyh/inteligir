@@ -11,9 +11,9 @@
 
 import { describe, expect, it } from "vitest";
 
-import { classifyVaultDocWrite, decideToolCall, type GateEnv } from "../agent/privacy/gate";
-import { buildToolCallHandler } from "../agent/privacy/extension";
-import type { PrivacyPort, PrivacyProbe, VaultDocWrite } from "../agent/extension";
+import { classifyVaultDocWrite, decideToolCall, type GateEnv } from "../privacy/gate";
+import { buildToolCallHandler } from "../privacy/extension";
+import type { PrivacyPort, PrivacyProbe, VaultDocWrite } from "../extension";
 
 // The secret bytes that must never appear in anything the model sees.
 const SECRET_BODY = "TOP SECRET: the rocket equation notes";

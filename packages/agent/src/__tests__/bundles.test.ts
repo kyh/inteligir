@@ -6,9 +6,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { EXTENSION_BUNDLES } from "../agent/bundles";
+import { EXTENSION_BUNDLES } from "../bundles";
 
-const AGENT_DIR = path.resolve(import.meta.dirname, "../agent");
+const AGENT_DIR = path.resolve(import.meta.dirname, "..");
 
 describe("EXTENSION_BUNDLES", () => {
   it("lists every agent/<name>/extension.ts on disk, name-sorted", async () => {
@@ -24,7 +24,7 @@ describe("EXTENSION_BUNDLES", () => {
     // Identity check: the listed bundle IS the folder's default export, not a
     // same-named impostor.
     for (const dir of dirs) {
-      const mod: { default: unknown } = await import(`../agent/${dir}/extension.ts`);
+      const mod: { default: unknown } = await import(`../${dir}/extension.ts`);
       expect(bundlesByName.get(dir)).toBe(mod.default);
     }
   });

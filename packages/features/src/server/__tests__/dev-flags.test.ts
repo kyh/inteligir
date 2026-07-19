@@ -5,12 +5,12 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { areDevFlagsAllowed, setDevFlagsAllowed } from "../dev-flags";
+import { areDevFlagsAllowed, setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import {
   isEmulateConnectorsEnabled,
   resolveGoogleOAuthEndpoints,
 } from "../connectors/emulate-connectors";
-import { isFauxAgentEnabled } from "../provider/faux-provider";
+import { isFauxAgentEnabled } from "@repo/agent/provider/faux-provider";
 import { GOOGLE_AUTHORIZATION_URL, GOOGLE_TOKEN_URL } from "@repo/bridge/executor";
 
 afterEach(() => {

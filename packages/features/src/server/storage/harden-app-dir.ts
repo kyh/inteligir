@@ -26,7 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { inteligirPath } from "./json-store";
-import { SESSION_DIR_SEGMENTS } from "../agent/paths";
+import { SESSION_DIR_SEGMENTS } from "@repo/agent/paths";
 
 /** Subdirectories holding note content, transcripts, or credentials — the
  * durable owner-only boundary for files third parties create inside them. */

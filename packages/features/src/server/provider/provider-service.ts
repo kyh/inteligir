@@ -9,13 +9,13 @@
 // anywhere.
 // ---------------------------------------------------------------------------
 
-import { getAuthStorage, isProviderAuthed, login, logoutProvider } from "../agent/auth";
+import { getAuthStorage, isProviderAuthed, login, logoutProvider } from "@repo/agent/auth";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import type { ModelSelection } from "@repo/features/server/pi/model";
-import type { Api, Model } from "@repo/features/server/pi/pi-types";
+import type { ModelSelection } from "@repo/agent/pi/model";
+import type { Api, Model } from "@repo/agent/pi/pi-types";
 import type { AiConnectResult, AiProviderSettings } from "@repo/bridge/ai-provider";
 
-import { FAUX_PROVIDER_ID, isFauxAgentEnabled } from "./faux-provider";
+import { FAUX_PROVIDER_ID, isFauxAgentEnabled } from "@repo/agent/provider/faux-provider";
 import {
   applySelectionPatch,
   catalogEntry,
@@ -59,7 +59,7 @@ export function providerModelSelection(modelId: string): ModelSelection {
 /** The selected provider+model pair every default Agent session runs on —
  * passed as the lazy `selectModel` thunk in AgentOptions and resolved to a
  * pi Model inside the PiAgent wrapper at start() (#460: pi-ai's Model type
- * stays inside server/pi/*). */
+ * stays inside @repo/agent/pi/*). */
 export function agentModelSelection(): ModelSelection {
   const selection = getSelectedProvider();
   ensureFauxRuntimeAuth(selection.provider);

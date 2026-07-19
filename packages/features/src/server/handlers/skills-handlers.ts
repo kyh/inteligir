@@ -1,4 +1,4 @@
-import { listIntegrations, listSkills, repairIntegrations } from "../agent/setup";
+import { listIntegrations, listSkills, repairIntegrations } from "@repo/agent/setup";
 import { emitEvent } from "../events";
 import { getAgentPorts, getBundledResources } from "../boot/agent-wiring";
 import type { HandlerRegistrar } from "./handler-registry";

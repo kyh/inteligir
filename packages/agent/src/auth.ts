@@ -7,13 +7,8 @@
 import fs from "node:fs";
 import open from "open";
 
-import {
-  createAuthStorage,
-  hasAuth,
-  loginWithProvider,
-  removeAuth,
-} from "@repo/features/server/pi/auth";
-import type { AuthStorage } from "@repo/features/server/pi/pi-types";
+import { createAuthStorage, hasAuth, loginWithProvider, removeAuth } from "@repo/agent/pi/auth";
+import type { AuthStorage } from "@repo/agent/pi/pi-types";
 
 import { AUTH_PATH } from "./paths";
 

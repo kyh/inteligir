@@ -11,14 +11,14 @@ import fs from "node:fs";
 
 import { notePrivacy } from "@repo/domain/markdown/frontmatter";
 
-import { resetAuthStorage } from "../agent/auth";
+import { resetAuthStorage } from "@repo/agent/auth";
 import { loginSelectedProvider } from "../provider/provider-service";
 import { resetProviderConfig } from "../provider/provider-config";
-import type { AgentPorts, PrivacyProbe } from "../agent/extension";
+import type { AgentPorts, PrivacyProbe } from "@repo/agent/extension";
 import { buildAgentKnowledgePort } from "./agent-knowledge-port";
 import { isEnoent } from "../storage/fs-errors";
-import { AGENT_DIR } from "../agent/paths";
-import { seedResources, type BundledResources } from "../agent/setup";
+import { AGENT_DIR } from "@repo/agent/paths";
+import { seedResources, type BundledResources } from "@repo/agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "../storage/host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";

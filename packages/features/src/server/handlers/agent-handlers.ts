@@ -2,7 +2,7 @@ import { dispatchAgentCommand } from "../app/agent-gateway";
 import { reauthenticate } from "../app/app-machine";
 import { readSessionHistory } from "../app/session-history";
 import type { HandlerRegistrar } from "./handler-registry";
-import { applyFauxAgentScript, isFauxAgentEnabled } from "../provider/faux-provider";
+import { applyFauxAgentScript, isFauxAgentEnabled } from "@repo/agent/provider/faux-provider";
 
 export function registerAgentHandlers(handle: HandlerRegistrar): void {
   // All interactive agent commands funnel through the gateway, which defers

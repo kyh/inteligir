@@ -14,7 +14,7 @@
 
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
-import { Agent } from "../agent/agent";
+import { Agent } from "@repo/agent/agent";
 import {
   getSelectedProvider,
   listSelectedProviderModels,
@@ -22,7 +22,7 @@ import {
 } from "../provider/provider-service";
 import { getAgentPorts } from "../boot/agent-wiring";
 import { getUiState } from "../ui-state";
-import { runTextTurn } from "../agent/text-turn";
+import { runTextTurn } from "@repo/agent/text-turn";
 import {
   GHOST_TEXT_MODEL_UI_STATE,
   type GhostModelsResult,

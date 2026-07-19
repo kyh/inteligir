@@ -12,10 +12,11 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const REPO_ROOT = path.resolve(__dirname, "../../../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../../..");
 
 /** Source trees the guard sweeps (product code on every platform). */
 const SCANNED_DIRS = [
+  "packages/agent/src",
   "packages/bridge/src",
   "packages/cli-bootstrap/src",
   "packages/features/src",
@@ -33,16 +34,16 @@ const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".cache", ".output", ".e
  * the specifier is what matters, not the syntax around it). */
 const PI_SPECIFIER = /["']@mariozechner\/pi[^"']*["']/;
 
-/** The ONLY places allowed to import pi directly. */
+/** The ONLY places allowed to import pi directly — all inside @repo/agent. */
 const ALLOWED = [
   // The harness quarantine: the wrappers everything else goes through.
-  "packages/features/src/server/pi/",
+  "packages/agent/src/pi/",
   // pi-ai's stub provider — part of the provider menu, but pi-shaped.
-  "packages/features/src/server/provider/faux-provider.ts",
+  "packages/agent/src/provider/faux-provider.ts",
   // Pins gate/tool path-normalization parity against pi's own resolution.
-  "packages/features/src/server/__tests__/pi-path-parity.test.ts",
+  "packages/agent/src/__tests__/pi-path-parity.test.ts",
   // Drives the faux registration through pi-ai's real register API.
-  "packages/features/src/server/provider/__tests__/faux-provider.test.ts",
+  "packages/agent/src/provider/__tests__/faux-provider.test.ts",
 ];
 
 function walk(dir: string, out: string[]): void {

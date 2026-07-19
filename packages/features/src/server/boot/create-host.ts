@@ -12,8 +12,8 @@
 // (the ws host), forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
-import { configurePaths, WORKSPACE_DIR } from "../agent/paths";
-import { setDevFlagsAllowed } from "../dev-flags";
+import { configurePaths, WORKSPACE_DIR } from "@repo/agent/paths";
+import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
 import { subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";

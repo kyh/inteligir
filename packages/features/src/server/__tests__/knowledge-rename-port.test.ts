@@ -17,7 +17,7 @@ import { notePrivacy } from "@repo/domain/markdown/frontmatter";
 
 import { buildAgentKnowledgePort } from "../boot/agent-knowledge-port";
 import { VaultManager } from "../vault/vault";
-import type { KnowledgePort, PrivacyProbe } from "../agent/extension";
+import type { KnowledgePort, PrivacyProbe } from "@repo/agent/extension";
 
 let tmp: string;
 let root: string;

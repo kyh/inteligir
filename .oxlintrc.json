@@ -124,7 +124,7 @@
       }
     },
     {
-      "files": ["packages/features/src/server/agent/*.ts"],
+      "files": ["packages/agent/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -134,33 +134,12 @@
                 "group": [
                   "electron",
                   "electron/*",
-                  "../**",
-                  "@repo/features/server/**",
-                  "!@repo/features/server/pi/**"
+                  "@repo/features",
+                  "@repo/features/*",
+                  "@repo/desktop",
+                  "@repo/desktop/*"
                 ],
-                "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/features/src/server/agent/*/*.ts"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "../../**",
-                  "@repo/features/server/**",
-                  "!@repo/features/server/pi/**"
-                ],
-                "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
+                "message": "@repo/agent must not reach into the backend or the shell — the host injects capabilities via AgentPorts (extension.ts)"
               }
             ]
           }

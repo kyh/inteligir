@@ -8,7 +8,7 @@
  * phase only sees what's meaningful at that point in the lifecycle.
  */
 
-import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi-types";
+import type { ExtensionAPI, ExtensionFactory } from "@repo/agent/pi/pi-types";
 import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
 import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
 

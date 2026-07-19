@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setDevFlagsAllowed } from "../dev-flags";
+import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import {
   applyGoogleEndpointOverride,
   emulatePlaceholderGoogleClient,

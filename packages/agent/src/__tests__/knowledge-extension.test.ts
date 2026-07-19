@@ -3,13 +3,9 @@ import { describe, it, expect, vi } from "vitest";
 import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
 import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
 
-import knowledgeExtension from "../agent/knowledge-tools/extension";
-import {
-  validateToolParametersSchema,
-  type AgentPorts,
-  type KnowledgePort,
-} from "../agent/extension";
-import type { ExtensionAPI } from "@repo/features/server/pi/pi-types";
+import knowledgeExtension from "../knowledge-tools/extension";
+import { validateToolParametersSchema, type AgentPorts, type KnowledgePort } from "../extension";
+import type { ExtensionAPI } from "@repo/agent/pi/pi-types";
 
 // ---------------------------------------------------------------------------
 // A minimal ExtensionAPI stub that just records registered tools so we can

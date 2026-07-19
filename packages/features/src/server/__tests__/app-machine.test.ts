@@ -3,12 +3,12 @@ import { AppMachine } from "../app/app-machine";
 import type { EffectDeps } from "../app/app-effects";
 import type { AppState } from "@repo/bridge/app-state";
 
-vi.mock("../agent/setup", () => ({
+vi.mock("@repo/agent/setup", () => ({
   isSetupComplete: vi.fn().mockReturnValue(false),
   seedResources: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../agent/auth", () => ({
+vi.mock("@repo/agent/auth", () => ({
   isProviderAuthed: vi.fn().mockReturnValue(false),
   login: vi.fn().mockResolvedValue(undefined),
   logoutProvider: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock("../agent/auth", () => ({
   resetAuthStorage: vi.fn(),
 }));
 
-vi.mock("../agent/agent", () => ({
+vi.mock("@repo/agent/agent", () => ({
   Agent: vi.fn(),
 }));
 

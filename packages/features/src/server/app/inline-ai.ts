@@ -10,12 +10,12 @@
 // prompt and gets back the assistant's final text.
 // ---------------------------------------------------------------------------
 
-import { Agent } from "../agent/agent";
-import { INLINE_AI_SESSION_DIR } from "../agent/paths";
+import { Agent } from "@repo/agent/agent";
+import { INLINE_AI_SESSION_DIR } from "@repo/agent/paths";
 import { agentModelSelection } from "../provider/provider-service";
 import { getAgentPorts } from "../boot/agent-wiring";
 import { emitEvent } from "../events";
-import { runTextTurn } from "../agent/text-turn";
+import { runTextTurn } from "@repo/agent/text-turn";
 import { parseAiIntent, type AiGenerateResult, type AiIntentResult } from "@repo/bridge/inline-ai";
 
 const GEN_TIMEOUT_MS = 60_000;

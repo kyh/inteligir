@@ -29,7 +29,7 @@ import type { AgentCheckpointPort, PiExtensionBundle, PrivacyPort } from "../ext
 import { WORKSPACE_DIR } from "../paths";
 import { classifyVaultDocWrite, decideToolCall, type GateEnv } from "./gate";
 import { resolvePiToolPath } from "./pi-path-parity";
-import type { ToolCallEvent, ToolCallEventResult } from "@repo/features/server/pi/pi-types";
+import type { ToolCallEvent, ToolCallEventResult } from "@repo/agent/pi/pi-types";
 
 /** Canonicalize with nearest-existing-ancestor semantics (VaultManager's
  * realPath, mirrored): a not-yet-created file under a symlinked parent still

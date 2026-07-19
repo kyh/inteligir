@@ -13,10 +13,10 @@ import { describe, expect, it } from "vitest";
 import { KnowledgeIndex } from "@repo/domain/knowledge/knowledge-index";
 import { notePrivacy } from "@repo/domain/markdown/frontmatter";
 
-import knowledgeExtension from "../agent/knowledge-tools/extension";
+import knowledgeExtension from "@repo/agent/knowledge-tools/extension";
 import { buildAgentKnowledgePort } from "../boot/agent-knowledge-port";
-import type { AgentPorts, KnowledgePort, PrivacyProbe } from "../agent/extension";
-import type { ExtensionAPI } from "@repo/features/server/pi/pi-types";
+import type { AgentPorts, KnowledgePort, PrivacyProbe } from "@repo/agent/extension";
+import type { ExtensionAPI } from "@repo/agent/pi/pi-types";
 
 // Distinctive markers that exist ONLY in the private note — any of these in a
 // tool result is a leak.

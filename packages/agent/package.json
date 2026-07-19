@@ -1,0 +1,42 @@
+{
+  "name": "@repo/agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The pi coding-agent capability: the Agent lifecycle wrapper, extension bundles (browser, code-mode, knowledge-tools, peekaboo, privacy), setup/seeding, provider auth, and the pi harness quarantine (src/pi/* — the ONLY place `@mariozechner/pi*` may be imported, pinned by pi-quarantine.test.ts). Reaches the backend only through injected AgentPorts; the host (@repo/features/server boot/) composes capabilities and hands them in.",
+  "type": "module",
+  "exports": {
+    "./agent": "./src/agent.ts",
+    "./auth": "./src/auth.ts",
+    "./dev-flags": "./src/dev-flags.ts",
+    "./extension": "./src/extension.ts",
+    "./knowledge-tools/extension": "./src/knowledge-tools/extension.ts",
+    "./paths": "./src/paths.ts",
+    "./pi/agent": "./src/pi/agent.ts",
+    "./pi/auth": "./src/pi/auth.ts",
+    "./pi/model": "./src/pi/model.ts",
+    "./pi/pi-types": "./src/pi/pi-types.ts",
+    "./pi/skills": "./src/pi/skills.ts",
+    "./provider/faux-provider": "./src/provider/faux-provider.ts",
+    "./setup": "./src/setup.ts",
+    "./text-turn": "./src/text-turn.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "^0.73.1",
+    "@mariozechner/pi-coding-agent": "^0.73.1",
+    "@repo/bridge": "workspace:*",
+    "@repo/cli-bootstrap": "workspace:*",
+    "@repo/domain": "workspace:*",
+    "@sinclair/typebox": "catalog:",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

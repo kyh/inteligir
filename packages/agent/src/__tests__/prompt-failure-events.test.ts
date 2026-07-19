@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildPromptFailureEvents } from "@repo/features/server/pi/agent";
+import { buildPromptFailureEvents } from "@repo/agent/pi/agent";
 
 import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
 

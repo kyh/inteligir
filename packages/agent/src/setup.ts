@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { listSkills as listSkillsFromDisk } from "@repo/features/server/pi/skills";
+import { listSkills as listSkillsFromDisk } from "@repo/agent/pi/skills";
 import { prependPath, seedDirectory, seedFile } from "@repo/cli-bootstrap/seed";
 import { readCliVersion } from "@repo/cli-bootstrap/install";
 

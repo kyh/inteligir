@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { getAgent, getAppState } from "./app-machine";
-import type { ImageContent } from "@repo/features/server/pi/pi-types";
+import type { ImageContent } from "@repo/agent/pi/pi-types";
 import type { ImageAttachment, TextChatMessage } from "@repo/bridge/voice";
 
 /** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */

@@ -8,7 +8,7 @@ import {
   type ExtensionRegisterContext,
   type ExtensionSetupContext,
   type PiExtensionBundle,
-} from "../agent/extension";
+} from "../extension";
 
 const unused = (): never => {
   throw new Error("port not used in this test");

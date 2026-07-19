@@ -22,7 +22,7 @@
 
 import { Type } from "@sinclair/typebox";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import type { ExtensionAPI } from "@repo/features/server/pi/pi-types";
+import type { ExtensionAPI } from "@repo/agent/pi/pi-types";
 
 import type { ExecutorPort, PiExtensionBundle } from "../extension";
 import { textResult } from "../extension-helpers";

@@ -26,7 +26,7 @@ import {
 import { isSelectedProviderConnected } from "../provider/provider-service";
 import { getVaultManager } from "../vault/vault";
 import { emitEvent } from "../events";
-import { runTextTurn } from "../agent/text-turn";
+import { runTextTurn } from "@repo/agent/text-turn";
 import {
   DelegationSchema,
   type CreateDelegationParams,

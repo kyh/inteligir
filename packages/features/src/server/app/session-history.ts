@@ -7,9 +7,9 @@ import {
   type SessionMessageEntry,
   type ToolCall,
   type ToolResultMessage,
-} from "@repo/features/server/pi/pi-types";
+} from "@repo/agent/pi/pi-types";
 
-import { SESSION_DIR, WORKSPACE_DIR } from "../agent/paths";
+import { SESSION_DIR, WORKSPACE_DIR } from "@repo/agent/paths";
 import { extractTextFromContent, isRecord } from "@repo/bridge/wire-helpers";
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 

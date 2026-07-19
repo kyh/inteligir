@@ -33,7 +33,7 @@ export type HostPlatform = {
   /**
    * True in a packaged production install (Electron: app.isPackaged), false
    * in dev checkouts and test shells. Gates the dev-only env flags
-   * (server/dev-flags.ts): a packaged build refuses INTELIGIR_FAUX_AGENT /
+   * (@repo/agent dev-flags.ts): a packaged build refuses INTELIGIR_FAUX_AGENT /
    * INTELIGIR_EMULATE_CONNECTORS outright.
    */
   isPackaged: boolean;

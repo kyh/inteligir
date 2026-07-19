@@ -19,6 +19,9 @@ const REPO_ROOT = path.resolve(__dirname, "../../../../..");
 
 /** Source trees the guard sweeps (product code on every platform). */
 const SCANNED_DIRS = [
+  "packages/agent/src",
+  "packages/bridge/src",
+  "packages/cli-bootstrap/src",
   "packages/features/src",
   "packages/domain/src",
   "packages/ui/src",
@@ -42,8 +45,8 @@ const ALLOWED = [
   // The account+sync layer itself (client, coordinator, their tests).
   "packages/features/src/server/sync/",
   // The Bridge surface: wire contract, channel table, host handlers.
-  "packages/features/src/sync.ts",
-  "packages/features/src/ipc-registry.ts",
+  "packages/bridge/src/sync.ts",
+  "packages/bridge/src/ipc-registry.ts",
   "packages/features/src/server/handlers/sync-handlers.ts",
   // The two settings surfaces: Account owns the session, Sync consumes it.
   "apps/desktop/src/renderer/settings/sections/account-section.tsx",
@@ -97,7 +100,7 @@ describe("account boundary (#459)", () => {
   it("provider layer and sync layer never import each other (teardown decouple)", () => {
     const providerDir = path.join(REPO_ROOT, "packages/features/src/server/provider");
     const syncDir = path.join(REPO_ROOT, "packages/features/src/server/sync");
-    const agentAuth = path.join(REPO_ROOT, "packages/features/src/server/agent/auth.ts");
+    const agentAuth = path.join(REPO_ROOT, "packages/agent/src/auth.ts");
 
     const providerFiles: string[] = [];
     walk(providerDir, providerFiles);

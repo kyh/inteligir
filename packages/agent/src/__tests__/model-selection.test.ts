@@ -15,13 +15,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { PiAgent } from "@repo/features/server/pi/agent";
-import { createAuthStorage } from "@repo/features/server/pi/auth";
-import { resolveModelSelection } from "@repo/features/server/pi/model";
-import { SessionManager } from "@repo/features/server/pi/pi-types";
+import { PiAgent } from "@repo/agent/pi/agent";
+import { createAuthStorage } from "@repo/agent/pi/auth";
+import { resolveModelSelection } from "@repo/agent/pi/model";
+import { SessionManager } from "@repo/agent/pi/pi-types";
 
-import { Agent } from "../agent/agent";
-import type { AgentPorts } from "../agent/extension";
+import { Agent } from "../agent";
+import type { AgentPorts } from "../extension";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "inteligir-model-selection-"));
 afterAll(() => {

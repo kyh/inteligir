@@ -14,8 +14,8 @@
 // captures results from the event stream instead.
 // ---------------------------------------------------------------------------
 
-import { Agent } from "../agent/agent";
-import { BACKGROUND_SESSION_DIR } from "../agent/paths";
+import { Agent } from "@repo/agent/agent";
+import { BACKGROUND_SESSION_DIR } from "@repo/agent/paths";
 import { agentModelSelection } from "../provider/provider-service";
 import { getAgentPorts } from "../boot/agent-wiring";
 

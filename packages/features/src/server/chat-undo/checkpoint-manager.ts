@@ -23,7 +23,7 @@ import { emitEvent } from "../events";
 import { isEnoent } from "../storage/fs-errors";
 import { getSnapshotStore, type SnapshotStore } from "../snapshots/snapshot-store";
 import { getVaultManager } from "../vault/vault";
-import type { VaultDocWrite } from "../agent/extension";
+import type { VaultDocWrite } from "@repo/agent/extension";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/bridge/ipc-registry";
 

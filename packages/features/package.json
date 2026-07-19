@@ -13,8 +13,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.73.1",
-    "@mariozechner/pi-coding-agent": "^0.73.1",
+    "@repo/agent": "workspace:*",
     "@repo/bridge": "workspace:*",
     "@repo/cli-bootstrap": "workspace:*",
     "@repo/domain": "workspace:*",

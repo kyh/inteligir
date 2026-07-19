@@ -36,7 +36,7 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note
 import { basenamePath } from "@repo/domain/knowledge/vault-path";
 
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
-import type { KnowledgePort, PrivacyProbe, RenameNoteResult } from "../agent/extension";
+import type { KnowledgePort, PrivacyProbe, RenameNoteResult } from "@repo/agent/extension";
 import type { VaultManager } from "../vault/vault";
 
 /** The queries the port wraps — KnowledgeManager (production) and core's

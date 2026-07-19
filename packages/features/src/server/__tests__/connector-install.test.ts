@@ -13,7 +13,7 @@ import {
   uninstallConnector,
   type ConnectorInstallOps,
 } from "../connectors/connector-install";
-import { setDevFlagsAllowed } from "../dev-flags";
+import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import type { PendingConnectorAuth } from "@repo/bridge/ipc-registry";
 import {
   GOOGLE_OAUTH_CLIENT_SLUG,

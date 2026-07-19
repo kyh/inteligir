@@ -35,6 +35,11 @@
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["tailwindcss"]
     },
+    "packages/agent": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/bridge": {
       "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
