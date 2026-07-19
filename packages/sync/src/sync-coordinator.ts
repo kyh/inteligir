@@ -13,9 +13,9 @@
 // event bus, keeping the settings UI reactive without polling.
 // ---------------------------------------------------------------------------
 
-import { getVaultManager } from "@repo/vault/vault";
+import type { VaultManager } from "@repo/vault/vault";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
-import { createNodeHasher, createSyncManager } from "./sync-manager";
+import { createNodeHasher, createSyncManager, createVaultSyncIo } from "./sync-manager";
 import { createHttpSyncPort } from "@repo/notes/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/notes/sync/reconcile";
 import { statusFromOutcome, type SyncStatus } from "@repo/notes/sync/status";
@@ -46,6 +46,24 @@ export function setSyncEventSink(sink: SyncEventSink): void {
   emitHostEvent = sink;
 }
 
+// The live vault, INJECTED by the composition root (#465: sync never reaches
+// for the @repo/vault singleton itself — the package dep stays for the TYPE
+// only). An accessor rather than an instance because the vault singleton
+// rebuilds on a logout/login cycle. Uninstalled (bare test processes), it
+// throws — both listing call sites (seedConflicts/pruneConflicts) already
+// degrade gracefully on a listing failure, and the engine factory only runs
+// once boot has composed the host. Module-scoped so it survives
+// resetSyncCoordinator(), mirroring the event sink above.
+let vaultAccessor: () => VaultManager = () => {
+  throw new Error("sync: vault accessor not installed (createHost injects it at composition)");
+};
+
+/** Install the live VaultManager accessor once at composition time (createHost
+ * passes @repo/vault's getVaultManager). */
+export function setSyncVaultAccessor(accessor: () => VaultManager): void {
+  vaultAccessor = accessor;
+}
+
 // Periodic reconcile cadence while sync is live (vault liveness — CLAUDE.md
 // § Decisions): with no recursive
 // watcher, a peer's remote push already wakes us through the remote-change
@@ -73,6 +91,7 @@ const defaultEngineFactory: SyncEngineFactory = (opts) =>
       token: opts.token,
       hasher: createNodeHasher(),
     }),
+    vault: createVaultSyncIo(vaultAccessor()),
     onOutcome: opts.onOutcome,
   });
 
@@ -89,9 +108,9 @@ export class SyncCoordinator {
   constructor(
     private readonly account: SyncAccount,
     /** Vault-relative paths of every vault file — injected so tests never touch
-     * a live vault. Only consulted once conflicts exist (or at start()). */
-    private readonly listVaultPaths: () => readonly string[] = () =>
-      getVaultManager().listAllPaths(),
+     * a live vault. Only consulted once conflicts exist (or at start()). The
+     * default reads through the composition-installed vault accessor. */
+    private readonly listVaultPaths: () => readonly string[] = () => vaultAccessor().listAllPaths(),
     /** Builds the live engine — injected so tests can drive a debounced pass
      * against an in-memory port instead of a real network transport. */
     private readonly buildEngine: SyncEngineFactory = defaultEngineFactory,

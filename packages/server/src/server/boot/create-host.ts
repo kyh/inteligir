@@ -13,12 +13,13 @@
 // ---------------------------------------------------------------------------
 
 import { configurePaths, SESSION_DIR_SEGMENTS, WORKSPACE_DIR } from "@repo/agent/paths";
-import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
+import { setDevFlagsAllowed } from "@repo/bridge/dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
 import { emitEvent, subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
 import { initAgentLog } from "@repo/storage/agent-log";
 import { setSecretCipherProvider } from "@repo/storage/secrets";
+import { configureVoiceModelHost } from "@repo/voice/model-download";
 import { hardenAppDir } from "@repo/storage/harden-app-dir";
 import { acquireHostLock, releaseHostLock } from "@repo/storage/host-lock";
 import { collectHandlers, type HostHandlers } from "../handlers/handler-registry";
@@ -26,7 +27,11 @@ import { registerAllHandlers } from "../handlers/register-handlers";
 import { getCaptureManager } from "../capture/capture-manager";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { getSyncCoordinator, setSyncEventSink } from "@repo/sync/sync-coordinator";
+import {
+  getSyncCoordinator,
+  setSyncEventSink,
+  setSyncVaultAccessor,
+} from "@repo/sync/sync-coordinator";
 import { installHostRuntime } from "../platform-instance";
 import {
   getVaultManager,
@@ -83,6 +88,22 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // imports the host event bus) — installed before start() kicks the initial
   // reconcile so no state emission is dropped.
   setSyncEventSink(emitEvent);
+
+  // Sync reaches the vault only through this injected accessor (#465 — no
+  // extracted-pkg→extracted-pkg singleton coupling); the accessor keeps a
+  // logout/login vault rebuild transparent.
+  setSyncVaultAccessor(getVaultManager);
+
+  // Voice's model machinery resolves the per-user data dir + progress events
+  // through this seam (voice/ never imports the platform seam or the event
+  // bus). Installed here at composition — not at handler registration — so a
+  // boot-time "is voice available" probe resolves instead of hitting the
+  // not-configured guard (#465.3); pre-composition, isModelInstalled/
+  // downloadModel now answer with values (false / {ok:false}), never a throw.
+  configureVoiceModelHost({
+    userDataDir: () => platform.userDataDir,
+    emitState: (event) => emitEvent("onVoiceModelState", event),
+  });
 
   // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
   // unpackaged builds — computed ONCE here, before any handler or flag read.

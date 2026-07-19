@@ -106,7 +106,7 @@ export type PrivacyPort = {
 export type VaultDocWrite = { rel: string; tool: "edit" | "write" };
 
 /** Pre-write checkpoint capture for ALLOWED in-vault doc mutations — the chat
- * agent's undo point (chat-undo/checkpoint-manager.ts behind it). The tool
+ * agent's undo point (the host's restore/restore-manager.ts behind it). The tool
  * gate invokes it strictly after privacy allows a call and strictly before pi
  * executes the tool. MUST throw when capture fails: the gate handler lets the
  * throw propagate and pi converts it into an error tool result, blocking the

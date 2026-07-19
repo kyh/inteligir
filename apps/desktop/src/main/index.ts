@@ -23,7 +23,7 @@ if (!app.isPackaged) {
 }
 
 // Belt-and-suspenders (the host already refuses these flags in packaged
-// builds — see @repo/agent/dev-flags.ts): a PACKAGED build launched
+// builds — see @repo/bridge/dev-flags.ts): a PACKAGED build launched
 // with a dev-only flag in its environment is a misconfiguration at best and
 // an attempt to force scripted-agent / fake-OAuth mode at worst. Fail loud
 // and refuse to start rather than run with the flags silently ignored.

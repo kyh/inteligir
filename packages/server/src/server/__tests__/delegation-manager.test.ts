@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DelegationManager, type DelegationAgent } from "../delegation/delegation-manager";
-import { SNAPSHOT_RETENTION, SnapshotStore } from "../snapshots/snapshot-store";
+import { RestoreManager } from "../restore/restore-manager";
+import { SNAPSHOT_RETENTION, SnapshotStore } from "../restore/snapshot-store";
 import type { FsAdapter } from "@repo/storage/json-store";
 
 function memoryFs(): FsAdapter {
@@ -100,30 +101,36 @@ function makeManager(doc = DOC, opts?: { isProviderConnected?: () => boolean }) 
     fs: memoryFs(),
     path: "/delegations.json",
     readVault: () => doc,
-    snapshots: memorySnapshots(),
+    restore: new RestoreManager({ snapshots: memorySnapshots() }),
     // Injected so unit tests never touch the live provider-config/auth.json.
     isProviderConnected: opts?.isProviderConnected ?? (() => true),
   });
 }
 
 /** Manager over a mutable `live` document, recording vault writes — the rig
- * for snapshot/restore tests. */
+ * for snapshot/restore tests. The RestoreManager shares the rig's vault
+ * closures, mirroring the live singletons (both read/write the same vault). */
 function makeRestoreRig(initial = DOC) {
   const state: { live: string | null } = { live: initial };
   const writes: Array<{ path: string; content: string }> = [];
   const snapshots = memorySnapshots();
-  const mgr = new DelegationManager({
-    fs: memoryFs(),
-    path: "/delegations.json",
-    readVault: () => {
-      if (state.live === null) throw new Error("ENOENT: no such file");
-      return state.live;
-    },
+  const readVault = (_rel: string): string => {
+    if (state.live === null) throw new Error("ENOENT: no such file");
+    return state.live;
+  };
+  const restore = new RestoreManager({
+    snapshots,
+    readVault,
     writeVault: (path, content) => {
       writes.push({ path, content });
       state.live = content;
     },
-    snapshots,
+  });
+  const mgr = new DelegationManager({
+    fs: memoryFs(),
+    path: "/delegations.json",
+    readVault,
+    restore,
     isProviderConnected: () => true,
   });
   return { mgr, state, writes, snapshots };
@@ -242,7 +249,7 @@ describe("DelegationManager run lifecycle", () => {
       fs: memoryFs(),
       path: "/d.json",
       readVault: () => live,
-      snapshots: memorySnapshots(),
+      restore: new RestoreManager({ snapshots: memorySnapshots() }),
     });
     mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 }); // anchor = "task one"
 
@@ -263,7 +270,7 @@ describe("DelegationManager run lifecycle", () => {
       fs: memoryFs(),
       path: "/d.json",
       readVault: () => live,
-      snapshots: memorySnapshots(),
+      restore: new RestoreManager({ snapshots: memorySnapshots() }),
     });
     mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 }); // anchor = "task two"
     expect(mgr.getDelegations()[0]?.anchor.text).toBe("task two");
@@ -287,7 +294,7 @@ describe("DelegationManager run lifecycle", () => {
       fs: memoryFs(),
       path: "/d.json",
       readVault: () => live,
-      snapshots: memorySnapshots(),
+      restore: new RestoreManager({ snapshots: memorySnapshots() }),
     });
     mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
 

@@ -10,6 +10,12 @@
 //
 // Fail-closed: until boot decides, the answer is "not allowed" — bare test
 // processes that exercise the flags opt in explicitly via setDevFlagsAllowed.
+//
+// Lives in @repo/bridge because BOTH flag consumers (@repo/agent's faux
+// provider, @repo/connectors' emulate override) sit below @repo/server and
+// already depend on bridge — hosting the bit here keeps it single-source
+// without a connectors→agent edge (#465). It is pure (no node imports), so
+// bridge's iso constraint holds; only node-side hosts ever SET it.
 // ---------------------------------------------------------------------------
 
 let devFlagsAllowed = false;

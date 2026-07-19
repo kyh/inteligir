@@ -67,20 +67,21 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  # injected), Google OAuth client, emulate-connectors dev override
   sync/          # Desktop vault-sync adapters (@repo/sync) — node SyncManager over the
                  # notes engine, SyncAccount (Better Auth client), SyncCoordinator
-                 # lifecycle; event emission injected (setSyncEventSink)
+                 # lifecycle; event emission + vault access injected
+                 # (setSyncEventSink, setSyncVaultAccessor)
   server/        # Node backend (@repo/server) — the composition root: boot/ (createHost),
                  # handlers, transport (ws host), app machine, provider, knowledge shell,
-                 # delegation, capture, chat-undo, snapshots, HostPlatform. Exports are
-                 # NARROW: only the entrypoints desktop main composes.
+                 # delegation, capture, restore (AI-edit undo), HostPlatform. Exports
+                 # are NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
 Dep DAG (all edges): notes, installer, ui are leaves; bridge→notes;
 storage→bridge; vault→storage+notes+bridge; agent→bridge+installer+notes;
-voice→storage+bridge; connectors→agent+installer+storage+bridge (the agent
-edge is ONLY dev-flags — the boot-computed fail-closed gate stays single-
-source; agent never imports connectors: code-mode reaches the daemon through
-the injected ExecutorPort); sync→vault+storage+notes+bridge;
+voice→storage+bridge; connectors→installer+storage+bridge (agent never
+imports connectors: code-mode reaches the daemon through the injected
+ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source
+in @repo/bridge/dev-flags — #465); sync→vault+storage+notes+bridge;
 server→agent+bridge+connectors+notes+storage+sync+vault+voice.
 The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
 @repo/server — so "no node in the UI's contract" is an unresolvable-import
@@ -89,7 +90,8 @@ connectors, sync) sit BELOW server: they never import @repo/server (that
 would be a package cycle) or electron — upward needs cross module-scoped
 install seams the composition root fills (setSecretCipherProvider,
 setVaultTrashItem, configureVoiceModelHost/configureTtsAudioSink,
-setSyncEventSink; ConnectorInstallOps binds openExternal per call).
+setSyncEventSink/setSyncVaultAccessor; ConnectorInstallOps binds openExternal
+per call).
 
 `@repo/notes` is the sharing seam: no node/electron/react/workspace imports
 (lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
@@ -303,6 +305,11 @@ session on `BACKGROUND_SESSION_DIR`). Before the agent dispatches, the host
 via `./vault`, checks the box, and appends a result; completion kicks a vault
 refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
+`server/restore/` (`RestoreManager` over the `SnapshotStore`) is the ONE
+AI-edit-undo module both surfaces call in through: the chat tool gate captures
+per allowed write (fail-closed — a capture failure blocks the tool) behind the
+post-turn undo toast, and delegation captures pre-run behind the dock's
+"Restore original".
 
 ### Vault sync — `@repo/notes/sync` + `apps/cloud` + platform adapters
 

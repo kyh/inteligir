@@ -7,7 +7,6 @@
   "exports": {
     "./agent": "./src/agent.ts",
     "./auth": "./src/auth.ts",
-    "./dev-flags": "./src/dev-flags.ts",
     "./extension": "./src/extension.ts",
     "./knowledge-tools/extension": "./src/knowledge-tools/extension.ts",
     "./paths": "./src/paths.ts",

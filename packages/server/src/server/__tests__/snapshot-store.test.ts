@@ -8,7 +8,7 @@ import {
   SnapshotStore,
   remapVaultPath,
   type SnapshotMeta,
-} from "../snapshots/snapshot-store";
+} from "../restore/snapshot-store";
 import type { FsAdapter } from "@repo/storage/json-store";
 
 const DIR = "/snaps";

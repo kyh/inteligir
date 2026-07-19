@@ -22,9 +22,9 @@ import { seedResources, type BundledResources } from "@repo/agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "@repo/storage/host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
-import { getCheckpointManager, resetCheckpointManager } from "../chat-undo/checkpoint-manager";
+import { getRestoreManager, resetRestoreManager } from "../restore/restore-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
-import { resetSnapshotStore } from "../snapshots/snapshot-store";
+import { resetSnapshotStore } from "../restore/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "@repo/connectors/executor-client";
 import {
@@ -102,14 +102,15 @@ export function getAgentPorts(): AgentPorts {
       },
       privateIndexPaths: () => getKnowledgeManager().privatePaths(),
     },
-    // Pre-write checkpoint capture for allowed in-vault doc edits/writes —
-    // the chat agent's undo point (the tool gate invokes it post-allow,
-    // pre-execution). The background delegation agent OVERRIDES this to null
-    // (background-agent.ts): its undo is the pre-run delegation snapshot, and
-    // hook captures there would leak into the chat undo toast. Defers to the
-    // live singleton like everything else here.
+    // Pre-write capture for allowed in-vault doc edits/writes — the chat
+    // agent's undo point (the tool gate invokes it post-allow,
+    // pre-execution; restore/restore-manager.ts behind it). The background
+    // delegation agent OVERRIDES this to null (background-agent.ts): its undo
+    // is the pre-run delegation capture, and hook captures there would leak
+    // into the chat undo toast. Defers to the live singleton like everything
+    // else here.
     checkpoints: {
-      capture: (target) => getCheckpointManager().capture(target),
+      capture: (target) => getRestoreManager().capture({ origin: "chat", target }),
     },
   };
 }
@@ -179,7 +180,7 @@ export function teardownAgentResources(): void {
   resetAuthStorage();
   resetNotifications();
   resetCaptureManager();
-  resetCheckpointManager();
+  resetRestoreManager();
   resetDelegationManager();
   resetSnapshotStore();
   resetExecutorDaemon();

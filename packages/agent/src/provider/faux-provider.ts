@@ -24,7 +24,7 @@ import type {
 } from "@mariozechner/pi-ai";
 import type { FauxAgentScript } from "@repo/bridge/ipc-registry";
 
-import { areDevFlagsAllowed } from "../dev-flags";
+import { areDevFlagsAllowed } from "@repo/bridge/dev-flags";
 
 export const FAUX_PROVIDER_ID = "faux";
 

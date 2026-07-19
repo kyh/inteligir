@@ -16,7 +16,8 @@ import { Value } from "@sinclair/typebox/value";
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import { findTaskLine } from "./find-task-line";
-import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
+import { remapVaultPath } from "../restore/snapshot-store";
+import { getRestoreManager, type RestoreManager } from "../restore/restore-manager";
 import {
   JsonStore,
   inteligirPath,
@@ -75,14 +76,11 @@ export type DelegationManagerOptions = {
   path?: string;
   /** Read a vault file's raw text. Defaults to the live VaultManager. */
   readVault?: (rel: string) => string;
-  /** Write a vault file (atomic; the watcher broadcasts the change). Defaults
-   * to the live VaultManager. Restore goes through here so editors refresh via
-   * the standard onVaultChanged path. */
-  writeVault?: (rel: string, content: string) => void;
-  /** Pre-run snapshot store. Defaults to the shared ~/.inteligir-backed
-   * singleton (chat checkpoints live in the same store, under their own
+  /** The AI-edit-undo seam: pre-run captures land here at dispatch, and the
+   * dock's "Restore original" reads back through it. Defaults to the shared
+   * singleton (chat captures live in the same store, under their own
    * origin). */
-  snapshots?: SnapshotStore;
+  restore?: RestoreManager;
   /** Whether the selected AI provider can serve a turn right now. Defaults to
    * the live provider service (isSelectedProviderConnected). Injected like
    * readVault so unit tests stay hermetic. */
@@ -106,8 +104,7 @@ export type DelegationManagerOptions = {
 export class DelegationManager {
   private readonly store: JsonStore<Delegation[]>;
   private readonly readVault: (rel: string) => string;
-  private readonly writeVault: (rel: string, content: string) => void;
-  private readonly snapshots: SnapshotStore;
+  private readonly restore: RestoreManager;
   private readonly isProviderConnected: () => boolean;
   private readonly onChanged: ((delegations: Delegation[]) => void) | null;
   private readonly onStream: ((id: string, text: string) => void) | null;
@@ -129,9 +126,7 @@ export class DelegationManager {
 
   constructor(opts?: DelegationManagerOptions) {
     this.readVault = opts?.readVault ?? ((rel) => getVaultManager().readText(rel));
-    this.writeVault =
-      opts?.writeVault ?? ((rel, content) => getVaultManager().writeText(rel, content));
-    this.snapshots = opts?.snapshots ?? getSnapshotStore();
+    this.restore = opts?.restore ?? getRestoreManager();
     this.isProviderConnected = opts?.isProviderConnected ?? isSelectedProviderConnected;
     this.onChanged = opts?.onChanged ?? null;
     this.onStream = opts?.onStream ?? null;
@@ -333,41 +328,22 @@ export class DelegationManager {
     return { ok: changed };
   }
 
-  /** Restore the file bytes captured before this delegation ran. The write
-   * targets the delegation's CURRENT sourceFile (renameSource keeps it pointing
-   * at the moved file), goes through the vault's atomic write (the watcher
-   * refreshes editors naturally), and recreates the file if it was deleted
-   * since. Restoring while the delegation is still queued/running is rejected —
-   * it would race the agent's own edits. When the file already matches the
-   * snapshot the restore is a no-op success (no write, no watcher churn);
-   * `restoredAt` is recorded either way, since the user's intent succeeded. */
+  /** Restore the file bytes captured before this delegation ran. The
+   * byte-level work (read-verify, compare, atomic vault write) lives in the
+   * RestoreManager; this owns the RECORD side: restoring while the delegation
+   * is still queued/running is rejected — it would race the agent's own
+   * edits — the write targets the delegation's CURRENT sourceFile
+   * (renameSource keeps it pointing at the moved file), and `restoredAt` is
+   * recorded on success (a no-op restore counts — the user's intent
+   * succeeded). */
   restoreSnapshot(id: string): RestoreSnapshotResult {
     const delegation = this.getDelegations().find((d) => d.id === id);
     if (!delegation) return { ok: false, error: "Unknown delegation." };
     if (delegation.status === "queued" || delegation.status === "running") {
       return { ok: false, error: "Wait for the delegation to finish before restoring." };
     }
-    const snapshot = this.snapshots.read(id);
-    if (!snapshot.ok) return { ok: false, error: snapshot.error };
-
-    // Byte-equality IS hash-equality here — the snapshot's recorded hash was
-    // already verified against its content in read().
-    let current: string | null;
-    try {
-      current = this.readVault(delegation.sourceFile);
-    } catch {
-      current = null; // deleted (or unreadable) — the write below recreates it
-    }
-    if (current !== snapshot.content) {
-      try {
-        this.writeVault(delegation.sourceFile, snapshot.content);
-      } catch (err) {
-        return {
-          ok: false,
-          error: `Couldn't restore ${delegation.sourceFile}: ${toErrorMessage(err)}`,
-        };
-      }
-    }
+    const result = this.restore.restoreDelegationSnapshot(id, delegation.sourceFile);
+    if (!result.ok) return result;
     // The queued/running guard above makes the record terminal here — the only
     // variants that carry a settable restoredAt.
     this.patch(id, (d) =>
@@ -380,7 +356,7 @@ export class DelegationManager {
    * records lose `hasSnapshot` at the data level so no surface (present or
    * future) can offer a restore whose bytes are gone. */
   pruneSnapshots(): void {
-    const prunedIds = new Set(this.snapshots.prune());
+    const prunedIds = new Set(this.restore.prune());
     if (prunedIds.size === 0) return;
     this.store.update((all) =>
       all.map((d) => (prunedIds.has(d.id) && d.hasSnapshot ? { ...d, hasSnapshot: false } : d)),
@@ -535,10 +511,12 @@ export class DelegationManager {
     // intercept the write itself, and an agent edit with no snapshot is an
     // edit the user can't revert. A capture failure therefore aborts the run.
     try {
-      this.snapshots.capture(
-        { id: delegation.id, origin: "delegation", path: fresh.sourceFile, kind: "edit" },
-        resolved.raw,
-      );
+      this.restore.capture({
+        origin: "delegation",
+        id: delegation.id,
+        path: fresh.sourceFile,
+        content: resolved.raw,
+      });
     } catch (err) {
       this.finishRun(delegation.id, (d) =>
         toFailed(d, `Couldn't snapshot ${fresh.sourceFile} before running: ${toErrorMessage(err)}`),
