@@ -55,7 +55,11 @@ function restrictInteligirDir(filePath: string): void {
 // the snapshots index, delegation records naming note lines). A store that
 // genuinely needed shared visibility would pass an explicit mode — none does;
 // revisit this default before ever pointing a JsonStore outside ~/.inteligir.
-const realFs: FsAdapter = {
+//
+// Exported so other ~/.inteligir JSON writers (e.g. @repo/sync's base-manifest
+// store) inherit the same atomic-write + owner-only guarantees instead of
+// hand-rolling a weaker fs branch.
+export const realFs: FsAdapter = {
   read: (filePath) => {
     try {
       return fs.readFileSync(filePath, "utf8");

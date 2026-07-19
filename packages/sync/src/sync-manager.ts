@@ -23,7 +23,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { inteligirPath, shortPathKey, type FsAdapter } from "@repo/storage/json-store";
+import { inteligirPath, realFs, shortPathKey, type FsAdapter } from "@repo/storage/json-store";
 import type { VaultManager } from "@repo/vault/vault";
 import type { SyncPort } from "@repo/notes/sync/sync-port";
 import {
@@ -107,27 +107,14 @@ function baseStorePath(vaultId: string): string {
 /** A synchronous `JsonFile` over a plain file path — `read` returns `null` on
  * any error (missing file, permission denied, …); `write` creates the parent
  * dir on demand. Delegates to an injected `FsAdapter` when the caller supplies
- * one (tests), otherwise talks to the real filesystem directly. */
-function nodeJsonFile(filePath: string, adapter?: FsAdapter): JsonFile {
-  if (adapter) {
-    return {
-      read: () => adapter.read(filePath),
-      write: (text) => {
-        adapter.write(filePath, text);
-      },
-    };
-  }
+ * one (tests), otherwise to storage's shared `realFs` adapter — the same
+ * atomic tmp-then-rename write + owner-only modes (0o600 file / 0o700 dir)
+ * every ~/.inteligir JSON store gets. */
+function nodeJsonFile(filePath: string, adapter: FsAdapter = realFs): JsonFile {
   return {
-    read: () => {
-      try {
-        return fs.readFileSync(filePath, "utf8");
-      } catch {
-        return null;
-      }
-    },
+    read: () => adapter.read(filePath),
     write: (text) => {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, text, "utf8");
+      adapter.write(filePath, text);
     },
   };
 }

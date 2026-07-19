@@ -34,7 +34,12 @@ import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { atomicWrite } from "@repo/storage/atomic-write";
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import {
+  JsonStore,
+  inteligirPath,
+  rejectLegacyVersion,
+  type FsAdapter,
+} from "@repo/storage/json-store";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
@@ -166,9 +171,7 @@ export class VaultManager {
           current: SETTINGS_VERSION,
           // No unversioned era — settings.json is new. Treat any such file as
           // corrupt rather than guessing its shape.
-          fromLegacy: () => {
-            throw new Error("settings.json has no version field");
-          },
+          fromLegacy: rejectLegacyVersion("settings.json"),
         },
         decode: (raw) => {
           if (!Value.Check(SettingsFileSchema, raw)) throw new Error("settings shape rejected");
