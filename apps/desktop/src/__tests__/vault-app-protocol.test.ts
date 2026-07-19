@@ -9,7 +9,7 @@ vi.mock("electron", () => ({
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
 }));
 
-import { VaultManager } from "@repo/backend/server/vault/vault";
+import { VaultManager } from "@repo/server/server/vault/vault";
 
 import { injectHtmlAppRuntime } from "@/html-app-inject";
 import {

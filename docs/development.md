@@ -35,7 +35,7 @@ pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 ```
 
 `apps/desktop` (thin shell: window/menu/updater + the ws transport fold) boots
-`@repo/backend/server` (real vault, real pi agent, delegation, knowledge indexes) and
+`@repo/server/server` (real vault, real pi agent, delegation, knowledge indexes) and
 serves the Bridge over ONE local WebSocket server (`startWsHost`); the
 renderer dials it with `createWsBridge` using the endpoint + per-boot token
 the bootstrap-only preload exposes. pi auth (OpenAI OAuth) is on-device; if
@@ -109,7 +109,7 @@ Type-checks passing isn't feature-correct. Drive the running app:
 - Privacy (`private: true`) changes: `docs/privacy.md` states the guarantee
   and its holes; the enforcement tests live in
   `packages/agent/src/__tests__/privacy-gate.test.ts` and
-  `packages/backend/src/server/__tests__/knowledge-privacy.test.ts`
+  `packages/server/src/server/__tests__/knowledge-privacy.test.ts`
   (outbound-payload assertions).
 
 ## Making changes — checklists
@@ -118,7 +118,7 @@ Type-checks passing isn't feature-correct. Drive the running app:
 
 1. Registry entry in `packages/bridge/src/ipc-registry.ts` (TypeBox payload +
    result/event type).
-2. Host handler in `packages/backend/src/server/handlers/` (grouped by domain;
+2. Host handler in `packages/server/src/server/handlers/` (grouped by domain;
    `collectHandlers` throws at boot on missing/duplicate).
 3. Fixture implementation in `apps/desktop/dev/fixture-bridge.ts` (typed
    `: Bridge` — fails typecheck until covered).
@@ -143,7 +143,7 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
   ws protocol).
 - `pnpm --filter @repo/agent test` — the pi capability (extensions, privacy
   gate, faux provider) + the pi-quarantine and bundle drift guards.
-- `pnpm --filter @repo/backend test` — the node backend (vault, delegation
+- `pnpm --filter @repo/server test` — the node backend (vault, delegation
   +snapshots, knowledge manager, sync adapters, handlers, secrets).
 - `pnpm --filter @repo/cloud test` — the sync Worker against real in-process
   miniflare (DO + R2 + D1 + Better Auth), incl. the end-to-end sync test that
@@ -156,5 +156,5 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 Use the `release` skill (`.claude/skills/release/`) — bump, build, notarize,
 publish to GitHub Releases (electron-updater). Note: the electron-builder
 packaging path moved in the host split (extraResources now sources
-`packages/backend/resources/agent`) — `pnpm verify:release` +
+`packages/server/resources/agent`) — `pnpm verify:release` +
 `pnpm verify:packaged` in `apps/desktop` are the guards.

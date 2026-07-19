@@ -54,7 +54,7 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
   agent/         # The pi capability (@repo/agent) — Agent lifecycle, extension bundles,
                  # setup/auth, faux provider, and pi/ (the harness quarantine: the ONLY
                  # place @mariozechner/pi* may be imported). Backend injects AgentPorts.
-  backend/       # Node backend (@repo/backend) — vault, delegation, connectors, voice,
+  backend/       # Node backend (@repo/server) — vault, delegation, connectors, voice,
                  # sync adapters, handlers, boot/ (createHost), HostPlatform. Exports are
                  # NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
@@ -63,7 +63,7 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
 Dep DAG: domain, cli-bootstrap, ui are leaves; bridge→domain;
 agent→bridge+cli-bootstrap+domain; backend→agent+bridge+cli-bootstrap+domain.
 The renderer and mobile depend on @repo/bridge (+domain/ui) ONLY — never
-@repo/backend — so "no node in the UI's contract" is an unresolvable-import
+@repo/server — so "no node in the UI's contract" is an unresolvable-import
 fact, not a lint opinion.
 
 `@repo/notes` is the sharing seam: no node/electron/react/workspace imports
@@ -73,7 +73,7 @@ engine and knowledge/markdown code through thin adapters.
 
 The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
-`@repo/backend` host, communicating over a local WebSocket
+`@repo/server` host, communicating over a local WebSocket
 transport (one server, loopback by default). For UI work there is also a
 backend-free browser dev harness
 (`pnpm --filter @repo/desktop dev:harness`) that drives the real UI over an in-memory
@@ -126,14 +126,14 @@ Three processes: **main** (Electron), **preload**, **renderer**. The renderer
 with `createWsBridge`, installs the Bridge, and renders `App`. Renderer code
 is host-agnostic — it reaches the backend only through the injected Bridge
 (`@renderer/lib/bridge`), never electron/node/host (lint-enforced, and
-@repo/backend isn't even a renderer dep). `@repo/agent` never imports
-`@repo/backend` — a package fact (no dep edge); the host composes
+@repo/server isn't even a renderer dep). `@repo/agent` never imports
+`@repo/server` — a package fact (no dep edge); the host composes
 capabilities and hands the agent an injected `AgentPorts`
 (`{ executor, knowledge }`).
 
 ### Data model — the vault
 
-`packages/backend/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
+`packages/server/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
 listing** (a deliberate decision — PR #411, § Decisions): NO recursive watcher — the listing is a one-shot crawl
@@ -169,7 +169,7 @@ once in core over an injected `SqlDriver`) persists projections per vault in
 truth — the DB is a wipe-and-rebuild CACHE (any corruption/version mismatch
 deletes and rebuilds; **nothing durable may ever live in index.sqlite** —
 durable state belongs in the `~/.inteligir` JsonStores).
-`packages/backend/src/server/knowledge/` is the node host shell: boot
+`packages/server/src/server/knowledge/` is the node host shell: boot
 hydrates the in-memory graph from persisted rows (no first-query full parse),
 an async time-budgeted reconcile diffs stat fingerprints (content hash is the
 write authority) from vault events, and renames rewrite `[[links]]` across
@@ -268,7 +268,7 @@ variants). The injected-deps + broker contract is append-only. Vaults are
 single-user today; if sharing ever ships, foreign `.html` is untrusted code
 on open — re-audit the broker's capability set before that lands.
 
-### Delegation — `packages/backend/src/server/delegation/`
+### Delegation — `packages/server/src/server/delegation/`
 
 A checkbox's "Delegate" → `delegation-manager.ts` (versioned `JsonStore` +
 event-driven serialized queue) runs it on `background-agent.ts` (a second pi
@@ -327,9 +327,9 @@ boundary for AI features, NOT a security boundary.
 `packages/bridge/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
-schema-validated handler map (`packages/backend/src/server/handlers/`) that the desktop
+schema-validated handler map (`packages/server/src/server/handlers/`) that the desktop
 shell serves over ONE local WebSocket server (`startWsHost`,
-`packages/backend/src/server/transport/ws-host.ts`); the renderer dials it with
+`packages/server/src/server/transport/ws-host.ts`); the renderer dials it with
 `createWsBridge` using the endpoint + per-boot token the bootstrap-only
 preload exposes as `window.bridgeBootstrap`. Add a channel = registry entry +
 host handler + one line in the dev-harness fixture Bridge

@@ -55,7 +55,7 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
-    "packages/backend": {
+    "packages/server": {
       "entry": ["src/server/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false

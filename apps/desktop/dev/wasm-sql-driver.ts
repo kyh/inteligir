@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // SQLite-wasm binding for the shared SQL knowledge store — the dev harness's
-// twin of the node:sqlite driver in @repo/backend/server (sqlite-knowledge-
+// twin of the node:sqlite driver in @repo/server/server (sqlite-knowledge-
 // store.ts). The schema, guards, and every query live in @repo/notes
 // (sql-knowledge-store.ts, driver-injected); this module only supplies the
 // browser byte-level driver, so harness search runs the IDENTICAL FTS5 bm25

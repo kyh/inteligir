@@ -1,5 +1,5 @@
 {
-  "name": "@repo/backend",
+  "name": "@repo/server",
   "version": "0.1.0",
   "private": true,
   "description": "The Inteligir node backend behind createHost(): vault, delegation, connectors daemon, voice, sync adapters, knowledge host shell, transport (ws host), and the boot/ composition root that wires @repo/agent capabilities. Node-only — the iso wire contract lives in @repo/bridge. Exports are NARROW on purpose: exactly the entrypoints the desktop main process composes; everything else is package-private.",

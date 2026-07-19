@@ -1,4 +1,4 @@
-# `@repo/backend` — the node backend
+# `@repo/server` — the node backend
 
 The node host behind `createHost()`: vault, delegation, connectors daemon, voice, sync adapters, the knowledge host shell, the ws transport, and the `boot/` composition root that wires `@repo/agent` capabilities in. See [`src/server/README.md`](./src/server/README.md).
 
@@ -15,5 +15,5 @@ No barrel; **exports are narrow on purpose** — the package.json `exports` map 
 ## Test
 
 ```bash
-pnpm --filter @repo/backend test
+pnpm --filter @repo/server test
 ```
