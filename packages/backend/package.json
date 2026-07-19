@@ -21,7 +21,7 @@
   "dependencies": {
     "@repo/agent": "workspace:*",
     "@repo/bridge": "workspace:*",
-    "@repo/cli-bootstrap": "workspace:*",
+    "@repo/installer": "workspace:*",
     "@repo/notes": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:",

@@ -18,7 +18,7 @@ const REPO_ROOT = path.resolve(__dirname, "../../../..");
 const SCANNED_DIRS = [
   "packages/agent/src",
   "packages/bridge/src",
-  "packages/cli-bootstrap/src",
+  "packages/installer/src",
   "packages/backend/src",
   "packages/notes/src",
   "packages/ui/src",

@@ -1,5 +1,5 @@
 {
-  "name": "@repo/cli-bootstrap",
+  "name": "@repo/installer",
   "version": "0.1.0",
   "private": true,
   "description": "Generic CLI provisioning for node hosts, no workspace deps: checksum-verified GitHub-release binary install (tarball or raw), resource seeding (files/dirs/PATH), and a hardened execFile runner. Consumed by the agent's extension bundles and the connectors daemon; knows nothing about pi or the app.",

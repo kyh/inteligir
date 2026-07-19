@@ -49,7 +49,7 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
   bridge/        # Iso wire contract (@repo/bridge) — Bridge/IPC registry, ws client +
                  # protocol, shared schemas; loads in renderer/RN/node (deps: domain only)
-  cli-bootstrap/ # Generic CLI provisioning (@repo/cli-bootstrap) — checksum-verified
+  cli-bootstrap/ # Generic CLI provisioning (@repo/installer) — checksum-verified
                  # GitHub-release binary install, seeding, execFile runner; leaf, no deps
   agent/         # The pi capability (@repo/agent) — Agent lifecycle, extension bundles,
                  # setup/auth, faux provider, and pi/ (the harness quarantine: the ONLY

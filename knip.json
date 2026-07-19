@@ -45,7 +45,7 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
-    "packages/cli-bootstrap": {
+    "packages/installer": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false

@@ -27,7 +27,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { installCliFromGithubRelease } from "@repo/cli-bootstrap/install";
+import { installCliFromGithubRelease } from "@repo/installer/install";
 
 import { inteligirPath } from "../storage/json-store";
 
