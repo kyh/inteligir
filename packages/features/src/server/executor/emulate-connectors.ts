@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Emulate-connectors dev override (#461 Phase 4b): route the Google OAuth
 // endpoints a Claude session's E2E drive registers in executor at localhost
-// (vercel-labs/emulate, `npx emulate --service google` on :4002) instead of
+// (vercel-labs/emulate, `npx emulate --service google` on :4000) instead of
 // real Google, so a headless session completes consent with zero human login.
 //
 // DEV-ONLY and flag-gated, mirroring isFauxAgentEnabled: with no env set the
@@ -36,12 +36,14 @@ export function isEmulateConnectorsEnabled(): boolean {
   return process.env["INTELIGIR_EMULATE_CONNECTORS"] === "1";
 }
 
-// emulate's Google service endpoints (`npx emulate --service google`). The
-// token PATH differs from real Google (same-host `/oauth2/token`, not
+// emulate's Google service endpoints, verified against emulate v0.9.0's own
+// `/.well-known/openid-configuration` (default base port 4000; `emulate start
+// -p` moves it — use the explicit env overrides then). The token PATH differs
+// from real Google (same-host `/oauth2/token`, not
 // `oauth2.googleapis.com/token`) — which is why the resolver swaps FULL URLs,
 // never just a host.
-export const EMULATE_GOOGLE_AUTHORIZATION_URL = "http://localhost:4002/o/oauth2/v2/auth";
-export const EMULATE_GOOGLE_TOKEN_URL = "http://localhost:4002/oauth2/token";
+export const EMULATE_GOOGLE_AUTHORIZATION_URL = "http://localhost:4000/o/oauth2/v2/auth";
+export const EMULATE_GOOGLE_TOKEN_URL = "http://localhost:4000/oauth2/token";
 
 export type GoogleOAuthEndpoints = { authorizationUrl: string; tokenUrl: string };
 
