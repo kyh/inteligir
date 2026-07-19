@@ -61,6 +61,7 @@ import {
 } from "./remote-access";
 import type { SyncOutcome } from "@repo/domain/sync/engine";
 import {
+  SyncRequestPasswordResetSchema,
   SyncSetConfigSchema,
   SyncSignInSchema,
   SyncSignUpSchema,
@@ -741,6 +742,16 @@ export const IPC = {
   ),
   /** Email+password sign-in against the configured coordinator. */
   syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>("sync:sign-in", SyncSignInSchema),
+  /** Ask the coordinator to email a password-reset link (#463). NEUTRAL by
+   * contract: `ok` means "request accepted", NEVER "that email exists" — the
+   * coordinator answers identically for known and unknown emails, and the
+   * renderer shows the same "if that email has an account…" copy either way.
+   * `ok:false` carries only transport/config failures (no coordinator URL,
+   * network down), which reveal nothing about any account. */
+  syncRequestPasswordReset: invoke<typeof SyncRequestPasswordResetSchema, SyncSignInResult>(
+    "sync:request-password-reset",
+    SyncRequestPasswordResetSchema,
+  ),
   /** Email+password sign-UP (guest→account upgrade); success signs in. */
   syncSignUp: invoke<typeof SyncSignUpSchema, SyncSignInResult>("sync:sign-up", SyncSignUpSchema),
   /** INITIATE social OAuth for a capability-listed provider: opens the system

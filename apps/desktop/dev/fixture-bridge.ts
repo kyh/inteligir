@@ -1348,6 +1348,11 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       }, 800);
       return { ok: true };
     },
+    // Neutral by CONTRACT (see the registry entry): the real coordinator
+    // answers identically whether or not the email has an account, so an
+    // unconditional `ok` IS host parity — the section's "if that email has an
+    // account…" confirmation is drivable for any input.
+    syncRequestPasswordReset: async () => ({ ok: true }),
     // Both providers listed so the Account section's social buttons render and
     // are drivable in the harness.
     getAccountCapabilities: async () => ({ socialProviders: ["github", "google"] }),

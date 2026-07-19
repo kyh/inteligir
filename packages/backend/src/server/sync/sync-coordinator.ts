@@ -142,6 +142,12 @@ export class SyncCoordinator {
     return this.account.socialSignIn(provider);
   }
 
+  /** Password-reset request — pure passthrough (no auth state changes until
+   * the user signs in with the new password). Neutral result by contract. */
+  async requestPasswordReset(email: string): Promise<SyncSignInResult> {
+    return this.account.requestPasswordReset(email);
+  }
+
   /** Social sign-in COMPLETION — the deep-link service routes the session
    * verb's code+state here. Deep-link-driven, not request/response, so the
    * outcome reaches the account UI as the `onSocialSignInResult` event (plus
