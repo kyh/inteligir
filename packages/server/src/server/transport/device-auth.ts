@@ -15,7 +15,7 @@ import {
   inteligirPath,
   rejectLegacyVersion,
   type FsAdapter,
-} from "../storage/json-store";
+} from "@repo/storage/json-store";
 import type { RemoteDeviceInfo } from "@repo/bridge/remote-access";
 
 const DEVICES_VERSION = 1;

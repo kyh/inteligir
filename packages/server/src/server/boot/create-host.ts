@@ -12,14 +12,15 @@
 // (the ws host), forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
-import { configurePaths, WORKSPACE_DIR } from "@repo/agent/paths";
+import { configurePaths, SESSION_DIR_SEGMENTS, WORKSPACE_DIR } from "@repo/agent/paths";
 import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
 import { subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
-import { initAgentLog } from "../storage/agent-log";
-import { hardenAppDir } from "../storage/harden-app-dir";
-import { acquireHostLock, releaseHostLock } from "../storage/host-lock";
+import { initAgentLog } from "@repo/storage/agent-log";
+import { setSecretCipherProvider } from "@repo/storage/secrets";
+import { hardenAppDir } from "@repo/storage/harden-app-dir";
+import { acquireHostLock, releaseHostLock } from "@repo/storage/host-lock";
 import { collectHandlers, type HostHandlers } from "../handlers/handler-registry";
 import { registerAllHandlers } from "../handlers/register-handlers";
 import { getCaptureManager } from "../capture/capture-manager";
@@ -62,6 +63,11 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
 
   installHostRuntime(platform, options);
 
+  // Storage's SecretStore resolves its cipher through this provider at
+  // construction (storage never imports the platform seam) — install it before
+  // constructHostSingletons() eagerly builds the store.
+  setSecretCipherProvider(() => platform.secretCipher);
+
   // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
   // unpackaged builds — computed ONCE here, before any handler or flag read.
   // A packaged install refuses the ambient env outright (dev-flags.ts); the
@@ -100,7 +106,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // note content) to owner-only. Best-effort by design, but keep the
       // whole call guarded too: a sweep failure must never block boot.
       try {
-        hardenAppDir();
+        hardenAppDir(SESSION_DIR_SEGMENTS);
       } catch (err) {
         console.warn("[host] app-dir permission sweep failed:", err);
       }

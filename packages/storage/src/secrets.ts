@@ -15,9 +15,43 @@
 
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "./storage/json-store";
-import { getPlatform } from "./platform-instance";
-import type { SecretCipher } from "./platform";
+import { JsonStore, inteligirPath, type FsAdapter } from "./json-store";
+
+/** Which non-plaintext entry kind a cipher produces in secrets.json. An entry
+ * written under a kind the current cipher can't read degrades to "not
+ * configured", never a store quarantine. */
+export type SecretCipherKind = "safe-storage";
+
+/** Encryption seam for the secret store. Electron: safeStorage (OS keychain),
+ * injected through HostPlatform.secretCipher. Tests inject fakes. */
+export type SecretCipher = {
+  kind: SecretCipherKind;
+  isAvailable: () => boolean;
+  /** Plaintext → base64 ciphertext. */
+  encrypt: (plaintext: string) => string;
+  /** Base64 ciphertext → plaintext. Throws when the payload can't be read
+   * (keychain reset, different machine, missing key file). */
+  decrypt: (data: string) => string;
+};
+
+// The production cipher source, installed once by the composing host
+// (createHost passes the platform's secretCipher — storage never imports the
+// platform seam). Module-scoped so it survives resetSecretStore(): the fresh
+// instance a re-login lazily builds resolves the cipher the same way.
+let sharedCipherProvider: (() => SecretCipher) | null = null;
+
+/** Install the production cipher source once at composition time (createHost:
+ * `() => platform.secretCipher`). */
+export function setSecretCipherProvider(provider: () => SecretCipher): void {
+  sharedCipherProvider = provider;
+}
+
+function requireSharedCipher(): SecretCipher {
+  if (!sharedCipherProvider) {
+    throw new Error("Secret cipher not installed — createHost() has not run");
+  }
+  return sharedCipherProvider();
+}
 
 const SecretEntrySchema = Type.Union([
   // Encrypted via Electron safeStorage; `data` is the base64 ciphertext.
@@ -60,8 +94,8 @@ export class SecretStore {
 
   constructor(options: SecretStoreOptions = {}) {
     // The platform cipher is resolved lazily-at-construction: production
-    // stores are built after createHost() installs the platform.
-    this.cipher = options.cipher ?? getPlatform().secretCipher;
+    // stores are built after createHost() installs the cipher provider.
+    this.cipher = options.cipher ?? requireSharedCipher();
     this.store = new JsonStore<SecretsFile>(
       options.storePath ?? inteligirPath("secrets.json"),
       SecretsFileSchema,

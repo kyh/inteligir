@@ -3,7 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { hardenAppDir } from "../storage/harden-app-dir";
+import { hardenAppDir } from "../harden-app-dir";
+
+// Mirrors @repo/agent/paths SESSION_DIR_SEGMENTS (the production caller threads
+// it in; storage tests stay agent-free).
+const SESSION_DIRS = ["sessions", "sessions/background", "sessions/inline-ai"];
 
 // The sweep's job is HISTORY: dirs and files created before owner-only became
 // the default (and pi's 0644 session transcripts). Build a worst-case
@@ -51,7 +55,7 @@ function buildLegacyInstall(): string {
 describe("hardenAppDir", () => {
   it("chmods private dirs 0700 and data files 0600, leaving bin/ and docs alone", () => {
     const root = buildLegacyInstall();
-    hardenAppDir(root);
+    hardenAppDir(SESSION_DIRS, root);
 
     expect(mode(root)).toBe(0o700);
     expect(mode(path.join(root, "sessions"))).toBe(0o700);
@@ -79,8 +83,8 @@ describe("hardenAppDir", () => {
   it("is a no-op on a missing root and tolerates absent subdirs", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "harden-app-dir-empty-"));
     // No sessions/, no snapshots/, no files — must not throw.
-    hardenAppDir(root);
+    hardenAppDir(SESSION_DIRS, root);
     expect(mode(root)).toBe(0o700);
-    hardenAppDir(path.join(root, "does-not-exist"));
+    hardenAppDir(SESSION_DIRS, path.join(root, "does-not-exist"));
   });
 });

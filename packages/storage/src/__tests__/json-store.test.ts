@@ -10,7 +10,7 @@ import {
   type FsAdapter,
   type StoreRecoveryEvent,
   type StoreVersioning,
-} from "../storage/json-store";
+} from "../json-store";
 
 function memoryFs(): FsAdapter & { files: Map<string, string>; modes: Map<string, number> } {
   const files = new Map<string, string>();

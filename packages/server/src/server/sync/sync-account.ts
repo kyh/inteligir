@@ -23,7 +23,7 @@ import {
   inteligirPath,
   rejectLegacyVersion,
   type FsAdapter,
-} from "../storage/json-store";
+} from "@repo/storage/json-store";
 import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { AccountCapabilities, SyncSignInResult } from "@repo/bridge/sync";
 

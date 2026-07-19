@@ -14,7 +14,7 @@ import {
   inteligirPath,
   rejectLegacyVersion,
   type FsAdapter,
-} from "../storage/json-store";
+} from "@repo/storage/json-store";
 import { DEFAULT_PROVIDER } from "./provider-catalog";
 
 const PROVIDER_CONFIG_VERSION = 1;

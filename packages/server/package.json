@@ -23,6 +23,7 @@
     "@repo/bridge": "workspace:*",
     "@repo/installer": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/storage": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:",
     "ignore": "^7.0.5",

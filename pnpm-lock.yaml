@@ -720,6 +720,9 @@ importers:
       '@repo/notes':
         specifier: workspace:*
         version: link:../notes
+      '@repo/storage':
+        specifier: workspace:*
+        version: link:../storage
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.50
@@ -769,6 +772,25 @@ importers:
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0))
+
+  packages/storage:
+    dependencies:
+      '@repo/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@sinclair/typebox':
+        specifier: 'catalog:'
+        version: 0.34.50
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

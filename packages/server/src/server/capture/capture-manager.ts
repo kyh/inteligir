@@ -29,7 +29,7 @@ import {
   inteligirPath,
   rejectLegacyVersion,
   type FsAdapter,
-} from "../storage/json-store";
+} from "@repo/storage/json-store";
 import { emitEvent } from "../events";
 import { getUiState } from "../ui-state";
 import { getVaultManager } from "../vault/vault";

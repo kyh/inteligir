@@ -15,7 +15,8 @@ import {
   teardownAgentResources,
 } from "../boot/agent-wiring";
 import { resumeVaultWrites } from "../vault/vault";
-import { hardenAppDir } from "../storage/harden-app-dir";
+import { hardenAppDir } from "@repo/storage/harden-app-dir";
+import { SESSION_DIR_SEGMENTS } from "@repo/agent/paths";
 import { emitEvent } from "../events";
 import {
   getBackgroundAgent,
@@ -366,7 +367,7 @@ const realDeps: EffectDeps = {
   stopAgent,
   teardownResources: teardownAgentResources,
   resumeVaultWrites,
-  rehardenAppDir: () => hardenAppDir(),
+  rehardenAppDir: () => hardenAppDir(SESSION_DIR_SEGMENTS),
   newSession,
   reportSetupProgress: (progress) => emitEvent("onSetupProgress", progress),
 };

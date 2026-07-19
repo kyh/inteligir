@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { acquireHostLock, reassertHostLock, releaseHostLock } from "../storage/host-lock";
+import { acquireHostLock, reassertHostLock, releaseHostLock } from "../host-lock";
 
 let dir: string;
 let lockPath: string;

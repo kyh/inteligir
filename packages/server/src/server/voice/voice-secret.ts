@@ -10,7 +10,7 @@
 // test seam; production uses the process singletons.
 // ---------------------------------------------------------------------------
 
-import { getSecretStore } from "../secrets";
+import { getSecretStore } from "@repo/storage/secrets";
 import { getUiState } from "../ui-state";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 

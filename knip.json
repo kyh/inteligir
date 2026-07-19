@@ -60,6 +60,11 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
+    "packages/storage": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/ui": {
       "includeEntryExports": false
     }

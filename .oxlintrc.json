@@ -126,6 +126,37 @@
       }
     },
     {
+      "files": [
+        "packages/storage/src/**",
+        "packages/vault/src/**",
+        "packages/voice/src/**",
+        "packages/connectors/src/**",
+        "packages/sync/src/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "electron-updater",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**",
+                  "@repo/server",
+                  "@repo/server/*"
+                ],
+                "message": "extracted host capability packages sit BELOW @repo/server — no electron/desktop imports (host callbacks are injected), and a @repo/server import would be a package cycle"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/agent/src/**"],
       "rules": {
         "no-restricted-imports": [

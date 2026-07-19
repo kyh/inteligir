@@ -32,10 +32,10 @@ import { getDelegationManager } from "../delegation/delegation-manager";
 import { getExecutorDaemon } from "../connectors/executor-daemon";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getNotifications } from "../notifications";
-import { getSecretStore } from "../secrets";
+import { getSecretStore } from "@repo/storage/secrets";
 import { getSyncCoordinator } from "../sync/sync-coordinator";
 import { getVaultManager } from "../vault/vault";
-import { setStoreRecoveryNotifier } from "../storage/json-store";
+import { setStoreRecoveryNotifier } from "@repo/storage/json-store";
 import type { HostNotifiers } from "./notifier-wiring";
 
 /** Compose the host notifiers for the registry-free low-level pieces. Each

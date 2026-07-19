@@ -26,7 +26,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { inteligirPath } from "./json-store";
-import { SESSION_DIR_SEGMENTS } from "@repo/agent/paths";
 
 /** Subdirectories holding note content, transcripts, or credentials — the
  * durable owner-only boundary for files third parties create inside them. */
@@ -40,11 +39,6 @@ const PRIVATE_DIRS = [
   "executor",
   "chrome-profile",
 ];
-
-/** The pi session dirs whose *.jsonl transcripts get file-mode healing (one
- * level deep — pi writes flat files, no nesting). Sourced from agent/paths so
- * a new session dir can't silently escape the 0600 sweep. */
-const SESSION_DIRS = SESSION_DIR_SEGMENTS;
 
 function chmodQuiet(target: string, mode: number): void {
   try {
@@ -68,9 +62,13 @@ function listFiles(dir: string): string[] {
 
 /** Sweep the app dir's permissions: 0700 on the dir + its private subdirs,
  * 0600 on data files (top-level *.json and their .corrupt- / .newer- / .bak-
- * siblings, session *.jsonl transcripts, snapshot bytes). `root` is
+ * siblings, session *.jsonl transcripts, snapshot bytes). `sessionDirs` are
+ * the pi session dirs whose *.jsonl transcripts get file-mode healing (one
+ * level deep — pi writes flat files, no nesting); the composing host passes
+ * agent/paths' SESSION_DIR_SEGMENTS so a new session dir can't silently
+ * escape the 0600 sweep (storage never imports agent/*). `root` is
  * injectable for tests; production callers use the default. */
-export function hardenAppDir(root: string = inteligirPath()): void {
+export function hardenAppDir(sessionDirs: readonly string[], root: string = inteligirPath()): void {
   if (!fs.existsSync(root)) return;
   chmodQuiet(root, 0o700);
   for (const rel of PRIVATE_DIRS) {
@@ -83,7 +81,7 @@ export function hardenAppDir(root: string = inteligirPath()): void {
   for (const name of listFiles(root)) {
     if (name.includes(".json")) chmodQuiet(path.join(root, name), 0o600);
   }
-  for (const rel of SESSION_DIRS) {
+  for (const rel of sessionDirs) {
     const dir = path.join(root, rel);
     for (const name of listFiles(dir)) {
       if (name.endsWith(".jsonl")) chmodQuiet(path.join(dir, name), 0o600);

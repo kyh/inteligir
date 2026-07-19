@@ -7,7 +7,7 @@
 import path from "node:path";
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type StoreRecoveryEvent } from "./storage/json-store";
+import { JsonStore, inteligirPath, type StoreRecoveryEvent } from "@repo/storage/json-store";
 import { getPlatform } from "./platform-instance";
 
 // Deliberately unversioned store: a single boolean preference whose

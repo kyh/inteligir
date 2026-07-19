@@ -16,11 +16,11 @@ import { loginSelectedProvider } from "../provider/provider-service";
 import { resetProviderConfig } from "../provider/provider-config";
 import type { AgentPorts, PrivacyProbe } from "@repo/agent/extension";
 import { buildAgentKnowledgePort } from "./agent-knowledge-port";
-import { isEnoent } from "../storage/fs-errors";
+import { isEnoent } from "@repo/storage/fs-errors";
 import { AGENT_DIR } from "@repo/agent/paths";
 import { seedResources, type BundledResources } from "@repo/agent/setup";
 import { getPlatform } from "../platform-instance";
-import { reassertHostLock } from "../storage/host-lock";
+import { reassertHostLock } from "@repo/storage/host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
 import { getCheckpointManager, resetCheckpointManager } from "../chat-undo/checkpoint-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
@@ -34,7 +34,7 @@ import {
   resetExecutorDaemon,
 } from "../connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
-import { resetSecretStore } from "../secrets";
+import { resetSecretStore } from "@repo/storage/secrets";
 import { resetSyncCoordinator } from "../sync/sync-coordinator";
 import { resetRemoteAccessManager } from "../transport/remote-access-manager";
 import { resetUiState } from "../ui-state";

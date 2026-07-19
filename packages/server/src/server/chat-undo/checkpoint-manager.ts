@@ -20,7 +20,7 @@
 import crypto from "node:crypto";
 
 import { emitEvent } from "../events";
-import { isEnoent } from "../storage/fs-errors";
+import { isEnoent } from "@repo/storage/fs-errors";
 import { getSnapshotStore, type SnapshotStore } from "../snapshots/snapshot-store";
 import { getVaultManager } from "../vault/vault";
 import type { VaultDocWrite } from "@repo/agent/extension";
