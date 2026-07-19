@@ -2,10 +2,24 @@ import { emitEvent } from "../events";
 import type { HandlerRegistrar } from "./handler-registry";
 import { downloadModel, isModelInstalled } from "../voice/model-download";
 import { initParakeet, pushAudio, startSession, stopSession } from "../voice/parakeet";
-import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "../voice/tts-proxy";
+import {
+  configureTtsApiKey,
+  ttsAvailable,
+  ttsFlush,
+  ttsInterrupt,
+  ttsSend,
+} from "../voice/tts-proxy";
+import { getVoiceApiKey, setVoiceApiKey } from "../voice/voice-secret";
 
 export function registerVoiceHandlers(handle: HandlerRegistrar): void {
+  // Voice owns its secret: the proxy reads the stored key through this
+  // injected source (voice-secret → SecretStore), never through ui-state.
+  configureTtsApiKey(() => getVoiceApiKey());
+
   handle("isTtsAvailable", () => ttsAvailable());
+  handle("setVoiceApiKey", ({ value }) => {
+    setVoiceApiKey(value);
+  });
   handle("ttsSend", ({ text }) => ttsSend(text));
   handle("ttsFlush", () => ttsFlush());
   handle("ttsInterrupt", () => ttsInterrupt());

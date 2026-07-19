@@ -19,6 +19,7 @@ import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/features/inlin
 import type { ChatHistoryEntry } from "@repo/features/chat-log";
 import type { Bridge, VaultEntry } from "@repo/features/ipc-registry";
 import type { RemoteAccessState } from "@repo/features/remote-access";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
 import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
 import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/core/knowledge/guarded-line-edit";
@@ -888,6 +889,13 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // Voice — TTS reports unavailable; STT is SIMULATED: startStt arms timers
     // that stream a canned transcript so the listening capsule is demoable.
     isTtsAvailable: async () => false,
+    // Mirrors the host: only the `true` presence marker lands in ui-state
+    // (there's no secret store in the harness, and TTS stays unavailable).
+    setVoiceApiKey: async ({ value }) => {
+      const secret = typeof value === "string" ? value.trim() : "";
+      if (secret.length > 0) uiState[ELEVENLABS_API_KEY_UI_STATE] = true;
+      else delete uiState[ELEVENLABS_API_KEY_UI_STATE];
+    },
     ttsSend: () => {},
     ttsFlush: () => {},
     ttsInterrupt: () => {},

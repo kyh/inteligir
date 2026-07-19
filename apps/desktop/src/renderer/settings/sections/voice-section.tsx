@@ -9,10 +9,10 @@ import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
 
 // Voice calls need an ElevenLabs API key for speech playback (the whole
 // pipeline — mic included — is gated on TTS availability in voice-store).
-// Saving through setUiState routes the plaintext into main's encrypted
-// SecretStore; ui-state itself only ever carries a `true` presence marker,
-// which is what the hasStoredKey check below reads. Saving here enables
-// voice without an app restart.
+// Saving goes through the voice-owned setVoiceApiKey channel: the host
+// writes the plaintext into the encrypted SecretStore; ui-state only ever
+// carries a `true` presence marker, which is what the hasStoredKey check
+// below reads. Saving here enables voice without an app restart.
 export function VoiceSection() {
   const [ttsConfigured, setTtsConfigured] = useState<boolean | null>(null);
   const [hasStoredKey, setHasStoredKey] = useState(false);
@@ -31,9 +31,8 @@ export function VoiceSection() {
       .then((values) => {
         const stored = values[ELEVENLABS_API_KEY_UI_STATE];
         // `true` = key lives in the encrypted secret store. A plaintext
-        // string can only appear if main's one-time migration hasn't run,
-        // which can't happen (constructing the manager runs it) — accept it
-        // anyway so a stored key never reads as missing.
+        // string can only appear in a store written by a pre-secret-store
+        // build — accept it anyway so a stored key never reads as missing.
         setHasStoredKey(stored === true || (typeof stored === "string" && stored.length > 0));
         return undefined;
       })
@@ -47,7 +46,7 @@ export function VoiceSection() {
     setBusy(true);
     setError(null);
     try {
-      await bridge.setUiState({ key: ELEVENLABS_API_KEY_UI_STATE, value });
+      await bridge.setVoiceApiKey({ value });
       const wasConfigured = ttsConfigured === true;
       setKeyInput("");
       setHasStoredKey(true);
@@ -67,8 +66,8 @@ export function VoiceSection() {
     setBusy(true);
     setError(null);
     try {
-      // Writing `undefined` clears the secret store entry + presence marker.
-      await bridge.setUiState({ key: ELEVENLABS_API_KEY_UI_STATE, value: undefined });
+      // An absent value clears the secret store entry + presence marker.
+      await bridge.setVoiceApiKey({});
       setHasStoredKey(false);
       // The env fallback (dev) can keep TTS available with no stored key.
       const available = await bridge.isTtsAvailable().catch(() => false);
