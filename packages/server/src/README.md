@@ -1,6 +1,6 @@
-# `server/src/server` — the node backend
+# `server/src` — the node backend
 
-The platform-agnostic backend (the node half of `@repo/server`, imported as `@repo/server/*`): app lifecycle, the agent singleton, vault, knowledge indexes, delegation, connectors, voice, and the Bridge handler map. `createHost(platform, options)` (`boot/create-host.ts`) composes it all; the Electron desktop shell (`apps/desktop`) injects a `HostPlatform` (`platform.ts`) for everything OS/shell-shaped — native dialogs, secret cipher (keychain or file-key), notifications, packaged-resource paths — folds `host.handlers` over Electron IPC, and forwards `host.events`. Only one real host runs at a time: `storage/host-lock.ts` is a pidfile under `~/.inteligir`. The UI talks to it only via methods declared in the registry (`@repo/bridge/ipc-registry`). No electron imports anywhere in `server/` — lint-enforced. The pi capability lives in `@repo/agent` (generic CLI provisioning in `@repo/installer`); the boot/ composition root injects `AgentPorts` — @repo/agent has no dep on this package, so "agent never reaches into the backend" is a package fact.
+The platform-agnostic backend (imported as `@repo/server/*`): app lifecycle, the agent singleton, the knowledge host shell, delegation, capture, restore, provider config, and the Bridge handler map — the composition glue over the extracted capability packages (`@repo/storage`, `@repo/vault`, `@repo/voice`, `@repo/connectors`, `@repo/sync`). `createHost(platform, options)` (`boot/create-host.ts`) composes it all; the Electron desktop shell (`apps/desktop`) injects a `HostPlatform` (`platform.ts`) for everything OS/shell-shaped — native dialogs, secret cipher (keychain or file-key), notifications, packaged-resource paths — folds `host.handlers` over Electron IPC, and forwards `host.events`. Only one real host runs at a time: `@repo/storage/host-lock` is a pidfile under `~/.inteligir`. The UI talks to it only via methods declared in the registry (`@repo/bridge/ipc-registry`). No electron imports anywhere in this package — lint-enforced. The pi capability lives in `@repo/agent` (generic CLI provisioning in `@repo/installer`); the boot/ composition root injects `AgentPorts` — @repo/agent has no dep on this package, so "agent never reaches into the backend" is a package fact.
 
 ## State machine — three-part split
 
@@ -42,7 +42,7 @@ Internal events (`SETUP_OK`/`SETUP_FAIL`, `NEW_SESSION_OK`/`NEW_SESSION_FAIL`, `
 2. Wire the real implementation in `realDeps` in `app-machine.ts`.
 3. Mirror in `fakeDeps` / `makeDeps` in tests.
 
-If the effect is part of `SETUP` (binary install, config seed), prefer adding it to a [pi extension bundle](./src/agent/README.md) instead. Bundles run inside `seedResources()` so each new third-party integration doesn't grow the EffectDeps surface.
+If the effect is part of `SETUP` (binary install, config seed), prefer adding it to a [pi extension bundle](../../agent/src/README.md) instead. Bundles run inside `seedResources()` so each new third-party integration doesn't grow the EffectDeps surface.
 
 ## Agent singleton
 
@@ -52,11 +52,11 @@ If the effect is part of `SETUP` (binary install, config seed), prefer adding it
 - `stopAgent()` — awaits `agent.stop()`, nulls the ref, stops the background delegation agent and the executor daemon.
 - `newSession()` — `stop` + `start({ newSession: true })`. Opens a fresh pi session.
 
-**Composition seam** — the composition module (`boot/agent-wiring.ts`) builds the `AgentPorts` capability object (`{ executor }`) handed to agent extension bundles plus the injected bundled-resource location, and owns seed/login/teardown orchestration. `agent/` must never import the rest of the host — the boundary is lint-enforced (oxlint `no-restricted-imports` override); anything an extension needs flows through the ports. `app/agent-gateway.ts` (the single entry point for interactive agent commands) imports `getAgent` from `app-machine`, so the cycle is one-directional and needs no injection.
+**Composition seam** — the composition module (`boot/agent-wiring.ts`) builds the `AgentPorts` capability object (`{ executor, knowledge, privacy, checkpoints }`) handed to agent extension bundles plus the injected bundled-resource location, and owns seed/login/teardown orchestration. `@repo/agent` must never import the host — it has no dep edge on this package; anything an extension needs flows through the ports. `app/agent-gateway.ts` (the single entry point for interactive agent commands) imports `getAgent` from `app-machine`, so the cycle is one-directional and needs no injection.
 
 ## Per-turn instrumentation
 
-`handleAgentEvent` in `app-machine.ts` mirrors every pi event to the dev terminal (and to `~/.inteligir/logs/agent.log` — see `storage/agent-log.ts`) with an `[agent-event]` prefix, and tracks per-turn state in a `Turn` object. If a turn ends without any assistant text, tool call, or pi-emitted error, it emits a synthetic `turn_error { kind: "auth" }` event — the silent-empty-turn fallback for upstream failures that pi swallowed as success. The renderer's `ReauthDialog` listens on the same event.
+`handleAgentEvent` in `app-machine.ts` mirrors every pi event to the dev terminal (and to `~/.inteligir/logs/agent.log` — see `@repo/storage/agent-log`) with an `[agent-event]` prefix, and tracks per-turn state in a `Turn` object. If a turn ends without any assistant text, tool call, or pi-emitted error, it emits a synthetic `turn_error { kind: "auth" }` event — the silent-empty-turn fallback for upstream failures that pi swallowed as success. The renderer's `ReauthDialog` listens on the same event.
 
 ## Bridge handlers
 
@@ -64,15 +64,19 @@ Domain-grouped under `handlers/` (one file per domain, composed by `handlers/reg
 
 ## Other modules
 
-- `vault/vault.ts` — the user's markdown vault (folder of files, watcher, `./vault` agent symlink).
-- `knowledge/` — `knowledge-manager.ts` runs the pure engine from `@repo/notes/knowledge` over vault events (incremental link graph, backlinks, lexical search); `rename-rewrite.ts` applies byte-surgical `[[link]]` rewrites across the vault on rename.
+What REMAINS here is host-shell/composition glue; the capabilities themselves are their own packages.
+
+- `knowledge/` — the knowledge host shell: `knowledge-manager.ts` runs the pure engine from `@repo/notes/knowledge` over vault events (incremental link graph, backlinks, lexical search), `sqlite-knowledge-store.ts` binds the SQL store to `node:sqlite`, and `rename-rewrite.ts` applies byte-surgical `[[link]]` rewrites across the vault on rename.
 - `app/agent-gateway.ts` — the single entry point for interactive agent commands (a thin typed pass-through to the live agent).
 - `app/inline-ai.ts` + `app/ghost-text.ts` — the editor-AI backends: intent classification/generation on a no-tools pi session, and ephemeral ghost-text completions on a fast model.
-- `delegation/` — checkbox delegation: a versioned store + serialized queue (`delegation-manager.ts`) running tasks on a dedicated `background-agent.ts`; the target file is snapshotted before dispatch (newest 50 kept) so "Restore original" undoes an agent edit byte-exactly; `find-task-line.ts` is the pure checkbox locator.
-- `connectors/` — the connector capability wrapping the vendor executor daemon (integrations, OAuth flows, connection store; the daemon-wrapping files keep the vendor's `executor-*` names).
-- `voice/` — sherpa-onnx STT (`parakeet.ts`), model download, and the TTS proxy.
-- `notifications.ts` — notification settings + message shaping (delivery goes through `platform.notify`).
-- `secrets.ts` / `ui-state.ts` — cipher-backed secret store and persisted UI state (tabs, panes) shared across hosts.
 - `app/session-history.ts` — reads recent pi messages from disk for UI history rehydration (one-shot per mount; no cache).
+- `delegation/` — checkbox delegation: a versioned store + serialized queue (`delegation-manager.ts`) running tasks on a dedicated `background-agent.ts`; the target file is snapshotted before dispatch so "Restore original" undoes an agent edit byte-exactly; `find-task-line.ts` is the pure checkbox locator.
+- `capture/` — the `inteligir://` deep-link surface: `deep-link-service.ts` routes the parsed verbs, `capture-manager.ts` is the durable capture inbox with the exactly-once CAS drain onto today's daily note.
+- `restore/` — the ONE AI-edit-undo module (`restore-manager.ts` over `snapshot-store.ts`): chat's tool-gate captures feed the post-turn undo toast; delegation's pre-run captures feed the dock's "Restore original".
+- `provider/` — agent provider selection: the catalog's pure normalization (`provider-catalog.ts`), the dumb config store (`provider-config.ts`), and `provider-service.ts` gluing them to pi's on-device credential store.
+- `transport/` — the local WebSocket host (`ws-host.ts`), per-boot/paired-device auth (`device-auth.ts`), and the remote-access config/pairing owner (`remote-access-manager.ts`).
+- `notifications.ts` — notification settings + message shaping (delivery goes through `platform.notify`).
+- `ui-state.ts` — persisted renderer UI state (a generic JSON key→value store; no per-feature key knowledge).
 - `boot/` — the composition tier: `create-host.ts`, dependency-ordered singleton construction (`singletons.ts`), notifier composition (`notifier-wiring.ts`), agent ports + seed/login/teardown orchestration (`agent-wiring.ts`, `agent-knowledge-port.ts`), and the post-rename metadata remap (`rename-orchestration.ts`).
-- `storage/` — fs/app-state storage concerns: TypeBox-validated JSON store with versioning/migrations (`json-store.ts`), atomic writes, fs error guards, host pidfile lock, the `~/.inteligir` permission sweep, and the agent-log tee.
+
+The extracted capability packages this shell composes: `@repo/vault` (the user's markdown folder — confined IO, ephemeral listing, open-note watcher, `./vault` agent symlink), `@repo/storage` (versioned JsonStore over `~/.inteligir`, atomic writes, host pidfile lock, permission sweep, agent-log tee, encrypted SecretStore), `@repo/connectors` (the vendor executor daemon + connector install orchestration), `@repo/voice` (sherpa-onnx STT, model download, TTS proxy), and `@repo/sync` (the node sync adapters over the `@repo/notes` engine).
