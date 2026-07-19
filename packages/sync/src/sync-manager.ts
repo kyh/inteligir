@@ -24,7 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { inteligirPath, shortPathKey, type FsAdapter } from "@repo/storage/json-store";
-import { getVaultManager, type VaultManager } from "@repo/vault/vault";
+import type { VaultManager } from "@repo/vault/vault";
 import type { SyncPort } from "@repo/notes/sync/sync-port";
 import {
   SyncEngine,
@@ -219,8 +219,10 @@ export type SyncManagerOptions = {
   vaultId: string;
   /** The remote transport (an HttpSyncPort in production; a fake in tests). */
   port: SyncPort;
-  /** Local vault access. Defaults to the live VaultManager. */
-  vault?: SyncIo;
+  /** Local vault access. REQUIRED — sync never reaches for the vault
+   * singleton itself (#465); the composition root adapts the live
+   * VaultManager via createVaultSyncIo, tests pass an in-memory io. */
+  vault: SyncIo;
   /** Override the base-manifest file path (tests). */
   basePath?: string;
   /** Override the base-blob directory (tests — keeps ~/.inteligir untouched). */
@@ -246,7 +248,7 @@ export function createSyncManager(opts: SyncManagerOptions): SyncEngine {
   return new SyncEngine({
     vaultId: opts.vaultId,
     port: opts.port,
-    io: opts.vault ?? createVaultSyncIo(getVaultManager()),
+    io: opts.vault,
     base: createJsonBaseStore(opts.vaultId, { fs: opts.fs, path: opts.basePath }),
     blobs: createNodeBlobStore(opts.vaultId, { dir: opts.blobsDir }),
     hash: createNodeHasher(),

@@ -26,7 +26,11 @@ import { registerAllHandlers } from "../handlers/register-handlers";
 import { getCaptureManager } from "../capture/capture-manager";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { getSyncCoordinator, setSyncEventSink } from "@repo/sync/sync-coordinator";
+import {
+  getSyncCoordinator,
+  setSyncEventSink,
+  setSyncVaultAccessor,
+} from "@repo/sync/sync-coordinator";
 import { installHostRuntime } from "../platform-instance";
 import {
   getVaultManager,
@@ -83,6 +87,11 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // imports the host event bus) — installed before start() kicks the initial
   // reconcile so no state emission is dropped.
   setSyncEventSink(emitEvent);
+
+  // Sync reaches the vault only through this injected accessor (#465 — no
+  // extracted-pkg→extracted-pkg singleton coupling); the accessor keeps a
+  // logout/login vault rebuild transparent.
+  setSyncVaultAccessor(getVaultManager);
 
   // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
   // unpackaged builds — computed ONCE here, before any handler or flag read.

@@ -67,7 +67,8 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  # injected), Google OAuth client, emulate-connectors dev override
   sync/          # Desktop vault-sync adapters (@repo/sync) — node SyncManager over the
                  # notes engine, SyncAccount (Better Auth client), SyncCoordinator
-                 # lifecycle; event emission injected (setSyncEventSink)
+                 # lifecycle; event emission + vault access injected
+                 # (setSyncEventSink, setSyncVaultAccessor)
   server/        # Node backend (@repo/server) — the composition root: boot/ (createHost),
                  # handlers, transport (ws host), app machine, provider, knowledge shell,
                  # delegation, capture, restore (AI-edit undo), HostPlatform. Exports
@@ -89,7 +90,8 @@ connectors, sync) sit BELOW server: they never import @repo/server (that
 would be a package cycle) or electron — upward needs cross module-scoped
 install seams the composition root fills (setSecretCipherProvider,
 setVaultTrashItem, configureVoiceModelHost/configureTtsAudioSink,
-setSyncEventSink; ConnectorInstallOps binds openExternal per call).
+setSyncEventSink/setSyncVaultAccessor; ConnectorInstallOps binds openExternal
+per call).
 
 `@repo/notes` is the sharing seam: no node/electron/react/workspace imports
 (lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
