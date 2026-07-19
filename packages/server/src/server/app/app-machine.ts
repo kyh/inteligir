@@ -14,7 +14,7 @@ import {
   seedAgentResources,
   teardownAgentResources,
 } from "../boot/agent-wiring";
-import { resumeVaultWrites } from "../vault/vault";
+import { resumeVaultWrites } from "@repo/vault/vault";
 import { hardenAppDir } from "@repo/storage/harden-app-dir";
 import { SESSION_DIR_SEGMENTS } from "@repo/agent/paths";
 import { emitEvent } from "../events";

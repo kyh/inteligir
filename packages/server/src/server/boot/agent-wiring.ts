@@ -43,7 +43,7 @@ import {
   resetVaultManager,
   resumeVaultWrites,
   suspendVaultWrites,
-} from "../vault/vault";
+} from "@repo/vault/vault";
 import { remapNoteMetadata } from "./rename-orchestration";
 import type { SetupProgress } from "@repo/bridge/ipc-registry";
 

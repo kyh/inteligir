@@ -10,8 +10,7 @@
     "./server/knowledge/sqlite-knowledge-store": "./src/server/knowledge/sqlite-knowledge-store.ts",
     "./server/platform": "./src/server/platform.ts",
     "./server/transport/remote-access-manager": "./src/server/transport/remote-access-manager.ts",
-    "./server/transport/ws-host": "./src/server/transport/ws-host.ts",
-    "./server/vault/vault": "./src/server/vault/vault.ts"
+    "./server/transport/ws-host": "./src/server/transport/ws-host.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -24,9 +23,9 @@
     "@repo/installer": "workspace:*",
     "@repo/notes": "workspace:*",
     "@repo/storage": "workspace:*",
+    "@repo/vault": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:",
-    "ignore": "^7.0.5",
     "open": "^11.0.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",

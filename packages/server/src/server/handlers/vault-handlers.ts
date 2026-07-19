@@ -2,7 +2,7 @@ import { remapNoteMetadata } from "../boot/rename-orchestration";
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import { probeVaultPrivacy } from "../boot/agent-wiring";
 import { getPlatform } from "../platform-instance";
-import { getVaultManager } from "../vault/vault";
+import { getVaultManager } from "@repo/vault/vault";
 import type { HandlerRegistrar } from "./handler-registry";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";

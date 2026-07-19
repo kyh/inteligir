@@ -7,7 +7,7 @@ import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
 
 import { KnowledgeManager } from "../knowledge/knowledge-manager";
 import { createSqliteKnowledgeStore } from "../knowledge/sqlite-knowledge-store";
-import { VaultManager } from "../vault/vault";
+import { VaultManager } from "@repo/vault/vault";
 
 let tmp: string;
 let root: string;

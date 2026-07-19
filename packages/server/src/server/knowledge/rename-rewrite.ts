@@ -29,7 +29,7 @@ import { titleFromPath } from "@repo/notes/knowledge/link-extract";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 
-import type { VaultManager } from "../vault/vault";
+import type { VaultManager } from "@repo/vault/vault";
 
 /** `docsRewritten` counts the docs the rewrite loop actually wrote — the
  * notes whose links were retargeted (a standalone alias-only write on the

@@ -1,0 +1,28 @@
+{
+  "name": "@repo/vault",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VaultManager — the user's local knowledge vault: a single user-selectable folder of markdown files, read through to disk and written atomically, with the ephemeral-listing liveness model (TTL crawl snapshot + ONE non-recursive open-note watcher driven by the pure change classifier). Host callbacks (change notifier, agent-workspace symlink dir, OS trash) are injected by the composing host — this package never imports server/electron/agent code.",
+  "type": "module",
+  "exports": {
+    "./classify-file-change": "./src/classify-file-change.ts",
+    "./vault": "./src/vault.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/bridge": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "@repo/storage": "workspace:*",
+    "@sinclair/typebox": "catalog:",
+    "ignore": "^7.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

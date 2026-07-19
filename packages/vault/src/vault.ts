@@ -35,7 +35,6 @@ import { Value } from "@sinclair/typebox/value";
 
 import { atomicWrite } from "@repo/storage/atomic-write";
 import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
-import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
@@ -117,8 +116,9 @@ type VaultManagerOptions = {
    * read/write against a temp dir never touches ~/.inteligir/workspace. */
   manageAgentLink?: boolean;
   /** Move an absolute path to the OS trash (tests inject fakes). Defaults
-   * LAZILY at call time to the platform capability (secrets.ts cipher
-   * precedent) so unit tests that never call trash() need no platform. */
+   * LAZILY at call time to the host-installed capability
+   * (setVaultTrashItem — the workspaceLinkDir precedent) so unit tests that
+   * never call trash() need no host composition. */
   trashItem?: (absolutePath: string) => Promise<void>;
   /** Directory that receives the `vault` symlink the agent's file tools
    * follow. Injected — the host composes it from the agent workspace at
@@ -456,7 +456,7 @@ export class VaultManager {
     assertVaultWritable();
     const target = this.resolve(rel);
     if (!fs.existsSync(target)) return false;
-    const trashItem = this.trashItem ?? getPlatform().trashItem;
+    const trashItem = this.trashItem ?? requireSharedTrashItem();
     try {
       await trashItem(target);
     } catch {
@@ -760,6 +760,25 @@ let sharedNotifier: ((root: string, kind: VaultChangeKind) => void) | null = nul
 // host at composition (create-host) so vault/ never imports agent/*; module-
 // scoped like sharedNotifier so it survives resetVaultManager().
 let sharedWorkspaceLinkDir: string | null = null;
+// The OS-trash capability (HostPlatform.trashItem). Injected by the host at
+// composition (create-host) so vault/ never imports the platform seam;
+// module-scoped like sharedWorkspaceLinkDir so it survives resetVaultManager().
+let sharedTrashItem: ((absolutePath: string) => Promise<void>) | null = null;
+
+function requireSharedTrashItem(): (absolutePath: string) => Promise<void> {
+  if (!sharedTrashItem) {
+    // Mirrors platform-instance's "not installed" throw: production installs
+    // the capability in createHost() before any trash() can be reached.
+    throw new Error("Vault trash capability not installed — createHost() has not run");
+  }
+  return sharedTrashItem;
+}
+
+/** Register the OS-trash capability once at composition time (the host passes
+ * HostPlatform.trashItem; vault/ never imports the platform seam). */
+export function setVaultTrashItem(trashItem: (absolutePath: string) => Promise<void>): void {
+  sharedTrashItem = trashItem;
+}
 // Mirrors the shell's write suspension: between logout (teardown wipes
 // ~/.inteligir, including settings.json) and the next login, a dirty autosave
 // firing from a still-mounted panel must not lazily build a fresh manager with

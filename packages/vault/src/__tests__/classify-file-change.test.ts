@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyFileChange, SelfSaveRegistry } from "../vault/classify-file-change";
+import { classifyFileChange, SelfSaveRegistry } from "../classify-file-change";
 
 describe("classifyFileChange", () => {
   it("returns none when the file is missing/unreadable (vanish handled elsewhere)", () => {

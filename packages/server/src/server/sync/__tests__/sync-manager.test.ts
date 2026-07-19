@@ -18,7 +18,7 @@ import {
   createVaultSyncIo,
   nodeStamp,
 } from "../sync-manager";
-import { VaultManager } from "../../vault/vault";
+import { VaultManager } from "@repo/vault/vault";
 import type { VaultManifest } from "@repo/notes/sync/manifest";
 
 const VAULT_ID = "vault-1";

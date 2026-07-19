@@ -49,6 +49,7 @@
     "@repo/notes": "workspace:^",
     "@repo/server": "workspace:^",
     "@repo/ui": "workspace:^",
+    "@repo/vault": "workspace:^",
     "@sinclair/typebox": "catalog:",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",

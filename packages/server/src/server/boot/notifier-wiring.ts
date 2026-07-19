@@ -13,7 +13,7 @@
 // ONLY when the firing piece must stay registry-free.
 // ---------------------------------------------------------------------------
 
-import type { VaultChangeKind } from "../vault/vault";
+import type { VaultChangeKind } from "@repo/vault/vault";
 import type { StoreRecoveryEvent } from "@repo/storage/json-store";
 
 /** The host notifier slots, composed by the host and fired by the low-level

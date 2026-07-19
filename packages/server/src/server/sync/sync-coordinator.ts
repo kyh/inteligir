@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "../events";
-import { getVaultManager } from "../vault/vault";
+import { getVaultManager } from "@repo/vault/vault";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
 import { createNodeHasher, createSyncManager } from "./sync-manager";
 import { createHttpSyncPort } from "@repo/notes/sync/http-sync-port";

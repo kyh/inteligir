@@ -24,7 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { inteligirPath, shortPathKey, type FsAdapter } from "@repo/storage/json-store";
-import { getVaultManager, type VaultManager } from "../vault/vault";
+import { getVaultManager, type VaultManager } from "@repo/vault/vault";
 import type { SyncPort } from "@repo/notes/sync/sync-port";
 import {
   SyncEngine,

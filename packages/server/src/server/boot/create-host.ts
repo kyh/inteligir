@@ -28,7 +28,12 @@ import { getDelegationManager } from "../delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getSyncCoordinator } from "../sync/sync-coordinator";
 import { installHostRuntime } from "../platform-instance";
-import { getVaultManager, setVaultChangeNotifier, setVaultWorkspaceLinkDir } from "../vault/vault";
+import {
+  getVaultManager,
+  setVaultChangeNotifier,
+  setVaultTrashItem,
+  setVaultWorkspaceLinkDir,
+} from "@repo/vault/vault";
 import type { HostOptions, HostPlatform } from "../platform";
 import type { EventMethod } from "@repo/bridge/ipc-registry";
 
@@ -67,6 +72,12 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // construction (storage never imports the platform seam) — install it before
   // constructHostSingletons() eagerly builds the store.
   setSecretCipherProvider(() => platform.secretCipher);
+
+  // Vault's user-initiated delete goes to the OS trash through this host
+  // capability (vault/ never imports the platform seam). Installed before any
+  // handler can reach trash(); resolved lazily at call time inside vault, so
+  // it also survives a logout/login VaultManager reset.
+  setVaultTrashItem(platform.trashItem);
 
   // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
   // unpackaged builds — computed ONCE here, before any handler or flag read.

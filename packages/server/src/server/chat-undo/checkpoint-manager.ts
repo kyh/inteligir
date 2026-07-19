@@ -22,7 +22,7 @@ import crypto from "node:crypto";
 import { emitEvent } from "../events";
 import { isEnoent } from "@repo/storage/fs-errors";
 import { getSnapshotStore, type SnapshotStore } from "../snapshots/snapshot-store";
-import { getVaultManager } from "../vault/vault";
+import { getVaultManager } from "@repo/vault/vault";
 import type { VaultDocWrite } from "@repo/agent/extension";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/bridge/ipc-registry";

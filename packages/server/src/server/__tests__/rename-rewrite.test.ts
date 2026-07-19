@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
-import { VaultManager } from "../vault/vault";
+import { VaultManager } from "@repo/vault/vault";
 
 let tmp: string;
 let root: string;

@@ -3,7 +3,7 @@ import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { ToggleTaskResult } from "@repo/bridge/ipc-registry";
 
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { getVaultManager } from "../vault/vault";
+import { getVaultManager } from "@repo/vault/vault";
 import type { HandlerRegistrar } from "./handler-registry";
 
 /** Renderer-facing failure text per refusal reason (the raw reason rides

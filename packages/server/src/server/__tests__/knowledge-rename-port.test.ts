@@ -16,7 +16,7 @@ import path from "node:path";
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import { buildAgentKnowledgePort } from "../boot/agent-knowledge-port";
-import { VaultManager } from "../vault/vault";
+import { VaultManager } from "@repo/vault/vault";
 import type { KnowledgePort, PrivacyProbe } from "@repo/agent/extension";
 
 let tmp: string;
