@@ -7,16 +7,12 @@ import { Label } from "@repo/ui/components/label";
 import { getBridge } from "@renderer/lib/bridge";
 import { AddCustomConnectorDialog } from "@renderer/settings/extensions/add-custom-connector-dialog";
 import {
+  catalogInstallRequest,
   CONNECTOR_CATALOG,
   CONNECTOR_GROUPS,
   type CatalogConnector,
 } from "@renderer/settings/extensions/connector-catalog";
 import { ConnectorCard } from "@renderer/settings/extensions/connector-card";
-import {
-  catalogInstallRequest,
-  installConnector,
-  uninstallConnector,
-} from "@renderer/settings/extensions/connector-install";
 import { GoogleClientDialog } from "@renderer/settings/extensions/google-client-dialog";
 import { useBridgeResource, type SectionProps } from "@renderer/settings/extensions/lib";
 import { SecretPromptDialog } from "@renderer/settings/extensions/secret-prompt-dialog";
@@ -143,7 +139,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
             return;
           }
         }
-        await installConnector(bridge, catalogInstallRequest(connector));
+        await bridge.installConnector(catalogInstallRequest(connector));
         await refreshAll();
       } catch (err) {
         onError(toErrorMessage(err, `Couldn't connect ${connector.name}.`));
@@ -162,7 +158,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
       setApiKeyBusy(true);
       setApiKeyError(null);
       try {
-        await installConnector(bridge, catalogInstallRequest(connector, value));
+        await bridge.installConnector(catalogInstallRequest(connector, value));
         await refreshAll();
         onError(null);
         setApiKeyTarget(null);
@@ -193,7 +189,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
           clientId,
           clientSecret,
         });
-        await installConnector(bridge, catalogInstallRequest(connector));
+        await bridge.installConnector(catalogInstallRequest(connector));
         await refreshAll();
         onError(null);
         setGoogleTarget(null);
@@ -250,7 +246,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
       setMembership(setDisconnecting, connector.id, true);
       onError(null);
       try {
-        await uninstallConnector(bridge, { slug: connector.id });
+        await bridge.uninstallConnector({ slug: connector.id });
       } catch (err) {
         onError(toErrorMessage(err, `Couldn't disconnect ${connector.name}.`));
       } finally {
@@ -268,7 +264,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
     async (integration: ExecutorIntegration) => {
       const bridge = getBridge();
       try {
-        await uninstallConnector(bridge, { slug: integration.slug });
+        await bridge.uninstallConnector({ slug: integration.slug });
       } catch (err) {
         onError(toErrorMessage(err, "Failed to remove connector."));
       } finally {

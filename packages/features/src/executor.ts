@@ -367,3 +367,88 @@ export const OAuthAwaitResultSchema = Type.Union([
   }),
 ]);
 export type OAuthAwaitResult = Static<typeof OAuthAwaitResultSchema>;
+
+// ---- connector install (host-orchestrated) ----------------------------------
+// The renderer sends ONE install/uninstall request over the Bridge; the host
+// owns the whole sequence (register integration → mint connection → browser
+// OAuth → rollback on failure) — server/executor/connector-install.ts.
+
+/** An integration to register, fully resolved (slug + name + endpoints). */
+const ConnectorSourceSpecSchema = Type.Union([
+  Type.Object(
+    {
+      type: Type.Literal("mcp"),
+      slug: Type.String({ minLength: 1 }),
+      name: Type.String({ minLength: 1 }),
+      endpoint: Type.String({ minLength: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("openapi"),
+      slug: Type.String({ minLength: 1 }),
+      name: Type.String({ minLength: 1 }),
+      specUrl: Type.String({ minLength: 1 }),
+      baseUrl: Type.String({ minLength: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("graphql"),
+      slug: Type.String({ minLength: 1 }),
+      name: Type.String({ minLength: 1 }),
+      endpoint: Type.String({ minLength: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("google"),
+      slug: Type.String({ minLength: 1 }),
+      name: Type.String({ minLength: 1 }),
+      discoveryUrl: Type.String({ minLength: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+export type ConnectorSourceSpec = Static<typeof ConnectorSourceSpecSchema>;
+
+/** How the connector's connection is credentialed, resolved at install time. */
+const ConnectorAuthSpecSchema = Type.Union([
+  // Open server — a `none`-template connection still has to exist for the
+  // integration's tools to be addressable.
+  Type.Object({ kind: Type.Literal("none") }, { additionalProperties: false }),
+  // MCP transparent DCR OAuth: probe → register client → browser consent.
+  Type.Object({ kind: Type.Literal("oauth") }, { additionalProperties: false }),
+  // A user-supplied secret rendered as a request header by the connection.
+  Type.Object(
+    {
+      kind: Type.Literal("apiKey"),
+      headerName: Type.String({ minLength: 1 }),
+      prefix: Type.Optional(Type.String()),
+      value: Type.String({ minLength: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+  // Google OAuth via the user-registered shared "google" client.
+  Type.Object({ kind: Type.Literal("google") }, { additionalProperties: false }),
+]);
+
+export const ConnectorInstallRequestSchema = Type.Object(
+  {
+    source: ConnectorSourceSpecSchema,
+    auth: ConnectorAuthSpecSchema,
+    /** Extra freeform static headers (from the custom dialog). */
+    headers: Type.Optional(StringMapSchema),
+  },
+  { additionalProperties: false },
+);
+export type ConnectorInstallRequest = Static<typeof ConnectorInstallRequestSchema>;
+
+export const ConnectorUninstallRequestSchema = Type.Object(
+  { slug: Type.String({ minLength: 1 }) },
+  { additionalProperties: false },
+);
+export type ConnectorUninstallRequest = Static<typeof ConnectorUninstallRequestSchema>;

@@ -1267,50 +1267,27 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       defaultId: "canned-fast",
     }),
 
-    // Executor — not running; mutating calls reject loudly.
-    executorStatus: async () => ({ running: false }),
+    // Executor — reports running (fake callback origin) so the connectors
+    // grid + dialogs render and are drivable in the harness; there's no
+    // daemon, so the read lists are empty and every mutating flow rejects
+    // loudly (the dialogs/cards surface the message).
+    executorStatus: async () => ({
+      running: true,
+      redirectUri: "http://127.0.0.1:47888/oauth/callback",
+    }),
     listExecutorIntegrations: async () => [],
     detectExecutorIntegration: async () => [],
-    addMcpIntegration: async () => {
-      throw unavailable("executor");
-    },
-    addOpenApiIntegration: async () => {
-      throw unavailable("executor");
-    },
-    addGraphqlIntegration: async () => {
-      throw unavailable("executor");
-    },
-    // Loud, not `{ removed: false }`: a silent "nothing removed" reads as a
-    // successful no-op in the Extensions panel. (Heads-up for harness drives:
-    // connector-install.ts's cleanup path swallows removeExecutorIntegration
-    // rejections — its direct remove paths propagate.)
-    removeExecutorIntegration: async () => {
-      throw unavailable("executor");
-    },
     listExecutorConnections: async () => [],
-    createExecutorConnection: async () => {
-      throw unavailable("executor");
-    },
-    removeExecutorConnection: async () => {
-      throw unavailable("executor");
-    },
-    listExecutorOAuthClients: async () => [],
     createExecutorOAuthClient: async () => {
       throw unavailable("executor");
     },
     ensureGoogleOAuthClient: async () => ({ status: "unavailable" }),
-    registerExecutorOAuthClientDynamic: async () => {
+    // Host-orchestrated install/uninstall (register integration → mint
+    // connection → browser OAuth server-side).
+    installConnector: async () => {
       throw unavailable("executor");
     },
-    executorOAuthProbe: async () => {
-      throw unavailable("executor");
-    },
-    executorOAuthStart: async () => {
-      throw unavailable("executor");
-    },
-    executorOAuthAwait: async () => null,
-    // A silent no-op would look like a browser that just failed to open.
-    executorOpenExternal: async () => {
+    uninstallConnector: async () => {
       throw unavailable("executor");
     },
 

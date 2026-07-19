@@ -1,10 +1,15 @@
 // ---------------------------------------------------------------------------
-// One place that knows how to install and uninstall a connector against the
-// executor daemon (v1.5 integrations + connections model). Both the catalog
-// cards (ConnectorsSection) and the custom "add connector" dialog produce an
-// InstallRequest and call installConnector, so the "register integration +
-// mint a credentialed connection" sequence lives here once instead of being
-// re-implemented per call site.
+// Host-side connector install/uninstall orchestration against the executor
+// daemon (v1.5 integrations + connections model). Moved out of the renderer
+// (#461 Phase 4a): the renderer sends ONE installConnector/uninstallConnector
+// request over the Bridge and this module owns the whole sequence — register
+// the integration → mint its credentialed connection → run browser OAuth
+// (start → open the system browser → poll the one-shot await) → roll back on
+// failure — instead of driving 5-8 per-step IPC round-trips.
+//
+// Ports-injected (ConnectorInstallOps), google-oauth-client style: the handler
+// binds the real executor-client + the platform browser-open; tests pass fakes
+// and assert the step sequence, rollback, and re-entrancy.
 //
 // A connector is only "connected" when a live connection (the credential)
 // exists for its integration — Google connectors run a real browser OAuth
@@ -14,12 +19,48 @@
 
 import {
   GOOGLE_OAUTH_CLIENT_SLUG,
+  type AddGraphqlInput,
+  type AddGraphqlResult,
+  type AddMcpInput,
+  type AddMcpResult,
+  type AddOpenApiInput,
+  type AddOpenApiResult,
+  type ConnectionKeyInput,
+  type ConnectorInstallRequest,
+  type ConnectorUninstallRequest,
+  type CreateConnectionInput,
   type ExecutorConnection,
+  type ExecutorIntegration,
+  type ExecutorOAuthClient,
   type ExecutorOwner,
+  type OAuthAwaitResult,
+  type OAuthProbeResult,
+  type OAuthStartInput,
+  type OAuthStartResult,
+  type RegisterDynamicOAuthClientInput,
 } from "@repo/features/executor";
-import type { Bridge } from "@repo/features/ipc-registry";
-import type { CatalogConnector } from "@renderer/settings/extensions/connector-catalog";
-import { runOAuthFlow } from "@renderer/settings/extensions/lib";
+
+/** Everything the orchestration touches, injected so tests can fake the daemon
+ * (method names mirror executor-client so the handler binds it 1:1). */
+export type ConnectorInstallOps = {
+  listIntegrations(): Promise<ExecutorIntegration[]>;
+  removeIntegration(slug: string): Promise<{ removed: boolean }>;
+  addMcpIntegration(input: AddMcpInput): Promise<AddMcpResult>;
+  addOpenApiIntegration(input: AddOpenApiInput): Promise<AddOpenApiResult>;
+  addGraphqlIntegration(input: AddGraphqlInput): Promise<AddGraphqlResult>;
+  listConnections(): Promise<ExecutorConnection[]>;
+  createConnection(input: CreateConnectionInput): Promise<ExecutorConnection>;
+  removeConnection(key: ConnectionKeyInput): Promise<{ removed: boolean }>;
+  listOAuthClients(): Promise<ExecutorOAuthClient[]>;
+  registerOAuthClientDynamic(input: RegisterDynamicOAuthClientInput): Promise<{ client: string }>;
+  oauthProbe(url: string): Promise<OAuthProbeResult>;
+  oauthStart(input: OAuthStartInput): Promise<OAuthStartResult>;
+  awaitOAuth(state: string): Promise<OAuthAwaitResult | null>;
+  /** Open the OAuth consent URL in the user's system browser. */
+  openExternal(url: string): Promise<void>;
+  /** Injectable delay so tests drive the OAuth poll loop without real time. */
+  waitMs(ms: number): Promise<void>;
+};
 
 /**
  * The connection name credentials are bound under. Tool addresses are
@@ -38,36 +79,35 @@ const TEMPLATE_HEADER = "header";
 const TEMPLATE_MCP_OAUTH = "oauth2";
 const TEMPLATE_GOOGLE_OAUTH = "googleOAuth2";
 
-/** An integration to register, fully resolved (slug + name + endpoints). */
-export type IntegrationSpec =
-  | { type: "mcp"; slug: string; name: string; endpoint: string }
-  | { type: "openapi"; slug: string; name: string; specUrl: string; baseUrl: string }
-  | { type: "graphql"; slug: string; name: string; endpoint: string }
-  | { type: "google"; slug: string; name: string; discoveryUrl: string };
-
-/** How the connector's connection is credentialed, resolved at install time. */
-type AuthSpec =
-  // Open server — a `none`-template connection still has to exist for the
-  // integration's tools to be addressable.
-  | { kind: "none" }
-  // MCP transparent DCR OAuth: probe → register client → browser consent.
-  | { kind: "oauth" }
-  // A user-supplied secret rendered as a request header by the connection.
-  | { kind: "apiKey"; headerName: string; prefix?: string | undefined; value: string }
-  // Google OAuth via the user-registered shared "google" client.
-  | { kind: "google" };
-
-export type InstallRequest = {
-  source: IntegrationSpec;
-  auth: AuthSpec;
-  /** Extra freeform static headers (from the custom dialog). */
-  headers?: Record<string, string> | undefined;
-};
+const OAUTH_POLL_MS = 1500;
+const OAUTH_TIMEOUT_MS = 5 * 60_000;
 
 // Slugs with an install in flight, so a re-entrant call (e.g. a double click
 // before the UI marks the card as connecting) can't race the duplicate check
 // and double-register / re-run auth.
 const installing = new Set<string>();
+
+/**
+ * Run an executor OAuth flow to mint a connection: start the session with a
+ * registered client, open the authorization URL in the system browser, then
+ * poll the one-shot await endpoint (keyed by the OAuth `state`) until the
+ * callback fires. Resolves once connected; throws on failure or timeout.
+ */
+async function runOAuthFlow(ops: ConnectorInstallOps, input: OAuthStartInput): Promise<void> {
+  const start = await ops.oauthStart(input);
+  // Inline completion (client_credentials grants) — nothing to wait for.
+  if (start.status === "connected") return;
+  await ops.openExternal(start.authorizationUrl);
+  const deadline = Date.now() + OAUTH_TIMEOUT_MS;
+  for (;;) {
+    if (Date.now() > deadline) throw new Error("OAuth timed out.");
+    await ops.waitMs(OAUTH_POLL_MS);
+    const result = await ops.awaitOAuth(start.state);
+    if (!result) continue;
+    if (!result.ok) throw new Error(`OAuth failed: ${result.error}`);
+    return;
+  }
+}
 
 /**
  * Register an integration and mint its credentialed connection.
@@ -79,7 +119,10 @@ const installing = new Set<string>();
  * the OAuth flow runs). On failure, an integration this call created is rolled
  * back so a failed install leaves nothing behind.
  */
-export async function installConnector(bridge: Bridge, req: InstallRequest): Promise<void> {
+export async function installConnector(
+  ops: ConnectorInstallOps,
+  req: ConnectorInstallRequest,
+): Promise<void> {
   const slug = req.source.slug;
   if (installing.has(slug)) {
     throw new Error(`An install for "${slug}" is already in progress.`);
@@ -89,28 +132,28 @@ export async function installConnector(bridge: Bridge, req: InstallRequest): Pro
   try {
     // Fails closed: if the catalog can't be listed we can't rule out a
     // duplicate, so the error propagates and the install aborts.
-    const integrations = await bridge.listExecutorIntegrations();
+    const integrations = await ops.listIntegrations();
     let existing = integrations.find((i) => i.slug === slug);
 
     if (existing && req.source.type === "google" && existing.kind === "googleDiscovery") {
       // v1 google-discovery sources survive executor's v1→v2 migration as dead
       // integrations (plugin gone: no tools, no auth methods). Replace with a
       // live openapi googleDiscoveryBundle integration.
-      await bridge.removeExecutorIntegration(slug);
+      await ops.removeIntegration(slug);
       existing = undefined;
     }
     if (existing && req.source.type !== "google") {
       throw new Error(`A connector for "${slug}" is already installed.`);
     }
     if (!existing) {
-      await registerIntegration(bridge, req);
+      await registerIntegration(ops, req);
       createdIntegration = true;
     }
-    await connectAuth(bridge, req);
+    await connectAuth(ops, req);
   } catch (err) {
     // Only undo an integration this call just created — a pre-existing one
     // (the resumable Google case) is left untouched.
-    if (createdIntegration) await rollbackIntegration(bridge, slug);
+    if (createdIntegration) await rollbackIntegration(ops, slug);
     throw err;
   } finally {
     installing.delete(slug);
@@ -118,7 +161,10 @@ export async function installConnector(bridge: Bridge, req: InstallRequest): Pro
 }
 
 /** Register the integration itself (the catalog entry; no credentials yet). */
-async function registerIntegration(bridge: Bridge, req: InstallRequest): Promise<void> {
+async function registerIntegration(
+  ops: ConnectorInstallOps,
+  req: ConnectorInstallRequest,
+): Promise<void> {
   const { source: s, auth, headers } = req;
   switch (s.type) {
     case "mcp": {
@@ -134,7 +180,7 @@ async function registerIntegration(bridge: Bridge, req: InstallRequest): Promise
                 ...(auth.prefix === undefined ? {} : { prefix: auth.prefix }),
               }
             : { kind: "none" as const };
-      await bridge.addMcpIntegration({
+      await ops.addMcpIntegration({
         transport: "remote",
         name: s.name,
         endpoint: s.endpoint,
@@ -146,7 +192,7 @@ async function registerIntegration(bridge: Bridge, req: InstallRequest): Promise
       return;
     }
     case "openapi":
-      await bridge.addOpenApiIntegration({
+      await ops.addOpenApiIntegration({
         slug: s.slug,
         spec: { kind: "url", url: s.specUrl },
         description: s.name,
@@ -155,7 +201,7 @@ async function registerIntegration(bridge: Bridge, req: InstallRequest): Promise
       });
       return;
     case "graphql":
-      await bridge.addGraphqlIntegration({
+      await ops.addGraphqlIntegration({
         endpoint: s.endpoint,
         slug: s.slug,
         name: s.name,
@@ -165,7 +211,7 @@ async function registerIntegration(bridge: Bridge, req: InstallRequest): Promise
     case "google":
       // One integration per Google service, from its Discovery doc. The daemon
       // derives the googleOAuth2 auth method (with that service's scopes).
-      await bridge.addOpenApiIntegration({
+      await ops.addOpenApiIntegration({
         slug: s.slug,
         spec: { kind: "googleDiscoveryBundle", urls: [s.discoveryUrl] },
         description: s.name,
@@ -176,11 +222,11 @@ async function registerIntegration(bridge: Bridge, req: InstallRequest): Promise
 
 /** Mint the connection (the credential) that makes the integration's tools
  * addressable. For OAuth kinds this is where the browser consent happens. */
-async function connectAuth(bridge: Bridge, req: InstallRequest): Promise<void> {
+async function connectAuth(ops: ConnectorInstallOps, req: ConnectorInstallRequest): Promise<void> {
   const slug = req.source.slug;
   switch (req.auth.kind) {
     case "none":
-      await bridge.createExecutorConnection({
+      await ops.createConnection({
         owner: OWNER,
         name: DEFAULT_CONNECTION_NAME,
         integration: slug,
@@ -192,7 +238,7 @@ async function connectAuth(bridge: Bridge, req: InstallRequest): Promise<void> {
       if (req.source.type !== "mcp") {
         throw new Error("API-key auth is only supported for MCP connectors.");
       }
-      await bridge.createExecutorConnection({
+      await ops.createConnection({
         owner: OWNER,
         name: DEFAULT_CONNECTION_NAME,
         integration: slug,
@@ -204,16 +250,17 @@ async function connectAuth(bridge: Bridge, req: InstallRequest): Promise<void> {
       if (req.source.type !== "mcp") {
         throw new Error("OAuth is only supported for MCP connectors.");
       }
-      await runMcpDcrOAuth(bridge, slug, req.source.endpoint, req.source.name);
+      await runMcpDcrOAuth(ops, slug, req.source.endpoint, req.source.name);
       return;
     case "google":
       if (req.source.type !== "google") {
         throw new Error("Google auth is only supported for Google connectors.");
       }
       // Requires the shared "google" OAuth client to be registered first —
-      // ConnectorsSection ensures it via main (bundled client auto-seeded
-      // when the build carries one, else the user pastes their GCP app).
-      await runOAuthFlow(bridge, {
+      // ConnectorsSection ensures it via ensureGoogleOAuthClient (bundled
+      // client auto-seeded when the build carries one, else the user pastes
+      // their GCP app).
+      await runOAuthFlow(ops, {
         client: GOOGLE_OAUTH_CLIENT_SLUG,
         clientOwner: OWNER,
         owner: OWNER,
@@ -232,19 +279,19 @@ async function connectAuth(bridge: Bridge, req: InstallRequest): Promise<void> {
  * the browser consent flow.
  */
 async function runMcpDcrOAuth(
-  bridge: Bridge,
+  ops: ConnectorInstallOps,
   integration: string,
   endpoint: string,
   name: string,
 ): Promise<void> {
-  const probe = await bridge.executorOAuthProbe(endpoint);
+  const probe = await ops.oauthProbe(endpoint);
   const registrationEndpoint = probe.registrationEndpoint;
   if (!registrationEndpoint) {
     throw new Error(
       "This server doesn't support automatic client registration. Add it as a custom connector with an API key instead.",
     );
   }
-  const clients = await bridge.listExecutorOAuthClients();
+  const clients = await ops.listOAuthClients();
   const existing = clients.find(
     (c) =>
       c.owner === OWNER &&
@@ -254,7 +301,7 @@ async function runMcpDcrOAuth(
   const client = existing
     ? existing.slug
     : (
-        await bridge.registerExecutorOAuthClientDynamic({
+        await ops.registerOAuthClientDynamic({
           owner: OWNER,
           slug: integration,
           registrationEndpoint,
@@ -271,7 +318,7 @@ async function runMcpDcrOAuth(
           originIntegration: integration,
         })
       ).client;
-  await runOAuthFlow(bridge, {
+  await runOAuthFlow(ops, {
     client,
     clientOwner: OWNER,
     owner: OWNER,
@@ -282,14 +329,14 @@ async function runMcpDcrOAuth(
 }
 
 /** Best-effort undo when a step after integration creation fails. */
-async function rollbackIntegration(bridge: Bridge, slug: string): Promise<void> {
+async function rollbackIntegration(ops: ConnectorInstallOps, slug: string): Promise<void> {
   // Connection first (while its integration still resolves), then the
   // integration itself. Registered OAuth clients are kept — they're reusable
   // and removing the user's Google app would be destructive.
-  await bridge
-    .removeExecutorConnection({ owner: OWNER, integration: slug, name: DEFAULT_CONNECTION_NAME })
+  await ops
+    .removeConnection({ owner: OWNER, integration: slug, name: DEFAULT_CONNECTION_NAME })
     .catch(() => {});
-  await bridge.removeExecutorIntegration(slug).catch(() => {});
+  await ops.removeIntegration(slug).catch(() => {});
 }
 
 /**
@@ -297,7 +344,10 @@ async function rollbackIntegration(bridge: Bridge, slug: string): Promise<void> 
  * step is attempted even if an earlier one fails (so a partial failure can't
  * orphan the rest), and the first error is surfaced to the caller.
  */
-export async function uninstallConnector(bridge: Bridge, opts: { slug: string }): Promise<void> {
+export async function uninstallConnector(
+  ops: ConnectorInstallOps,
+  req: ConnectorUninstallRequest,
+): Promise<void> {
   const errors: unknown[] = [];
   const attempt = async (run: () => Promise<unknown>): Promise<void> => {
     try {
@@ -309,7 +359,7 @@ export async function uninstallConnector(bridge: Bridge, opts: { slug: string })
 
   let integrationRemoved = true;
   try {
-    await bridge.removeExecutorIntegration(opts.slug);
+    await ops.removeIntegration(req.slug);
   } catch (err) {
     errors.push(err);
     integrationRemoved = false;
@@ -322,12 +372,12 @@ export async function uninstallConnector(bridge: Bridge, opts: { slug: string })
   if (integrationRemoved) {
     let connections: ExecutorConnection[] = [];
     await attempt(async () => {
-      connections = await bridge.listExecutorConnections();
+      connections = await ops.listConnections();
     });
     for (const c of connections) {
-      if (c.integration !== opts.slug) continue;
+      if (c.integration !== req.slug) continue;
       await attempt(() =>
-        bridge.removeExecutorConnection({
+        ops.removeConnection({
           owner: c.owner,
           integration: c.integration,
           name: c.name,
@@ -337,45 +387,4 @@ export async function uninstallConnector(bridge: Bridge, opts: { slug: string })
   }
 
   if (errors.length > 0) throw errors[0];
-}
-
-/** Map a catalog connector to an InstallRequest (secret value supplied for API-key connectors). */
-export function catalogInstallRequest(
-  connector: CatalogConnector,
-  secretValue?: string,
-): InstallRequest {
-  const { install } = connector;
-  if (install.type === "google") {
-    return {
-      source: {
-        type: "google",
-        slug: connector.id,
-        name: connector.name,
-        discoveryUrl: install.discoveryUrl,
-      },
-      auth: { kind: "google" },
-    };
-  }
-  const source: IntegrationSpec = {
-    type: "mcp",
-    slug: connector.id,
-    name: connector.name,
-    endpoint: install.endpoint,
-  };
-  const auth = install.auth;
-  if (auth.kind === "apiKey") {
-    if (!secretValue) {
-      throw new Error("An API-key connector requires a secret value.");
-    }
-    return {
-      source,
-      auth: {
-        kind: "apiKey",
-        headerName: auth.headerName,
-        ...(auth.prefix === undefined ? {} : { prefix: auth.prefix }),
-        value: secretValue,
-      },
-    };
-  }
-  return { source, auth: auth.kind === "oauth" ? { kind: "oauth" } : { kind: "none" } };
 }

@@ -19,24 +19,12 @@ import {
 import { AppEventSchema, type AppState } from "./app-state";
 import type { DeepLinkNavEvent } from "./deep-link";
 import {
-  AddGraphqlInputSchema,
-  AddMcpInputSchema,
-  AddOpenApiInputSchema,
-  ConnectionKeyInputSchema,
-  CreateConnectionInputSchema,
+  ConnectorInstallRequestSchema,
+  ConnectorUninstallRequestSchema,
   CreateOAuthClientInputSchema,
   ExecutorConnectionSchema,
   ExecutorDetectResultSchema,
   ExecutorIntegrationSchema,
-  ExecutorOAuthClientSchema,
-  OAuthAwaitResultSchema,
-  OAuthProbeResultSchema,
-  OAuthStartInputSchema,
-  OAuthStartResultSchema,
-  RegisterDynamicOAuthClientInputSchema,
-  type AddGraphqlResult,
-  type AddMcpResult,
-  type AddOpenApiResult,
 } from "./executor";
 import {
   CreateDelegationParamsSchema,
@@ -648,6 +636,9 @@ export const IPC = {
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection
   // credential values; Google goes through add-openapi (googleDiscoveryBundle).
+  // The per-step integration/connection/OAuth channels are gone too (#461
+  // Phase 4a): install/uninstall is host-orchestrated, so the renderer only
+  // needs status + the read lists + the Google-client dialogs' create/ensure.
   executorStatus: invokeVoid<ExecutorStatus>("executor:status"),
   listExecutorIntegrations: invokeVoid<Static<typeof ExecutorIntegrationSchema>[]>(
     "executor:integrations:list",
@@ -656,35 +647,8 @@ export const IPC = {
     ReturnType<typeof Type.String>,
     Static<typeof ExecutorDetectResultSchema>[]
   >("executor:integrations:detect", Type.String()),
-  addMcpIntegration: invoke<typeof AddMcpInputSchema, AddMcpResult>(
-    "executor:integration:add-mcp",
-    AddMcpInputSchema,
-  ),
-  addOpenApiIntegration: invoke<typeof AddOpenApiInputSchema, AddOpenApiResult>(
-    "executor:integration:add-openapi",
-    AddOpenApiInputSchema,
-  ),
-  addGraphqlIntegration: invoke<typeof AddGraphqlInputSchema, AddGraphqlResult>(
-    "executor:integration:add-graphql",
-    AddGraphqlInputSchema,
-  ),
-  removeExecutorIntegration: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
-    "executor:integration:remove",
-    Type.String(),
-  ),
   listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionSchema>[]>(
     "executor:connections:list",
-  ),
-  createExecutorConnection: invoke<
-    typeof CreateConnectionInputSchema,
-    Static<typeof ExecutorConnectionSchema>
-  >("executor:connection:create", CreateConnectionInputSchema),
-  removeExecutorConnection: invoke<typeof ConnectionKeyInputSchema, { removed: boolean }>(
-    "executor:connection:remove",
-    ConnectionKeyInputSchema,
-  ),
-  listExecutorOAuthClients: invokeVoid<Static<typeof ExecutorOAuthClientSchema>[]>(
-    "executor:oauth:clients:list",
   ),
   createExecutorOAuthClient: invoke<typeof CreateOAuthClientInputSchema, { client: string }>(
     "executor:oauth:client:create",
@@ -693,25 +657,17 @@ export const IPC = {
   ensureGoogleOAuthClient: invokeVoid<EnsureGoogleClientResult>(
     "executor:oauth:google-client:ensure",
   ),
-  registerExecutorOAuthClientDynamic: invoke<
-    typeof RegisterDynamicOAuthClientInputSchema,
-    { client: string }
-  >("executor:oauth:client:register-dynamic", RegisterDynamicOAuthClientInputSchema),
-  executorOAuthProbe: invoke<ReturnType<typeof Type.String>, Static<typeof OAuthProbeResultSchema>>(
-    "executor:oauth:probe",
-    Type.String(),
+  // Connector install/uninstall — host-orchestrated (register integration →
+  // mint connection → browser OAuth → rollback on failure) in
+  // server/executor/connector-install.ts; the renderer sends ONE request per
+  // user action and surfaces the rejection message on failure.
+  installConnector: invoke<typeof ConnectorInstallRequestSchema, void>(
+    "executor:connector:install",
+    ConnectorInstallRequestSchema,
   ),
-  executorOAuthStart: invoke<typeof OAuthStartInputSchema, Static<typeof OAuthStartResultSchema>>(
-    "executor:oauth:start",
-    OAuthStartInputSchema,
-  ),
-  executorOAuthAwait: invoke<
-    ReturnType<typeof Type.String>,
-    Static<typeof OAuthAwaitResultSchema> | null
-  >("executor:oauth:await", Type.String()),
-  executorOpenExternal: invoke<ReturnType<typeof Type.String>, void>(
-    "executor:open-external",
-    Type.String(),
+  uninstallConnector: invoke<typeof ConnectorUninstallRequestSchema, void>(
+    "executor:connector:uninstall",
+    ConnectorUninstallRequestSchema,
   ),
 
   // Vault sync — reconcile the local vault against the coordinator Worker.

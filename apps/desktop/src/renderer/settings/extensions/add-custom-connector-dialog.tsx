@@ -13,11 +13,8 @@ import { Textarea } from "@repo/ui/components/textarea";
 
 import { SegmentedControl } from "@renderer/components/segmented-control";
 import { getBridge } from "@renderer/lib/bridge";
-import {
-  installConnector,
-  type IntegrationSpec,
-} from "@renderer/settings/extensions/connector-install";
 import { blockDismissWhileBusy, parseHeaders, slug } from "@renderer/settings/extensions/lib";
+import type { ConnectorSourceSpec } from "@repo/features/executor";
 import { isHttpUrl, toErrorMessage } from "@repo/features/ipc";
 
 type CustomKind = "mcp" | "openapi" | "graphql" | "google";
@@ -110,7 +107,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
       // and add a random suffix so two custom connectors that slug to the same
       // name still get distinct integrations.
       const customSlug = `custom_${slug(trimmedName)}_${crypto.randomUUID().slice(0, 8)}`;
-      const source: IntegrationSpec =
+      const source: ConnectorSourceSpec =
         kind === "openapi"
           ? {
               type: "openapi",
@@ -132,7 +129,8 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
       // Google discovery integrations always authenticate through the shared
       // "google" OAuth client (register it by connecting any catalog Google
       // connector first); everything else is OAuth-by-choice or open.
-      await installConnector(bridge, {
+      const headers = parseHeaders(headersText);
+      await bridge.installConnector({
         source,
         auth:
           kind === "google"
@@ -140,7 +138,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
             : kind === "mcp" && oauth
               ? { kind: "oauth" }
               : { kind: "none" },
-        headers: parseHeaders(headersText),
+        ...(headers === undefined ? {} : { headers }),
       });
       reset();
       // Await the refresh so the new connector is in the list before the
