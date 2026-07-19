@@ -36,7 +36,7 @@ import type { KnowledgeStore, StoredFingerprint } from "@repo/notes/knowledge/kn
 import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
 
 import { emitEvent } from "../events";
-import { getVaultManager, type VaultManager } from "../vault/vault";
+import { getVaultManager, type VaultManager } from "@repo/vault/vault";
 import { createSqliteKnowledgeStore, indexDbPathFor } from "./sqlite-knowledge-store";
 
 const REFRESH_DEBOUNCE_MS = 100;

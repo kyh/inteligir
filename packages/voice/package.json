@@ -1,0 +1,31 @@
+{
+  "name": "@repo/voice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Voice capability for the Inteligir host: local on-device STT (sherpa-onnx + streaming Parakeet, with the pinned-checksum model downloader) and the ElevenLabs streaming-TTS proxy, plus the voice API-key store over @repo/storage's SecretStore. Host needs (per-user data dir, event emission) are injected via configure seams — this package never imports server/electron code.",
+  "type": "module",
+  "exports": {
+    "./model-download": "./src/model-download.ts",
+    "./parakeet": "./src/parakeet.ts",
+    "./tts-proxy": "./src/tts-proxy.ts",
+    "./voice-secret": "./src/voice-secret.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/bridge": "workspace:*",
+    "@repo/storage": "workspace:*",
+    "sherpa-onnx-node": "^1.13.4",
+    "tar": "^7.5.19",
+    "unbzip2-stream": "^1.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/unbzip2-stream": "^1.4.3",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

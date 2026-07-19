@@ -45,6 +45,11 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
+    "packages/connectors": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/installer": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
@@ -60,7 +65,27 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
+    "packages/storage": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
+    "packages/sync": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/ui": {
+      "includeEntryExports": false
+    },
+    "packages/vault": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
+    "packages/voice": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
       "includeEntryExports": false
     }
   }

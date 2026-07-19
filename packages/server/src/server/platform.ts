@@ -5,22 +5,7 @@
 // crosses this seam, so the host library itself never imports electron.
 // ---------------------------------------------------------------------------
 
-/** Which non-plaintext entry kind a cipher produces in secrets.json. An entry
- * written under a kind the current cipher can't read degrades to "not
- * configured", never a store quarantine. */
-export type SecretCipherKind = "safe-storage";
-
-/** Encryption seam for the secret store. Electron: safeStorage (OS keychain).
- * Tests inject fakes. */
-export type SecretCipher = {
-  kind: SecretCipherKind;
-  isAvailable: () => boolean;
-  /** Plaintext → base64 ciphertext. */
-  encrypt: (plaintext: string) => string;
-  /** Base64 ciphertext → plaintext. Throws when the payload can't be read
-   * (keychain reset, different machine, missing key file). */
-  decrypt: (data: string) => string;
-};
+import type { SecretCipher } from "@repo/storage/secrets";
 
 export type HostNotification = {
   title: string;

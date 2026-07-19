@@ -1,24 +1,40 @@
 import { emitEvent } from "../events";
+import { getPlatform } from "../platform-instance";
+import { getUiState } from "../ui-state";
 import type { HandlerRegistrar } from "./handler-registry";
-import { downloadModel, isModelInstalled } from "../voice/model-download";
-import { initParakeet, pushAudio, startSession, stopSession } from "../voice/parakeet";
+import {
+  configureVoiceModelHost,
+  downloadModel,
+  isModelInstalled,
+} from "@repo/voice/model-download";
+import { initParakeet, pushAudio, startSession, stopSession } from "@repo/voice/parakeet";
 import {
   configureTtsApiKey,
+  configureTtsAudioSink,
   ttsAvailable,
   ttsFlush,
   ttsInterrupt,
   ttsSend,
-} from "../voice/tts-proxy";
-import { getVoiceApiKey, setVoiceApiKey } from "../voice/voice-secret";
+} from "@repo/voice/tts-proxy";
+import { getVoiceApiKey, setVoiceApiKey } from "@repo/voice/voice-secret";
 
 export function registerVoiceHandlers(handle: HandlerRegistrar): void {
   // Voice owns its secret: the proxy reads the stored key through this
   // injected source (voice-secret → SecretStore), never through ui-state.
   configureTtsApiKey(() => getVoiceApiKey());
+  // Host seams for the extracted voice package (it sits below the server, so
+  // the event bus + platform capabilities are injected here, at register time
+  // — before any transport can deliver a voice call).
+  configureTtsAudioSink((audio) => emitEvent("onTtsAudio", { audio }));
+  configureVoiceModelHost({
+    userDataDir: () => getPlatform().userDataDir,
+    emitState: (event) => emitEvent("onVoiceModelState", event),
+  });
 
   handle("isTtsAvailable", () => ttsAvailable());
   handle("setVoiceApiKey", ({ value }) => {
-    setVoiceApiKey(value);
+    // ui-state (the presence marker) is a server store — bound here.
+    setVoiceApiKey(value, getUiState());
   });
   handle("ttsSend", ({ text }) => ttsSend(text));
   handle("ttsFlush", () => ttsFlush());

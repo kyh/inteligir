@@ -16,7 +16,7 @@
 
 import { getCaptureManager } from "./capture-manager";
 import { emitEvent } from "../events";
-import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { parseDeepLink, type CaptureKind, type DeepLinkNavEvent } from "@repo/bridge/deep-link";
 
 /** Token bucket: how many URLs may land in a burst… */

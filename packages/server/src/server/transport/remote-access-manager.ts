@@ -17,7 +17,7 @@ import {
   inteligirPath,
   rejectLegacyVersion,
   type FsAdapter,
-} from "../storage/json-store";
+} from "@repo/storage/json-store";
 import { DeviceAuthStore, type PairingRedeemResult, type TokenValidator } from "./device-auth";
 import type { PairingInfo, RemoteAccessState } from "@repo/bridge/remote-access";
 

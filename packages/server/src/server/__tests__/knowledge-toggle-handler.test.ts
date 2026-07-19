@@ -19,7 +19,7 @@ vi.mock("../knowledge/knowledge-manager", () => ({
   getKnowledgeManager: () => ({ refresh: mocks.refresh, tasks: mocks.tasks }),
 }));
 
-vi.mock("../vault/vault", () => ({
+vi.mock("@repo/vault/vault", () => ({
   getVaultManager: () => ({
     readText: (rel: string) => {
       const content = mocks.files.get(rel);

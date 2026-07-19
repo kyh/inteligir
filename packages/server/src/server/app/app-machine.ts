@@ -5,7 +5,7 @@
 import { Agent } from "@repo/agent/agent";
 import { agentModelSelection } from "../provider/provider-service";
 import { isSetupComplete } from "@repo/agent/setup";
-import { getExecutorDaemon } from "../connectors/executor-daemon";
+import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { reduce } from "./app-reducer";
 import { runEffect, type EffectDeps } from "./app-effects";
 import {
@@ -14,8 +14,9 @@ import {
   seedAgentResources,
   teardownAgentResources,
 } from "../boot/agent-wiring";
-import { resumeVaultWrites } from "../vault/vault";
-import { hardenAppDir } from "../storage/harden-app-dir";
+import { resumeVaultWrites } from "@repo/vault/vault";
+import { hardenAppDir } from "@repo/storage/harden-app-dir";
+import { SESSION_DIR_SEGMENTS } from "@repo/agent/paths";
 import { emitEvent } from "../events";
 import {
   getBackgroundAgent,
@@ -26,7 +27,7 @@ import { stopGhostAgent } from "./ghost-text";
 import { startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { getNotifications } from "../notifications";
-import { downloadModel } from "../voice/model-download";
+import { downloadModel } from "@repo/voice/model-download";
 import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import type { AppState, MachineEvent } from "@repo/bridge/app-state";
@@ -366,7 +367,7 @@ const realDeps: EffectDeps = {
   stopAgent,
   teardownResources: teardownAgentResources,
   resumeVaultWrites,
-  rehardenAppDir: () => hardenAppDir(),
+  rehardenAppDir: () => hardenAppDir(SESSION_DIR_SEGMENTS),
   newSession,
   reportSetupProgress: (progress) => emitEvent("onSetupProgress", progress),
 };

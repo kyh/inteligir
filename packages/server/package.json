@@ -2,7 +2,7 @@
   "name": "@repo/server",
   "version": "0.1.0",
   "private": true,
-  "description": "The Inteligir node backend behind createHost(): vault, delegation, connectors daemon, voice, sync adapters, knowledge host shell, transport (ws host), and the boot/ composition root that wires @repo/agent capabilities. Node-only — the iso wire contract lives in @repo/bridge. Exports are NARROW on purpose: exactly the entrypoints the desktop main process composes; everything else is package-private.",
+  "description": "The Inteligir node backend behind createHost() — the composition root over the extracted capability packages (@repo/storage, @repo/vault, @repo/voice, @repo/connectors, @repo/sync): boot/ wires their install seams + the @repo/agent AgentPorts, and keeps the handlers, transport (ws host), app machine, provider, knowledge host shell, delegation, capture, chat-undo, and snapshots. Node-only — the iso wire contract lives in @repo/bridge. Exports are NARROW on purpose: exactly the entrypoints the desktop main process composes; everything else is package-private.",
   "type": "module",
   "exports": {
     "./server/boot/create-host": "./src/server/boot/create-host.ts",
@@ -10,8 +10,7 @@
     "./server/knowledge/sqlite-knowledge-store": "./src/server/knowledge/sqlite-knowledge-store.ts",
     "./server/platform": "./src/server/platform.ts",
     "./server/transport/remote-access-manager": "./src/server/transport/remote-access-manager.ts",
-    "./server/transport/ws-host": "./src/server/transport/ws-host.ts",
-    "./server/vault/vault": "./src/server/vault/vault.ts"
+    "./server/transport/ws-host": "./src/server/transport/ws-host.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -21,25 +20,22 @@
   "dependencies": {
     "@repo/agent": "workspace:*",
     "@repo/bridge": "workspace:*",
-    "@repo/installer": "workspace:*",
+    "@repo/connectors": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/storage": "workspace:*",
+    "@repo/sync": "workspace:*",
+    "@repo/vault": "workspace:*",
+    "@repo/voice": "workspace:*",
     "@sinclair/typebox": "catalog:",
-    "better-auth": "catalog:",
-    "ignore": "^7.0.5",
-    "open": "^11.0.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
-    "sherpa-onnx-node": "^1.13.4",
-    "tar": "^7.5.19",
-    "unbzip2-stream": "^1.4.3",
     "unified": "^11.0.5",
     "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
-    "@types/unbzip2-stream": "^1.4.3",
     "@types/ws": "^8.18.1",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -21,10 +21,15 @@ const REPO_ROOT = path.resolve(__dirname, "../../../../..");
 const SCANNED_DIRS = [
   "packages/agent/src",
   "packages/bridge/src",
+  "packages/connectors/src",
   "packages/installer/src",
   "packages/server/src",
   "packages/notes/src",
+  "packages/storage/src",
+  "packages/sync/src",
   "packages/ui/src",
+  "packages/vault/src",
+  "packages/voice/src",
   "apps/desktop/src",
   "apps/desktop/dev",
   "apps/mobile/src",
@@ -43,7 +48,7 @@ const ACCOUNT_TOKENS =
 /** The ONLY places allowed to speak the account vocabulary. */
 const ALLOWED = [
   // The account+sync layer itself (client, coordinator, their tests).
-  "packages/server/src/server/sync/",
+  "packages/sync/src/",
   // The Bridge surface: wire contract, channel table, host handlers.
   "packages/bridge/src/sync.ts",
   "packages/bridge/src/ipc-registry.ts",
@@ -99,7 +104,7 @@ describe("account boundary (#459)", () => {
 
   it("provider layer and sync layer never import each other (teardown decouple)", () => {
     const providerDir = path.join(REPO_ROOT, "packages/server/src/server/provider");
-    const syncDir = path.join(REPO_ROOT, "packages/server/src/server/sync");
+    const syncDir = path.join(REPO_ROOT, "packages/sync/src");
     const agentAuth = path.join(REPO_ROOT, "packages/agent/src/auth.ts");
 
     const providerFiles: string[] = [];

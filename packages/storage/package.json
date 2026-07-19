@@ -1,0 +1,30 @@
+{
+  "name": "@repo/storage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node fs/json substrate for the Inteligir host: the versioned JsonStore over ~/.inteligir (atomic writes, quarantine-and-reset recovery, owner-only modes), the atomic-write primitive, the host lock, the boot-time permission sweep (hardenAppDir), the agent.log console tee, and the encrypted SecretStore. Leaf substrate — no capability imports; upward needs (secret cipher, session dirs, recovery notifier) are injected by the composing host.",
+  "type": "module",
+  "exports": {
+    "./agent-log": "./src/agent-log.ts",
+    "./atomic-write": "./src/atomic-write.ts",
+    "./fs-errors": "./src/fs-errors.ts",
+    "./harden-app-dir": "./src/harden-app-dir.ts",
+    "./host-lock": "./src/host-lock.ts",
+    "./json-store": "./src/json-store.ts",
+    "./secrets": "./src/secrets.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/bridge": "workspace:*",
+    "@sinclair/typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

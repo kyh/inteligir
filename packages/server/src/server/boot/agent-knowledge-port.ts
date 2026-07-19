@@ -37,7 +37,7 @@ import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import type { KnowledgePort, PrivacyProbe, RenameNoteResult } from "@repo/agent/extension";
-import type { VaultManager } from "../vault/vault";
+import type { VaultManager } from "@repo/vault/vault";
 
 /** The queries the port wraps — KnowledgeManager (production) and core's
  * KnowledgeIndex (tests) both satisfy it structurally. */

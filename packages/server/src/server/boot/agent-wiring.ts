@@ -16,26 +16,26 @@ import { loginSelectedProvider } from "../provider/provider-service";
 import { resetProviderConfig } from "../provider/provider-config";
 import type { AgentPorts, PrivacyProbe } from "@repo/agent/extension";
 import { buildAgentKnowledgePort } from "./agent-knowledge-port";
-import { isEnoent } from "../storage/fs-errors";
+import { isEnoent } from "@repo/storage/fs-errors";
 import { AGENT_DIR } from "@repo/agent/paths";
 import { seedResources, type BundledResources } from "@repo/agent/setup";
 import { getPlatform } from "../platform-instance";
-import { reassertHostLock } from "../storage/host-lock";
+import { reassertHostLock } from "@repo/storage/host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
 import { getCheckpointManager, resetCheckpointManager } from "../chat-undo/checkpoint-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { resetSnapshotStore } from "../snapshots/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../connectors/executor-client";
+import { executeEnsuringDaemon, resumeEnsuringDaemon } from "@repo/connectors/executor-client";
 import {
   EXECUTOR_CLI,
   getExecutorDaemon,
   installExecutor,
   resetExecutorDaemon,
-} from "../connectors/executor-daemon";
+} from "@repo/connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
-import { resetSecretStore } from "../secrets";
-import { resetSyncCoordinator } from "../sync/sync-coordinator";
+import { resetSecretStore } from "@repo/storage/secrets";
+import { resetSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { resetRemoteAccessManager } from "../transport/remote-access-manager";
 import { resetUiState } from "../ui-state";
 import {
@@ -43,7 +43,7 @@ import {
   resetVaultManager,
   resumeVaultWrites,
   suspendVaultWrites,
-} from "../vault/vault";
+} from "@repo/vault/vault";
 import { remapNoteMetadata } from "./rename-orchestration";
 import type { SetupProgress } from "@repo/bridge/ipc-registry";
 

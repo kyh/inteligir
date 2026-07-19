@@ -22,9 +22,9 @@ import {
   inteligirPath,
   rejectLegacyVersion,
   type FsAdapter,
-} from "../storage/json-store";
+} from "@repo/storage/json-store";
 import { isSelectedProviderConnected } from "../provider/provider-service";
-import { getVaultManager } from "../vault/vault";
+import { getVaultManager } from "@repo/vault/vault";
 import { emitEvent } from "../events";
 import { runTextTurn } from "@repo/agent/text-turn";
 import {

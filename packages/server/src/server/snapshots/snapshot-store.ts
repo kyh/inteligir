@@ -31,13 +31,13 @@ import path from "node:path";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { atomicWrite } from "../storage/atomic-write";
+import { atomicWrite } from "@repo/storage/atomic-write";
 import {
   JsonStore,
   inteligirPath,
   rejectLegacyVersion,
   type FsAdapter,
-} from "../storage/json-store";
+} from "@repo/storage/json-store";
 
 // Retention: keep the newest 50 snapshots PER ORIGIN, pruned on host start.
 // A count cap (not an age window) keeps disk usage proportional to actual AI

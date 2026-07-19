@@ -12,22 +12,28 @@
 // (the ws host), forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
-import { configurePaths, WORKSPACE_DIR } from "@repo/agent/paths";
+import { configurePaths, SESSION_DIR_SEGMENTS, WORKSPACE_DIR } from "@repo/agent/paths";
 import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
-import { subscribeEvents } from "../events";
+import { emitEvent, subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
-import { initAgentLog } from "../storage/agent-log";
-import { hardenAppDir } from "../storage/harden-app-dir";
-import { acquireHostLock, releaseHostLock } from "../storage/host-lock";
+import { initAgentLog } from "@repo/storage/agent-log";
+import { setSecretCipherProvider } from "@repo/storage/secrets";
+import { hardenAppDir } from "@repo/storage/harden-app-dir";
+import { acquireHostLock, releaseHostLock } from "@repo/storage/host-lock";
 import { collectHandlers, type HostHandlers } from "../handlers/handler-registry";
 import { registerAllHandlers } from "../handlers/register-handlers";
 import { getCaptureManager } from "../capture/capture-manager";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { getSyncCoordinator, setSyncEventSink } from "@repo/sync/sync-coordinator";
 import { installHostRuntime } from "../platform-instance";
-import { getVaultManager, setVaultChangeNotifier, setVaultWorkspaceLinkDir } from "../vault/vault";
+import {
+  getVaultManager,
+  setVaultChangeNotifier,
+  setVaultTrashItem,
+  setVaultWorkspaceLinkDir,
+} from "@repo/vault/vault";
 import type { HostOptions, HostPlatform } from "../platform";
 import type { EventMethod } from "@repo/bridge/ipc-registry";
 
@@ -61,6 +67,22 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   created = true;
 
   installHostRuntime(platform, options);
+
+  // Storage's SecretStore resolves its cipher through this provider at
+  // construction (storage never imports the platform seam) — install it before
+  // constructHostSingletons() eagerly builds the store.
+  setSecretCipherProvider(() => platform.secretCipher);
+
+  // Vault's user-initiated delete goes to the OS trash through this host
+  // capability (vault/ never imports the platform seam). Installed before any
+  // handler can reach trash(); resolved lazily at call time inside vault, so
+  // it also survives a logout/login VaultManager reset.
+  setVaultTrashItem(platform.trashItem);
+
+  // Sync's coordinator broadcasts state through this sink (sync/ never
+  // imports the host event bus) — installed before start() kicks the initial
+  // reconcile so no state emission is dropped.
+  setSyncEventSink(emitEvent);
 
   // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
   // unpackaged builds — computed ONCE here, before any handler or flag read.
@@ -100,7 +122,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // note content) to owner-only. Best-effort by design, but keep the
       // whole call guarded too: a sweep failure must never block boot.
       try {
-        hardenAppDir();
+        hardenAppDir(SESSION_DIR_SEGMENTS);
       } catch (err) {
         console.warn("[host] app-dir permission sweep failed:", err);
       }

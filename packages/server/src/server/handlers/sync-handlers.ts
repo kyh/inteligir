@@ -1,5 +1,5 @@
 import type { HandlerRegistrar } from "./handler-registry";
-import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
 
 export function registerSyncHandlers(handle: HandlerRegistrar): void {
   handle("getSyncState", () => getSyncCoordinator().getState());

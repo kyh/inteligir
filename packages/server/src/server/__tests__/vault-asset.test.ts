@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { normalizeAssetDir, pickAssetPath, sanitizeAssetName } from "../handlers/vault-handlers";
-import { VaultManager } from "../vault/vault";
+import { VaultManager } from "@repo/vault/vault";
 
 describe("sanitizeAssetName", () => {
   it("strips path separators and traversal to a bare leaf", () => {
