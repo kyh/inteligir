@@ -19,7 +19,7 @@ const SCANNED_DIRS = [
   "packages/agent/src",
   "packages/bridge/src",
   "packages/cli-bootstrap/src",
-  "packages/features/src",
+  "packages/backend/src",
   "packages/domain/src",
   "packages/ui/src",
   "apps/desktop/src",

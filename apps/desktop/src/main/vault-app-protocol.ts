@@ -25,7 +25,7 @@
 import { randomBytes } from "node:crypto";
 import { protocol } from "electron";
 
-import { getVaultManager } from "@repo/features/server/vault/vault";
+import { getVaultManager } from "@repo/backend/server/vault/vault";
 
 import { injectHtmlAppRuntime } from "@/html-app-inject";
 

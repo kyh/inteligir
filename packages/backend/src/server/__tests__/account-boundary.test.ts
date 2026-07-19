@@ -22,7 +22,7 @@ const SCANNED_DIRS = [
   "packages/agent/src",
   "packages/bridge/src",
   "packages/cli-bootstrap/src",
-  "packages/features/src",
+  "packages/backend/src",
   "packages/domain/src",
   "packages/ui/src",
   "apps/desktop/src",
@@ -43,18 +43,18 @@ const ACCOUNT_TOKENS =
 /** The ONLY places allowed to speak the account vocabulary. */
 const ALLOWED = [
   // The account+sync layer itself (client, coordinator, their tests).
-  "packages/features/src/server/sync/",
+  "packages/backend/src/server/sync/",
   // The Bridge surface: wire contract, channel table, host handlers.
   "packages/bridge/src/sync.ts",
   "packages/bridge/src/ipc-registry.ts",
-  "packages/features/src/server/handlers/sync-handlers.ts",
+  "packages/backend/src/server/handlers/sync-handlers.ts",
   // The two settings surfaces: Account owns the session, Sync consumes it.
   "apps/desktop/src/renderer/settings/sections/account-section.tsx",
   "apps/desktop/src/renderer/settings/sections/sync-section.tsx",
   // The dev-harness Bridge must implement every channel by contract.
   "apps/desktop/dev/fixture-bridge.ts",
   // This guard names the tokens it hunts.
-  "packages/features/src/server/__tests__/account-boundary.test.ts",
+  "packages/backend/src/server/__tests__/account-boundary.test.ts",
 ];
 
 function walk(dir: string, out: string[]): void {
@@ -98,8 +98,8 @@ describe("account boundary (#459)", () => {
   });
 
   it("provider layer and sync layer never import each other (teardown decouple)", () => {
-    const providerDir = path.join(REPO_ROOT, "packages/features/src/server/provider");
-    const syncDir = path.join(REPO_ROOT, "packages/features/src/server/sync");
+    const providerDir = path.join(REPO_ROOT, "packages/backend/src/server/provider");
+    const syncDir = path.join(REPO_ROOT, "packages/backend/src/server/sync");
     const agentAuth = path.join(REPO_ROOT, "packages/agent/src/auth.ts");
 
     const providerFiles: string[] = [];

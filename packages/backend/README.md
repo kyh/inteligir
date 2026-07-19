@@ -1,11 +1,11 @@
-# `@repo/features` — the contract + the backend
+# `@repo/backend` — the contract + the backend
 
 One package, two halves split by subpath:
 
 - **`src/` — isomorphic.** The shared vocabulary the renderer and backend both speak: the Bridge/IPC registry, domain schemas, and pure engines (knowledge index, agent-event parsing, markdown). The same modules load in the Electron renderer (a browser context) and node, so no node built-ins and no electron here (lint-enforced).
 - **`src/server/` — the node backend.** vault, pi agent, delegation, executor, voice, and the Bridge handler map behind `createHost()` (pi-driver + agent-runtime folded in). Node is fine here; electron/desktop are not — the shell injects a `HostPlatform`. See [`src/server/README.md`](./src/server/README.md).
 
-No barrel; import by file. The renderer imports the iso half (`@repo/features/...`); the desktop main process imports the backend (`@repo/features/server/...`).
+No barrel; import by file. The renderer imports the iso half (`@repo/backend/...`); the desktop main process imports the backend (`@repo/backend/server/...`).
 
 ## IPC registry → Bridge
 
@@ -33,5 +33,5 @@ A renamed channel or changed payload is a compile error in every process. The `U
 ## Test
 
 ```bash
-pnpm --filter @repo/features test   # knowledge engine, parsers, schemas
+pnpm --filter @repo/backend test   # knowledge engine, parsers, schemas
 ```

@@ -55,12 +55,12 @@ const SNAPSHOTS_VERSION = 2;
 
 /** Which AI surface captured the snapshot. Delegation ids double as the
  * delegation record's id (the manager reads by it); chat ids are opaque. */
-export type SnapshotOrigin = "delegation" | "chat";
+type SnapshotOrigin = "delegation" | "chat";
 
 /** What the pre-write state was. `edit` = the file existed and `content` is
  * its exact prior bytes; `create` = the file did NOT exist (a new-file
  * `write`), so undo means deleting it — the stored content is empty. */
-export type SnapshotKind = "edit" | "create";
+type SnapshotKind = "edit" | "create";
 
 const SnapshotEntrySchema = Type.Object(
   {

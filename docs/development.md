@@ -35,7 +35,7 @@ pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 ```
 
 `apps/desktop` (thin shell: window/menu/updater + the ws transport fold) boots
-`@repo/features/server` (real vault, real pi agent, delegation, knowledge indexes) and
+`@repo/backend/server` (real vault, real pi agent, delegation, knowledge indexes) and
 serves the Bridge over ONE local WebSocket server (`startWsHost`); the
 renderer dials it with `createWsBridge` using the endpoint + per-boot token
 the bootstrap-only preload exposes. pi auth (OpenAI OAuth) is on-device; if
@@ -108,16 +108,16 @@ Type-checks passing isn't feature-correct. Drive the running app:
   is the thing most UI regressions break.
 - Privacy (`private: true`) changes: `docs/privacy.md` states the guarantee
   and its holes; the enforcement tests live in
-  `packages/features/src/server/__tests__/privacy-gate.test.ts` and
+  `packages/backend/src/server/__tests__/privacy-gate.test.ts` and
   `knowledge-privacy.test.ts` (outbound-payload assertions).
 
 ## Making changes — checklists
 
 **Adding a Bridge channel** (the most common cross-cutting change):
 
-1. Registry entry in `packages/features/src/ipc-registry.ts` (TypeBox payload +
+1. Registry entry in `packages/backend/src/ipc-registry.ts` (TypeBox payload +
    result/event type).
-2. Host handler in `packages/features/src/server/handlers/` (grouped by domain;
+2. Host handler in `packages/backend/src/server/handlers/` (grouped by domain;
    `collectHandlers` throws at boot on missing/duplicate).
 3. Fixture implementation in `apps/desktop/dev/fixture-bridge.ts` (typed
    `: Bridge` — fails typecheck until covered).
@@ -138,7 +138,7 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 - `pnpm --filter @repo/desktop test` — the renderer: editor pipeline (round-trip
   matrix, adversarial harness, kit parity, corpus classification), combobox,
   knowledge fixtures.
-- `pnpm --filter @repo/features test` — the iso contract (parsers, schemas)
+- `pnpm --filter @repo/backend test` — the iso contract (parsers, schemas)
   **and** the backend under `src/server` (vault, delegation +snapshots,
   knowledge manager, sync adapters, handlers, secrets).
 - `pnpm --filter @repo/cloud test` — the sync Worker against real in-process
@@ -152,5 +152,5 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 Use the `release` skill (`.claude/skills/release/`) — bump, build, notarize,
 publish to GitHub Releases (electron-updater). Note: the electron-builder
 packaging path moved in the host split (extraResources now sources
-`packages/features/resources/agent`) — `pnpm verify:release` +
+`packages/backend/resources/agent`) — `pnpm verify:release` +
 `pnpm verify:packaged` in `apps/desktop` are the guards.

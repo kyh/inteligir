@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import type { KnowledgeStore } from "@repo/domain/knowledge/knowledge-store";
 import { projectDoc } from "@repo/domain/knowledge/projection";
 import { createSqlKnowledgeStore } from "@repo/domain/knowledge/sql-knowledge-store";
-import { createSqliteKnowledgeStore } from "@repo/features/server/knowledge/sqlite-knowledge-store";
+import { createSqliteKnowledgeStore } from "@repo/backend/server/knowledge/sqlite-knowledge-store";
 
 import { SAMPLE_NOTES } from "../../dev/fixture-bridge";
 import { createWasmSqlDriver, loadSqlite3 } from "../../dev/wasm-sql-driver";

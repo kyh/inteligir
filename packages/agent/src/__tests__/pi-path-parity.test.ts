@@ -25,7 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { expandPiPath, resolvePiToolPath } from "../privacy/pi-path-parity";
 
 // pi declares exports only for "." and "./hooks", so the internal module is
-// reached by file path. @repo/features declares the dependency, so pnpm links
+// reached by file path. @repo/backend declares the dependency, so pnpm links
 // it under this package's own node_modules — a stable location.
 const PI_PATH_UTILS = fileURLToPath(
   new URL(

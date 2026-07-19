@@ -26,10 +26,10 @@ files:
   - "!node_modules/**"
   - node_modules/sherpa-onnx-*/**/*
 # Bundled agent assets (skills/, AGENTS.md) — canonical copy lives in
-# packages/features/resources/agent; copied to Contents/Resources/agent, which is
+# packages/agent/resources/agent; copied to Contents/Resources/agent, which is
 # where the electron platform's resourcesDir points in packaged builds.
 extraResources:
-  - from: ../../packages/features/resources/agent
+  - from: ../../packages/agent/resources/agent
     to: agent
 asarUnpack:
   # sherpa-onnx-node ships native .node binaries (split into per-platform

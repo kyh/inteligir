@@ -70,8 +70,8 @@
                   "@repo/bridge/*",
                   "@repo/cli-bootstrap",
                   "@repo/cli-bootstrap/*",
-                  "@repo/features",
-                  "@repo/features/*",
+                  "@repo/backend",
+                  "@repo/backend/*",
                   "@repo/ui",
                   "@repo/ui/*",
                   "@repo/desktop",
@@ -93,7 +93,7 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/features/server)"
+                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/backend/server)"
               }
             ]
           }
@@ -101,7 +101,7 @@
       }
     },
     {
-      "files": ["packages/features/src/server/**"],
+      "files": ["packages/backend/src/server/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -134,8 +134,8 @@
                 "group": [
                   "electron",
                   "electron/*",
-                  "@repo/features",
-                  "@repo/features/*",
+                  "@repo/backend",
+                  "@repo/backend/*",
                   "@repo/desktop",
                   "@repo/desktop/*"
                 ],
@@ -159,8 +159,8 @@
                   "electron/*",
                   "electron-updater",
                   "node:*",
-                  "@repo/features/server",
-                  "@repo/features/server/*",
+                  "@repo/backend/*",
+                  "@repo/backend",
                   "@/main",
                   "@/main/*",
                   "@/preload",

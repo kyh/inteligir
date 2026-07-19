@@ -1,6 +1,6 @@
 # `features/src/server` — the node backend
 
-The platform-agnostic backend (the node half of `@repo/features`, imported as `@repo/features/server/*`): app lifecycle, the agent singleton, vault, knowledge indexes, delegation, connectors, voice, and the Bridge handler map. `createHost(platform, options)` (`boot/create-host.ts`) composes it all; the Electron desktop shell (`apps/desktop`) injects a `HostPlatform` (`platform.ts`) for everything OS/shell-shaped — native dialogs, secret cipher (keychain or file-key), notifications, packaged-resource paths — folds `host.handlers` over Electron IPC, and forwards `host.events`. Only one real host runs at a time: `storage/host-lock.ts` is a pidfile under `~/.inteligir`. The UI talks to it only via methods declared in the registry (`@repo/features/ipc-registry`). No electron imports anywhere in `server/` — lint-enforced. `pi/` and `agent-runtime/` are folded in as sibling dirs, reached from `agent/` via `@repo/features/server/pi/*` + `@repo/features/server/agent-runtime/*` (the only server paths agent/ may import — lint-enforced).
+The platform-agnostic backend (the node half of `@repo/backend`, imported as `@repo/backend/server/*`): app lifecycle, the agent singleton, vault, knowledge indexes, delegation, connectors, voice, and the Bridge handler map. `createHost(platform, options)` (`boot/create-host.ts`) composes it all; the Electron desktop shell (`apps/desktop`) injects a `HostPlatform` (`platform.ts`) for everything OS/shell-shaped — native dialogs, secret cipher (keychain or file-key), notifications, packaged-resource paths — folds `host.handlers` over Electron IPC, and forwards `host.events`. Only one real host runs at a time: `storage/host-lock.ts` is a pidfile under `~/.inteligir`. The UI talks to it only via methods declared in the registry (`@repo/backend/ipc-registry`). No electron imports anywhere in `server/` — lint-enforced. `pi/` and `agent-runtime/` are folded in as sibling dirs, reached from `agent/` via `@repo/backend/server/pi/*` + `@repo/backend/server/agent-runtime/*` (the only server paths agent/ may import — lint-enforced).
 
 ## State machine — three-part split
 
@@ -24,7 +24,7 @@ The reducer returns an `EffectTag` (a string), not the effect itself. The runner
 
 **New external event** (renderer-triggered):
 
-1. Add to `AppEventSchema` in `@repo/features/app-state` (validates the Bridge payload).
+1. Add to `AppEventSchema` in `@repo/backend/app-state` (validates the Bridge payload).
 2. Add a `case` in `app-reducer.ts` returning `{ next, effect }` — guard with the source phase.
 3. If it triggers an effect, add the tag to `EffectTag` and a case in `runEffect`.
 
@@ -32,7 +32,7 @@ Internal events (`SETUP_OK`/`SETUP_FAIL`, `NEW_SESSION_OK`/`NEW_SESSION_FAIL`, `
 
 **New phase**:
 
-1. Add to `AppStateSchema` in `@repo/features/app-state`.
+1. Add to `AppStateSchema` in `@repo/backend/app-state`.
 2. Update reducer guards (`state.phase !== "..."` checks) to include the new phase wherever it should accept events.
 3. Add tests in `src/__tests__/app-machine.test.ts` for the new transitions.
 
@@ -60,12 +60,12 @@ If the effect is part of `SETUP` (binary install, config seed), prefer adding it
 
 ## Bridge handlers
 
-Domain-grouped under `handlers/` (one file per domain, composed by `handlers/register-handlers.ts`). Each group registers through the typed registrar (`handlers/handler-registry.ts::collectHandlers`): the channel, TypeBox payload schema, and result type are looked up from the shared registry (`@repo/features/ipc-registry`), payloads are `Value.Check`-validated before the handler runs, and boot throws if any host-owned method is left unhandled. The registry's `UPDATE_METHODS` trio is deliberately absent — electron-updater is the desktop shell's overlay. Host → UI events use `events.ts::emitEvent`, keyed by the same registry — a renamed channel or changed payload shape is a compile error on both sides, and each shell's bridge is derived from the registry too.
+Domain-grouped under `handlers/` (one file per domain, composed by `handlers/register-handlers.ts`). Each group registers through the typed registrar (`handlers/handler-registry.ts::collectHandlers`): the channel, TypeBox payload schema, and result type are looked up from the shared registry (`@repo/backend/ipc-registry`), payloads are `Value.Check`-validated before the handler runs, and boot throws if any host-owned method is left unhandled. The registry's `UPDATE_METHODS` trio is deliberately absent — electron-updater is the desktop shell's overlay. Host → UI events use `events.ts::emitEvent`, keyed by the same registry — a renamed channel or changed payload shape is a compile error on both sides, and each shell's bridge is derived from the registry too.
 
 ## Other modules
 
 - `vault/vault.ts` — the user's markdown vault (folder of files, watcher, `./vault` agent symlink).
-- `knowledge/` — `knowledge-manager.ts` runs the pure engine from `@repo/features/knowledge` over vault events (incremental link graph, backlinks, lexical search); `rename-rewrite.ts` applies byte-surgical `[[link]]` rewrites across the vault on rename.
+- `knowledge/` — `knowledge-manager.ts` runs the pure engine from `@repo/backend/knowledge` over vault events (incremental link graph, backlinks, lexical search); `rename-rewrite.ts` applies byte-surgical `[[link]]` rewrites across the vault on rename.
 - `app/agent-gateway.ts` — the single entry point for interactive agent commands (a thin typed pass-through to the live agent).
 - `app/inline-ai.ts` + `app/ghost-text.ts` — the editor-AI backends: intent classification/generation on a no-tools pi session, and ephemeral ghost-text completions on a fast model.
 - `delegation/` — checkbox delegation: a versioned store + serialized queue (`delegation-manager.ts`) running tasks on a dedicated `background-agent.ts`; the target file is snapshotted before dispatch (newest 50 kept) so "Restore original" undoes an agent edit byte-exactly; `find-task-line.ts` is the pure checkbox locator.
