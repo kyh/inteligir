@@ -13,6 +13,7 @@
 // ---------------------------------------------------------------------------
 
 import { configurePaths, WORKSPACE_DIR } from "../agent/paths";
+import { setDevFlagsAllowed } from "../dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
 import { subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
@@ -60,6 +61,12 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   created = true;
 
   installHostRuntime(platform, options);
+
+  // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
+  // unpackaged builds — computed ONCE here, before any handler or flag read.
+  // A packaged install refuses the ambient env outright (dev-flags.ts); the
+  // desktop main entry additionally refuses to start with a flag set.
+  setDevFlagsAllowed(!platform.isPackaged);
 
   // Crash/debug visibility first, so even boot failures land in agent.log.
   initAgentLog();

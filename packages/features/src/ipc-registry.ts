@@ -168,6 +168,13 @@ const FauxAgentScriptSchema = Type.Object(
 );
 export type FauxAgentScript = Static<typeof FauxAgentScriptSchema>;
 
+/** Dev-only (#462): the in-flight connector OAuth consent — the authorize URL
+ * (state/PKCE ride in its query string) a headless E2E drive completes
+ * against emulate instead of spelunking the daemon's SQLite. Held host-side
+ * (connector-install.ts) only under INTELIGIR_EMULATE_CONNECTORS=1; the
+ * handler throws otherwise, so production never exposes it. */
+export type PendingConnectorAuth = { authorizationUrl: string; state: string };
+
 // ---------------------------------------------------------------------------
 // Deep-link capture — inteligir://append|task landing on today's daily note.
 // ---------------------------------------------------------------------------
@@ -324,6 +331,13 @@ const BinaryAudioSchema = Type.Any();
 
 const TtsSendSchema = Type.Object({ text: Type.String() }, { additionalProperties: false });
 
+/** setVoiceApiKey payload: a non-empty `value` stores the key; anything else
+ * (absent, empty, whitespace) clears it. */
+const VoiceApiKeySchema = Type.Object(
+  { value: Type.Optional(Type.String()) },
+  { additionalProperties: false },
+);
+
 // ---------------------------------------------------------------------------
 // Entry helpers — phantom types carry result/event shapes through the registry
 // ---------------------------------------------------------------------------
@@ -433,6 +447,14 @@ export const IPC = {
 
   // Voice
   isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
+  /** Store/clear the ElevenLabs API key. Voice owns its secret: the handler
+   * writes the encrypted SecretStore directly and keeps only a `true`
+   * presence marker under ELEVENLABS_API_KEY_UI_STATE in ui-state (which is
+   * what getUiState exposes to Settings) — plaintext never crosses back. */
+  setVoiceApiKey: invoke<typeof VoiceApiKeySchema, void>(
+    "voice:tts:set-api-key",
+    VoiceApiKeySchema,
+  ),
   ttsSend: send<typeof TtsSendSchema>("voice:tts:send", TtsSendSchema),
   ttsFlush: send<ReturnType<typeof Type.Undefined>>("voice:tts:flush", Type.Undefined()),
   ttsInterrupt: send<ReturnType<typeof Type.Undefined>>("voice:tts:interrupt", Type.Undefined()),
@@ -701,6 +723,11 @@ export const IPC = {
   uninstallConnector: invoke<typeof ConnectorUninstallRequestSchema, void>(
     "executor:connector:uninstall",
     ConnectorUninstallRequestSchema,
+  ),
+  /** Dev-only (INTELIGIR_EMULATE_CONNECTORS=1; throws otherwise): the
+   * in-flight connector OAuth consent, or null when none is pending (#462). */
+  getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(
+    "executor:connector:pending-auth",
   ),
 
   // Vault sync — reconcile the local vault against the coordinator Worker.

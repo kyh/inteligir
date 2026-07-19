@@ -3,6 +3,7 @@
 // and the host-orchestrated connector install/uninstall flows.
 
 import {
+  getPendingConnectorAuth,
   installConnector,
   uninstallConnector,
   type ConnectorInstallOps,
@@ -10,6 +11,7 @@ import {
 import {
   applyGoogleEndpointOverride,
   emulatePlaceholderGoogleClient,
+  isEmulateConnectorsEnabled,
 } from "../connectors/emulate-connectors";
 import * as executor from "../connectors/executor-client";
 import { getExecutorDaemon } from "../connectors/executor-daemon";
@@ -48,6 +50,15 @@ const connectorOps: ConnectorInstallOps = {
 export function registerExecutorHandlers(handle: HandlerRegistrar): void {
   handle("installConnector", (req) => installConnector(connectorOps, req));
   handle("uninstallConnector", (req) => uninstallConnector(connectorOps, req));
+  // Dev-only (#462): the E2E drive polls this for the in-flight OAuth consent
+  // instead of reading the daemon's SQLite. Refused outright outside emulate
+  // mode (and emulate itself is refused in packaged builds — dev-flags.ts).
+  handle("getPendingConnectorAuth", () => {
+    if (!isEmulateConnectorsEnabled()) {
+      throw new Error("getPendingConnectorAuth requires INTELIGIR_EMULATE_CONNECTORS=1");
+    }
+    return getPendingConnectorAuth();
+  });
 
   handle("listExecutorIntegrations", executor.listIntegrations);
   handle("detectExecutorIntegration", executor.detectIntegration);

@@ -4,28 +4,6 @@ import os from "node:os";
 import path from "node:path";
 
 import { UiStateManager } from "../ui-state";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
-
-type FakeSink = {
-  values: Map<string, string>;
-  set: (key: string, value: string) => void;
-  get: (key: string) => string | null;
-  delete: (key: string) => void;
-};
-
-function fakeSink(): FakeSink {
-  const values = new Map<string, string>();
-  return {
-    values,
-    set: (key, value) => {
-      values.set(key, value);
-    },
-    get: (key) => values.get(key) ?? null,
-    delete: (key) => {
-      values.delete(key);
-    },
-  };
-}
 
 let storePath: string;
 
@@ -37,57 +15,30 @@ afterEach(() => {
   fs.rmSync(storePath, { force: true });
 });
 
-describe("UiStateManager secret routing", () => {
-  it("stores plain keys in ui-state as before", () => {
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
+// ui-state is a GENERIC key→value store — no per-feature key knowledge, no
+// secret routing (voice owns its secret in voice/voice-secret.ts, covered by
+// voice-secret.test.ts).
+describe("UiStateManager", () => {
+  it("stores and returns plain keys", () => {
+    const mgr = new UiStateManager(storePath);
 
     mgr.set("panel.layout", { open: true });
 
     expect(mgr.getAll()).toEqual({ "panel.layout": { open: true } });
-    expect(sink.values.size).toBe(0);
   });
 
-  it("routes a secret key into the sink and persists only a presence marker", () => {
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
+  it("removes a key when set to undefined", () => {
+    const mgr = new UiStateManager(storePath);
 
-    mgr.set(ELEVENLABS_API_KEY_UI_STATE, "  sk-elevenlabs-123  ");
+    mgr.set("panel.layout", { open: true });
+    mgr.set("panel.layout", undefined);
 
-    expect(sink.values.get(ELEVENLABS_API_KEY_UI_STATE)).toBe("sk-elevenlabs-123");
-    expect(mgr.getAll()[ELEVENLABS_API_KEY_UI_STATE]).toBe(true);
-    expect(fs.readFileSync(storePath, "utf8")).not.toContain("sk-elevenlabs-123");
+    expect("panel.layout" in mgr.getAll()).toBe(false);
   });
 
-  it("reads the secret back through readSecret, never getAll", () => {
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
+  it("persists across instances over the same path", () => {
+    new UiStateManager(storePath).set("theme", "dark");
 
-    mgr.set(ELEVENLABS_API_KEY_UI_STATE, "sk-1");
-
-    expect(mgr.readSecret(ELEVENLABS_API_KEY_UI_STATE)).toBe("sk-1");
-    expect(mgr.readSecret("panel.layout")).toBeNull(); // non-secret keys: always null
-  });
-
-  it("clears the secret and the marker when set to undefined", () => {
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
-
-    mgr.set(ELEVENLABS_API_KEY_UI_STATE, "sk-1");
-    mgr.set(ELEVENLABS_API_KEY_UI_STATE, undefined);
-
-    expect(sink.values.has(ELEVENLABS_API_KEY_UI_STATE)).toBe(false);
-    expect(ELEVENLABS_API_KEY_UI_STATE in mgr.getAll()).toBe(false);
-  });
-
-  it("treats an empty or non-string secret write as removal", () => {
-    const sink = fakeSink();
-    const mgr = new UiStateManager(storePath, sink);
-
-    mgr.set(ELEVENLABS_API_KEY_UI_STATE, "sk-1");
-    mgr.set(ELEVENLABS_API_KEY_UI_STATE, "   ");
-
-    expect(sink.values.has(ELEVENLABS_API_KEY_UI_STATE)).toBe(false);
-    expect(ELEVENLABS_API_KEY_UI_STATE in mgr.getAll()).toBe(false);
+    expect(new UiStateManager(storePath).getAll()).toEqual({ theme: "dark" });
   });
 });

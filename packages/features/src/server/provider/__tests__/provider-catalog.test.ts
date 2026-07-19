@@ -5,8 +5,9 @@
 // pi Model resolution lives in pi/model.ts (resolveModelSelection) and is
 // tested in server/__tests__/model-selection.test.ts.
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setDevFlagsAllowed } from "../../dev-flags";
 import {
   applySelectionPatch,
   listProviderModels,
@@ -16,8 +17,15 @@ import {
   providerRequiresAuth,
 } from "../provider-catalog";
 
+// The catalog's faux entry is env-driven and only in UNPACKAGED (dev) builds,
+// so opt in to dev flags; the packaged-refusal contract is dev-flags.test.ts.
+beforeEach(() => {
+  setDevFlagsAllowed(true);
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
+  setDevFlagsAllowed(false);
 });
 
 describe("provider menu", () => {

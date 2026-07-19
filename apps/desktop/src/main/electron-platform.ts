@@ -42,6 +42,8 @@ export function createElectronPlatform(): ElectronPlatform {
   }
 
   const platform: HostPlatform = {
+    isPackaged: app.isPackaged,
+
     userDataDir: app.getPath("userData"),
 
     // Packaged: electron-builder copies packages/features/resources/agent into

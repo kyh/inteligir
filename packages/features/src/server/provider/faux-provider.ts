@@ -24,12 +24,16 @@ import type {
 } from "@mariozechner/pi-ai";
 import type { FauxAgentScript } from "@repo/features/ipc-registry";
 
+import { areDevFlagsAllowed } from "../dev-flags";
+
 export const FAUX_PROVIDER_ID = "faux";
 
 /** Dev flag gating everything faux. Read live (not cached) so tests can flip
- * it per case. */
+ * it per case. The env is only consulted when boot allowed dev flags
+ * (unpackaged builds — dev-flags.ts): a packaged install refuses
+ * INTELIGIR_FAUX_AGENT outright. */
 export function isFauxAgentEnabled(): boolean {
-  return process.env["INTELIGIR_FAUX_AGENT"] === "1";
+  return areDevFlagsAllowed() && process.env["INTELIGIR_FAUX_AGENT"] === "1";
 }
 
 let registration: FauxProviderRegistration | null = null;

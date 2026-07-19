@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setDevFlagsAllowed } from "../dev-flags";
 import {
   applyGoogleEndpointOverride,
   emulatePlaceholderGoogleClient,
@@ -18,8 +19,15 @@ import {
   type CreateOAuthClientInput,
 } from "@repo/features/executor";
 
+// These tests exercise the env-driven behavior of an UNPACKAGED (dev) build,
+// so opt in to dev flags; the packaged-refusal contract is dev-flags.test.ts.
+beforeEach(() => {
+  setDevFlagsAllowed(true);
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
+  setDevFlagsAllowed(false);
 });
 
 describe("isEmulateConnectorsEnabled", () => {

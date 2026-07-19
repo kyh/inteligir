@@ -39,6 +39,9 @@ import {
   type OAuthStartResult,
   type RegisterDynamicOAuthClientInput,
 } from "@repo/features/executor";
+import type { PendingConnectorAuth } from "@repo/features/ipc-registry";
+
+import { isEmulateConnectorsEnabled } from "./emulate-connectors";
 
 /** Everything the orchestration touches, injected so tests can fake the daemon
  * (method names mirror executor-client so the handler binds it 1:1). */
@@ -87,6 +90,18 @@ const OAUTH_TIMEOUT_MS = 5 * 60_000;
 // and double-register / re-run auth.
 const installing = new Set<string>();
 
+// DEV-ONLY (#462): the in-flight OAuth consent, exposed over the
+// getPendingConnectorAuth channel so a headless E2E drive completes consent
+// against emulate instead of spelunking the daemon's SQLite. Only ever set
+// under the emulate flag; cleared when the flow settles either way.
+let pendingConnectorAuth: PendingConnectorAuth | null = null;
+
+/** The pending consent, or null when none is in flight (or not in emulate
+ * mode — the handler additionally refuses the channel outright then). */
+export function getPendingConnectorAuth(): PendingConnectorAuth | null {
+  return pendingConnectorAuth;
+}
+
 /**
  * Run an executor OAuth flow to mint a connection: start the session with a
  * registered client, open the authorization URL in the system browser, then
@@ -97,15 +112,22 @@ async function runOAuthFlow(ops: ConnectorInstallOps, input: OAuthStartInput): P
   const start = await ops.oauthStart(input);
   // Inline completion (client_credentials grants) — nothing to wait for.
   if (start.status === "connected") return;
-  await ops.openExternal(start.authorizationUrl);
-  const deadline = Date.now() + OAUTH_TIMEOUT_MS;
-  for (;;) {
-    if (Date.now() > deadline) throw new Error("OAuth timed out.");
-    await ops.waitMs(OAUTH_POLL_MS);
-    const result = await ops.awaitOAuth(start.state);
-    if (!result) continue;
-    if (!result.ok) throw new Error(`OAuth failed: ${result.error}`);
-    return;
+  if (isEmulateConnectorsEnabled()) {
+    pendingConnectorAuth = { authorizationUrl: start.authorizationUrl, state: start.state };
+  }
+  try {
+    await ops.openExternal(start.authorizationUrl);
+    const deadline = Date.now() + OAUTH_TIMEOUT_MS;
+    for (;;) {
+      if (Date.now() > deadline) throw new Error("OAuth timed out.");
+      await ops.waitMs(OAUTH_POLL_MS);
+      const result = await ops.awaitOAuth(start.state);
+      if (!result) continue;
+      if (!result.ok) throw new Error(`OAuth failed: ${result.error}`);
+      return;
+    }
+  } finally {
+    pendingConnectorAuth = null;
   }
 }
 

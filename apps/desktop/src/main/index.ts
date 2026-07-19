@@ -22,6 +22,22 @@ if (!app.isPackaged) {
   }
 }
 
+// Belt-and-suspenders (the host already refuses these flags in packaged
+// builds — see @repo/features/server/dev-flags.ts): a PACKAGED build launched
+// with a dev-only flag in its environment is a misconfiguration at best and
+// an attempt to force scripted-agent / fake-OAuth mode at worst. Fail loud
+// and refuse to start rather than run with the flags silently ignored.
+if (app.isPackaged) {
+  const devOnlyFlags = ["INTELIGIR_FAUX_AGENT", "INTELIGIR_EMULATE_CONNECTORS"];
+  const set = devOnlyFlags.filter((name) => (process.env[name] ?? "") !== "");
+  if (set.length > 0) {
+    const message = `Refusing to start: dev-only flag(s) set in a packaged build: ${set.join(", ")}`;
+    console.error(`[desktop] ${message}`);
+    dialog.showErrorBox("Inteligir refused to start", message);
+    app.exit(1);
+  }
+}
+
 import {
   deliverDeepLink,
   setDeepLinkFocusHandler,
