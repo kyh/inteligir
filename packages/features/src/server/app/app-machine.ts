@@ -13,9 +13,9 @@ import {
   loginAgent,
   seedAgentResources,
   teardownAgentResources,
-} from "../lib/agent-lifecycle";
+} from "../boot/agent-wiring";
 import { resumeVaultWrites } from "../vault/vault";
-import { hardenAppDir } from "../lib/harden-app-dir";
+import { hardenAppDir } from "../storage/harden-app-dir";
 import { emitEvent } from "../events";
 import {
   getBackgroundAgent,

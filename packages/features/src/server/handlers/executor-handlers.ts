@@ -14,7 +14,7 @@ import {
 import * as executor from "../connectors/executor-client";
 import { getExecutorDaemon } from "../connectors/executor-daemon";
 import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../connectors/google-oauth-client";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { getHostOptions, getPlatform } from "../platform-instance";
 import { isHttpUrl } from "@repo/features/wire-helpers";
 import type { ExecutorStatus } from "@repo/features/ipc-registry";

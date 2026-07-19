@@ -23,7 +23,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { inteligirPath, shortPathKey, type FsAdapter } from "../lib/json-store";
+import { inteligirPath, shortPathKey, type FsAdapter } from "../storage/json-store";
 import { getVaultManager, type VaultManager } from "../vault/vault";
 import type { SyncPort } from "@repo/core/sync/sync-port";
 import {

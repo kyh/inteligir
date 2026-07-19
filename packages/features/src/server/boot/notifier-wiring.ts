@@ -13,8 +13,8 @@
 // ONLY when the firing piece must stay registry-free.
 // ---------------------------------------------------------------------------
 
-import type { VaultChangeKind } from "./vault/vault";
-import type { StoreRecoveryEvent } from "./lib/json-store";
+import type { VaultChangeKind } from "../vault/vault";
+import type { StoreRecoveryEvent } from "../storage/json-store";
 
 /** The host notifier slots, composed by the host and fired by the low-level
  * pieces. Each is a plain callback that fans into `emitEvent(...)` / the

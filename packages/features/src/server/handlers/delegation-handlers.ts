@@ -1,5 +1,5 @@
 import { getDelegationManager } from "../delegation/delegation-manager";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 
 export function registerDelegationHandlers(handle: HandlerRegistrar): void {
   handle("createDelegation", (params) => getDelegationManager().createDelegation(params));

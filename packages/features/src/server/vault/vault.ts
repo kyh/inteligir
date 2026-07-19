@@ -33,8 +33,8 @@ import ignore, { type Ignore } from "ignore";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { atomicWrite } from "../lib/atomic-write";
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { atomicWrite } from "../storage/atomic-write";
+import { JsonStore, inteligirPath, type FsAdapter } from "../storage/json-store";
 import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/core/knowledge/doc-file";

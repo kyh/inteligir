@@ -26,17 +26,17 @@
 // calls the typed emitEvent directly — see host-notifiers.ts.
 // ---------------------------------------------------------------------------
 
-import { emitEvent } from "./events";
-import { getCheckpointManager } from "./chat-undo/checkpoint-manager";
-import { getDelegationManager } from "./delegation/delegation-manager";
-import { getExecutorDaemon } from "./connectors/executor-daemon";
-import { getKnowledgeManager } from "./knowledge/knowledge-manager";
-import { getNotifications } from "./notifications";
-import { getSecretStore } from "./secrets";
-import { getSyncCoordinator } from "./sync/sync-coordinator";
-import { getVaultManager } from "./vault/vault";
-import { setStoreRecoveryNotifier } from "./lib/json-store";
-import type { HostNotifiers } from "./host-notifiers";
+import { emitEvent } from "../events";
+import { getCheckpointManager } from "../chat-undo/checkpoint-manager";
+import { getDelegationManager } from "../delegation/delegation-manager";
+import { getExecutorDaemon } from "../connectors/executor-daemon";
+import { getKnowledgeManager } from "../knowledge/knowledge-manager";
+import { getNotifications } from "../notifications";
+import { getSecretStore } from "../secrets";
+import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { getVaultManager } from "../vault/vault";
+import { setStoreRecoveryNotifier } from "../storage/json-store";
+import type { HostNotifiers } from "./notifier-wiring";
 
 /** Compose the host notifiers for the registry-free low-level pieces. Each
  * fans into the IPC event bus / the notifications manager — the only place in

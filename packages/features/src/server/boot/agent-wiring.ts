@@ -16,11 +16,11 @@ import { loginSelectedProvider } from "../provider/provider-service";
 import { resetProviderConfig } from "../provider/provider-config";
 import type { AgentPorts, PrivacyProbe } from "../agent/extension";
 import { buildAgentKnowledgePort } from "./agent-knowledge-port";
-import { isEnoent } from "./fs-errors";
+import { isEnoent } from "../storage/fs-errors";
 import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
-import { reassertHostLock } from "./host-lock";
+import { reassertHostLock } from "../storage/host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
 import { getCheckpointManager, resetCheckpointManager } from "../chat-undo/checkpoint-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
@@ -44,7 +44,7 @@ import {
   resumeVaultWrites,
   suspendVaultWrites,
 } from "../vault/vault";
-import { remapNoteMetadata } from "../rename-orchestration";
+import { remapNoteMetadata } from "./rename-orchestration";
 import type { SetupProgress } from "@repo/features/ipc-registry";
 
 /** Bundled agent assets (skills/, AGENTS.md), resolved by the shell. */

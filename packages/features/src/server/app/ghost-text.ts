@@ -20,7 +20,7 @@ import {
   listSelectedProviderModels,
   providerModelSelection,
 } from "../provider/provider-service";
-import { getAgentPorts } from "../lib/agent-lifecycle";
+import { getAgentPorts } from "../boot/agent-wiring";
 import { getUiState } from "../ui-state";
 import { runTextTurn } from "../agent/text-turn";
 import {

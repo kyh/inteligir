@@ -26,7 +26,7 @@ import {
   deliverDeepLink,
   setDeepLinkFocusHandler,
 } from "@repo/features/server/capture/deep-link-service";
-import { createHost, type Host } from "@repo/features/server/create-host";
+import { createHost, type Host } from "@repo/features/server/boot/create-host";
 import type { HostOptions } from "@repo/features/server/platform";
 import {
   getRemoteAccessManager,

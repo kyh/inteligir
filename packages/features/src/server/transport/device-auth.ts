@@ -10,7 +10,12 @@
 import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
+import {
+  JsonStore,
+  inteligirPath,
+  rejectLegacyVersion,
+  type FsAdapter,
+} from "../storage/json-store";
 import type { RemoteDeviceInfo } from "@repo/features/remote-access";
 
 const DEVICES_VERSION = 1;

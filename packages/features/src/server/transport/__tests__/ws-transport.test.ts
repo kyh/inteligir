@@ -22,7 +22,7 @@ import {
   type ClientFrame,
   type ServerFrame,
 } from "@repo/features/ws-protocol";
-import type { WireHandler } from "../../lib/handler-registry";
+import type { WireHandler } from "../../handlers/handler-registry";
 import { RemoteAccessManager } from "../remote-access-manager";
 import { startWsHost, type WsHost, type WsHostSource } from "../ws-host";
 

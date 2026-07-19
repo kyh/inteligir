@@ -6,7 +6,7 @@ import {
   getSelectedProvider,
   setAiProviderConfig,
 } from "../provider/provider-service";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 
 export function registerAiProviderHandlers(handle: HandlerRegistrar): void {
   handle("getAiProviderSettings", () => getAiProviderSettings());

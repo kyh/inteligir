@@ -4,7 +4,7 @@ import type { ToggleTaskResult } from "@repo/features/ipc-registry";
 
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getVaultManager } from "../vault/vault";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 
 /** Renderer-facing failure text per refusal reason (the raw reason rides
  * along for the renderer's own branching). */

@@ -29,7 +29,7 @@ import path from "node:path";
 
 import { installCliFromGithubRelease } from "@repo/features/server/agent-runtime/install";
 
-import { inteligirPath } from "../lib/json-store";
+import { inteligirPath } from "../storage/json-store";
 
 const EXECUTOR_VERSION = "1.5.4";
 const EXECUTOR_DIR = inteligirPath("executor");

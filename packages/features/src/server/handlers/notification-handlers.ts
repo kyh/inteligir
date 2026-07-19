@@ -1,4 +1,4 @@
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { getNotifications } from "../notifications";
 
 export function registerNotificationHandlers(handle: HandlerRegistrar): void {

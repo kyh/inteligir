@@ -12,7 +12,12 @@ import os from "node:os";
 import { type Static, Type } from "@sinclair/typebox";
 
 import { emitEvent } from "../events";
-import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
+import {
+  JsonStore,
+  inteligirPath,
+  rejectLegacyVersion,
+  type FsAdapter,
+} from "../storage/json-store";
 import { DeviceAuthStore, type PairingRedeemResult, type TokenValidator } from "./device-auth";
 import type { PairingInfo, RemoteAccessState } from "@repo/features/remote-access";
 

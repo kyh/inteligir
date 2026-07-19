@@ -3,7 +3,7 @@
 // registry.ts) verifies at boot that the union covers every registry method
 // the host owns.
 
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { registerAgentHandlers } from "./agent-handlers";
 import { registerAiHandlers } from "./ai-handlers";
 import { registerAiProviderHandlers } from "./ai-provider-handlers";

@@ -15,7 +15,7 @@
 
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "./lib/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "./storage/json-store";
 import { getPlatform } from "./platform-instance";
 import type { SecretCipher } from "./platform";
 

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { hardenAppDir } from "../lib/harden-app-dir";
+import { hardenAppDir } from "../storage/harden-app-dir";
 
 // The sweep's job is HISTORY: dirs and files created before owner-only became
 // the default (and pi's 0644 session transcripts). Build a worst-case

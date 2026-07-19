@@ -10,8 +10,8 @@
 // happened and leave the two views inconsistent.
 // ---------------------------------------------------------------------------
 
-import { getDelegationManager } from "./delegation/delegation-manager";
-import { getSnapshotStore } from "./snapshots/snapshot-store";
+import { getDelegationManager } from "../delegation/delegation-manager";
+import { getSnapshotStore } from "../snapshots/snapshot-store";
 
 /** Repoint delegations and AI-write checkpoints from `from` to `to` after a
  * successful note rename. Best-effort; never throws. */

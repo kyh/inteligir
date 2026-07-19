@@ -17,7 +17,12 @@ import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
 import { findTaskLine } from "./find-task-line";
 import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";
-import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
+import {
+  JsonStore,
+  inteligirPath,
+  rejectLegacyVersion,
+  type FsAdapter,
+} from "../storage/json-store";
 import { isSelectedProviderConnected } from "../provider/provider-service";
 import { getVaultManager } from "../vault/vault";
 import { emitEvent } from "../events";
