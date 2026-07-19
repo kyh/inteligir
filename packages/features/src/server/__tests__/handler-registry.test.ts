@@ -53,14 +53,14 @@ describe("collectHandlers", () => {
 
   it("validates invoke payloads and passes the typed value through", () => {
     const fn = vi.fn().mockReturnValue("result");
-    const handlers = collectHandlers(registerAll({ removeExecutorIntegration: fn }));
-    expect(handlers.removeExecutorIntegration("integration-id")).toBe("result");
-    expect(fn).toHaveBeenCalledWith("integration-id");
+    const handlers = collectHandlers(registerAll({ detectExecutorIntegration: fn }));
+    expect(handlers.detectExecutorIntegration("https://example.com/mcp")).toBe("result");
+    expect(fn).toHaveBeenCalledWith("https://example.com/mcp");
   });
 
   it("throws on an invalid invoke payload", () => {
     const handlers = collectHandlers(registerAll());
-    expect(() => handlers.removeExecutorIntegration(42)).toThrow(/payload validation failed/);
+    expect(() => handlers.detectExecutorIntegration(42)).toThrow(/payload validation failed/);
   });
 
   it("send handlers swallow + log instead of throwing", () => {

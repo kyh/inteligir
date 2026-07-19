@@ -1,14 +1,17 @@
 // ---------------------------------------------------------------------------
 // Curated catalog of preconfigured connectors surfaced in the Extensions panel.
 //
-// Each entry is metadata + an install recipe that the ConnectorsSection turns
-// into executor calls (connector-install.ts: register the integration, then
-// mint its credentialed connection). This is the "app store" of connectors;
-// the "Add custom" escape hatch covers anything not listed here.
+// Each entry is metadata + an install recipe that catalogInstallRequest maps
+// to ONE host-orchestrated `installConnector` Bridge request (the server owns
+// the register-integration + mint-connection + OAuth sequence). This is the
+// "app store" of connectors; the "Add custom" escape hatch covers anything
+// not listed here.
 //
 // Remote MCP endpoints are hosted by the respective vendors and can drift —
 // they're easy to edit, and the custom flow is the fallback when one is stale.
 // ---------------------------------------------------------------------------
+
+import type { ConnectorInstallRequest, ConnectorSourceSpec } from "@repo/features/executor";
 
 /** How a connector authenticates when installed. */
 type ConnectorAuth =
@@ -234,3 +237,45 @@ export const CONNECTOR_GROUPS: { category: ConnectorCategory; connectors: Catalo
     category,
     connectors: CONNECTOR_CATALOG.filter((c) => c.category === category),
   })).filter((group) => group.connectors.length > 0);
+
+/** Map a catalog connector to an install request (secret value supplied for
+ * API-key connectors) for the host-orchestrated `installConnector` channel. */
+export function catalogInstallRequest(
+  connector: CatalogConnector,
+  secretValue?: string,
+): ConnectorInstallRequest {
+  const { install } = connector;
+  if (install.type === "google") {
+    return {
+      source: {
+        type: "google",
+        slug: connector.id,
+        name: connector.name,
+        discoveryUrl: install.discoveryUrl,
+      },
+      auth: { kind: "google" },
+    };
+  }
+  const source: ConnectorSourceSpec = {
+    type: "mcp",
+    slug: connector.id,
+    name: connector.name,
+    endpoint: install.endpoint,
+  };
+  const auth = install.auth;
+  if (auth.kind === "apiKey") {
+    if (!secretValue) {
+      throw new Error("An API-key connector requires a secret value.");
+    }
+    return {
+      source,
+      auth: {
+        kind: "apiKey",
+        headerName: auth.headerName,
+        ...(auth.prefix === undefined ? {} : { prefix: auth.prefix }),
+        value: secretValue,
+      },
+    };
+  }
+  return { source, auth: auth.kind === "oauth" ? { kind: "oauth" } : { kind: "none" } };
+}
