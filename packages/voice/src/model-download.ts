@@ -14,8 +14,6 @@ import { promisify } from "node:util";
 import { x as tarExtract } from "tar";
 import unbzip2 from "unbzip2-stream";
 
-import { emitEvent } from "../events";
-import { getPlatform } from "../platform-instance";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { VoiceModelStateEvent } from "@repo/bridge/ipc-registry";
 
@@ -35,17 +33,41 @@ export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 
 let downloadInflight: Promise<ModelDownloadResult> | null = null;
 
+/** What the model machinery needs from the composing host (voice/ never
+ * imports the platform seam or the event bus). Installed once at handler
+ * registration (registerVoiceHandlers), before any voice call can land. */
+export type VoiceModelHost = {
+  /** Per-user data dir that survives logout (HostPlatform.userDataDir). */
+  userDataDir: () => string;
+  /** Forward one onVoiceModelState progress event to the host event bus. */
+  emitState: (event: VoiceModelStateEvent) => void;
+};
+
+let modelHost: VoiceModelHost | null = null;
+
+/** Install the host seam once at composition time. */
+export function configureVoiceModelHost(host: VoiceModelHost): void {
+  modelHost = host;
+}
+
+function requireModelHost(): VoiceModelHost {
+  if (!modelHost) throw new Error("Voice model host not configured — createHost() has not run");
+  return modelHost;
+}
+
+// Progress events are fire-and-forget: before the host seam is installed they
+// are dropped, exactly like an event-bus emission with no transport subscribed.
 function emitProgress(event: VoiceModelStateEvent): void {
-  emitEvent("onVoiceModelState", event);
+  modelHost?.emitState(event);
 }
 
 /**
- * Resolve the model's on-disk location. Uses the platform's per-user data
+ * Resolve the model's on-disk location. Uses the host's per-user data
  * dir (NOT ~/.inteligir, which logout wipes) so the bundle stays writable,
  * survives app updates, and never re-downloads across a logout.
  */
 export function getModelDir(): string {
-  return join(getPlatform().userDataDir, "stt", MODEL_NAME);
+  return join(requireModelHost().userDataDir(), "stt", MODEL_NAME);
 }
 
 export function isModelInstalled(): boolean {

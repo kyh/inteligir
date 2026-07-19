@@ -24,22 +24,19 @@
     "@repo/notes": "workspace:*",
     "@repo/storage": "workspace:*",
     "@repo/vault": "workspace:*",
+    "@repo/voice": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:",
     "open": "^11.0.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
-    "sherpa-onnx-node": "^1.13.4",
-    "tar": "^7.5.19",
-    "unbzip2-stream": "^1.4.3",
     "unified": "^11.0.5",
     "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
-    "@types/unbzip2-stream": "^1.4.3",
     "@types/ws": "^8.18.1",
     "typescript": "catalog:",
     "vitest": "catalog:"

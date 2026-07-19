@@ -729,6 +729,9 @@ importers:
       '@repo/vault':
         specifier: workspace:*
         version: link:../vault
+      '@repo/voice':
+        specifier: workspace:*
+        version: link:../voice
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.50
@@ -747,15 +750,6 @@ importers:
       remark-parse:
         specifier: ^11.0.0
         version: 11.0.0
-      sherpa-onnx-node:
-        specifier: ^1.13.4
-        version: 1.13.4
-      tar:
-        specifier: ^7.5.19
-        version: 7.5.19
-      unbzip2-stream:
-        specifier: ^1.4.3
-        version: 1.4.3
       unified:
         specifier: ^11.0.5
         version: 11.0.5
@@ -769,9 +763,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1
-      '@types/unbzip2-stream':
-        specifier: ^1.4.3
-        version: 1.4.3
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -907,6 +898,37 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0))
+
+  packages/voice:
+    dependencies:
+      '@repo/bridge':
+        specifier: workspace:*
+        version: link:../bridge
+      '@repo/storage':
+        specifier: workspace:*
+        version: link:../storage
+      sherpa-onnx-node:
+        specifier: ^1.13.4
+        version: 1.13.4
+      tar:
+        specifier: ^7.5.19
+        version: 7.5.19
+      unbzip2-stream:
+        specifier: ^1.4.3
+        version: 1.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+      '@types/unbzip2-stream':
+        specifier: ^1.4.3
+        version: 1.4.3
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

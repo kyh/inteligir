@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getVoiceApiKey, setVoiceApiKey, type VoiceSecretSink } from "../voice/voice-secret";
+import { getVoiceApiKey, setVoiceApiKey, type VoiceSecretSink } from "../voice-secret";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 
 type FakeSink = VoiceSecretSink & { values: Map<string, string> };
@@ -40,7 +40,7 @@ describe("setVoiceApiKey", () => {
     const secrets = fakeSecrets();
     const marker = fakeMarker();
 
-    setVoiceApiKey("  sk-elevenlabs-123  ", secrets, marker);
+    setVoiceApiKey("  sk-elevenlabs-123  ", marker, secrets);
 
     expect(secrets.values.get(ELEVENLABS_API_KEY_UI_STATE)).toBe("sk-elevenlabs-123");
     expect(marker.values.get(ELEVENLABS_API_KEY_UI_STATE)).toBe(true); // never the plaintext
@@ -49,9 +49,9 @@ describe("setVoiceApiKey", () => {
   it("clears the secret and the marker on undefined", () => {
     const secrets = fakeSecrets();
     const marker = fakeMarker();
-    setVoiceApiKey("sk-1", secrets, marker);
+    setVoiceApiKey("sk-1", marker, secrets);
 
-    setVoiceApiKey(undefined, secrets, marker);
+    setVoiceApiKey(undefined, marker, secrets);
 
     expect(secrets.values.has(ELEVENLABS_API_KEY_UI_STATE)).toBe(false);
     expect(marker.values.has(ELEVENLABS_API_KEY_UI_STATE)).toBe(false);
@@ -60,9 +60,9 @@ describe("setVoiceApiKey", () => {
   it("treats an empty/whitespace/non-string value as removal", () => {
     const secrets = fakeSecrets();
     const marker = fakeMarker();
-    setVoiceApiKey("sk-1", secrets, marker);
+    setVoiceApiKey("sk-1", marker, secrets);
 
-    setVoiceApiKey("   ", secrets, marker);
+    setVoiceApiKey("   ", marker, secrets);
 
     expect(secrets.values.has(ELEVENLABS_API_KEY_UI_STATE)).toBe(false);
     expect(marker.values.has(ELEVENLABS_API_KEY_UI_STATE)).toBe(false);
@@ -74,7 +74,7 @@ describe("getVoiceApiKey", () => {
     const secrets = fakeSecrets();
     expect(getVoiceApiKey(secrets)).toBeNull();
 
-    setVoiceApiKey("sk-1", secrets, fakeMarker());
+    setVoiceApiKey("sk-1", fakeMarker(), secrets);
 
     expect(getVoiceApiKey(secrets)).toBe("sk-1");
   });

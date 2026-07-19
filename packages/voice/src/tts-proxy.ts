@@ -13,8 +13,6 @@
 // without a restart.
 // ---------------------------------------------------------------------------
 
-import { emitEvent } from "../events";
-
 const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 const MODEL_ID = "eleven_flash_v2_5";
 const SAMPLE_RATE = 24000;
@@ -43,6 +41,19 @@ let getApiKey: () => string | null = () => null;
  * voice-secret.ts's SecretStore read at register time). */
 export function configureTtsApiKey(source: () => string | null): void {
   getApiKey = source;
+}
+
+// Injected audio sink (configureTtsAudioSink) — the voice handler forwards
+// chunks to the host event bus (onTtsAudio) at register time. Defaults to a
+// drop, exactly like an event-bus emission with no transport subscribed, so
+// the proxy stays constructible without the host composition (tests, harness).
+let emitAudio: (audio: ArrayBuffer) => void = () => {};
+
+/** Inject where decoded PCM chunks go (the voice handler passes an
+ * onTtsAudio event-bus emit at register time — voice/ never imports the
+ * event bus). */
+export function configureTtsAudioSink(sink: (audio: ArrayBuffer) => void): void {
+  emitAudio = sink;
 }
 
 function resolveApiKey(): string | null {
@@ -80,7 +91,7 @@ function ensureConnection(): WebSocket | null {
       if (isAudioPayload(data)) {
         // Base64-decoded PCM 24kHz int16 chunk — emit raw bytes to renderer.
         const buffer = Buffer.from(data.audio, "base64").buffer.slice(0);
-        emitEvent("onTtsAudio", { audio: buffer });
+        emitAudio(buffer);
       }
     } catch {
       // ignore malformed frames

@@ -27,7 +27,7 @@ import { stopGhostAgent } from "./ghost-text";
 import { startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { getNotifications } from "../notifications";
-import { downloadModel } from "../voice/model-download";
+import { downloadModel } from "@repo/voice/model-download";
 import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import type { AppState, MachineEvent } from "@repo/bridge/app-state";

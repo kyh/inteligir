@@ -11,7 +11,6 @@
 // ---------------------------------------------------------------------------
 
 import { getSecretStore } from "@repo/storage/secrets";
-import { getUiState } from "../ui-state";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 
 /** The slice of SecretStore the voice key needs — injection seam for tests. */
@@ -21,7 +20,9 @@ export type VoiceSecretSink = {
   delete: (key: string) => void;
 };
 
-/** Where the `true` presence marker lands (ui-state) — seam for tests. */
+/** Where the `true` presence marker lands (ui-state) — always passed by the
+ * caller: ui-state is a server store, and voice/ sits below the server, so
+ * the voice handler binds the production sink at call time. */
 export type VoiceMarkerSink = {
   set: (key: string, value: unknown) => void;
 };
@@ -34,8 +35,8 @@ export type VoiceMarkerSink = {
  */
 export function setVoiceApiKey(
   value: unknown,
+  marker: VoiceMarkerSink,
   secrets: VoiceSecretSink = getSecretStore(),
-  marker: VoiceMarkerSink = getUiState(),
 ): void {
   const secret = typeof value === "string" ? value.trim() : "";
   if (secret.length > 0) {

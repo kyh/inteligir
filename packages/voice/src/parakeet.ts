@@ -3,6 +3,14 @@
 // Runs in the main process. Renderer pushes 16kHz mono PCM chunks via IPC.
 // ---------------------------------------------------------------------------
 
+// The ambient declaration for the untyped native module must ride along into
+// every downstream program that compiles this file (the server's typecheck
+// follows workspace exports into these sources — `include` won't cover it).
+// A types-only reference is the ONLY import style that can load a d.ts ambient
+// module declaration without emitting a runtime import of the native addon.
+// oxlint-disable-next-line typescript/triple-slash-reference -- see above
+/// <reference path="./sherpa-onnx-node.d.ts" />
+
 import { join } from "node:path";
 
 import { getModelDir, isModelInstalled } from "./model-download";
