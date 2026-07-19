@@ -1313,6 +1313,14 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     executorOpenExternal: async () => {
       throw unavailable("executor");
     },
+    // Host-orchestrated install/uninstall — no daemon in the harness, so the
+    // whole flow rejects loudly (the dialogs/cards surface the message).
+    installConnector: async () => {
+      throw unavailable("executor");
+    },
+    uninstallConnector: async () => {
+      throw unavailable("executor");
+    },
 
     // Sync — an in-memory account so the settings Sync section is drivable:
     // toggle enable, set a URL, sign in (always succeeds), sync now (stub

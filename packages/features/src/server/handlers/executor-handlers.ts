@@ -1,6 +1,12 @@
 // Executor handlers — thin pass-throughs to the executor daemon's HTTP
-// client (plus a couple of non-passthroughs for status and open-external).
+// client (plus a couple of non-passthroughs for status and open-external),
+// and the host-orchestrated connector install/uninstall flows.
 
+import {
+  installConnector,
+  uninstallConnector,
+  type ConnectorInstallOps,
+} from "../executor/connector-install";
 import * as executor from "../executor/executor-client";
 import { getExecutorDaemon } from "../executor/executor-daemon";
 import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../executor/google-oauth-client";
@@ -9,7 +15,36 @@ import { getHostOptions, getPlatform } from "../platform-instance";
 import { isHttpUrl } from "@repo/features/ipc";
 import type { ExecutorStatus } from "@repo/features/ipc-registry";
 
+// The real ports the connector orchestration runs on: the executor-client 1:1,
+// the platform browser-open (same non-http refusal as executorOpenExternal),
+// and a real-time delay for the OAuth await poll.
+const connectorOps: ConnectorInstallOps = {
+  listIntegrations: executor.listIntegrations,
+  removeIntegration: executor.removeIntegration,
+  addMcpIntegration: executor.addMcpIntegration,
+  addOpenApiIntegration: executor.addOpenApiIntegration,
+  addGraphqlIntegration: executor.addGraphqlIntegration,
+  listConnections: executor.listConnections,
+  createConnection: executor.createConnection,
+  removeConnection: executor.removeConnection,
+  listOAuthClients: executor.listOAuthClients,
+  registerOAuthClientDynamic: executor.registerOAuthClientDynamic,
+  oauthProbe: executor.oauthProbe,
+  oauthStart: executor.oauthStart,
+  awaitOAuth: executor.awaitOAuth,
+  openExternal: async (url) => {
+    // Throw on a non-http(s) URL so the install fails fast (and the renderer
+    // sees the message) rather than an OAuth flow silently timing out.
+    if (!isHttpUrl(url)) throw new Error(`refusing to open non-http URL: ${url}`);
+    await getPlatform().openExternal(url);
+  },
+  waitMs: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
 export function registerExecutorHandlers(handle: HandlerRegistrar): void {
+  handle("installConnector", (req) => installConnector(connectorOps, req));
+  handle("uninstallConnector", (req) => uninstallConnector(connectorOps, req));
+
   handle("listExecutorIntegrations", executor.listIntegrations);
   handle("detectExecutorIntegration", executor.detectIntegration);
   handle("removeExecutorIntegration", executor.removeIntegration);
