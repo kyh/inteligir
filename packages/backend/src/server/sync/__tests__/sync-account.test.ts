@@ -166,47 +166,47 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
 // sign-in this instance minted may complete, once.
 // ---------------------------------------------------------------------------
 
+const SOCIAL_CODE = "c".repeat(43);
+
+/** Initiate a social sign-in against a stubbed coordinator and capture the
+ * state nonce from the callbackURL the client sent. */
+async function initiateSocial(account: SyncAccount): Promise<string> {
+  let state: string | null = null;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
+      const body = typeof init?.body === "string" ? init.body : "";
+      const match = /desktop-callback\?state=([A-Za-z0-9_-]+)/.exec(body);
+      if (match?.[1] !== undefined) state = match[1];
+      return Response.json({ url: "https://accounts.example/authorize?x=1" });
+    }),
+  );
+  const initiated = await account.socialSignIn("google");
+  expect(initiated).toEqual({ ok: true });
+  if (state === null) throw new Error("initiation sent no state nonce");
+  return state;
+}
+
 describe("SyncAccount completeSocialSignIn", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  const CODE = "c".repeat(43);
-
-  /** Initiate a social sign-in against a stubbed coordinator and capture the
-   * state nonce from the callbackURL the client sent. */
-  async function initiate(account: SyncAccount): Promise<string> {
-    let state: string | null = null;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
-        const body = typeof init?.body === "string" ? init.body : "";
-        const match = /desktop-callback\?state=([A-Za-z0-9_-]+)/.exec(body);
-        if (match?.[1] !== undefined) state = match[1];
-        return Response.json({ url: "https://accounts.example/authorize?x=1" });
-      }),
-    );
-    const initiated = await account.socialSignIn("google");
-    expect(initiated).toEqual({ ok: true });
-    if (state === null) throw new Error("initiation sent no state nonce");
-    return state;
-  }
-
   it("adopts the exchanged bearer when the state matches the pending sign-in", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
     account.setConfig({ coordinatorUrl: "https://sync.example" });
-    const state = await initiate(account);
+    const state = await initiateSocial(account);
 
     const exchange = vi.fn(async (url: unknown, init?: { body?: unknown }) => {
       expect(String(url)).toBe("https://sync.example/v1/auth/exchange");
       // The ONLY thing that crosses: the opaque code. Never the state, never
       // a token.
-      expect(init?.body).toBe(JSON.stringify({ code: CODE }));
+      expect(init?.body).toBe(JSON.stringify({ code: SOCIAL_CODE }));
       return Response.json({ ok: true, token: "exchanged-bearer", email: "who@example.com" });
     });
     vi.stubGlobal("fetch", exchange);
 
-    expect(await account.completeSocialSignIn(CODE, state)).toEqual({ ok: true });
+    expect(await account.completeSocialSignIn(SOCIAL_CODE, state)).toEqual({ ok: true });
     expect(account.getToken()).toBe("exchanged-bearer");
     expect(account.getEmail()).toBe("who@example.com");
     expect(exchange).toHaveBeenCalledTimes(1);
@@ -219,7 +219,7 @@ describe("SyncAccount completeSocialSignIn", () => {
     vi.stubGlobal("fetch", noNetwork);
     const account = accountAt(tmp);
     account.setConfig({ coordinatorUrl: "https://sync.example" });
-    const result = await account.completeSocialSignIn(CODE, "s".repeat(22));
+    const result = await account.completeSocialSignIn(SOCIAL_CODE, "s".repeat(22));
     expect(result.ok).toBe(false);
     expect(noNetwork).not.toHaveBeenCalled();
     expect(account.getToken()).toBeNull();
@@ -228,15 +228,15 @@ describe("SyncAccount completeSocialSignIn", () => {
   it("refuses a WRONG state, and the guess burns the pending sign-in", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
     account.setConfig({ coordinatorUrl: "https://sync.example" });
-    const state = await initiate(account);
+    const state = await initiateSocial(account);
 
     const noNetwork = vi.fn(async () => {
       throw new Error("must not be called");
     });
     vi.stubGlobal("fetch", noNetwork);
-    expect((await account.completeSocialSignIn(CODE, "x".repeat(22))).ok).toBe(false);
+    expect((await account.completeSocialSignIn(SOCIAL_CODE, "x".repeat(22))).ok).toBe(false);
     // Single try: even the CORRECT state is dead after a failed attempt.
-    expect((await account.completeSocialSignIn(CODE, state)).ok).toBe(false);
+    expect((await account.completeSocialSignIn(SOCIAL_CODE, state)).ok).toBe(false);
     expect(noNetwork).not.toHaveBeenCalled();
     expect(account.getToken()).toBeNull();
   });
@@ -244,13 +244,13 @@ describe("SyncAccount completeSocialSignIn", () => {
   it("surfaces an exchange rejection ({ok:false}) without signing in", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
     account.setConfig({ coordinatorUrl: "https://sync.example" });
-    const state = await initiate(account);
+    const state = await initiateSocial(account);
 
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Response.json({ ok: false, error: "This sign-in link is invalid." })),
     );
-    expect(await account.completeSocialSignIn(CODE, state)).toEqual({
+    expect(await account.completeSocialSignIn(SOCIAL_CODE, state)).toEqual({
       ok: false,
       error: "This sign-in link is invalid.",
     });
@@ -260,13 +260,13 @@ describe("SyncAccount completeSocialSignIn", () => {
   it("a completed sign-in is single-use too — replaying the deep link fails", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
     account.setConfig({ coordinatorUrl: "https://sync.example" });
-    const state = await initiate(account);
+    const state = await initiateSocial(account);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Response.json({ ok: true, token: "bearer-1", email: "a@b.c" })),
     );
-    expect((await account.completeSocialSignIn(CODE, state)).ok).toBe(true);
-    expect((await account.completeSocialSignIn(CODE, state)).ok).toBe(false);
+    expect((await account.completeSocialSignIn(SOCIAL_CODE, state)).ok).toBe(true);
+    expect((await account.completeSocialSignIn(SOCIAL_CODE, state)).ok).toBe(false);
   });
 });
 

@@ -233,11 +233,15 @@ and full-text search live in the command palette.
   substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
   Notes configures folder/format).
 - **Deep links / capture**: the world-invokable `inteligir://` scheme has
-  exactly five verbs (`packages/bridge/src/deep-link.ts`, pure parser +
+  exactly six verbs (`packages/bridge/src/deep-link.ts`, pure parser +
   sanitizer): `append`/`task` capture ONE sanitized plain-text line onto
   TODAY's daily note — durable inbox + exactly-once apply (the open note's
   live buffer via `onCaptureApply`, else the host-side CAS drain in
-  `server/capture/`) — and `today` / `note/<target>` / `search?q=` navigate.
+  `server/capture/`) — `today` / `note/<target>` / `search?q=` navigate, and
+  `session?code=…&state=…` completes a social sign-in (an opaque single-use
+  exchange code + the state nonce this device minted at initiation — NEVER a
+  raw token; the host state-checks and exchanges it over HTTPS, see
+  `server/sync/sync-account.ts` + `apps/cloud/src/auth/desktop-session.ts`).
   Target paths are computed host-side, never taken from the URL.
 - **Tasks view**: a palette-launched alternate main surface like the graph
   ("Open tasks view") over the projection's per-doc task extraction (every

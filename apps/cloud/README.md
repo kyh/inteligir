@@ -46,7 +46,14 @@ apps/cloud/
   request origin). Plugin: **bearer** (clients authenticate with `Authorization:
 Bearer <token>` — the token comes back in the `set-auth-token` header on
   sign-in/up). Email+password is enabled; the `socialProviders` seam turns on
-  GitHub when `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` are set.
+  GitHub/Google when the matching `*_CLIENT_ID` + `*_CLIENT_SECRET` pair is set.
+- **Desktop social handoff** (`src/auth/desktop-session.ts`): the OAuth flow's
+  browser leg lands on `GET /v1/auth/desktop-callback?state=…` (session cookie
+  just set by Better Auth), which mints a **90s single-use** code (stored
+  hashed in D1, `desktop_auth_code`) and launches
+  `inteligir://session?code&state` — the deep link never carries a token.
+  `POST /v1/auth/exchange` burns the code (rate-limited 10/60s per IP) and
+  returns the session bearer.
 - The auth tables live in **D1** (`DB` binding) via the Drizzle adapter
   (`provider: "sqlite"`). Schema in `src/db/schema.ts`, applied with `drizzle-kit
 push` — no migration files (`pnpm db:push:local` / `db:push:remote`).
@@ -99,9 +106,13 @@ pnpm --filter @repo/cloud db:push:remote
 # 5. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED signing
 #    key — generate a fresh random 32+ char value, don't reuse another key.
 wrangler secret put BETTER_AUTH_SECRET                 # e.g. `openssl rand -base64 32`
-#    Optional GitHub OAuth (only if you enable the provider):
+#    Optional social OAuth (a provider is live only when BOTH its secrets are
+#    set). In the provider console, register the authorized redirect URI
+#    `https://<worker-host>/api/auth/callback/github` (or …/google):
 # wrangler secret put GITHUB_CLIENT_ID
 # wrangler secret put GITHUB_CLIENT_SECRET
+# wrangler secret put GOOGLE_CLIENT_ID
+# wrangler secret put GOOGLE_CLIENT_SECRET
 
 #    (No BETTER_AUTH_URL to set — the auth baseURL is derived per-request from
 #    the request origin, so localhost/preview/prod all work with no config.)
