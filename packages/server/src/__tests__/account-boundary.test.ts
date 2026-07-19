@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const REPO_ROOT = path.resolve(__dirname, "../../../../..");
+const REPO_ROOT = path.resolve(__dirname, "../../../..");
 
 /** Source trees the guard sweeps (product code on every platform). */
 const SCANNED_DIRS = [
@@ -52,14 +52,14 @@ const ALLOWED = [
   // The Bridge surface: wire contract, channel table, host handlers.
   "packages/bridge/src/sync.ts",
   "packages/bridge/src/ipc-registry.ts",
-  "packages/server/src/server/handlers/sync-handlers.ts",
+  "packages/server/src/handlers/sync-handlers.ts",
   // The two settings surfaces: Account owns the session, Sync consumes it.
   "apps/desktop/src/renderer/settings/sections/account-section.tsx",
   "apps/desktop/src/renderer/settings/sections/sync-section.tsx",
   // The dev-harness Bridge must implement every channel by contract.
   "apps/desktop/dev/fixture-bridge.ts",
   // This guard names the tokens it hunts.
-  "packages/server/src/server/__tests__/account-boundary.test.ts",
+  "packages/server/src/__tests__/account-boundary.test.ts",
 ];
 
 function walk(dir: string, out: string[]): void {
@@ -103,7 +103,7 @@ describe("account boundary (#459)", () => {
   });
 
   it("provider layer and sync layer never import each other (teardown decouple)", () => {
-    const providerDir = path.join(REPO_ROOT, "packages/server/src/server/provider");
+    const providerDir = path.join(REPO_ROOT, "packages/server/src/provider");
     const syncDir = path.join(REPO_ROOT, "packages/sync/src");
     const agentAuth = path.join(REPO_ROOT, "packages/agent/src/auth.ts");
 

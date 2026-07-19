@@ -18,7 +18,7 @@ import type { ExecutorExecuteResult } from "@repo/bridge/executor";
 
 // ---------------------------------------------------------------------------
 // Ports — host-owned capabilities handed to extensions at register/setup time.
-// agent/ never imports the rest of @repo/server/server (lint-enforced);
+// agent/ never imports the rest of @repo/server (lint-enforced);
 // server/boot/agent-wiring.ts builds these (structural subsets of the host
 // singletons) and passes them down. The dependency direction stays one-way:
 // the host composes, agent receives.
