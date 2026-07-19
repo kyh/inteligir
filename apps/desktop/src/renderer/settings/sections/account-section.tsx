@@ -15,6 +15,12 @@ function socialLabel(provider: string): string {
   return SOCIAL_LABELS[provider] ?? provider;
 }
 
+/** How long the "finish in your browser…" pending state waits for the
+ * inteligir://session deep link before giving up. The host keeps its pending
+ * sign-in alive longer (10 min) — a late deep link still signs in; this only
+ * un-sticks the UI. */
+const SOCIAL_PENDING_TIMEOUT_MS = 2 * 60_000;
+
 // Account — the first-class OPTIONAL login (#459). Guest is the default and
 // the account gates ONLY cloud saves: Sync consumes the session this section
 // establishes, nothing else may. Backed by the same Better Auth coordinator
@@ -31,6 +37,9 @@ export function AccountSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<AccountCapabilities | null>(null);
+  /** Provider of the in-flight social sign-in ("finish in your browser…"),
+   * null when none. Resolves on onSocialSignInResult / sign-in / timeout. */
+  const [socialPending, setSocialPending] = useState<string | null>(null);
 
   useEffect(() => {
     const bridge = getBridge();
@@ -44,6 +53,28 @@ export function AccountSection() {
       .catch(() => {});
     return bridge.onSyncStateChanged(setState);
   }, []);
+
+  // The deep-link completion's verdict: ok resolves the pending state
+  // (onSyncStateChanged flips signedIn), an error surfaces its message
+  // (expired/replayed link, exchange failure).
+  useEffect(
+    () =>
+      getBridge().onSocialSignInResult((result) => {
+        setSocialPending(null);
+        if (!result.ok) setError(result.error);
+      }),
+    [],
+  );
+
+  // Un-stick the pending state if the browser leg never comes back.
+  useEffect(() => {
+    if (socialPending === null) return;
+    const timer = setTimeout(() => {
+      setSocialPending(null);
+      setError("Timed out waiting for the browser — try again.");
+    }, SOCIAL_PENDING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [socialPending]);
 
   // Social buttons are capability-driven: the coordinator reports exactly the
   // providers its env has credentials for. Re-probed when the URL changes.
@@ -103,6 +134,31 @@ export function AccountSection() {
         : bridge.syncSignIn({ email, password }),
     );
   }, [mode, email, password, urlInput, coordinatorUrl, runAuth]);
+
+  const handleSocial = useCallback(
+    async (provider: string) => {
+      setError(null);
+      const bridge = getBridge();
+      // Persist any pending URL edit first so auth hits the right coordinator.
+      if (urlInput.trim() !== coordinatorUrl) {
+        setState(await bridge.setSyncConfig({ coordinatorUrl: urlInput.trim() }));
+      }
+      setSocialPending(provider);
+      try {
+        // ok = browser opened; the session lands via the inteligir://session
+        // deep link, resolved by the onSocialSignInResult subscription above.
+        const result = await bridge.syncSocialSignIn({ provider });
+        if (!result.ok) {
+          setSocialPending(null);
+          setError(result.error);
+        }
+      } catch {
+        setSocialPending(null);
+        setError("Social sign-in failed.");
+      }
+    },
+    [urlInput, coordinatorUrl],
+  );
 
   const handleSignOut = useCallback(async () => {
     setBusy(true);
@@ -198,28 +254,45 @@ export function AccountSection() {
                 </button>
               </div>
 
-              {/* Social sign-in seam is wired end to end (coordinator env →
-                  /v1/capabilities → these provider chips), but capturing the
-                  OAuth session ON THIS DEVICE needs the inteligir:// deep-link
-                  callback, which lands in Phase 4. Until then the buttons
-                  render (proving the env-gated capability path) but stay
-                  DISABLED — never a clickable control that silently no-ops. */}
+              {/* Social sign-in, live end to end: the button opens the system
+                  browser at the coordinator's authorization URL; consent
+                  redirects to the coordinator's interstitial, whose
+                  inteligir://session deep link (single-use code + this
+                  device's state nonce — never a token) completes the sign-in
+                  host-side. Providers are env-gated via /v1/capabilities. */}
               {socialProviders.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
-                  <span className="text-[10px] text-muted-foreground">Or continue with</span>
-                  {socialProviders.map((provider) => (
-                    <Button
-                      key={provider}
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      title="Coming soon"
-                      className="h-6 px-2 text-[10px]"
-                    >
-                      {socialLabel(provider)}
-                    </Button>
-                  ))}
-                  <span className="text-[10px] text-muted-foreground/70">(coming soon)</span>
+                  {socialPending === null ? (
+                    <>
+                      <span className="text-[10px] text-muted-foreground">Or continue with</span>
+                      {socialProviders.map((provider) => (
+                        <Button
+                          key={provider}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void handleSocial(provider)}
+                          disabled={busy || loading}
+                          className="h-6 px-2 text-[10px]"
+                        >
+                          {socialLabel(provider)}
+                        </Button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-[10px] text-muted-foreground">
+                        Complete the {socialLabel(socialPending)} sign-in in your browser…
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSocialPending(null)}
+                        className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+                      >
+                        Cancel
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

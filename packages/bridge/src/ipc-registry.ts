@@ -745,11 +745,19 @@ export const IPC = {
   syncSignUp: invoke<typeof SyncSignUpSchema, SyncSignInResult>("sync:sign-up", SyncSignUpSchema),
   /** INITIATE social OAuth for a capability-listed provider: opens the system
    * browser at the coordinator's authorization URL. ok = browser opened —
-   * completing the session on-device is Phase 4 (deep-link callback). */
+   * the session lands on-device when the `inteligir://session` deep link
+   * completes the exchange (see onSocialSignInResult). */
   syncSocialSignIn: invoke<typeof SyncSocialSignInSchema, SyncSignInResult>(
     "sync:social-sign-in",
     SyncSocialSignInSchema,
   ),
+  /** The RESULT of a social sign-in's deep-link completion (the
+   * `inteligir://session` callback → HTTPS code exchange → session adoption).
+   * Deep-link-driven — there is no request to respond to — so the account
+   * UI's "finish in your browser…" pending state resolves on this event: ok
+   * clears it (onSyncStateChanged flips signedIn too), an error carries the
+   * user-facing message (expired/replayed link, exchange failure). */
+  onSocialSignInResult: event<SyncSignInResult>("sync:social-sign-in-result"),
   /** Which social providers the configured coordinator serves (env-gated
    * server-side) — drives the Account section's social buttons. */
   getAccountCapabilities: invokeVoid<AccountCapabilities>("sync:account-capabilities"),

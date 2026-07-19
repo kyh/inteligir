@@ -1,6 +1,7 @@
 import { HEADER_CONTENT_HASH, HEADER_VERSION } from "@repo/domain/sync/wire";
 import { eq } from "drizzle-orm";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
+import { handleDesktopCallback, handleSessionExchange } from "./auth/desktop-session";
 import { createDb } from "./db/client";
 import { vaultOwner } from "./db/schema";
 import { matchRoute } from "./route";
@@ -93,6 +94,17 @@ export default {
     // wouldn't.
     if (request.method === "GET" && url.pathname === "/v1/capabilities") {
       return withCors(request, Response.json({ socialProviders: enabledSocialProviders(env) }));
+    }
+
+    // Desktop social-login handoff (see src/auth/desktop-session.ts): the
+    // browser lands on the callback with the session COOKIE Better Auth just
+    // set; the desktop later burns the minted single-use code over HTTPS. The
+    // deep link between them carries only the opaque code — never a token.
+    if (request.method === "GET" && url.pathname === "/v1/auth/desktop-callback") {
+      return withCors(request, await handleDesktopCallback(request, env));
+    }
+    if (request.method === "POST" && url.pathname === "/v1/auth/exchange") {
+      return withCors(request, await handleSessionExchange(request, env));
     }
 
     // Sync surface.

@@ -7,10 +7,12 @@ function harness(startMs = 0) {
   let now = startMs;
   const captures: Array<{ kind: CaptureKind; text: string }> = [];
   const navs: DeepLinkNavEvent[] = [];
+  const sessions: Array<{ code: string; state: string }> = [];
   let focusCalls = 0;
   const service = createDeepLinkService({
     enqueueCapture: (kind, text) => captures.push({ kind, text }),
     emitNav: (event) => navs.push(event),
+    completeSession: (code, state) => sessions.push({ code, state }),
     now: () => now,
   });
   service.setFocusHandler(() => {
@@ -20,6 +22,7 @@ function harness(startMs = 0) {
     service,
     captures,
     navs,
+    sessions,
     focus: () => focusCalls,
     advance: (ms: number) => {
       now += ms;
@@ -56,6 +59,29 @@ describe("dispatch", () => {
     h.service.deliver("https://example.com");
     expect(h.captures).toEqual([]);
     expect(h.navs).toEqual([]);
+  });
+
+  it("routes the session verb to completeSession and focuses", () => {
+    const h = harness();
+    const code = "c".repeat(43);
+    const state = "s".repeat(22);
+    h.service.deliver(`inteligir://session?code=${code}&state=${state}`);
+    expect(h.sessions).toEqual([{ code, state }]);
+    // The user is returning from the browser — surface the window…
+    expect(h.focus()).toBe(1);
+    // …but a session is neither a capture nor a nav (nothing parks).
+    expect(h.captures).toEqual([]);
+    expect(h.navs).toEqual([]);
+    expect(h.service.takePendingNav()).toBeNull();
+  });
+
+  it("drops session URLs outside the opaque grammar", () => {
+    const h = harness();
+    h.service.deliver("inteligir://session?code=short&state=xx");
+    h.service.deliver(`inteligir://session?code=${"c".repeat(43)}`);
+    h.service.deliver("inteligir://session");
+    expect(h.sessions).toEqual([]);
+    expect(h.focus()).toBe(0);
   });
 
   it("a newer nav replaces the parked one", () => {

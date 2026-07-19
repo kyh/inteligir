@@ -31,13 +31,14 @@ import { createDb } from "../db/client";
 
 /** Extra trusted origins for cross-origin clients (desktop Electron, Expo). */
 function trustedOrigins(env: Env): string[] {
-  // `expo://` covers the mobile app's deep-link scheme. Additional origins
-  // (e.g. the desktop app's custom protocol) can be appended via a comma-
-  // separated `BETTER_AUTH_TRUSTED_ORIGINS` var without a code change.
+  // `expo://` covers the mobile app's deep-link scheme; `inteligir://` the
+  // desktop's (the social flow's browser→app handoff — the interstitial's
+  // deep link, see desktop-session.ts). More origins can be appended via a
+  // comma-separated `BETTER_AUTH_TRUSTED_ORIGINS` var without a code change.
   const extra = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin !== "");
-  return ["expo://", ...(extra ?? [])];
+  return ["expo://", "inteligir://", ...(extra ?? [])];
 }
 
 /**

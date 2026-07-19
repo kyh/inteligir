@@ -74,6 +74,11 @@ const DEFAULT_CONFIG: StoredConfig = {
   enabled: false,
   coordinatorUrl: "",
 };
+
+/** How long an INITIATED social sign-in stays adoptable — the browser leg
+ * (consent + redirect) comfortably fits; after this the session deep link is
+ * refused and the user restarts from Settings. */
+const PENDING_SOCIAL_TTL_MS = 10 * 60_000;
 const DEFAULT_AUTH: StoredAuth = { version: AUTH_VERSION, token: null, email: null };
 const DEFAULT_VAULT_ID: StoredVaultId = { version: VAULT_ID_VERSION, vaultId: "" };
 
@@ -96,6 +101,11 @@ export class SyncAccount {
   private readonly authStore: JsonStore<StoredAuth>;
   private readonly vaultIdStore: JsonStore<StoredVaultId>;
   private readonly openExternal: (url: string) => void;
+  /** The ONE in-flight social sign-in this device initiated (state nonce +
+   * TTL). In-memory on purpose: the browser leg spans seconds, and a session
+   * deep link arriving after a restart SHOULD be refused — it can no longer
+   * be tied to a sign-in this process asked for. */
+  private pendingSocial: { state: string; expiresAt: number } | null = null;
 
   constructor(opts: SyncAccountOptions = {}) {
     this.openExternal =
@@ -238,15 +248,31 @@ export class SyncAccount {
   }
 
   /** INITIATE a social OAuth sign-in: ask the coordinator for the provider's
-   * authorization URL and open it in the system browser. The round-trip
-   * finishes there — capturing the resulting session on this device needs the
-   * deep-link callback (Phase 4), so success here means "browser opened",
-   * not "signed in". */
+   * authorization URL and open it in the system browser. Success here means
+   * "browser opened", not "signed in" — the round-trip completes when the
+   * coordinator's callback interstitial fires `inteligir://session` and
+   * `completeSocialSignIn` adopts the exchanged session.
+   *
+   * The state nonce minted here is the anti-fixation bind: the callback URL
+   * carries it to the coordinator, the deep link echoes it back, and
+   * completeSocialSignIn refuses anything that doesn't match — so a
+   * world-invokable `inteligir://session` can never sign this device into a
+   * session it didn't just ask for. */
   async socialSignIn(provider: string): Promise<SyncSignInResult> {
     const session = this.tokenCapturingClient();
     if (session === null) return { ok: false, error: "Set a coordinator URL first." };
+    const state = crypto.randomBytes(16).toString("base64url");
+    // Relative to the coordinator's own origin — always a trusted callback
+    // target. The same path serves errorCallbackURL: no session cookie there
+    // means the interstitial renders the failure copy and mints nothing.
+    const callbackPath = `/v1/auth/desktop-callback?state=${state}`;
     try {
-      const result = await session.client.signIn.social({ provider, disableRedirect: true });
+      const result = await session.client.signIn.social({
+        provider,
+        disableRedirect: true,
+        callbackURL: callbackPath,
+        errorCallbackURL: callbackPath,
+      });
       if (result.error) {
         return { ok: false, error: result.error.message ?? "Social sign-in failed." };
       }
@@ -254,7 +280,52 @@ export class SyncAccount {
       if (typeof url !== "string" || url === "") {
         return { ok: false, error: "Coordinator did not return an authorization URL." };
       }
+      this.pendingSocial = { state, expiresAt: Date.now() + PENDING_SOCIAL_TTL_MS };
       this.openExternal(url);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: toErrorMessage(err) };
+    }
+  }
+
+  /** COMPLETE a social sign-in — the `inteligir://session?code&state` deep
+   * link lands here. Guards stack in order: the state must match the ONE
+   * pending sign-in this device minted (burned on first attempt, success or
+   * not, so a guessed state never gets a second try), then the code — which
+   * is NEVER a credential itself — is exchanged over HTTPS at the
+   * coordinator, and only the returned bearer is adopted (same store the
+   * email sign-in path writes). */
+  async completeSocialSignIn(code: string, state: string): Promise<SyncSignInResult> {
+    const pending = this.pendingSocial;
+    this.pendingSocial = null;
+    if (pending === null || Date.now() > pending.expiresAt || pending.state !== state) {
+      return { ok: false, error: "Sign-in link expired — start again from Settings." };
+    }
+    const base = this.getConfig().coordinatorUrl.trim();
+    if (base === "") return { ok: false, error: "Set a coordinator URL first." };
+    try {
+      const response = await fetch(`${base.replace(/\/+$/, "")}/v1/auth/exchange`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (!response.ok) {
+        return { ok: false, error: `Sign-in exchange failed (HTTP ${response.status}).` };
+      }
+      const body: unknown = await response.json();
+      if (!isRecord(body) || body.ok !== true) {
+        const message =
+          isRecord(body) && typeof body.error === "string"
+            ? body.error
+            : "This sign-in link is invalid or expired — try again.";
+        return { ok: false, error: message };
+      }
+      const token = body.token;
+      if (typeof token !== "string" || token === "") {
+        return { ok: false, error: "Coordinator did not return a session token." };
+      }
+      const email = typeof body.email === "string" ? body.email : null;
+      this.authStore.write({ version: AUTH_VERSION, token, email });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: toErrorMessage(err) };

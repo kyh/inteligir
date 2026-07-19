@@ -136,9 +136,23 @@ export class SyncCoordinator {
   }
 
   /** Social OAuth INITIATION — opens the system browser; auth state does not
-   * change here (session capture is Phase 4's deep-link callback). */
+   * change here. The `inteligir://session` deep link completes the round-trip
+   * through `completeSocialSignIn`. */
   async socialSignIn(provider: string): Promise<SyncSignInResult> {
     return this.account.socialSignIn(provider);
+  }
+
+  /** Social sign-in COMPLETION — the deep-link service routes the session
+   * verb's code+state here. Deep-link-driven, not request/response, so the
+   * outcome reaches the account UI as the `onSocialSignInResult` event (plus
+   * the usual state emit); a success rebuilds the engine exactly like the
+   * email sign-in path. */
+  async completeSocialSignIn(code: string, state: string): Promise<SyncSignInResult> {
+    const result = await this.account.completeSocialSignIn(code, state);
+    if (result.ok) this.rebuild({ kickInitial: true });
+    this.emit();
+    emitEvent("onSocialSignInResult", result);
+    return result;
   }
 
   getCapabilities(): Promise<AccountCapabilities> {
