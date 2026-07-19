@@ -168,6 +168,13 @@ const FauxAgentScriptSchema = Type.Object(
 );
 export type FauxAgentScript = Static<typeof FauxAgentScriptSchema>;
 
+/** Dev-only (#462): the in-flight connector OAuth consent — the authorize URL
+ * (state/PKCE ride in its query string) a headless E2E drive completes
+ * against emulate instead of spelunking the daemon's SQLite. Held host-side
+ * (connector-install.ts) only under INTELIGIR_EMULATE_CONNECTORS=1; the
+ * handler throws otherwise, so production never exposes it. */
+export type PendingConnectorAuth = { authorizationUrl: string; state: string };
+
 // ---------------------------------------------------------------------------
 // Deep-link capture — inteligir://append|task landing on today's daily note.
 // ---------------------------------------------------------------------------
@@ -701,6 +708,11 @@ export const IPC = {
   uninstallConnector: invoke<typeof ConnectorUninstallRequestSchema, void>(
     "executor:connector:uninstall",
     ConnectorUninstallRequestSchema,
+  ),
+  /** Dev-only (INTELIGIR_EMULATE_CONNECTORS=1; throws otherwise): the
+   * in-flight connector OAuth consent, or null when none is pending (#462). */
+  getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(
+    "executor:connector:pending-auth",
   ),
 
   // Vault sync — reconcile the local vault against the coordinator Worker.

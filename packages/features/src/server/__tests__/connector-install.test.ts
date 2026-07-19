@@ -8,10 +8,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_CONNECTION_NAME,
+  getPendingConnectorAuth,
   installConnector,
   uninstallConnector,
   type ConnectorInstallOps,
 } from "../connectors/connector-install";
+import { setDevFlagsAllowed } from "../dev-flags";
+import type { PendingConnectorAuth } from "@repo/features/ipc-registry";
 import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ConnectorInstallRequest,
@@ -161,6 +164,53 @@ describe("installConnector — Google", () => {
     expect(ops.openExternal).toHaveBeenCalledWith("https://accounts.google.com/consent");
     expect(ops.awaitOAuth).toHaveBeenCalledWith("st-1");
     expect(ops.removeIntegration).not.toHaveBeenCalled();
+  });
+
+  it("exposes the pending consent under the emulate flag; clears when the flow settles (#462)", async () => {
+    setDevFlagsAllowed(true);
+    vi.stubEnv("INTELIGIR_EMULATE_CONNECTORS", "1");
+    try {
+      const authorizationUrl = "http://localhost:4000/o/oauth2/v2/auth?state=st-9&code_challenge=c";
+      let seenMidFlight: PendingConnectorAuth | null = null;
+      const ops = fakeOps({
+        oauthStart: vi.fn(
+          async (): Promise<OAuthStartResult> => ({
+            status: "redirect",
+            authorizationUrl,
+            state: "st-9",
+          }),
+        ),
+        awaitOAuth: vi.fn(async (): Promise<OAuthAwaitResult | null> => {
+          seenMidFlight = getPendingConnectorAuth();
+          return { ok: true, sessionId: "st-9", integration: "gmail" };
+        }),
+      });
+      await installConnector(ops, GMAIL);
+      expect(seenMidFlight).toEqual({ authorizationUrl, state: "st-9" });
+      expect(getPendingConnectorAuth()).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+      setDevFlagsAllowed(false);
+    }
+  });
+
+  it("never holds the pending consent without the emulate flag", async () => {
+    let seenMidFlight: PendingConnectorAuth | null = { authorizationUrl: "sentinel", state: "s" };
+    const ops = fakeOps({
+      oauthStart: vi.fn(
+        async (): Promise<OAuthStartResult> => ({
+          status: "redirect",
+          authorizationUrl: "https://accounts.google.com/consent",
+          state: "st-2",
+        }),
+      ),
+      awaitOAuth: vi.fn(async (): Promise<OAuthAwaitResult | null> => {
+        seenMidFlight = getPendingConnectorAuth();
+        return { ok: true, sessionId: "st-2", integration: "gmail" };
+      }),
+    });
+    await installConnector(ops, GMAIL);
+    expect(seenMidFlight).toBeNull();
   });
 
   it("polls through empty awaits until the callback fires", async () => {

@@ -1296,6 +1296,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     uninstallConnector: async () => {
       throw unavailable("executor");
     },
+    // Dev-only emulate seam (#462) — no daemon, no OAuth flow in the harness.
+    getPendingConnectorAuth: async () => {
+      throw unavailable("executor");
+    },
 
     // Sync — an in-memory account so the settings Sync section is drivable:
     // toggle enable, set a URL, sign in (always succeeds), sync now (stub

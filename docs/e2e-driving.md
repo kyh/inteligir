@@ -185,35 +185,29 @@ one-click user-picker; the hidden form fields are all we need):
 1. In the UI (agent-browser): Settings → Connectors → the Google connector's
    **Connect** (e.g. Gmail). The daemon registers the integration + a pending
    OAuth session.
-2. Read the pending session from the daemon's SQLite (read-only) —
-   `state` + the PKCE `pkce_verifier`:
-   ```bash
-   sqlite3 "file:$HOME/.inteligir/executor/data/data.db?mode=ro" \
-     "select state, pkce_verifier, redirect_url from oauth_session where client_slug='google'"
-   # confirm the endpoints routed to emulate:
-   sqlite3 "file:$HOME/.inteligir/executor/data/data.db?mode=ro" \
-     "select slug, authorization_url, token_url from oauth_client where slug='google'"
+2. Poll the in-flight consent over the Bridge (#462 — dev-only channel, throws
+   without `INTELIGIR_EMULATE_CONNECTORS=1`):
+   ```js
+   await call("getPendingConnectorAuth"); // → { authorizationUrl, state } | null
    ```
-3. Compute the S256 challenge and POST consent (curl `-L` follows the 302 into
-   the daemon callback, which exchanges the code at emulate's token endpoint):
+   The `authorizationUrl` query string carries everything the consent form
+   needs — `state`, `client_id`, `redirect_uri`, `scope`, `code_challenge`,
+   `code_challenge_method` — already urlencoded. No PKCE hashing, no SQLite.
+3. POST consent with that query string as the form body plus the picked user
+   (curl `-L` follows the 302 into the daemon callback, which exchanges the
+   code at emulate's token endpoint):
    ```bash
-   VERIFIER=<pkce_verifier>; STATE=<state>
-   CHALLENGE=$(python3 -c "import hashlib,base64,sys;print(base64.urlsafe_b64encode(hashlib.sha256(sys.argv[1].encode()).digest()).rstrip(b'=').decode())" "$VERIFIER")
-   curl -sL -X POST http://localhost:4000/o/oauth2/v2/auth/callback \
-     --data-urlencode "email=testuser@gmail.com" \
-     --data-urlencode "redirect_uri=http://localhost:47888/api/oauth/callback" \
-     --data-urlencode "scope=https://mail.google.com/" \
-     --data-urlencode "state=$STATE" \
-     --data-urlencode "client_id=inteligir-emulate" \
-     --data-urlencode "code_challenge=$CHALLENGE" \
-     --data-urlencode "code_challenge_method=S256" -o /dev/null
+   AUTH_URL='<authorizationUrl from getPendingConnectorAuth>'
+   curl -sL -X POST "http://localhost:4000/o/oauth2/v2/auth/callback" \
+     --data "email=testuser%40gmail.com&${AUTH_URL#*\?}" -o /dev/null
    ```
-4. Confirm the connection minted (the daemon exchanged the code at emulate):
-   ```bash
-   sqlite3 "file:$HOME/.inteligir/executor/data/data.db?mode=ro" \
-     "select owner, name, integration, template from connection"   # → user|default|gmail|googleOAuth2
+4. Confirm the connection minted (the daemon exchanged the code at emulate),
+   over the Bridge:
+   ```js
+   await call("listExecutorConnections"); // → [{ owner:"user", name:"default", integration:"gmail", … }]
    ```
-   The card flips to **Connected** in the UI.
+   The card flips to **Connected** in the UI, and `getPendingConnectorAuth`
+   returns null again (the pending consent clears when the flow settles).
 5. Clean up: click **Disconnect** on the card (the connection points at emulate
    and is useless in production).
 
