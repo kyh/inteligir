@@ -6,14 +6,14 @@
 import { useState } from "react";
 
 import { useDiskState } from "@renderer/lib/use-disk-state";
-import { ExecutorSections } from "@renderer/settings/extensions/executor-sections";
-import { IntegrationsSection } from "@renderer/settings/integrations-section";
+import { ConnectorStatusSection } from "@renderer/settings/extensions/connector-status-section";
+import { CliBinariesSection } from "@renderer/settings/cli-binaries-section";
 import { SkillsSection } from "@renderer/settings/extensions/skills-section";
 import { useAgentStore } from "@renderer/stores/agent-store";
 
 const DEVTOOLS_KEY = "extensions.showDevTools";
 
-export function ExtensionsPanel() {
+export function ConnectorsPanel() {
   const appState = useAgentStore((s) => s.appState);
   const [error, setError] = useState<string | null>(null);
   const [showDevTools, setShowDevTools] = useDiskState<boolean>(DEVTOOLS_KEY, false, (v) =>
@@ -31,9 +31,9 @@ export function ExtensionsPanel() {
   return (
     <div className="flex flex-col gap-4 p-3">
       {error && <div className="text-[10px] text-destructive">{error}</div>}
-      <ExecutorSections onError={setError} showAdvanced={showDevTools} />
+      <ConnectorStatusSection onError={setError} showAdvanced={showDevTools} />
       <SkillsSection />
-      {showDevTools && <IntegrationsSection />}
+      {showDevTools && <CliBinariesSection />}
       <button
         type="button"
         onClick={() => setShowDevTools(!showDevTools)}

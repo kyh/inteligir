@@ -29,7 +29,7 @@
 import { emitEvent } from "./events";
 import { getCheckpointManager } from "./checkpoints/checkpoint-manager";
 import { getDelegationManager } from "./delegation/delegation-manager";
-import { getExecutorDaemon } from "./executor/executor-daemon";
+import { getExecutorDaemon } from "./connectors/executor-daemon";
 import { getKnowledgeManager } from "./knowledge/knowledge-manager";
 import { getNotifications } from "./notifications";
 import { getSecretStore } from "./secrets";

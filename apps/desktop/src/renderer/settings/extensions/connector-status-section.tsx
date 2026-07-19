@@ -13,9 +13,9 @@ import { ConnectorsSection } from "@renderer/settings/extensions/connectors-sect
 import type { SectionProps } from "@renderer/settings/extensions/lib";
 import type { ExecutorStatus } from "@repo/features/ipc-registry";
 
-type ExecutorSectionsProps = SectionProps & { showAdvanced: boolean };
+type ConnectorStatusSectionProps = SectionProps & { showAdvanced: boolean };
 
-export function ExecutorSections({ onError, showAdvanced }: ExecutorSectionsProps) {
+export function ConnectorStatusSection({ onError, showAdvanced }: ConnectorStatusSectionProps) {
   const [status, setStatus] = useState<ExecutorStatus | null>(null);
 
   const refreshStatus = useCallback(() => {

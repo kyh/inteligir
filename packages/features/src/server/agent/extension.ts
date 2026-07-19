@@ -28,7 +28,7 @@ import type { ExecutorExecuteResult } from "@repo/features/executor";
 // that can't be expressed as plain filesystem access need one.
 // ---------------------------------------------------------------------------
 
-/** Executor daemon access (server/executor/*): install, lifecycle, code mode. */
+/** Executor daemon access (server/connectors/*): install, lifecycle, code mode. */
 export type ExecutorPort = {
   /** Pinned CLI metadata for the integrations UI. */
   cli: ExtensionCliInfo;

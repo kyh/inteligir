@@ -26,13 +26,13 @@ import { getCheckpointManager, resetCheckpointManager } from "../checkpoints/che
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { resetSnapshotStore } from "../snapshots/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../executor/executor-client";
+import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../connectors/executor-client";
 import {
   EXECUTOR_CLI,
   getExecutorDaemon,
   installExecutor,
   resetExecutorDaemon,
-} from "../executor/executor-daemon";
+} from "../connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
 import { resetSecretStore } from "../secrets";
 import { resetSyncCoordinator } from "../sync/sync-coordinator";
