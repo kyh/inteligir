@@ -19,6 +19,7 @@ import { emitEvent, subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
 import { initAgentLog } from "@repo/storage/agent-log";
 import { setSecretCipherProvider } from "@repo/storage/secrets";
+import { configureVoiceModelHost } from "@repo/voice/model-download";
 import { hardenAppDir } from "@repo/storage/harden-app-dir";
 import { acquireHostLock, releaseHostLock } from "@repo/storage/host-lock";
 import { collectHandlers, type HostHandlers } from "../handlers/handler-registry";
@@ -92,6 +93,17 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // extracted-pkg→extracted-pkg singleton coupling); the accessor keeps a
   // logout/login vault rebuild transparent.
   setSyncVaultAccessor(getVaultManager);
+
+  // Voice's model machinery resolves the per-user data dir + progress events
+  // through this seam (voice/ never imports the platform seam or the event
+  // bus). Installed here at composition — not at handler registration — so a
+  // boot-time "is voice available" probe resolves instead of hitting the
+  // not-configured guard (#465.3); pre-composition, isModelInstalled/
+  // downloadModel now answer with values (false / {ok:false}), never a throw.
+  configureVoiceModelHost({
+    userDataDir: () => platform.userDataDir,
+    emitState: (event) => emitEvent("onVoiceModelState", event),
+  });
 
   // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
   // unpackaged builds — computed ONCE here, before any handler or flag read.
