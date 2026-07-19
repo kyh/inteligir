@@ -144,6 +144,37 @@ const NotificationsPatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
+// Dev-only faux-agent scripting (#461 Phase 4b): one step per assistant turn
+// — optional text plus optional tool calls (e.g. pi's `edit` performing a
+// delegation's write-back), mapped host-side onto pi-ai's faux helpers. The
+// handler throws unless INTELIGIR_FAUX_AGENT=1, so the channel never does
+// anything in production.
+const FauxAgentScriptSchema = Type.Object(
+  {
+    steps: Type.Array(
+      Type.Object(
+        {
+          text: Type.Optional(Type.String()),
+          toolCalls: Type.Optional(
+            Type.Array(
+              Type.Object(
+                {
+                  name: Type.String({ minLength: 1 }),
+                  arguments: Type.Record(Type.String(), Type.Unknown()),
+                },
+                { additionalProperties: false },
+              ),
+            ),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+export type FauxAgentScript = Static<typeof FauxAgentScriptSchema>;
+
 // ---------------------------------------------------------------------------
 // Deep-link capture — inteligir://append|task landing on today's daily note.
 // ---------------------------------------------------------------------------
@@ -374,6 +405,15 @@ export const IPC = {
   ),
   getAgentHistory: invokeVoid<ChatHistoryEntry[]>("agent:history"),
   reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>("agent:reauthenticate"),
+  /** Dev-only (INTELIGIR_FAUX_AGENT=1; throws otherwise): replace the faux
+   * provider's queued responses so a headless E2E drive scripts exact agent
+   * turns. One step is consumed per assistant turn across EVERY faux-backed
+   * agent (chat + background delegation share one queue — script, then drive
+   * exactly one flow). Empty `steps` restores the self-refilling echo. */
+  setFauxAgentScript: invoke<typeof FauxAgentScriptSchema, void>(
+    "agent:set-faux-script",
+    FauxAgentScriptSchema,
+  ),
 
   // AI provider — WHICH pi provider+model the agent surfaces run on. These
   // channels move only the SELECTION and per-provider connected booleans;

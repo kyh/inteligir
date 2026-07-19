@@ -7,6 +7,10 @@ import {
   uninstallConnector,
   type ConnectorInstallOps,
 } from "../executor/connector-install";
+import {
+  applyGoogleEndpointOverride,
+  emulatePlaceholderGoogleClient,
+} from "../executor/emulate-connectors";
 import * as executor from "../executor/executor-client";
 import { getExecutorDaemon } from "../executor/executor-daemon";
 import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../executor/google-oauth-client";
@@ -49,12 +53,23 @@ export function registerExecutorHandlers(handle: HandlerRegistrar): void {
   handle("detectExecutorIntegration", executor.detectIntegration);
   handle("listExecutorConnections", executor.listConnections);
 
-  handle("createExecutorOAuthClient", executor.createOAuthClient);
+  // applyGoogleEndpointOverride: a production no-op; under the Phase 4b
+  // emulate/env dev override it swaps the baked real-Google endpoints the
+  // renderer's GCP dialog passes for the resolved ones (emulate-connectors.ts).
+  handle("createExecutorOAuthClient", (input) =>
+    executor.createOAuthClient(applyGoogleEndpointOverride(input)),
+  );
   // Seeds the build's bundled Google client into executor when no "google"
   // client is registered yet (never overwrites one) so the renderer can go
-  // straight to consent instead of asking for a GCP app.
+  // straight to consent instead of asking for a GCP app. Under the emulate
+  // dev flag, placeholder credentials stand in when no bundled/env client
+  // exists (emulate accepts any client id/secret) — real credentials win.
   handle("ensureGoogleOAuthClient", () =>
-    ensureGoogleOAuthClient(executor, getBundledGoogleClient(getHostOptions().bundledGoogleClient)),
+    ensureGoogleOAuthClient(
+      executor,
+      getBundledGoogleClient(getHostOptions().bundledGoogleClient) ??
+        emulatePlaceholderGoogleClient(),
+    ),
   );
 
   handle("executorStatus", (): ExecutorStatus => {
