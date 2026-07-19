@@ -8,11 +8,15 @@
 // inbox (CaptureManager); nav verbs broadcast onDeepLinkNav AND park as the
 // pending nav a freshly-mounted renderer pulls (queue-then-pull — no
 // connection-state tracking), then focus the window (that's their purpose;
-// captures deliberately never steal focus).
+// captures deliberately never steal focus). The session verb (social sign-in
+// callback) hands its opaque code+state to the sync account — which refuses
+// anything but its one pending, state-matched sign-in — and focuses too: the
+// user is returning from the browser leg.
 // ---------------------------------------------------------------------------
 
 import { getCaptureManager } from "./capture-manager";
 import { emitEvent } from "../events";
+import { getSyncCoordinator } from "../sync/sync-coordinator";
 import { parseDeepLink, type CaptureKind, type DeepLinkNavEvent } from "@repo/bridge/deep-link";
 
 /** Token bucket: how many URLs may land in a burst… */
@@ -27,6 +31,10 @@ const PENDING_NAV_TTL_MS = 60_000;
 export type DeepLinkServiceDeps = {
   enqueueCapture: (kind: CaptureKind, text: string) => void;
   emitNav: (event: DeepLinkNavEvent) => void;
+  /** Social sign-in callback: the session verb's opaque code+state pair.
+   * Fire-and-forget here — the sync layer validates, exchanges, and surfaces
+   * the outcome through its own events. */
+  completeSession: (code: string, state: string) => void;
   /** Clock (ms) — injected so the rate limit + TTL are testable. */
   now: () => number;
 };
@@ -56,6 +64,14 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
     return true;
   }
 
+  function focusWindow(): void {
+    try {
+      focusHandler?.();
+    } catch (err) {
+      console.warn("[deep-link] focus handler failed:", err);
+    }
+  }
+
   return {
     deliver(rawUrl: string): void {
       if (!takeToken()) {
@@ -71,15 +87,16 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
         deps.enqueueCapture(action.capture, action.text);
         return;
       }
+      if (action.kind === "session") {
+        deps.completeSession(action.code, action.state);
+        focusWindow();
+        return;
+      }
       navSeq += 1;
       const event: DeepLinkNavEvent = { id: `nav-${navSeq}`, nav: action.nav };
       pendingNav = { event, at: deps.now() };
       deps.emitNav(event);
-      try {
-        focusHandler?.();
-      } catch (err) {
-        console.warn("[deep-link] focus handler failed:", err);
-      }
+      focusWindow();
     },
     takePendingNav(): DeepLinkNavEvent | null {
       const parked = pendingNav;
@@ -106,6 +123,10 @@ function getService(): DeepLinkService {
       getCaptureManager().enqueue(kind, text);
     },
     emitNav: (event) => emitEvent("onDeepLinkNav", event),
+    completeSession: (code, state) => {
+      // Outcome surfaces via onSocialSignInResult/onSyncStateChanged.
+      void getSyncCoordinator().completeSocialSignIn(code, state);
+    },
     now: () => Date.now(),
   });
   return instance;

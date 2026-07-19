@@ -20,7 +20,7 @@ import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import type { Bridge, VaultEntry } from "@repo/bridge/ipc-registry";
 import type { RemoteAccessState } from "@repo/bridge/remote-access";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
-import type { SyncState } from "@repo/bridge/sync";
+import type { SyncSignInResult, SyncState } from "@repo/bridge/sync";
 import { isDocPath } from "@repo/domain/knowledge/doc-file";
 import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/domain/knowledge/guarded-line-edit";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/domain/knowledge/knowledge-index";
@@ -724,6 +724,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   const knowledgeEvents = new Emitter<{ revision: number }>();
   const syncEvents = new Emitter<SyncState>();
   const emitSync = () => syncEvents.emit(syncState);
+  const socialResultEvents = new Emitter<SyncSignInResult>();
   const remoteAccessEvents = new Emitter<RemoteAccessState>();
   const emitRemoteAccess = () => remoteAccessEvents.emit(remoteAccessState);
 
@@ -1334,10 +1335,19 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       emitSync();
       return { ok: true };
     },
-    // Host parity: social sign-in only INITIATES (opens a browser); auth state
-    // does not change. The harness has no browser to open, so ok=true with no
-    // state change mirrors the host contract exactly.
-    syncSocialSignIn: async () => ({ ok: true }),
+    // Host parity: initiation returns ok (browser opened) with no state
+    // change; the harness then plays the browser+deep-link leg itself — a
+    // short beat later the "user" completes consent, the session is adopted,
+    // and onSocialSignInResult resolves the pending UI. Keeps the account
+    // section's full social flow drivable with no real OAuth.
+    syncSocialSignIn: async ({ provider }) => {
+      setTimeout(() => {
+        syncState = { ...syncState, signedIn: true, email: `${provider}-user@example.com` };
+        emitSync();
+        socialResultEvents.emit({ ok: true });
+      }, 800);
+      return { ok: true };
+    },
     // Both providers listed so the Account section's social buttons render and
     // are drivable in the harness.
     getAccountCapabilities: async () => ({ socialProviders: ["github", "google"] }),
@@ -1389,6 +1399,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       return outcome;
     },
     onSyncStateChanged: syncEvents.subscribe,
+    onSocialSignInResult: socialResultEvents.subscribe,
 
     // Remote access — simulated ws-server state so the settings section is
     // drivable: toggling flips listening + LAN URLs, pairing returns a fixed

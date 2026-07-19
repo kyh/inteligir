@@ -161,6 +161,116 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Social sign-in COMPLETION — the deep-link callback's code+state exchange.
+// The state-nonce bind is the anti-fixation guard: only the one pending
+// sign-in this instance minted may complete, once.
+// ---------------------------------------------------------------------------
+
+describe("SyncAccount completeSocialSignIn", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const CODE = "c".repeat(43);
+
+  /** Initiate a social sign-in against a stubbed coordinator and capture the
+   * state nonce from the callbackURL the client sent. */
+  async function initiate(account: SyncAccount): Promise<string> {
+    let state: string | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
+        const body = typeof init?.body === "string" ? init.body : "";
+        const match = /desktop-callback\?state=([A-Za-z0-9_-]+)/.exec(body);
+        if (match?.[1] !== undefined) state = match[1];
+        return Response.json({ url: "https://accounts.example/authorize?x=1" });
+      }),
+    );
+    const initiated = await account.socialSignIn("google");
+    expect(initiated).toEqual({ ok: true });
+    if (state === null) throw new Error("initiation sent no state nonce");
+    return state;
+  }
+
+  it("adopts the exchanged bearer when the state matches the pending sign-in", async () => {
+    const account = accountAt(tmp, { openExternal: () => {} });
+    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    const state = await initiate(account);
+
+    const exchange = vi.fn(async (url: unknown, init?: { body?: unknown }) => {
+      expect(String(url)).toBe("https://sync.example/v1/auth/exchange");
+      // The ONLY thing that crosses: the opaque code. Never the state, never
+      // a token.
+      expect(init?.body).toBe(JSON.stringify({ code: CODE }));
+      return Response.json({ ok: true, token: "exchanged-bearer", email: "who@example.com" });
+    });
+    vi.stubGlobal("fetch", exchange);
+
+    expect(await account.completeSocialSignIn(CODE, state)).toEqual({ ok: true });
+    expect(account.getToken()).toBe("exchanged-bearer");
+    expect(account.getEmail()).toBe("who@example.com");
+    expect(exchange).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses with NO pending sign-in — before any network call", async () => {
+    const noNetwork = vi.fn(async () => {
+      throw new Error("must not be called");
+    });
+    vi.stubGlobal("fetch", noNetwork);
+    const account = accountAt(tmp);
+    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    const result = await account.completeSocialSignIn(CODE, "s".repeat(22));
+    expect(result.ok).toBe(false);
+    expect(noNetwork).not.toHaveBeenCalled();
+    expect(account.getToken()).toBeNull();
+  });
+
+  it("refuses a WRONG state, and the guess burns the pending sign-in", async () => {
+    const account = accountAt(tmp, { openExternal: () => {} });
+    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    const state = await initiate(account);
+
+    const noNetwork = vi.fn(async () => {
+      throw new Error("must not be called");
+    });
+    vi.stubGlobal("fetch", noNetwork);
+    expect((await account.completeSocialSignIn(CODE, "x".repeat(22))).ok).toBe(false);
+    // Single try: even the CORRECT state is dead after a failed attempt.
+    expect((await account.completeSocialSignIn(CODE, state)).ok).toBe(false);
+    expect(noNetwork).not.toHaveBeenCalled();
+    expect(account.getToken()).toBeNull();
+  });
+
+  it("surfaces an exchange rejection ({ok:false}) without signing in", async () => {
+    const account = accountAt(tmp, { openExternal: () => {} });
+    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    const state = await initiate(account);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ ok: false, error: "This sign-in link is invalid." })),
+    );
+    expect(await account.completeSocialSignIn(CODE, state)).toEqual({
+      ok: false,
+      error: "This sign-in link is invalid.",
+    });
+    expect(account.getToken()).toBeNull();
+  });
+
+  it("a completed sign-in is single-use too — replaying the deep link fails", async () => {
+    const account = accountAt(tmp, { openExternal: () => {} });
+    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    const state = await initiate(account);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ ok: true, token: "bearer-1", email: "a@b.c" })),
+    );
+    expect((await account.completeSocialSignIn(CODE, state)).ok).toBe(true);
+    expect((await account.completeSocialSignIn(CODE, state)).ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Teardown decouple (#459): account sign-out touches ONLY the session store.
 // ---------------------------------------------------------------------------
 
