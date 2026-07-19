@@ -15,13 +15,13 @@
 // ---------------------------------------------------------------------------
 
 import {
-  GOOGLE_AUTHORIZATION_URL,
   GOOGLE_OAUTH_CLIENT_SLUG,
-  GOOGLE_TOKEN_URL,
   type CreateOAuthClientInput,
   type ExecutorOAuthClient,
 } from "@repo/features/executor";
 import type { EnsureGoogleClientResult } from "@repo/features/ipc-registry";
+
+import { resolveGoogleOAuthEndpoints } from "./emulate-connectors";
 
 export type BundledGoogleClient = { clientId: string; clientSecret: string };
 
@@ -71,11 +71,14 @@ export async function ensureGoogleOAuthClient(
     return { status: "ready", source: "existing" };
   }
   if (!bundled) return { status: "unavailable" };
+  // Resolved per call (not baked): real Google by default, the emulate/env
+  // override under the Phase 4b dev flag — see emulate-connectors.ts.
+  const endpoints = resolveGoogleOAuthEndpoints();
   await ops.createOAuthClient({
     owner: "user",
     slug: GOOGLE_OAUTH_CLIENT_SLUG,
-    authorizationUrl: GOOGLE_AUTHORIZATION_URL,
-    tokenUrl: GOOGLE_TOKEN_URL,
+    authorizationUrl: endpoints.authorizationUrl,
+    tokenUrl: endpoints.tokenUrl,
     grant: "authorization_code",
     clientId: bundled.clientId,
     clientSecret: bundled.clientSecret,
