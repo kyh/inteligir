@@ -21,7 +21,7 @@ import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from ".
 import { isSelectedProviderConnected } from "../provider/provider-service";
 import { getVaultManager } from "../vault/vault";
 import { emitEvent } from "../events";
-import { runTextTurn } from "../app/text-turn";
+import { runTextTurn } from "../agent/text-turn";
 import {
   DelegationSchema,
   type CreateDelegationParams,
@@ -29,7 +29,7 @@ import {
   type Delegation,
   type RestoreSnapshotResult,
 } from "@repo/features/delegation";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 
 // v2: anchor moved from text/heading matching to a positional `index`.
 // v3: pre-run snapshots — records gained `hasSnapshot` + `restoredAt`.

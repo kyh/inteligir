@@ -15,7 +15,7 @@ import { INLINE_AI_SESSION_DIR } from "../agent/paths";
 import { agentModelSelection } from "../provider/provider-service";
 import { getAgentPorts } from "../lib/agent-lifecycle";
 import { emitEvent } from "../events";
-import { runTextTurn } from "./text-turn";
+import { runTextTurn } from "../agent/text-turn";
 import {
   parseAiIntent,
   type AiGenerateResult,

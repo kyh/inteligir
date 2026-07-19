@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { WebSocket as WsWebSocket } from "ws";
 
-import { isRecord } from "@repo/features/ipc";
+import { isRecord } from "@repo/features/wire-helpers";
 import type { Bridge, EventMethod, HostMethod } from "@repo/features/ipc-registry";
 import { createWsBridge, type WsBridgeStatus } from "@repo/features/ws-bridge";
 import {

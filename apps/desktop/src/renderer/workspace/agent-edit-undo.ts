@@ -17,7 +17,7 @@
 
 import { basenamePath } from "@repo/core/knowledge/vault-path";
 import type { AppAgentEvent } from "@repo/features/agent-events";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
 
 export type AgentEditUndoPorts = {

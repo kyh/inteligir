@@ -30,7 +30,7 @@ import { downloadModel } from "../voice/model-download";
 import { parseAgentEvent } from "@repo/features/agent-event-parser";
 import type { AppAgentEvent } from "@repo/features/agent-events";
 import type { AppState, MachineEvent } from "@repo/features/app-state";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process

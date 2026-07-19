@@ -44,7 +44,7 @@ import {
   resumeVaultWrites,
   suspendVaultWrites,
 } from "../vault/vault";
-import { remapNoteMetadata } from "../vault/rename-metadata";
+import { remapNoteMetadata } from "../rename-orchestration";
 import type { SetupProgress } from "@repo/features/ipc-registry";
 
 /** Bundled agent assets (skills/, AGENTS.md), resolved by the shell. */

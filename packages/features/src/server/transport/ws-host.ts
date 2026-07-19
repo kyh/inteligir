@@ -10,7 +10,7 @@ import type { IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import { createBackoff, timeoutSchedule } from "@repo/features/backoff";
-import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import { isRecord, toErrorMessage } from "@repo/features/wire-helpers";
 import {
   HYDRATED_EVENTS,
   LOCAL_ONLY_METHODS,

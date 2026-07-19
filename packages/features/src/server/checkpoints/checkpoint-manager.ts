@@ -24,7 +24,7 @@ import { isEnoent } from "../lib/fs-errors";
 import { getSnapshotStore, type SnapshotStore } from "../snapshots/snapshot-store";
 import { getVaultManager } from "../vault/vault";
 import type { VaultDocWrite } from "../agent/extension";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
 
 export type CheckpointManagerOptions = {

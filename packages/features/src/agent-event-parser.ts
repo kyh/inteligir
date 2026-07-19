@@ -7,7 +7,7 @@ import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import type { AppAgentEvent } from "./agent-events";
-import { extractText, isRecord } from "./ipc";
+import { extractText, isRecord } from "./wire-helpers";
 
 // ---------------------------------------------------------------------------
 // Per-event-type schemas (only the 8 types the app cares about)

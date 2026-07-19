@@ -33,7 +33,7 @@ import {
   type RemoteAccessManager,
 } from "@repo/features/server/transport/remote-access-manager";
 import { startWsHost, type WsHost } from "@repo/features/server/transport/ws-host";
-import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/ipc";
+import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/wire-helpers";
 
 import {
   extractDeepLinkFromArgv,

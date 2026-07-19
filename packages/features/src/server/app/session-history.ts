@@ -10,8 +10,8 @@ import {
 } from "@repo/features/server/pi/pi-types";
 
 import { SESSION_DIR, WORKSPACE_DIR } from "../agent/paths";
-import { extractTextFromContent, isRecord } from "@repo/features/ipc";
-import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
+import { extractTextFromContent, isRecord } from "@repo/features/wire-helpers";
+import type { ChatHistoryEntry } from "@repo/features/chat-log";
 
 // ---------------------------------------------------------------------------
 // Type guards for pi-ai content blocks

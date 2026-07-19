@@ -3,7 +3,7 @@
 // chunks to the main process where sherpa-onnx + streaming Parakeet runs.
 // ---------------------------------------------------------------------------
 
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import { getBridge } from "@renderer/lib/bridge";
 import sttWorkletUrl from "./stt-worklet.js?url"; // relative: the ./src exports map can't address a raw .js asset
 

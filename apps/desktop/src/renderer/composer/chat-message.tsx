@@ -6,7 +6,7 @@ import { Shimmer } from "@renderer/ai-elements/shimmer";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { currentTurnMessages, type ChatMessage } from "@renderer/stores/chat-log-view";
-import { isRecord } from "@repo/features/ipc";
+import { isRecord } from "@repo/features/wire-helpers";
 
 // Hoisted so the array reference is stable across renders.
 const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [

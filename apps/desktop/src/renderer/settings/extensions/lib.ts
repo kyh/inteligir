@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { getBridge } from "@renderer/lib/bridge";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { Bridge } from "@repo/features/ipc-registry";
 
 export function slug(name: string): string {

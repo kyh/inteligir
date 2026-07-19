@@ -23,7 +23,7 @@ import {
   type ChatItem,
   type ChatLog,
 } from "@repo/features/chat-log";
-import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
+import type { ChatHistoryEntry } from "@repo/features/chat-log";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
 import { hostStatusDotClass, hostStatusLabel, type HostStatus } from "@/lib/host/status-display";
 import { useHostChannel } from "@/lib/host/use-host-channel";

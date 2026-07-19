@@ -19,7 +19,7 @@ import { createAuthClient } from "better-auth/client";
 import open from "open";
 
 import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
-import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import { isRecord, toErrorMessage } from "@repo/features/wire-helpers";
 import type { AccountCapabilities, SyncSignInResult } from "@repo/features/sync";
 
 // ---------------------------------------------------------------------------

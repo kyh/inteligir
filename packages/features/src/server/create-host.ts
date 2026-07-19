@@ -12,7 +12,7 @@
 // (the ws host), forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
-import { configurePaths } from "./agent/paths";
+import { configurePaths, WORKSPACE_DIR } from "./agent/paths";
 import { initMachine, shutdown } from "./app/app-machine";
 import { subscribeEvents } from "./events";
 import { constructHostSingletons } from "./host-context";
@@ -26,7 +26,7 @@ import { getDelegationManager } from "./delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "./knowledge/knowledge-manager";
 import { getSyncCoordinator } from "./sync/sync-coordinator";
 import { installHostRuntime } from "./platform-instance";
-import { getVaultManager, setVaultChangeNotifier } from "./vault/vault";
+import { getVaultManager, setVaultChangeNotifier, setVaultWorkspaceLinkDir } from "./vault/vault";
 import type { HostOptions, HostPlatform } from "./platform";
 import type { EventMethod } from "@repo/features/ipc-registry";
 
@@ -112,6 +112,9 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // sync even though it does not broadcast onVaultChanged. Wrapping here
       // (once) keeps the sync engine rebuildable underneath without re-installing
       // this notifier.
+      // Injected here (not imported by vault/) so the vault layer has zero
+      // outbound capability edges — the host composes, vault receives.
+      setVaultWorkspaceLinkDir(WORKSPACE_DIR);
       getVaultManager().ensureReady();
       const baseVaultNotifier = notifiers.vaultChange;
       setVaultChangeNotifier((root, kind) => {

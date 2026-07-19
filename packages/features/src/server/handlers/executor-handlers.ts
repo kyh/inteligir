@@ -16,7 +16,7 @@ import { getExecutorDaemon } from "../executor/executor-daemon";
 import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../executor/google-oauth-client";
 import type { HandlerRegistrar } from "../lib/handler-registry";
 import { getHostOptions, getPlatform } from "../platform-instance";
-import { isHttpUrl } from "@repo/features/ipc";
+import { isHttpUrl } from "@repo/features/wire-helpers";
 import type { ExecutorStatus } from "@repo/features/ipc-registry";
 
 // The real ports the connector orchestration runs on: the executor-client 1:1,

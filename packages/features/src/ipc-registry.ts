@@ -17,6 +17,7 @@ import {
   type AiProviderSettings,
 } from "./ai-provider";
 import { AppEventSchema, type AppState } from "./app-state";
+import type { ChatHistoryEntry } from "./chat-log";
 import type { DeepLinkNavEvent } from "./deep-link";
 import {
   ConnectorInstallRequestSchema,
@@ -85,14 +86,6 @@ export type VoiceModelStateEvent =
 export type SetupProgress = {
   step: string;
   percent: number | null;
-};
-
-export type ChatHistoryEntry = {
-  role: "user" | "assistant" | "tool";
-  text: string;
-  toolName?: string;
-  toolCallId?: string;
-  isError?: boolean;
 };
 
 export type ExecutorStatus =
