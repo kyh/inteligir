@@ -108,14 +108,15 @@ Type-checks passing isn't feature-correct. Drive the running app:
   is the thing most UI regressions break.
 - Privacy (`private: true`) changes: `docs/privacy.md` states the guarantee
   and its holes; the enforcement tests live in
-  `packages/backend/src/server/__tests__/privacy-gate.test.ts` and
-  `knowledge-privacy.test.ts` (outbound-payload assertions).
+  `packages/agent/src/__tests__/privacy-gate.test.ts` and
+  `packages/backend/src/server/__tests__/knowledge-privacy.test.ts`
+  (outbound-payload assertions).
 
 ## Making changes — checklists
 
 **Adding a Bridge channel** (the most common cross-cutting change):
 
-1. Registry entry in `packages/backend/src/ipc-registry.ts` (TypeBox payload +
+1. Registry entry in `packages/bridge/src/ipc-registry.ts` (TypeBox payload +
    result/event type).
 2. Host handler in `packages/backend/src/server/handlers/` (grouped by domain;
    `collectHandlers` throws at boot on missing/duplicate).
@@ -138,9 +139,12 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 - `pnpm --filter @repo/desktop test` — the renderer: editor pipeline (round-trip
   matrix, adversarial harness, kit parity, corpus classification), combobox,
   knowledge fixtures.
-- `pnpm --filter @repo/backend test` — the iso contract (parsers, schemas)
-  **and** the backend under `src/server` (vault, delegation +snapshots,
-  knowledge manager, sync adapters, handlers, secrets).
+- `pnpm --filter @repo/bridge test` — the iso wire contract (parsers, schemas,
+  ws protocol).
+- `pnpm --filter @repo/agent test` — the pi capability (extensions, privacy
+  gate, faux provider) + the pi-quarantine and bundle drift guards.
+- `pnpm --filter @repo/backend test` — the node backend (vault, delegation
+  +snapshots, knowledge manager, sync adapters, handlers, secrets).
 - `pnpm --filter @repo/cloud test` — the sync Worker against real in-process
   miniflare (DO + R2 + D1 + Better Auth), incl. the end-to-end sync test that
   drives @repo/domain's engine through the real backend.

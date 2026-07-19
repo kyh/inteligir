@@ -42,26 +42,38 @@ apps/            # shippable artifacts
   desktop/       # Electron shell — the notes product (@repo/desktop)
   mobile/        # Expo companion (@repo/mobile) — sync + read + light-edit, no agent
   cloud/         # CF Worker (@repo/cloud) — /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
-packages/        # libraries
-  core/          # PURE platform-neutral domain (@repo/domain) — runs in Worker/RN/renderer:
+packages/        # libraries — boundaries are PACKAGE facts (deps + exports maps)
+  domain/        # PURE platform-neutral domain (@repo/domain) — runs in Worker/RN/renderer:
                  #   sync/      — vault-sync engine + protocol (reconcile, wire, HttpSyncPort)
                  #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
-  features/      # Contract + backend (@repo/backend):
-                 #   src/        — iso: Bridge/IPC registry, schemas (loads in the renderer)
-                 #   src/server/ — node: vault, pi agent, delegation, connectors, voice,
-                 #                 sync adapters, handlers, boot/ (createHost), HostPlatform
+  bridge/        # Iso wire contract (@repo/bridge) — Bridge/IPC registry, ws client +
+                 # protocol, shared schemas; loads in renderer/RN/node (deps: domain only)
+  cli-bootstrap/ # Generic CLI provisioning (@repo/cli-bootstrap) — checksum-verified
+                 # GitHub-release binary install, seeding, execFile runner; leaf, no deps
+  agent/         # The pi capability (@repo/agent) — Agent lifecycle, extension bundles,
+                 # setup/auth, faux provider, and pi/ (the harness quarantine: the ONLY
+                 # place @mariozechner/pi* may be imported). Backend injects AgentPorts.
+  backend/       # Node backend (@repo/backend) — vault, delegation, connectors, voice,
+                 # sync adapters, handlers, boot/ (createHost), HostPlatform. Exports are
+                 # NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
+Dep DAG: domain, cli-bootstrap, ui are leaves; bridge→domain;
+agent→bridge+cli-bootstrap+domain; backend→agent+bridge+cli-bootstrap+domain.
+The renderer and mobile depend on @repo/bridge (+domain/ui) ONLY — never
+@repo/backend — so "no node in the UI's contract" is an unresolvable-import
+fact, not a lint opinion.
+
 `@repo/domain` is the sharing seam: no node/electron/react/workspace imports
 (lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
-clock) — see `core/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
+clock) — see `domain/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
 engine and knowledge/markdown code through thin adapters.
 
 The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
-`@repo/backend/server` backend, communicating over a local WebSocket
+`@repo/backend` host, communicating over a local WebSocket
 transport (one server, loopback by default). For UI work there is also a
 backend-free browser dev harness
 (`pnpm --filter @repo/desktop dev:harness`) that drives the real UI over an in-memory
@@ -113,10 +125,11 @@ Three processes: **main** (Electron), **preload**, **renderer**. The renderer
 `window.bridgeBootstrap` over one sendSync channel), and `main.tsx` dials it
 with `createWsBridge`, installs the Bridge, and renders `App`. Renderer code
 is host-agnostic — it reaches the backend only through the injected Bridge
-(`@renderer/lib/bridge`), never electron/node/host (lint-enforced). The
-`agent/` boundary never imports the rest of `@repo/backend/server` — also
-lint-enforced; the host composes capabilities and hands the agent an
-injected `AgentPorts` (`{ executor, knowledge }`).
+(`@renderer/lib/bridge`), never electron/node/host (lint-enforced, and
+@repo/backend isn't even a renderer dep). `@repo/agent` never imports
+`@repo/backend` — a package fact (no dep edge); the host composes
+capabilities and hands the agent an injected `AgentPorts`
+(`{ executor, knowledge }`).
 
 ### Data model — the vault
 
@@ -220,7 +233,7 @@ and full-text search live in the command palette.
   substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
   Notes configures folder/format).
 - **Deep links / capture**: the world-invokable `inteligir://` scheme has
-  exactly five verbs (`packages/backend/src/deep-link.ts`, pure parser +
+  exactly five verbs (`packages/bridge/src/deep-link.ts`, pure parser +
   sanitizer): `append`/`task` capture ONE sanitized plain-text line onto
   TODAY's daily note — durable inbox + exactly-once apply (the open note's
   live buffer via `onCaptureApply`, else the host-side CAS drain in
@@ -265,10 +278,10 @@ refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegati
 ### Vault sync — `@repo/domain/sync` + `apps/cloud` + platform adapters
 
 **Off by default** (runtime `sync-config` store; Settings → Sync). One pure
-engine — `core/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
+engine — `domain/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
 preserved as sibling copies, never lost) — with injected platform ports:
 desktop binds node crypto/VaultManager/JsonStore
-(`features/src/server/sync/sync-manager.ts`, lifecycle in
+(`backend/src/server/sync/sync-manager.ts`, lifecycle in
 `sync-coordinator.ts`), mobile binds expo-crypto/expo-file-system
 (`apps/mobile/src/lib/sync/`). The coordinator (`apps/cloud`) is ONE Worker:
 `/api/auth/*` = Better Auth (email+password, bearer tokens) over Drizzle + D1,
@@ -281,9 +294,9 @@ in-process. Deploy is owner-only (see `apps/cloud/README.md`). Every engine
 pass (explicit, debounced, periodic) reports through `onOutcome`; unresolved
 conflict copies are listed in Settings → Sync with Open / Dismiss-copy.
 
-### Agent surface — `packages/backend/src/server/agent/`
+### Agent surface — `packages/agent` (@repo/agent)
 
-Extension bundles are listed in `agent/bundles.ts` (static registry + disk-drift
+Extension bundles are listed in `packages/agent/src/bundles.ts` (static registry + disk-drift
 test) and receive `AgentPorts` at register time — adding/removing a capability
 is one folder + one line. `code-mode/` is the MCP/connectors capability
 (over the `server/connectors/` daemon); `knowledge-tools/` exposes
@@ -299,7 +312,7 @@ in-memory session for ghost-text on a fast model.
 **Private notes** (`private: true` frontmatter, `docs/privacy.md` is the
 contract): excluded from every AI surface on this device, fail-closed — the
 agent's file tools refuse them (per-call live-disk probe in pi's `tool_call`
-hook, `agent/privacy/`, path-normalization parity with pi's own tools),
+hook, `packages/agent/src/privacy/`, path-normalization parity with pi's own tools),
 `search_vault`/`get_backlinks` drop them entirely, editor AI + ghost text go
 hard-off, the chat context hint withholds even the path, and delegation
 refuses. Unparseable frontmatter counts as private. A leak-prevention
@@ -307,7 +320,7 @@ boundary for AI features, NOT a security boundary.
 
 ### IPC / Bridge
 
-`packages/backend/src/ipc-registry.ts` is the single source of truth: each channel
+`packages/bridge/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
 schema-validated handler map (`packages/backend/src/server/handlers/`) that the desktop

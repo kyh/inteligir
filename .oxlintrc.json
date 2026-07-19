@@ -66,6 +66,8 @@
                   "react",
                   "react-dom",
                   "react/*",
+                  "@repo/agent",
+                  "@repo/agent/*",
                   "@repo/bridge",
                   "@repo/bridge/*",
                   "@repo/cli-bootstrap",
@@ -117,29 +119,6 @@
                   "**/apps/desktop/**"
                 ],
                 "message": "the features backend is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/server/platform.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/agent/src/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "@repo/backend",
-                  "@repo/backend/*",
-                  "@repo/desktop",
-                  "@repo/desktop/*"
-                ],
-                "message": "@repo/agent must not reach into the backend or the shell — the host injects capabilities via AgentPorts (extension.ts)"
               }
             ]
           }

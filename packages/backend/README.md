@@ -1,37 +1,19 @@
-# `@repo/backend` — the contract + the backend
+# `@repo/backend` — the node backend
 
-One package, two halves split by subpath:
+The node host behind `createHost()`: vault, delegation, connectors daemon, voice, sync adapters, the knowledge host shell, the ws transport, and the `boot/` composition root that wires `@repo/agent` capabilities in. See [`src/server/README.md`](./src/server/README.md).
 
-- **`src/` — isomorphic.** The shared vocabulary the renderer and backend both speak: the Bridge/IPC registry, domain schemas, and pure engines (knowledge index, agent-event parsing, markdown). The same modules load in the Electron renderer (a browser context) and node, so no node built-ins and no electron here (lint-enforced).
-- **`src/server/` — the node backend.** vault, pi agent, delegation, executor, voice, and the Bridge handler map behind `createHost()` (pi-driver + agent-runtime folded in). Node is fine here; electron/desktop are not — the shell injects a `HostPlatform`. See [`src/server/README.md`](./src/server/README.md).
+The isomorphic wire contract (Bridge/IPC registry, ws client + protocol, shared schemas) lives in `@repo/bridge`; the pure domain (knowledge, markdown, sync engine) in `@repo/domain`; the pi capability in `@repo/agent`; generic CLI provisioning in `@repo/cli-bootstrap`.
 
-No barrel; import by file. The renderer imports the iso half (`@repo/backend/...`); the desktop main process imports the backend (`@repo/backend/server/...`).
+No barrel; **exports are narrow on purpose** — the package.json `exports` map lists exactly the entrypoints the desktop main process composes (`server/boot/create-host`, `server/transport/ws-host`, `server/transport/remote-access-manager`, `server/capture/deep-link-service`, `server/platform`, `server/vault/vault`, `server/knowledge/sqlite-knowledge-store`). Everything else is package-private; widening the surface is a conscious exports-map change, not a driveby deep import.
 
-## IPC registry → Bridge
+## IPC registry → handlers
 
-`src/ipc-registry.ts` is the single source of truth for every channel crossing the main↔renderer boundary. Each entry pairs a channel name with a TypeBox payload schema (runtime validation) and a result/event type (compile-time inference). Everything else is **derived** from it:
-
-- the transport-agnostic `Bridge` type (`src/ipc-registry.ts`) that the renderer consumes;
-- the Electron preload bridge object (automatic — no per-channel code);
-- the backend handler registrar (`src/server` validates payloads and throws at boot on missing/duplicate handlers).
-
-A renamed channel or changed payload is a compile error in every process. The `UPDATE_METHODS` trio (electron-updater) is a desktop-shell overlay, answered locally rather than by the host.
+`@repo/bridge/ipc-registry` is the single source of truth for every channel. `createHost` returns a schema-validated handler map (`src/server/handlers/`) served over one local WebSocket server (`startWsHost`); payloads are validated at the boundary and boot throws on missing/duplicate handlers. A renamed channel or changed payload is a compile error in every process. The `UPDATE_METHODS` trio (electron-updater) is a desktop-shell overlay, answered locally rather than by the host.
 
 **Adding a channel** is a three-step checklist (registry entry → host handler → fixture-bridge coverage) — see [`docs/development.md`](../../docs/development.md#making-changes--checklists).
-
-## Knowledge engine
-
-`src/knowledge/` is the vault knowledge engine: `knowledge-index.ts` composes wiki/md link extraction (`link-extract.ts`), global link resolution (`link-resolve.ts`), backlinks, and lexical search (`search-index.ts`) with incremental per-doc updates; `rename-links.ts` computes byte-surgical link rewrites on rename (aliases, anchors, padding survive verbatim; anti-shadow qualification when the new name would steal another doc's links). Pure and environment-free **by design**: the host (real vault + watcher) and the dev harness's fixture bridge (in-memory Map) run the same engine, and the wire types the knowledge channels return are defined here.
-
-## Domain schemas & helpers
-
-- `app-state.ts` — the app state machine's phases + events (TypeBox; the host reducer and the UI phase gate share it).
-- `agent-events.ts` / `agent-event-parser.ts` — pi agent event surface + the pure parser that projects raw pi events into renderer-safe `AppAgentEvent`s.
-- `delegation.ts`, `executor.ts`, `inline-ai.ts`, `ui-state.ts`, `voice.ts` — per-domain payload/result schemas referenced by the registry.
-- `markdown/remark-wiki-link.ts` — the `[[wiki-link]]` micromark/remark extension shared by the editor pipeline and the knowledge engine.
 
 ## Test
 
 ```bash
-pnpm --filter @repo/backend test   # knowledge engine, parsers, schemas
+pnpm --filter @repo/backend test
 ```

@@ -12,7 +12,7 @@ boundary**. Read the "What it does NOT do" list before relying on it.
 
 - **Agent file tools refuse it.** `read`, `edit`, and `write` on a private
   note are blocked before they run (pi's `tool_call` hook,
-  `packages/backend/src/server/agent/privacy/`) with a structured "this note
+  `packages/agent/src/privacy/`) with a structured "this note
   is private" error the model sees. The check probes the file's frontmatter
   on disk **per call** — never a cached index — and applies to both the chat
   agent and the background delegation agent. `grep`/`find`/`ls` (not active
