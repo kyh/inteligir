@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // SQLite-wasm binding for the shared SQL knowledge store — the dev harness's
-// twin of the node:sqlite driver in @repo/backend/server (sqlite-knowledge-
-// store.ts). The schema, guards, and every query live in @repo/domain
+// twin of the node:sqlite driver in @repo/server/server (sqlite-knowledge-
+// store.ts). The schema, guards, and every query live in @repo/notes
 // (sql-knowledge-store.ts, driver-injected); this module only supplies the
 // browser byte-level driver, so harness search runs the IDENTICAL FTS5 bm25
 // ranking the product ships.
@@ -18,7 +18,7 @@
 
 import sqlite3InitModule, { type Sqlite3Static } from "@sqlite.org/sqlite-wasm";
 
-import type { SqlDriver } from "@repo/domain/knowledge/sql-knowledge-store";
+import type { SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
 
 let modulePromise: Promise<Sqlite3Static> | null = null;
 

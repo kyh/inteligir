@@ -22,7 +22,7 @@ import {
   registerOpenNotePath,
   registerOpenNotePrivacy,
 } from "@renderer/workspace/open-note-flush";
-import { notePrivacy } from "@repo/domain/markdown/frontmatter";
+import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 import {
   type GateReason,
   analyzeMarkdown,
@@ -36,10 +36,10 @@ import { type OpenDoc, deriveOpenDoc, isMarkdownPath } from "@renderer/workspace
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
-import type { WikiTarget } from "@repo/domain/knowledge/link-graph-index";
-import { buildResolver } from "@repo/domain/knowledge/link-resolve";
-import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note-name";
-import { basenamePath, dirnamePath } from "@repo/domain/knowledge/vault-path";
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import { buildResolver } from "@repo/notes/knowledge/link-resolve";
+import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
+import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
 const HTML_RE = /\.html$/i;
 import type { VaultEntry } from "@repo/bridge/ipc-registry";

@@ -6,7 +6,7 @@
 // gate reason without a markdown note, a private mark with nothing open — are
 // unrepresentable. Consumers switch on `openDoc.kind`.
 
-import { notePrivacy } from "@repo/domain/markdown/frontmatter";
+import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import type { GateReason } from "@renderer/editor/markdown/markdown-doc";
 

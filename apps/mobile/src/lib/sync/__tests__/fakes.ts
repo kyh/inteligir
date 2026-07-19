@@ -1,10 +1,10 @@
 // In-memory fakes for the sync adapters, so the PURE logic is exercised on node
-// with no real expo-file-system / expo-crypto. Mirrors @repo/domain's own engine
+// with no real expo-file-system / expo-crypto. Mirrors @repo/notes's own engine
 // test doubles.
 
-import type { JsonFile } from "@repo/domain/sync/base-store";
-import type { Hasher } from "@repo/domain/sync/engine";
-import type { VaultPath } from "@repo/domain/sync/vault-file";
+import type { JsonFile } from "@repo/notes/sync/base-store";
+import type { Hasher } from "@repo/notes/sync/engine";
+import type { VaultPath } from "@repo/notes/sync/vault-file";
 
 import type { VaultEntry, VaultFs } from "../sync-io";
 
@@ -13,7 +13,7 @@ const decoder = new TextDecoder();
 
 /**
  * The exact async Web-Crypto sha-256 the mobile client injects (via expo-crypto)
- * — used here so equal bytes hash equal against @repo/domain's InMemorySyncPort.
+ * — used here so equal bytes hash equal against @repo/notes's InMemorySyncPort.
  */
 export function webCryptoHasher(): Hasher {
   return async (bytes) => {

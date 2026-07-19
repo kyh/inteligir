@@ -1,4 +1,4 @@
-import { formatBearer, manifestPath } from "@repo/domain/sync/wire";
+import { formatBearer, manifestPath } from "@repo/notes/sync/wire";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { createDb } from "../src/db/client";

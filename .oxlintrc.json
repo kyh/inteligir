@@ -52,7 +52,7 @@
       }
     },
     {
-      "files": ["packages/domain/src/**"],
+      "files": ["packages/notes/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -70,16 +70,16 @@
                   "@repo/agent/*",
                   "@repo/bridge",
                   "@repo/bridge/*",
-                  "@repo/cli-bootstrap",
-                  "@repo/cli-bootstrap/*",
-                  "@repo/backend",
-                  "@repo/backend/*",
+                  "@repo/installer",
+                  "@repo/installer/*",
+                  "@repo/server",
+                  "@repo/server/*",
                   "@repo/ui",
                   "@repo/ui/*",
                   "@repo/desktop",
                   "@repo/desktop/*"
                 ],
-                "message": "@repo/domain is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
+                "message": "@repo/notes is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
               }
             ]
           }
@@ -95,7 +95,7 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/backend/server)"
+                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/server/server)"
               }
             ]
           }
@@ -103,7 +103,7 @@
       }
     },
     {
-      "files": ["packages/backend/src/server/**"],
+      "files": ["packages/server/src/server/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -118,7 +118,7 @@
                   "@repo/desktop/*",
                   "**/apps/desktop/**"
                 ],
-                "message": "@repo/backend is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/server/platform.ts)"
+                "message": "@repo/server is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/server/platform.ts)"
               }
             ]
           }
@@ -140,8 +140,8 @@
                   "@repo/desktop",
                   "@repo/desktop/*",
                   "**/apps/desktop/**",
-                  "@repo/backend",
-                  "@repo/backend/*"
+                  "@repo/server",
+                  "@repo/server/*"
                 ],
                 "message": "@repo/agent is the pi capability — no electron/desktop/backend imports; it receives AgentPorts injected by the host (belt-and-suspenders; the package graph already enforces this)"
               }
@@ -163,8 +163,8 @@
                   "electron/*",
                   "electron-updater",
                   "node:*",
-                  "@repo/backend/*",
-                  "@repo/backend",
+                  "@repo/server/*",
+                  "@repo/server",
                   "@/main",
                   "@/main/*",
                   "@/preload",

@@ -16,7 +16,7 @@ import {
   parseProperties,
   serializeProperties,
   typeNewProperty,
-} from "@repo/domain/markdown/frontmatter";
+} from "@repo/notes/markdown/frontmatter";
 
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";

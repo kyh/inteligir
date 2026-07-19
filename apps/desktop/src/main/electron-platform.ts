@@ -15,7 +15,7 @@ import {
   type OpenDialogOptions,
 } from "electron";
 
-import type { HostNotification, HostPlatform } from "@repo/backend/server/platform";
+import type { HostNotification, HostPlatform } from "@repo/server/server/platform";
 
 declare const PROJECT_ROOT: string;
 

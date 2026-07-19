@@ -43,37 +43,37 @@ apps/            # shippable artifacts
   mobile/        # Expo companion (@repo/mobile) — sync + read + light-edit, no agent
   cloud/         # CF Worker (@repo/cloud) — /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
 packages/        # libraries — boundaries are PACKAGE facts (deps + exports maps)
-  domain/        # PURE platform-neutral domain (@repo/domain) — runs in Worker/RN/renderer:
+  notes/         # PURE platform-neutral domain (@repo/notes) — runs in Worker/RN/renderer:
                  #   sync/      — vault-sync engine + protocol (reconcile, wire, HttpSyncPort)
                  #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
   bridge/        # Iso wire contract (@repo/bridge) — Bridge/IPC registry, ws client +
-                 # protocol, shared schemas; loads in renderer/RN/node (deps: domain only)
-  cli-bootstrap/ # Generic CLI provisioning (@repo/cli-bootstrap) — checksum-verified
+                 # protocol, shared schemas; loads in renderer/RN/node (deps: notes only)
+  installer/     # Generic CLI provisioning (@repo/installer) — checksum-verified
                  # GitHub-release binary install, seeding, execFile runner; leaf, no deps
   agent/         # The pi capability (@repo/agent) — Agent lifecycle, extension bundles,
                  # setup/auth, faux provider, and pi/ (the harness quarantine: the ONLY
-                 # place @mariozechner/pi* may be imported). Backend injects AgentPorts.
-  backend/       # Node backend (@repo/backend) — vault, delegation, connectors, voice,
+                 # place @mariozechner/pi* may be imported). The server injects AgentPorts.
+  server/        # Node backend (@repo/server) — vault, delegation, connectors, voice,
                  # sync adapters, handlers, boot/ (createHost), HostPlatform. Exports are
                  # NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
-Dep DAG: domain, cli-bootstrap, ui are leaves; bridge→domain;
-agent→bridge+cli-bootstrap+domain; backend→agent+bridge+cli-bootstrap+domain.
-The renderer and mobile depend on @repo/bridge (+domain/ui) ONLY — never
-@repo/backend — so "no node in the UI's contract" is an unresolvable-import
+Dep DAG: notes, installer, ui are leaves; bridge→notes;
+agent→bridge+installer+notes; server→agent+bridge+installer+notes.
+The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
+@repo/server — so "no node in the UI's contract" is an unresolvable-import
 fact, not a lint opinion.
 
-`@repo/domain` is the sharing seam: no node/electron/react/workspace imports
+`@repo/notes` is the sharing seam: no node/electron/react/workspace imports
 (lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
-clock) — see `domain/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
+clock) — see `notes/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
 engine and knowledge/markdown code through thin adapters.
 
 The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
-`@repo/backend` host, communicating over a local WebSocket
+`@repo/server` host, communicating over a local WebSocket
 transport (one server, loopback by default). For UI work there is also a
 backend-free browser dev harness
 (`pnpm --filter @repo/desktop dev:harness`) that drives the real UI over an in-memory
@@ -126,14 +126,14 @@ Three processes: **main** (Electron), **preload**, **renderer**. The renderer
 with `createWsBridge`, installs the Bridge, and renders `App`. Renderer code
 is host-agnostic — it reaches the backend only through the injected Bridge
 (`@renderer/lib/bridge`), never electron/node/host (lint-enforced, and
-@repo/backend isn't even a renderer dep). `@repo/agent` never imports
-`@repo/backend` — a package fact (no dep edge); the host composes
+@repo/server isn't even a renderer dep). `@repo/agent` never imports
+`@repo/server` — a package fact (no dep edge); the host composes
 capabilities and hands the agent an injected `AgentPorts`
 (`{ executor, knowledge }`).
 
 ### Data model — the vault
 
-`packages/backend/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
+`packages/server/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
 listing** (a deliberate decision — PR #411, § Decisions): NO recursive watcher — the listing is a one-shot crawl
@@ -161,7 +161,7 @@ JSX, expressions, HTML comments) sends the file to Raw mode rather than being
 mangled. Files stay `.md`.
 
 The derived indexes (wiki/md link graph, backlinks, full-text search,
-wiki-target list) are `@repo/domain/knowledge/*` — pure, platform-neutral:
+wiki-target list) are `@repo/notes/knowledge/*` — pure, platform-neutral:
 `projectDoc()` is the ONE parse per doc, `LinkGraphIndex` resolves links over
 projections, and the SQL `KnowledgeStore` (schema + FTS5 bm25 search, written
 once in core over an injected `SqlDriver`) persists projections per vault in
@@ -169,7 +169,7 @@ once in core over an injected `SqlDriver`) persists projections per vault in
 truth — the DB is a wipe-and-rebuild CACHE (any corruption/version mismatch
 deletes and rebuilds; **nothing durable may ever live in index.sqlite** —
 durable state belongs in the `~/.inteligir` JsonStores).
-`packages/backend/src/server/knowledge/` is the node host shell: boot
+`packages/server/src/server/knowledge/` is the node host shell: boot
 hydrates the in-memory graph from persisted rows (no first-query full parse),
 an async time-budgeted reconcile diffs stat fingerprints (content hash is the
 write authority) from vault events, and renames rewrite `[[links]]` across
@@ -202,7 +202,7 @@ and full-text search live in the command palette.
   (full-width rows, depth as in-row padding, roving-tabindex keyboard nav —
   `sidebar/tree-navigation.ts`).
 - The markdown parse pipeline (remark-gfm + math + MDX vocabulary +
-  wiki-links + frontmatter) lives in `@repo/domain/markdown/*`;
+  wiki-links + frontmatter) lives in `@repo/notes/markdown/*`;
   `editor/markdown/` is the Plate-coupled byte-stability brain over it — the
   Slate↔mdast rules and the idempotent round-trip (bounded fixpoint). **Rich
   is the default surface**:
@@ -222,7 +222,7 @@ and full-text search live in the command palette.
   completions on a fast model, on by default (Settings › Editor AI opts out).
 - **File Properties**: a typed panel over YAML frontmatter, edited via the
   header's "Page details" popover (plus Raw mode) — the file is the ONLY
-  store (`@repo/domain/markdown/frontmatter` typing rules: true/false→checkbox,
+  store (`@repo/notes/markdown/frontmatter` typing rules: true/false→checkbox,
   yes/no stay text, dates only YYYY-MM-DD; unsupported/invalid YAML preserved
   byte-exactly). The page-title <h1> above the doc IS the filename — editing
   it renames the file. Pasting/dropping an image writes bytes to `assets/`
@@ -247,9 +247,9 @@ and full-text search live in the command palette.
   ("Open tasks view") over the projection's per-doc task extraction (every
   GFM `- [ ]` is a task; per-note `tasks: false` opts out). Scheduling is
   association — first date-shaped `[[link]]` in the item, else the note's
-  daily-note date — computed renderer-side via `@repo/domain/knowledge/task-schedule`.
+  daily-note date — computed renderer-side via `@repo/notes/knowledge/task-schedule`.
   Toggling goes through the guarded `toggleVaultTask` channel
-  (`@repo/domain/knowledge/guarded-line-edit`: ordinal-locate + raw-byte
+  (`@repo/notes/knowledge/guarded-line-edit`: ordinal-locate + raw-byte
   equality, refusal values kick an index self-heal); rows delegate through
   the same (sourceFile, ordinal) delegation store the editor uses.
 
@@ -268,7 +268,7 @@ variants). The injected-deps + broker contract is append-only. Vaults are
 single-user today; if sharing ever ships, foreign `.html` is untrusted code
 on open — re-audit the broker's capability set before that lands.
 
-### Delegation — `packages/backend/src/server/delegation/`
+### Delegation — `packages/server/src/server/delegation/`
 
 A checkbox's "Delegate" → `delegation-manager.ts` (versioned `JsonStore` +
 event-driven serialized queue) runs it on `background-agent.ts` (a second pi
@@ -279,13 +279,13 @@ via `./vault`, checks the box, and appends a result; completion kicks a vault
 refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
 
-### Vault sync — `@repo/domain/sync` + `apps/cloud` + platform adapters
+### Vault sync — `@repo/notes/sync` + `apps/cloud` + platform adapters
 
 **Off by default** (runtime `sync-config` store; Settings → Sync). One pure
-engine — `domain/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
+engine — `notes/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
 preserved as sibling copies, never lost) — with injected platform ports:
 desktop binds node crypto/VaultManager/JsonStore
-(`backend/src/server/sync/sync-manager.ts`, lifecycle in
+(`server/src/server/sync/sync-manager.ts`, lifecycle in
 `sync-coordinator.ts`), mobile binds expo-crypto/expo-file-system
 (`apps/mobile/src/lib/sync/`). The coordinator (`apps/cloud`) is ONE Worker:
 `/api/auth/*` = Better Auth (email+password, bearer tokens) over Drizzle + D1,
@@ -327,9 +327,9 @@ boundary for AI features, NOT a security boundary.
 `packages/bridge/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
-schema-validated handler map (`packages/backend/src/server/handlers/`) that the desktop
+schema-validated handler map (`packages/server/src/server/handlers/`) that the desktop
 shell serves over ONE local WebSocket server (`startWsHost`,
-`packages/backend/src/server/transport/ws-host.ts`); the renderer dials it with
+`packages/server/src/server/transport/ws-host.ts`); the renderer dials it with
 `createWsBridge` using the endpoint + per-boot token the bootstrap-only
 preload exposes as `window.bridgeBootstrap`. Add a channel = registry entry +
 host handler + one line in the dev-harness fixture Bridge
@@ -360,7 +360,7 @@ are deleted on purpose — this section + PRs are the record):
   belongs in the `~/.inteligir` JsonStores. Per-device, never synced.
 - **Frontmatter is the ONLY property store.** No metadata DB, ever. Typed
   properties parse/serialize against the file's own YAML
-  (`@repo/domain/markdown/frontmatter`); YAML the typing rules can't represent
+  (`@repo/notes/markdown/frontmatter`); YAML the typing rules can't represent
   is preserved byte-exactly, never coerced or dropped.
 - **Delete = OS trash.** User-initiated deletes (`deleteVaultEntry`: sidebar,
   header, HTML-app broker, conflict dismiss) move the file to the OS trash

@@ -5,7 +5,7 @@
 // store over the wasm driver (the module loads once, up front).
 import { describe, expect, it } from "vitest";
 
-import { createSqlKnowledgeStore } from "@repo/domain/knowledge/sql-knowledge-store";
+import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 
 import { createFixtureBridge } from "../../../dev/fixture-bridge";
 import { createWasmSqlDriver, loadSqlite3 } from "../../../dev/wasm-sql-driver";

@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 
 // ---------------------------------------------------------------------------
 // The coordinator (Cloudflare Worker) origin the sync client + Better Auth talk
-// to. There is no tRPC/API layer — sync is DIRECT over @repo/domain's HTTP wire
+// to. There is no tRPC/API layer — sync is DIRECT over @repo/notes's HTTP wire
 // contract — so this is the single backend origin.
 // ---------------------------------------------------------------------------
 

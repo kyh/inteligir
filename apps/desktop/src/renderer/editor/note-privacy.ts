@@ -11,7 +11,7 @@ import {
   privacyOfParsed,
   serializeProperties,
   withPrivateFlag,
-} from "@repo/domain/markdown/frontmatter";
+} from "@repo/notes/markdown/frontmatter";
 
 import {
   readFrontmatterRaw,

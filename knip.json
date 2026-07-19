@@ -45,17 +45,17 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
-    "packages/cli-bootstrap": {
+    "packages/installer": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
-    "packages/domain": {
+    "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
-    "packages/backend": {
+    "packages/server": {
       "entry": ["src/server/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false

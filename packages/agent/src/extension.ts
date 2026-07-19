@@ -9,8 +9,8 @@
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@repo/agent/pi/pi-types";
-import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
-import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
+import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
+import type { BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
 
 import { isRecord } from "@repo/bridge/wire-helpers";
 import type { NotePrivacyProbe, SetupProgress } from "@repo/bridge/ipc-registry";
@@ -18,7 +18,7 @@ import type { ExecutorExecuteResult } from "@repo/bridge/executor";
 
 // ---------------------------------------------------------------------------
 // Ports — host-owned capabilities handed to extensions at register/setup time.
-// agent/ never imports the rest of @repo/backend/server (lint-enforced);
+// agent/ never imports the rest of @repo/server/server (lint-enforced);
 // server/boot/agent-wiring.ts builds these (structural subsets of the host
 // singletons) and passes them down. The dependency direction stays one-way:
 // the host composes, agent receives.

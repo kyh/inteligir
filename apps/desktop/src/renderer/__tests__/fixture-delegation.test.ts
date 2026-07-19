@@ -6,7 +6,7 @@
 // record the way the host manager does (status "failed", error "Stopped.").
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { KnowledgeStore } from "@repo/domain/knowledge/knowledge-store";
+import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
 
 import { createFixtureBridge } from "../../../dev/fixture-bridge";
 

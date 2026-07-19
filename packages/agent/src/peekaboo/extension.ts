@@ -3,7 +3,7 @@
  * GUI control (screenshot, click, type, window/app/menu inspection).
  *
  * setup() downloads the universal macOS binary from openclaw/Peekaboo. The
- * generic installer in @repo/cli-bootstrap install.ts swallows install failures so
+ * generic installer in @repo/installer install.ts swallows install failures so
  * onboarding still succeeds offline; the tool below surfaces ENOENT on
  * first use if the binary is missing.
  *
@@ -15,8 +15,8 @@ import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import { installCliFromGithubRelease } from "@repo/cli-bootstrap/install";
-import { runCli } from "@repo/cli-bootstrap/run-cli";
+import { installCliFromGithubRelease } from "@repo/installer/install";
+import { runCli } from "@repo/installer/run-cli";
 
 import { inteligirPath } from "../paths";
 import type { PiExtensionBundle } from "../extension";

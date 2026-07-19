@@ -7,7 +7,7 @@
 // The generator does NOT aim to produce byte-canonical markdown (padding,
 // exact list markers, etc.) — `toCanonical` normalizes whatever it produces.
 // It only has to stay within the vocabulary the pipeline claims to handle
-// (see packages/domain/src/markdown/vocabulary.ts): no unknown JSX, no
+// (see packages/notes/src/markdown/vocabulary.ts): no unknown JSX, no
 // expressions, no ESM, no HTML comments.
 
 // Tiny seeded PRNG (mulberry32) — deterministic, no dependency.

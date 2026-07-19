@@ -1,6 +1,6 @@
-import type { VaultManifest } from "@repo/domain/sync/manifest";
-import type { DeleteResult, PutResult, VaultChange } from "@repo/domain/sync/sync-port";
-import { ABSENT_VERSION } from "@repo/domain/sync/vault-file";
+import type { VaultManifest } from "@repo/notes/sync/manifest";
+import type { DeleteResult, PutResult, VaultChange } from "@repo/notes/sync/sync-port";
+import { ABSENT_VERSION } from "@repo/notes/sync/vault-file";
 import {
   changesPath,
   filePath,
@@ -10,7 +10,7 @@ import {
   HEADER_CONTENT_HASH,
   HEADER_VERSION,
   manifestPath,
-} from "@repo/domain/sync/wire";
+} from "@repo/notes/sync/wire";
 import { SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { sha256Hex } from "../src/hash";

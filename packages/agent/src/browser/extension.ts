@@ -19,8 +19,8 @@ import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import { installCliFromGithubRelease } from "@repo/cli-bootstrap/install";
-import { runCli } from "@repo/cli-bootstrap/run-cli";
+import { installCliFromGithubRelease } from "@repo/installer/install";
+import { runCli } from "@repo/installer/run-cli";
 
 import { inteligirPath } from "../paths";
 import type { PiExtensionBundle } from "../extension";

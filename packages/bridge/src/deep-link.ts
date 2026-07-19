@@ -16,8 +16,8 @@
 // Anything else parses to null. Oversize input is REJECTED, never truncated.
 // ---------------------------------------------------------------------------
 
-import { extnamePath } from "@repo/domain/knowledge/vault-path";
-import { isDocPath } from "@repo/domain/knowledge/doc-file";
+import { extnamePath } from "@repo/notes/knowledge/vault-path";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 
 /** Whole-URL cap — anything longer is dropped unparsed. */
 export const MAX_DEEP_LINK_URL_LENGTH = 16_384;

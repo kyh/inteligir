@@ -7,7 +7,7 @@
 
 import { File, Paths } from "expo-file-system";
 
-import type { JsonFile } from "@repo/domain/sync/base-store";
+import type { JsonFile } from "@repo/notes/sync/base-store";
 
 /** The base-manifest filename under the app's document directory. */
 const BASE_FILE = "sync-base.json";

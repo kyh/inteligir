@@ -21,17 +21,17 @@ import type { Bridge, VaultEntry } from "@repo/bridge/ipc-registry";
 import type { RemoteAccessState } from "@repo/bridge/remote-access";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 import type { SyncSignInResult, SyncState } from "@repo/bridge/sync";
-import { isDocPath } from "@repo/domain/knowledge/doc-file";
-import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/domain/knowledge/guarded-line-edit";
-import { SEARCH_DEFAULT_LIMIT } from "@repo/domain/knowledge/knowledge-index";
-import type { KnowledgeStore } from "@repo/domain/knowledge/knowledge-store";
-import { scanTaskItems, titleFromPath } from "@repo/domain/knowledge/link-extract";
-import { LinkGraphIndex } from "@repo/domain/knowledge/link-graph-index";
-import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note-name";
-import { projectDoc } from "@repo/domain/knowledge/projection";
-import { computeRenameEdits } from "@repo/domain/knowledge/rename-links";
-import { addFrontmatterAlias, notePrivacy } from "@repo/domain/markdown/frontmatter";
-import { conflictCopyName, fsSafeStamp } from "@repo/domain/sync/reconcile";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
+import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
+import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
+import { scanTaskItems, titleFromPath } from "@repo/notes/knowledge/link-extract";
+import { LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
+import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
+import { projectDoc } from "@repo/notes/knowledge/projection";
+import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
+import { addFrontmatterAlias, notePrivacy } from "@repo/notes/markdown/frontmatter";
+import { conflictCopyName, fsSafeStamp } from "@repo/notes/sync/reconcile";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
 // note IS the canonical kitchen-sink fixture.

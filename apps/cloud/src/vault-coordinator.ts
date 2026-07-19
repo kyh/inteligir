@@ -1,6 +1,6 @@
-import type { VaultManifest } from "@repo/domain/sync/manifest";
-import type { DeleteResult, PutResult, VaultChange } from "@repo/domain/sync/sync-port";
-import { ABSENT_VERSION, type VaultFile, type VaultPath } from "@repo/domain/sync/vault-file";
+import type { VaultManifest } from "@repo/notes/sync/manifest";
+import type { DeleteResult, PutResult, VaultChange } from "@repo/notes/sync/sync-port";
+import { ABSENT_VERSION, type VaultFile, type VaultPath } from "@repo/notes/sync/vault-file";
 import {
   CONTENT_TYPE_OCTET_STREAM,
   CONTENT_TYPE_SSE,
@@ -10,7 +10,7 @@ import {
   HEADER_CONTENT_HASH,
   HEADER_VERSION,
   parseVersionHeader,
-} from "@repo/domain/sync/wire";
+} from "@repo/notes/sync/wire";
 import { DurableObject } from "cloudflare:workers";
 import { sha256Hex } from "./hash";
 import { matchRoute } from "./route";
@@ -19,7 +19,7 @@ import { matchRoute } from "./route";
 // VaultCoordinator — one Durable Object per vault, the source of truth for that
 // vault's file set. It owns the MANIFEST in DO SQLite storage (a `files` row per
 // path: version + contentHash + size) and a monotonic `generation` counter, and
-// implements the `SyncPort` semantics over the `@repo/domain/sync/wire` HTTP
+// implements the `SyncPort` semantics over the `@repo/notes/sync/wire` HTTP
 // routes. Raw file bytes live in R2 (`VAULT_FILES`, keyed `${vaultId}/${path}`);
 // the manifest here is authoritative for versions + hashes.
 //

@@ -12,7 +12,7 @@ const model = getModel(PROVIDER, MODEL_ID);
 if (!model) {
   console.error(`[verify] Model "${PROVIDER}/${MODEL_ID}" not found in pi-ai model registry.`);
   console.error(
-    `[verify] Either bump pi-ai to a version that ships this model, or update packages/backend/src/server/provider/provider-catalog.ts to a model that exists.`,
+    `[verify] Either bump pi-ai to a version that ships this model, or update packages/server/src/server/provider/provider-catalog.ts to a model that exists.`,
   );
   process.exit(1);
 }
