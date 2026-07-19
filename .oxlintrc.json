@@ -52,7 +52,7 @@
       }
     },
     {
-      "files": ["packages/domain/src/**"],
+      "files": ["packages/notes/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -79,7 +79,7 @@
                   "@repo/desktop",
                   "@repo/desktop/*"
                 ],
-                "message": "@repo/domain is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
+                "message": "@repo/notes is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
               }
             ]
           }

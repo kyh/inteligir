@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // node:sqlite binding for the shared SQL knowledge store. The schema, guards,
-// and every query live in @repo/domain (sql-knowledge-store.ts, driver-injected)
+// and every query live in @repo/notes (sql-knowledge-store.ts, driver-injected)
 // so the dev harness's wasm binding runs the identical engine; this module
 // only supplies the node byte-level driver and the per-vault cache location.
 //
@@ -20,11 +20,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 
-import type { KnowledgeStore } from "@repo/domain/knowledge/knowledge-store";
-import {
-  createSqlKnowledgeStore,
-  type SqlDriver,
-} from "@repo/domain/knowledge/sql-knowledge-store";
+import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
+import { createSqlKnowledgeStore, type SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
 
 import { inteligirPath, shortPathKey } from "../storage/json-store";
 

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// SyncIo adapter — the LOCAL vault access the @repo/domain `SyncEngine` reconciles
+// SyncIo adapter — the LOCAL vault access the @repo/notes `SyncEngine` reconciles
 // against. The engine's port is synchronous (list/read/write/remove), and Expo's
 // new File API exposes synchronous primitives (`bytesSync`/`write`/`list`), so
 // this adapter is a thin, PURE mapper over a minimal `VaultFs` port.
@@ -10,8 +10,8 @@
 // real vault files are listed — no derived/app state lives under the vault root.
 // ---------------------------------------------------------------------------
 
-import type { SyncIo } from "@repo/domain/sync/engine";
-import type { VaultPath } from "@repo/domain/sync/vault-file";
+import type { SyncIo } from "@repo/notes/sync/engine";
+import type { VaultPath } from "@repo/notes/sync/vault-file";
 
 /** One immediate child of a vault directory. */
 export type VaultEntry = {

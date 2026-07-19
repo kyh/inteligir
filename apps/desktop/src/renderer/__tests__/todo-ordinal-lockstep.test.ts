@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor, type TElement } from "platejs";
 
-import { scanTaskItems } from "@repo/domain/knowledge/link-extract";
+import { scanTaskItems } from "@repo/notes/knowledge/link-extract";
 
 import { BASE_KIT } from "@renderer/editor/kits/base-kit";
 import { parseMarkdown } from "@renderer/editor/markdown/markdown-doc";

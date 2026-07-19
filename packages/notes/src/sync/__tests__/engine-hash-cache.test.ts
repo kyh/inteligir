@@ -16,7 +16,7 @@ const STAMP = "2026-07-05T12-34-56-000Z";
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-// Web Crypto keeps @repo/domain node-free even in tests and matches the port fake.
+// Web Crypto keeps @repo/notes node-free even in tests and matches the port fake.
 function webCryptoHasher(): Hasher {
   return async (bytes) => {
     const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));

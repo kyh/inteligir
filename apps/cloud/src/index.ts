@@ -1,4 +1,4 @@
-import { HEADER_CONTENT_HASH, HEADER_VERSION } from "@repo/domain/sync/wire";
+import { HEADER_CONTENT_HASH, HEADER_VERSION } from "@repo/notes/sync/wire";
 import { eq } from "drizzle-orm";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleDesktopCallback, handleSessionExchange } from "./auth/desktop-session";
@@ -14,7 +14,7 @@ import { VaultCoordinator } from "./vault-coordinator";
 // ONE Worker serves two surfaces:
 //   • /api/auth/*  — Better Auth (email+password, bearer), running in-process
 //     over Drizzle + D1 (`createAuth(env).handler`).
-//   • /v1/vault/*  — the sync routes (`@repo/domain/sync/wire`), forwarded to the
+//   • /v1/vault/*  — the sync routes (`@repo/notes/sync/wire`), forwarded to the
 //     per-vault `VaultCoordinator` Durable Object after auth.
 //
 // AUTH. Clients send `Authorization: Bearer <session-token>` (the token comes

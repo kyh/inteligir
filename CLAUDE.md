@@ -43,7 +43,7 @@ apps/            # shippable artifacts
   mobile/        # Expo companion (@repo/mobile) — sync + read + light-edit, no agent
   cloud/         # CF Worker (@repo/cloud) — /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
 packages/        # libraries — boundaries are PACKAGE facts (deps + exports maps)
-  domain/        # PURE platform-neutral domain (@repo/domain) — runs in Worker/RN/renderer:
+  domain/        # PURE platform-neutral domain (@repo/notes) — runs in Worker/RN/renderer:
                  #   sync/      — vault-sync engine + protocol (reconcile, wire, HttpSyncPort)
                  #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
@@ -66,7 +66,7 @@ The renderer and mobile depend on @repo/bridge (+domain/ui) ONLY — never
 @repo/backend — so "no node in the UI's contract" is an unresolvable-import
 fact, not a lint opinion.
 
-`@repo/domain` is the sharing seam: no node/electron/react/workspace imports
+`@repo/notes` is the sharing seam: no node/electron/react/workspace imports
 (lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
 clock) — see `domain/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
 engine and knowledge/markdown code through thin adapters.
@@ -161,7 +161,7 @@ JSX, expressions, HTML comments) sends the file to Raw mode rather than being
 mangled. Files stay `.md`.
 
 The derived indexes (wiki/md link graph, backlinks, full-text search,
-wiki-target list) are `@repo/domain/knowledge/*` — pure, platform-neutral:
+wiki-target list) are `@repo/notes/knowledge/*` — pure, platform-neutral:
 `projectDoc()` is the ONE parse per doc, `LinkGraphIndex` resolves links over
 projections, and the SQL `KnowledgeStore` (schema + FTS5 bm25 search, written
 once in core over an injected `SqlDriver`) persists projections per vault in
@@ -202,7 +202,7 @@ and full-text search live in the command palette.
   (full-width rows, depth as in-row padding, roving-tabindex keyboard nav —
   `sidebar/tree-navigation.ts`).
 - The markdown parse pipeline (remark-gfm + math + MDX vocabulary +
-  wiki-links + frontmatter) lives in `@repo/domain/markdown/*`;
+  wiki-links + frontmatter) lives in `@repo/notes/markdown/*`;
   `editor/markdown/` is the Plate-coupled byte-stability brain over it — the
   Slate↔mdast rules and the idempotent round-trip (bounded fixpoint). **Rich
   is the default surface**:
@@ -222,7 +222,7 @@ and full-text search live in the command palette.
   completions on a fast model, on by default (Settings › Editor AI opts out).
 - **File Properties**: a typed panel over YAML frontmatter, edited via the
   header's "Page details" popover (plus Raw mode) — the file is the ONLY
-  store (`@repo/domain/markdown/frontmatter` typing rules: true/false→checkbox,
+  store (`@repo/notes/markdown/frontmatter` typing rules: true/false→checkbox,
   yes/no stay text, dates only YYYY-MM-DD; unsupported/invalid YAML preserved
   byte-exactly). The page-title <h1> above the doc IS the filename — editing
   it renames the file. Pasting/dropping an image writes bytes to `assets/`
@@ -247,9 +247,9 @@ and full-text search live in the command palette.
   ("Open tasks view") over the projection's per-doc task extraction (every
   GFM `- [ ]` is a task; per-note `tasks: false` opts out). Scheduling is
   association — first date-shaped `[[link]]` in the item, else the note's
-  daily-note date — computed renderer-side via `@repo/domain/knowledge/task-schedule`.
+  daily-note date — computed renderer-side via `@repo/notes/knowledge/task-schedule`.
   Toggling goes through the guarded `toggleVaultTask` channel
-  (`@repo/domain/knowledge/guarded-line-edit`: ordinal-locate + raw-byte
+  (`@repo/notes/knowledge/guarded-line-edit`: ordinal-locate + raw-byte
   equality, refusal values kick an index self-heal); rows delegate through
   the same (sourceFile, ordinal) delegation store the editor uses.
 
@@ -279,7 +279,7 @@ via `./vault`, checks the box, and appends a result; completion kicks a vault
 refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
 
-### Vault sync — `@repo/domain/sync` + `apps/cloud` + platform adapters
+### Vault sync — `@repo/notes/sync` + `apps/cloud` + platform adapters
 
 **Off by default** (runtime `sync-config` store; Settings → Sync). One pure
 engine — `domain/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
@@ -360,7 +360,7 @@ are deleted on purpose — this section + PRs are the record):
   belongs in the `~/.inteligir` JsonStores. Per-device, never synced.
 - **Frontmatter is the ONLY property store.** No metadata DB, ever. Typed
   properties parse/serialize against the file's own YAML
-  (`@repo/domain/markdown/frontmatter`); YAML the typing rules can't represent
+  (`@repo/notes/markdown/frontmatter`); YAML the typing rules can't represent
   is preserved byte-exactly, never coerced or dropped.
 - **Delete = OS trash.** User-initiated deletes (`deleteVaultEntry`: sidebar,
   header, HTML-app broker, conflict dismiss) move the file to the OS trash

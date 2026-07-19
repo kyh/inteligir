@@ -22,7 +22,7 @@
     "@repo/agent": "workspace:*",
     "@repo/bridge": "workspace:*",
     "@repo/cli-bootstrap": "workspace:*",
-    "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:",
     "ignore": "^7.0.5",

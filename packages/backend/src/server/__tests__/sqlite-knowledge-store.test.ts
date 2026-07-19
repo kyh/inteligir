@@ -11,8 +11,8 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import type { KnowledgeStore, StoredDocRow } from "@repo/domain/knowledge/knowledge-store";
-import { projectDoc } from "@repo/domain/knowledge/projection";
+import type { KnowledgeStore, StoredDocRow } from "@repo/notes/knowledge/knowledge-store";
+import { projectDoc } from "@repo/notes/knowledge/projection";
 
 import { createSqliteKnowledgeStore, indexDbPathFor } from "../knowledge/sqlite-knowledge-store";
 

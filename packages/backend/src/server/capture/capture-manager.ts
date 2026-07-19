@@ -33,8 +33,8 @@ import {
 import { emitEvent } from "../events";
 import { getUiState } from "../ui-state";
 import { getVaultManager } from "../vault/vault";
-import { titleFromPath } from "@repo/domain/knowledge/link-extract";
-import { dailyNotePath, formatIsoDate } from "@repo/domain/notes/daily-path";
+import { titleFromPath } from "@repo/notes/knowledge/link-extract";
+import { dailyNotePath, formatIsoDate } from "@repo/notes/notes/daily-path";
 import {
   DAILY_FOLDER_KEY,
   DAILY_FORMAT_KEY,

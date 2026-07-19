@@ -18,7 +18,7 @@
     "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
-    "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:"
   },

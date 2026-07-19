@@ -1,11 +1,11 @@
-import { API_VERSION, parseFilePathParam } from "@repo/domain/sync/wire";
-import type { VaultPath } from "@repo/domain/sync/vault-file";
+import { API_VERSION, parseFilePathParam } from "@repo/notes/sync/wire";
+import type { VaultPath } from "@repo/notes/sync/vault-file";
 
 // ---------------------------------------------------------------------------
 // Route matching for the vault-sync wire contract. Parses an incoming
 // `(method, pathname, search)` into a typed `RouteMatch` — the ADT the worker
 // (to pick the DO) and the DO (to dispatch) both switch over. Mirrors the route
-// table in `@repo/domain/sync/wire` (`SYNC_ROUTES`); it does NOT redefine it.
+// table in `@repo/notes/sync/wire` (`SYNC_ROUTES`); it does NOT redefine it.
 //
 //   GET    /v1/vault/:vaultId/manifest        -> manifest
 //   GET    /v1/vault/:vaultId/file?path=…      -> getFile

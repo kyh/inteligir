@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
-// Desktop sync adapters — the node platform bindings for @repo/domain's
+// Desktop sync adapters — the node platform bindings for @repo/notes's
 // SyncEngine. The vault-sync ENGINE (queue serialization, reconcile+execute,
 // base advancement, conflict copies) is platform-neutral and lives in
-// `@repo/domain/sync/engine`; the future Expo/React-Native app shares that same
+// `@repo/notes/sync/engine`; the future Expo/React-Native app shares that same
 // implementation. This module supplies the four node-specific ports the engine
 // needs and wires them together:
 //   - createNodeHasher    — node:crypto sha-256 (wrapped async)
@@ -25,22 +25,22 @@ import path from "node:path";
 
 import { inteligirPath, shortPathKey, type FsAdapter } from "../storage/json-store";
 import { getVaultManager, type VaultManager } from "../vault/vault";
-import type { SyncPort } from "@repo/domain/sync/sync-port";
+import type { SyncPort } from "@repo/notes/sync/sync-port";
 import {
   SyncEngine,
   type Clock,
   type Hasher,
   type SyncIo,
   type SyncOutcome,
-} from "@repo/domain/sync/engine";
+} from "@repo/notes/sync/engine";
 import {
   createJsonFileBaseStore,
   type BaseStore,
   type JsonFile,
-} from "@repo/domain/sync/base-store";
-import { isBlobFileName, type BaseBlobStore } from "@repo/domain/sync/blob-store";
-import type { Hash } from "@repo/domain/sync/vault-file";
-import { fsSafeStamp } from "@repo/domain/sync/reconcile";
+} from "@repo/notes/sync/base-store";
+import { isBlobFileName, type BaseBlobStore } from "@repo/notes/sync/blob-store";
+import type { Hash } from "@repo/notes/sync/vault-file";
+import { fsSafeStamp } from "@repo/notes/sync/reconcile";
 
 // ---------------------------------------------------------------------------
 // Hasher — node's synchronous sha-256, wrapped in the engine's async contract
@@ -53,7 +53,7 @@ export function createNodeHasher(): Hasher {
 
 // ---------------------------------------------------------------------------
 // Clock — a filesystem-safe conflict-copy timestamp (no `:`/`.` — Windows/exFAT
-// reject `:`). @repo/domain stays clock-free; the desktop supplies this.
+// reject `:`). @repo/notes stays clock-free; the desktop supplies this.
 // ---------------------------------------------------------------------------
 
 export function nodeStamp(now: () => Date = () => new Date()): Clock {

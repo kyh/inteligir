@@ -10,8 +10,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { KnowledgeIndex } from "@repo/domain/knowledge/knowledge-index";
-import { notePrivacy } from "@repo/domain/markdown/frontmatter";
+import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
+import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import knowledgeExtension from "@repo/agent/knowledge-tools/extension";
 import { buildAgentKnowledgePort } from "../boot/agent-knowledge-port";

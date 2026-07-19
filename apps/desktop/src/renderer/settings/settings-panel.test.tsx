@@ -26,7 +26,7 @@ vi.stubGlobal(
 );
 
 import type { Bridge } from "@repo/bridge/ipc-registry";
-import { createSqlKnowledgeStore } from "@repo/domain/knowledge/sql-knowledge-store";
+import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import { createFixtureBridge } from "../../../dev/fixture-bridge";
 import { createWasmSqlDriver, loadSqlite3 } from "../../../dev/wasm-sql-driver";

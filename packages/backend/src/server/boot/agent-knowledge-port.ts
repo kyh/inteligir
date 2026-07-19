@@ -29,11 +29,11 @@
 // results and asserts the private note never appears.
 // ---------------------------------------------------------------------------
 
-import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
-import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
-import type { PrivacyOpts } from "@repo/domain/knowledge/link-graph-index";
-import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note-name";
-import { basenamePath } from "@repo/domain/knowledge/vault-path";
+import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
+import type { BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import type { PrivacyOpts } from "@repo/notes/knowledge/link-graph-index";
+import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
+import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import type { KnowledgePort, PrivacyProbe, RenameNoteResult } from "@repo/agent/extension";

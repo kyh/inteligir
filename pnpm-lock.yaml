@@ -175,9 +175,9 @@ importers:
 
   apps/cloud:
     dependencies:
-      '@repo/domain':
+      '@repo/notes':
         specifier: workspace:*
-        version: link:../../packages/domain
+        version: link:../../packages/notes
       better-auth:
         specifier: 'catalog:'
         version: 1.6.23(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.168.27(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(kysely@0.29.3)(sql.js@1.14.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0)))
@@ -275,9 +275,9 @@ importers:
       '@repo/bridge':
         specifier: workspace:^
         version: link:../../packages/bridge
-      '@repo/domain':
+      '@repo/notes':
         specifier: workspace:^
-        version: link:../../packages/domain
+        version: link:../../packages/notes
       '@repo/ui':
         specifier: workspace:^
         version: link:../../packages/ui
@@ -439,9 +439,9 @@ importers:
       '@repo/bridge':
         specifier: workspace:*
         version: link:../../packages/bridge
-      '@repo/domain':
+      '@repo/notes':
         specifier: workspace:*
-        version: link:../../packages/domain
+        version: link:../../packages/notes
       better-auth:
         specifier: 'catalog:'
         version: 1.6.23(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.168.27(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(kysely@0.29.3)(sql.js@1.14.1))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0)))
@@ -603,9 +603,9 @@ importers:
       '@repo/cli-bootstrap':
         specifier: workspace:*
         version: link:../cli-bootstrap
-      '@repo/domain':
+      '@repo/notes':
         specifier: workspace:*
-        version: link:../domain
+        version: link:../notes
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.50
@@ -634,9 +634,9 @@ importers:
       '@repo/cli-bootstrap':
         specifier: workspace:*
         version: link:../cli-bootstrap
-      '@repo/domain':
+      '@repo/notes':
         specifier: workspace:*
-        version: link:../domain
+        version: link:../notes
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.50
@@ -695,9 +695,9 @@ importers:
 
   packages/bridge:
     dependencies:
-      '@repo/domain':
+      '@repo/notes':
         specifier: workspace:*
-        version: link:../domain
+        version: link:../notes
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.50
@@ -721,7 +721,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@29.1.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.0)(yaml@2.9.0))
 
-  packages/domain:
+  packages/notes:
     dependencies:
       mdast-util-gfm-task-list-item:
         specifier: ^2.0.0

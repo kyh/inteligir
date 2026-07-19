@@ -29,8 +29,8 @@ import {
   serializeMd,
 } from "@platejs/markdown";
 
-import { MD_STRINGIFY } from "@repo/domain/markdown/md-plugins";
-import type { WikiEmbed, WikiLink } from "@repo/domain/markdown/remark-wiki-link";
+import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
 // delegates every non-alert blockquote to the stock path, and the table rule

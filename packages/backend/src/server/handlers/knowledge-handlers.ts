@@ -1,4 +1,4 @@
-import { toggleTaskAtOrdinal } from "@repo/domain/knowledge/guarded-line-edit";
+import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { ToggleTaskResult } from "@repo/bridge/ipc-registry";
 

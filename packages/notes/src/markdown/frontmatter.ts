@@ -8,7 +8,7 @@
 // body verbatim — no markdown reparse, no byte surgery on the body.
 //
 // Platform-neutral (pure `yaml`, no node/dom), so it runs in the renderer,
-// worker, or RN like the rest of @repo/domain.
+// worker, or RN like the rest of @repo/notes.
 // ---------------------------------------------------------------------------
 
 import {

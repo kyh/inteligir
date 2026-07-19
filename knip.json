@@ -50,7 +50,7 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
-    "packages/domain": {
+    "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false

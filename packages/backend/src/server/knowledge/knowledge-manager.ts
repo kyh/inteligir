@@ -21,7 +21,7 @@
 
 import crypto from "node:crypto";
 
-import { SEARCH_DEFAULT_LIMIT, type SearchResult } from "@repo/domain/knowledge/knowledge-index";
+import { SEARCH_DEFAULT_LIMIT, type SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import {
   LinkGraphIndex,
   type BacklinkEntry,
@@ -30,10 +30,10 @@ import {
   type PrivacyOpts,
   type VaultTaskEntry,
   type WikiTarget,
-} from "@repo/domain/knowledge/link-graph-index";
-import type { TagCount } from "@repo/domain/knowledge/tag-index";
-import type { KnowledgeStore, StoredFingerprint } from "@repo/domain/knowledge/knowledge-store";
-import { projectDoc, type DocProjection } from "@repo/domain/knowledge/projection";
+} from "@repo/notes/knowledge/link-graph-index";
+import type { TagCount } from "@repo/notes/knowledge/tag-index";
+import type { KnowledgeStore, StoredFingerprint } from "@repo/notes/knowledge/knowledge-store";
+import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
 
 import { emitEvent } from "../events";
 import { getVaultManager, type VaultManager } from "../vault/vault";

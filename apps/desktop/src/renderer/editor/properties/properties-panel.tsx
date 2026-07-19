@@ -18,7 +18,7 @@ import {
   parseProperties,
   serializeProperties,
   typeNewProperty,
-} from "@repo/domain/markdown/frontmatter";
+} from "@repo/notes/markdown/frontmatter";
 import { Input } from "@repo/ui/components/input";
 
 import {

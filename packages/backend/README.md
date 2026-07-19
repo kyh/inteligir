@@ -2,7 +2,7 @@
 
 The node host behind `createHost()`: vault, delegation, connectors daemon, voice, sync adapters, the knowledge host shell, the ws transport, and the `boot/` composition root that wires `@repo/agent` capabilities in. See [`src/server/README.md`](./src/server/README.md).
 
-The isomorphic wire contract (Bridge/IPC registry, ws client + protocol, shared schemas) lives in `@repo/bridge`; the pure domain (knowledge, markdown, sync engine) in `@repo/domain`; the pi capability in `@repo/agent`; generic CLI provisioning in `@repo/cli-bootstrap`.
+The isomorphic wire contract (Bridge/IPC registry, ws client + protocol, shared schemas) lives in `@repo/bridge`; the pure domain (knowledge, markdown, sync engine) in `@repo/notes`; the pi capability in `@repo/agent`; generic CLI provisioning in `@repo/cli-bootstrap`.
 
 No barrel; **exports are narrow on purpose** — the package.json `exports` map lists exactly the entrypoints the desktop main process composes (`server/boot/create-host`, `server/transport/ws-host`, `server/transport/remote-access-manager`, `server/capture/deep-link-service`, `server/platform`, `server/vault/vault`, `server/knowledge/sqlite-knowledge-store`). Everything else is package-private; widening the surface is a conscious exports-map change, not a driveby deep import.
 

@@ -47,7 +47,7 @@
     "@platejs/toggle": "^53.0.0",
     "@repo/backend": "workspace:^",
     "@repo/bridge": "workspace:^",
-    "@repo/domain": "workspace:^",
+    "@repo/notes": "workspace:^",
     "@repo/ui": "workspace:^",
     "@sinclair/typebox": "catalog:",
     "@streamdown/cjk": "^1.0.3",

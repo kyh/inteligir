@@ -16,7 +16,7 @@ const TOKEN = "secret-token";
 
 // A deterministic, valid-shaped (64 lowercase hex) content hash. HttpSyncPort
 // only checks `isValidHash` and round-trips the value verbatim, so a real sha256
-// is unneeded here — keeping @repo/domain node-free even in tests.
+// is unneeded here — keeping @repo/notes node-free even in tests.
 function sha256Hex(text: string): string {
   let hash = 0;
   for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;

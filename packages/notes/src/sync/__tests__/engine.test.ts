@@ -15,7 +15,7 @@ const STAMP = FIXED_ISO.replaceAll(":", "-").replace(".", "-");
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-// Web Crypto (the WebWorker-lib global) keeps @repo/domain node-free even in
+// Web Crypto (the WebWorker-lib global) keeps @repo/notes node-free even in
 // tests, and is the exact async digest the mobile client will inject. It must
 // match the coordinator fake's hasher so equal bytes hash equal.
 function webCryptoHasher(): Hasher {

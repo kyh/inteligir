@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // SyncEngine — the platform-neutral vault-sync engine. It reconciles a LOCAL
-// vault against a remote `SyncPort` using @repo/domain's pure 3-way merge and
+// vault against a remote `SyncPort` using @repo/notes's pure 3-way merge and
 // executes the resulting plan (push/pull/delete/conflict-copy), advancing a
 // persisted last-synced BASE manifest as the anchor.
 //
-// Purity split (mirrors the rest of @repo/domain): `reconcile` decides WHAT to do
+// Purity split (mirrors the rest of @repo/notes): `reconcile` decides WHAT to do
 // from three manifests and reads no clock, does no I/O, hashes nothing. This
 // engine supplies all of that through INJECTED platform ports, so ONE
 // implementation serves node (desktop) and React Native (mobile) alike:
@@ -64,7 +64,7 @@ export type Hasher = (bytes: Uint8Array) => Promise<string>;
 
 /**
  * A filesystem-safe timestamp for a conflict-copy name (no `:` — Windows/exFAT
- * reject it). @repo/domain stays clock-free; the platform adapter supplies this.
+ * reject it). @repo/notes stays clock-free; the platform adapter supplies this.
  */
 export type Clock = () => string;
 

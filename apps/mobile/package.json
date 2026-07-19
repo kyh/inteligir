@@ -14,7 +14,7 @@
     "@better-auth/expo": "catalog:",
     "@expo/metro-runtime": "catalog:",
     "@repo/bridge": "workspace:*",
-    "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
     "better-auth": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",

@@ -13,7 +13,7 @@ import { MD_STRINGIFY } from "@renderer/editor/markdown/markdown-doc";
 import { insertWikiChipFromPicker } from "@renderer/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@renderer/editor/wiki-input-key";
 import { composeWikiBody, wikiBodyForPath } from "@renderer/editor/wiki-target";
-import { buildResolver } from "@repo/domain/knowledge/link-resolve";
+import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 
 function makeEditor(text: string) {
   return createSlateEditor({

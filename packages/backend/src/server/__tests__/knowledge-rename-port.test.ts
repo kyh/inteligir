@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { notePrivacy } from "@repo/domain/markdown/frontmatter";
+import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import { buildAgentKnowledgePort } from "../boot/agent-knowledge-port";
 import { VaultManager } from "../vault/vault";

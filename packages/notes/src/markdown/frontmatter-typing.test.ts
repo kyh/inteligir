@@ -4,7 +4,7 @@ import {
   type TypedProperty,
   parseProperties,
   serializeProperties,
-} from "@repo/domain/markdown/frontmatter";
+} from "@repo/notes/markdown/frontmatter";
 
 // Every frontmatter typing rule (CLAUDE.md § Decisions: the markdown file is
 // the ONLY property store), exhaustively. The rules

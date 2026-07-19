@@ -3,7 +3,7 @@
 // folders that expand. Pure + deterministic so it can be unit-tested and so the
 // sidebar re-renders identically for the same listing.
 
-import { basenamePath } from "@repo/domain/knowledge/vault-path";
+import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
 
 export type VaultTreeNode =

@@ -1,7 +1,7 @@
-// Adapter-only tests for the node platform bindings of @repo/domain's SyncEngine.
-// The heavy reconcile+execute orchestration is tested in @repo/domain
+// Adapter-only tests for the node platform bindings of @repo/notes's SyncEngine.
+// The heavy reconcile+execute orchestration is tested in @repo/notes
 // (src/sync/__tests__/engine.test.ts); the base store's own load/save/corrupt
-// contract is tested in @repo/domain (src/sync/__tests__/base-store.test.ts);
+// contract is tested in @repo/notes (src/sync/__tests__/base-store.test.ts);
 // here we only pin the node-specific ports: the fs-backed JsonFile the base
 // store wraps, the VaultManager→SyncIo adapter, the filesystem-safe clock,
 // and the node-crypto hasher.
@@ -19,7 +19,7 @@ import {
   nodeStamp,
 } from "../sync-manager";
 import { VaultManager } from "../../vault/vault";
-import type { VaultManifest } from "@repo/domain/sync/manifest";
+import type { VaultManifest } from "@repo/notes/sync/manifest";
 
 const VAULT_ID = "vault-1";
 

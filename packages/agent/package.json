@@ -30,7 +30,7 @@
     "@mariozechner/pi-coding-agent": "^0.73.1",
     "@repo/bridge": "workspace:*",
     "@repo/cli-bootstrap": "workspace:*",
-    "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "open": "^11.0.0"
   },

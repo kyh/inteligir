@@ -7,7 +7,7 @@ import { MarkdownPlugin, serializeMd } from "@platejs/markdown";
 import { shouldSerializeNode } from "@renderer/editor/ai/transient";
 import { BASE_KIT } from "@renderer/editor/kits/base-kit";
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
-import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/domain/markdown/md-plugins";
+import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { MD_RULES } from "@renderer/editor/markdown/md-rules";
 import { parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
 

@@ -17,10 +17,10 @@ import { emitEvent } from "../events";
 import { getVaultManager } from "../vault/vault";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
 import { createNodeHasher, createSyncManager } from "./sync-manager";
-import { createHttpSyncPort } from "@repo/domain/sync/http-sync-port";
-import { isConflictCopyPath } from "@repo/domain/sync/reconcile";
-import { statusFromOutcome, type SyncStatus } from "@repo/domain/sync/status";
-import type { SyncEngine, SyncOutcome } from "@repo/domain/sync/engine";
+import { createHttpSyncPort } from "@repo/notes/sync/http-sync-port";
+import { isConflictCopyPath } from "@repo/notes/sync/reconcile";
+import { statusFromOutcome, type SyncStatus } from "@repo/notes/sync/status";
+import type { SyncEngine, SyncOutcome } from "@repo/notes/sync/engine";
 import type {
   AccountCapabilities,
   SyncConflict,

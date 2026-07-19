@@ -1,6 +1,6 @@
 # @repo/cloud — vault-sync backend (Cloudflare Worker)
 
-A Worker that implements the vault-sync protocol from `@repo/domain/sync/*` over
+A Worker that implements the vault-sync protocol from `@repo/notes/sync/*` over
 **R2** (file bytes) + a **Durable Object** (per-vault source of truth), with
 authentication served in-process by **Better Auth** over **D1**.
 
@@ -13,7 +13,7 @@ apps/cloud/
   src/
     index.ts              # Worker entry: /api/auth/* (Better Auth) + /v1/vault/* (sync) + CORS
     vault-coordinator.ts  # Durable Object: owns the manifest + versions + SSE + R2 writes
-    route.ts              # matchRoute(): parse the @repo/domain/sync/wire routes into an ADT
+    route.ts              # matchRoute(): parse the @repo/notes/sync/wire routes into an ADT
     hash.ts               # sha256Hex() — server-authoritative content hashing
     env.d.ts              # types the runtime secrets (BETTER_AUTH_SECRET, OAuth) onto Env
     auth/auth.ts          # createAuth(env, baseURL): per-request Better Auth (Drizzle+D1, bearer)

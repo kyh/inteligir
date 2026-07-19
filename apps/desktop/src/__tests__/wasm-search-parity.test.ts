@@ -4,15 +4,15 @@
 // node:sqlite store (what desktop runs) and through core's SQL store over the
 // wasm driver (what the harness runs), and require identical FTS5 bm25
 // result ORDER for a battery of queries. Both bindings execute the one shared
-// schema + SEARCH_SQL in @repo/domain/knowledge/sql-knowledge-store.ts — this
+// schema + SEARCH_SQL in @repo/notes/knowledge/sql-knowledge-store.ts — this
 // test pins that the byte-level drivers cannot make them diverge.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
 
-import type { KnowledgeStore } from "@repo/domain/knowledge/knowledge-store";
-import { projectDoc } from "@repo/domain/knowledge/projection";
-import { createSqlKnowledgeStore } from "@repo/domain/knowledge/sql-knowledge-store";
+import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
+import { projectDoc } from "@repo/notes/knowledge/projection";
+import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { createSqliteKnowledgeStore } from "@repo/backend/server/knowledge/sqlite-knowledge-store";
 
 import { SAMPLE_NOTES } from "../../dev/fixture-bridge";

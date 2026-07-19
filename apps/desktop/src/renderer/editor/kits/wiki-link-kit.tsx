@@ -1,6 +1,6 @@
 // Wiki-link kit: inline-void nodes for [[target]] / [[target|alias]] /
 // ![[embed]]. Node shape: { type, body, children:[{text:""}] } with `body`
-// verbatim (round-trip contract lives in @repo/domain/markdown/remark-wiki-link).
+// verbatim (round-trip contract lives in @repo/notes/markdown/remark-wiki-link).
 // The React half renders navigating chips (wiki-chip.tsx) and transclusion
 // cards (transclusion.tsx) — both behind React.lazy, because they reach into
 // vault-context and an eager import from this file (which base-kit composes)
@@ -14,7 +14,7 @@ import { KEYS, NodeApi, TextApi, createSlatePlugin, type SlateEditor } from "pla
 import { PlateElement, type PlateElementProps } from "platejs/react";
 
 import { insertVoidAndEscape } from "@renderer/editor/insert-void";
-import { parseWikiBody } from "@repo/domain/markdown/remark-wiki-link";
+import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const WikiChip = lazy(() => import("@renderer/editor/wiki-chip"));
 const Transclusion = lazy(() => import("@renderer/editor/transclusion"));

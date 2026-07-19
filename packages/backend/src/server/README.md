@@ -65,7 +65,7 @@ Domain-grouped under `handlers/` (one file per domain, composed by `handlers/reg
 ## Other modules
 
 - `vault/vault.ts` — the user's markdown vault (folder of files, watcher, `./vault` agent symlink).
-- `knowledge/` — `knowledge-manager.ts` runs the pure engine from `@repo/domain/knowledge` over vault events (incremental link graph, backlinks, lexical search); `rename-rewrite.ts` applies byte-surgical `[[link]]` rewrites across the vault on rename.
+- `knowledge/` — `knowledge-manager.ts` runs the pure engine from `@repo/notes/knowledge` over vault events (incremental link graph, backlinks, lexical search); `rename-rewrite.ts` applies byte-surgical `[[link]]` rewrites across the vault on rename.
 - `app/agent-gateway.ts` — the single entry point for interactive agent commands (a thin typed pass-through to the live agent).
 - `app/inline-ai.ts` + `app/ghost-text.ts` — the editor-AI backends: intent classification/generation on a no-tools pi session, and ephemeral ghost-text completions on a fast model.
 - `delegation/` — checkbox delegation: a versioned store + serialized queue (`delegation-manager.ts`) running tasks on a dedicated `background-agent.ts`; the target file is snapshotted before dispatch (newest 50 kept) so "Restore original" undoes an agent edit byte-exactly; `find-task-line.ts` is the pure checkbox locator.

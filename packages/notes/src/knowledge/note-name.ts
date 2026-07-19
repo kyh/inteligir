@@ -12,7 +12,7 @@
 //
 // The reject-set targets the strictest common filesystems (NTFS + APFS +
 // sync/export targets) and is FROZEN by the golden corpus in
-// packages/domain/src/__tests__/note-name.test.ts — changing a verdict there is
+// packages/notes/src/__tests__/note-name.test.ts — changing a verdict there is
 // a deliberate breaking-change gate, not a refactor detail.
 //
 // Platform-neutral: runs in the renderer (instant feedback) and the host

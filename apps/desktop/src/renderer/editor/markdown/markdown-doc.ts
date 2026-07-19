@@ -15,9 +15,9 @@
 import { type Descendant, type Value, createSlateEditor } from "platejs";
 import { getMergedOptionsDeserialize, mdastToSlate, serializeMd } from "@platejs/markdown";
 
-import { MD_STRINGIFY } from "@repo/domain/markdown/md-plugins";
-import { parseMdast } from "@repo/domain/markdown/parse";
-import { type RawReason, scanVocabulary } from "@repo/domain/markdown/vocabulary";
+import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import { parseMdast } from "@repo/notes/markdown/parse";
+import { type RawReason, scanVocabulary } from "@repo/notes/markdown/vocabulary";
 
 import { BASE_KIT } from "@renderer/editor/kits/base-kit";
 
