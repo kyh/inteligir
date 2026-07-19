@@ -56,6 +56,13 @@ export const SyncSocialSignInSchema = Type.Object(
   { additionalProperties: false },
 );
 
+/** Password-reset REQUEST (#463): asks the coordinator to email a reset link.
+ * The outcome is deliberately existence-blind — see the registry entry. */
+export const SyncRequestPasswordResetSchema = Type.Object(
+  { email: Type.String({ minLength: 1 }) },
+  { additionalProperties: false },
+);
+
 // ---------------------------------------------------------------------------
 // Result / event shapes (host → renderer).
 // ---------------------------------------------------------------------------

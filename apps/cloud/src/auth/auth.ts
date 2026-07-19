@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins";
 import { createDb } from "../db/client";
+import { sendResetEmail } from "./reset-email";
 
 // ---------------------------------------------------------------------------
 // Better Auth instance — constructed PER REQUEST because its database (D1) is a
@@ -79,7 +80,18 @@ export function createAuth(env: Env, baseURL: string) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL,
     plugins: [bearer()],
-    emailAndPassword: { enabled: true },
+    emailAndPassword: {
+      enabled: true,
+      // Password reset (#463): Better Auth mints the token + URL and calls
+      // this to deliver it (Cloudflare Email Sending; absorbs its own
+      // failures — see reset-email.ts). The desktop requests with
+      // `redirectTo: "/auth/reset"`, so the URL's GET leg redirects to the
+      // Worker-hosted reset page (see ./reset-page.ts) with `?token=`.
+      sendResetPassword: ({ user, url }) => sendResetEmail(env, user.email, url),
+      // A reset is usually "I lost control of this account" recovery — kill
+      // every other live session so a possibly-stolen bearer dies with it.
+      revokeSessionsOnPasswordReset: true,
+    },
     // Persist rate-limit counters in D1. The default in-memory store keeps
     // per-isolate counters, so across Workers isolates the effective limit
     // multiplies and resets whenever an isolate recycles. 10 requests/60s per IP

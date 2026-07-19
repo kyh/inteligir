@@ -80,13 +80,17 @@ describe("SyncAccount session", () => {
     expect(result).toEqual({ ok: false, error: "Set a coordinator URL first." });
   });
 
-  it("refuses sign-up and social sign-in with no coordinator URL", async () => {
+  it("refuses sign-up, social sign-in, and reset requests with no coordinator URL", async () => {
     const account = accountAt(tmp);
     expect(await account.signUp("a@b.c", "pw")).toEqual({
       ok: false,
       error: "Set a coordinator URL first.",
     });
     expect(await account.socialSignIn("github")).toEqual({
+      ok: false,
+      error: "Set a coordinator URL first.",
+    });
+    expect(await account.requestPasswordReset("a@b.c")).toEqual({
       ok: false,
       error: "Set a coordinator URL first.",
     });
@@ -135,6 +139,47 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
     // Initiation only: the session lands in the browser; this device stays
     // signed out until Phase 4's deep-link callback captures it.
     expect(account.getToken()).toBeNull();
+  });
+
+  it("requestPasswordReset hits the coordinator's reset endpoint and stays NEUTRAL", async () => {
+    const calls: { url: string; body: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: { body?: unknown }) => {
+        calls.push({ url: String(url), body: typeof init?.body === "string" ? init.body : "" });
+        // The coordinator's answer is identical for known and unknown emails —
+        // this stub IS that neutral 200.
+        return Response.json({
+          status: true,
+          message: "If this email exists in our system, check your email for the reset link",
+        });
+      }),
+    );
+    const account = accountAt(tmp);
+    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    const result = await account.requestPasswordReset("who@example.com");
+    // ok = request accepted, NEVER "that email exists": the renderer shows its
+    // own fixed neutral copy, and nothing server-side reaches the UI.
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([
+      {
+        url: "https://sync.example/api/auth/request-password-reset",
+        // redirectTo is the coordinator's own Worker-hosted reset page.
+        body: JSON.stringify({ email: "who@example.com", redirectTo: "/auth/reset" }),
+      },
+    ]);
+    // No auth state changes until the user signs in with the new password.
+    expect(account.getToken()).toBeNull();
+
+    // Transport failures surface as values (and reveal nothing about accounts).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network down");
+      }),
+    );
+    const failed = await account.requestPasswordReset("who@example.com");
+    expect(failed.ok).toBe(false);
   });
 
   it("getCapabilities parses the coordinator's social list and fails soft", async () => {

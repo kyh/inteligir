@@ -2,6 +2,7 @@ import { HEADER_CONTENT_HASH, HEADER_VERSION } from "@repo/domain/sync/wire";
 import { eq } from "drizzle-orm";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleDesktopCallback, handleSessionExchange } from "./auth/desktop-session";
+import { handleResetPage } from "./auth/reset-page";
 import { createDb } from "./db/client";
 import { vaultOwner } from "./db/schema";
 import { matchRoute } from "./route";
@@ -86,6 +87,13 @@ export default {
     // match whatever host served the request (localhost/preview/prod).
     if (url.pathname.startsWith("/api/auth/")) {
       return withCors(request, await createAuth(env, url.origin).handler(request));
+    }
+
+    // Password-reset page (#463): where the email link's GET leg redirects
+    // with `?token=` (or `?error=`). Static + no-store; the page submits to
+    // Better Auth's POST /api/auth/reset-password on this same origin.
+    if (request.method === "GET" && url.pathname === "/auth/reset") {
+      return withCors(request, handleResetPage());
     }
 
     // Capability discovery — which social providers this deployment serves,

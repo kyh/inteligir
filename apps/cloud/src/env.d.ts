@@ -16,6 +16,12 @@ interface Env {
   readonly GOOGLE_CLIENT_ID?: string;
   readonly GOOGLE_CLIENT_SECRET?: string;
   /**
+   * Password-reset sender address (must belong to a domain the owner onboarded
+   * with `wrangler email sending enable`). Optional var — defaults to
+   * no-reply@inteligir.app; set it to match a differently-named verified domain.
+   */
+  readonly RESET_FROM_ADDRESS?: string;
+  /**
    * Set to "true" ONLY in tests to disable auth rate limiting: the in-process
    * test Worker serves every request from one IP, so a suite that signs up
    * several users would otherwise trip the limiter. Unset in dev/prod → enabled.

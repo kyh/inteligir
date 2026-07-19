@@ -247,6 +247,33 @@ export class SyncAccount {
     }
   }
 
+  /** Ask the coordinator to email a password-reset link (#463). NEUTRAL by
+   * contract (see the registry entry): the coordinator 200s identically for
+   * known and unknown emails — with timing-attack mitigation server-side —
+   * so `ok` never confirms an account exists. `redirectTo: "/auth/reset"` is
+   * the coordinator's own Worker-hosted reset page (a RELATIVE path, resolved
+   * against the coordinator origin — always a trusted redirect target, same
+   * pattern as the social flow's callbackPath above): the emailed link's GET
+   * leg validates the token, then lands there with `?token=`. */
+  async requestPasswordReset(email: string): Promise<SyncSignInResult> {
+    const session = this.tokenCapturingClient();
+    if (session === null) return { ok: false, error: "Set a coordinator URL first." };
+    try {
+      const result = await session.client.requestPasswordReset({
+        email,
+        redirectTo: "/auth/reset",
+      });
+      if (result.error) {
+        // Transport/config failures only (rate limit, reset not configured) —
+        // the coordinator never errors on an unknown email.
+        return { ok: false, error: result.error.message ?? "Password-reset request failed." };
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: toErrorMessage(err) };
+    }
+  }
+
   /** INITIATE a social OAuth sign-in: ask the coordinator for the provider's
    * authorization URL and open it in the system browser. Success here means
    * "browser opened", not "signed in" — the round-trip completes when the

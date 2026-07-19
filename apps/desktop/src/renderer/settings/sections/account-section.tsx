@@ -33,9 +33,11 @@ export function AccountSection() {
   const [urlInput, setUrlInput] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [mode, setMode] = useState<"sign-in" | "sign-up" | "reset">("sign-in");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Non-error outcome copy (the reset flow's neutral confirmation). */
+  const [notice, setNotice] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<AccountCapabilities | null>(null);
   /** Provider of the in-flight social sign-in ("finish in your browser…"),
    * null when none. Resolves on onSocialSignInResult / sign-in / timeout. */
@@ -135,6 +137,40 @@ export function AccountSection() {
     );
   }, [mode, email, password, urlInput, coordinatorUrl, runAuth]);
 
+  /** Switch between sign-in / sign-up / forgot-password, clearing outcome
+   * copy so a stale error or confirmation never bleeds across modes. */
+  const switchMode = useCallback((next: "sign-in" | "sign-up" | "reset") => {
+    setMode(next);
+    setError(null);
+    setNotice(null);
+  }, []);
+
+  const handleRequestReset = useCallback(async () => {
+    const bridge = getBridge();
+    // Persist any pending URL edit first so the request hits the right coordinator.
+    if (urlInput.trim() !== coordinatorUrl) {
+      setState(await bridge.setSyncConfig({ coordinatorUrl: urlInput.trim() }));
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await bridge.syncRequestPasswordReset({ email });
+      if (result.ok) {
+        // NEUTRAL by contract (registry entry): fixed local copy, identical
+        // whether or not the email has an account — never server text.
+        setNotice("If that email has an account, a reset link is on its way — check your inbox.");
+      } else {
+        // Transport/config failures only; reveals nothing about any account.
+        setError(result.error);
+      }
+    } catch {
+      setError("Password-reset request failed.");
+    } finally {
+      setBusy(false);
+    }
+  }, [email, urlInput, coordinatorUrl]);
+
   const handleSocial = useCallback(
     async (provider: string) => {
       setError(null);
@@ -226,32 +262,61 @@ export function AccountSection() {
                 className="h-7 text-xs"
                 disabled={loading}
               />
-              <Input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                type="password"
-                autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
-                className="h-7 text-xs"
-                disabled={loading}
-              />
+              {mode !== "reset" && (
+                <Input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  type="password"
+                  autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
+                  className="h-7 text-xs"
+                  disabled={loading}
+                />
+              )}
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => void handleSubmit()}
-                  disabled={busy || loading || email.trim() === "" || password === ""}
+                  onClick={() => void (mode === "reset" ? handleRequestReset() : handleSubmit())}
+                  disabled={
+                    busy || loading || email.trim() === "" || (mode !== "reset" && password === "")
+                  }
                   className="h-7 px-3 text-[10px]"
                 >
-                  {busy ? "Working…" : mode === "sign-up" ? "Create account" : "Sign in"}
+                  {busy
+                    ? "Working…"
+                    : mode === "sign-up"
+                      ? "Create account"
+                      : mode === "reset"
+                        ? "Send reset link"
+                        : "Sign in"}
                 </Button>
-                <button
-                  type="button"
-                  onClick={() => setMode(mode === "sign-up" ? "sign-in" : "sign-up")}
-                  className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {mode === "sign-up" ? "Have an account? Sign in" : "New here? Create account"}
-                </button>
+                {mode === "reset" ? (
+                  <button
+                    type="button"
+                    onClick={() => switchMode("sign-in")}
+                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Back to sign in
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => switchMode(mode === "sign-up" ? "sign-in" : "sign-up")}
+                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {mode === "sign-up" ? "Have an account? Sign in" : "New here? Create account"}
+                  </button>
+                )}
+                {mode === "sign-in" && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode("reset")}
+                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Forgot password?
+                  </button>
+                )}
               </div>
 
               {/* Social sign-in, live end to end: the button opens the system
@@ -260,7 +325,7 @@ export function AccountSection() {
                   inteligir://session deep link (single-use code + this
                   device's state nonce — never a token) completes the sign-in
                   host-side. Providers are env-gated via /v1/capabilities. */}
-              {socialProviders.length > 0 && (
+              {mode !== "reset" && socialProviders.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
                   {socialPending === null ? (
                     <>
@@ -299,6 +364,7 @@ export function AccountSection() {
           )}
 
           {error && <span className="text-[10px] text-destructive">{error}</span>}
+          {notice && <span className="text-[10px] text-muted-foreground">{notice}</span>}
         </div>
       </div>
     </div>
