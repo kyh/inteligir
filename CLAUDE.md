@@ -54,17 +54,42 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
   agent/         # The pi capability (@repo/agent) — Agent lifecycle, extension bundles,
                  # setup/auth, faux provider, and pi/ (the harness quarantine: the ONLY
                  # place @mariozechner/pi* may be imported). The server injects AgentPorts.
-  server/        # Node backend (@repo/server) — vault, delegation, connectors, voice,
-                 # sync adapters, handlers, boot/ (createHost), HostPlatform. Exports are
+  storage/       # Node fs/json substrate (@repo/storage) — versioned JsonStore over
+                 # ~/.inteligir, atomic-write, host lock, hardenAppDir sweep, agent.log
+                 # tee, encrypted SecretStore (cipher injected by the host)
+  vault/         # VaultManager (@repo/vault) — the user's markdown folder: confined IO,
+                 # ephemeral listing + open-note watcher, pure change classifier; host
+                 # callbacks (notifier, workspace link dir, OS trash) injected
+  voice/         # Voice capability (@repo/voice) — sherpa-onnx STT + model download,
+                 # ElevenLabs TTS proxy, voice secret; host seams injected at register
+  connectors/    # MCP/connectors capability (@repo/connectors) — executor daemon
+                 # lifecycle + typed client, connector install orchestration (ports-
+                 # injected), Google OAuth client, emulate-connectors dev override
+  sync/          # Desktop vault-sync adapters (@repo/sync) — node SyncManager over the
+                 # notes engine, SyncAccount (Better Auth client), SyncCoordinator
+                 # lifecycle; event emission injected (setSyncEventSink)
+  server/        # Node backend (@repo/server) — the composition root: boot/ (createHost),
+                 # handlers, transport (ws host), app machine, provider, knowledge shell,
+                 # delegation, capture, chat-undo, snapshots, HostPlatform. Exports are
                  # NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
-Dep DAG: notes, installer, ui are leaves; bridge→notes;
-agent→bridge+installer+notes; server→agent+bridge+installer+notes.
+Dep DAG (all edges): notes, installer, ui are leaves; bridge→notes;
+storage→bridge; vault→storage+notes+bridge; agent→bridge+installer+notes;
+voice→storage+bridge; connectors→agent+installer+storage+bridge (the agent
+edge is ONLY dev-flags — the boot-computed fail-closed gate stays single-
+source; agent never imports connectors: code-mode reaches the daemon through
+the injected ExecutorPort); sync→vault+storage+notes+bridge;
+server→agent+bridge+connectors+notes+storage+sync+vault+voice.
 The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
 @repo/server — so "no node in the UI's contract" is an unresolvable-import
-fact, not a lint opinion.
+fact, not a lint opinion. The extracted host packages (storage, vault, voice,
+connectors, sync) sit BELOW server: they never import @repo/server (that
+would be a package cycle) or electron — upward needs cross module-scoped
+install seams the composition root fills (setSecretCipherProvider,
+setVaultTrashItem, configureVoiceModelHost/configureTtsAudioSink,
+setSyncEventSink; ConnectorInstallOps binds openExternal per call).
 
 `@repo/notes` is the sharing seam: no node/electron/react/workspace imports
 (lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
@@ -133,7 +158,7 @@ capabilities and hands the agent an injected `AgentPorts`
 
 ### Data model — the vault
 
-`packages/server/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
+`packages/vault/src/` (`VaultManager`, @repo/vault) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
 listing** (a deliberate decision — PR #411, § Decisions): NO recursive watcher — the listing is a one-shot crawl
@@ -241,7 +266,7 @@ and full-text search live in the command palette.
   `session?code=…&state=…` completes a social sign-in (an opaque single-use
   exchange code + the state nonce this device minted at initiation — NEVER a
   raw token; the host state-checks and exchanges it over HTTPS, see
-  `server/sync/sync-account.ts` + `apps/cloud/src/auth/desktop-session.ts`).
+  `packages/sync/src/sync-account.ts` + `apps/cloud/src/auth/desktop-session.ts`).
   Target paths are computed host-side, never taken from the URL.
 - **Tasks view**: a palette-launched alternate main surface like the graph
   ("Open tasks view") over the projection's per-doc task extraction (every
@@ -285,7 +310,7 @@ refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegati
 engine — `notes/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
 preserved as sibling copies, never lost) — with injected platform ports:
 desktop binds node crypto/VaultManager/JsonStore
-(`server/src/server/sync/sync-manager.ts`, lifecycle in
+(`packages/sync/src/sync-manager.ts`, lifecycle in
 `sync-coordinator.ts`), mobile binds expo-crypto/expo-file-system
 (`apps/mobile/src/lib/sync/`). The coordinator (`apps/cloud`) is ONE Worker:
 `/api/auth/*` = Better Auth (email+password, bearer tokens) over Drizzle + D1,
@@ -303,7 +328,7 @@ conflict copies are listed in Settings → Sync with Open / Dismiss-copy.
 Extension bundles are listed in `packages/agent/src/bundles.ts` (static registry + disk-drift
 test) and receive `AgentPorts` at register time — adding/removing a capability
 is one folder + one line. `code-mode/` is the MCP/connectors capability
-(over the `server/connectors/` daemon); `knowledge-tools/` exposes
+(over the @repo/connectors daemon); `knowledge-tools/` exposes
 `search_vault` (lexical, optional `tag` filter) and `get_backlinks` over the
 knowledge engine.
 `validateToolParametersSchema` rejects tool schemas that aren't a top-level
