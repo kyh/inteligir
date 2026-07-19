@@ -29,14 +29,14 @@ scripts/     build-time verifiers (packaged runtime deps, model registry)
 
 ```
 renderer (sandboxed Chromium) — the product UI, host-agnostic (talks via the Bridge)
-   ↕  WebSocket — createWsBridge (@repo/backend/ws-bridge), reconnect supervisor + auth
+   ↕  WebSocket — createWsBridge (@repo/bridge/ws-bridge), reconnect supervisor + auth
 main (full Node + Electron) — createHost(@repo/backend/server) behind an ElectronPlatform,
                               served by startWsHost (@repo/backend/server/transport/ws-host)
 ```
 
 - **Renderer** never touches Node APIs. Sandboxed, no nodeIntegration, contextIsolation on.
   Its Bridge is a WebSocket client (`createWsBridge`) derived from the registry in
-  `@repo/backend/ipc-registry`.
+  `@repo/bridge/ipc-registry`.
 - **Preload** does not carry data. It is a one-shot bootstrap: a synchronous
   `inteligir:bootstrap` IPC fetches `{ url, token }` (the loopback ws endpoint and the
   per-boot local token) and exposes it as `window.bridgeBootstrap` — keeping the token

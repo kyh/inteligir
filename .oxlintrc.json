@@ -118,7 +118,32 @@
                   "@repo/desktop/*",
                   "**/apps/desktop/**"
                 ],
-                "message": "the features backend is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/server/platform.ts)"
+                "message": "@repo/backend is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/server/platform.ts)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/agent/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "electron-updater",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**",
+                  "@repo/backend",
+                  "@repo/backend/*"
+                ],
+                "message": "@repo/agent is the pi capability — no electron/desktop/backend imports; it receives AgentPorts injected by the host (belt-and-suspenders; the package graph already enforces this)"
               }
             ]
           }
