@@ -33,7 +33,7 @@ export type MergeBase =
   | { readonly kind: "unavailable" }
   | { readonly kind: "bytes"; readonly bytes: Uint8Array };
 
-export type MergeRung = "whitespace" | "diff3" | "frontmatter" | "append-union";
+type MergeRung = "whitespace" | "diff3" | "frontmatter" | "append-union";
 
 export type MergeResult =
   | { readonly kind: "merged"; readonly bytes: Uint8Array; readonly rung: MergeRung }

@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
-import { dailyNotePath, formatIsoDate } from "@repo/notes/notes/daily-path";
+import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
 import {
   DAILY_FOLDER_KEY,
   DAILY_FORMAT_KEY,

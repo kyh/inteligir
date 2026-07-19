@@ -6,7 +6,7 @@ import {
   formatDatePattern,
   formatIsoDate,
   parseDateByPattern,
-} from "../notes/daily-path";
+} from "../daily-path";
 
 describe("date formatting", () => {
   it("zero-pads iso date components (local time)", () => {
