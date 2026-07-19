@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 
-import { createWsBridge } from "@repo/features/ws-bridge";
+import { createWsBridge } from "@repo/bridge/ws-bridge";
 
 import { App } from "@renderer/app-root";
 import { installBridge } from "@renderer/lib/bridge";

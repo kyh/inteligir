@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // inteligir:// — the Electron-only OS glue for the deep-link scheme. NO
 // parsing or policy here: raw URL strings are buffered until the host is up,
-// then handed to @repo/features' deliverDeepLink (which owns the rate limit,
+// then handed to @repo/backend' deliverDeepLink (which owns the rate limit,
 // the grammar, and every security guard). Three OS delivery paths funnel
 // through handleDeepLinkUrl:
 //   - macOS: app.on("open-url") — can fire BEFORE `ready`, so the listener

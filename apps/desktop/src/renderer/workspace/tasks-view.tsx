@@ -23,16 +23,16 @@ import {
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 
-import type { VaultTaskEntry } from "@repo/core/knowledge/link-graph-index";
-import { groupTasks } from "@repo/core/knowledge/task-schedule";
-import { formatIsoDate } from "@repo/core/notes/daily-path";
+import type { VaultTaskEntry } from "@repo/domain/knowledge/link-graph-index";
+import { groupTasks } from "@repo/domain/knowledge/task-schedule";
+import { formatIsoDate } from "@repo/domain/notes/daily-path";
 import {
   DAILY_FOLDER_KEY,
   DAILY_FORMAT_KEY,
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
-} from "@repo/features/daily-notes";
-import type { Delegation } from "@repo/features/delegation";
+} from "@repo/bridge/daily-notes";
+import type { Delegation } from "@repo/bridge/delegation";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";

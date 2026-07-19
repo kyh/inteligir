@@ -13,7 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Markdown from "react-native-markdown-display";
 
-import type { AppAgentEvent } from "@repo/features/agent-events";
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import {
   appendNotice,
   appendUser,
@@ -22,8 +22,8 @@ import {
   logFromHistory,
   type ChatItem,
   type ChatLog,
-} from "@repo/features/chat-log";
-import type { ChatHistoryEntry } from "@repo/features/chat-log";
+} from "@repo/bridge/chat-log";
+import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
 import { hostStatusDotClass, hostStatusLabel, type HostStatus } from "@/lib/host/status-display";
 import { useHostChannel } from "@/lib/host/use-host-channel";

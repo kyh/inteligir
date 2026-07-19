@@ -27,11 +27,21 @@
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
-    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "never"
+      }
+    ],
     "react/react-in-jsx-scope": "off",
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off",
-    "react/no-unstable-nested-components": ["error", { "allowAsProps": true }],
+    "react/no-unstable-nested-components": [
+      "error",
+      {
+        "allowAsProps": true
+      }
+    ],
     "unicorn/prefer-node-protocol": "error"
   },
   "overrides": [
@@ -42,7 +52,7 @@
       }
     },
     {
-      "files": ["packages/core/src/**"],
+      "files": ["packages/domain/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -56,14 +66,20 @@
                   "react",
                   "react-dom",
                   "react/*",
-                  "@repo/features",
-                  "@repo/features/*",
+                  "@repo/agent",
+                  "@repo/agent/*",
+                  "@repo/bridge",
+                  "@repo/bridge/*",
+                  "@repo/cli-bootstrap",
+                  "@repo/cli-bootstrap/*",
+                  "@repo/backend",
+                  "@repo/backend/*",
                   "@repo/ui",
                   "@repo/ui/*",
                   "@repo/desktop",
                   "@repo/desktop/*"
                 ],
-                "message": "@repo/core is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
+                "message": "@repo/domain is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
               }
             ]
           }
@@ -71,7 +87,7 @@
       }
     },
     {
-      "files": ["packages/features/src/**"],
+      "files": ["packages/bridge/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -79,7 +95,7 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "packages/features/src is isomorphic — no node/electron imports (the node backend lives in src/server)"
+                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/backend/server)"
               }
             ]
           }
@@ -87,7 +103,7 @@
       }
     },
     {
-      "files": ["packages/features/src/server/**"],
+      "files": ["packages/backend/src/server/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -110,52 +126,6 @@
       }
     },
     {
-      "files": ["packages/features/src/server/agent/*.ts"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "../**",
-                  "@repo/features/server/**",
-                  "!@repo/features/server/pi/**",
-                  "!@repo/features/server/agent-runtime/**"
-                ],
-                "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/features/src/server/agent/*/*.ts"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "../../**",
-                  "@repo/features/server/**",
-                  "!@repo/features/server/pi/**",
-                  "!@repo/features/server/agent-runtime/**"
-                ],
-                "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
       "files": ["apps/desktop/src/renderer/**", "apps/desktop/dev/**"],
       "rules": {
         "no-restricted-imports": [
@@ -168,8 +138,8 @@
                   "electron/*",
                   "electron-updater",
                   "node:*",
-                  "@repo/features/server",
-                  "@repo/features/server/*",
+                  "@repo/backend/*",
+                  "@repo/backend",
                   "@/main",
                   "@/main/*",
                   "@/preload",

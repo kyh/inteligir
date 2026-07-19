@@ -31,7 +31,7 @@ const BG = { light: "#fafafa", dark: "#171717" };
 const FG = { light: "#171717", dark: "#f5f5f5" };
 
 // The root layout: SafeArea + a themed native Stack. No QueryClient — sync is
-// direct via @repo/core, not an API/tRPC layer.
+// direct via @repo/domain, not an API/tRPC layer.
 export default function RootLayout() {
   useHostAutoStart();
   const dark = useColorScheme() === "dark";

@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { Delegation, ListDelegationsResult } from "@repo/features/delegation";
+import type { Delegation, ListDelegationsResult } from "@repo/bridge/delegation";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
 import { DOT_BUSY, DOT_ERROR, DOT_IDLE, DOT_OK, hostStatusLabel } from "@/lib/host/status-display";
 import { useHostChannel } from "@/lib/host/use-host-channel";

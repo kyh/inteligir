@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The mobile composition root for @repo/core's `SyncEngine`: it binds the Expo
+// The mobile composition root for @repo/domain's `SyncEngine`: it binds the Expo
 // platform ports (hasher, vault IO, base store, clock) + an HTTP SyncPort to
 // the coordinator, and exposes `syncOnce()` + `scheduleSync()` + a reactive
 // status the UI subscribes to.
@@ -15,10 +15,10 @@
 
 import { useSyncExternalStore } from "react";
 
-import { createJsonFileBaseStore } from "@repo/core/sync/base-store";
-import { SyncEngine, type SyncOutcome } from "@repo/core/sync/engine";
-import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
-import { statusFromOutcome, type SyncStatus } from "@repo/core/sync/status";
+import { createJsonFileBaseStore } from "@repo/domain/sync/base-store";
+import { SyncEngine, type SyncOutcome } from "@repo/domain/sync/engine";
+import { createHttpSyncPort } from "@repo/domain/sync/http-sync-port";
+import { statusFromOutcome, type SyncStatus } from "@repo/domain/sync/status";
 
 import { getBearerToken } from "../auth";
 import { getCoordinatorUrl } from "../base-url";

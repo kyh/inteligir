@@ -4,7 +4,7 @@ import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
-import type { AccountCapabilities, SyncSignInResult, SyncState } from "@repo/features/sync";
+import type { AccountCapabilities, SyncSignInResult, SyncState } from "@repo/bridge/sync";
 
 const SOCIAL_LABELS: Record<string, string> = {
   github: "GitHub",

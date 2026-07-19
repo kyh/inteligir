@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { createJsonFileBaseStore } from "@repo/core/sync/base-store";
-import { InMemoryBaseBlobStore } from "@repo/core/sync/blob-store";
-import { SyncEngine } from "@repo/core/sync/engine";
-import { conflictCopyName } from "@repo/core/sync/reconcile";
+import { createJsonFileBaseStore } from "@repo/domain/sync/base-store";
+import { InMemoryBaseBlobStore } from "@repo/domain/sync/blob-store";
+import { SyncEngine } from "@repo/domain/sync/engine";
+import { conflictCopyName } from "@repo/domain/sync/reconcile";
 // The coordinator fake ships under core's `./sync/testing/*` subpath (test-only
 // surface). It mints monotonic versions and honors optimistic concurrency
 // exactly like the wire contract.
-import { InMemorySyncPort } from "@repo/core/sync/testing/in-memory-sync-port";
+import { InMemorySyncPort } from "@repo/domain/sync/testing/in-memory-sync-port";
 
 import { createFsStamp } from "../clock";
 import { createSyncIo } from "../sync-io";

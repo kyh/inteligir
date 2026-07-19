@@ -14,8 +14,8 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { SegmentedControl } from "@renderer/components/segmented-control";
 import { getBridge } from "@renderer/lib/bridge";
 import { blockDismissWhileBusy, parseHeaders, slug } from "@renderer/settings/extensions/lib";
-import type { ConnectorSourceSpec } from "@repo/features/executor";
-import { isHttpUrl, toErrorMessage } from "@repo/features/wire-helpers";
+import type { ConnectorSourceSpec } from "@repo/bridge/executor";
+import { isHttpUrl, toErrorMessage } from "@repo/bridge/wire-helpers";
 
 type CustomKind = "mcp" | "openapi" | "graphql" | "google";
 const KINDS: { id: CustomKind; label: string }[] = [

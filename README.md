@@ -12,7 +12,7 @@ apps/              Shippable artifacts
   desktop/         Electron app — main/preload + the product UI (renderer) (@repo/desktop)
   web/             TanStack Start marketing site on Cloudflare Workers (landing page only)
 packages/          Libraries
-  features/        Isomorphic contract + node backend (@repo/features)
+  features/        Isomorphic contract + node backend (@repo/backend)
                      src/         iso — Bridge/IPC registry, schemas, knowledge engine, markdown
                      src/server/  node — vault, pi agent, delegation, executor, voice, handlers
   ui/              Shared UI components (@repo/ui)
@@ -20,13 +20,13 @@ packages/          Libraries
 
 Workspace `README.md`s:
 
-| Workspace                      | README                                                                              |
-| ------------------------------ | ----------------------------------------------------------------------------------- |
-| `apps/desktop`                 | [Electron shell — process boundary, packaging](./apps/desktop/README.md)            |
-| `apps/web`                     | [static marketing site](./apps/web/README.md)                                       |
-| `packages/features`            | [contract + backend — iso `src`, node `src/server`](./packages/features/README.md)  |
-| `packages/features/src/server` | [node backend — createHost, HostPlatform](./packages/features/src/server/README.md) |
-| `packages/ui`                  | [shared design system](./packages/ui/README.md)                                     |
+| Workspace                     | README                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| `apps/desktop`                | [Electron shell — process boundary, packaging](./apps/desktop/README.md)           |
+| `apps/web`                    | [static marketing site](./apps/web/README.md)                                      |
+| `packages/backend`            | [contract + backend — iso `src`, node `src/server`](./packages/backend/README.md)  |
+| `packages/backend/src/server` | [node backend — createHost, HostPlatform](./packages/backend/src/server/README.md) |
+| `packages/ui`                 | [shared design system](./packages/ui/README.md)                                    |
 
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
 ways to run the app, ports/shared state, gates, verification, and

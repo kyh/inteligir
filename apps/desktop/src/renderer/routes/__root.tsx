@@ -7,7 +7,7 @@ import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { ReauthDialog } from "@renderer/components/reauth-dialog";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
-import type { AppState } from "@repo/features/app-state";
+import type { AppState } from "@repo/bridge/app-state";
 
 export const Route = createRootRoute({ component: RootLayout });
 

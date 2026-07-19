@@ -13,7 +13,7 @@ import { createDb } from "../db/client";
 //     instead of a cookie. Sign-in/sign-up return the token in the
 //     `set-auth-token` response header; `auth.api.getSession({ headers })` then
 //     validates that bearer token in-process. This is the contract the desktop
-//     and mobile sync clients already speak (`@repo/core/sync/wire`).
+//     and mobile sync clients already speak (`@repo/domain/sync/wire`).
 //
 // The Expo mobile client (@better-auth/expo, added in the mobile app) drives
 // email/password + bearer directly — it needs no server-side plugin here, and

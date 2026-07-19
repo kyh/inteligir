@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createWsBridge } from "@repo/features/ws-bridge";
-import { encodeFrame, parseClientFrame } from "@repo/features/ws-protocol";
+import { createWsBridge } from "@repo/bridge/ws-bridge";
+import { encodeFrame, parseClientFrame } from "@repo/bridge/ws-protocol";
 import { createHostConnection, type HostSnapshot } from "../connection-core";
 import type { KnownEnvironment } from "../environment-store";
 import { fakeWebSocketImpl, lastSocket, type FakeSocket } from "./fakes";

@@ -7,8 +7,8 @@
 
 import { useSyncExternalStore } from "react";
 
-import { createWsBridge } from "@repo/features/ws-bridge";
-import type { Bridge } from "@repo/features/ipc-registry";
+import { createWsBridge } from "@repo/bridge/ws-bridge";
+import type { Bridge } from "@repo/bridge/ipc-registry";
 
 import { subscribeAppForeground } from "../app-lifecycle";
 import { createHostConnection, type HostSnapshot } from "./connection-core";

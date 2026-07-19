@@ -2,7 +2,7 @@
 
 A sync/read/light-edit companion for the vault: Expo SDK 56 + Expo Router +
 NativeWind. It drives the SAME platform-neutral sync engine as desktop
-(`@repo/core/sync`) through Expo adapters, against the coordinator Worker
+(`@repo/domain/sync`) through Expo adapters, against the coordinator Worker
 (`apps/cloud`). **No agent on mobile** — chat, delegation, and the rich editor
 stay desktop-only.
 
@@ -20,7 +20,7 @@ src/
     auth.ts          Better Auth client (expo plugin, SecureStore session);
                      captures the bearer token from `set-auth-token`
     base-url.ts      Coordinator origin resolution (see below)
-    sync/            Expo bindings for @repo/core/sync — expo-crypto hasher,
+    sync/            Expo bindings for @repo/domain/sync — expo-crypto hasher,
                      expo-file-system vault IO + base store, syncOnce manager
       __tests__/     Vitest over the pure modules (no native runtime)
 ```

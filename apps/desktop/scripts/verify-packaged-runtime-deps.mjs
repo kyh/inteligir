@@ -8,7 +8,7 @@
 //   - agent resources (AGENTS.md, skills/) are copied to Contents/Resources/agent
 //   - app.asar exists at all
 //   - pi-coding-agent + pi-ai are bundled into the built main process. They
-//     arrive transitively via the @repo/features workspace dep and are
+//     arrive transitively via the @repo/backend workspace dep and are
 //     tree-shaken INTO main/index.js by electron-vite — electron-builder.yml
 //     excludes node_modules wholesale, so the failure mode is "didn't bundle,"
 //     not "missing from package.json."

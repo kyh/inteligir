@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Desktop parity: the shared @repo/features/chat-log fold + the UIMessage
+// Desktop parity: the shared @repo/bridge/chat-log fold + the UIMessage
 // projection (@renderer/stores/chat-log-view) must reproduce what the
 // renderer's OLD inline fold produced. `foldOldDesktop` below is a verbatim
 // transcription of agent-store.ts's pre-extraction subscribeAgentEvents /
@@ -17,20 +17,15 @@
 import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
 
-import type { AppAgentEvent } from "@repo/features/agent-events";
-import {
-  applyAgentEvent,
-  emptyChatLog,
-  logFromHistory,
-  type ChatLog,
-} from "@repo/features/chat-log";
-import type { ChatHistoryEntry } from "@repo/features/chat-log";
-import { stripNoteContext } from "@repo/features/note-context";
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
+import { applyAgentEvent, emptyChatLog, logFromHistory, type ChatLog } from "@repo/bridge/chat-log";
+import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
+import { stripNoteContext } from "@repo/bridge/note-context";
 import {
   chatEventFixtures,
   historyFixture,
   historyWithErrorFixture,
-} from "@repo/features/__tests__/chat-log-fixtures";
+} from "@repo/bridge/__tests__/chat-log-fixtures";
 import { projectChatLog, type ChatMessageMetadata } from "@renderer/stores/chat-log-view";
 
 type OldChatMessage = UIMessage<ChatMessageMetadata>;

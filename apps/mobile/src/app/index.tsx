@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { SyncStatus } from "@repo/core/sync/status";
+import type { SyncStatus } from "@repo/domain/sync/status";
 
 import { authClient, clearBearerToken } from "@/lib/auth";
 import { useHostStatus } from "@/lib/host/connection";

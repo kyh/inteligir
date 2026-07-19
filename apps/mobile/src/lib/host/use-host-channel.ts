@@ -9,7 +9,7 @@
 
 import { useEffect, useEffectEvent } from "react";
 
-import type { Bridge } from "@repo/features/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-registry";
 import { getHostBridge, useHostStatus } from "./connection";
 
 export type HostChannelOptions<E, S> = {

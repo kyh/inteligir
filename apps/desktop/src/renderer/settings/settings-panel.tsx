@@ -16,7 +16,7 @@ import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row
 import { SyncSection } from "@renderer/settings/sections/sync-section";
 import { VoiceSection } from "@renderer/settings/sections/voice-section";
 import { useAgentStore } from "@renderer/stores/agent-store";
-import type { NotificationSettings } from "@repo/features/ipc-registry";
+import type { NotificationSettings } from "@repo/bridge/ipc-registry";
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: typeof SunIcon }[] = [
   { value: "system", label: "System", icon: MonitorIcon },

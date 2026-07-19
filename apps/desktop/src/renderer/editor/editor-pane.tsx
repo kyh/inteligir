@@ -7,8 +7,8 @@ import { EDITOR_COLUMN_PX } from "@renderer/editor/editor-chrome";
 import { MarkdownEditor } from "@renderer/editor/markdown-editor";
 import { BacklinksPanel, ForwardLinksPanel } from "@renderer/workspace/links-panel";
 import { useVault } from "@renderer/workspace/vault-context";
-import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
-import { basenamePath } from "@repo/core/knowledge/vault-path";
+import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note-name";
+import { basenamePath } from "@repo/domain/knowledge/vault-path";
 
 /**
  * The editor body: the open note's page title + document (+ backlinks). One

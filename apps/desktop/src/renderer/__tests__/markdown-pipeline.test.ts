@@ -11,9 +11,9 @@ import {
   parseMarkdown,
   roundTrip,
 } from "@renderer/editor/markdown/markdown-doc";
-import { parseMdast } from "@repo/core/markdown/parse";
-import { parseWikiBody } from "@repo/core/markdown/remark-wiki-link";
-import { scanVocabulary } from "@repo/core/markdown/vocabulary";
+import { parseMdast } from "@repo/domain/markdown/parse";
+import { parseWikiBody } from "@repo/domain/markdown/remark-wiki-link";
+import { scanVocabulary } from "@repo/domain/markdown/vocabulary";
 
 // In-tree translations of the scratchpad probe scenarios (rt/probe1-6) that
 // aren't already pinned by the fixture matrix: the failure modes the owned

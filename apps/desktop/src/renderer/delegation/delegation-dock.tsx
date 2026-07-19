@@ -24,7 +24,7 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { useDelegationStore } from "@renderer/stores/delegation-store";
 import { useVault } from "@renderer/workspace/vault-context";
-import type { Delegation } from "@repo/features/delegation";
+import type { Delegation } from "@repo/bridge/delegation";
 
 /**
  * A Messenger-style dock of delegation cards pinned bottom-right. Each card

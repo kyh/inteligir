@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { AppAgentEvent } from "@repo/features/agent-events";
-// The reducer is the SHARED @repo/features fold now (it was extracted from
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
+// The reducer is the SHARED @repo/bridge fold now (it was extracted from
 // this app verbatim); these assertions are intentionally byte-identical to the
 // pre-extraction suite — they are the proof mobile behavior didn't change.
 import {
@@ -11,14 +11,14 @@ import {
   emptyChatLog,
   logFromHistory,
   type ChatLog,
-} from "@repo/features/chat-log";
-import type { ChatHistoryEntry } from "@repo/features/chat-log";
+} from "@repo/bridge/chat-log";
+import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 
 function fold(log: ChatLog, events: readonly AppAgentEvent[]): ChatLog {
   return events.reduce(applyAgentEvent, log);
 }
 
-// stripNoteContext itself is @repo/features/note-context's (tested there);
+// stripNoteContext itself is @repo/bridge/note-context's (tested there);
 // logFromHistory's strip-on-rehydrate is asserted below.
 describe("logFromHistory", () => {
   it("maps user/assistant entries and skips tool rows", () => {

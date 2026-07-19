@@ -8,7 +8,7 @@ import { MarkdownPlugin } from "@platejs/markdown";
 
 import { AI_MARK } from "@renderer/editor/ai/ai-mark";
 import { shouldSerializeNode } from "@renderer/editor/ai/transient";
-import { MD_REMARK_PLUGINS } from "@repo/core/markdown/md-plugins";
+import { MD_REMARK_PLUGINS } from "@repo/domain/markdown/md-plugins";
 import { MD_RULES } from "@renderer/editor/markdown/md-rules";
 import { WIKI_INPUT_KEY } from "@renderer/editor/wiki-input-key";
 

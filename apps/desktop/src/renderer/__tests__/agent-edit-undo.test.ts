@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { AppAgentEvent } from "@repo/features/agent-events";
-import type { AgentEditCaptured } from "@repo/features/ipc-registry";
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
+import type { AgentEditCaptured } from "@repo/bridge/ipc-registry";
 
 import {
   connectAgentEditUndo,

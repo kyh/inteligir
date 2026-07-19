@@ -9,7 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { emptyChatLog } from "@repo/features/chat-log";
+import { emptyChatLog } from "@repo/bridge/chat-log";
 import {
   registerOpenNoteFlush,
   registerOpenNotePath,

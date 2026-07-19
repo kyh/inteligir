@@ -10,7 +10,7 @@
 // changes reschedule (typing pause re-arms the trigger), caret-only moves
 // don't (clicking around must not spend tokens).
 
-import type { GhostTextResult } from "@repo/features/inline-ai";
+import type { GhostTextResult } from "@repo/bridge/inline-ai";
 
 export type GhostPhase = "idle" | "scheduled" | "requesting" | "visible";
 

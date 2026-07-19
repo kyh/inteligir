@@ -7,7 +7,6 @@
     "paths": {
       "@/*": ["./src/*"],
       "@renderer/*": ["./src/renderer/*"],
-      "@repo/features/*": ["../../packages/features/src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     }
   },
@@ -17,7 +16,7 @@
     "electron.vite.config.ts",
     "vite.harness.config.ts",
     "vitest.config.ts",
-    "../../packages/features/src/server/voice/sherpa-onnx-node.d.ts"
+    "../../packages/backend/src/server/voice/sherpa-onnx-node.d.ts"
   ],
   "exclude": ["node_modules", "build", "dist", ".output", "src/renderer/voice/stt-worklet.js"]
 }

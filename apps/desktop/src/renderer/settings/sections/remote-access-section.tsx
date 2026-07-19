@@ -4,7 +4,7 @@ import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
-import type { PairingInfo, RemoteAccessState } from "@repo/features/remote-access";
+import type { PairingInfo, RemoteAccessState } from "@repo/bridge/remote-access";
 
 // Remote access — let other devices (the mobile companion) connect to this
 // computer's ws transport. The host owns everything: the enable toggle flips

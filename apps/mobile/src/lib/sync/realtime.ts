@@ -16,7 +16,7 @@
 // foreground/background, the real engine) lives in ./realtime-manager.ts.
 // ---------------------------------------------------------------------------
 
-import { createBackoff } from "@repo/features/backoff";
+import { createBackoff } from "@repo/bridge/backoff";
 
 /** Cancel a timer scheduled through `RealtimePorts.schedule`. */
 type CancelTimer = () => void;

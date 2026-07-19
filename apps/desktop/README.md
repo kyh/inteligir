@@ -2,7 +2,7 @@
 
 The desktop product: the Electron main/preload processes plus the whole
 renderer UI (the workspace — editor, sidebar, composer, settings, voice). The
-node backend is `@repo/features/server`; the shared contract is `@repo/features`; shared
+node backend is `@repo/backend/server`; the shared contract is `@repo/backend`; shared
 primitives are `@repo/ui`. Main owns what is Electron's to own: window/menu
 lifecycle, the IPC transport, the auto-updater, and native packaging (including
 the sherpa-onnx voice binaries).
@@ -21,7 +21,7 @@ src/
   __tests__/ Vitest — updater, agent-event parsing, vault-app protocol
 
 dev/         browser dev harness — in-memory fixture Bridge (`dev:harness`)
-resources/   icons + entitlements shipped in the .app (agent assets live in packages/features/resources/agent)
+resources/   icons + entitlements shipped in the .app (agent assets live in packages/backend/resources/agent)
 scripts/     build-time verifiers (packaged runtime deps, model registry)
 ```
 
@@ -29,19 +29,19 @@ scripts/     build-time verifiers (packaged runtime deps, model registry)
 
 ```
 renderer (sandboxed Chromium) — the product UI, host-agnostic (talks via the Bridge)
-   ↕  WebSocket — createWsBridge (@repo/features/ws-bridge), reconnect supervisor + auth
-main (full Node + Electron) — createHost(@repo/features/server) behind an ElectronPlatform,
-                              served by startWsHost (@repo/features/server/transport/ws-host)
+   ↕  WebSocket — createWsBridge (@repo/backend/ws-bridge), reconnect supervisor + auth
+main (full Node + Electron) — createHost(@repo/backend/server) behind an ElectronPlatform,
+                              served by startWsHost (@repo/backend/server/transport/ws-host)
 ```
 
 - **Renderer** never touches Node APIs. Sandboxed, no nodeIntegration, contextIsolation on.
   Its Bridge is a WebSocket client (`createWsBridge`) derived from the registry in
-  `@repo/features/ipc-registry`.
+  `@repo/backend/ipc-registry`.
 - **Preload** does not carry data. It is a one-shot bootstrap: a synchronous
   `inteligir:bootstrap` IPC fetches `{ url, token }` (the loopback ws endpoint and the
   per-boot local token) and exposes it as `window.bridgeBootstrap` — keeping the token
   off the renderer's OS command line and out of the page URL.
-- **Main** composes `@repo/features/server` and serves its handler map + event stream
+- **Main** composes `@repo/backend/server` and serves its handler map + event stream
   over ONE WebSocket server (`startWsHost`); the shell-owned updater trio and html-app
   token methods ride along as `shellHandlers`. The same server is the remote-access
   surface for paired mobile devices.
@@ -62,6 +62,6 @@ Opens Electron with HMR (renderer). CDP exposed on port 9222 — inspect with
 ## Build & ship
 
 - `pnpm build` — `electron.vite.config.ts` bundles main/preload/renderer into `.output/app`.
-- `electron-builder.yml` packages the .app (dmg + zip) and configures auto-update; agent assets are copied from `packages/features/resources/agent` via `extraResources`.
+- `electron-builder.yml` packages the .app (dmg + zip) and configures auto-update; agent assets are copied from `packages/backend/resources/agent` via `extraResources`.
 - `scripts/verify-packaged-runtime-deps.mjs` walks the packed .app to catch missing native deps (sherpa-onnx) before release.
 - Releases ship via the `release` skill — see `.claude/skills/release/SKILL.md`.

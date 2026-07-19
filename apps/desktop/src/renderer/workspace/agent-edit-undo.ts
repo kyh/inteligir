@@ -15,10 +15,10 @@
 // Extracted from the hook (use-agent-edit-undo.ts) so the collection protocol
 // is unit-testable with fakes, mirroring connectDeepLinkNav.
 
-import { basenamePath } from "@repo/core/knowledge/vault-path";
-import type { AppAgentEvent } from "@repo/features/agent-events";
-import { toErrorMessage } from "@repo/features/wire-helpers";
-import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
+import { basenamePath } from "@repo/domain/knowledge/vault-path";
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/bridge/ipc-registry";
 
 export type AgentEditUndoPorts = {
   /** Bridge onAgentEditCaptured. */

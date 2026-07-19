@@ -38,7 +38,7 @@ import {
   QueueList,
 } from "@renderer/ai-elements/queue";
 
-import type { ImageAttachment } from "@repo/features/voice";
+import type { ImageAttachment } from "@repo/bridge/voice";
 import {
   CAPSULE_CONTENT_HIDDEN,
   CAPSULE_CONTENT_VISIBLE,

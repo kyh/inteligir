@@ -5,7 +5,7 @@ import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useVoiceStore } from "@renderer/stores/voice-store";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 
 // Voice calls need an ElevenLabs API key for speech playback (the whole
 // pipeline — mic included — is gated on TTS availability in voice-store).

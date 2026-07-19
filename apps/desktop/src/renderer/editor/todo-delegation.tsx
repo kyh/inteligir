@@ -28,7 +28,7 @@ import { Button } from "@repo/ui/components/button";
 import { isTodoItem, todoIndex } from "@renderer/editor/todo-item";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
 import { useVault } from "@renderer/workspace/vault-context";
-import type { Delegation } from "@repo/features/delegation";
+import type { Delegation } from "@repo/bridge/delegation";
 
 function DelegateControl({ element, checked }: { element: TElement; checked: boolean }) {
   const { editor: vaultEditor, flush } = useVault();

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { DeepLinkNav, DeepLinkNavEvent } from "@repo/features/deep-link";
+import type { DeepLinkNav, DeepLinkNavEvent } from "@repo/bridge/deep-link";
 
 import { connectDeepLinkNav } from "@renderer/workspace/use-deep-link";
 

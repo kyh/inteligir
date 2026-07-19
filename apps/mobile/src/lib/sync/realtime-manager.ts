@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Realtime sync wiring — binds the pure ./realtime supervisor to the platform:
 //
-//   - the stream is @repo/core's HttpSyncPort SSE subscription, driven through
+//   - the stream is @repo/domain's HttpSyncPort SSE subscription, driven through
 //     `expo/fetch` (Expo's WinterCG fetch): React Native's built-in fetch
 //     buffers whole responses (`res.body` is unusable for SSE), while
 //     expo/fetch streams — so ONLY the subscription injects it; the engine's
@@ -17,8 +17,8 @@ import { useEffect } from "react";
 import { AppState } from "react-native";
 import { fetch as expoFetch, type FetchRequestInit } from "expo/fetch";
 
-import { createHttpSyncPort, type FetchFn } from "@repo/core/sync/http-sync-port";
-import { timeoutSchedule } from "@repo/features/backoff";
+import { createHttpSyncPort, type FetchFn } from "@repo/domain/sync/http-sync-port";
+import { timeoutSchedule } from "@repo/bridge/backoff";
 
 import { subscribeAppForeground } from "../app-lifecycle";
 import { getBearerToken } from "../auth";

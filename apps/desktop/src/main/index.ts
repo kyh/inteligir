@@ -23,7 +23,7 @@ if (!app.isPackaged) {
 }
 
 // Belt-and-suspenders (the host already refuses these flags in packaged
-// builds — see @repo/features/server/dev-flags.ts): a PACKAGED build launched
+// builds — see @repo/agent/dev-flags.ts): a PACKAGED build launched
 // with a dev-only flag in its environment is a misconfiguration at best and
 // an attempt to force scripted-agent / fake-OAuth mode at worst. Fail loud
 // and refuse to start rather than run with the flags silently ignored.
@@ -41,15 +41,15 @@ if (app.isPackaged) {
 import {
   deliverDeepLink,
   setDeepLinkFocusHandler,
-} from "@repo/features/server/capture/deep-link-service";
-import { createHost, type Host } from "@repo/features/server/boot/create-host";
-import type { HostOptions } from "@repo/features/server/platform";
+} from "@repo/backend/server/capture/deep-link-service";
+import { createHost, type Host } from "@repo/backend/server/boot/create-host";
+import type { HostOptions } from "@repo/backend/server/platform";
 import {
   getRemoteAccessManager,
   type RemoteAccessManager,
-} from "@repo/features/server/transport/remote-access-manager";
-import { startWsHost, type WsHost } from "@repo/features/server/transport/ws-host";
-import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/wire-helpers";
+} from "@repo/backend/server/transport/remote-access-manager";
+import { startWsHost, type WsHost } from "@repo/backend/server/transport/ws-host";
+import { isHttpUrl, isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import {
   extractDeepLinkFromArgv,

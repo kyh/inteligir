@@ -29,7 +29,7 @@ import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
 import { openDocPath } from "@renderer/workspace/open-doc";
 import { useVault } from "@renderer/workspace/vault-context";
-import type { LinkGraph } from "@repo/core/knowledge/link-graph-index";
+import type { LinkGraph } from "@repo/domain/knowledge/link-graph-index";
 
 type SimNode = SimulationNodeDatum & {
   id: string;
