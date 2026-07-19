@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
-import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
-import type { BacklinkEntry } from "@repo/core/knowledge/link-graph-index";
+import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
+import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
 
 import knowledgeExtension from "../agent/knowledge-tools/extension";
 import {

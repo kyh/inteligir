@@ -37,7 +37,7 @@ import { atomicWrite } from "../storage/atomic-write";
 import { JsonStore, inteligirPath, type FsAdapter } from "../storage/json-store";
 import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
-import { isDocPath } from "@repo/core/knowledge/doc-file";
+import { isDocPath } from "@repo/domain/knowledge/doc-file";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
 // ---------------------------------------------------------------------------

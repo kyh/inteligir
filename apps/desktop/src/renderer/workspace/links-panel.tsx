@@ -22,8 +22,8 @@ import {
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useVault } from "@renderer/workspace/vault-context";
-import type { BacklinkEntry, ForwardLinkEntry } from "@repo/core/knowledge/link-graph-index";
-import { basenamePath } from "@repo/core/knowledge/vault-path";
+import type { BacklinkEntry, ForwardLinkEntry } from "@repo/domain/knowledge/link-graph-index";
+import { basenamePath } from "@repo/domain/knowledge/vault-path";
 
 function noteTitle(path: string): string {
   const name = basenamePath(path);

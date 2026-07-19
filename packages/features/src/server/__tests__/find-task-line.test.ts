@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { scanTaskItems } from "@repo/core/knowledge/link-extract";
+import { scanTaskItems } from "@repo/domain/knowledge/link-extract";
 
 import { findTaskLine } from "../delegation/find-task-line";
 

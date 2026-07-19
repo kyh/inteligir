@@ -24,10 +24,10 @@
 // written separately under the same snapshot-verify rule.
 // ---------------------------------------------------------------------------
 
-import { isDocPath } from "@repo/core/knowledge/doc-file";
-import { titleFromPath } from "@repo/core/knowledge/link-extract";
-import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
-import { addFrontmatterAlias } from "@repo/core/markdown/frontmatter";
+import { isDocPath } from "@repo/domain/knowledge/doc-file";
+import { titleFromPath } from "@repo/domain/knowledge/link-extract";
+import { computeRenameEdits } from "@repo/domain/knowledge/rename-links";
+import { addFrontmatterAlias } from "@repo/domain/markdown/frontmatter";
 
 import type { VaultManager } from "../vault/vault";
 

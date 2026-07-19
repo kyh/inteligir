@@ -8,7 +8,7 @@
 
 import { Directory, File, Paths } from "expo-file-system";
 
-import type { VaultPath } from "@repo/core/sync/vault-file";
+import type { VaultPath } from "@repo/domain/sync/vault-file";
 import type { VaultFs } from "./sync-io";
 
 /** The vault directory name under the app's document directory. */

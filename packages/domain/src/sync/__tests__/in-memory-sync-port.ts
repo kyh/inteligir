@@ -16,7 +16,7 @@ import type {
   VaultChange,
 } from "../sync-port";
 
-// Web Crypto (the WebWorker-lib global) rather than node crypto: @repo/core
+// Web Crypto (the WebWorker-lib global) rather than node crypto: @repo/domain
 // stays node-free even in tests, and this is the exact async digest the mobile
 // client will use. It must match the engine's injected hasher so equal bytes
 // hash equal (reconcile relies on that).

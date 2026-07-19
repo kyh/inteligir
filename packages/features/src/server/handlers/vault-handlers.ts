@@ -4,8 +4,8 @@ import { probeVaultPrivacy } from "../boot/agent-wiring";
 import { getPlatform } from "../platform-instance";
 import { getVaultManager } from "../vault/vault";
 import type { HandlerRegistrar } from "./handler-registry";
-import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
-import { basenamePath } from "@repo/core/knowledge/vault-path";
+import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note-name";
+import { basenamePath } from "@repo/domain/knowledge/vault-path";
 import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { ChooseVaultResult, ReadVaultAssetResult } from "@repo/features/ipc-registry";
 

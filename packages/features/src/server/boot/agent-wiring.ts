@@ -9,7 +9,7 @@
 
 import fs from "node:fs";
 
-import { notePrivacy } from "@repo/core/markdown/frontmatter";
+import { notePrivacy } from "@repo/domain/markdown/frontmatter";
 
 import { resetAuthStorage } from "../agent/auth";
 import { loginSelectedProvider } from "../provider/provider-service";

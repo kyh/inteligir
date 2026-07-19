@@ -24,7 +24,7 @@ import {
 } from "@repo/ui/components/command";
 import { toast } from "@repo/ui/components/sonner";
 
-import { notePrivacy, setNotePrivate } from "@repo/core/markdown/frontmatter";
+import { notePrivacy, setNotePrivate } from "@repo/domain/markdown/frontmatter";
 
 import { TEMPLATES_DIR, isTemplatePath } from "@repo/features/daily-notes";
 
@@ -35,8 +35,8 @@ import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
 import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { useVault } from "@renderer/workspace/vault-context";
-import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
-import type { TagCount } from "@repo/core/knowledge/tag-index";
+import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
+import type { TagCount } from "@repo/domain/knowledge/tag-index";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 8;

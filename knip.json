@@ -43,7 +43,7 @@
     "packages/ui": {
       "includeEntryExports": false
     },
-    "packages/core": {
+    "packages/domain": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false

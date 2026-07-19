@@ -5,9 +5,9 @@
 // lives in ipc-registry.ts; import those from there directly.
 // ---------------------------------------------------------------------------
 
-import { isRecord } from "@repo/core/sync/guards";
+import { isRecord } from "@repo/domain/sync/guards";
 
-// The ONE isRecord — defined in @repo/core (pure, importable everywhere);
+// The ONE isRecord — defined in @repo/domain (pure, importable everywhere);
 // re-exported here so IPC-seam consumers keep their one-stop helper import.
 export { isRecord };
 

@@ -9,7 +9,7 @@ import { useEffect, useEffectEvent } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
 
-import { isDocPath } from "@repo/core/knowledge/doc-file";
+import { isDocPath } from "@repo/domain/knowledge/doc-file";
 import type { DeepLinkNav, DeepLinkNavEvent } from "@repo/features/deep-link";
 
 import { getBridge } from "@renderer/lib/bridge";

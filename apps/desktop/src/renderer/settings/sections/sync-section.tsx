@@ -6,8 +6,8 @@ import { Label } from "@repo/ui/components/label";
 import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
 import { useVault } from "@renderer/workspace/vault-context";
-import { basenamePath } from "@repo/core/knowledge/vault-path";
-import type { SyncStatus } from "@repo/core/sync/status";
+import { basenamePath } from "@repo/domain/knowledge/vault-path";
+import type { SyncStatus } from "@repo/domain/sync/status";
 import type { SyncState } from "@repo/features/sync";
 
 // Human-readable summary of the last reconcile pass for the status line.

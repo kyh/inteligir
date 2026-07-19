@@ -127,12 +127,12 @@ Type-checks passing isn't feature-correct. Drive the running app:
 `apps/desktop/src/renderer/editor/kits/*-kit.tsx`; add the Base half to `base-kit.ts`
 (kit-parity tests fail on drift); a markdown rule in
 `editor/markdown/md-rules.ts` if the node has bytes; vocabulary allowlist in
-`@repo/core/markdown/vocabulary` (`packages/core/src/markdown/vocabulary.ts`)
+`@repo/domain/markdown/vocabulary` (`packages/domain/src/markdown/vocabulary.ts`)
 for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 
 ## Tests
 
-- `pnpm --filter @repo/core test` — the pure domain: vault-sync engine +
+- `pnpm --filter @repo/domain test` — the pure domain: vault-sync engine +
   reconcile + wire contract, knowledge engine (link graph, search, rename),
   markdown parse/vocabulary.
 - `pnpm --filter @repo/desktop test` — the renderer: editor pipeline (round-trip
@@ -143,7 +143,7 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
   knowledge manager, sync adapters, handlers, secrets).
 - `pnpm --filter @repo/cloud test` — the sync Worker against real in-process
   miniflare (DO + R2 + D1 + Better Auth), incl. the end-to-end sync test that
-  drives @repo/core's engine through the real backend.
+  drives @repo/domain's engine through the real backend.
 - `pnpm --filter @repo/mobile test` — the Expo sync adapters on node (in-memory
   fakes; no simulator).
 

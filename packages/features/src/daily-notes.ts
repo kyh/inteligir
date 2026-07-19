@@ -2,7 +2,7 @@
 // relocated from the desktop renderer so the host (deep-link capture drain)
 // and the renderer (⌘D, palette, Settings → Notes) share one source of truth.
 // No bridge, no React, no node — just string math; the pure date→path fns
-// live in @repo/core/notes/daily-path. Template application substitutes ONLY
+// live in @repo/domain/notes/daily-path. Template application substitutes ONLY
 // the fixed placeholder set, leaving every other byte (frontmatter,
 // whitespace, markdown) untouched.
 

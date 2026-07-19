@@ -9,8 +9,8 @@
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi-types";
-import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
-import type { BacklinkEntry } from "@repo/core/knowledge/link-graph-index";
+import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
+import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
 
 import { isRecord } from "@repo/features/wire-helpers";
 import type { NotePrivacyProbe, SetupProgress } from "@repo/features/ipc-registry";

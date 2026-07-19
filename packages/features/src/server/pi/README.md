@@ -95,7 +95,7 @@ and workspace discovery (`agentDir`, AGENTS.md, the `./vault` symlink).
   `tool_call` hook wiring in `agent/privacy/extension.ts` (+ a new
   path-parity module; the gate core `privacy/gate.ts` is pure and stays),
   and possibly an event adapter for seam 4.
-- **Untouched:** the renderer (Bridge-only, harness-agnostic), `@repo/core`,
+- **Untouched:** the renderer (Bridge-only, harness-agnostic), `@repo/domain`,
   the Bridge handlers, provider catalog/service/store (neutral selections),
   delegation manager, app-machine — they all drive the `agent/agent.ts`
   `Agent` API, which after #460 carries no pi types.

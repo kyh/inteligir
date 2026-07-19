@@ -11,8 +11,8 @@
 
 import { Directory, File, Paths } from "expo-file-system";
 
-import { isBlobFileName, type BaseBlobStore } from "@repo/core/sync/blob-store";
-import type { Hash } from "@repo/core/sync/vault-file";
+import { isBlobFileName, type BaseBlobStore } from "@repo/domain/sync/blob-store";
+import type { Hash } from "@repo/domain/sync/vault-file";
 
 /** The blob directory name under the app's document directory. */
 const BLOBS_DIR = "sync-blobs";

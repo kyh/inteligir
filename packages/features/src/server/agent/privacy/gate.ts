@@ -38,7 +38,7 @@
 
 import path from "node:path";
 
-import { isDocPath } from "@repo/core/knowledge/doc-file";
+import { isDocPath } from "@repo/domain/knowledge/doc-file";
 
 import type { PrivacyProbe, VaultDocWrite } from "../extension";
 

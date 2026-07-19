@@ -2,7 +2,7 @@
 // a SyncEngine when enabled AND signed in, so with no token every path stays
 // engine-free and observable without touching the vault or the network. The
 // engine + node adapters are covered separately (sync-manager.test.ts + the
-// @repo/core engine tests).
+// @repo/domain engine tests).
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
@@ -13,9 +13,9 @@ import { SyncAccount } from "../sync-account";
 import { createSyncManager } from "../sync-manager";
 import { SyncCoordinator, type SyncEngineFactory } from "../sync-coordinator";
 import { subscribeEvents } from "../../events";
-import { InMemorySyncPort } from "@repo/core/sync/testing/in-memory-sync-port";
-import type { SyncIo } from "@repo/core/sync/engine";
-import type { VaultPath } from "@repo/core/sync/vault-file";
+import { InMemorySyncPort } from "@repo/domain/sync/testing/in-memory-sync-port";
+import type { SyncIo } from "@repo/domain/sync/engine";
+import type { VaultPath } from "@repo/domain/sync/vault-file";
 
 let tmp: string;
 // onSyncStateChanged payloads captured off the typed event bus (the

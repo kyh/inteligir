@@ -21,12 +21,12 @@ import { docExists } from "@renderer/lib/bridge";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { basenamePath } from "@repo/core/knowledge/vault-path";
+import { basenamePath } from "@repo/domain/knowledge/vault-path";
 import {
   applyPropertiesPatch,
   serializeDoc,
   splitFrontmatter,
-} from "@repo/core/markdown/frontmatter";
+} from "@repo/domain/markdown/frontmatter";
 import type { Bridge } from "@repo/features/ipc-registry";
 
 /** The Bridge slice the broker uses — nothing more. */

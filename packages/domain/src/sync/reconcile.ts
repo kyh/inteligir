@@ -135,7 +135,7 @@ function pickWinner(localVersion: number, local: LocalFile, remote: VaultFile): 
  * Format a Date as the filesystem-safe ISO timestamp `conflictCopyName`
  * expects (`2026-07-05T12-34-56-000Z` — `:` and `.` swapped for `-`; Windows/
  * exFAT reject `:`). PURE: the Date comes from the caller's platform clock —
- * @repo/core never reads time. One implementation for every platform's Clock
+ * @repo/domain never reads time. One implementation for every platform's Clock
  * adapter (desktop node, mobile Expo).
  */
 export function fsSafeStamp(date: Date): string {
@@ -149,7 +149,7 @@ export function fsSafeStamp(date: Date): string {
  * directory with the same extension so it stays a sibling in the vault.
  *
  * PURE: the timestamp is supplied by the caller (the executor passes an ISO
- * string from its platform clock) — @repo/core never reads time. Pass a
+ * string from its platform clock) — @repo/domain never reads time. Pass a
  * filesystem-safe timestamp (`fsSafeStamp`).
  */
 export function conflictCopyName(path: VaultPath, isoTimestamp: string): VaultPath {

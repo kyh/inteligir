@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Vault file identity — the atom of the sync protocol.
 //
-// @repo/core is PURE: no node, no dom, no fs, no react. It runs unchanged in a
+// @repo/domain is PURE: no node, no dom, no fs, no react. It runs unchanged in a
 // Cloudflare Worker (the future coordinator), React Native (the future mobile
 // client), and the desktop renderer. Keep it that way — nothing here may touch
 // a filesystem, a clock, or crypto. Values (hashes, timestamps) are computed by
@@ -16,7 +16,7 @@
  * Kept a plain `string` alias rather than a nominal brand on purpose: branding
  * needs a checked cast (`value as Hash`), and this repo forbids `as`. Callers
  * hash with their platform crypto (Web Crypto / Node crypto) and pass the
- * digest in; @repo/core never hashes. Validate untrusted input at a wire
+ * digest in; @repo/domain never hashes. Validate untrusted input at a wire
  * boundary with `isValidHash` before trusting it.
  */
 export type Hash = string;

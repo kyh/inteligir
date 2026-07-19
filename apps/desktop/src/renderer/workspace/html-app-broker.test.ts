@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { BacklinkEntry } from "@repo/core/knowledge/link-graph-index";
+import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
 import { handleBrokerRequest, type BrokerBridge, type BrokerDeps } from "./html-app-broker";

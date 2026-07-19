@@ -13,7 +13,7 @@ import crypto from "node:crypto";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { notePrivacy } from "@repo/core/markdown/frontmatter";
+import { notePrivacy } from "@repo/domain/markdown/frontmatter";
 
 import { findTaskLine } from "./find-task-line";
 import { getSnapshotStore, remapVaultPath, type SnapshotStore } from "../snapshots/snapshot-store";

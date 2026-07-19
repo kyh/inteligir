@@ -43,23 +43,23 @@ import {
   type GhostModelsResult,
   type GhostTextResult,
 } from "./inline-ai";
-import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
+import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
 import type {
   BacklinkEntry,
   ForwardLinkEntry,
   LinkGraph,
   VaultTaskEntry,
   WikiTarget,
-} from "@repo/core/knowledge/link-graph-index";
-import type { TagCount } from "@repo/core/knowledge/tag-index";
-import type { NotePrivacy } from "@repo/core/markdown/frontmatter";
+} from "@repo/domain/knowledge/link-graph-index";
+import type { TagCount } from "@repo/domain/knowledge/tag-index";
+import type { NotePrivacy } from "@repo/domain/markdown/frontmatter";
 import {
   RemoteAccessSetConfigSchema,
   RevokeDeviceSchema,
   type PairingInfo,
   type RemoteAccessState,
 } from "./remote-access";
-import type { SyncOutcome } from "@repo/core/sync/engine";
+import type { SyncOutcome } from "@repo/domain/sync/engine";
 import {
   SyncSetConfigSchema,
   SyncSignInSchema,
@@ -291,7 +291,7 @@ export type NotePrivacyProbe = NotePrivacy | "absent";
 // ---------------------------------------------------------------------------
 // Knowledge — the host's link + lexical search indexes over the vault
 // (backlinks, graph, palette search, wiki autocomplete). Result shapes live
-// in @repo/core/knowledge next to the engine that produces them
+// in @repo/domain/knowledge next to the engine that produces them
 // (link-graph-index, tag-index, knowledge-index).
 // ---------------------------------------------------------------------------
 

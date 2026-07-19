@@ -1,21 +1,21 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { InMemoryBaseStore } from "@repo/core/sync/base-store";
-import { InMemoryBaseBlobStore } from "@repo/core/sync/blob-store";
-import { SyncEngine, type SyncIo } from "@repo/core/sync/engine";
-import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
-import { isConflictCopyPath } from "@repo/core/sync/reconcile";
-import { ABSENT_VERSION } from "@repo/core/sync/vault-file";
+import { InMemoryBaseStore } from "@repo/domain/sync/base-store";
+import { InMemoryBaseBlobStore } from "@repo/domain/sync/blob-store";
+import { SyncEngine, type SyncIo } from "@repo/domain/sync/engine";
+import { createHttpSyncPort } from "@repo/domain/sync/http-sync-port";
+import { isConflictCopyPath } from "@repo/domain/sync/reconcile";
+import { ABSENT_VERSION } from "@repo/domain/sync/vault-file";
 import {
   filePath,
   formatBearer,
   formatVersionHeader,
   HEADER_BASE_VERSION,
-} from "@repo/core/sync/wire";
+} from "@repo/domain/sync/wire";
 
 // ---------------------------------------------------------------------------
 // END-TO-END sync test. Unlike sync.test.ts (which pokes the Worker's routes
-// directly), this drives the REAL client stack — @repo/core's `SyncEngine` +
+// directly), this drives the REAL client stack — @repo/domain's `SyncEngine` +
 // `HttpSyncPort` — against the REAL Worker in one process: real Better Auth
 // (D1), real VaultCoordinator (DO SQLite), real R2. The ONLY thing stubbed is
 // the TCP hop: the port's `fetchImpl` is `SELF.fetch`, so requests route to the

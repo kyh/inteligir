@@ -5,7 +5,7 @@ import {
   applyPropertiesPatch,
   serializeDoc,
   splitFrontmatter,
-} from "@repo/core/markdown/frontmatter";
+} from "@repo/domain/markdown/frontmatter";
 
 describe("splitFrontmatter", () => {
   it("returns empty properties + full body when there is no frontmatter", () => {

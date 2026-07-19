@@ -5,7 +5,7 @@ import { createRealtimeSync, type RealtimeOptions, type StreamHandlers } from ".
 // ---------------------------------------------------------------------------
 // Pure-policy tests: the supervisor runs over a manual clock and a scripted
 // stream — no timers, no network, no native modules. Debounce + pass
-// serialization are the SyncEngine's (tested in @repo/core); the supervisor
+// serialization are the SyncEngine's (tested in @repo/domain); the supervisor
 // owns only the stream lifecycle + reconnect backoff.
 // ---------------------------------------------------------------------------
 

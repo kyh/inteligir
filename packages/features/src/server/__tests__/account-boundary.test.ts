@@ -20,7 +20,7 @@ const REPO_ROOT = path.resolve(__dirname, "../../../../..");
 /** Source trees the guard sweeps (product code on every platform). */
 const SCANNED_DIRS = [
   "packages/features/src",
-  "packages/core/src",
+  "packages/domain/src",
   "packages/ui/src",
   "apps/desktop/src",
   "apps/desktop/dev",

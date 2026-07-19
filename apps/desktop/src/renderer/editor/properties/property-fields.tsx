@@ -8,7 +8,7 @@
 import { type KeyboardEvent, useEffect, useState } from "react";
 import { XIcon } from "lucide-react";
 
-import type { TypedProperty } from "@repo/core/markdown/frontmatter";
+import type { TypedProperty } from "@repo/domain/markdown/frontmatter";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { cn } from "@repo/ui/lib/utils";

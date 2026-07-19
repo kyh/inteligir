@@ -4,7 +4,7 @@
     "lib": ["ES2023", "WebWorker"],
     "types": [],
     "paths": {
-      "@repo/core/*": ["./src/*"]
+      "@repo/domain/*": ["./src/*"]
     }
   },
   "include": ["src"]

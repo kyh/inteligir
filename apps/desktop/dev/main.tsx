@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 
-import { createSqlKnowledgeStore } from "@repo/core/knowledge/sql-knowledge-store";
+import { createSqlKnowledgeStore } from "@repo/domain/knowledge/sql-knowledge-store";
 import { App } from "@renderer/app-root";
 import { installBridge } from "@renderer/lib/bridge";
 

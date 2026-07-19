@@ -1,6 +1,6 @@
 // The node `BaseBlobStore` adapter: a flat directory of hash-named files.
 // The engine-facing semantics (capture moments, GC, ladder fallback) are
-// tested in @repo/core (engine-merge.test.ts); here we pin the node port's own
+// tested in @repo/domain (engine-merge.test.ts); here we pin the node port's own
 // contract: put/get round-trip, existence-checked no-op put, integrity-checked
 // get, and a prune that touches only content-addressed entries.
 

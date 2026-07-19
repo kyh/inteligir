@@ -4,7 +4,7 @@
 // never touch Expo's File API directly and see exactly the files sync manages.
 // ---------------------------------------------------------------------------
 
-import type { VaultPath } from "@repo/core/sync/vault-file";
+import type { VaultPath } from "@repo/domain/sync/vault-file";
 
 import { createExpoVaultFs } from "./expo-vault-fs";
 import { createSyncIo } from "./sync-io";

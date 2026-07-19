@@ -1,20 +1,20 @@
 // ---------------------------------------------------------------------------
 // Vault-sync contract — the isomorphic shapes the Bridge/IPC registry, the host
 // handlers, and the renderer settings UI all share. The sync ENGINE lives in
-// @repo/core (pure reconcile) and its desktop adapters in server/sync/; this
+// @repo/domain (pure reconcile) and its desktop adapters in server/sync/; this
 // module is only the wire contract, so it stays node-free and loads in the
 // renderer too.
 //
-// `SyncStatus` is @repo/core's — `@repo/core/sync/status` is the one
+// `SyncStatus` is @repo/domain's — `@repo/domain/sync/status` is the one
 // definition every platform shares; consumers (renderer, host) import it from
-// there directly. `SyncOutcome` mirrors @repo/core's engine outcome
+// there directly. `SyncOutcome` mirrors @repo/domain's engine outcome
 // STRUCTURALLY (rather than importing it) so the desktop coordinator returns
 // core's outcome and it assigns cleanly to this one.
 // ---------------------------------------------------------------------------
 
 import { Type } from "@sinclair/typebox";
 
-import type { SyncStatus } from "@repo/core/sync/status";
+import type { SyncStatus } from "@repo/domain/sync/status";
 
 // ---------------------------------------------------------------------------
 // Payload schemas (renderer → host) — validated at the handler boundary.

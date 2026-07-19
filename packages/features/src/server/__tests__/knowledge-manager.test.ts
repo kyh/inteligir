@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
+import type { KnowledgeStore } from "@repo/domain/knowledge/knowledge-store";
 
 import { KnowledgeManager } from "../knowledge/knowledge-manager";
 import { createSqliteKnowledgeStore } from "../knowledge/sqlite-knowledge-store";

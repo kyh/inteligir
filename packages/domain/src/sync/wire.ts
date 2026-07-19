@@ -10,7 +10,7 @@ import type { VaultPath } from "./vault-file";
 // against ONE contract. NO fetch, NO server, NO I/O — only route shapes, header
 // + content-type names, the JSON envelopes that mirror the `SyncPort` result
 // ADTs, and a handful of pure build/parse helpers. Same purity rules as the
-// rest of @repo/core: no node, no dom, no `Buffer`, no clock, no crypto. Even
+// rest of @repo/domain: no node, no dom, no `Buffer`, no clock, no crypto. Even
 // `URL`/`URLSearchParams` are avoided (dom-lib types) — the helpers here parse
 // plain strings so the module type-checks with `lib: ES2023`, `types: []`.
 //

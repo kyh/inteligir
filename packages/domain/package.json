@@ -1,5 +1,5 @@
 {
-  "name": "@repo/core",
+  "name": "@repo/domain",
   "version": "0.1.0",
   "private": true,
   "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps so it runs unchanged in a Cloudflare Worker (future sync coordinator), React Native (future mobile client), and the desktop renderer. `src/sync/` is the vault-sync protocol: wire types + the pure last-write-wins/conflict-copy reconcile brain. No I/O, no clock, no crypto — the caller supplies hashes + timestamps.",
