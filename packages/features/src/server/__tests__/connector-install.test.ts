@@ -14,7 +14,7 @@ import {
   type ConnectorInstallOps,
 } from "../connectors/connector-install";
 import { setDevFlagsAllowed } from "../dev-flags";
-import type { PendingConnectorAuth } from "@repo/features/ipc-registry";
+import type { PendingConnectorAuth } from "@repo/bridge/ipc-registry";
 import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ConnectorInstallRequest,
@@ -24,7 +24,7 @@ import {
   type OAuthAwaitResult,
   type OAuthProbeResult,
   type OAuthStartResult,
-} from "@repo/features/executor";
+} from "@repo/bridge/executor";
 
 // Catalog-shaped install requests (the renderer maps its catalog to these).
 const GITHUB: ConnectorInstallRequest = {

@@ -11,7 +11,7 @@
 // they're easy to edit, and the custom flow is the fallback when one is stale.
 // ---------------------------------------------------------------------------
 
-import type { ConnectorInstallRequest, ConnectorSourceSpec } from "@repo/features/executor";
+import type { ConnectorInstallRequest, ConnectorSourceSpec } from "@repo/bridge/executor";
 
 /** How a connector authenticates when installed. */
 type ConnectorAuth =

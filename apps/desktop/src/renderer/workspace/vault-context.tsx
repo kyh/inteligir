@@ -42,7 +42,7 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note
 import { basenamePath, dirnamePath } from "@repo/domain/knowledge/vault-path";
 
 const HTML_RE = /\.html$/i;
-import type { VaultEntry } from "@repo/features/ipc-registry";
+import type { VaultEntry } from "@repo/bridge/ipc-registry";
 
 /** ui-state key the open note persists under (restored on boot). */
 const OPEN_NOTE_KEY = "workspace.openNote";

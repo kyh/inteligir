@@ -6,8 +6,8 @@ import { getVaultManager } from "../vault/vault";
 import type { HandlerRegistrar } from "./handler-registry";
 import { checkNoteName, noteNameErrorMessage } from "@repo/domain/knowledge/note-name";
 import { basenamePath } from "@repo/domain/knowledge/vault-path";
-import { toErrorMessage } from "@repo/features/wire-helpers";
-import type { ChooseVaultResult, ReadVaultAssetResult } from "@repo/features/ipc-registry";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import type { ChooseVaultResult, ReadVaultAssetResult } from "@repo/bridge/ipc-registry";
 
 // Largest asset the renderer may pull back as base64 for rendering. Base64
 // inflates ~4/3, so a 10 MiB file crosses IPC as ~13 MiB of string — well

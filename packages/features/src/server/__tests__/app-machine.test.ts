@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { AppMachine } from "../app/app-machine";
 import type { EffectDeps } from "../app/app-effects";
-import type { AppState } from "@repo/features/app-state";
+import type { AppState } from "@repo/bridge/app-state";
 
 vi.mock("../agent/setup", () => ({
   isSetupComplete: vi.fn().mockReturnValue(false),

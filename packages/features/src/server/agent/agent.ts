@@ -18,7 +18,7 @@ import { EXTENSION_BUNDLES } from "./bundles";
 import { buildValidatedFactories, type AgentPorts } from "./extension";
 import { AGENT_DIR, SESSION_DIR, WORKSPACE_DIR } from "./paths";
 import { buildRegisterContext } from "./setup";
-import type { SessionStatus } from "@repo/features/agent-events";
+import type { SessionStatus } from "@repo/bridge/agent-events";
 
 /** Pi built-in coding tools the session starts with. Mirrors pi's own default
  * — declared explicitly so the raw system-access surface is a deliberate,

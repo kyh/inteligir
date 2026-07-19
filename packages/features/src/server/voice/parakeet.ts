@@ -6,7 +6,7 @@
 import { join } from "node:path";
 
 import { getModelDir, isModelInstalled } from "./model-download";
-import { isRecord, toErrorMessage } from "@repo/features/wire-helpers";
+import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 
 // sherpa-onnx-node is loaded lazily so the app still boots when the model
 // isn't downloaded yet (the renderer just sees STT unavailable).

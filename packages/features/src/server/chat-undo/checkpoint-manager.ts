@@ -24,8 +24,8 @@ import { isEnoent } from "../storage/fs-errors";
 import { getSnapshotStore, type SnapshotStore } from "../snapshots/snapshot-store";
 import { getVaultManager } from "../vault/vault";
 import type { VaultDocWrite } from "../agent/extension";
-import { toErrorMessage } from "@repo/features/wire-helpers";
-import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/features/ipc-registry";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/bridge/ipc-registry";
 
 export type CheckpointManagerOptions = {
   /** Snapshot store. Defaults to the shared ~/.inteligir-backed singleton. */

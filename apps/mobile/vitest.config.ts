@@ -4,8 +4,8 @@ import { defineConfig } from "vitest/config";
 // Node-only tests for the PURE modules: the sync adapters (path/recursion,
 // base-store JSON, clock format) plus an end-to-end SyncEngine pass, and the
 // host-connection runtime (environment store, pairing handshake, connection
-// owner over the iso @repo/features ws bridge). Tests import only pure
-// modules + @repo/domain + iso @repo/features — never the `expo-*` /
+// owner over the iso @repo/bridge ws client). Tests import only pure
+// modules + @repo/domain + iso @repo/bridge — never the `expo-*` /
 // react-native wiring — so nothing here needs a real device or native module.
 //
 // The engine test reaches @repo/domain's coordinator fake by a relative path that

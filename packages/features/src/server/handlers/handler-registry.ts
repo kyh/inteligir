@@ -17,7 +17,7 @@ import {
   type HostMethod,
   type IpcHandler,
   type IpcMethod,
-} from "@repo/features/ipc-registry";
+} from "@repo/bridge/ipc-registry";
 
 // Methods the desktop SHELL implements (not the platform-agnostic host): the
 // html-app token mint/revoke. Excluded from HOST_METHODS.

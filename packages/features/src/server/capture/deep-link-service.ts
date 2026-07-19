@@ -13,7 +13,7 @@
 
 import { getCaptureManager } from "./capture-manager";
 import { emitEvent } from "../events";
-import { parseDeepLink, type CaptureKind, type DeepLinkNavEvent } from "@repo/features/deep-link";
+import { parseDeepLink, type CaptureKind, type DeepLinkNavEvent } from "@repo/bridge/deep-link";
 
 /** Token bucket: how many URLs may land in a burst… */
 const BUCKET_CAPACITY = 10;

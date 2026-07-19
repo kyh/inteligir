@@ -27,7 +27,7 @@ import {
   serializeDoc,
   splitFrontmatter,
 } from "@repo/domain/markdown/frontmatter";
-import type { Bridge } from "@repo/features/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-registry";
 
 /** The Bridge slice the broker uses — nothing more. */
 export type BrokerBridge = Pick<

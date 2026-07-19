@@ -10,10 +10,10 @@
 // ---------------------------------------------------------------------------
 
 import { getAuthStorage, isProviderAuthed, login, logoutProvider } from "../agent/auth";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { ModelSelection } from "@repo/features/server/pi/model";
 import type { Api, Model } from "@repo/features/server/pi/pi-types";
-import type { AiConnectResult, AiProviderSettings } from "@repo/features/ai-provider";
+import type { AiConnectResult, AiProviderSettings } from "@repo/bridge/ai-provider";
 
 import { FAUX_PROVIDER_ID, isFauxAgentEnabled } from "./faux-provider";
 import {

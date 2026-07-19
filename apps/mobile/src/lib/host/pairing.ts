@@ -12,8 +12,8 @@
 // a time, with whitespace/prose tolerance.
 // ---------------------------------------------------------------------------
 
-import { WS_CLOSE_UNAUTHORIZED, encodeFrame, parseServerFrame } from "@repo/features/ws-protocol";
-import type { WsConstructor, WsLike } from "@repo/features/ws-bridge";
+import { WS_CLOSE_UNAUTHORIZED, encodeFrame, parseServerFrame } from "@repo/bridge/ws-protocol";
+import type { WsConstructor, WsLike } from "@repo/bridge/ws-bridge";
 import type { EnvironmentStore, KnownEnvironment } from "./environment-store";
 
 const PAIRING_TIMEOUT_MS = 15_000;

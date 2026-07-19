@@ -29,7 +29,7 @@ import { handleBrokerRequest } from "@renderer/workspace/html-app-broker";
 import { openDocPath } from "@renderer/workspace/open-doc";
 import { useVault } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/domain/knowledge/vault-path";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 // The postMessage request envelope the runtime sends. Validated before dispatch.
 const RequestEnvelope = Type.Object(

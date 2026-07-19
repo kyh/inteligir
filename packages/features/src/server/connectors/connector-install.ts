@@ -38,8 +38,8 @@ import {
   type OAuthStartInput,
   type OAuthStartResult,
   type RegisterDynamicOAuthClientInput,
-} from "@repo/features/executor";
-import type { PendingConnectorAuth } from "@repo/features/ipc-registry";
+} from "@repo/bridge/executor";
+import type { PendingConnectorAuth } from "@repo/bridge/ipc-registry";
 
 import { isEmulateConnectorsEnabled } from "./emulate-connectors";
 

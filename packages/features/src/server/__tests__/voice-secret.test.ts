@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getVoiceApiKey, setVoiceApiKey, type VoiceSecretSink } from "../voice/voice-secret";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 
 type FakeSink = VoiceSecretSink & { values: Map<string, string> };
 

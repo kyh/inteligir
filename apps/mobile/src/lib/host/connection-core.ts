@@ -13,8 +13,8 @@
 // `start()` (fresh pairing, or an explicit retry) clears it.
 // ---------------------------------------------------------------------------
 
-import type { Bridge } from "@repo/features/ipc-registry";
-import type { WsBridgeStatus } from "@repo/features/ws-bridge";
+import type { Bridge } from "@repo/bridge/ipc-registry";
+import type { WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import { createExternalStore } from "../external-store";
 import type { KnownEnvironment } from "./environment-store";
 

@@ -26,7 +26,7 @@ import type {
   SyncConflict,
   SyncSignInResult,
   SyncState,
-} from "@repo/features/sync";
+} from "@repo/bridge/sync";
 
 const DISABLED_REASON = "Enable sync and sign in first.";
 

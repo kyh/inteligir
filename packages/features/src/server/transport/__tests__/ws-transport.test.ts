@@ -11,9 +11,9 @@ import os from "node:os";
 import path from "node:path";
 import { WebSocket as WsWebSocket } from "ws";
 
-import { isRecord } from "@repo/features/wire-helpers";
-import type { Bridge, EventMethod, HostMethod } from "@repo/features/ipc-registry";
-import { createWsBridge, type WsBridgeStatus } from "@repo/features/ws-bridge";
+import { isRecord } from "@repo/bridge/wire-helpers";
+import type { Bridge, EventMethod, HostMethod } from "@repo/bridge/ipc-registry";
+import { createWsBridge, type WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import {
   WS_CLOSE_FORBIDDEN_ORIGIN,
   WS_CLOSE_UNAUTHORIZED,
@@ -21,7 +21,7 @@ import {
   parseServerFrame,
   type ClientFrame,
   type ServerFrame,
-} from "@repo/features/ws-protocol";
+} from "@repo/bridge/ws-protocol";
 import type { WireHandler } from "../../handlers/handler-registry";
 import { RemoteAccessManager } from "../remote-access-manager";
 import { startWsHost, type WsHost, type WsHostSource } from "../ws-host";

@@ -1,4 +1,4 @@
-import type { Bridge } from "@repo/features/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-registry";
 
 // Module-level slot, filled once by the host entry (the desktop's ws bridge,
 // or the dev-harness fixture) before the first render — the app never

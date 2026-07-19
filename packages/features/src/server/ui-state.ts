@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { JsonStore, inteligirPath } from "./storage/json-store";
-import { UiStateSchema, type UiState } from "@repo/features/ui-state";
+import { UiStateSchema, type UiState } from "@repo/bridge/ui-state";
 
 const DEFAULT_STATE: UiState = {};
 

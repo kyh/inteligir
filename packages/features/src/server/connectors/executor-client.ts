@@ -43,7 +43,7 @@ import {
   type OAuthStartInput,
   type OAuthStartResult,
   type RegisterDynamicOAuthClientInput,
-} from "@repo/features/executor";
+} from "@repo/bridge/executor";
 
 class ExecutorClientError extends Error {
   constructor(

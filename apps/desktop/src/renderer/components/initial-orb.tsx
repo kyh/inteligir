@@ -3,7 +3,7 @@ import type { DisplayStatus } from "@repo/ui/components/geometric-orb";
 import { LazyGeometricOrb } from "@renderer/components/lazy-orb";
 import { useOrbBaseColor } from "@renderer/lib/use-theme";
 import { useAgentStore } from "@renderer/stores/agent-store";
-import type { AppState } from "@repo/features/app-state";
+import type { AppState } from "@repo/bridge/app-state";
 
 function phaseToOrbStatus(phase: AppState["phase"]): DisplayStatus {
   return phase === "error" ? "error" : "starting";

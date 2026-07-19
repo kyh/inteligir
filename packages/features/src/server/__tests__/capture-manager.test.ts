@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CaptureManager, type CaptureIo } from "../capture/capture-manager";
 import type { FsAdapter } from "../storage/json-store";
-import type { CaptureApplyEvent } from "@repo/features/ipc-registry";
+import type { CaptureApplyEvent } from "@repo/bridge/ipc-registry";
 
 const TODAY = "journal/2026-07-16.md";
 const NOW = new Date(2026, 6, 16);

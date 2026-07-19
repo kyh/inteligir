@@ -2,7 +2,7 @@
 // node with no react-native / expo-secure-store / real sockets. Mirrors the
 // sync suite's fakes: tests drive the injected ports, never native modules.
 
-import type { WsConstructor, WsLike } from "@repo/features/ws-bridge";
+import type { WsConstructor, WsLike } from "@repo/bridge/ws-bridge";
 import {
   createEnvironmentStore,
   type EnvironmentStore,

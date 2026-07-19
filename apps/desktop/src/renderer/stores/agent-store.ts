@@ -1,9 +1,9 @@
 import { create } from "zustand";
 
-import type { AppAgentEvent } from "@repo/features/agent-events";
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import { Value } from "@sinclair/typebox/value";
 
-import { AppStateSchema, type AppState } from "@repo/features/app-state";
+import { AppStateSchema, type AppState } from "@repo/bridge/app-state";
 import {
   appendNotice,
   appendUser,
@@ -11,11 +11,11 @@ import {
   emptyChatLog,
   logFromHistory,
   type ChatLog,
-} from "@repo/features/chat-log";
-import { toErrorMessage } from "@repo/features/wire-helpers";
-import type { Bridge, SetupProgress } from "@repo/features/ipc-registry";
-import { buildNoteContext } from "@repo/features/note-context";
-import type { ImageAttachment } from "@repo/features/voice";
+} from "@repo/bridge/chat-log";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import type { Bridge, SetupProgress } from "@repo/bridge/ipc-registry";
+import { buildNoteContext } from "@repo/bridge/note-context";
+import type { ImageAttachment } from "@repo/bridge/voice";
 import { getBridge } from "@renderer/lib/bridge";
 import {
   projectChatLog,
@@ -31,7 +31,7 @@ import { useAiProviderStore } from "@renderer/stores/ai-provider-store";
 import { onUserTranscript, useVoiceStore } from "@renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
-// The chat surface is the SHARED @repo/features/chat-log fold (the same
+// The chat surface is the SHARED @repo/bridge/chat-log fold (the same
 // reducer the mobile app renders), projected into AI SDK UIMessages by
 // @renderer/stores/chat-log-view. This store owns the desktop-only halves:
 // the per-item metadata (steer, image count), queue state, voice side

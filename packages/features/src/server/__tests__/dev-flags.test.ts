@@ -11,7 +11,7 @@ import {
   resolveGoogleOAuthEndpoints,
 } from "../connectors/emulate-connectors";
 import { isFauxAgentEnabled } from "../provider/faux-provider";
-import { GOOGLE_AUTHORIZATION_URL, GOOGLE_TOKEN_URL } from "@repo/features/executor";
+import { GOOGLE_AUTHORIZATION_URL, GOOGLE_TOKEN_URL } from "@repo/bridge/executor";
 
 afterEach(() => {
   vi.unstubAllEnvs();

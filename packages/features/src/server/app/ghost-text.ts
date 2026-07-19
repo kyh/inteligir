@@ -12,7 +12,7 @@
 // launches never pay for it.
 // ---------------------------------------------------------------------------
 
-import { toErrorMessage } from "@repo/features/wire-helpers";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import { Agent } from "../agent/agent";
 import {
@@ -27,7 +27,7 @@ import {
   GHOST_TEXT_MODEL_UI_STATE,
   type GhostModelsResult,
   type GhostTextResult,
-} from "@repo/features/inline-ai";
+} from "@repo/bridge/inline-ai";
 
 const GHOST_TIMEOUT_MS = 20_000;
 const RECYCLE_AFTER_TURNS = 24;

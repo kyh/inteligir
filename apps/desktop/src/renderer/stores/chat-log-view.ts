@@ -1,9 +1,9 @@
 import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
 
-import type { ChatItem, ChatItemDetail, ChatLog } from "@repo/features/chat-log";
+import type { ChatItem, ChatItemDetail, ChatLog } from "@repo/bridge/chat-log";
 
 // ---------------------------------------------------------------------------
-// The desktop VIEW over the shared chat log (@repo/features/chat-log): the
+// The desktop VIEW over the shared chat log (@repo/bridge/chat-log): the
 // fold itself is platform-neutral; this module projects its items into the AI
 // SDK UIMessage shape the renderer components consume. Each message carries a
 // single content part: user/assistant turns hold a TextUIPart; tool rows hold

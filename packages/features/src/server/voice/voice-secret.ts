@@ -12,7 +12,7 @@
 
 import { getSecretStore } from "../secrets";
 import { getUiState } from "../ui-state";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 
 /** The slice of SecretStore the voice key needs — injection seam for tests. */
 export type VoiceSecretSink = {

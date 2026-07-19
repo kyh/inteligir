@@ -33,7 +33,7 @@ import {
   GOOGLE_AUTHORIZATION_URL,
   GOOGLE_TOKEN_URL,
   type CreateOAuthClientInput,
-} from "@repo/features/executor";
+} from "@repo/bridge/executor";
 
 import { areDevFlagsAllowed } from "../dev-flags";
 

@@ -33,7 +33,7 @@ import { serializeMd } from "@platejs/markdown";
 
 import { toast } from "@repo/ui/components/sonner";
 
-import type { AiIntentResult } from "@repo/features/inline-ai";
+import type { AiIntentResult } from "@repo/bridge/inline-ai";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { isEditorNotePrivate } from "@renderer/editor/note-privacy";

@@ -38,7 +38,7 @@ import { JsonStore, inteligirPath, type FsAdapter } from "../storage/json-store"
 import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/domain/knowledge/doc-file";
-import type { VaultEntry } from "@repo/features/ipc-registry";
+import type { VaultEntry } from "@repo/bridge/ipc-registry";
 
 // ---------------------------------------------------------------------------
 // Settings store — records the vault location. Lives in ~/.inteligir so it is

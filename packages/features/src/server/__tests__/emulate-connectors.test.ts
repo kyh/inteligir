@@ -17,7 +17,7 @@ import {
   GOOGLE_AUTHORIZATION_URL,
   GOOGLE_TOKEN_URL,
   type CreateOAuthClientInput,
-} from "@repo/features/executor";
+} from "@repo/bridge/executor";
 
 // These tests exercise the env-driven behavior of an UNPACKAGED (dev) build,
 // so opt in to dev flags; the packaged-refusal contract is dev-flags.test.ts.

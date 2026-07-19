@@ -66,6 +66,10 @@
                   "react",
                   "react-dom",
                   "react/*",
+                  "@repo/bridge",
+                  "@repo/bridge/*",
+                  "@repo/cli-bootstrap",
+                  "@repo/cli-bootstrap/*",
                   "@repo/features",
                   "@repo/features/*",
                   "@repo/ui",
@@ -81,7 +85,7 @@
       }
     },
     {
-      "files": ["packages/features/src/**"],
+      "files": ["packages/bridge/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -89,7 +93,7 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "packages/features/src is isomorphic — no node/electron imports (the node backend lives in src/server)"
+                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/features/server)"
               }
             ]
           }

@@ -9,8 +9,8 @@
 // exactly where the copies legitimately diverged.
 // ---------------------------------------------------------------------------
 
-import { parseAgentEvent } from "@repo/features/agent-event-parser";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 /** The subset of the Agent surface one text turn drives. Structural so the real
  * Agent satisfies it and tests can pass a lightweight fake without casts

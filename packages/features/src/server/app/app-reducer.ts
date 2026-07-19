@@ -8,7 +8,7 @@
 // feature-level concerns outside this machine.
 // ---------------------------------------------------------------------------
 
-import type { AppState, MachineEvent } from "@repo/features/app-state";
+import type { AppState, MachineEvent } from "@repo/bridge/app-state";
 
 export type EffectTag = "SETUP" | "RESET" | "NEW_SESSION";
 

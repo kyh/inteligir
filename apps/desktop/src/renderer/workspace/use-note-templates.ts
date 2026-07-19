@@ -9,7 +9,7 @@ import {
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
   applyTemplate,
-} from "@repo/features/daily-notes";
+} from "@repo/bridge/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";

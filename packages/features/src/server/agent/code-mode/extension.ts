@@ -21,13 +21,13 @@
  */
 
 import { Type } from "@sinclair/typebox";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { ExtensionAPI } from "@repo/features/server/pi/pi-types";
 
 import type { ExecutorPort, PiExtensionBundle } from "../extension";
 import { textResult } from "../extension-helpers";
-import type { ExecutorExecuteResult } from "@repo/features/executor";
-import { isRecord } from "@repo/features/wire-helpers";
+import type { ExecutorExecuteResult } from "@repo/bridge/executor";
+import { isRecord } from "@repo/bridge/wire-helpers";
 
 const EXECUTE_DESCRIPTION = `Execute TypeScript in a sandboxed runtime with access to the user's connected integrations.
 

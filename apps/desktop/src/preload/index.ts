@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { isRecord } from "@repo/features/wire-helpers";
+import { isRecord } from "@repo/bridge/wire-helpers";
 
 // Bootstrap-only preload: the Bridge itself is a WebSocket client the
 // renderer constructs (ws-bridge). The ws endpoint + per-boot local token are

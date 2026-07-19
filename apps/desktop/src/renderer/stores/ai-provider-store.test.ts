@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { AiProviderSettings } from "@repo/features/ai-provider";
+import type { AiProviderSettings } from "@repo/bridge/ai-provider";
 
 // The store reaches the host only through getBridge(); stub it so init() is
 // testable without a transport (same pattern as agent-gateway.test.ts).

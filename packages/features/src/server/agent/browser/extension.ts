@@ -18,14 +18,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import { installCliFromGithubRelease } from "@repo/cli-bootstrap/install";
 import { runCli } from "@repo/cli-bootstrap/run-cli";
 
 import { inteligirPath } from "../paths";
 import type { PiExtensionBundle } from "../extension";
 import { formatCliOutput, textResult } from "../extension-helpers";
-import type { SetupProgress } from "@repo/features/ipc-registry";
+import type { SetupProgress } from "@repo/bridge/ipc-registry";
 
 const AGENT_BROWSER_VERSION = "0.26.0";
 

@@ -1,6 +1,6 @@
 import { toggleTaskAtOrdinal } from "@repo/domain/knowledge/guarded-line-edit";
-import { toErrorMessage } from "@repo/features/wire-helpers";
-import type { ToggleTaskResult } from "@repo/features/ipc-registry";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import type { ToggleTaskResult } from "@repo/bridge/ipc-registry";
 
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getVaultManager } from "../vault/vault";

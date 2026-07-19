@@ -18,8 +18,8 @@ import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type CreateOAuthClientInput,
   type ExecutorOAuthClient,
-} from "@repo/features/executor";
-import type { EnsureGoogleClientResult } from "@repo/features/ipc-registry";
+} from "@repo/bridge/executor";
+import type { EnsureGoogleClientResult } from "@repo/bridge/ipc-registry";
 
 import { resolveGoogleOAuthEndpoints } from "./emulate-connectors";
 

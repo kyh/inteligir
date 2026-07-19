@@ -31,8 +31,8 @@ import {
   DAILY_FORMAT_KEY,
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
-} from "@repo/features/daily-notes";
-import type { Delegation } from "@repo/features/delegation";
+} from "@repo/bridge/daily-notes";
+import type { Delegation } from "@repo/bridge/delegation";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";

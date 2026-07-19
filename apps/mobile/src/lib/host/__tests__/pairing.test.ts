@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { encodeFrame, parseClientFrame } from "@repo/features/ws-protocol";
+import { encodeFrame, parseClientFrame } from "@repo/bridge/ws-protocol";
 import { parsePairingInput, pairWithHost } from "../pairing";
 import { FakeSocket, fakeWebSocketImpl, lastSocket, memEnvironmentStore } from "./fakes";
 

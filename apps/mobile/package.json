@@ -13,8 +13,8 @@
   "dependencies": {
     "@better-auth/expo": "catalog:",
     "@expo/metro-runtime": "catalog:",
+    "@repo/bridge": "workspace:*",
     "@repo/domain": "workspace:*",
-    "@repo/features": "workspace:*",
     "better-auth": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",

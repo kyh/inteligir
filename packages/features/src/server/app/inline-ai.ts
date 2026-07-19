@@ -16,11 +16,7 @@ import { agentModelSelection } from "../provider/provider-service";
 import { getAgentPorts } from "../boot/agent-wiring";
 import { emitEvent } from "../events";
 import { runTextTurn } from "../agent/text-turn";
-import {
-  parseAiIntent,
-  type AiGenerateResult,
-  type AiIntentResult,
-} from "@repo/features/inline-ai";
+import { parseAiIntent, type AiGenerateResult, type AiIntentResult } from "@repo/bridge/inline-ai";
 
 const GEN_TIMEOUT_MS = 60_000;
 const CLASSIFY_TIMEOUT_MS = 15_000;

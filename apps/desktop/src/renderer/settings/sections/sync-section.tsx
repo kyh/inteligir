@@ -8,7 +8,7 @@ import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row
 import { useVault } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/domain/knowledge/vault-path";
 import type { SyncStatus } from "@repo/domain/sync/status";
-import type { SyncState } from "@repo/features/sync";
+import type { SyncState } from "@repo/bridge/sync";
 
 // Human-readable summary of the last reconcile pass for the status line.
 function formatSyncStatus(status: SyncStatus): string {

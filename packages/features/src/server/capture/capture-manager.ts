@@ -42,14 +42,14 @@ import {
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
   applyTemplate,
-} from "@repo/features/daily-notes";
+} from "@repo/bridge/daily-notes";
 import {
   appendCaptureLine,
   formatCaptureLine,
   hasExactCaptureLine,
   type CaptureKind,
-} from "@repo/features/deep-link";
-import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/features/ipc-registry";
+} from "@repo/bridge/deep-link";
+import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/bridge/ipc-registry";
 
 const INBOX_VERSION = 1;
 // Inbox bound — a rate-limited surface can't realistically hit this; oldest

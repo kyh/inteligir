@@ -29,7 +29,7 @@ import { getSyncCoordinator } from "../sync/sync-coordinator";
 import { installHostRuntime } from "../platform-instance";
 import { getVaultManager, setVaultChangeNotifier, setVaultWorkspaceLinkDir } from "../vault/vault";
 import type { HostOptions, HostPlatform } from "../platform";
-import type { EventMethod } from "@repo/features/ipc-registry";
+import type { EventMethod } from "@repo/bridge/ipc-registry";
 
 export type HostEvents = {
   /** Every event-kind emission, in emit order. Returns unsubscribe. */

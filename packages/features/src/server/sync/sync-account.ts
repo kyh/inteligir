@@ -24,8 +24,8 @@ import {
   rejectLegacyVersion,
   type FsAdapter,
 } from "../storage/json-store";
-import { isRecord, toErrorMessage } from "@repo/features/wire-helpers";
-import type { AccountCapabilities, SyncSignInResult } from "@repo/features/sync";
+import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
+import type { AccountCapabilities, SyncSignInResult } from "@repo/bridge/sync";
 
 // ---------------------------------------------------------------------------
 // Store schemas — each versioned; a legacy/corrupt file resets to the default

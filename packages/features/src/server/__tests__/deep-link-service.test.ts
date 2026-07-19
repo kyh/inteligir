@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createDeepLinkService } from "../capture/deep-link-service";
-import type { CaptureKind, DeepLinkNavEvent } from "@repo/features/deep-link";
+import type { CaptureKind, DeepLinkNavEvent } from "@repo/bridge/deep-link";
 
 function harness(startMs = 0) {
   let now = startMs;

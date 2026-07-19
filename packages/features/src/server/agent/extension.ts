@@ -12,9 +12,9 @@ import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi
 import type { SearchResult } from "@repo/domain/knowledge/knowledge-index";
 import type { BacklinkEntry } from "@repo/domain/knowledge/link-graph-index";
 
-import { isRecord } from "@repo/features/wire-helpers";
-import type { NotePrivacyProbe, SetupProgress } from "@repo/features/ipc-registry";
-import type { ExecutorExecuteResult } from "@repo/features/executor";
+import { isRecord } from "@repo/bridge/wire-helpers";
+import type { NotePrivacyProbe, SetupProgress } from "@repo/bridge/ipc-registry";
+import type { ExecutorExecuteResult } from "@repo/bridge/executor";
 
 // ---------------------------------------------------------------------------
 // Ports — host-owned capabilities handed to extensions at register/setup time.

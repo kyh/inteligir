@@ -16,7 +16,7 @@ import {
   rejectLegacyVersion,
   type FsAdapter,
 } from "../storage/json-store";
-import type { RemoteDeviceInfo } from "@repo/features/remote-access";
+import type { RemoteDeviceInfo } from "@repo/bridge/remote-access";
 
 const DEVICES_VERSION = 1;
 const PAIRING_TOKEN_TTL_MS = 10 * 60 * 1000;

@@ -1,6 +1,6 @@
 import { loadSkills } from "@mariozechner/pi-coding-agent";
 
-import type { SkillInfo } from "@repo/features/ipc-registry";
+import type { SkillInfo } from "@repo/bridge/ipc-registry";
 
 export type ListSkillsOptions = {
   /** Working directory — project skills live under `<cwd>/.pi/skills`. */

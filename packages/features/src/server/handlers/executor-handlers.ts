@@ -18,8 +18,8 @@ import { getExecutorDaemon } from "../connectors/executor-daemon";
 import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../connectors/google-oauth-client";
 import type { HandlerRegistrar } from "./handler-registry";
 import { getHostOptions, getPlatform } from "../platform-instance";
-import { isHttpUrl } from "@repo/features/wire-helpers";
-import type { ExecutorStatus } from "@repo/features/ipc-registry";
+import { isHttpUrl } from "@repo/bridge/wire-helpers";
+import type { ExecutorStatus } from "@repo/bridge/ipc-registry";
 
 // The real ports the connector orchestration runs on: the executor-client 1:1,
 // the platform browser-open (same non-http refusal as executorOpenExternal),

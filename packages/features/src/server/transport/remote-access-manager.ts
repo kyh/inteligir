@@ -19,7 +19,7 @@ import {
   type FsAdapter,
 } from "../storage/json-store";
 import { DeviceAuthStore, type PairingRedeemResult, type TokenValidator } from "./device-auth";
-import type { PairingInfo, RemoteAccessState } from "@repo/features/remote-access";
+import type { PairingInfo, RemoteAccessState } from "@repo/bridge/remote-access";
 
 const CONFIG_VERSION = 1;
 

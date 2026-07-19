@@ -26,7 +26,7 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { notePrivacy, setNotePrivate } from "@repo/domain/markdown/frontmatter";
 
-import { TEMPLATES_DIR, isTemplatePath } from "@repo/features/daily-notes";
+import { TEMPLATES_DIR, isTemplatePath } from "@repo/bridge/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { getLiveEditor } from "@renderer/editor/live-editor";

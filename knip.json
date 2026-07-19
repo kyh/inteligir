@@ -4,6 +4,11 @@
   "ignore": [".design-sync/**"],
   "workspaces": {
     ".": {},
+    "apps/cloud": {
+      "entry": ["test/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["cloudflare"]
+    },
     "apps/desktop": {
       "entry": [
         "src/main/index.ts",
@@ -20,37 +25,37 @@
       "ignore": ["src/renderer/routeTree.gen.ts"],
       "ignoreDependencies": ["electron-builder", "sherpa-onnx-node"]
     },
-    "apps/web": {
-      "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
-      "project": ["src/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["tailwindcss"]
-    },
     "apps/mobile": {
       "entry": ["src/app/**/*.tsx", "src/lib/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
       "ignoreDependencies": ["metro-cache", "expo-updates"]
     },
-    "apps/cloud": {
-      "entry": ["test/**/*.test.ts"],
+    "apps/web": {
+      "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["tailwindcss"]
+    },
+    "packages/bridge": {
+      "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
-      "ignoreDependencies": ["cloudflare"]
+      "includeEntryExports": false
     },
     "packages/cli-bootstrap": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
+    "packages/domain": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/features": {
-      "entry": ["src/__tests__/**/*.test.ts", "src/server/**/*.test.ts"],
+      "entry": ["src/server/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
     "packages/ui": {
-      "includeEntryExports": false
-    },
-    "packages/domain": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
       "includeEntryExports": false
     }
   }

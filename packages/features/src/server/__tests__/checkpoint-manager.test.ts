@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CheckpointManager } from "../chat-undo/checkpoint-manager";
 import { SnapshotStore } from "../snapshots/snapshot-store";
 import type { FsAdapter } from "../storage/json-store";
-import type { AgentEditCaptured } from "@repo/features/ipc-registry";
+import type { AgentEditCaptured } from "@repo/bridge/ipc-registry";
 
 /** A snapshot store over an in-memory map — no ~/.inteligir writes in tests. */
 function memorySnapshots(): SnapshotStore {

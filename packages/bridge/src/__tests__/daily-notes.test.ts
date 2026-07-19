@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyTemplate, isTemplatePath } from "@repo/features/daily-notes";
+import { applyTemplate, isTemplatePath } from "../daily-notes";
 
 describe("applyTemplate", () => {
   it("substitutes both placeholders", () => {

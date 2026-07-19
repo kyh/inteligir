@@ -9,15 +9,15 @@
 import type { IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
-import { createBackoff, timeoutSchedule } from "@repo/features/backoff";
-import { isRecord, toErrorMessage } from "@repo/features/wire-helpers";
+import { createBackoff, timeoutSchedule } from "@repo/bridge/backoff";
+import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 import {
   HYDRATED_EVENTS,
   LOCAL_ONLY_METHODS,
   type DesktopShellMethod,
   type EventMethod,
   type HostMethod,
-} from "@repo/features/ipc-registry";
+} from "@repo/bridge/ipc-registry";
 import {
   BINARY_STT_AUDIO,
   BINARY_TTS_AUDIO,
@@ -29,7 +29,7 @@ import {
   parseClientFrame,
   type ReqFrame,
   type SendFrame,
-} from "@repo/features/ws-protocol";
+} from "@repo/bridge/ws-protocol";
 import type { HostEvents } from "../boot/create-host";
 import type { WireHandler } from "../handlers/handler-registry";
 import { LOCAL_DEVICE_ID, type DeviceSession, type TokenValidator } from "./device-auth";

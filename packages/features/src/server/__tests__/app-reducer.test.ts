@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { reduce } from "../app/app-reducer";
-import type { AppState, MachineEvent } from "@repo/features/app-state";
+import type { AppState, MachineEvent } from "@repo/bridge/app-state";
 
 describe("reduce", () => {
   // ---- SETUP ----------------------------------------------------------------

@@ -11,16 +11,16 @@
 // a stub that answers wrong is worse than an error that names itself.
 // ---------------------------------------------------------------------------
 
-import type { AiProviderSettings } from "@repo/features/ai-provider";
-import type { AppAgentEvent } from "@repo/features/agent-events";
-import type { AppState } from "@repo/features/app-state";
-import type { Delegation, ListDelegationsResult } from "@repo/features/delegation";
-import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/features/inline-ai";
-import type { ChatHistoryEntry } from "@repo/features/chat-log";
-import type { Bridge, VaultEntry } from "@repo/features/ipc-registry";
-import type { RemoteAccessState } from "@repo/features/remote-access";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
-import type { SyncState } from "@repo/features/sync";
+import type { AiProviderSettings } from "@repo/bridge/ai-provider";
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
+import type { AppState } from "@repo/bridge/app-state";
+import type { Delegation, ListDelegationsResult } from "@repo/bridge/delegation";
+import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/bridge/inline-ai";
+import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
+import type { Bridge, VaultEntry } from "@repo/bridge/ipc-registry";
+import type { RemoteAccessState } from "@repo/bridge/remote-access";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
+import type { SyncState } from "@repo/bridge/sync";
 import { isDocPath } from "@repo/domain/knowledge/doc-file";
 import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/domain/knowledge/guarded-line-edit";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/domain/knowledge/knowledge-index";

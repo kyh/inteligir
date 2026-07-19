@@ -12,7 +12,7 @@ import {
   GOOGLE_TOKEN_URL,
   type CreateOAuthClientInput,
   type ExecutorOAuthClient,
-} from "@repo/features/executor";
+} from "@repo/bridge/executor";
 
 const BUNDLED: BundledGoogleClient = { clientId: "bundled-id", clientSecret: "bundled-secret" };
 

@@ -22,7 +22,7 @@ import type {
   FauxResponseFactory,
   FauxResponseStep,
 } from "@mariozechner/pi-ai";
-import type { FauxAgentScript } from "@repo/features/ipc-registry";
+import type { FauxAgentScript } from "@repo/bridge/ipc-registry";
 
 import { areDevFlagsAllowed } from "../dev-flags";
 

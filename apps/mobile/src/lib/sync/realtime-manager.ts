@@ -18,7 +18,7 @@ import { AppState } from "react-native";
 import { fetch as expoFetch, type FetchRequestInit } from "expo/fetch";
 
 import { createHttpSyncPort, type FetchFn } from "@repo/domain/sync/http-sync-port";
-import { timeoutSchedule } from "@repo/features/backoff";
+import { timeoutSchedule } from "@repo/bridge/backoff";
 
 import { subscribeAppForeground } from "../app-lifecycle";
 import { getBearerToken } from "../auth";

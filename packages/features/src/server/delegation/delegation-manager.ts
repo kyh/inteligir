@@ -33,8 +33,8 @@ import {
   type CreateDelegationResult,
   type Delegation,
   type RestoreSnapshotResult,
-} from "@repo/features/delegation";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+} from "@repo/bridge/delegation";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 // v2: anchor moved from text/heading matching to a positional `index`.
 // v3: pre-run snapshots — records gained `hasSnapshot` + `restoredAt`.

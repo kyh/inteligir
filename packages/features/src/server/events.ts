@@ -4,7 +4,7 @@
 // module-level to match the one-host-per-process singleton model.
 // ---------------------------------------------------------------------------
 
-import type { EventMethod, IpcEvent } from "@repo/features/ipc-registry";
+import type { EventMethod, IpcEvent } from "@repo/bridge/ipc-registry";
 
 type EventsListener = (method: EventMethod, payload: unknown) => void;
 

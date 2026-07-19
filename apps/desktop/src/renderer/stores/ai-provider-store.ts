@@ -14,7 +14,7 @@
 
 import { create } from "zustand";
 
-import type { AiProviderSettings } from "@repo/features/ai-provider";
+import type { AiProviderSettings } from "@repo/bridge/ai-provider";
 
 import { getBridge } from "@renderer/lib/bridge";
 

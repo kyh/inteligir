@@ -27,10 +27,10 @@ import { startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { getNotifications } from "../notifications";
 import { downloadModel } from "../voice/model-download";
-import { parseAgentEvent } from "@repo/features/agent-event-parser";
-import type { AppAgentEvent } from "@repo/features/agent-events";
-import type { AppState, MachineEvent } from "@repo/features/app-state";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
+import type { AppAgentEvent } from "@repo/bridge/agent-events";
+import type { AppState, MachineEvent } from "@repo/bridge/app-state";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process

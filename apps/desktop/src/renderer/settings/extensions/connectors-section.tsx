@@ -21,8 +21,8 @@ import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   GOOGLE_TOKEN_URL,
   type ExecutorIntegration,
-} from "@repo/features/executor";
-import { toErrorMessage } from "@repo/features/wire-helpers";
+} from "@repo/bridge/executor";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 /** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
 function setMembership(
