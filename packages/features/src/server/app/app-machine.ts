@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { Agent } from "../agent/agent";
-import { resolveSelectedModel } from "../provider/provider-service";
+import { agentModelSelection } from "../provider/provider-service";
 import { isSetupComplete } from "../agent/setup";
 import { getExecutorDaemon } from "../executor/executor-daemon";
 import { reduce } from "./app-reducer";
@@ -155,7 +155,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
-  const next = new Agent({ ...opts, ports: getAgentPorts(), resolveModel: resolveSelectedModel });
+  const next = new Agent({ ...opts, ports: getAgentPorts(), selectModel: agentModelSelection });
   // Start the dedicated background delegation agent concurrently — it shares no
   // session state with the user agent and the executor daemon's start() is
   // idempotent under concurrency. Non-fatal: a background failure must not block

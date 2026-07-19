@@ -14,6 +14,8 @@ import type {
 import type { Api, AssistantMessage, ImageContent, Model } from "@mariozechner/pi-ai";
 import { toErrorMessage } from "@repo/features/ipc";
 
+import { resolveModelSelection, type ModelSelection } from "./model";
+
 export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
 export type PiAgentEventListener = (event: AgentSessionEvent) => void;
@@ -25,8 +27,11 @@ export type PiAgentConfig = {
   agentDir: string;
   /** AuthStorage for credential lookup. */
   authStorage: AuthStorage;
-  /** Default model for new sessions. */
-  model: Model<Api>;
+  /** Default model for new sessions, as a NEUTRAL (provider, modelId) pair —
+   * resolved to pi-ai's Model inside start() (resolveModelSelection), so a
+   * bad selection rejects the async start() path instead of throwing from
+   * construction, and pi-ai's Model type stays inside server/pi/* (#460). */
+  model: ModelSelection;
   /** SessionManager strategy (e.g. continueRecent, open specific file, inMemory). */
   sessionManager: SessionManager;
   /**
@@ -57,6 +62,8 @@ export type PiAgentConfig = {
 /** Lifecycle wrapper around pi-coding-agent's AgentSession. */
 export class PiAgent {
   private session: AgentSession | null = null;
+  /** The selection resolved at start() — set iff `session` is set. */
+  private model: Model<Api> | null = null;
   private unsubscribe: (() => void) | null = null;
   private listeners = new Set<PiAgentEventListener>();
   private status: PiAgentStatus = "starting";
@@ -68,6 +75,10 @@ export class PiAgent {
 
   async start(): Promise<void> {
     if (this.session) return;
+
+    // Resolve the neutral selection FIRST — a bad selection must reject
+    // start() before any registry/loader side effects run.
+    const model = resolveModelSelection(this.config.model);
 
     const modelRegistry = ModelRegistry.create(this.config.authStorage);
 
@@ -89,7 +100,7 @@ export class PiAgent {
       authStorage: this.config.authStorage,
       modelRegistry,
       resourceLoader,
-      model: this.config.model,
+      model,
       thinkingLevel: this.config.thinkingLevel ?? "off",
       sessionManager: this.config.sessionManager,
       settingsManager: SettingsManager.create(this.config.cwd, this.config.agentDir),
@@ -120,6 +131,7 @@ export class PiAgent {
     });
 
     this.session = session;
+    this.model = model;
     this.status = "idle";
   }
 
@@ -133,6 +145,7 @@ export class PiAgent {
       this.session = null;
     }
 
+    this.model = null;
     this.status = "starting";
     this.error = null;
   }
@@ -172,6 +185,7 @@ export class PiAgent {
 
   async sendMessage(message: string, images?: ImageContent[]): Promise<void> {
     const session = this.ensureSession();
+    const model = this.ensureModel();
     const imgs = nonEmpty(images);
 
     // Race-condition fallback: callers (renderer composer, voice transcripts)
@@ -193,7 +207,7 @@ export class PiAgent {
       // only emits events for turns that actually ran). The synthetic
       // agent_end flips status to idle via handleEvent, so set the terminal
       // error status afterwards.
-      for (const event of buildPromptFailureEvents(this.config.model, this.error)) {
+      for (const event of buildPromptFailureEvents(model, this.error)) {
         this.handleEvent(event);
       }
       this.status = "error";
@@ -253,6 +267,13 @@ export class PiAgent {
       throw new Error("PiAgent not started — call start() first");
     }
     return this.session;
+  }
+
+  private ensureModel(): Model<Api> {
+    if (!this.model) {
+      throw new Error("PiAgent not started — call start() first");
+    }
+    return this.model;
   }
 }
 

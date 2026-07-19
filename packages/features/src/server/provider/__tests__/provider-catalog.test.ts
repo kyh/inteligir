@@ -1,8 +1,9 @@
-// Catalog-level tests: the offered menu (faux only under the dev flag),
-// model resolution against pi-ai's real registry per provider, and the two
-// selection transforms — read-boundary normalization (heals, never throws)
-// and the Settings patch (loud on bad input, defaults the model on a
-// provider switch).
+// Catalog-level tests: the offered menu (faux only under the dev flag), the
+// per-provider model listing, and the two selection transforms —
+// read-boundary normalization (heals, never throws) and the Settings patch
+// (loud on bad input, defaults the model on a provider switch). Selection →
+// pi Model resolution lives in pi/model.ts (resolveModelSelection) and is
+// tested in server/__tests__/model-selection.test.ts.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -13,7 +14,6 @@ import {
   normalizeSelection,
   parseSupportedProvider,
   providerRequiresAuth,
-  resolveProviderModel,
 } from "../provider-catalog";
 
 afterEach(() => {
@@ -48,27 +48,7 @@ describe("provider menu", () => {
   });
 });
 
-describe("model resolution", () => {
-  it("resolves each provider's default model in pi-ai's registry", () => {
-    const openai = resolveProviderModel("openai-codex", "gpt-5.5");
-    expect(openai.provider).toBe("openai-codex");
-    expect(openai.id).toBe("gpt-5.5");
-
-    const claude = resolveProviderModel("anthropic", "claude-sonnet-4-6");
-    expect(claude.provider).toBe("anthropic");
-    expect(claude.id).toBe("claude-sonnet-4-6");
-  });
-
-  it("resolves faux's model through the live registration, not the registry", () => {
-    const model = resolveProviderModel("faux", "faux-1");
-    expect(model.provider).toBe("faux");
-    expect(model.api).toBe("faux");
-  });
-
-  it("throws descriptively for a model the provider doesn't know", () => {
-    expect(() => resolveProviderModel("anthropic", "gpt-5.5")).toThrow(/not found/);
-  });
-
+describe("model listing", () => {
   it("lists models per provider (a Claude model never leaks into OpenAI)", () => {
     const claudeIds = listProviderModels("anthropic").map((m) => m.id);
     expect(claudeIds).toContain("claude-sonnet-4-6");

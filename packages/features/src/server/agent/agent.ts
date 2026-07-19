@@ -1,5 +1,5 @@
 // Inteligir's wrapper around PiAgent. Adds:
-//   - Lazy construction so synchronous resolveModel/SessionManager
+//   - Lazy construction so synchronous selectModel/SessionManager
 //     failures surface through the async start() path, not from `new Agent()`.
 //   - Safe defaults (getState, waitForIdle, interrupt) before start() so the
 //     task scheduler can guard cleanly during boot/teardown.
@@ -9,13 +9,9 @@
 // agent/extension.ts).
 
 import { PiAgent } from "@repo/features/server/pi/agent";
+import type { ModelSelection } from "@repo/features/server/pi/model";
 import { SessionManager } from "@repo/features/server/pi/pi-types";
-import type {
-  Api,
-  AgentSessionEvent,
-  ImageContent,
-  Model,
-} from "@repo/features/server/pi/pi-types";
+import type { AgentSessionEvent, ImageContent } from "@repo/features/server/pi/pi-types";
 
 import { getAuthStorage } from "./auth";
 import { EXTENSION_BUNDLES } from "./bundles";
@@ -34,12 +30,14 @@ export type AgentOptions = {
   /** Main-owned capabilities (executor) handed to extension bundles at register
    * time. Built main-side by agent-lifecycle.ts. */
   ports: AgentPorts;
-  /** Resolve the session's model — host-composed (the selected provider+model
-   * from the provider-config store; ghost-text composes its fast-model
-   * override). A thunk, invoked lazily inside start(), so resolution failures
-   * surface through the async start() path like every other construction
-   * error — agent/ never chooses a provider itself. */
-  resolveModel: () => Model<Api>;
+  /** Select the session's model as a NEUTRAL (provider, modelId) pair —
+   * host-composed (the selected provider+model from the provider-config
+   * store; ghost-text composes its fast-model override). A thunk, invoked
+   * lazily inside start(), and resolved to pi-ai's Model INSIDE the PiAgent
+   * wrapper — so a bad selection surfaces through the async start() path like
+   * every other construction error, and pi-ai's Model type never crosses
+   * this seam (#460). agent/ never chooses a provider itself. */
+  selectModel: () => ModelSelection;
   /** If true, start a fresh session instead of resuming the most recent one. */
   newSession?: boolean;
   /** Session directory to read/write. Defaults to SESSION_DIR (the user-facing
@@ -58,7 +56,7 @@ export type AgentOptions = {
 };
 
 export class Agent {
-  // Lazy so synchronous resolveModel/SessionManager throws surface
+  // Lazy so synchronous selectModel/SessionManager throws surface
   // through the async start() path rather than out of `new Agent()`.
   private pi: PiAgent | null = null;
 
@@ -76,7 +74,7 @@ export class Agent {
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,
         authStorage: getAuthStorage(),
-        model: this.opts.resolveModel(),
+        model: this.opts.selectModel(),
         sessionManager,
         // A hard allowlist (even `[]`) replaces the default active-tool set.
         ...(this.opts.allowedToolNames !== undefined

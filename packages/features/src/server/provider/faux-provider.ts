@@ -63,8 +63,9 @@ function selfRefillingEcho(reg: FauxProviderRegistration): FauxResponseFactory {
 }
 
 /** Register the faux provider (idempotent) with a fixed `api`/`provider` id
- * and the default self-refilling echo script. The catalog resolves faux
- * models through the returned registration, never pi-ai's static registry. */
+ * and the default self-refilling echo script. Faux models resolve through the
+ * returned registration, never pi-ai's static registry (see pi/model.ts
+ * resolveModelSelection and the catalog's listProviderModels). */
 export function ensureFauxProvider(): FauxProviderRegistration {
   if (!registration) {
     const next = registerFauxProvider({ api: FAUX_PROVIDER_ID, provider: FAUX_PROVIDER_ID });
