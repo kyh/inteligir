@@ -43,32 +43,32 @@ apps/            # shippable artifacts
   mobile/        # Expo companion (@repo/mobile) — sync + read + light-edit, no agent
   cloud/         # CF Worker (@repo/cloud) — /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
 packages/        # libraries — boundaries are PACKAGE facts (deps + exports maps)
-  domain/        # PURE platform-neutral domain (@repo/notes) — runs in Worker/RN/renderer:
+  notes/         # PURE platform-neutral domain (@repo/notes) — runs in Worker/RN/renderer:
                  #   sync/      — vault-sync engine + protocol (reconcile, wire, HttpSyncPort)
                  #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
   bridge/        # Iso wire contract (@repo/bridge) — Bridge/IPC registry, ws client +
-                 # protocol, shared schemas; loads in renderer/RN/node (deps: domain only)
-  cli-bootstrap/ # Generic CLI provisioning (@repo/installer) — checksum-verified
+                 # protocol, shared schemas; loads in renderer/RN/node (deps: notes only)
+  installer/     # Generic CLI provisioning (@repo/installer) — checksum-verified
                  # GitHub-release binary install, seeding, execFile runner; leaf, no deps
   agent/         # The pi capability (@repo/agent) — Agent lifecycle, extension bundles,
                  # setup/auth, faux provider, and pi/ (the harness quarantine: the ONLY
-                 # place @mariozechner/pi* may be imported). Backend injects AgentPorts.
-  backend/       # Node backend (@repo/server) — vault, delegation, connectors, voice,
+                 # place @mariozechner/pi* may be imported). The server injects AgentPorts.
+  server/        # Node backend (@repo/server) — vault, delegation, connectors, voice,
                  # sync adapters, handlers, boot/ (createHost), HostPlatform. Exports are
                  # NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
-Dep DAG: domain, cli-bootstrap, ui are leaves; bridge→domain;
-agent→bridge+cli-bootstrap+domain; backend→agent+bridge+cli-bootstrap+domain.
-The renderer and mobile depend on @repo/bridge (+domain/ui) ONLY — never
+Dep DAG: notes, installer, ui are leaves; bridge→notes;
+agent→bridge+installer+notes; server→agent+bridge+installer+notes.
+The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
 @repo/server — so "no node in the UI's contract" is an unresolvable-import
 fact, not a lint opinion.
 
 `@repo/notes` is the sharing seam: no node/electron/react/workspace imports
 (lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
-clock) — see `domain/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
+clock) — see `notes/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
 engine and knowledge/markdown code through thin adapters.
 
 The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
@@ -282,10 +282,10 @@ refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegati
 ### Vault sync — `@repo/notes/sync` + `apps/cloud` + platform adapters
 
 **Off by default** (runtime `sync-config` store; Settings → Sync). One pure
-engine — `domain/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
+engine — `notes/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
 preserved as sibling copies, never lost) — with injected platform ports:
 desktop binds node crypto/VaultManager/JsonStore
-(`backend/src/server/sync/sync-manager.ts`, lifecycle in
+(`server/src/server/sync/sync-manager.ts`, lifecycle in
 `sync-coordinator.ts`), mobile binds expo-crypto/expo-file-system
 (`apps/mobile/src/lib/sync/`). The coordinator (`apps/cloud`) is ONE Worker:
 `/api/auth/*` = Better Auth (email+password, bearer tokens) over Drizzle + D1,

@@ -10,11 +10,15 @@ backend, plus a marketing site.
 ```
 apps/              Shippable artifacts
   desktop/         Electron app — main/preload + the product UI (renderer) (@repo/desktop)
+  mobile/          Expo companion — sync + read + light-edit, no agent (@repo/mobile)
   web/             TanStack Start marketing site on Cloudflare Workers (landing page only)
+  cloud/           CF Worker — Better Auth + vault-sync coordinator (@repo/cloud)
 packages/          Libraries
-  features/        Isomorphic contract + node backend (@repo/server)
-                     src/         iso — Bridge/IPC registry, schemas, knowledge engine, markdown
-                     src/server/  node — vault, pi agent, delegation, executor, voice, handlers
+  notes/           Pure platform-neutral domain — sync engine, knowledge, markdown (@repo/notes)
+  bridge/          Iso wire contract — Bridge/IPC registry, ws client, schemas (@repo/bridge)
+  installer/       Generic CLI provisioning (@repo/installer)
+  agent/           The pi capability (@repo/agent)
+  server/          Node backend — vault, delegation, connectors, voice, boot (@repo/server)
   ui/              Shared UI components (@repo/ui)
 ```
 
@@ -24,7 +28,7 @@ Workspace `README.md`s:
 | ---------------------------- | --------------------------------------------------------------------------------- |
 | `apps/desktop`               | [Electron shell — process boundary, packaging](./apps/desktop/README.md)          |
 | `apps/web`                   | [static marketing site](./apps/web/README.md)                                     |
-| `packages/server`            | [contract + backend — iso `src`, node `src/server`](./packages/server/README.md)  |
+| `packages/server`            | [node backend — vault, delegation, boot](./packages/server/README.md)             |
 | `packages/server/src/server` | [node backend — createHost, HostPlatform](./packages/server/src/server/README.md) |
 | `packages/ui`                | [shared design system](./packages/ui/README.md)                                   |
 
