@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Vault-sync contract — the isomorphic shapes the Bridge/IPC registry, the host
 // handlers, and the renderer settings UI all share. The sync ENGINE lives in
-// @repo/notes (pure reconcile) and its desktop adapters in server/sync/; this
+// @repo/notes (pure reconcile) and its desktop adapters in @repo/sync/; this
 // module is only the wire contract, so it stays node-free and loads in the
 // renderer too.
 //

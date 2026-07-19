@@ -18,17 +18,17 @@ import type { ExecutorExecuteResult } from "@repo/bridge/executor";
 
 // ---------------------------------------------------------------------------
 // Ports — host-owned capabilities handed to extensions at register/setup time.
-// agent/ never imports the rest of @repo/server (lint-enforced);
-// server/boot/agent-wiring.ts builds these (structural subsets of the host
-// singletons) and passes them down. The dependency direction stays one-way:
-// the host composes, agent receives.
+// agent/ never imports the host — @repo/agent has no dep edge on
+// @repo/server (a package fact); @repo/server's boot/agent-wiring.ts builds
+// these (structural subsets of the host singletons) and passes them down.
+// The dependency direction stays one-way: the host composes, agent receives.
 //
 // The agent reads/writes vault files through the `./vault` workspace symlink
 // using pi's native file tools, so there is no vault port — only capabilities
 // that can't be expressed as plain filesystem access need one.
 // ---------------------------------------------------------------------------
 
-/** Executor daemon access (server/connectors/*): install, lifecycle, code mode. */
+/** Executor daemon access (@repo/connectors/*): install, lifecycle, code mode. */
 export type ExecutorPort = {
   /** Pinned CLI metadata for the integrations UI. */
   cli: ExtensionCliInfo;

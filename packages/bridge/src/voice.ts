@@ -7,7 +7,7 @@ import { type Static, Type } from "@sinclair/typebox";
 /**
  * The key the user's ElevenLabs API key is stored under. Written by the
  * Settings panel via the voice-owned setVoiceApiKey channel; the host
- * (server/voice/voice-secret.ts) puts the plaintext in the encrypted
+ * (@repo/voice/voice-secret.ts) puts the plaintext in the encrypted
  * SecretStore (~/.inteligir/secrets.json) and keeps only a `true` presence
  * marker under this same key in ui-state.json, which is what getUiState
  * exposes to the renderer. The TTS proxy reads the secret through its

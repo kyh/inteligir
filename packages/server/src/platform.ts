@@ -75,6 +75,6 @@ export type HostOptions = {
    * env fallback, then the paste-your-own-GCP-app dialog flow. */
   bundledGoogleClient?: { clientId: string; clientSecret: string };
   // Vault-sync is gated at RUNTIME by the user's sync-config store
-  // (server/sync/sync-account.ts), not by a build option — see
-  // boot/create-host.ts's start() and sync/sync-coordinator.ts.
+  // (@repo/sync/sync-account.ts), not by a build option — see
+  // boot/create-host.ts's start() and @repo/sync/sync-coordinator.ts.
 };

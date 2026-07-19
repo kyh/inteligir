@@ -5,10 +5,10 @@
 import os from "node:os";
 import path from "node:path";
 
-// Mirrors inteligirPath in server/storage/json-store.ts. Deliberately duplicated
-// (it's three lines) so agent/ keeps zero imports from the rest of
-// @repo/server (lint-enforced) — the dependency direction is
-// one-way: the host composes, agent receives.
+// Mirrors inteligirPath in @repo/storage/json-store. Deliberately duplicated
+// (it's three lines) to keep @repo/agent free of a storage dep edge — a
+// package fact, not a lint rule: the dependency direction is one-way, the
+// host composes, agent receives.
 const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
 
 export function inteligirPath(...segments: string[]): string {
