@@ -11,18 +11,16 @@ import path from "node:path";
 
 import { SyncAccount } from "../sync-account";
 import { createSyncManager } from "../sync-manager";
-import { SyncCoordinator, type SyncEngineFactory } from "../sync-coordinator";
-import { subscribeEvents } from "../../events";
+import { SyncCoordinator, setSyncEventSink, type SyncEngineFactory } from "../sync-coordinator";
 import { InMemorySyncPort } from "@repo/notes/sync/testing/in-memory-sync-port";
 import type { SyncIo } from "@repo/notes/sync/engine";
 import type { VaultPath } from "@repo/notes/sync/vault-file";
 
 let tmp: string;
-// onSyncStateChanged payloads captured off the typed event bus (the
-// coordinator emits straight to it) — `unknown` because the transport-level
-// listener is untyped; assertions compare whole values.
+// onSyncStateChanged payloads captured off the injected event sink (the
+// production host installs the typed event bus here) — `unknown` because the
+// capture is transport-shaped; assertions compare whole values.
 let emitted: unknown[];
-let unsubscribeEvents: () => void;
 
 function coordinatorAt(dir: string, listVaultPaths?: () => readonly string[]): SyncCoordinator {
   const account = new SyncAccount({
@@ -38,13 +36,13 @@ function coordinatorAt(dir: string, listVaultPaths?: () => readonly string[]): S
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sync-coordinator-"));
   emitted = [];
-  unsubscribeEvents = subscribeEvents((method, payload) => {
+  setSyncEventSink((method, payload) => {
     if (method === "onSyncStateChanged") emitted.push(payload);
   });
 });
 
 afterEach(() => {
-  unsubscribeEvents();
+  setSyncEventSink(() => {});
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 

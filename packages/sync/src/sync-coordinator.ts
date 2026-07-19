@@ -13,7 +13,6 @@
 // event bus, keeping the settings UI reactive without polling.
 // ---------------------------------------------------------------------------
 
-import { emitEvent } from "../events";
 import { getVaultManager } from "@repo/vault/vault";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
 import { createNodeHasher, createSyncManager } from "./sync-manager";
@@ -27,8 +26,25 @@ import type {
   SyncSignInResult,
   SyncState,
 } from "@repo/bridge/sync";
+import type { EventMethod, IpcEvent } from "@repo/bridge/ipc-registry";
 
 const DISABLED_REASON = "Enable sync and sign in first.";
+
+/** Registry-typed event emission, injected by the composing host (sync/ sits
+ * below the server, so it never imports the host event bus). */
+export type SyncEventSink = <K extends EventMethod>(method: K, payload: IpcEvent<K>) => void;
+
+// Defaults to a drop — exactly the host event bus's behavior with no
+// transport subscribed — so the coordinator stays constructible without the
+// host composition (tests). createHost installs the real emit before start().
+// Module-scoped so it survives resetSyncCoordinator() on a logout/login cycle.
+let emitHostEvent: SyncEventSink = () => {};
+
+/** Install the host event emission once at composition time (createHost
+ * passes the typed emitEvent). */
+export function setSyncEventSink(sink: SyncEventSink): void {
+  emitHostEvent = sink;
+}
 
 // Periodic reconcile cadence while sync is live (vault liveness — CLAUDE.md
 // § Decisions): with no recursive
@@ -157,7 +173,7 @@ export class SyncCoordinator {
     const result = await this.account.completeSocialSignIn(code, state);
     if (result.ok) this.rebuild({ kickInitial: true });
     this.emit();
-    emitEvent("onSocialSignInResult", result);
+    emitHostEvent("onSocialSignInResult", result);
     return result;
   }
 
@@ -300,7 +316,7 @@ export class SyncCoordinator {
   }
 
   private emit(): void {
-    emitEvent("onSyncStateChanged", this.getState());
+    emitHostEvent("onSyncStateChanged", this.getState());
   }
 }
 

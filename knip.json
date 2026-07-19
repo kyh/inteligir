@@ -70,6 +70,11 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
+    "packages/sync": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/ui": {
       "includeEntryExports": false
     },

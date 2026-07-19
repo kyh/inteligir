@@ -35,7 +35,7 @@ import {
 } from "@repo/connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
 import { resetSecretStore } from "@repo/storage/secrets";
-import { resetSyncCoordinator } from "../sync/sync-coordinator";
+import { resetSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { resetRemoteAccessManager } from "../transport/remote-access-manager";
 import { resetUiState } from "../ui-state";
 import {

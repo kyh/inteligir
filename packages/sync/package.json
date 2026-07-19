@@ -1,0 +1,31 @@
+{
+  "name": "@repo/sync",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop vault-sync adapters over @repo/notes' pure engine: the node SyncManager (vault IO + hashing + base/blob stores under ~/.inteligir), the SyncAccount (Better Auth client, bearer token + config JsonStores, social sign-in state nonce), and the SyncCoordinator lifecycle (runtime gate, engine rebuild/teardown, conflict tracking). Host event emission is injected (setSyncEventSink) — this package never imports server/electron code.",
+  "type": "module",
+  "exports": {
+    "./sync-account": "./src/sync-account.ts",
+    "./sync-coordinator": "./src/sync-coordinator.ts",
+    "./sync-manager": "./src/sync-manager.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/bridge": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "@repo/storage": "workspace:*",
+    "@repo/vault": "workspace:*",
+    "@sinclair/typebox": "catalog:",
+    "better-auth": "catalog:",
+    "open": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

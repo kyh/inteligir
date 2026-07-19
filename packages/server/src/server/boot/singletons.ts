@@ -33,7 +33,7 @@ import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getNotifications } from "../notifications";
 import { getSecretStore } from "@repo/storage/secrets";
-import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { getVaultManager } from "@repo/vault/vault";
 import { setStoreRecoveryNotifier } from "@repo/storage/json-store";
 import type { HostNotifiers } from "./notifier-wiring";

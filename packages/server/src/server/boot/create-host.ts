@@ -15,7 +15,7 @@
 import { configurePaths, SESSION_DIR_SEGMENTS, WORKSPACE_DIR } from "@repo/agent/paths";
 import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
-import { subscribeEvents } from "../events";
+import { emitEvent, subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
 import { initAgentLog } from "@repo/storage/agent-log";
 import { setSecretCipherProvider } from "@repo/storage/secrets";
@@ -26,7 +26,7 @@ import { registerAllHandlers } from "../handlers/register-handlers";
 import { getCaptureManager } from "../capture/capture-manager";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { getSyncCoordinator, setSyncEventSink } from "@repo/sync/sync-coordinator";
 import { installHostRuntime } from "../platform-instance";
 import {
   getVaultManager,
@@ -78,6 +78,11 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // handler can reach trash(); resolved lazily at call time inside vault, so
   // it also survives a logout/login VaultManager reset.
   setVaultTrashItem(platform.trashItem);
+
+  // Sync's coordinator broadcasts state through this sink (sync/ never
+  // imports the host event bus) — installed before start() kicks the initial
+  // reconcile so no state emission is dropped.
+  setSyncEventSink(emitEvent);
 
   // Dev-only env flags (faux agent, emulate connectors) are honored ONLY in
   // unpackaged builds — computed ONCE here, before any handler or flag read.
