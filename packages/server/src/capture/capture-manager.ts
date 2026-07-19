@@ -34,7 +34,7 @@ import { emitEvent } from "../events";
 import { getUiState } from "../ui-state";
 import { getVaultManager } from "@repo/vault/vault";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
-import { dailyNotePath, formatIsoDate } from "@repo/notes/notes/daily-path";
+import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
 import {
   DAILY_FOLDER_KEY,
   DAILY_FORMAT_KEY,

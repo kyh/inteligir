@@ -16,7 +16,7 @@
     "electron.vite.config.ts",
     "vite.harness.config.ts",
     "vitest.config.ts",
-    "../../packages/server/src/server/voice/sherpa-onnx-node.d.ts"
+    "../../packages/voice/src/sherpa-onnx-node.d.ts"
   ],
   "exclude": ["node_modules", "build", "dist", ".output", "src/renderer/voice/stt-worklet.js"]
 }

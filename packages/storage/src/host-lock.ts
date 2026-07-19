@@ -26,12 +26,14 @@ function readLockPid(lockPath: string): number | null {
   return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
 
-function pidIsAlive(pid: number): boolean {
+/** Signal-0 liveness probe. EPERM = exists but not ours — still alive.
+ * Anything else (ESRCH) = dead. Shared by this pidfile lock and the
+ * connectors daemon's orphan reaper. */
+export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    // EPERM = exists but not ours — still alive. Anything else (ESRCH) = dead.
     return err instanceof Error && "code" in err && err.code === "EPERM";
   }
 }
@@ -45,7 +47,7 @@ function writeLock(lockPath: string): void {
  * silently reclaimed. */
 export function acquireHostLock(lockPath: string = DEFAULT_LOCK_PATH): void {
   const existing = readLockPid(lockPath);
-  if (existing !== null && existing !== process.pid && pidIsAlive(existing)) {
+  if (existing !== null && existing !== process.pid && isProcessAlive(existing)) {
     throw new Error(
       `Another Inteligir host (pid ${existing}) is already running against ` +
         `${path.dirname(lockPath)}. Two hosts sharing that state directory would corrupt ` +

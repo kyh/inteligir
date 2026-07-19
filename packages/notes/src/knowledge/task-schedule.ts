@@ -10,7 +10,7 @@
 // matching formatIsoDate).
 // ---------------------------------------------------------------------------
 
-import { dateFromDailyPath, parseDateByPattern } from "../notes/daily-path";
+import { dateFromDailyPath, parseDateByPattern } from "../daily-path";
 
 /** Settings → Notes daily-note convention, injected by the platform (desktop:
  * ui-state's notes.dailyFolder / notes.dailyFilenameFormat). */

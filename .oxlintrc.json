@@ -95,7 +95,7 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/server/server)"
+                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/server)"
               }
             ]
           }
@@ -103,7 +103,7 @@
       }
     },
     {
-      "files": ["packages/server/src/server/**"],
+      "files": ["packages/server/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -118,7 +118,7 @@
                   "@repo/desktop/*",
                   "**/apps/desktop/**"
                 ],
-                "message": "@repo/server is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/server/platform.ts)"
+                "message": "@repo/server is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/platform.ts)"
               }
             ]
           }

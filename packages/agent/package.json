@@ -2,7 +2,7 @@
   "name": "@repo/agent",
   "version": "0.1.0",
   "private": true,
-  "description": "The pi coding-agent capability: the Agent lifecycle wrapper, extension bundles (browser, code-mode, knowledge-tools, peekaboo, privacy), setup/seeding, provider auth, and the pi harness quarantine (src/pi/* — the ONLY place `@mariozechner/pi*` may be imported, pinned by pi-quarantine.test.ts). Reaches the backend only through injected AgentPorts; the host (@repo/server/server boot/) composes capabilities and hands them in.",
+  "description": "The pi coding-agent capability: the Agent lifecycle wrapper, extension bundles (browser, code-mode, knowledge-tools, peekaboo, privacy), setup/seeding, provider auth, and the pi harness quarantine (src/pi/* — the ONLY place `@mariozechner/pi*` may be imported, pinned by pi-quarantine.test.ts). Reaches the backend only through injected AgentPorts; the host (@repo/server boot/) composes capabilities and hands them in.",
   "type": "module",
   "exports": {
     "./agent": "./src/agent.ts",

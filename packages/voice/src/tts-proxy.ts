@@ -32,28 +32,30 @@ function endpoint(voiceId: string): string {
   );
 }
 
-// Injected stored-key source (configureTtsApiKey). Defaults to "no stored
-// key" so the proxy stays constructible without the host composition (tests,
-// harness); the env fallback below still applies then.
-let getApiKey: () => string | null = () => null;
+/** Host seams injected at register time (the voice handler) — one object,
+ * mirroring model-download.ts's `configureVoiceModelHost` shape. */
+export type TtsHost = {
+  /** Where the stored key comes from (the voice handler passes
+   * voice-secret.ts's SecretStore read — ui-state is never involved).
+   * Defaults to "no stored key" so the proxy stays constructible without the
+   * host composition (tests, harness); the env fallback below still applies
+   * then. */
+  getApiKey: () => string | null;
+  /** Where decoded PCM chunks go (the voice handler passes an onTtsAudio
+   * event-bus emit — voice/ never imports the event bus). Defaults to a
+   * drop, exactly like an event-bus emission with no transport subscribed,
+   * so the proxy stays constructible without the host composition (tests,
+   * harness). */
+  emitAudio: (audio: ArrayBuffer) => void;
+};
 
-/** Inject where the stored key comes from (the voice handler passes
- * voice-secret.ts's SecretStore read at register time). */
-export function configureTtsApiKey(source: () => string | null): void {
-  getApiKey = source;
-}
+let getApiKey: TtsHost["getApiKey"] = () => null;
+let emitAudio: TtsHost["emitAudio"] = () => {};
 
-// Injected audio sink (configureTtsAudioSink) — the voice handler forwards
-// chunks to the host event bus (onTtsAudio) at register time. Defaults to a
-// drop, exactly like an event-bus emission with no transport subscribed, so
-// the proxy stays constructible without the host composition (tests, harness).
-let emitAudio: (audio: ArrayBuffer) => void = () => {};
-
-/** Inject where decoded PCM chunks go (the voice handler passes an
- * onTtsAudio event-bus emit at register time — voice/ never imports the
- * event bus). */
-export function configureTtsAudioSink(sink: (audio: ArrayBuffer) => void): void {
-  emitAudio = sink;
+/** Install the host seams once at register time. */
+export function configureTts(host: TtsHost): void {
+  getApiKey = host.getApiKey;
+  emitAudio = host.emitAudio;
 }
 
 function resolveApiKey(): string | null {

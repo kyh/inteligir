@@ -193,7 +193,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       }
 
       // Vault-sync — LIVE, gated at runtime (not by the build). The coordinator
-      // reads its own config store (server/sync/sync-account.ts): it constructs
+      // reads its own config store (@repo/sync/sync-account.ts): it constructs
       // + starts the SyncEngine only when sync is enabled AND a bearer token is
       // present, and kicks an initial reconcile. Toggling config / signing in at
       // runtime rebuilds or tears the engine down; the vault-change wrapper above

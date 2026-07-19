@@ -29,6 +29,8 @@ import path from "node:path";
 
 import { installCliFromGithubRelease } from "@repo/installer/install";
 
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import { isProcessAlive } from "@repo/storage/host-lock";
 import { inteligirPath } from "@repo/storage/json-store";
 
 const EXECUTOR_VERSION = "1.5.4";
@@ -104,16 +106,6 @@ function readServerManifest(): ServerManifest | null {
     return parsed;
   } catch {
     return null; // absent / unreadable / not JSON → nothing to reap
-  }
-}
-
-function pidIsAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    // EPERM = alive but not ours to signal; ESRCH = gone.
-    return typeof err === "object" && err !== null && "code" in err && err.code === "EPERM";
   }
 }
 
@@ -258,10 +250,7 @@ export class ExecutorDaemon {
         return result.connection;
       })
       .catch((err) => {
-        console.error(
-          "[executor] daemon failed to start:",
-          err instanceof Error ? err.message : err,
-        );
+        console.error("[executor] daemon failed to start:", toErrorMessage(err));
         return null;
       })
       .finally(() => {
@@ -324,7 +313,7 @@ export class ExecutorDaemon {
       // URIs (Google) break until the pinned port frees up.
       console.warn(
         `[executor] daemon start on pinned port ${PINNED_PORT} failed, retrying on a free port:`,
-        err instanceof Error ? err.message : err,
+        toErrorMessage(err),
       );
       return this.spawnAttempt({ pinnedPort: false });
     }
@@ -365,7 +354,7 @@ export class ExecutorDaemon {
     ) {
       return;
     }
-    if (!pidIsAlive(pid)) return; // dead → executor self-reclaims the manifest
+    if (!isProcessAlive(pid)) return; // dead → executor self-reclaims the manifest
     if (await daemonResponds(origin, token)) return; // healthy → leave it alone
     if (!pidIsOurExecutor(pid)) return; // identity unconfirmed → fail safe
 
@@ -378,7 +367,7 @@ export class ExecutorDaemon {
       return; // already gone
     }
     // Let the OS release the port + manifest lock before we respawn (~2s cap).
-    for (let i = 0; i < 20 && pidIsAlive(pid); i++) {
+    for (let i = 0; i < 20 && isProcessAlive(pid); i++) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }

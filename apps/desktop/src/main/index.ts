@@ -38,17 +38,14 @@ if (app.isPackaged) {
   }
 }
 
-import {
-  deliverDeepLink,
-  setDeepLinkFocusHandler,
-} from "@repo/server/server/capture/deep-link-service";
-import { createHost, type Host } from "@repo/server/server/boot/create-host";
-import type { HostOptions } from "@repo/server/server/platform";
+import { deliverDeepLink, setDeepLinkFocusHandler } from "@repo/server/capture/deep-link-service";
+import { createHost, type Host } from "@repo/server/boot/create-host";
+import type { HostOptions } from "@repo/server/platform";
 import {
   getRemoteAccessManager,
   type RemoteAccessManager,
-} from "@repo/server/server/transport/remote-access-manager";
-import { startWsHost, type WsHost } from "@repo/server/server/transport/ws-host";
+} from "@repo/server/transport/remote-access-manager";
+import { startWsHost, type WsHost } from "@repo/server/transport/ws-host";
 import { isHttpUrl, isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import {

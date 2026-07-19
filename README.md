@@ -24,13 +24,13 @@ packages/          Libraries
 
 Workspace `README.md`s:
 
-| Workspace                    | README                                                                            |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| `apps/desktop`               | [Electron shell — process boundary, packaging](./apps/desktop/README.md)          |
-| `apps/web`                   | [static marketing site](./apps/web/README.md)                                     |
-| `packages/server`            | [node backend — vault, delegation, boot](./packages/server/README.md)             |
-| `packages/server/src/server` | [node backend — createHost, HostPlatform](./packages/server/src/server/README.md) |
-| `packages/ui`                | [shared design system](./packages/ui/README.md)                                   |
+| Workspace             | README                                                                     |
+| --------------------- | -------------------------------------------------------------------------- |
+| `apps/desktop`        | [Electron shell — process boundary, packaging](./apps/desktop/README.md)   |
+| `apps/web`            | [static marketing site](./apps/web/README.md)                              |
+| `packages/server`     | [node backend — vault, delegation, boot](./packages/server/README.md)      |
+| `packages/server/src` | [node backend — createHost, HostPlatform](./packages/server/src/README.md) |
+| `packages/ui`         | [shared design system](./packages/ui/README.md)                            |
 
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
 ways to run the app, ports/shared state, gates, verification, and

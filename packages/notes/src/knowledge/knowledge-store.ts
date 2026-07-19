@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // KnowledgeStore — the persistence port for projected vault knowledge. TYPES
 // ONLY (sync-port.ts precedent): platforms bind an implementation (desktop:
-// node:sqlite in @repo/server/server; dev harness: SQLite wasm; a future
+// node:sqlite in @repo/server; dev harness: SQLite wasm; a future
 // mobile client: expo-sqlite) and the host shell drives it, mirroring every
 // write into the in-memory LinkGraphIndex.
 //

@@ -3,26 +3,21 @@ import { getUiState } from "../ui-state";
 import type { HandlerRegistrar } from "./handler-registry";
 import { downloadModel, isModelInstalled } from "@repo/voice/model-download";
 import { initParakeet, pushAudio, startSession, stopSession } from "@repo/voice/parakeet";
-import {
-  configureTtsApiKey,
-  configureTtsAudioSink,
-  ttsAvailable,
-  ttsFlush,
-  ttsInterrupt,
-  ttsSend,
-} from "@repo/voice/tts-proxy";
+import { configureTts, ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@repo/voice/tts-proxy";
 import { getVoiceApiKey, setVoiceApiKey } from "@repo/voice/voice-secret";
 
 export function registerVoiceHandlers(handle: HandlerRegistrar): void {
-  // Voice owns its secret: the proxy reads the stored key through this
-  // injected source (voice-secret → SecretStore), never through ui-state.
-  configureTtsApiKey(() => getVoiceApiKey());
   // Host seams for the extracted voice package (it sits below the server, so
   // the event bus + platform capabilities are injected — before any transport
   // can deliver a voice call). The MODEL host seam is installed earlier, at
   // composition time (create-host.ts), so a boot-time "is voice available"
   // probe resolves before handler registration (#465.3).
-  configureTtsAudioSink((audio) => emitEvent("onTtsAudio", { audio }));
+  configureTts({
+    // Voice owns its secret: the proxy reads the stored key through this
+    // injected source (voice-secret → SecretStore), never through ui-state.
+    getApiKey: () => getVoiceApiKey(),
+    emitAudio: (audio) => emitEvent("onTtsAudio", { audio }),
+  });
 
   handle("isTtsAvailable", () => ttsAvailable());
   handle("setVoiceApiKey", ({ value }) => {

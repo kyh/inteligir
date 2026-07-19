@@ -715,7 +715,7 @@ export const IPC = {
   ),
   // Connector install/uninstall — host-orchestrated (register integration →
   // mint connection → browser OAuth → rollback on failure) in
-  // server/connectors/connector-install.ts; the renderer sends ONE request per
+  // @repo/connectors/connector-install.ts; the renderer sends ONE request per
   // user action and surfaces the rejection message on failure.
   installConnector: invoke<typeof ConnectorInstallRequestSchema, void>(
     "executor:connector:install",

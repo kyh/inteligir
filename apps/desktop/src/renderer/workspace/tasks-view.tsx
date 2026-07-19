@@ -25,7 +25,7 @@ import { toast } from "@repo/ui/components/sonner";
 
 import type { VaultTaskEntry } from "@repo/notes/knowledge/link-graph-index";
 import { groupTasks } from "@repo/notes/knowledge/task-schedule";
-import { formatIsoDate } from "@repo/notes/notes/daily-path";
+import { formatIsoDate } from "@repo/notes/daily-path";
 import {
   DAILY_FOLDER_KEY,
   DAILY_FORMAT_KEY,

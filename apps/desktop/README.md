@@ -2,7 +2,7 @@
 
 The desktop product: the Electron main/preload processes plus the whole
 renderer UI (the workspace — editor, sidebar, composer, settings, voice). The
-node backend is `@repo/server/server`; the shared contract is `@repo/server`; shared
+node backend is `@repo/server`; the shared contract is `@repo/server`; shared
 primitives are `@repo/ui`. Main owns what is Electron's to own: window/menu
 lifecycle, the IPC transport, the auto-updater, and native packaging (including
 the sherpa-onnx voice binaries).
@@ -30,8 +30,8 @@ scripts/     build-time verifiers (packaged runtime deps, model registry)
 ```
 renderer (sandboxed Chromium) — the product UI, host-agnostic (talks via the Bridge)
    ↕  WebSocket — createWsBridge (@repo/bridge/ws-bridge), reconnect supervisor + auth
-main (full Node + Electron) — createHost(@repo/server/server) behind an ElectronPlatform,
-                              served by startWsHost (@repo/server/server/transport/ws-host)
+main (full Node + Electron) — createHost(@repo/server) behind an ElectronPlatform,
+                              served by startWsHost (@repo/server/transport/ws-host)
 ```
 
 - **Renderer** never touches Node APIs. Sandboxed, no nodeIntegration, contextIsolation on.
@@ -41,7 +41,7 @@ main (full Node + Electron) — createHost(@repo/server/server) behind an Electr
   `inteligir:bootstrap` IPC fetches `{ url, token }` (the loopback ws endpoint and the
   per-boot local token) and exposes it as `window.bridgeBootstrap` — keeping the token
   off the renderer's OS command line and out of the page URL.
-- **Main** composes `@repo/server/server` and serves its handler map + event stream
+- **Main** composes `@repo/server` and serves its handler map + event stream
   over ONE WebSocket server (`startWsHost`); the shell-owned updater trio and html-app
   token methods ride along as `shellHandlers`. The same server is the remote-access
   surface for paired mobile devices.

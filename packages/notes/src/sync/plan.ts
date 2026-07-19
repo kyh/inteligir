@@ -16,7 +16,7 @@ export type SyncSide = "local" | "remote";
  * sole author of a change (or won a conflict). The executor reads the bytes from
  * the local vault at `path` and calls `putFile(path, bytes, expectedBaseVersion)`.
  */
-export type Push = {
+type Push = {
   readonly kind: "push";
   readonly path: VaultPath;
   /** OCC token: the coordinator version this push is based on
@@ -34,7 +34,7 @@ export type Push = {
  * `getFile(file.path)`, writes it locally, and records `file.version` as the new
  * local base version.
  */
-export type Pull = {
+type Pull = {
   readonly kind: "pull";
   readonly file: VaultFile;
 };
@@ -45,7 +45,7 @@ export type Pull = {
  * none (the local vault is the executor's own disk). Split by side so an illegal
  * "local delete with a version" state can't be represented.
  */
-export type Delete =
+type Delete =
   | { readonly kind: "delete"; readonly side: "local"; readonly path: VaultPath }
   | {
       readonly kind: "delete";
@@ -63,7 +63,7 @@ export type Delete =
  * path, converges `path` to the winner (push if local won, pull if remote won),
  * and syncs the new copy too.
  */
-export type ConflictCopy = {
+type ConflictCopy = {
   readonly kind: "conflict-copy";
   readonly path: VaultPath;
   readonly winner: SyncSide;

@@ -196,7 +196,7 @@ once in core over an injected `SqlDriver`) persists projections per vault in
 truth — the DB is a wipe-and-rebuild CACHE (any corruption/version mismatch
 deletes and rebuilds; **nothing durable may ever live in index.sqlite** —
 durable state belongs in the `~/.inteligir` JsonStores).
-`packages/server/src/server/knowledge/` is the node host shell: boot
+`packages/server/src/knowledge/` is the node host shell: boot
 hydrates the in-memory graph from persisted rows (no first-query full parse),
 an async time-budgeted reconcile diffs stat fingerprints (content hash is the
 write authority) from vault events, and renames rewrite `[[links]]` across
@@ -295,7 +295,7 @@ variants). The injected-deps + broker contract is append-only. Vaults are
 single-user today; if sharing ever ships, foreign `.html` is untrusted code
 on open — re-audit the broker's capability set before that lands.
 
-### Delegation — `packages/server/src/server/delegation/`
+### Delegation — `packages/server/src/delegation/`
 
 A checkbox's "Delegate" → `delegation-manager.ts` (versioned `JsonStore` +
 event-driven serialized queue) runs it on `background-agent.ts` (a second pi
@@ -359,9 +359,9 @@ boundary for AI features, NOT a security boundary.
 `packages/bridge/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
-schema-validated handler map (`packages/server/src/server/handlers/`) that the desktop
+schema-validated handler map (`packages/server/src/handlers/`) that the desktop
 shell serves over ONE local WebSocket server (`startWsHost`,
-`packages/server/src/server/transport/ws-host.ts`); the renderer dials it with
+`packages/server/src/transport/ws-host.ts`); the renderer dials it with
 `createWsBridge` using the endpoint + per-boot token the bootstrap-only
 preload exposes as `window.bridgeBootstrap`. Add a channel = registry entry +
 host handler + one line in the dev-harness fixture Bridge
