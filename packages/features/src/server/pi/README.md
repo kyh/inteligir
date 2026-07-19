@@ -10,13 +10,13 @@ two tests (`server/__tests__/pi-path-parity.test.ts`,
 the Bridge handlers, delegation, the entire renderer — speaks only to the
 wrappers here:
 
-| file          | wraps                                                          |
-| ------------- | -------------------------------------------------------------- |
-| `agent.ts`    | `PiAgent` — session lifecycle over `createAgentSession`        |
-| `auth.ts`     | `AuthStorage` construction + OAuth login/logout                |
-| `model.ts`    | `ModelSelection` (neutral) → pi-ai `Model` resolution          |
-| `pi-types.ts` | type re-exports, so an upstream move touches one file          |
-| `skills.ts`   | skill listing from the agent dir                               |
+| file          | wraps                                                   |
+| ------------- | ------------------------------------------------------- |
+| `agent.ts`    | `PiAgent` — session lifecycle over `createAgentSession` |
+| `auth.ts`     | `AuthStorage` construction + OAuth login/logout         |
+| `model.ts`    | `ModelSelection` (neutral) → pi-ai `Model` resolution   |
+| `pi-types.ts` | type re-exports, so an upstream move touches one file   |
+| `skills.ts`   | skill listing from the agent dir                        |
 
 ## The Harness contract
 
