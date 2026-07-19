@@ -2,7 +2,7 @@
   "name": "@repo/features",
   "version": "0.1.0",
   "private": true,
-  "description": "The Inteligir backend + isomorphic contract. `src/` (browser-safe) holds the Bridge/IPC registry and domain schemas; `src/server/` is the node backend (vault, pi agent, delegation, executor, voice, sync adapters, handlers) behind createHost(). The pure domain (knowledge, markdown, sync engine) lives in @repo/core. Consumed by the desktop renderer (iso) and main (server).",
+  "description": "The Inteligir backend + isomorphic contract. `src/` (browser-safe) holds the Bridge/IPC registry and domain schemas; `src/server/` is the node backend (vault, pi agent, delegation, connectors, voice, sync adapters, handlers) behind createHost(). The pure domain (knowledge, markdown, sync engine) lives in @repo/core. Consumed by the desktop renderer (iso) and main (server).",
   "type": "module",
   "exports": {
     "./*": "./src/*.ts"

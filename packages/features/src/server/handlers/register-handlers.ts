@@ -1,5 +1,5 @@
 // Handler groups, one per domain, so a reader sees the domain boundaries
-// instead of scanning one 150-line block. collectHandlers (lib/handler-
+// instead of scanning one 150-line block. collectHandlers (handlers/handler-
 // registry.ts) verifies at boot that the union covers every registry method
 // the host owns.
 

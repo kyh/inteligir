@@ -4,7 +4,7 @@
  * OUTSIDE the vault (rebuilt per device, never synced), so the agent's native
  * file tools can't reach them — and a raw `bash mv` can't rewrite the links
  * they track — hence the capabilities arrive through `ports.knowledge` (built
- * main-side in agent-lifecycle.ts). Pure in-process: no CLI, no setup().
+ * main-side in boot/agent-wiring.ts). Pure in-process: no CLI, no setup().
  *
  * search_vault / get_backlinks are read-only, so there is no confirmation
  * gating (mirrors how the browser/executor tools leave non-mutating calls

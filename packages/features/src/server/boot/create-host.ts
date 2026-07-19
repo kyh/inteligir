@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // createHost — the composition root for the node backend. It forces the
 // dependency-ordered construction of the backend singletons
-// (constructHostSingletons in host-context.ts), owns the notifier composition
+// (constructHostSingletons in singletons.ts), owns the notifier composition
 // for the registry-free low-level pieces (store-recovery at build, vault-change
 // at start — everything else emits to the event bus directly), and sequences
 // init/teardown over those singletons. The pieces

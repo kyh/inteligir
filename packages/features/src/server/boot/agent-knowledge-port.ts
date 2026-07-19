@@ -24,7 +24,7 @@
 // an ACCEPTED hole, documented in docs/privacy.md: paths only, near-inherent
 // to per-path gating, and already reachable via `bash ls`.
 //
-// Extracted from agent-lifecycle so the guarantee is testable without host
+// Extracted from agent-wiring so the guarantee is testable without host
 // singletons — __tests__/knowledge-privacy.test.ts stringifies real tool
 // results and asserts the private note never appears.
 // ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ const EXCLUDE: PrivacyOpts = { excludePrivate: true };
 
 export function buildAgentKnowledgePort(deps: {
   queries: () => KnowledgeQueries;
-  /** LIVE disk probe (agent-lifecycle's vault-backed one). Only "public"
+  /** LIVE disk probe (agent-wiring's vault-backed one). Only "public"
    * passes — absent/indeterminate/private all drop, fail-closed. */
   probe: (rel: string) => PrivacyProbe;
   /** Live VaultManager accessor (defer-to-singleton, like `queries`) — the

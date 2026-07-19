@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // The process-wide platform/options installed by createHost(). Host modules
-// are module-level singletons (one host per process — see create-host.ts), so
+// are module-level singletons (one host per process — see boot/create-host.ts), so
 // the platform they act through is module-level too; threading it through
 // every getter would churn the whole call graph for zero flexibility gain.
 // ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@
 // The notifiers are composed here (buildHostNotifiers) and installed BEFORE any
 // piece that fires them is constructed. Only the LOW-LEVEL pieces that must not
 // import the event registry get a slot (json-store, vault); everything else
-// calls the typed emitEvent directly — see host-notifiers.ts.
+// calls the typed emitEvent directly — see notifier-wiring.ts.
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "../events";

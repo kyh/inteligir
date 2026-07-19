@@ -48,7 +48,7 @@ function restrictInteligirDir(filePath: string): void {
   }
 }
 
-// Writes go through the shared tmp-then-rename atomicWrite (lib/atomic-write).
+// Writes go through the shared tmp-then-rename atomicWrite (storage/atomic-write).
 //
 // Mode DEFAULTS to owner-only (0o600): every JsonStore lives under
 // ~/.inteligir, and several hold credentials or note content (secrets,

@@ -173,7 +173,7 @@ let installInFlight: Promise<void> | null = null;
  * installers; idempotent — skips when the requested version is already there.
  *
  * Concurrent callers share one in-flight install: on first boot the eager
- * daemon start in agent-lifecycle gates on this while the executor bundle's
+ * daemon start in boot/agent-wiring gates on this while the executor bundle's
  * setup() runs it too, and two racing downloads into the same bin dir would
  * corrupt each other. A forced install (repair) queues behind any in-flight
  * pass instead of joining it, so it can't be satisfied by a plain

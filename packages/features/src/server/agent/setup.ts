@@ -2,7 +2,7 @@
 // list itself lives in agent/bundles.ts. Auth lives in agent/auth.ts, the
 // Agent wrapper in agent/agent.ts, shared paths in agent/paths.ts. Lifecycle
 // composition (seed/teardown wiring, host-singleton resets, port + resource
-// injection) lives host-side in lib/agent-lifecycle.ts — agent/ imports
+// injection) lives host-side in boot/agent-wiring.ts — agent/ imports
 // nothing from the rest of the host.
 
 import fs from "node:fs";
@@ -25,7 +25,7 @@ import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "./paths";
 import type { IntegrationInfo, SetupProgress, SkillInfo } from "@repo/features/ipc-registry";
 
 /** Where the app's bundled agent assets (skills/, AGENTS.md) live, resolved
- * by the shell (HostPlatform) and injected by lib/agent-lifecycle.ts.
+ * by the shell (HostPlatform) and injected by boot/agent-wiring.ts.
  * `strict` = a missing dir is fatal (packaged install is corrupt) rather
  * than a dev-checkout warn-and-continue. */
 export type BundledResources = {

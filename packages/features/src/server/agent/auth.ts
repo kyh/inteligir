@@ -45,7 +45,7 @@ export function isProviderAuthed(provider: string): boolean {
 }
 
 // NOTE: after a successful login the shell write-suspension must be lifted
-// (resumeShellWrites). That is the host's concern — server/lib/agent-lifecycle.ts
+// (resumeShellWrites). That is the host's concern — server/boot/agent-wiring.ts
 // wraps this in loginAgent(); call that, not this, from app lifecycle code.
 export async function login(provider: string): Promise<void> {
   const epoch = authEpoch;
