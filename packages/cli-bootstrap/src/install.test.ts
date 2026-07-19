@@ -28,7 +28,7 @@ const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefin
 let tmpDirs: string[] = [];
 
 function tmpDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-runtime-install-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-bootstrap-install-"));
   tmpDirs.push(dir);
   return dir;
 }

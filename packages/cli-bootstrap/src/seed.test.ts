@@ -8,7 +8,7 @@ import { prependPath, seedDirectory, seedFile } from "./seed";
 let tmpDirs: string[] = [];
 
 function tmpDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-runtime-seed-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cli-bootstrap-seed-"));
   tmpDirs.push(dir);
   return dir;
 }

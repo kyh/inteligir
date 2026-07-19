@@ -27,11 +27,21 @@
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
-    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "never"
+      }
+    ],
     "react/react-in-jsx-scope": "off",
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off",
-    "react/no-unstable-nested-components": ["error", { "allowAsProps": true }],
+    "react/no-unstable-nested-components": [
+      "error",
+      {
+        "allowAsProps": true
+      }
+    ],
     "unicorn/prefer-node-protocol": "error"
   },
   "overrides": [
@@ -122,8 +132,7 @@
                   "electron/*",
                   "../**",
                   "@repo/features/server/**",
-                  "!@repo/features/server/pi/**",
-                  "!@repo/features/server/agent-runtime/**"
+                  "!@repo/features/server/pi/**"
                 ],
                 "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
               }
@@ -145,8 +154,7 @@
                   "electron/*",
                   "../../**",
                   "@repo/features/server/**",
-                  "!@repo/features/server/pi/**",
-                  "!@repo/features/server/agent-runtime/**"
+                  "!@repo/features/server/pi/**"
                 ],
                 "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
               }

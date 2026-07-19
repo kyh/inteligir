@@ -15,6 +15,7 @@
   "dependencies": {
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",
+    "@repo/cli-bootstrap": "workspace:*",
     "@repo/domain": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:",

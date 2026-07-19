@@ -31,7 +31,7 @@ vi.mock("node:fs", async (importOriginal) => {
   };
   return { ...actual, ...overrides, default: { ...actual, ...overrides } };
 });
-vi.mock("@repo/features/server/agent-runtime/install", () => ({
+vi.mock("@repo/cli-bootstrap/install", () => ({
   installCliFromGithubRelease: vi.fn(),
 }));
 
@@ -43,7 +43,7 @@ const { getExecutorDaemon, installExecutor, resetExecutorDaemon, EXECUTOR_CLI } 
 // matches whatever ~/.inteligir resolves to on this machine.
 const BINARY_PATH = EXECUTOR_CLI.binPath;
 const DATA_DIR = path.join(path.dirname(path.dirname(BINARY_PATH)), "data");
-const { installCliFromGithubRelease } = await import("@repo/features/server/agent-runtime/install");
+const { installCliFromGithubRelease } = await import("@repo/cli-bootstrap/install");
 const installMock = vi.mocked(installCliFromGithubRelease);
 
 class FakeProc extends EventEmitter {
