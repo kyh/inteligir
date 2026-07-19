@@ -195,10 +195,13 @@ one-click user-picker; the hidden form fields are all we need):
    `code_challenge_method` — already urlencoded. No PKCE hashing, no SQLite.
 3. POST consent with that query string as the form body plus the picked user
    (curl `-L` follows the 302 into the daemon callback, which exchanges the
-   code at emulate's token endpoint):
+   code at emulate's token endpoint). Do NOT add `-X POST` — that pins the
+   method across the redirect and the daemon callback 404s a POST; `--data`
+   already makes the first request a POST, and `-L` correctly GETs the 302
+   target:
    ```bash
    AUTH_URL='<authorizationUrl from getPendingConnectorAuth>'
-   curl -sL -X POST "http://localhost:4000/o/oauth2/v2/auth/callback" \
+   curl -sL "http://localhost:4000/o/oauth2/v2/auth/callback" \
      --data "email=testuser%40gmail.com&${AUTH_URL#*\?}" -o /dev/null
    ```
 4. Confirm the connection minted (the daemon exchanged the code at emulate),
@@ -214,7 +217,7 @@ one-click user-picker; the hidden form fields are all we need):
 That round-trip — register → consent → callback → token exchange → connected —
 is the authenticated token-routing proof the issue accepts.
 
-### Fidelity boundary (verified against emulate v0.9.0)
+### Fidelity boundary (verified against emulate v0.9.0 + executor v1.5.4)
 
 - **OAuth + token routing → emulate.** authorize, token, userinfo, and the empty
   JWKS all served locally. The whole connect round-trip is login-free.
@@ -222,17 +225,29 @@ is the authenticated token-routing proof the issue accepts.
   JWKS (`/oauth2/v3/certs` → `{"keys":[]}`). Our executor daemon mints the
   connection from the **access_token** and does not RS256-verify the id_token
   against JWKS, so the connect succeeds regardless.
-- **No API discovery docs.** emulate 404s `/.../discovery/v1/apis/<api>/<ver>/rest`.
-  The flag deliberately does NOT override the discovery URL (only the OAuth
-  endpoints), so the integration is registered from REAL Google's discovery doc
-  (needs network) and its derived `rootUrl` is real `*.googleapis.com`. An actual
-  Gmail/Calendar/Drive **tool call** would therefore route to real Google with an
-  emulate token → 401. Emulate does serve partial Gmail/Calendar/Drive REST at
-  `:4000`, but nothing points the daemon there.
+- **No API discovery docs, and no client-side workaround.** Both probed paths
+  are dead ends (restructure step 2):
+  - emulate has NO Google discovery route at all — `/discovery/v1/apis/
+<api>/<ver>/rest` and `$discovery/rest` 404, and its route table contains
+    no Google discovery endpoint (only Microsoft's `/discovery/v2.0/keys`
+    JWKS). The integration is therefore registered from REAL Google's
+    discovery doc (needs network) and its derived `rootUrl` is real
+    `*.googleapis.com`.
+  - the daemon's add-openapi `baseUrl` is accepted but **ignored for
+    `googleDiscoveryBundle`** — the rootUrl comes from the discovery doc
+    itself. Verified end-to-end against a scratch daemon: gmail registered
+    with `baseUrl: http://localhost:4000` + an emulate-minted connection, and
+    `gmail.users.messages.list` still dialed real `gmail.googleapis.com` →
+    real-Google 401 (`Invalid Credentials`). Meanwhile emulate itself DOES
+    serve partial Gmail/Calendar/Drive REST at `:4000` (a bearer request to
+    `/gmail/v1/users/me/messages` returns 200) — but nothing can point the
+    pinned third-party daemon there.
 - **Conclusion:** the connector proof is scoped to **OAuth + token routing +
-  Connected state** (the issue's accepted acceptance). It does NOT cover live
-  Google API tool-calls — for those, use a real cached Google connection
-  (neither flag).
+  Connected state**. A headless **authenticated tool-call** is out of reach
+  until emulate serves discovery docs upstream (or we stand up a dev-only
+  discovery-doc rewriting endpoint, deliberately NOT done — it would add a
+  production-adjacent HTTP surface for a test convenience). For live Google
+  API tool-calls, use a real cached Google connection (neither flag).
 
 ## Teardown (always)
 

@@ -51,8 +51,12 @@ See `docs/e2e-driving.md` for the exact snippets.
   the form body plus `email=testuser%40gmail.com` (state/PKCE ride in it — no
   SQLite, no hashing) → the daemon exchanges the code at emulate →
   `listExecutorConnections` shows the row, card shows **Connected**. This
-  proves register→consent→callback→token→connected. See the fidelity boundary
-  in the doc for what tool-calls it covers.
+  proves register→consent→callback→token→connected. Live Google API
+  tool-calls stay OUT of scope: emulate serves no discovery docs and the
+  daemon ignores `baseUrl` for discovery bundles, so tool-calls dial real
+  Google → 401 — see the fidelity boundary in the doc. (Consent curl: use
+  `--data` WITHOUT `-X POST`, or the `-L` follow re-POSTs the daemon
+  callback and 404s.)
 
 ## Teardown (always)
 
