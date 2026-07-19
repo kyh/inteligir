@@ -298,8 +298,14 @@ describe("SyncCoordinator — guest→account upgrade", () => {
     expect(coordinator.getState().signedIn).toBe(true);
 
     // 3. The initial reconcile ADOPTS the local vault: both guest files land
-    // on the (empty) coordinator...
-    for (let i = 0; i < 50 && !(await port.getFile("ideas.md")).ok; i++) {
+    // on the (empty) coordinator. Wait for BOTH — the reconcile pushes them
+    // independently, so polling only one races the other's push under load.
+    for (
+      let i = 0;
+      i < 100 &&
+      !((await port.getFile("ideas.md")).ok && (await port.getFile("journal/2026-07-18.md")).ok);
+      i++
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
     expect((await port.getFile("journal/2026-07-18.md")).ok).toBe(true);
