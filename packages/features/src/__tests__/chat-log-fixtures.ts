@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "../agent-events";
-import type { ChatHistoryEntry } from "../ipc-registry";
+import type { ChatHistoryEntry } from "../chat-log";
 
 export type ChatEventFixture = {
   readonly name: string;

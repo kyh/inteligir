@@ -24,7 +24,7 @@ import {
   logFromHistory,
   type ChatLog,
 } from "@repo/features/chat-log";
-import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
+import type { ChatHistoryEntry } from "@repo/features/chat-log";
 import { stripNoteContext } from "@repo/features/note-context";
 import {
   chatEventFixtures,

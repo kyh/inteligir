@@ -13,7 +13,7 @@
 //
 // OFF BY DEFAULT at runtime: create-host starts the SyncCoordinator at boot,
 // but it constructs + runs the engine only when sync is enabled in config AND
-// a bearer token is present (see create-host.ts and sync-coordinator.ts).
+// a bearer token is present (see boot/create-host.ts and sync-coordinator.ts).
 // Only VAULT FILES are synced; the knowledge index and all AI/editor state live
 // under ~/.inteligir (outside the vault) and are never listed here, so derived
 // state can't leak into the protocol.
@@ -23,7 +23,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { inteligirPath, shortPathKey, type FsAdapter } from "../lib/json-store";
+import { inteligirPath, shortPathKey, type FsAdapter } from "../storage/json-store";
 import { getVaultManager, type VaultManager } from "../vault/vault";
 import type { SyncPort } from "@repo/core/sync/sync-port";
 import {

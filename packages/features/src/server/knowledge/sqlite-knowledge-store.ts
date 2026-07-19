@@ -23,7 +23,7 @@ import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { KnowledgeStore } from "@repo/core/knowledge/knowledge-store";
 import { createSqlKnowledgeStore, type SqlDriver } from "@repo/core/knowledge/sql-knowledge-store";
 
-import { inteligirPath, shortPathKey } from "../lib/json-store";
+import { inteligirPath, shortPathKey } from "../storage/json-store";
 
 /** Per-vault index DB path, keyed by a short hash of the vault root (mirrors
  * sync-manager's baseStorePath pattern — roots contain `/`). */

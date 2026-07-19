@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { parseAgentEvent } from "@repo/features/agent-event-parser";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 
 /** The subset of the Agent surface one text turn drives. Structural so the real
  * Agent satisfies it and tests can pass a lightweight fake without casts

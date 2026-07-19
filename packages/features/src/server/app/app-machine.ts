@@ -5,7 +5,7 @@
 import { Agent } from "../agent/agent";
 import { agentModelSelection } from "../provider/provider-service";
 import { isSetupComplete } from "../agent/setup";
-import { getExecutorDaemon } from "../executor/executor-daemon";
+import { getExecutorDaemon } from "../connectors/executor-daemon";
 import { reduce } from "./app-reducer";
 import { runEffect, type EffectDeps } from "./app-effects";
 import {
@@ -13,9 +13,9 @@ import {
   loginAgent,
   seedAgentResources,
   teardownAgentResources,
-} from "../lib/agent-lifecycle";
+} from "../boot/agent-wiring";
 import { resumeVaultWrites } from "../vault/vault";
-import { hardenAppDir } from "../lib/harden-app-dir";
+import { hardenAppDir } from "../storage/harden-app-dir";
 import { emitEvent } from "../events";
 import {
   getBackgroundAgent,
@@ -30,7 +30,7 @@ import { downloadModel } from "../voice/model-download";
 import { parseAgentEvent } from "@repo/features/agent-event-parser";
 import type { AppAgentEvent } from "@repo/features/agent-events";
 import type { AppState, MachineEvent } from "@repo/features/app-state";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process

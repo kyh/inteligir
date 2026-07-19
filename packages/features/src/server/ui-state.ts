@@ -10,7 +10,7 @@
 // without a dedicated IPC channel per credential.
 // ---------------------------------------------------------------------------
 
-import { JsonStore, inteligirPath } from "./lib/json-store";
+import { JsonStore, inteligirPath } from "./storage/json-store";
 import { getSecretStore } from "./secrets";
 import { UiStateSchema, type UiState } from "@repo/features/ui-state";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";

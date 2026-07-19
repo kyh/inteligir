@@ -17,6 +17,7 @@ import {
   type AiProviderSettings,
 } from "./ai-provider";
 import { AppEventSchema, type AppState } from "./app-state";
+import type { ChatHistoryEntry } from "./chat-log";
 import type { DeepLinkNavEvent } from "./deep-link";
 import {
   ConnectorInstallRequestSchema,
@@ -85,14 +86,6 @@ export type VoiceModelStateEvent =
 export type SetupProgress = {
   step: string;
   percent: number | null;
-};
-
-export type ChatHistoryEntry = {
-  role: "user" | "assistant" | "tool";
-  text: string;
-  toolName?: string;
-  toolCallId?: string;
-  isError?: boolean;
 };
 
 export type ExecutorStatus =
@@ -207,7 +200,7 @@ export type CaptureAckOutcome = Static<typeof AckCaptureSchema>["outcome"];
 
 // ---------------------------------------------------------------------------
 // AI-write checkpoints — pre-write copies of vault notes captured at the chat
-// agent's tool gate (checkpoints/checkpoint-manager.ts). Delegation has its
+// agent's tool gate (chat-undo/checkpoint-manager.ts). Delegation has its
 // own pre-run snapshot + dock affordance; these channels serve the CHAT undo.
 // ---------------------------------------------------------------------------
 
@@ -699,7 +692,7 @@ export const IPC = {
   ),
   // Connector install/uninstall — host-orchestrated (register integration →
   // mint connection → browser OAuth → rollback on failure) in
-  // server/executor/connector-install.ts; the renderer sends ONE request per
+  // server/connectors/connector-install.ts; the renderer sends ONE request per
   // user action and surfaces the rejection message on failure.
   installConnector: invoke<typeof ConnectorInstallRequestSchema, void>(
     "executor:connector:install",

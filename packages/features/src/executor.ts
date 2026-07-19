@@ -371,7 +371,7 @@ export type OAuthAwaitResult = Static<typeof OAuthAwaitResultSchema>;
 // ---- connector install (host-orchestrated) ----------------------------------
 // The renderer sends ONE install/uninstall request over the Bridge; the host
 // owns the whole sequence (register integration → mint connection → browser
-// OAuth → rollback on failure) — server/executor/connector-install.ts.
+// OAuth → rollback on failure) — server/connectors/connector-install.ts.
 
 /** An integration to register, fully resolved (slug + name + endpoints). */
 const ConnectorSourceSpecSchema = Type.Union([

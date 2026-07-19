@@ -17,7 +17,7 @@
 import { Agent } from "../agent/agent";
 import { BACKGROUND_SESSION_DIR } from "../agent/paths";
 import { agentModelSelection } from "../provider/provider-service";
-import { getAgentPorts } from "../lib/agent-lifecycle";
+import { getAgentPorts } from "../boot/agent-wiring";
 
 let bgAgent: Agent | null = null;
 

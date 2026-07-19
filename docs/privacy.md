@@ -95,7 +95,7 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   index is only ever a prefilter.
 - Enforcement points, for review: `agent/privacy/gate.ts` (tool gate) with
   `agent/privacy/pi-path-parity.ts` (path normalization, pinned against pi
-  by `__tests__/pi-path-parity.test.ts`); `lib/agent-knowledge-port.ts`
+  by `__tests__/pi-path-parity.test.ts`); `boot/agent-knowledge-port.ts`
   (search/backlinks); `editor/note-privacy.ts` with `ai/ghost-text-kit.tsx`
   and `ai/ai-session.ts` (editor AI); `stores/agent-store.ts` (context hint,
   over the `vault:probe-note-privacy` live-disk probe);

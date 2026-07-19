@@ -1,12 +1,12 @@
-import { remapNoteMetadata } from "../vault/rename-metadata";
+import { remapNoteMetadata } from "../boot/rename-orchestration";
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
-import { probeVaultPrivacy } from "../lib/agent-lifecycle";
+import { probeVaultPrivacy } from "../boot/agent-wiring";
 import { getPlatform } from "../platform-instance";
 import { getVaultManager } from "../vault/vault";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { checkNoteName, noteNameErrorMessage } from "@repo/core/knowledge/note-name";
 import { basenamePath } from "@repo/core/knowledge/vault-path";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { ChooseVaultResult, ReadVaultAssetResult } from "@repo/features/ipc-registry";
 
 // Largest asset the renderer may pull back as base64 for rendering. Base64

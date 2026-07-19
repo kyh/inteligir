@@ -33,9 +33,8 @@ import ignore, { type Ignore } from "ignore";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
-import { atomicWrite } from "../lib/atomic-write";
-import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { atomicWrite } from "../storage/atomic-write";
+import { JsonStore, inteligirPath, type FsAdapter } from "../storage/json-store";
 import { getPlatform } from "../platform-instance";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
@@ -121,6 +120,12 @@ type VaultManagerOptions = {
    * LAZILY at call time to the platform capability (secrets.ts cipher
    * precedent) so unit tests that never call trash() need no platform. */
   trashItem?: (absolutePath: string) => Promise<void>;
+  /** Directory that receives the `vault` symlink the agent's file tools
+   * follow. Injected — the host composes it from the agent workspace at
+   * construction (setVaultWorkspaceLinkDir in create-host); vault/ never
+   * imports agent/*. Defaults LAZILY at call time to the module-scoped
+   * shared value (trashItem precedent). */
+  workspaceLinkDir?: string;
 };
 
 export class VaultManager {
@@ -128,6 +133,7 @@ export class VaultManager {
   private readonly defaultRoot: string;
   private readonly manageAgentLink: boolean;
   private readonly trashItem: ((absolutePath: string) => Promise<void>) | undefined;
+  private readonly workspaceLinkDir: string | undefined;
   private changeNotifier: ((root: string, kind: VaultChangeKind) => void) | null = null;
   // The single non-recursive watcher on the open note (vault liveness —
   // CLAUDE.md § Decisions). Everything
@@ -149,6 +155,7 @@ export class VaultManager {
     this.defaultRoot = opts.defaultRoot ?? defaultVaultRoot();
     this.manageAgentLink = opts.manageAgentLink ?? true;
     this.trashItem = opts.trashItem;
+    this.workspaceLinkDir = opts.workspaceLinkDir;
     this.settings = new JsonStore<VaultSettings>(
       opts.settingsPath ?? inteligirPath("settings.json"),
       SettingsFileSchema,
@@ -191,7 +198,7 @@ export class VaultManager {
     // wipes them. realPath falls back to the lexical path when it doesn't exist
     // yet (a fresh folder can't be a symlink into anything).
     const realResolved = realPath(resolved);
-    const agentDir = realPath(AGENT_DIR);
+    const agentDir = realPath(inteligirPath());
     if (realResolved === agentDir || realResolved.startsWith(agentDir + path.sep)) {
       throw new Error(
         "Choose a folder outside the app data directory (~/.inteligir) — anything there is deleted on logout.",
@@ -629,12 +636,20 @@ export class VaultManager {
   // folder and let it read/write files.
   private ensureAgentSymlink(root: string): void {
     if (!this.manageAgentLink) return;
+    // Injected at composition (constructor option, else the module-scoped
+    // value set by setVaultWorkspaceLinkDir) — resolved lazily at call time
+    // like trashItem, so construction order doesn't matter.
+    const workspaceDir = this.workspaceLinkDir ?? sharedWorkspaceLinkDir;
+    if (workspaceDir === null) {
+      console.warn("[vault] no workspace link dir configured — skipping agent symlink");
+      return;
+    }
     const resolvedRoot = path.resolve(root);
     // Don't symlink the workspace into itself.
-    if (resolvedRoot === path.resolve(WORKSPACE_DIR)) return;
-    const link = path.join(WORKSPACE_DIR, "vault");
+    if (resolvedRoot === path.resolve(workspaceDir)) return;
+    const link = path.join(workspaceDir, "vault");
     try {
-      fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+      fs.mkdirSync(workspaceDir, { recursive: true });
       const existing = fs.lstatSync(link, { throwIfNoEntry: false });
       if (existing) {
         // Only ever replace a symlink we manage — never clobber a real dir/file.
@@ -741,6 +756,10 @@ let instance: VaultManager | null = null;
 // Module-scoped so it survives resetVaultManager() (logout): a fresh instance
 // built on the next login re-attaches the notifier instead of going silent.
 let sharedNotifier: ((root: string, kind: VaultChangeKind) => void) | null = null;
+// The agent-workspace dir that receives the `vault` symlink. Injected by the
+// host at composition (create-host) so vault/ never imports agent/*; module-
+// scoped like sharedNotifier so it survives resetVaultManager().
+let sharedWorkspaceLinkDir: string | null = null;
 // Mirrors the shell's write suspension: between logout (teardown wipes
 // ~/.inteligir, including settings.json) and the next login, a dirty autosave
 // firing from a still-mounted panel must not lazily build a fresh manager with
@@ -768,6 +787,12 @@ export function getVaultManager(): VaultManager {
     if (sharedNotifier) instance.startWatching(sharedNotifier);
   }
   return instance;
+}
+
+/** Register the agent-workspace symlink dir once at composition time (the
+ * host passes the agent workspace; vault/ never imports agent/*). */
+export function setVaultWorkspaceLinkDir(dir: string): void {
+  sharedWorkspaceLinkDir = dir;
 }
 
 /** Register the broadcast hookup once at composition time. Re-applied to every

@@ -7,11 +7,11 @@ import {
   EMULATE_GOOGLE_TOKEN_URL,
   isEmulateConnectorsEnabled,
   resolveGoogleOAuthEndpoints,
-} from "../executor/emulate-connectors";
+} from "../connectors/emulate-connectors";
 import {
   ensureGoogleOAuthClient,
   type GoogleOAuthClientOps,
-} from "../executor/google-oauth-client";
+} from "../connectors/google-oauth-client";
 import {
   GOOGLE_AUTHORIZATION_URL,
   GOOGLE_TOKEN_URL,

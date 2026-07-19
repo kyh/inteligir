@@ -1,7 +1,7 @@
 import { listIntegrations, listSkills, repairIntegrations } from "../agent/setup";
 import { emitEvent } from "../events";
-import { getAgentPorts, getBundledResources } from "../lib/agent-lifecycle";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import { getAgentPorts, getBundledResources } from "../boot/agent-wiring";
+import type { HandlerRegistrar } from "./handler-registry";
 
 export function registerSkillsHandlers(handle: HandlerRegistrar): void {
   handle("listSkills", () => ({ skills: listSkills() }));

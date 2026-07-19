@@ -83,5 +83,5 @@ export type HostOptions = {
   bundledGoogleClient?: { clientId: string; clientSecret: string };
   // Vault-sync is gated at RUNTIME by the user's sync-config store
   // (server/sync/sync-account.ts), not by a build option — see
-  // create-host.ts's start() and sync/sync-coordinator.ts.
+  // boot/create-host.ts's start() and sync/sync-coordinator.ts.
 };

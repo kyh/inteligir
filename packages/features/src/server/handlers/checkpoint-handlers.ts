@@ -1,5 +1,5 @@
-import { getCheckpointManager } from "../checkpoints/checkpoint-manager";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import { getCheckpointManager } from "../chat-undo/checkpoint-manager";
+import type { HandlerRegistrar } from "./handler-registry";
 
 export function registerCheckpointHandlers(handle: HandlerRegistrar): void {
   // Undo a turn's chat-agent edits. No busy-guard, deliberately: the undo

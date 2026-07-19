@@ -12,14 +12,14 @@ import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi
 import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
 import type { BacklinkEntry } from "@repo/core/knowledge/link-graph-index";
 
-import { isRecord } from "@repo/features/ipc";
+import { isRecord } from "@repo/features/wire-helpers";
 import type { NotePrivacyProbe, SetupProgress } from "@repo/features/ipc-registry";
 import type { ExecutorExecuteResult } from "@repo/features/executor";
 
 // ---------------------------------------------------------------------------
 // Ports — host-owned capabilities handed to extensions at register/setup time.
 // agent/ never imports the rest of @repo/features/server (lint-enforced);
-// server/lib/agent-lifecycle.ts builds these (structural subsets of the host
+// server/boot/agent-wiring.ts builds these (structural subsets of the host
 // singletons) and passes them down. The dependency direction stays one-way:
 // the host composes, agent receives.
 //
@@ -28,7 +28,7 @@ import type { ExecutorExecuteResult } from "@repo/features/executor";
 // that can't be expressed as plain filesystem access need one.
 // ---------------------------------------------------------------------------
 
-/** Executor daemon access (server/executor/*): install, lifecycle, code mode. */
+/** Executor daemon access (server/connectors/*): install, lifecycle, code mode. */
 export type ExecutorPort = {
   /** Pinned CLI metadata for the integrations UI. */
   cli: ExtensionCliInfo;
@@ -51,7 +51,7 @@ export type ExecutorPort = {
  * PRIVACY CONTRACT: results are privacy-FILTERED — a `private: true` note
  * never appears (no path, no snippet; a private backlinks target reads as
  * "no backlinks", indistinguishable from none). The implementation
- * (lib/agent-knowledge-port.ts) excludes private at the index AND re-probes
+ * (boot/agent-knowledge-port.ts) excludes private at the index AND re-probes
  * every survivor against live disk, closing the index-lag TOCTOU. */
 export type KnowledgePort = {
   search(query: string, limit?: number): SearchResult[];
@@ -83,7 +83,7 @@ export type RenameNoteResult =
 export type PrivacyProbe = NotePrivacyProbe;
 
 /** Vault-privacy capability behind the agent tool gate (privacy/extension.ts).
- * Built host-side in agent-lifecycle.ts over the live Vault/Knowledge
+ * Built host-side in boot/agent-wiring.ts over the live Vault/Knowledge
  * singletons; the gate itself stays a pure decision core. */
 export type PrivacyPort = {
   /** LIVE disk frontmatter probe for a vault-relative path — never the index. */
@@ -106,7 +106,7 @@ export type PrivacyPort = {
 export type VaultDocWrite = { rel: string; tool: "edit" | "write" };
 
 /** Pre-write checkpoint capture for ALLOWED in-vault doc mutations — the chat
- * agent's undo point (checkpoints/checkpoint-manager.ts behind it). The tool
+ * agent's undo point (chat-undo/checkpoint-manager.ts behind it). The tool
  * gate invokes it strictly after privacy allows a call and strictly before pi
  * executes the tool. MUST throw when capture fails: the gate handler lets the
  * throw propagate and pi converts it into an error tool result, blocking the

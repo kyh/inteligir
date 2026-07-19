@@ -11,7 +11,7 @@ import {
 } from "@repo/ui/components/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@repo/ui/components/tabs";
 
-import { ExtensionsPanel } from "@renderer/settings/extensions-panel";
+import { ConnectorsPanel } from "@renderer/settings/connectors-panel";
 import { SettingsPanel } from "@renderer/settings/settings-panel";
 
 /**
@@ -50,7 +50,7 @@ export function SettingsDialog() {
               <SettingsPanel onRequestClose={() => setOpen(false)} />
             </TabsContent>
             <TabsContent value="connectors">
-              <ExtensionsPanel />
+              <ConnectorsPanel />
             </TabsContent>
           </div>
         </Tabs>

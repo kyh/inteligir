@@ -8,7 +8,7 @@
 // legacy payloads read as "no environment" — never a throw.
 // ---------------------------------------------------------------------------
 
-import { isRecord } from "@repo/features/ipc";
+import { isRecord } from "@repo/features/wire-helpers";
 
 /** A desktop the device has paired with: where to connect + the durable
  * device credential the ws host minted for us. */

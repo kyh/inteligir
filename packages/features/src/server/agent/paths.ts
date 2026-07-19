@@ -5,7 +5,7 @@
 import os from "node:os";
 import path from "node:path";
 
-// Mirrors inteligirPath in server/lib/json-store.ts. Deliberately duplicated
+// Mirrors inteligirPath in server/storage/json-store.ts. Deliberately duplicated
 // (it's three lines) so agent/ keeps zero imports from the rest of
 // @repo/features/server (lint-enforced) — the dependency direction is
 // one-way: the host composes, agent receives.

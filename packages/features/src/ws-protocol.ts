@@ -7,7 +7,7 @@
 // type-guard parse functions so a malformed frame is a `null`, never a throw.
 // ---------------------------------------------------------------------------
 
-import { isRecord } from "./ipc";
+import { isRecord } from "./wire-helpers";
 
 // ---------------------------------------------------------------------------
 // Close codes + binary tags

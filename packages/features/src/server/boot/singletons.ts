@@ -23,20 +23,20 @@
 // The notifiers are composed here (buildHostNotifiers) and installed BEFORE any
 // piece that fires them is constructed. Only the LOW-LEVEL pieces that must not
 // import the event registry get a slot (json-store, vault); everything else
-// calls the typed emitEvent directly — see host-notifiers.ts.
+// calls the typed emitEvent directly — see notifier-wiring.ts.
 // ---------------------------------------------------------------------------
 
-import { emitEvent } from "./events";
-import { getCheckpointManager } from "./checkpoints/checkpoint-manager";
-import { getDelegationManager } from "./delegation/delegation-manager";
-import { getExecutorDaemon } from "./executor/executor-daemon";
-import { getKnowledgeManager } from "./knowledge/knowledge-manager";
-import { getNotifications } from "./notifications";
-import { getSecretStore } from "./secrets";
-import { getSyncCoordinator } from "./sync/sync-coordinator";
-import { getVaultManager } from "./vault/vault";
-import { setStoreRecoveryNotifier } from "./lib/json-store";
-import type { HostNotifiers } from "./host-notifiers";
+import { emitEvent } from "../events";
+import { getCheckpointManager } from "../chat-undo/checkpoint-manager";
+import { getDelegationManager } from "../delegation/delegation-manager";
+import { getExecutorDaemon } from "../connectors/executor-daemon";
+import { getKnowledgeManager } from "../knowledge/knowledge-manager";
+import { getNotifications } from "../notifications";
+import { getSecretStore } from "../secrets";
+import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { getVaultManager } from "../vault/vault";
+import { setStoreRecoveryNotifier } from "../storage/json-store";
+import type { HostNotifiers } from "./notifier-wiring";
 
 /** Compose the host notifiers for the registry-free low-level pieces. Each
  * fans into the IPC event bus / the notifications manager — the only place in

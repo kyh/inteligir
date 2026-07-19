@@ -6,17 +6,17 @@ import {
   installConnector,
   uninstallConnector,
   type ConnectorInstallOps,
-} from "../executor/connector-install";
+} from "../connectors/connector-install";
 import {
   applyGoogleEndpointOverride,
   emulatePlaceholderGoogleClient,
-} from "../executor/emulate-connectors";
-import * as executor from "../executor/executor-client";
-import { getExecutorDaemon } from "../executor/executor-daemon";
-import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../executor/google-oauth-client";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+} from "../connectors/emulate-connectors";
+import * as executor from "../connectors/executor-client";
+import { getExecutorDaemon } from "../connectors/executor-daemon";
+import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../connectors/google-oauth-client";
+import type { HandlerRegistrar } from "./handler-registry";
 import { getHostOptions, getPlatform } from "../platform-instance";
-import { isHttpUrl } from "@repo/features/ipc";
+import { isHttpUrl } from "@repo/features/wire-helpers";
 import type { ExecutorStatus } from "@repo/features/ipc-registry";
 
 // The real ports the connector orchestration runs on: the executor-client 1:1,

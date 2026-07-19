@@ -12,7 +12,7 @@
 // launches never pay for it.
 // ---------------------------------------------------------------------------
 
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 
 import { Agent } from "../agent/agent";
 import {
@@ -20,9 +20,9 @@ import {
   listSelectedProviderModels,
   providerModelSelection,
 } from "../provider/provider-service";
-import { getAgentPorts } from "../lib/agent-lifecycle";
+import { getAgentPorts } from "../boot/agent-wiring";
 import { getUiState } from "../ui-state";
-import { runTextTurn } from "./text-turn";
+import { runTextTurn } from "../agent/text-turn";
 import {
   GHOST_TEXT_MODEL_UI_STATE,
   type GhostModelsResult,

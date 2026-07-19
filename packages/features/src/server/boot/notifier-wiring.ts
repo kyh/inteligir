@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Host notifier composition — the plain callbacks the composition root
-// (host-context.ts, driven by create-host.ts) builds ONCE for the LOW-LEVEL
+// (singletons.ts, driven by create-host.ts) builds ONCE for the LOW-LEVEL
 // pieces that must never import the IPC event registry themselves: json-store
 // (storeRecovery, installed via setStoreRecoveryNotifier) and the vault
 // (vaultChange, installed via setVaultChangeNotifier in create-host's start()).
@@ -13,8 +13,8 @@
 // ONLY when the firing piece must stay registry-free.
 // ---------------------------------------------------------------------------
 
-import type { VaultChangeKind } from "./vault/vault";
-import type { StoreRecoveryEvent } from "./lib/json-store";
+import type { VaultChangeKind } from "../vault/vault";
+import type { StoreRecoveryEvent } from "../storage/json-store";
 
 /** The host notifier slots, composed by the host and fired by the low-level
  * pieces. Each is a plain callback that fans into `emitEvent(...)` / the

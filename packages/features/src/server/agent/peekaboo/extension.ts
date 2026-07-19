@@ -14,7 +14,7 @@
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import { installCliFromGithubRelease } from "@repo/features/server/agent-runtime/install";
 import { runCli } from "@repo/features/server/agent-runtime/run-cli";
 

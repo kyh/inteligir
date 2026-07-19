@@ -16,7 +16,7 @@ import unbzip2 from "unbzip2-stream";
 
 import { emitEvent } from "../events";
 import { getPlatform } from "../platform-instance";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { VoiceModelStateEvent } from "@repo/features/ipc-registry";
 
 const streamPipeline = promisify(pipelineCb);

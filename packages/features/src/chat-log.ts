@@ -16,8 +16,17 @@
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "./agent-events";
-import type { ChatHistoryEntry } from "./ipc-registry";
 import { stripNoteContext } from "./note-context";
+
+/** Persisted-history wire shape for one chat entry (the `getAgentHistory`
+ * channel's element type — the registry imports it from here). */
+export type ChatHistoryEntry = {
+  role: "user" | "assistant" | "tool";
+  text: string;
+  toolName?: string;
+  toolCallId?: string;
+  isError?: boolean;
+};
 
 export type ChatItem =
   | { readonly kind: "user"; readonly id: string; readonly text: string }

@@ -28,7 +28,7 @@ const INITIAL_ACTIVE_TOOLS = ["read", "bash", "edit", "write"];
 
 export type AgentOptions = {
   /** Main-owned capabilities (executor) handed to extension bundles at register
-   * time. Built main-side by agent-lifecycle.ts. */
+   * time. Built main-side by boot/agent-wiring.ts. */
   ports: AgentPorts;
   /** Select the session's model as a NEUTRAL (provider, modelId) pair —
    * host-composed (the selected provider+model from the provider-config

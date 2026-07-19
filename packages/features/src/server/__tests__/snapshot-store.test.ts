@@ -9,7 +9,7 @@ import {
   remapVaultPath,
   type SnapshotMeta,
 } from "../snapshots/snapshot-store";
-import type { FsAdapter } from "../lib/json-store";
+import type { FsAdapter } from "../storage/json-store";
 
 const DIR = "/snaps";
 

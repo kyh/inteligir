@@ -7,7 +7,7 @@
 
 import electronUpdater from "electron-updater";
 
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 
 const { autoUpdater } = electronUpdater;
 

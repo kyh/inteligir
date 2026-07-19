@@ -10,7 +10,7 @@ import type { IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import { createBackoff, timeoutSchedule } from "@repo/features/backoff";
-import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import { isRecord, toErrorMessage } from "@repo/features/wire-helpers";
 import {
   HYDRATED_EVENTS,
   LOCAL_ONLY_METHODS,
@@ -30,8 +30,8 @@ import {
   type ReqFrame,
   type SendFrame,
 } from "@repo/features/ws-protocol";
-import type { HostEvents } from "../create-host";
-import type { WireHandler } from "../lib/handler-registry";
+import type { HostEvents } from "../boot/create-host";
+import type { WireHandler } from "../handlers/handler-registry";
 import { LOCAL_DEVICE_ID, type DeviceSession, type TokenValidator } from "./device-auth";
 import type { RemoteAccessManager } from "./remote-access-manager";
 

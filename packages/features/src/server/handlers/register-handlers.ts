@@ -1,9 +1,9 @@
 // Handler groups, one per domain, so a reader sees the domain boundaries
-// instead of scanning one 150-line block. collectHandlers (lib/handler-
+// instead of scanning one 150-line block. collectHandlers (handlers/handler-
 // registry.ts) verifies at boot that the union covers every registry method
 // the host owns.
 
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { registerAgentHandlers } from "./agent-handlers";
 import { registerAiHandlers } from "./ai-handlers";
 import { registerAiProviderHandlers } from "./ai-provider-handlers";

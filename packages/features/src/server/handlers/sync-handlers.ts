@@ -1,4 +1,4 @@
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { getSyncCoordinator } from "../sync/sync-coordinator";
 
 export function registerSyncHandlers(handle: HandlerRegistrar): void {

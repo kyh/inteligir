@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import { getBridge } from "@renderer/lib/bridge";
 import { VoicePipeline } from "@renderer/voice/voice-pipeline";
 import { VoiceMachine, type VoiceState } from "@renderer/voice/voice-machine";

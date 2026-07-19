@@ -12,7 +12,7 @@ import type {
   ExtensionFactory,
 } from "@mariozechner/pi-coding-agent";
 import type { Api, AssistantMessage, ImageContent, Model } from "@mariozechner/pi-ai";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 
 import { resolveModelSelection, type ModelSelection } from "./model";
 

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createAgentLogWriter, type AgentLogWriter } from "../lib/agent-log";
+import { createAgentLogWriter, type AgentLogWriter } from "../storage/agent-log";
 
 let dir: string;
 let writer: AgentLogWriter;

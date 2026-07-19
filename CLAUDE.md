@@ -49,8 +49,8 @@ packages/        # libraries
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
   features/      # Contract + backend (@repo/features):
                  #   src/        — iso: Bridge/IPC registry, schemas (loads in the renderer)
-                 #   src/server/ — node: vault, pi agent, delegation, executor, voice, sync
-                 #                 adapters, handlers, createHost, HostPlatform
+                 #   src/server/ — node: vault, pi agent, delegation, connectors, voice,
+                 #                 sync adapters, handlers, boot/ (createHost), HostPlatform
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
@@ -285,9 +285,10 @@ conflict copies are listed in Settings → Sync with Open / Dismiss-copy.
 
 Extension bundles are listed in `agent/bundles.ts` (static registry + disk-drift
 test) and receive `AgentPorts` at register time — adding/removing a capability
-is one folder + one line. `executor/` is the MCP/connectors capability;
-`knowledge/` exposes `search_vault` (lexical, optional `tag` filter) and
-`get_backlinks` over the knowledge engine.
+is one folder + one line. `code-mode/` is the MCP/connectors capability
+(over the `server/connectors/` daemon); `knowledge-tools/` exposes
+`search_vault` (lexical, optional `tag` filter) and `get_backlinks` over the
+knowledge engine.
 `validateToolParametersSchema` rejects tool schemas that aren't a top-level
 `Type.Object` (OpenAI silently rejects `anyOf`-rooted schemas). The chat agent
 edits notes with pi's native file tools pointed at `./vault` — no custom edit

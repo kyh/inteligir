@@ -12,7 +12,7 @@ import type { IntegrationInfo, SetupProgress } from "@repo/features/ipc-registry
  * onboarding) or a binary got wedged. Binaries normally upgrade automatically
  * when the app updates; this is the manual escape hatch.
  */
-export function IntegrationsSection() {
+export function CliBinariesSection() {
   const [integrations, setIntegrations] = useState<IntegrationInfo[] | null>(null);
   const [repairing, setRepairing] = useState(false);
   const [progress, setProgress] = useState<SetupProgress | null>(null);

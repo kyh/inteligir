@@ -38,11 +38,12 @@ const daemon = vi.hoisted(() => {
   };
 });
 
-vi.mock("../executor/executor-daemon", () => ({
+vi.mock("../connectors/executor-daemon", () => ({
   getExecutorDaemon: () => daemon,
 }));
 
-const { executeEnsuringDaemon, resumeEnsuringDaemon } = await import("../executor/executor-client");
+const { executeEnsuringDaemon, resumeEnsuringDaemon } =
+  await import("../connectors/executor-client");
 
 const fetchMock = vi.fn<typeof fetch>();
 

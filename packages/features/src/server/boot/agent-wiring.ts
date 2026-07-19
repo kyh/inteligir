@@ -16,23 +16,23 @@ import { loginSelectedProvider } from "../provider/provider-service";
 import { resetProviderConfig } from "../provider/provider-config";
 import type { AgentPorts, PrivacyProbe } from "../agent/extension";
 import { buildAgentKnowledgePort } from "./agent-knowledge-port";
-import { isEnoent } from "./fs-errors";
+import { isEnoent } from "../storage/fs-errors";
 import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
-import { reassertHostLock } from "./host-lock";
+import { reassertHostLock } from "../storage/host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
-import { getCheckpointManager, resetCheckpointManager } from "../checkpoints/checkpoint-manager";
+import { getCheckpointManager, resetCheckpointManager } from "../chat-undo/checkpoint-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { resetSnapshotStore } from "../snapshots/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
-import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../executor/executor-client";
+import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../connectors/executor-client";
 import {
   EXECUTOR_CLI,
   getExecutorDaemon,
   installExecutor,
   resetExecutorDaemon,
-} from "../executor/executor-daemon";
+} from "../connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
 import { resetSecretStore } from "../secrets";
 import { resetSyncCoordinator } from "../sync/sync-coordinator";
@@ -44,7 +44,7 @@ import {
   resumeVaultWrites,
   suspendVaultWrites,
 } from "../vault/vault";
-import { remapNoteMetadata } from "../vault/rename-metadata";
+import { remapNoteMetadata } from "./rename-orchestration";
 import type { SetupProgress } from "@repo/features/ipc-registry";
 
 /** Bundled agent assets (skills/, AGENTS.md), resolved by the shell. */

@@ -9,7 +9,7 @@
 //     START (id = the delegation id); the dock's "Restore original" reads it
 //     back by that id.
 //   - "chat": the checkpoint seam behind the privacy tool gate captures per
-//     allowed edit/write, pre-execution (checkpoints/checkpoint-manager.ts);
+//     allowed edit/write, pre-execution (chat-undo/checkpoint-manager.ts);
 //     the post-turn undo toast restores by id.
 // A cheap, restorable undo point without a full history feature.
 //
@@ -31,8 +31,13 @@ import path from "node:path";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { atomicWrite } from "../lib/atomic-write";
-import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
+import { atomicWrite } from "../storage/atomic-write";
+import {
+  JsonStore,
+  inteligirPath,
+  rejectLegacyVersion,
+  type FsAdapter,
+} from "../storage/json-store";
 
 // Retention: keep the newest 50 snapshots PER ORIGIN, pruned on host start.
 // A count cap (not an age window) keeps disk usage proportional to actual AI

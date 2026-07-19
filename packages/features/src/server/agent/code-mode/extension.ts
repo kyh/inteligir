@@ -21,13 +21,13 @@
  */
 
 import { Type } from "@sinclair/typebox";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { ExtensionAPI } from "@repo/features/server/pi/pi-types";
 
 import type { ExecutorPort, PiExtensionBundle } from "../extension";
 import { textResult } from "../extension-helpers";
 import type { ExecutorExecuteResult } from "@repo/features/executor";
-import { isRecord } from "@repo/features/ipc";
+import { isRecord } from "@repo/features/wire-helpers";
 
 const EXECUTE_DESCRIPTION = `Execute TypeScript in a sandboxed runtime with access to the user's connected integrations.
 
@@ -63,7 +63,7 @@ const ResumeSchema = Type.Object({
 });
 
 const executorExtension: PiExtensionBundle = {
-  name: "executor",
+  name: "code-mode",
   // The executor binary is a main-owned resource (daemon child process); its
   // pinned CLI metadata arrives through ports rather than a static import.
   cli: ({ executor }) => executor.cli,

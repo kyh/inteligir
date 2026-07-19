@@ -9,7 +9,12 @@
 
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, rejectLegacyVersion, type FsAdapter } from "../lib/json-store";
+import {
+  JsonStore,
+  inteligirPath,
+  rejectLegacyVersion,
+  type FsAdapter,
+} from "../storage/json-store";
 import { DEFAULT_PROVIDER } from "./provider-catalog";
 
 const PROVIDER_CONFIG_VERSION = 1;

@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import { startSTT, type STTHandle } from "@renderer/voice/stt";
 
 /** The capture lifecycle. `starting` shows the listening surface immediately

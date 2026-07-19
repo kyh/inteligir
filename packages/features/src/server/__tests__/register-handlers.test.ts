@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { HOST_METHODS, collectHandlers } from "../lib/handler-registry";
+import { HOST_METHODS, collectHandlers } from "../handlers/handler-registry";
 import { registerAllHandlers } from "../handlers/register-handlers";
 
 describe("registerAllHandlers", () => {

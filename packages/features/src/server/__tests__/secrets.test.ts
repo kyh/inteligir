@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { SecretStore } from "../secrets";
-import type { FsAdapter } from "../lib/json-store";
+import type { FsAdapter } from "../storage/json-store";
 import type { SecretCipher } from "../platform";
 
 function memoryFs(): FsAdapter & { files: Map<string, string>; modes: Map<string, number> } {

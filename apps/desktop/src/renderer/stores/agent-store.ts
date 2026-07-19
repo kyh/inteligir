@@ -12,7 +12,7 @@ import {
   logFromHistory,
   type ChatLog,
 } from "@repo/features/chat-log";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { Bridge, SetupProgress } from "@repo/features/ipc-registry";
 import { buildNoteContext } from "@repo/features/note-context";
 import type { ImageAttachment } from "@repo/features/voice";

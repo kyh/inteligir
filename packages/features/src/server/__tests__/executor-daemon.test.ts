@@ -36,7 +36,7 @@ vi.mock("@repo/features/server/agent-runtime/install", () => ({
 }));
 
 const { getExecutorDaemon, installExecutor, resetExecutorDaemon, EXECUTOR_CLI } =
-  await import("../executor/executor-daemon");
+  await import("../connectors/executor-daemon");
 
 // The reap guard only acts on a manifest it positively owns (matching binary +
 // data dir). Derive both from the exported bin path so the reap test's fixture
@@ -327,7 +327,7 @@ describe("installExecutor sequencing", () => {
         }),
     );
 
-    // First boot: the eager daemon-start gate (agent-lifecycle) and the
+    // First boot: the eager daemon-start gate (agent-wiring) and the
     // executor bundle's setup() call install concurrently — one download,
     // not two racing extracts into the same bin dir.
     const eager = installExecutor();

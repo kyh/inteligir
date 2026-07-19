@@ -1,4 +1,4 @@
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { getUiState } from "../ui-state";
 
 export function registerUiStateHandlers(handle: HandlerRegistrar): void {

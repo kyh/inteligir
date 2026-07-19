@@ -1,4 +1,4 @@
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { getRemoteAccessManager } from "../transport/remote-access-manager";
 
 export function registerRemoteAccessHandlers(handle: HandlerRegistrar): void {

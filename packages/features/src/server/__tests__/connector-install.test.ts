@@ -11,7 +11,7 @@ import {
   installConnector,
   uninstallConnector,
   type ConnectorInstallOps,
-} from "../executor/connector-install";
+} from "../connectors/connector-install";
 import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ConnectorInstallRequest,

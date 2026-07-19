@@ -5,7 +5,7 @@ import os from "node:os";
 import { type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { isRecord, toErrorMessage } from "@repo/features/ipc";
+import { isRecord, toErrorMessage } from "@repo/features/wire-helpers";
 import { atomicWrite } from "./atomic-write";
 
 const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
@@ -48,7 +48,7 @@ function restrictInteligirDir(filePath: string): void {
   }
 }
 
-// Writes go through the shared tmp-then-rename atomicWrite (lib/atomic-write).
+// Writes go through the shared tmp-then-rename atomicWrite (storage/atomic-write).
 //
 // Mode DEFAULTS to owner-only (0o600): every JsonStore lives under
 // ~/.inteligir, and several hold credentials or note content (secrets,

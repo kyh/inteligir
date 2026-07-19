@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { getAuthStorage, isProviderAuthed, login, logoutProvider } from "../agent/auth";
-import { toErrorMessage } from "@repo/features/ipc";
+import { toErrorMessage } from "@repo/features/wire-helpers";
 import type { ModelSelection } from "@repo/features/server/pi/model";
 import type { Api, Model } from "@repo/features/server/pi/pi-types";
 import type { AiConnectResult, AiProviderSettings } from "@repo/features/ai-provider";

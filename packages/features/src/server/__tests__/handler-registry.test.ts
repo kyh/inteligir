@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { HOST_METHODS, collectHandlers, type HandlerRegistrar } from "../lib/handler-registry";
+import { HOST_METHODS, collectHandlers, type HandlerRegistrar } from "../handlers/handler-registry";
 import { DESKTOP_SHELL_METHODS, IPC, IPC_METHODS } from "@repo/features/ipc-registry";
 
 /** Register a stub for every host method, optionally overriding some. */

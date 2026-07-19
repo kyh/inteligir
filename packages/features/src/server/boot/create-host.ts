@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // createHost — the composition root for the node backend. It forces the
 // dependency-ordered construction of the backend singletons
-// (constructHostSingletons in host-context.ts), owns the notifier composition
+// (constructHostSingletons in singletons.ts), owns the notifier composition
 // for the registry-free low-level pieces (store-recovery at build, vault-change
 // at start — everything else emits to the event bus directly), and sequences
 // init/teardown over those singletons. The pieces
@@ -12,22 +12,22 @@
 // (the ws host), forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
-import { configurePaths } from "./agent/paths";
-import { initMachine, shutdown } from "./app/app-machine";
-import { subscribeEvents } from "./events";
-import { constructHostSingletons } from "./host-context";
-import { initAgentLog } from "./lib/agent-log";
-import { hardenAppDir } from "./lib/harden-app-dir";
-import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
-import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
-import { registerAllHandlers } from "./handlers/register-handlers";
-import { getCaptureManager } from "./capture/capture-manager";
-import { getDelegationManager } from "./delegation/delegation-manager";
-import { disposeKnowledgeManager, getKnowledgeManager } from "./knowledge/knowledge-manager";
-import { getSyncCoordinator } from "./sync/sync-coordinator";
-import { installHostRuntime } from "./platform-instance";
-import { getVaultManager, setVaultChangeNotifier } from "./vault/vault";
-import type { HostOptions, HostPlatform } from "./platform";
+import { configurePaths, WORKSPACE_DIR } from "../agent/paths";
+import { initMachine, shutdown } from "../app/app-machine";
+import { subscribeEvents } from "../events";
+import { constructHostSingletons } from "./singletons";
+import { initAgentLog } from "../storage/agent-log";
+import { hardenAppDir } from "../storage/harden-app-dir";
+import { acquireHostLock, releaseHostLock } from "../storage/host-lock";
+import { collectHandlers, type HostHandlers } from "../handlers/handler-registry";
+import { registerAllHandlers } from "../handlers/register-handlers";
+import { getCaptureManager } from "../capture/capture-manager";
+import { getDelegationManager } from "../delegation/delegation-manager";
+import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
+import { getSyncCoordinator } from "../sync/sync-coordinator";
+import { installHostRuntime } from "../platform-instance";
+import { getVaultManager, setVaultChangeNotifier, setVaultWorkspaceLinkDir } from "../vault/vault";
+import type { HostOptions, HostPlatform } from "../platform";
 import type { EventMethod } from "@repo/features/ipc-registry";
 
 export type HostEvents = {
@@ -112,6 +112,9 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // sync even though it does not broadcast onVaultChanged. Wrapping here
       // (once) keeps the sync engine rebuildable underneath without re-installing
       // this notifier.
+      // Injected here (not imported by vault/) so the vault layer has zero
+      // outbound capability edges — the host composes, vault receives.
+      setVaultWorkspaceLinkDir(WORKSPACE_DIR);
       getVaultManager().ensureReady();
       const baseVaultNotifier = notifiers.vaultChange;
       setVaultChangeNotifier((root, kind) => {

@@ -12,7 +12,7 @@ import {
   logFromHistory,
   type ChatLog,
 } from "@repo/features/chat-log";
-import type { ChatHistoryEntry } from "@repo/features/ipc-registry";
+import type { ChatHistoryEntry } from "@repo/features/chat-log";
 
 function fold(log: ChatLog, events: readonly AppAgentEvent[]): ChatLog {
   return events.reduce(applyAgentEvent, log);

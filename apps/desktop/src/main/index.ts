@@ -26,14 +26,14 @@ import {
   deliverDeepLink,
   setDeepLinkFocusHandler,
 } from "@repo/features/server/capture/deep-link-service";
-import { createHost, type Host } from "@repo/features/server/create-host";
+import { createHost, type Host } from "@repo/features/server/boot/create-host";
 import type { HostOptions } from "@repo/features/server/platform";
 import {
   getRemoteAccessManager,
   type RemoteAccessManager,
 } from "@repo/features/server/transport/remote-access-manager";
 import { startWsHost, type WsHost } from "@repo/features/server/transport/ws-host";
-import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/ipc";
+import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/wire-helpers";
 
 import {
   extractDeepLinkFromArgv,

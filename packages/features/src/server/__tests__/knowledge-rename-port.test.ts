@@ -15,7 +15,7 @@ import path from "node:path";
 
 import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
-import { buildAgentKnowledgePort } from "../lib/agent-knowledge-port";
+import { buildAgentKnowledgePort } from "../boot/agent-knowledge-port";
 import { VaultManager } from "../vault/vault";
 import type { KnowledgePort, PrivacyProbe } from "../agent/extension";
 
@@ -25,7 +25,7 @@ let vault: VaultManager;
 let port: KnowledgePort;
 let afterRenameCalls: Array<[string, string]>;
 
-/** Mirror of agent-lifecycle's probeVaultPrivacy over the test vault: live
+/** Mirror of agent-wiring's probeVaultPrivacy over the test vault: live
  * disk read, any failure short of a real verdict reads "absent" (none of
  * these tests hinge on the absent/indeterminate error split). */
 const probe = (rel: string): PrivacyProbe => {

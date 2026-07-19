@@ -11,7 +11,7 @@ No barrel; import by file. The renderer imports the iso half (`@repo/features/..
 
 `src/ipc-registry.ts` is the single source of truth for every channel crossing the main↔renderer boundary. Each entry pairs a channel name with a TypeBox payload schema (runtime validation) and a result/event type (compile-time inference). Everything else is **derived** from it:
 
-- the transport-agnostic `Bridge` type (re-exported via `src/ipc.ts`) that the renderer consumes;
+- the transport-agnostic `Bridge` type (`src/ipc-registry.ts`) that the renderer consumes;
 - the Electron preload bridge object (automatic — no per-channel code);
 - the backend handler registrar (`src/server` validates payloads and throws at boot on missing/duplicate handlers).
 

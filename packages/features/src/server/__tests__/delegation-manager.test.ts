@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DelegationManager, type DelegationAgent } from "../delegation/delegation-manager";
 import { SNAPSHOT_RETENTION, SnapshotStore } from "../snapshots/snapshot-store";
-import type { FsAdapter } from "../lib/json-store";
+import type { FsAdapter } from "../storage/json-store";
 
 function memoryFs(): FsAdapter {
   const files = new Map<string, string>();

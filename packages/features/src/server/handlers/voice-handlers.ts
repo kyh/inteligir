@@ -1,5 +1,5 @@
 import { emitEvent } from "../events";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import { downloadModel, isModelInstalled } from "../voice/model-download";
 import { initParakeet, pushAudio, startSession, stopSession } from "../voice/parakeet";
 import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "../voice/tts-proxy";

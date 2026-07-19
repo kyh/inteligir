@@ -1,6 +1,6 @@
 import { cancelInline, classifyIntent, generateInline } from "../app/inline-ai";
 import { cancelGhost, generateGhost, listGhostModels } from "../app/ghost-text";
-import type { HandlerRegistrar } from "../lib/handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 
 export function registerAiHandlers(handle: HandlerRegistrar): void {
   handle("generateInlineAi", (params) => generateInline(params.prompt, params.requestId));
