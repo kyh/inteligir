@@ -5,10 +5,14 @@
 // node/electron imports; loads in the renderer, the fixture bridge, and the
 // node host alike.
 //
-// Exactly five verbs (verb = URL hostname, the same parse trick as
+// Exactly six verbs (verb = URL hostname, the same parse trick as
 // vault-app://): writes `append?text=` / `task?text=` (one sanitized
 // plain-text line onto TODAY's daily note — the path is computed host-side,
-// NEVER taken from the URL), and nav `today` / `note/<target>` / `search?q=`.
+// NEVER taken from the URL), nav `today` / `note/<target>` / `search?q=`, and
+// `session?code=…&state=…` (the social sign-in callback: an OPAQUE single-use
+// exchange code — never a raw token — plus the state nonce the desktop minted
+// at initiation; both are only ever handed onward, the code to the cloud
+// exchange endpoint and the state to the host's pending-sign-in check).
 // Anything else parses to null. Oversize input is REJECTED, never truncated.
 // ---------------------------------------------------------------------------
 
@@ -24,6 +28,12 @@ export const MAX_SEARCH_QUERY_LENGTH = 1_000;
 /** Cap on a `note/<target>` path or wiki title. */
 export const MAX_NOTE_TARGET_LENGTH = 1_024;
 
+/** The session verb's `code`/`state` grammar: opaque base64url-ish tokens,
+ * charset- and length-bounded here (the world-invokable surface), but
+ * AUTHORITATIVE only server-side — the code buys nothing without the HTTPS
+ * exchange, and the state must match the host's one pending sign-in. */
+const SESSION_PARAM_PATTERN = /^[A-Za-z0-9_-]{16,256}$/;
+
 export type CaptureKind = "append" | "task";
 
 export type DeepLinkNav =
@@ -37,7 +47,8 @@ export type DeepLinkNavEvent = { id: string; nav: DeepLinkNav };
 
 export type DeepLinkAction =
   | { kind: "capture"; capture: CaptureKind; text: string }
-  | { kind: "nav"; nav: DeepLinkNav };
+  | { kind: "nav"; nav: DeepLinkNav }
+  | { kind: "session"; code: string; state: string };
 
 // The markdown/MDX-active characters a captured line must never smuggle in
 // live: `[` (wiki-links, transclusions, images, links), `<` (our MDX
@@ -134,6 +145,16 @@ export function parseDeepLink(rawUrl: string): DeepLinkAction | null {
       const query = raw.replaceAll(/\s+/g, " ").trim();
       if (query === "") return null;
       return { kind: "nav", nav: { kind: "search", query } };
+    }
+    case "session": {
+      // Social sign-in callback. Both params must fit the opaque grammar —
+      // anything else (empty, oversize, wrong charset, smuggled URL syntax)
+      // is dropped whole, like every other out-of-grammar URL.
+      const code = url.searchParams.get("code");
+      const state = url.searchParams.get("state");
+      if (code === null || !SESSION_PARAM_PATTERN.test(code)) return null;
+      if (state === null || !SESSION_PARAM_PATTERN.test(state)) return null;
+      return { kind: "session", code, state };
     }
     default:
       return null;
