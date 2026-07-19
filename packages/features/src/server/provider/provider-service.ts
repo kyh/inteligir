@@ -1,14 +1,17 @@
 // ---------------------------------------------------------------------------
 // Provider service — the host's one answer to "which provider+model is the
 // agent on, and is it usable?". Glues the dumb store (provider-config) to the
-// pure normalization/resolution logic (provider-catalog) and pi's on-device
-// credential store (agent/auth). Every Agent construction site resolves its
-// model through here, so switching providers in Settings takes effect on the
-// next session start — no restart-time const anywhere.
+// pure normalization logic (provider-catalog) and pi's on-device credential
+// store (agent/auth). Every Agent construction site selects its model through
+// here (as a neutral {provider, modelId} pair — resolution to a pi Model
+// happens inside the PiAgent wrapper, #460), so switching providers in
+// Settings takes effect on the next session start — no restart-time const
+// anywhere.
 // ---------------------------------------------------------------------------
 
 import { getAuthStorage, isProviderAuthed, login, logoutProvider } from "../agent/auth";
 import { toErrorMessage } from "@repo/features/ipc";
+import type { ModelSelection } from "@repo/features/server/pi/model";
 import type { Api, Model } from "@repo/features/server/pi/pi-types";
 import type { AiConnectResult, AiProviderSettings } from "@repo/features/ai-provider";
 
@@ -21,7 +24,6 @@ import {
   normalizeSelection,
   parseSupportedProvider,
   providerRequiresAuth,
-  resolveProviderModel,
   type SupportedProviderId,
 } from "./provider-catalog";
 import { getProviderConfig } from "./provider-config";
@@ -36,24 +38,32 @@ export function getSelectedProvider(): { provider: SupportedProviderId; modelId:
   return normalizeSelection(getProviderConfig().get());
 }
 
-/** Resolve `modelId` against the SELECTED provider — the ghost-text session's
- * fast-model override rides through here so its override follows a provider
- * switch instead of pointing at a foreign registry. */
-export function resolveModelForSelectedProvider(modelId: string): Model<Api> {
-  const { provider } = getSelectedProvider();
-  if (provider === FAUX_PROVIDER_ID) {
-    // pi's prompt gate requires SOME auth for the model's provider; a runtime
-    // key (never persisted) satisfies it and the faux stream ignores the value.
-    // Re-asserted on every resolution because logout rebuilds the AuthStorage.
-    getAuthStorage().setRuntimeApiKey(FAUX_PROVIDER_ID, "faux-dev-key");
-  }
-  return resolveProviderModel(provider, modelId);
+/** pi's prompt gate requires SOME auth for the model's provider; a runtime
+ * key (never persisted) satisfies it and the faux stream ignores the value.
+ * Re-asserted on every selection because logout rebuilds the AuthStorage. */
+function ensureFauxRuntimeAuth(provider: SupportedProviderId): void {
+  if (provider !== FAUX_PROVIDER_ID) return;
+  getAuthStorage().setRuntimeApiKey(FAUX_PROVIDER_ID, "faux-dev-key");
 }
 
-/** The selected provider+model as a pi Model — what every default Agent
- * session runs on. Passed as the lazy `resolveModel` thunk in AgentOptions. */
-export function resolveSelectedModel(): Model<Api> {
-  return resolveModelForSelectedProvider(getSelectedProvider().modelId);
+/** Pair `modelId` with the SELECTED provider — the ghost-text session's
+ * fast-model override rides through here so its override follows a provider
+ * switch instead of pointing at a foreign registry. Resolution to a pi Model
+ * happens inside the PiAgent wrapper at start() (#460). */
+export function providerModelSelection(modelId: string): ModelSelection {
+  const { provider } = getSelectedProvider();
+  ensureFauxRuntimeAuth(provider);
+  return { provider, modelId };
+}
+
+/** The selected provider+model pair every default Agent session runs on —
+ * passed as the lazy `selectModel` thunk in AgentOptions and resolved to a
+ * pi Model inside the PiAgent wrapper at start() (#460: pi-ai's Model type
+ * stays inside server/pi/*). */
+export function agentModelSelection(): ModelSelection {
+  const selection = getSelectedProvider();
+  ensureFauxRuntimeAuth(selection.provider);
+  return selection;
 }
 
 /** Models the selected provider can run (the ghost-text settings picker). */

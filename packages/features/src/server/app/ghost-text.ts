@@ -18,7 +18,7 @@ import { Agent } from "../agent/agent";
 import {
   getSelectedProvider,
   listSelectedProviderModels,
-  resolveModelForSelectedProvider,
+  providerModelSelection,
 } from "../provider/provider-service";
 import { getAgentPorts } from "../lib/agent-lifecycle";
 import { getUiState } from "../ui-state";
@@ -94,7 +94,7 @@ async function ensureAgent(): Promise<Agent | null> {
     ports: getAgentPorts(),
     ephemeralSession: true,
     allowedToolNames: [], // pure text completer — no tools at all
-    resolveModel: () => resolveModelForSelectedProvider(modelId),
+    selectModel: () => providerModelSelection(modelId),
   });
   await next.start();
   agent = next;

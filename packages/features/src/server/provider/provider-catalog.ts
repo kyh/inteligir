@@ -11,7 +11,7 @@
 // touching disk.
 // ---------------------------------------------------------------------------
 
-import { listModels, resolveModel } from "@repo/features/server/pi/model";
+import { listModels } from "@repo/features/server/pi/model";
 import type { Api, Model } from "@repo/features/server/pi/pi-types";
 
 import { ensureFauxProvider, FAUX_PROVIDER_ID, isFauxAgentEnabled } from "./faux-provider";
@@ -83,20 +83,6 @@ export function providerRequiresAuth(id: SupportedProviderId): boolean {
 export function listProviderModels(id: SupportedProviderId): Model<Api>[] {
   if (id === FAUX_PROVIDER_ID) return [...ensureFauxProvider().models];
   return listModels(id);
-}
-
-/** Resolve one (provider, modelId) to pi-ai's Model. Throws descriptively on
- * an unknown model — callers that can't tolerate a throw normalize first
- * (see normalizeSelection). */
-export function resolveProviderModel(id: SupportedProviderId, modelId: string): Model<Api> {
-  if (id === FAUX_PROVIDER_ID) {
-    const model = ensureFauxProvider().getModel(modelId);
-    if (!model) {
-      throw new Error(`Model "${FAUX_PROVIDER_ID}/${modelId}" not found on the faux registration`);
-    }
-    return model;
-  }
-  return resolveModel(id, modelId);
 }
 
 /** Normalize a stored selection at the read boundary: an unsupported provider

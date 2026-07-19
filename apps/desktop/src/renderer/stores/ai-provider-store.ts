@@ -20,7 +20,7 @@ import { getBridge } from "@renderer/lib/bridge";
 
 /**
  * "The SELECTED provider can serve a turn right now" — the AI feature gate.
- * Every turn resolves the SELECTED provider host-side (resolveSelectedModel),
+ * Every turn selects the SELECTED provider host-side (agentModelSelection),
  * so a connected-but-not-selected provider must NOT open the gate: connect
  * Claude while OpenAI is selected and every turn would still target
  * disconnected OpenAI and fail. Providers that need no login (the dev faux
