@@ -2,6 +2,7 @@ import { dispatchAgentCommand } from "../app/agent-gateway";
 import { reauthenticate } from "../app/app-machine";
 import { readSessionHistory } from "../app/session-history";
 import type { HandlerRegistrar } from "../lib/handler-registry";
+import { applyFauxAgentScript, isFauxAgentEnabled } from "../provider/faux-provider";
 
 export function registerAgentHandlers(handle: HandlerRegistrar): void {
   // All interactive agent commands funnel through the gateway, which defers
@@ -13,4 +14,12 @@ export function registerAgentHandlers(handle: HandlerRegistrar): void {
 
   handle("getAgentHistory", () => readSessionHistory());
   handle("reauthenticate", () => reauthenticate());
+
+  // Dev-only E2E scripting seam (#461 Phase 4b) — fails closed in production.
+  handle("setFauxAgentScript", (script) => {
+    if (!isFauxAgentEnabled()) {
+      throw new Error("setFauxAgentScript requires INTELIGIR_FAUX_AGENT=1");
+    }
+    applyFauxAgentScript(script);
+  });
 }

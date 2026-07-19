@@ -8,13 +8,21 @@
 // helpers). Production never sees any of this unless the flag is set.
 // ---------------------------------------------------------------------------
 
-import { fauxAssistantMessage, registerFauxProvider } from "@mariozechner/pi-ai";
+import {
+  fauxAssistantMessage,
+  fauxText,
+  fauxToolCall,
+  registerFauxProvider,
+} from "@mariozechner/pi-ai";
 import type {
+  AssistantMessage,
   Context,
+  FauxContentBlock,
   FauxProviderRegistration,
   FauxResponseFactory,
   FauxResponseStep,
 } from "@mariozechner/pi-ai";
+import type { FauxAgentScript } from "@repo/features/ipc-registry";
 
 export const FAUX_PROVIDER_ID = "faux";
 
@@ -79,4 +87,25 @@ export function setFauxResponses(steps: FauxResponseStep[]): void {
 export function resetFauxResponses(): void {
   const reg = ensureFauxProvider();
   reg.setResponses([selfRefillingEcho(reg)]);
+}
+
+/** The setFauxAgentScript Bridge channel's application (#461 Phase 4b): map
+ * wire steps onto pi-ai faux messages — text plus tool calls, with stopReason
+ * "toolUse" when calls are present so the agent loop executes them and then
+ * consumes the NEXT step for its follow-up turn. Empty steps = back to the
+ * echo, so a drive can restore the default without restarting the host. */
+export function applyFauxAgentScript(script: FauxAgentScript): void {
+  if (script.steps.length === 0) {
+    resetFauxResponses();
+    return;
+  }
+  setFauxResponses(script.steps.map(scriptStepMessage));
+}
+
+function scriptStepMessage(step: FauxAgentScript["steps"][number]): AssistantMessage {
+  const blocks: FauxContentBlock[] = [];
+  if (step.text !== undefined && step.text !== "") blocks.push(fauxText(step.text));
+  const calls = step.toolCalls ?? [];
+  for (const call of calls) blocks.push(fauxToolCall(call.name, call.arguments));
+  return fauxAssistantMessage(blocks, calls.length > 0 ? { stopReason: "toolUse" } : {});
 }
