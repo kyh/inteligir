@@ -93,6 +93,26 @@ export const rateLimit = sqliteTable("rate_limit", {
 });
 
 /**
+ * Desktop sign-in handoff codes (src/auth/desktop-session.ts). Not a Better
+ * Auth table; the desktop-callback surface owns it. Each row is one SHORT-LIVED
+ * (~90s), SINGLE-USE authorization code minted at the social OAuth callback:
+ * the `inteligir://session` deep link carries only the opaque code, and the
+ * desktop exchanges it over HTTPS for the session bearer held here. The code
+ * itself is never stored — only its sha-256 (`codeHash`, the PK), so a D1 read
+ * can't yield redeemable codes. Rows are deleted on exchange (the burn) and
+ * garbage-collected opportunistically on every mint.
+ */
+export const desktopAuthCode = sqliteTable("desktop_auth_code", {
+  codeHash: text("code_hash").primaryKey(),
+  token: text("token").notNull(),
+  email: text("email").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .$defaultFn(() => new Date())
+    .notNull(),
+});
+
+/**
  * Vault ownership (first-writer-wins). `vaultId` is the primary key; the first
  * authenticated user to access a vault inserts a row claiming it. A later request
  * for the same vault by a different user is rejected (403).
