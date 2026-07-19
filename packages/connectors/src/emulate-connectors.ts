@@ -25,7 +25,7 @@
 // shell's post-import loadEnvFile is visible.
 //
 // Every env read here — the flag AND the explicit URL overrides — is gated
-// on the boot-computed dev-flag bit (@repo/agent dev-flags.ts): a PACKAGED build
+// on the boot-computed dev-flag bit (@repo/bridge/dev-flags): a PACKAGED build
 // refuses the ambient env outright and always resolves real Google.
 // ---------------------------------------------------------------------------
 
@@ -35,7 +35,7 @@ import {
   type CreateOAuthClientInput,
 } from "@repo/bridge/executor";
 
-import { areDevFlagsAllowed } from "@repo/agent/dev-flags";
+import { areDevFlagsAllowed } from "@repo/bridge/dev-flags";
 
 /** Dev flag gating the emulate defaults. Only honored when boot allowed dev
  * flags (unpackaged builds — dev-flags.ts). */

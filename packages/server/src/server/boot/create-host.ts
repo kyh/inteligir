@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 import { configurePaths, SESSION_DIR_SEGMENTS, WORKSPACE_DIR } from "@repo/agent/paths";
-import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
+import { setDevFlagsAllowed } from "@repo/bridge/dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
 import { emitEvent, subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";

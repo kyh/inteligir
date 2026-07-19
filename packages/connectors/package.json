@@ -2,7 +2,7 @@
   "name": "@repo/connectors",
   "version": "0.1.0",
   "private": true,
-  "description": "The MCP/connectors capability behind code mode: the executor daemon manager (checksum-pinned GitHub-release install via @repo/installer, spawn/ready/reap lifecycle under ~/.inteligir/executor), the typed executor HTTP client, connector install/uninstall orchestration (ports-injected — the host binds openExternal), the bundled Google OAuth client, and the dev-only emulate-connectors override (gated on @repo/agent's boot-computed dev-flag bit). Never imports server/electron code.",
+  "description": "The MCP/connectors capability behind code mode: the executor daemon manager (checksum-pinned GitHub-release install via @repo/installer, spawn/ready/reap lifecycle under ~/.inteligir/executor), the typed executor HTTP client, connector install/uninstall orchestration (ports-injected — the host binds openExternal), the bundled Google OAuth client, and the dev-only emulate-connectors override (gated on the boot-computed dev-flag bit, @repo/bridge/dev-flags). Never imports server/electron code.",
   "type": "module",
   "exports": {
     "./connector-install": "./src/connector-install.ts",
@@ -17,7 +17,6 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@repo/agent": "workspace:*",
     "@repo/bridge": "workspace:*",
     "@repo/installer": "workspace:*",
     "@repo/storage": "workspace:*",

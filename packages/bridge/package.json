@@ -14,6 +14,7 @@
     "./daily-notes": "./src/daily-notes.ts",
     "./deep-link": "./src/deep-link.ts",
     "./delegation": "./src/delegation.ts",
+    "./dev-flags": "./src/dev-flags.ts",
     "./executor": "./src/executor.ts",
     "./inline-ai": "./src/inline-ai.ts",
     "./ipc-registry": "./src/ipc-registry.ts",

@@ -77,10 +77,10 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
 
 Dep DAG (all edges): notes, installer, ui are leaves; bridge→notes;
 storage→bridge; vault→storage+notes+bridge; agent→bridge+installer+notes;
-voice→storage+bridge; connectors→agent+installer+storage+bridge (the agent
-edge is ONLY dev-flags — the boot-computed fail-closed gate stays single-
-source; agent never imports connectors: code-mode reaches the daemon through
-the injected ExecutorPort); sync→vault+storage+notes+bridge;
+voice→storage+bridge; connectors→installer+storage+bridge (agent never
+imports connectors: code-mode reaches the daemon through the injected
+ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source
+in @repo/bridge/dev-flags — #465); sync→vault+storage+notes+bridge;
 server→agent+bridge+connectors+notes+storage+sync+vault+voice.
 The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
 @repo/server — so "no node in the UI's contract" is an unresolvable-import

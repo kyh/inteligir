@@ -644,9 +644,6 @@ importers:
 
   packages/connectors:
     dependencies:
-      '@repo/agent':
-        specifier: workspace:*
-        version: link:../agent
       '@repo/bridge':
         specifier: workspace:*
         version: link:../bridge
