@@ -23,6 +23,10 @@
 // Env is read lazily (call time, not module load) like optionOrEnv in
 // google-oauth-client.ts, so tests can flip it per case and the desktop
 // shell's post-import loadEnvFile is visible.
+//
+// Every env read here — the flag AND the explicit URL overrides — is gated
+// on the boot-computed dev-flag bit (server/dev-flags.ts): a PACKAGED build
+// refuses the ambient env outright and always resolves real Google.
 // ---------------------------------------------------------------------------
 
 import {
@@ -31,9 +35,12 @@ import {
   type CreateOAuthClientInput,
 } from "@repo/features/executor";
 
-/** Dev flag gating the emulate defaults. */
+import { areDevFlagsAllowed } from "../dev-flags";
+
+/** Dev flag gating the emulate defaults. Only honored when boot allowed dev
+ * flags (unpackaged builds — dev-flags.ts). */
 export function isEmulateConnectorsEnabled(): boolean {
-  return process.env["INTELIGIR_EMULATE_CONNECTORS"] === "1";
+  return areDevFlagsAllowed() && process.env["INTELIGIR_EMULATE_CONNECTORS"] === "1";
 }
 
 // emulate's Google service endpoints, verified against emulate v0.9.0's own
@@ -54,8 +61,13 @@ function envUrl(name: string): string {
 /**
  * The Google OAuth endpoints every registration site uses. Precedence per
  * URL: explicit env override → emulate default (flag set) → real Google.
+ * Packaged builds (dev flags disallowed) always resolve real Google — the
+ * explicit URL overrides are a dev/debugging seam, not a production one.
  */
 export function resolveGoogleOAuthEndpoints(): GoogleOAuthEndpoints {
+  if (!areDevFlagsAllowed()) {
+    return { authorizationUrl: GOOGLE_AUTHORIZATION_URL, tokenUrl: GOOGLE_TOKEN_URL };
+  }
   const emulate = isEmulateConnectorsEnabled();
   return {
     authorizationUrl:

@@ -31,6 +31,14 @@ export type HostNotification = {
 
 export type HostPlatform = {
   /**
+   * True in a packaged production install (Electron: app.isPackaged), false
+   * in dev checkouts and test shells. Gates the dev-only env flags
+   * (server/dev-flags.ts): a packaged build refuses INTELIGIR_FAUX_AGENT /
+   * INTELIGIR_EMULATE_CONNECTORS outright.
+   */
+  isPackaged: boolean;
+
+  /**
    * Per-user data dir for large mutable assets that must survive logout
    * (voice models today). NOT ~/.inteligir — logout rm -rf's that.
    * Electron: app.getPath("userData"). Server: an env-paths style data dir.
