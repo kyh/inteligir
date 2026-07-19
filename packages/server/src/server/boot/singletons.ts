@@ -15,7 +15,7 @@
 //   platform/options ──▶ secrets, notifications, bundledResources
 //   secrets          ──▶ uiState
 //   (paths)          ──▶ vault ──▶ knowledge
-//   vault            ──▶ delegation
+//   vault, restore   ──▶ delegation
 //   (paths)          ──▶ executorDaemon
 //   executorDaemon   ──▶ agentPorts
 //   auth.json        ──▶ authStorage
@@ -27,7 +27,7 @@
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "../events";
-import { getCheckpointManager } from "../chat-undo/checkpoint-manager";
+import { getRestoreManager } from "../restore/restore-manager";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
@@ -83,8 +83,8 @@ export function constructHostSingletons(): HostNotifiers {
   getNotifications(); // platform.notify
   getVaultManager(); // paths (watcher stays off until start() wires it post-ensureReady)
   getKnowledgeManager(); // vault
-  getDelegationManager(); // vault (push channels wire to emitEvent at construction)
-  getCheckpointManager(); // shared snapshot store (capture channel wires to emitEvent)
+  getRestoreManager(); // shared snapshot store (capture channel wires to emitEvent)
+  getDelegationManager(); // vault + restore (push channels wire to emitEvent at construction)
   getExecutorDaemon(); // paths
   getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
 

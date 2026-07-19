@@ -1,5 +1,7 @@
 // ---------------------------------------------------------------------------
-// SnapshotStore — pre-write copies of vault notes behind every AI-edit undo.
+// SnapshotStore — pre-write copies of vault notes behind every AI-edit undo:
+// the storage layer under RestoreManager (restore-manager.ts), which is the
+// ONE capture/restore API both AI surfaces call in through.
 //
 // The agents edit vault files with their own file tools through the ./vault
 // symlink, so the host can't rely on owning the write itself. Instead a copy
@@ -8,9 +10,9 @@
 //   - "delegation": the delegation-manager captures the target file at run
 //     START (id = the delegation id); the dock's "Restore original" reads it
 //     back by that id.
-//   - "chat": the checkpoint seam behind the privacy tool gate captures per
-//     allowed edit/write, pre-execution (chat-undo/checkpoint-manager.ts);
-//     the post-turn undo toast restores by id.
+//   - "chat": the privacy tool gate captures per allowed edit/write,
+//     pre-execution (RestoreManager.capture); the post-turn undo toast
+//     restores by id.
 // A cheap, restorable undo point without a full history feature.
 //
 // Layout under ~/.inteligir: content bytes live as one file per snapshot id
@@ -281,8 +283,8 @@ export class SnapshotStore {
 }
 
 // ---------------------------------------------------------------------------
-// Lazy singleton — the index JsonStore caches in memory, so the delegation
-// manager and the checkpoint manager MUST share one instance (two would lose
+// Lazy singleton — the index JsonStore caches in memory, so every
+// RestoreManager over this store MUST share one instance (two would lose
 // each other's writes). Mirrors the vault/delegation managers; reset on
 // logout teardown so a warm cache can't resurrect the wiped file.
 // ---------------------------------------------------------------------------

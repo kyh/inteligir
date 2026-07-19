@@ -70,8 +70,8 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  # lifecycle; event emission injected (setSyncEventSink)
   server/        # Node backend (@repo/server) — the composition root: boot/ (createHost),
                  # handlers, transport (ws host), app machine, provider, knowledge shell,
-                 # delegation, capture, chat-undo, snapshots, HostPlatform. Exports are
-                 # NARROW: only the entrypoints desktop main composes.
+                 # delegation, capture, restore (AI-edit undo), HostPlatform. Exports
+                 # are NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
@@ -303,6 +303,11 @@ session on `BACKGROUND_SESSION_DIR`). Before the agent dispatches, the host
 via `./vault`, checks the box, and appends a result; completion kicks a vault
 refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
+`server/restore/` (`RestoreManager` over the `SnapshotStore`) is the ONE
+AI-edit-undo module both surfaces call in through: the chat tool gate captures
+per allowed write (fail-closed — a capture failure blocks the tool) behind the
+post-turn undo toast, and delegation captures pre-run behind the dock's
+"Restore original".
 
 ### Vault sync — `@repo/notes/sync` + `apps/cloud` + platform adapters
 
