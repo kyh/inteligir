@@ -63,7 +63,7 @@ const ResumeSchema = Type.Object({
 });
 
 const executorExtension: PiExtensionBundle = {
-  name: "executor",
+  name: "code-mode",
   // The executor binary is a main-owned resource (daemon child process); its
   // pinned CLI metadata arrives through ports rather than a static import.
   cli: ({ executor }) => executor.cli,

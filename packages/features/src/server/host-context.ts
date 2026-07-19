@@ -27,7 +27,7 @@
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "./events";
-import { getCheckpointManager } from "./checkpoints/checkpoint-manager";
+import { getCheckpointManager } from "./chat-undo/checkpoint-manager";
 import { getDelegationManager } from "./delegation/delegation-manager";
 import { getExecutorDaemon } from "./connectors/executor-daemon";
 import { getKnowledgeManager } from "./knowledge/knowledge-manager";

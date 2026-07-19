@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
 import { notePrivacy } from "@repo/core/markdown/frontmatter";
 
-import knowledgeExtension from "../agent/knowledge/extension";
+import knowledgeExtension from "../agent/knowledge-tools/extension";
 import { buildAgentKnowledgePort } from "../lib/agent-knowledge-port";
 import type { AgentPorts, KnowledgePort, PrivacyProbe } from "../agent/extension";
 import type { ExtensionAPI } from "@repo/features/server/pi/pi-types";

@@ -1,4 +1,4 @@
-import { getCheckpointManager } from "../checkpoints/checkpoint-manager";
+import { getCheckpointManager } from "../chat-undo/checkpoint-manager";
 import type { HandlerRegistrar } from "../lib/handler-registry";
 
 export function registerCheckpointHandlers(handle: HandlerRegistrar): void {

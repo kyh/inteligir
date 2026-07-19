@@ -9,7 +9,7 @@
 //     START (id = the delegation id); the dock's "Restore original" reads it
 //     back by that id.
 //   - "chat": the checkpoint seam behind the privacy tool gate captures per
-//     allowed edit/write, pre-execution (checkpoints/checkpoint-manager.ts);
+//     allowed edit/write, pre-execution (chat-undo/checkpoint-manager.ts);
 //     the post-turn undo toast restores by id.
 // A cheap, restorable undo point without a full history feature.
 //

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { CheckpointManager } from "../checkpoints/checkpoint-manager";
+import { CheckpointManager } from "../chat-undo/checkpoint-manager";
 import { SnapshotStore } from "../snapshots/snapshot-store";
 import type { FsAdapter } from "../lib/json-store";
 import type { AgentEditCaptured } from "@repo/features/ipc-registry";

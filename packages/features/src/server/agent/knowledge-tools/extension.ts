@@ -61,7 +61,7 @@ const RenameNoteSchema = Type.Object({
 });
 
 const knowledgeExtension: PiExtensionBundle = {
-  name: "knowledge",
+  name: "knowledge-tools",
   register:
     ({ ports }) =>
     (pi) => {

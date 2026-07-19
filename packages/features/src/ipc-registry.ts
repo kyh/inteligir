@@ -200,7 +200,7 @@ export type CaptureAckOutcome = Static<typeof AckCaptureSchema>["outcome"];
 
 // ---------------------------------------------------------------------------
 // AI-write checkpoints — pre-write copies of vault notes captured at the chat
-// agent's tool gate (checkpoints/checkpoint-manager.ts). Delegation has its
+// agent's tool gate (chat-undo/checkpoint-manager.ts). Delegation has its
 // own pre-run snapshot + dock affordance; these channels serve the CHAT undo.
 // ---------------------------------------------------------------------------
 

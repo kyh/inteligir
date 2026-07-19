@@ -22,7 +22,7 @@ import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "./host-lock";
 import { resetCaptureManager } from "../capture/capture-manager";
-import { getCheckpointManager, resetCheckpointManager } from "../checkpoints/checkpoint-manager";
+import { getCheckpointManager, resetCheckpointManager } from "../chat-undo/checkpoint-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { resetSnapshotStore } from "../snapshots/snapshot-store";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
