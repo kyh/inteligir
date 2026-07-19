@@ -5,7 +5,7 @@ import {
   getBundledGoogleClient,
   type BundledGoogleClient,
   type GoogleOAuthClientOps,
-} from "../connectors/google-oauth-client";
+} from "../google-oauth-client";
 import {
   GOOGLE_AUTHORIZATION_URL,
   GOOGLE_OAUTH_CLIENT_SLUG,

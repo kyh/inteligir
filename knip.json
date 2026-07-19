@@ -45,6 +45,11 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
+    "packages/connectors": {
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/installer": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],

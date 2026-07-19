@@ -7,15 +7,18 @@ import {
   installConnector,
   uninstallConnector,
   type ConnectorInstallOps,
-} from "../connectors/connector-install";
+} from "@repo/connectors/connector-install";
 import {
   applyGoogleEndpointOverride,
   emulatePlaceholderGoogleClient,
   isEmulateConnectorsEnabled,
-} from "../connectors/emulate-connectors";
-import * as executor from "../connectors/executor-client";
-import { getExecutorDaemon } from "../connectors/executor-daemon";
-import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../connectors/google-oauth-client";
+} from "@repo/connectors/emulate-connectors";
+import * as executor from "@repo/connectors/executor-client";
+import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
+import {
+  ensureGoogleOAuthClient,
+  getBundledGoogleClient,
+} from "@repo/connectors/google-oauth-client";
 import type { HandlerRegistrar } from "./handler-registry";
 import { getHostOptions, getPlatform } from "../platform-instance";
 import { isHttpUrl } from "@repo/bridge/wire-helpers";

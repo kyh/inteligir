@@ -36,7 +36,7 @@ vi.mock("@repo/installer/install", () => ({
 }));
 
 const { getExecutorDaemon, installExecutor, resetExecutorDaemon, EXECUTOR_CLI } =
-  await import("../connectors/executor-daemon");
+  await import("../executor-daemon");
 
 // The reap guard only acts on a manifest it positively owns (matching binary +
 // data dir). Derive both from the exported bin path so the reap test's fixture

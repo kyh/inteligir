@@ -5,7 +5,7 @@
 import { Agent } from "@repo/agent/agent";
 import { agentModelSelection } from "../provider/provider-service";
 import { isSetupComplete } from "@repo/agent/setup";
-import { getExecutorDaemon } from "../connectors/executor-daemon";
+import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { reduce } from "./app-reducer";
 import { runEffect, type EffectDeps } from "./app-effects";
 import {

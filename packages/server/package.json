@@ -20,7 +20,7 @@
   "dependencies": {
     "@repo/agent": "workspace:*",
     "@repo/bridge": "workspace:*",
-    "@repo/installer": "workspace:*",
+    "@repo/connectors": "workspace:*",
     "@repo/notes": "workspace:*",
     "@repo/storage": "workspace:*",
     "@repo/vault": "workspace:*",

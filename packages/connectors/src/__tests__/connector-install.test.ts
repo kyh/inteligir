@@ -12,7 +12,7 @@ import {
   installConnector,
   uninstallConnector,
   type ConnectorInstallOps,
-} from "../connectors/connector-install";
+} from "../connector-install";
 import { setDevFlagsAllowed } from "@repo/agent/dev-flags";
 import type { PendingConnectorAuth } from "@repo/bridge/ipc-registry";
 import {
