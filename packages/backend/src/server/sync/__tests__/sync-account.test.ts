@@ -225,20 +225,28 @@ describe("SyncAccount completeSocialSignIn", () => {
     expect(account.getToken()).toBeNull();
   });
 
-  it("refuses a WRONG state, and the guess burns the pending sign-in", async () => {
+  it("refuses a WRONG state before any network call, WITHOUT burning the pending", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
     account.setConfig({ coordinatorUrl: "https://sync.example" });
     const state = await initiateSocial(account);
 
-    const noNetwork = vi.fn(async () => {
-      throw new Error("must not be called");
-    });
-    vi.stubGlobal("fetch", noNetwork);
+    // A junk `inteligir://session` fired at this machine (grammar-valid but
+    // wrong state) is refused with no network call — and crucially must NOT
+    // cancel the user's real pending sign-in (the anti-griefing property).
+    const exchange = vi.fn(async () =>
+      Response.json({ ok: true, token: "exchanged-bearer", email: "who@example.com" }),
+    );
+    vi.stubGlobal("fetch", exchange);
     expect((await account.completeSocialSignIn(SOCIAL_CODE, "x".repeat(22))).ok).toBe(false);
-    // Single try: even the CORRECT state is dead after a failed attempt.
-    expect((await account.completeSocialSignIn(SOCIAL_CODE, state)).ok).toBe(false);
-    expect(noNetwork).not.toHaveBeenCalled();
+    expect(exchange).not.toHaveBeenCalled();
     expect(account.getToken()).toBeNull();
+
+    // The legitimate deep link with the CORRECT state still completes — the
+    // wrong guess did not burn it. (Brute-forcing the 128-bit state over the
+    // 90s window is infeasible, so not burning on a mismatch costs nothing.)
+    expect(await account.completeSocialSignIn(SOCIAL_CODE, state)).toEqual({ ok: true });
+    expect(account.getToken()).toBe("exchanged-bearer");
+    expect(exchange).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces an exchange rejection ({ok:false}) without signing in", async () => {

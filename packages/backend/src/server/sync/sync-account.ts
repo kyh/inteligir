@@ -290,17 +290,20 @@ export class SyncAccount {
 
   /** COMPLETE a social sign-in — the `inteligir://session?code&state` deep
    * link lands here. Guards stack in order: the state must match the ONE
-   * pending sign-in this device minted (burned on first attempt, success or
-   * not, so a guessed state never gets a second try), then the code — which
-   * is NEVER a credential itself — is exchanged over HTTPS at the
-   * coordinator, and only the returned bearer is adopted (same store the
-   * email sign-in path writes). */
+   * pending sign-in this device minted, then the code — which is NEVER a
+   * credential itself — is exchanged over HTTPS at the coordinator, and only
+   * the returned bearer is adopted (same store the email sign-in path writes).
+   * The pending is burned ONLY once a matching state is presented: a
+   * mismatched/guessed state (a junk `inteligir://session` fired at this
+   * machine) must not cancel the user's legitimate pending sign-in. The
+   * 128-bit state nonce makes brute-force over the 90s window infeasible, so
+   * not burning on a mismatch costs no security. */
   async completeSocialSignIn(code: string, state: string): Promise<SyncSignInResult> {
     const pending = this.pendingSocial;
-    this.pendingSocial = null;
     if (pending === null || Date.now() > pending.expiresAt || pending.state !== state) {
       return { ok: false, error: "Sign-in link expired — start again from Settings." };
     }
+    this.pendingSocial = null;
     const base = this.getConfig().coordinatorUrl.trim();
     if (base === "") return { ok: false, error: "Set a coordinator URL first." };
     try {
