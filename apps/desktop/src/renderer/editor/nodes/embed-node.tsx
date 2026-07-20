@@ -1,14 +1,17 @@
 /* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
  * held Plate Plus license. */
 // `media_embed` node (URL-only): tweets render through react-tweet (lazy —
-// it's a hefty chunk with theme CSS); anything else gets a sandboxed generic
-// iframe. No resize, no captions — the canonical byte-form stays
+// it's a hefty chunk with theme CSS); any other http(s) URL gets a sandboxed
+// generic iframe. A note is untrusted content, so the frame is scheme-gated:
+// javascript:/data:/file:/relative URLs render a blocked placeholder, never a
+// live frame. No resize, no captions — the canonical byte-form stays
 // `<media_embed src="…" />`.
 
 import { lazy, Suspense } from "react";
 import { parseTwitterUrl } from "@platejs/media";
 import { PlateElement, useFocused, useSelected, type PlateElementProps } from "platejs/react";
 
+import { isHttpUrl } from "@repo/bridge/wire-helpers";
 import { cn } from "@repo/ui/lib/utils";
 
 import { useDarkClass } from "@renderer/lib/use-dark-class";
@@ -45,19 +48,30 @@ export function MediaEmbedElement(props: PlateElementProps) {
               <Tweet id={tweet.id} />
             </Suspense>
           </div>
-        ) : url ? (
+        ) : isHttpUrl(url) ? (
+          // Minimal sandbox, mirroring the vault-.html app frame's discipline:
+          // scripts only, NO allow-same-origin (the frame gets an opaque
+          // origin and can never reach the app). allow-popups is gone — a
+          // note embed must not spawn windows — and allow-presentation too
+          // (cast/presentation isn't compiled into Electron).
           <iframe
             className={cn(
               "aspect-video w-full rounded-md border border-border",
               focused && selected && "ring-2 ring-ring ring-offset-2",
             )}
-            sandbox="allow-scripts allow-popups allow-presentation"
+            sandbox="allow-scripts"
             src={url}
             title="Embed"
           />
         ) : (
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            Embed: no URL
+            {url ? (
+              <>
+                Embed blocked — not an http(s) URL: <span className="break-all">{url}</span>
+              </>
+            ) : (
+              "Embed: no URL"
+            )}
           </div>
         )}
         <MediaToolbar />
