@@ -234,6 +234,31 @@ export class SyncEngine {
     try {
       const local = await this.buildLocalManifest();
       const base = this.loadBase();
+      // MASS-DELETION GUARD (#429): an empty local listing against a non-empty
+      // last-synced base is treated as a failed/truncated vault read (root
+      // unmounted, a crawl error), NEVER as the user having deleted every
+      // file — reconcile would read each base path as a local delete and fan
+      // it out to the coordinator and every peer. Refuse the pass: zero ops,
+      // base untouched, so the next pass retries from the same clean anchor.
+      // Platform crawls already fail loudly on unreadable roots (the vault's
+      // listing-completeness flag, mobile's root-missing throw); this is the
+      // belt-and-suspenders layer that holds even if some future IO produces
+      // an empty listing without throwing. Deliberately NOT extended to
+      // "local much smaller than base" — that would false-positive on legit
+      // bulk deletes; partial truncation is Layer 1's job. A REAL
+      // delete-everything is rare and pays this toll: sync resumes as soon
+      // as any file exists locally again (or the deletion is made from a
+      // device that still has files).
+      if (local.files.length === 0 && base.files.length > 0) {
+        return {
+          status: "error",
+          message:
+            `sync: the local vault listing is empty but the last sync recorded ${base.files.length} ` +
+            "file(s) — pausing instead of propagating a mass deletion to every device. Check that " +
+            "the vault folder is present and readable, then retry. If you really deleted every " +
+            "file, add any file to the vault (or delete the files from another device) to resume.",
+        };
+      }
       const remote = await this.port.listManifest();
       if (remote.vaultId !== this.vaultId) {
         return {
