@@ -42,45 +42,68 @@ describe("classifyFileChange", () => {
 });
 
 describe("SelfSaveRegistry", () => {
-  it("matches a recorded write at the same mtime and rejects a different one", () => {
+  // Fingerprints are the full `mtimeMs:size:ino` stat triple (#436) — keying
+  // on mtime alone swallowed external edits that collided on mtime.
+  it("matches a recorded write at the same fingerprint and rejects a different one", () => {
     const reg = new SelfSaveRegistry(() => 1000);
-    reg.record("a.md", 500);
-    expect(reg.isSelfSave("a.md", 500)).toBe(true);
-    // A genuine external edit lands a different mtime.
-    expect(reg.isSelfSave("a.md", 501)).toBe(false);
+    reg.record("a.md", "500:10:7");
+    expect(reg.isSelfSave("a.md", "500:10:7")).toBe(true);
+    // A genuine external edit lands a different fingerprint.
+    expect(reg.isSelfSave("a.md", "501:10:7")).toBe(false);
     // An unrecorded path is never a self-save.
-    expect(reg.isSelfSave("b.md", 500)).toBe(false);
+    expect(reg.isSelfSave("b.md", "500:10:7")).toBe(false);
+  });
+
+  it("an external edit with a COLLIDING mtime but different size is NOT a self-save", () => {
+    const reg = new SelfSaveRegistry(() => 1000);
+    reg.record("a.md", "500:10:7");
+    // Same-second external write: identical mtimeMs, different byte count.
+    // Under the old mtime-only key this was swallowed as a self-save.
+    expect(reg.isSelfSave("a.md", "500:11:7")).toBe(false);
+  });
+
+  it("an external edit with a COLLIDING mtime and size but different ino is NOT a self-save", () => {
+    const reg = new SelfSaveRegistry(() => 1000);
+    reg.record("a.md", "500:10:7");
+    // An mtime-preserving tool replacing the file (new inode, same length).
+    expect(reg.isSelfSave("a.md", "500:10:8")).toBe(false);
+  });
+
+  it("a genuine self-save (matching full fingerprint) is still filtered", () => {
+    const reg = new SelfSaveRegistry(() => 1000);
+    reg.record("a.md", "500:10:7");
+    expect(reg.isSelfSave("a.md", "500:10:7")).toBe(true);
   });
 
   it("matches repeatedly (a write can fire several watch events)", () => {
     const reg = new SelfSaveRegistry(() => 1000);
-    reg.record("a.md", 500);
-    expect(reg.isSelfSave("a.md", 500)).toBe(true);
-    expect(reg.isSelfSave("a.md", 500)).toBe(true);
+    reg.record("a.md", "500:10:7");
+    expect(reg.isSelfSave("a.md", "500:10:7")).toBe(true);
+    expect(reg.isSelfSave("a.md", "500:10:7")).toBe(true);
   });
 
   it("expires records by age so a later external edit is not masked", () => {
     let clock = 1000;
     const reg = new SelfSaveRegistry(() => clock);
-    reg.record("a.md", 500);
+    reg.record("a.md", "500:10:7");
     clock = 1000 + 5_000 + 1; // past the TTL
-    expect(reg.isSelfSave("a.md", 500)).toBe(false);
+    expect(reg.isSelfSave("a.md", "500:10:7")).toBe(false);
   });
 
   it("forget() drops a path's record", () => {
     const reg = new SelfSaveRegistry(() => 1000);
-    reg.record("a.md", 500);
+    reg.record("a.md", "500:10:7");
     reg.forget("a.md");
-    expect(reg.isSelfSave("a.md", 500)).toBe(false);
+    expect(reg.isSelfSave("a.md", "500:10:7")).toBe(false);
   });
 
-  it("re-recording refreshes the mtime and expiry", () => {
+  it("re-recording refreshes the fingerprint and expiry", () => {
     let clock = 1000;
     const reg = new SelfSaveRegistry(() => clock);
-    reg.record("a.md", 500);
+    reg.record("a.md", "500:10:7");
     clock = 3000;
-    reg.record("a.md", 700);
-    expect(reg.isSelfSave("a.md", 500)).toBe(false);
-    expect(reg.isSelfSave("a.md", 700)).toBe(true);
+    reg.record("a.md", "700:12:7");
+    expect(reg.isSelfSave("a.md", "500:10:7")).toBe(false);
+    expect(reg.isSelfSave("a.md", "700:12:7")).toBe(true);
   });
 });

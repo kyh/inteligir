@@ -430,12 +430,11 @@ export class VaultManager {
    * handler only — restore / sync-pull deliberately do NOT record, so their
    * writes to the open note still surface as reloads. */
   markSelfSave(rel: string): void {
-    try {
-      const stat = fs.statSync(this.resolve(rel));
-      this.selfSaves.record(rel, stat.mtimeMs);
-    } catch {
-      // Path escaped the vault or vanished — nothing to record.
-    }
+    // Full stat fingerprint (mtimeMs:size:ino), not mtime alone — an external
+    // edit with a colliding mtime must still surface (classify-file-change).
+    const fingerprint = this.liveStatFingerprint(rel);
+    // Null = path escaped the vault or vanished — nothing to record.
+    if (fingerprint !== null) this.selfSaves.record(rel, fingerprint);
   }
 
   /** Raw file bytes — the binary-safe primitive the sync protocol reads (markdown
@@ -743,9 +742,11 @@ export class VaultManager {
       this.notify("refresh");
       return;
     }
-    // Our own autosave landing — never reload the editor onto what it just wrote.
-    if (this.selfSaves.isSelfSave(rel, stat.mtimeMs)) return;
     const current = `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
+    // Our own autosave landing — never reload the editor onto what it just
+    // wrote. Compared on the FULL fingerprint: an external edit that collides
+    // on mtime alone still differs in size/ino and must surface below.
+    if (this.selfSaves.isSelfSave(rel, current)) return;
     const verdict = classifyFileChange({
       lastKnown: this.watchedFingerprint,
       current,

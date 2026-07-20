@@ -13,11 +13,11 @@
 //     currently maps both `reload` and `conflict` to "broadcast onVaultChanged"
 //     (the renderer's existing external-change machinery resolves the dirty vs
 //     clean case), and treats `none`/`match` as "ignore".
-//   - `SelfSaveRegistry` — records app-initiated writes by (path, mtimeMs) with
-//     a short TTL, so the watch event a self-save necessarily produces is
-//     filtered out before it ever reaches the classifier. Only the editor's own
-//     write path records here; restore / sync-pull / external edits do NOT, so
-//     those still surface as reloads.
+//   - `SelfSaveRegistry` — records app-initiated writes by (path, full stat
+//     fingerprint `mtimeMs:size:ino`) with a short TTL, so the watch event a
+//     self-save necessarily produces is filtered out before it ever reaches the
+//     classifier. Only the editor's own write path records here; restore /
+//     sync-pull / external edits do NOT, so those still surface as reloads.
 // ---------------------------------------------------------------------------
 
 /** The four possible outcomes of an open-note watch event.
@@ -59,38 +59,44 @@ export function classifyFileChange({
 /** Age after which a recorded self-save is forgotten. Generous relative to the
  * gap between a write and the watch event it triggers (sub-second in practice);
  * long enough that a slow FSEvents delivery still matches, short enough that a
- * stale entry can't mask a genuine later external edit at the same mtime. */
+ * stale entry can't mask a genuine later external edit at the same
+ * fingerprint. */
 const SELF_SAVE_TTL_MS = 5_000;
 
 /** Records the app's own writes so the watch event they produce can be filtered
- * out. Keyed by vault-relative path → the mtimeMs we wrote; a genuine external
- * edit lands a different mtime and so is NOT matched. Entries expire by age.
+ * out. Keyed by vault-relative path → the full stat fingerprint
+ * (`mtimeMs:size:ino`) we wrote — NOT mtime alone: an external edit can land
+ * with a colliding mtime (same-second write, or a tool that preserves mtime),
+ * and keying on mtime would swallow it as a self-save. A genuine external edit
+ * changes at least one component of the fingerprint and so is NOT matched.
+ * Entries expire by age.
  *
  * Only the editor write path (writeVaultDoc) records here. Restore, sync-pull,
  * and external tools do not, so their writes still surface as reloads. */
 export class SelfSaveRegistry {
-  private readonly entries = new Map<string, { mtimeMs: number; expiresAt: number }>();
+  private readonly entries = new Map<string, { fingerprint: string; expiresAt: number }>();
 
   constructor(private readonly now: () => number = () => Date.now()) {}
 
-  /** Record that the app just wrote `path`, landing it at `mtimeMs`. */
-  record(path: string, mtimeMs: number): void {
-    this.entries.set(path, { mtimeMs, expiresAt: this.now() + SELF_SAVE_TTL_MS });
+  /** Record that the app just wrote `path`, landing it at stat `fingerprint`
+   * (`mtimeMs:size:ino`). */
+  record(path: string, fingerprint: string): void {
+    this.entries.set(path, { fingerprint, expiresAt: this.now() + SELF_SAVE_TTL_MS });
     this.prune();
   }
 
-  /** True when a watch event for `path` at `mtimeMs` corresponds to a recent
-   * app-initiated write (and should therefore be ignored). Not one-shot: a
-   * single write can produce several watch events (tmp-rename + change), all of
-   * which carry the same mtime and must all be filtered. */
-  isSelfSave(path: string, mtimeMs: number): boolean {
+  /** True when a watch event for `path` at stat `fingerprint` corresponds to a
+   * recent app-initiated write (and should therefore be ignored). Not one-shot:
+   * a single write can produce several watch events (tmp-rename + change), all
+   * of which carry the same fingerprint and must all be filtered. */
+  isSelfSave(path: string, fingerprint: string): boolean {
     const entry = this.entries.get(path);
     if (entry === undefined) return false;
     if (this.now() > entry.expiresAt) {
       this.entries.delete(path);
       return false;
     }
-    return entry.mtimeMs === mtimeMs;
+    return entry.fingerprint === fingerprint;
   }
 
   /** Drop the record for a path (e.g. when it stops being the watched note). */
