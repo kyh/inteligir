@@ -7,11 +7,14 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".cache/tsbuildinfo.json", "dist/**", ".output/**"]
+      // What the builds actually emit: vite/wrangler -> dist/, electron-vite ->
+      // .output/. tsbuildinfo belongs to `typecheck` (tsc --noEmit, incremental),
+      // not here — declaring it as a build output cached the wrong artifact.
+      "outputs": ["dist/**", ".output/**"]
     },
     "@repo/desktop#build": {
       "dependsOn": ["^build"],
-      "outputs": [".cache/tsbuildinfo.json", ".output/**"],
+      "outputs": [".output/**"],
       "env": ["INTELIGIR_GOOGLE_OAUTH_CLIENT_ID", "INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET"]
     },
     "dev": {
@@ -20,7 +23,10 @@
     },
     "typecheck": {
       "dependsOn": ["^topo"],
-      "outputs": []
+      // tsc runs incremental (tsconfig.base.json `tsBuildInfoFile`), so the
+      // incremental state IS this task's output — cache it or every restore
+      // re-checks from cold.
+      "outputs": [".cache/tsbuildinfo.json"]
     },
     "test": {
       "dependsOn": ["^topo"],

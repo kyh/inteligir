@@ -1,0 +1,19 @@
+# Copy to apps/cloud/.dev.vars (gitignored — NEVER commit real values).
+#
+# `wrangler dev` loads this as the Worker's secrets. Production sets the same
+# keys with `wrangler secret put` (see README.md -> Deploy).
+
+# Better Auth's signing key. Required — without it every /api/auth/* request
+# fails. Any value works locally: `openssl rand -base64 32`.
+BETTER_AUTH_SECRET=
+
+# Optional social OAuth. A provider is live only when BOTH halves are set —
+# otherwise it is absent from /v1/capabilities and no client renders its button.
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+
+# Set to "true" ONLY when a local script signs up several users from one IP —
+# auth is rate-limited to 10 requests/60s per IP (see src/auth/auth.ts).
+# RATE_LIMIT_DISABLED=true

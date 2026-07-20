@@ -116,12 +116,36 @@ pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)
 pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
+pnpm verify           # The whole gate, mirroring CI (see Quality Gates)
 ```
 
 **`docs/development.md` is the full dev guide**: the two run modes (fixture
 harness / Electron), ports + `~/.inteligir` shared state +
 `host.lock`, the fixture byte-pinning rule, verification patterns, and the
 add-a-Bridge-channel / add-a-node-type checklists.
+
+## Agent-driven development
+
+`AGENTS.md` is the tool-agnostic guide meant to be **run** — read it before
+touching anything. The essentials:
+
+- **Provision**: `pnpm install`. That's all — there is no bootstrap script and
+  the desktop app is guest by default (sync is off), so most flows need no
+  account at all.
+- **Fastest loop**: `pnpm --filter @repo/desktop dev:harness` — the real
+  renderer UI in a plain browser over the fixture Bridge, no Electron, no
+  backend.
+- **Verify**: `pnpm format:fix && pnpm verify` for the static gate, then drive
+  the running app. Every surface except mobile is headlessly verifiable —
+  harness and web via `agent-browser open`, the real Electron app via
+  `agent-browser connect 9222`, the Worker via curl.
+- **No seeded login.** If you need an account, stand up the local Worker —
+  `AGENTS.md` § "There is no seeded login" has the verified four-command
+  recipe. Never run `db:push` / `db:push:remote`: both hit production D1.
+- **Login-free agent flows**: `INTELIGIR_FAUX_AGENT=1` /
+  `INTELIGIR_EMULATE_CONNECTORS=1` (both fail closed) drive chat, delegation
+  and a connector connect with zero OAuth — `.claude/skills/e2e-drive` and
+  `docs/e2e-driving.md`.
 
 ## Verifying Changes
 
@@ -140,9 +164,14 @@ driving it; type/test passing isn't feature-correct.
 Before committing:
 
 ```bash
-pnpm format:fix   # FIRST — never after gates
-pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build
+pnpm format:fix && pnpm verify
 ```
+
+`verify` is `typecheck && lint && knip && format && test && build` — the same
+six steps CI runs, in one command so the three places that used to spell it out
+can't drift. It is deliberately check-only: `format:fix` runs FIRST and never
+after the gates (a post-gate run once corrupted the byte-pinned fixtures and
+shipped red, #362).
 
 ## Desktop architecture (@repo/desktop)
 

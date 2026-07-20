@@ -66,6 +66,8 @@ one walk+stat snapshot inside VaultManager (~1s TTL).
 | What                                                                      | Where                                                                     |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | App dev harness (vite)                                                    | 5173 (auto-increments)                                                    |
+| Marketing site (`pnpm dev:web`)                                           | 5174 (auto-increments)                                                    |
+| Coordinator Worker (`wrangler dev`)                                       | 8787                                                                      |
 | Electron CDP debugging                                                    | 9222                                                                      |
 | Executor daemon                                                           | 47888                                                                     |
 | App state (auth, sessions, ui-state, delegations, snapshots, `host.lock`) | `~/.inteligir`                                                            |
@@ -80,9 +82,12 @@ the next `pnpm dev:desktop`.
 ## Quality gates
 
 ```bash
-pnpm format:fix   # FIRST — never after gates (see fixture rule below)
-pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build
+pnpm format:fix && pnpm verify
 ```
+
+`pnpm verify` = `typecheck && lint && knip && format && test && build`, the same
+six steps CI runs. It is check-only on purpose — `format:fix` is a separate
+first step, never folded in.
 
 Rules that have bitten before:
 
