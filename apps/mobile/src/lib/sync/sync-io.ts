@@ -21,12 +21,33 @@ export type VaultEntry = {
 };
 
 /**
+ * Thrown by a `VaultFs` when the vault ROOT itself cannot be read. To a
+ * directory walk a missing root is indistinguishable from "every file was
+ * deleted", and the sync engine's 3-way reconcile would push that as a
+ * vault-wide deletion to the coordinator and every peer — so the fs REFUSES
+ * instead of returning `[]`, and the pass fails cleanly (#429). The UI listing
+ * (vault-access) catches exactly this error and stays lenient.
+ */
+export class VaultRootMissingError extends Error {
+  constructor() {
+    super(
+      "vault root directory is missing — refusing to treat it as an empty vault; " +
+        "an empty listing would sync as a mass deletion",
+    );
+    this.name = "VaultRootMissingError";
+  }
+}
+
+/**
  * The minimal synchronous filesystem the SyncIo needs, rooted at the vault. All
  * paths are vault-relative POSIX (`"notes/todo.md"`); `""` is the vault root.
  * Implemented over Expo's File API in expo-vault-fs.ts; faked in tests.
  */
 export type VaultFs = {
-  /** Immediate children of a vault-relative dir (`""` = root). A missing dir → `[]`. */
+  /** Immediate children of a vault-relative dir. A missing SUB-dir → `[]`
+   * (vanished mid-walk — the next pass settles it); a missing ROOT (`""`)
+   * must throw `VaultRootMissingError` instead — an empty result there would
+   * read as a mass deletion (#429). */
   listDir(relDir: string): readonly VaultEntry[];
   /** Raw bytes of a vault file. */
   readBytes(path: VaultPath): Uint8Array;

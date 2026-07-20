@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSyncIo } from "../sync-io";
+import { createSyncIo, VaultRootMissingError, type VaultFs } from "../sync-io";
 import { memVaultFs } from "./fakes";
 
 const decoder = new TextDecoder();
@@ -36,5 +36,22 @@ describe("createSyncIo", () => {
     io.remove("gone.md");
     io.remove("gone.md"); // absent is fine
     expect(io.list()).toEqual([]);
+  });
+
+  // The VaultFs contract (#429): a missing ROOT throws (expo-vault-fs's
+  // listDir("")), and list() must PROPAGATE it — never swallow it into an
+  // empty listing, which the engine would reconcile as a mass deletion.
+  it("propagates a root-missing throw instead of listing an empty vault (#429)", () => {
+    const vault = memVaultFs();
+    vault.writeText("a.md", "A");
+    const rootMissing: VaultFs = {
+      ...vault.fs,
+      listDir: (relDir) => {
+        if (relDir === "") throw new VaultRootMissingError();
+        return vault.fs.listDir(relDir);
+      },
+    };
+    expect(() => createSyncIo(rootMissing).list()).toThrow(VaultRootMissingError);
+    expect(() => createSyncIo(rootMissing).list()).toThrow(/mass deletion/);
   });
 });

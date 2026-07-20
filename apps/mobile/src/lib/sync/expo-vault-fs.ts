@@ -9,7 +9,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 
 import type { VaultPath } from "@repo/notes/sync/vault-file";
-import type { VaultFs } from "./sync-io";
+import { VaultRootMissingError, type VaultFs } from "./sync-io";
 
 /** The vault directory name under the app's document directory. */
 const VAULT_DIR = "vault";
@@ -28,10 +28,24 @@ function dirFor(relDir: string): Directory {
 
 /** A `VaultFs` backed by Expo's synchronous File API. */
 export function createExpoVaultFs(): VaultFs {
+  // Ensure the vault root exists up front (best-effort — mirrors the desktop's
+  // ensureRootDir): a fresh install must find a root to walk, because
+  // listDir("") below treats a MISSING root as an error, never as an empty
+  // vault — an empty listing over a lost root would sync as a vault-wide
+  // deletion (#429).
+  try {
+    const root = dirFor("");
+    if (!root.exists) root.create({ intermediates: true });
+  } catch (err) {
+    console.warn("[sync] could not create vault root:", err);
+  }
   return {
     listDir: (relDir) => {
       const dir = dirFor(relDir);
-      if (!dir.exists) return [];
+      if (!dir.exists) {
+        if (relDir === "") throw new VaultRootMissingError();
+        return []; // sub-dir vanished mid-walk — the next pass settles it
+      }
       return dir.list().map((entry) => ({
         name: entry.name,
         isDirectory: entry instanceof Directory,

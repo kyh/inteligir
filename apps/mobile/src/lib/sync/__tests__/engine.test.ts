@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createJsonFileBaseStore } from "@repo/notes/sync/base-store";
 import { InMemoryBaseBlobStore } from "@repo/notes/sync/blob-store";
@@ -10,7 +10,7 @@ import { conflictCopyName } from "@repo/notes/sync/reconcile";
 import { InMemorySyncPort } from "@repo/notes/sync/testing/in-memory-sync-port";
 
 import { createFsStamp } from "../clock";
-import { createSyncIo } from "../sync-io";
+import { createSyncIo, VaultRootMissingError, type VaultFs } from "../sync-io";
 import { fakeJsonFile, memVaultFs, webCryptoHasher } from "./fakes";
 
 const VAULT_ID = "vault-1";
@@ -24,11 +24,11 @@ let port: InMemorySyncPort;
 // A fresh engine over the SHARED vault/base/blobs/port — two engines share the
 // base store so a second one reads the first's persisted anchor (the mobile
 // client rebuilds a fresh engine per pass over the same on-disk base).
-function newEngine(): SyncEngine {
+function newEngine(fs: VaultFs = vault.fs): SyncEngine {
   return new SyncEngine({
     vaultId: VAULT_ID,
     port,
-    io: createSyncIo(vault.fs),
+    io: createSyncIo(fs),
     base: createJsonFileBaseStore(baseFile.file),
     blobs,
     hash: webCryptoHasher(),
@@ -106,7 +106,10 @@ describe("SyncEngine over the RN adapters", () => {
   });
 
   it("mirrors a local delete to the coordinator", async () => {
+    // A sibling survives the delete: an empty local listing against a
+    // non-empty base is refused by the engine's mass-deletion guard (#429).
     vault.writeText("gone.md", "bye");
+    vault.writeText("stays.md", "here");
     await newEngine().syncOnce();
     expect(await remoteText("gone.md")).toBe("bye");
 
@@ -123,6 +126,43 @@ describe("SyncEngine over the RN adapters", () => {
       conflictPaths: [],
     });
     expect(await remoteText("gone.md")).toBeNull();
+    expect(await remoteText("stays.md")).toBe("here");
+  });
+
+  // #429 Layer 1, mobile: a missing vault root makes the `VaultFs` THROW
+  // (expo-vault-fs's listDir("") contract) rather than list an empty vault —
+  // the pass fails cleanly instead of reconciling "everything was deleted".
+  it("a root-missing vault fails the pass — zero deletes reach the coordinator (#429)", async () => {
+    vault.writeText("a.md", "AAA");
+    vault.writeText("notes/b.md", "BBB");
+    await newEngine().syncOnce();
+    const baseBefore = baseFile.peek();
+    const genBefore = port.currentGeneration();
+
+    const rootMissing: VaultFs = {
+      ...vault.fs,
+      listDir: (relDir) => {
+        if (relDir === "") throw new VaultRootMissingError();
+        return vault.fs.listDir(relDir);
+      },
+    };
+    const deleteSpy = vi.spyOn(port, "deleteFile");
+    const putSpy = vi.spyOn(port, "putFile");
+
+    const out = await newEngine(rootMissing).syncOnce();
+
+    expect(out).toMatchObject({
+      status: "error",
+      message: expect.stringContaining("vault root"),
+    });
+    // The truncated listing never reached reconcile: zero ops, remote intact,
+    // base anchor byte-identical for the next pass to retry from.
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(port.currentGeneration()).toBe(genBefore);
+    expect(await remoteText("a.md")).toBe("AAA");
+    expect(await remoteText("notes/b.md")).toBe("BBB");
+    expect(baseFile.peek()).toBe(baseBefore);
   });
 
   it("resolves a both-sides edit: winner keeps the path, loser becomes a conflict copy", async () => {

@@ -7,15 +7,24 @@
 import type { VaultPath } from "@repo/notes/sync/vault-file";
 
 import { createExpoVaultFs } from "./expo-vault-fs";
-import { createSyncIo } from "./sync-io";
+import { createSyncIo, VaultRootMissingError } from "./sync-io";
 
 const io = createSyncIo(createExpoVaultFs());
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** Every vault-relative file path currently on disk (sorted). */
+/** Every vault-relative file path currently on disk (sorted). LENIENT on a
+ * missing vault root — the screens tolerate "nothing there yet" as an empty
+ * list, while the SYNC path sees the same condition as a hard error (the
+ * mass-deletion guard, #429). Mirrors the desktop's list()-lenient /
+ * listAllPaths()-strict split. */
 export function listVaultFiles(): VaultPath[] {
-  return [...io.list()];
+  try {
+    return [...io.list()];
+  } catch (err) {
+    if (err instanceof VaultRootMissingError) return [];
+    throw err;
+  }
 }
 
 /** Read a vault file as UTF-8 text. */
