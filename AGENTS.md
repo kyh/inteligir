@@ -19,7 +19,9 @@ pnpm install
 pnpm --filter @repo/desktop dev:harness    # → http://localhost:5173
 ```
 
-That's the whole setup. The harness is a plain browser page running the **real
+That's the whole setup for writing code. (Driving the app at runtime also wants
+the `agent-browser` binary — one `npm i -g`, see below.) The harness is a plain
+browser page running the **real
 renderer UI** over an in-memory fixture Bridge (`apps/desktop/dev/`) with a
 sample vault and the real knowledge engine. No Electron, no backend, no auth,
 no vault on disk. Use it for all UI and editor work — it is the fastest loop by
@@ -33,8 +35,9 @@ pnpm dev:desktop     # Electron + the @repo/server host, HMR, CDP :9222, executo
 
 ## Fresh clone / remote session
 
-`pnpm install` is the only provisioning step — there is no bootstrap script and
-nothing else to stand up. (`.codex/environments/environment.toml` runs `pnpm i`
+`pnpm install` is the only provisioning step for the repo itself — there is no
+bootstrap script and nothing else to stand up. (Runtime verification also needs
+the global `agent-browser` binary — see § Verify a change end-to-end.) (`.codex/environments/environment.toml` runs `pnpm i`
 for cloud runners.) Requirements: **Node ≥ 24**, **pnpm 10** (`corepack
 enable`), and **macOS** for the Electron app + voice; the browser harness runs
 anywhere.
@@ -82,9 +85,11 @@ Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
 the limiter.
 
-> **Never run `db:push` or `db:push:remote`.** Both push to the PRODUCTION D1 —
-> `db:push` differs only in which env file it reads. The local one is
-> `db:push:local`.
+> **Never run `db:push`, `db:push:remote` or `db:studio`.** All three load
+> `drizzle.config.ts` (`driver: "d1-http"`) and hit the PRODUCTION D1 —
+> `db:push` differs from `db:push:remote` only in which env file it reads, and
+> `db:studio` is a read/write UI over that same database, not a local
+> inspector. The only local command is `db:push:local`.
 
 ## Verify a change end-to-end
 
@@ -103,6 +108,7 @@ Runtime — type-checks passing is not feature-correct. Drive the running app
 with [agent-browser](https://github.com/vercel-labs/agent-browser):
 
 ```sh
+npm i -g agent-browser && agent-browser install   # once, if missing
 pnpm --filter @repo/desktop dev:harness
 agent-browser open http://localhost:5173
 agent-browser snapshot                      # accessibility tree with @eN refs
@@ -150,8 +156,11 @@ assuming a URL.
 - **The renderer never imports electron/node/`@repo/server`** — that's a package
   fact (no dep edge), not a lint opinion. `@repo/notes` stays platform-neutral.
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip `entry`
-  glob in `knip.json`, and a dependency used only outside a workspace's
-  `project` glob must be listed in `ignoreDependencies`, or CI goes red.
+  glob in `knip.json` or it reads as unused and CI goes red. Tooling deps are
+  usually fine as-is — knip's config-file plugins resolve them (it finds
+  `@libsql/client` from `drizzle.config.local.ts`); `ignoreDependencies` is the
+  escape hatch for the ones it genuinely can't see, not a blanket rule. Run it
+  rather than guess.
 - Plan files and ADR docs are deleted on purpose — `CLAUDE.md` § Decisions plus
   the PR history is the record. Don't add `plans/` or `*_GAPS.md`.
 

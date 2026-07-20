@@ -71,11 +71,23 @@ CORS headers, `OPTIONS` is answered as a preflight, and `x-vault-version` /
 
 ```bash
 pnpm --filter @repo/cloud dev          # wrangler dev (local R2 + DO + D1 simulation)
-pnpm --filter @repo/cloud db:push:local # push the schema to the local miniflare D1 (run `dev` once first)
+pnpm --filter @repo/cloud db:push:local # push the schema to the local miniflare D1 (see below)
 pnpm --filter @repo/cloud test         # vitest vs in-process miniflare (schema exported from schema.ts)
 pnpm --filter @repo/cloud typecheck    # tsc --noEmit
 pnpm --filter @repo/cloud cf-typegen   # regenerate worker-configuration.d.ts after config changes
 ```
+
+`db:push:local` needs the miniflare D1 file to exist, and `dev` alone does not
+create it — miniflare materializes it lazily on the first request that touches
+the binding. So: start `dev`, hit a D1 route
+(`curl -s -o /dev/null localhost:8787/api/auth/get-session`), _then_ push. The
+full recipe, including creating an account, is in AGENTS.md § "There is no
+seeded login".
+
+> **Never run `db:push`, `db:push:remote` or `db:studio`.** All three go through
+> `drizzle.config.ts` (`driver: "d1-http"`) at the PRODUCTION D1 — `db:push`
+> differs from `db:push:remote` only in which env file it reads, and `db:studio`
+> is a read/write UI over the same database. The local one is `db:push:local`.
 
 ## Deploy (run by the account owner)
 

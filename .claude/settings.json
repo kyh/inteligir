@@ -1,16 +1,25 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "prompt": "inteligir is driven by coding agents — read AGENTS.md first. Fastest loop: `pnpm --filter @repo/desktop dev:harness` (browser, no backend, no auth). `pnpm dev:desktop` runs the real Electron host with CDP on :9222. Gate with `pnpm format:fix && pnpm verify` — format:fix runs BEFORE the gates, never after (a post-gate run corrupts the byte-pinned round-trip fixtures). Never run `db:push` or `db:push:remote`: both target the PRODUCTION D1. The local one is `db:push:local`.",
+  "prompt": "inteligir is driven by coding agents — read AGENTS.md first. Fastest loop: `pnpm --filter @repo/desktop dev:harness` (browser, no backend, no auth). `pnpm dev:desktop` runs the real Electron host with CDP on :9222. Gate with `pnpm format:fix && pnpm verify` — format:fix runs BEFORE the gates, never after (a post-gate run corrupts the byte-pinned round-trip fixtures). Never run `db:push`, `db:push:remote` or `db:studio`: all three target the PRODUCTION D1. The local one is `db:push:local`.",
   "permissions": {
     "allow": [
+      "Bash(pnpm install)",
       "Bash(pnpm verify:*)",
-      "Bash(pnpm format:fix)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm format:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm build:*)",
       "Bash(pnpm knip:*)",
       "Bash(pnpm dev:desktop)",
       "Bash(pnpm dev:web)",
       "Bash(pnpm --filter @repo/desktop dev:harness)",
       "Bash(pnpm --filter @repo/cloud dev)",
+      "Bash(pnpm --filter @repo/cloud test)",
       "Bash(pnpm --filter @repo/cloud db:push:local)",
+      "Bash(pkill -f \"turbo watch dev\")",
+      "Bash(pkill -f \"electron-vite\")",
+      "Bash(pkill -f \"Electron.app/Contents/MacOS/Electron\")",
       "Bash(agent-browser:*)",
       "Bash(npx -y emulate:*)"
     ],
@@ -18,7 +27,9 @@
       "Bash(pnpm --filter @repo/cloud db:push)",
       "Bash(pnpm -F @repo/cloud db:push)",
       "Bash(pnpm --filter @repo/cloud db:push:remote)",
-      "Bash(pnpm -F @repo/cloud db:push:remote)"
+      "Bash(pnpm -F @repo/cloud db:push:remote)",
+      "Bash(pnpm --filter @repo/cloud db:studio)",
+      "Bash(pnpm -F @repo/cloud db:studio)"
     ]
   }
 }

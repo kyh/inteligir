@@ -69,7 +69,10 @@ function ensureConnection(): WebSocket | null {
   if (ws && ws.readyState <= WebSocket.OPEN) return ws;
   const apiKey = resolveApiKey();
   if (!apiKey) return null;
-  const voiceId = process.env["ELEVENLABS_VOICE_ID"] ?? DEFAULT_VOICE_ID;
+  // Blank-safe: a `.env` line of `ELEVENLABS_VOICE_ID=` loads as "" (a value,
+  // not "unset"), which `??` would happily pass through into the endpoint URL.
+  const voiceOverride = process.env["ELEVENLABS_VOICE_ID"]?.trim();
+  const voiceId = voiceOverride ? voiceOverride : DEFAULT_VOICE_ID;
   const socket = new WebSocket(endpoint(voiceId));
   ws = socket;
 
