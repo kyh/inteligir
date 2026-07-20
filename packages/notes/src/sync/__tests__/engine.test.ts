@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InMemorySyncPort } from "./in-memory-sync-port";
 import { SyncEngine, type Clock, type Hasher, type SyncIo, type SyncOutcome } from "../engine";
@@ -210,7 +210,10 @@ describe("SyncEngine.syncOnce", () => {
   });
 
   it("mirrors a local delete to the coordinator", async () => {
+    // A sibling survives the delete: an empty local listing against a
+    // non-empty base is refused by the mass-deletion guard (#429, below).
     vault.writeText("gone.md", "bye");
+    vault.writeText("stays.md", "here");
     await newEngine().syncOnce();
     expect(await remoteText("gone.md")).toBe("bye");
 
@@ -227,6 +230,7 @@ describe("SyncEngine.syncOnce", () => {
       conflictPaths: [],
     });
     expect(await remoteText("gone.md")).toBeNull();
+    expect(await remoteText("stays.md")).toBe("here");
   });
 
   it("reports an error (and leaves base untouched) when the coordinator vault mismatches", async () => {
@@ -237,6 +241,115 @@ describe("SyncEngine.syncOnce", () => {
     expect(out.status).toBe("error");
     // Nothing was pushed.
     expect((await port.listManifest()).files).toHaveLength(0);
+  });
+});
+
+// The DATA-LOSS guard (#429): a transient vault-read failure yields an empty
+// local manifest, and reconcile would read every base path as a local delete —
+// pushing a vault-wide deletion to the coordinator and every peer. The engine
+// must refuse that pass outright. These tests are adversarial: they simulate
+// the empty listing and assert ZERO ops reach the port and the base anchor is
+// untouched, then pin the guard's edges (a genuinely empty first sync and a
+// legitimate partial delete must NOT trip it).
+describe("SyncEngine mass-deletion guard (#429)", () => {
+  it("empty local listing + non-empty base → error, ZERO deletes reach the port, base untouched", async () => {
+    // Converge two files so the base anchor records them.
+    vault.writeText("a.md", "AAA");
+    vault.writeText("notes/b.md", "BBB");
+    await newEngine().syncOnce();
+    const baseBefore = base.load();
+    expect(baseBefore?.files).toHaveLength(2);
+    const genBefore = port.currentGeneration();
+
+    // The vault now lists NOTHING — indistinguishable from a truncated/failed
+    // crawl (which is exactly why the engine must refuse).
+    vault.delete("a.md");
+    vault.delete("notes/b.md");
+    const deleteSpy = vi.spyOn(port, "deleteFile");
+    const putSpy = vi.spyOn(port, "putFile");
+
+    const out = await newEngine().syncOnce();
+
+    expect(out).toMatchObject({
+      status: "error",
+      message: expect.stringContaining("mass deletion"),
+    });
+    // ZERO ops reached the coordinator — no deletes, no writes, no generation
+    // bump; every remote file survives.
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(port.currentGeneration()).toBe(genBefore);
+    expect(await remoteText("a.md")).toBe("AAA");
+    expect(await remoteText("notes/b.md")).toBe("BBB");
+    // The base anchor is untouched, so the next pass retries from the same
+    // clean 3-way anchor.
+    expect(base.load()).toEqual(baseBefore);
+  });
+
+  it("the refusal is per-pass: files reappearing locally resume syncing", async () => {
+    vault.writeText("a.md", "AAA");
+    await newEngine().syncOnce();
+    vault.delete("a.md");
+    expect((await newEngine().syncOnce()).status).toBe("error");
+
+    // The vault comes back (remounted / restored) — the next pass converges
+    // normally off the untouched base: nothing to push, nothing deleted.
+    vault.writeText("a.md", "AAA");
+    const out = await newEngine().syncOnce();
+    expect(out).toMatchObject({ status: "ok", pushed: 0, deleted: 0 });
+    expect(await remoteText("a.md")).toBe("AAA");
+  });
+
+  it("does NOT trip on a genuinely empty vault with an empty base (first sync)", async () => {
+    const out = await newEngine().syncOnce();
+    expect(out).toEqual({
+      status: "ok",
+      pushed: 0,
+      pulled: 0,
+      deleted: 0,
+      conflicts: 0,
+      merged: 0,
+      conflictPaths: [],
+    });
+  });
+
+  it("does NOT block a legitimate delete while other files remain", async () => {
+    vault.writeText("a.md", "AAA");
+    vault.writeText("b.md", "BBB");
+    await newEngine().syncOnce();
+
+    vault.delete("a.md");
+    const out = await newEngine().syncOnce();
+
+    expect(out).toMatchObject({ status: "ok", deleted: 1 });
+    expect(await remoteText("a.md")).toBeNull();
+    expect(await remoteText("b.md")).toBe("BBB");
+  });
+
+  it("a delete-ALL surfaces as the guard error (the deliberate trade), and an explicit re-confirm propagates it", async () => {
+    vault.writeText("a.md", "AAA");
+    vault.writeText("b.md", "BBB");
+    await newEngine().syncOnce();
+
+    // The user really deletes everything — indistinguishable from a failed
+    // crawl, so the engine refuses and the message explains how to proceed.
+    vault.delete("a.md");
+    vault.delete("b.md");
+    const refused = await newEngine().syncOnce();
+    expect(refused).toMatchObject({
+      status: "error",
+      message: expect.stringContaining("add any file"),
+    });
+    expect(await remoteText("a.md")).toBe("AAA");
+
+    // The documented re-confirm: any local file makes the listing non-empty,
+    // and the pending deletions then propagate as real ops.
+    vault.writeText("keep.md", "still here");
+    const confirmed = await newEngine().syncOnce();
+    expect(confirmed).toMatchObject({ status: "ok", pushed: 1, deleted: 2 });
+    expect(await remoteText("a.md")).toBeNull();
+    expect(await remoteText("b.md")).toBeNull();
+    expect(await remoteText("keep.md")).toBe("still here");
   });
 });
 

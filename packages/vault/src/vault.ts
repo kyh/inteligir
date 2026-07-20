@@ -109,7 +109,30 @@ type VaultSnapshot = {
   root: string;
   entries: VaultStatEntry[];
   byPath: Map<string, VaultStatEntry>;
+  /** Did the crawl observe the WHOLE vault? `false` when the root was missing
+   * or any directory read failed — `entries` is then a best-effort partial.
+   * The UI listing serves it anyway (lenient); `listAllPaths()` (the sync
+   * manifest source) refuses it, because a truncated listing is
+   * indistinguishable from a mass deletion (#429). */
+  complete: boolean;
 };
+
+/** Thrown by `listAllPaths()` when the crawl could not observe the whole vault
+ * (missing root, an unreadable subtree). Sync-facing on purpose: the 3-way
+ * reconcile reads "in base, absent from local" as a LOCAL DELETE, so a
+ * truncated listing must fail the sync pass rather than propagate a vault-wide
+ * deletion to every device (#429). The UI-facing `list()`/`listWithStats()`
+ * stay lenient and serve the partial instead. */
+export class VaultListingIncompleteError extends Error {
+  constructor(root: string) {
+    super(
+      `Vault listing incomplete — could not fully read ${root}; ` +
+        "refusing to treat unread files as deleted. Check that the vault folder " +
+        "is present and readable, then retry.",
+    );
+    this.name = "VaultListingIncompleteError";
+  }
+}
 
 type VaultManagerOptions = {
   fs?: FsAdapter;
@@ -237,24 +260,32 @@ export class VaultManager {
    * hazard to cap against. Drives the sidebar file tree. Served from the
    * shared TTL snapshot so a refresh burst crawls once. */
   list(): VaultEntry[] {
-    return this.getSnapshot().map((e) => ({ path: e.path, name: e.name, kind: e.kind }));
+    return this.getSnapshot().entries.map((e) => ({ path: e.path, name: e.name, kind: e.kind }));
   }
 
   /** Every file path under the vault (same crawl as list(), minus the entry
    * shaping). Sync must see every NON-ignored file — a truncated manifest reads
    * as deletions: the 3-way reconcile treats "was in base and
    * remote, missing from local" as a local deletion and propagates it to the
-   * coordinator and every peer. Ignore rules filter what sync tracks by design;
-   * SKIP_DIRS + ignore files are the only exclusions, and they match list(). */
+   * coordinator and every peer. That is exactly why this — and ONLY this,
+   * the sync-facing listing — THROWS on an incomplete crawl (missing root,
+   * unreadable subtree) instead of returning the partial (#429); the engine
+   * surfaces the throw as a failed pass and retries later. Ignore rules
+   * filter what sync tracks by design; SKIP_DIRS + ignore files are the only
+   * exclusions, and they match list(). */
   listAllPaths(): string[] {
-    return this.getSnapshot().map((e) => e.path);
+    const snapshot = this.getSnapshot();
+    if (!snapshot.complete) throw new VaultListingIncompleteError(snapshot.root);
+    return snapshot.entries.map((e) => e.path);
   }
 
   /** The listing WITH stat identities — the knowledge reconcile's one-crawl
    * diff basis. Freshness follows the snapshot TTL: external edits surface on
-   * the next refresh trigger, exactly the ephemeral-liveness contract. */
+   * the next refresh trigger, exactly the ephemeral-liveness contract.
+   * Lenient like list(): derived knowledge tolerates a partial crawl (it
+   * self-heals on the next refresh); only sync (listAllPaths) must refuse. */
   listWithStats(): VaultStatEntry[] {
-    return [...this.getSnapshot()];
+    return [...this.getSnapshot().entries];
   }
 
   // The shared crawl behind list()/listAllPaths()/listWithStats(): one walk +
@@ -262,39 +293,55 @@ export class VaultManager {
   // mutating method (and rebuilt, never reused, by an explicit refresh()) —
   // so the window-focus fan-out (renderer listing, knowledge diff, sync
   // manifest+fingerprints) shares a single crawl instead of three.
-  private getSnapshot(): VaultStatEntry[] {
+  private getSnapshot(): VaultSnapshot {
     const root = this.getRoot();
     const cached = this.snapshot;
     if (cached && cached.root === root && Date.now() - cached.at <= SNAPSHOT_TTL_MS) {
-      return cached.entries;
-    }
-    if (!fs.existsSync(root)) {
-      this.snapshot = null;
-      return [];
+      return cached;
     }
     const entries: VaultStatEntry[] = [];
     const byPath = new Map<string, VaultStatEntry>();
-    for (const file of this.walk(root)) {
-      let stat: fs.Stats;
-      try {
-        stat = fs.statSync(path.join(root, file.path));
-      } catch {
-        continue; // vanished mid-crawl — the next refresh settles it
+    // A missing root is an INCOMPLETE crawl, not an empty vault — it feeds the
+    // completeness flag (listAllPaths throws; list serves the empty partial)
+    // rather than silently reading as "every file was deleted" (#429).
+    let complete = false;
+    if (fs.existsSync(root)) {
+      const walked = this.walk(root);
+      complete = walked.complete;
+      for (const file of walked.files) {
+        let stat: fs.Stats;
+        try {
+          stat = fs.statSync(path.join(root, file.path));
+        } catch {
+          // readdir SAW this file but stat failed — a transient hiccup (a flaky
+          // network mount) on a still-present file, indistinguishable from a
+          // real vanish mid-crawl. Either way the file is dropped from this
+          // listing, so mark the crawl incomplete (mirrors the readdir-failure
+          // path): list() stays lenient on the partial, but listAllPaths()
+          // must refuse rather than let sync read the drop as a delete (#429).
+          complete = false;
+          continue;
+        }
+        const entry: VaultStatEntry = {
+          path: file.path,
+          name: file.name,
+          kind: classify(file.name),
+          mtimeMs: stat.mtimeMs,
+          size: stat.size,
+          ino: stat.ino,
+        };
+        entries.push(entry);
+        byPath.set(file.path, entry);
       }
-      const entry: VaultStatEntry = {
-        path: file.path,
-        name: file.name,
-        kind: classify(file.name),
-        mtimeMs: stat.mtimeMs,
-        size: stat.size,
-        ino: stat.ino,
-      };
-      entries.push(entry);
-      byPath.set(file.path, entry);
+      entries.sort((a, b) => a.path.localeCompare(b.path));
     }
-    entries.sort((a, b) => a.path.localeCompare(b.path));
-    this.snapshot = { at: Date.now(), root, entries, byPath };
-    return entries;
+    const snapshot: VaultSnapshot = { at: Date.now(), root, entries, byPath, complete };
+    // Only COMPLETE crawls are cached: leniency may serve an incomplete
+    // partial once, but the next call re-crawls — so recovery is immediate
+    // and a cached failure can never satisfy a listAllPaths() retry after
+    // the transient error has cleared.
+    this.snapshot = complete ? snapshot : null;
+    return snapshot;
   }
 
   private invalidateSnapshot(): void {
@@ -304,15 +351,20 @@ export class VaultManager {
   // Shared recursive walk backing both list() and listAllPaths(): skips
   // dot-entries, SKIP_DIRS, ignore-matched paths, and the sibling *.tmp files
   // atomicWrite creates mid-save. Returns entries in directory-read order
-  // (unsorted — callers sort).
-  private walk(root: string): { path: string; name: string }[] {
+  // (unsorted — callers sort), plus whether every directory read succeeded:
+  // a failed readdir still skips the subtree (list() stays lenient on the
+  // partial) but is RECORDED as incompleteness instead of hidden, so
+  // listAllPaths() can refuse to present the truncation as deletions (#429).
+  private walk(root: string): { files: { path: string; name: string }[]; complete: boolean } {
     const out: { path: string; name: string }[] = [];
+    let complete = true;
     const ig = this.loadIgnore(root);
     const visit = (dir: string): void => {
       let entries: fs.Dirent[];
       try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
       } catch {
+        complete = false; // unreadable subtree — skip it, but never hide that
         return;
       }
       for (const entry of entries) {
@@ -331,7 +383,7 @@ export class VaultManager {
       }
     };
     visit(root);
-    return out;
+    return { files: out, complete };
   }
 
   // Parse the root ignore files (.gitignore / .ignore) into a matcher, or null
