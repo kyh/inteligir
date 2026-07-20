@@ -96,6 +96,10 @@ export async function registerFauxRuntimeProvider(runtime: ModelRuntime): Promis
     models: reg.models.map((model) => ({
       id: model.id,
       name: model.name,
+      // The registration's own placeholder base URL (never dialed — the faux
+      // api streams from the scripted queue); registerProvider REQUIRES a
+      // baseUrl for custom models.
+      baseUrl: model.baseUrl,
       reasoning: model.reasoning,
       input: [...model.input],
       cost: model.cost,
