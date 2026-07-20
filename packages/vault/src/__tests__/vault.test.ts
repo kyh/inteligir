@@ -3,7 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { VaultManager, resumeVaultWrites, suspendVaultWrites } from "../vault";
+import {
+  VaultListingIncompleteError,
+  VaultManager,
+  resumeVaultWrites,
+  suspendVaultWrites,
+} from "../vault";
 
 let tmp: string;
 let root: string;
@@ -166,6 +171,55 @@ describe("VaultManager", () => {
     expect(all).not.toContain("foo.tmp");
     expect(all).not.toContain(".dotfile");
   });
+
+  // ---- Crawl completeness (#429 — the sync mass-deletion guard's Layer 1) ----
+  // A truncated/empty crawl must NEVER reach the sync manifest as if it were a
+  // real state of the vault: reconcile reads "in base, absent from local" as a
+  // local delete and fans it out to every device. The shared crawl records
+  // completeness; the sync-facing listAllPaths() refuses an incomplete one,
+  // while the UI-facing list()/listWithStats() stay lenient on the partial.
+  it("listAllPaths() throws when the vault root is missing; list()/listWithStats() stay lenient", () => {
+    const mgr = newManager(); // ensureReady() never called — the root does not exist
+    expect(fs.existsSync(root)).toBe(false);
+
+    expect(() => mgr.listAllPaths()).toThrow(VaultListingIncompleteError);
+    expect(() => mgr.listAllPaths()).toThrow(/refusing to treat unread files as deleted/);
+    // The UI tolerates a momentarily-missing root — empty listing, no throw.
+    expect(mgr.list()).toEqual([]);
+    expect(mgr.listWithStats()).toEqual([]);
+
+    // The root appearing is picked up IMMEDIATELY — an incomplete crawl is
+    // never cached, so no TTL window can serve the stale failure.
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, "back.md"), "x");
+    expect(mgr.listAllPaths()).toEqual(["back.md"]);
+  });
+
+  // chmod-based EACCES needs a non-root uid (root bypasses permission checks).
+  it.skipIf(typeof process.getuid === "function" && process.getuid() === 0)(
+    "listAllPaths() throws when a subtree readdir fails; list() serves the partial (lenient)",
+    () => {
+      const mgr = newManager();
+      mgr.writeText("keep.md", "x");
+      mgr.writeText("locked/hidden.md", "x");
+      const lockedDir = path.join(root, "locked");
+      fs.chmodSync(lockedDir, 0o000);
+      try {
+        // Sync-facing: the truncation is refused, not presented as deletions.
+        expect(() => mgr.listAllPaths()).toThrow(VaultListingIncompleteError);
+        // UI-facing: lenient — the readable part of the vault still lists.
+        const paths = mgr.list().map((e) => e.path);
+        expect(paths).toContain("keep.md");
+        expect(paths).not.toContain("locked/hidden.md");
+        expect(mgr.listWithStats().map((e) => e.path)).toEqual(paths);
+      } finally {
+        fs.chmodSync(lockedDir, 0o700);
+      }
+      // Recovery is immediate (incomplete crawls are never cached): with the
+      // subtree readable again, sync sees the full listing.
+      expect(mgr.listAllPaths()).toEqual(["keep.md", "locked/hidden.md"]);
+    },
+  );
 
   it("respects root .gitignore / .ignore in both list() and listAllPaths()", () => {
     const mgr = newManager();
