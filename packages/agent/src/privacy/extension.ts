@@ -2,16 +2,18 @@
  * Privacy extension — enforces `private: true` at the agent tool boundary
  * for BOTH agents (chat and delegation register the same EXTENSION_BUNDLES).
  *
- * Mechanism: pi 0.73.1's blockable `tool_call` event. The handler fires
- * before every tool executes; returning `{ block: true, reason }` short-
- * circuits the run and the model receives the reason as an error tool result
- * (pi-agent-core agent-loop.js prepareToolCall → createErrorToolResult). A
- * THROWING handler is caught into the same error result — so a probe that
- * blows up still blocks: fail-closed by construction. We therefore do NOT
- * try/catch around the decision; a throw IS the safe outcome. Re-verify this
- * contract in the installed package on every pi version bump (docs/
- * extensions.md "tool_call"; dist/core/agent-session.js _installAgentToolHooks;
- * pi-agent-core dist/agent-loop.js prepareToolCall).
+ * Mechanism: pi's blockable `tool_call` event (re-verified on 0.80.10, #430).
+ * The handler fires before every tool executes; returning `{ block: true,
+ * reason }` short-circuits the run and the model receives the reason as an
+ * error tool result (pi-agent-core agent-loop.js prepareToolCall →
+ * createErrorToolResult). A THROWING handler is caught into the same error
+ * result — so a probe that blows up still blocks: fail-closed by
+ * construction. We therefore do NOT try/catch around the decision; a throw
+ * IS the safe outcome. Re-verify this contract in the installed package on
+ * every pi version bump (docs/extensions.md "tool_call";
+ * dist/core/agent-session.js _installAgentToolHooks (throws rethrown);
+ * dist/core/extensions/runner.js emitToolCall (no catch);
+ * pi-agent-core dist/agent-loop.js prepareToolCall (catch → error result)).
  *
  * SOUNDNESS (read this before trusting it): only read/edit/write (and the
  * inactive grep/find/ls) are soundly gated, via a live frontmatter probe per
