@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
-// pi-quarantine guard (#460): `@mariozechner/pi*` (pi-coding-agent / pi-ai)
-// may be imported ONLY inside the harness quarantine — the server/pi/*
-// wrappers, the faux stub, and two named tests. Everything else (agent/*,
-// handlers, delegation, the entire renderer) must go through the wrappers,
-// so a future harness swap is bounded to the quarantine (see
+// pi-quarantine guard (#460): `@earendil-works/pi*` (pi-coding-agent /
+// pi-ai / pi-agent-core — the maintained successor scope of the deprecated
+// predecessor, #430) may be imported ONLY inside the harness quarantine —
+// the server/pi/* wrappers, the faux stub, and two named tests. Everything
+// else (agent/*, handlers, delegation, the entire renderer) must go through
+// the wrappers, so a future harness swap is bounded to the quarantine (see
 // server/pi/README.md, the Harness contract). A pi import anywhere else
 // fails here before it can calcify. Mirrors account-boundary.test.ts.
 // ---------------------------------------------------------------------------
@@ -31,8 +32,11 @@ const SCANNED_DIRS = [
 const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".cache", ".output", ".expo", "coverage"]);
 
 /** Any module reference into the pi packages (import/export/require/vi.mock —
- * the specifier is what matters, not the syntax around it). */
-const PI_SPECIFIER = /["']@mariozechner\/pi[^"']*["']/;
+ * the specifier is what matters, not the syntax around it). Scope-agnostic:
+ * matches pi-coding-agent/pi-ai/pi-agent-core under ANY npm scope, so a
+ * regression to the deprecated frozen scope (#430) — or a future scope move
+ * — stays fenced without touching this regex. */
+const PI_SPECIFIER = /["']@[a-z0-9-]+\/pi-(?:coding-agent|ai|agent-core)[^"']*["']/;
 
 /** The ONLY places allowed to import pi directly — all inside @repo/agent. */
 const ALLOWED = [
@@ -71,7 +75,7 @@ function rel(file: string): string {
 }
 
 describe("pi quarantine (#460)", () => {
-  it("only server/pi/*, the faux stub, and the two named tests import @mariozechner/pi*", () => {
+  it("only server/pi/*, the faux stub, and the two named tests import @earendil-works/pi*", () => {
     const violations: string[] = [];
     for (const file of sourceFiles()) {
       const relative = rel(file);

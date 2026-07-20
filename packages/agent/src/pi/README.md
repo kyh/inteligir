@@ -1,7 +1,8 @@
 # `server/pi` — the pi quarantine, and the Harness contract
 
-This directory is the ONLY place product code may import `@mariozechner/pi*`
-(pi-coding-agent / pi-ai). The fence is test-enforced —
+This directory is the ONLY place product code may import `@earendil-works/pi*`
+(pi-coding-agent / pi-ai — the maintained successor scope of the deprecated
+predecessor scope, #430). The fence is test-enforced —
 `server/__tests__/pi-quarantine.test.ts` — with exactly three exceptions:
 `server/provider/faux-provider.ts` (pi-ai's stub provider; lives in
 `provider/` because it is part of the provider menu, but it is pi-shaped) and
@@ -13,7 +14,7 @@ wrappers here:
 | file          | wraps                                                   |
 | ------------- | ------------------------------------------------------- |
 | `agent.ts`    | `PiAgent` — session lifecycle over `createAgentSession` |
-| `auth.ts`     | `AuthStorage` construction + OAuth login/logout         |
+| `auth.ts`     | `ModelRuntime` construction + OAuth login/logout        |
 | `model.ts`    | `ModelSelection` (neutral) → pi-ai `Model` resolution   |
 | `pi-types.ts` | type re-exports, so an upstream move touches one file   |
 | `skills.ts`   | skill listing from the agent dir                        |
@@ -36,13 +37,16 @@ seams any replacement must satisfy.
    `server/__tests__/model-selection.test.ts`). Framework model types must
    not cross the `agent/` seam.
 
-2. **Token custody / AuthStorage.** Provider OAuth credentials live on-device
-   in `~/.inteligir/auth.json`, owned by the harness (pi reads it directly
-   during token refresh — plaintext-but-0600 by design, see CLAUDE.md
-   § Decisions). A replacement needs the same story: interactive OAuth login,
-   `hasAuth`-style probes (`agent/auth.ts` composes them), logout that
+2. **Token custody / credential store.** Provider OAuth credentials live
+   on-device in `~/.inteligir/auth.json`, owned by the harness (pi reads it
+   directly during token refresh — plaintext-but-0600 by design, see
+   CLAUDE.md § Decisions; since pi 0.80 the handle is `ModelRuntime`, whose
+   credential store keeps the same auth.json format). A replacement needs
+   the same story: interactive OAuth login, `hasAuth`-style probes
+   (`agent/auth.ts` composes them via `readStoredCredential`), logout that
    removes one provider's credential, and a runtime-only key injection
-   (the faux path uses `setRuntimeApiKey`).
+   (the faux path uses the runtime's in-memory `setRuntimeApiKey` — see
+   `provider/faux-provider.ts::registerFauxRuntimeProvider`).
 
 3. **`tool_call` interception — THE HARDEST REQUIREMENT.** The fail-closed
    private-note boundary (`agent/privacy/`) hangs off pi's blockable

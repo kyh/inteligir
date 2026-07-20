@@ -29,7 +29,7 @@ import { expandPiPath, resolvePiToolPath } from "../privacy/pi-path-parity";
 // it under this package's own node_modules — a stable location.
 const PI_PATH_UTILS = fileURLToPath(
   new URL(
-    "../../node_modules/@mariozechner/pi-coding-agent/dist/core/tools/path-utils.js",
+    "../../node_modules/@earendil-works/pi-coding-agent/dist/core/tools/path-utils.js",
     import.meta.url,
   ),
 );
@@ -95,7 +95,8 @@ afterAll(() => {
 });
 
 // Every shape the gate must agree with pi on: @-prefix, unicode spaces, ~,
-// absolute, relative, dot, and the fs-fallback bait (queried in the form a
+// file:// URLs (new in 0.80), absolute (0.80 normalizes these through
+// resolve()), relative, dot, and the fs-fallback bait (queried in the form a
 // model would type, stored on disk in the variant form pi falls back to).
 function batteryInputs(): string[] {
   return [
@@ -110,6 +111,7 @@ function batteryInputs(): string[] {
     `vault/meeting${IDEOGRAPHIC_SPACE}notes.md`,
     "~",
     "~/notes/secret.md",
+    "~//double-sep.md",
     "~tilde-not-home/x.md",
     `./vault/caf${E_ACUTE_NFC}.md`,
     "./vault/don't.md",
@@ -117,6 +119,10 @@ function batteryInputs(): string[] {
     "./vault/secret.md",
     "vault/secret.md",
     "/absolute/elsewhere.md",
+    "/absolute/../abs-dotdot.md",
+    "//double/root.md",
+    "file:///abs/file-url.md",
+    "@file:///abs/at-file-url.md",
     "plain.md",
     "./nested/../vault/secret.md",
     ".",
@@ -143,6 +149,25 @@ describe("pi path-resolution parity (drift guard)", () => {
     const target = path.join(cwd, "vault", "secret.md");
     expect(resolvePiToolPath("@vault/secret.md", cwd)).toBe(target);
     expect(piResolveReadPath("@vault/secret.md", cwd)).toBe(target);
+  });
+
+  it("a file:// URL of the vault file resolves to the real file (0.80's new expansion, both resolvers)", () => {
+    // The 0.80 sibling of the @-bypass: pi now converts file:// URLs to
+    // filesystem paths BEFORE opening, so the gate must classify the
+    // converted target, never the raw URL string.
+    const target = path.join(cwd, "vault", "secret.md");
+    const url = pathToFileURL(target).href;
+    expect(resolvePiToolPath(url, cwd)).toBe(target);
+    expect(piResolveReadPath(url, cwd)).toBe(target);
+  });
+
+  it("a malformed file:// URL throws in BOTH resolvers (gate throw = blocked call)", () => {
+    // `file://vault/x.md` parses "vault" as a URL host — fileURLToPath
+    // rejects it. pi errors the tool call; the gate's throw propagates
+    // through the tool_call handler, which pi catches into a blocking error
+    // result. Parity means agreeing on the throw too.
+    expect(() => piResolveReadPath("file://vault/x.md", cwd)).toThrow();
+    expect(() => resolvePiToolPath("file://vault/x.md", cwd)).toThrow();
   });
 
   it("fs-fallback variants redirect to the on-disk file pi will open", () => {

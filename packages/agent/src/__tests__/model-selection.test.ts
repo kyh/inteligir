@@ -16,7 +16,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { PiAgent } from "@repo/agent/pi/agent";
-import { createAuthStorage } from "@repo/agent/pi/auth";
+import { createModelRuntime } from "@repo/agent/pi/auth";
 import { resolveModelSelection } from "@repo/agent/pi/model";
 import { SessionManager } from "@repo/agent/pi/pi-types";
 
@@ -94,7 +94,7 @@ describe("lazy failure — bad selections reject start(), never construction", (
     const agent = new PiAgent({
       cwd: tmp,
       agentDir: tmp,
-      authStorage: createAuthStorage(path.join(tmp, "auth.json")),
+      modelRuntime: () => createModelRuntime(path.join(tmp, "auth.json")),
       model: { provider: "not-a-provider", modelId: "no-such-model" },
       sessionManager: SessionManager.inMemory(tmp),
       extensionFactories: [],

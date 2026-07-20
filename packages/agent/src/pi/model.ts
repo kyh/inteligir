@@ -1,12 +1,17 @@
-import { getModels, getProviders } from "@mariozechner/pi-ai";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import { getModels, getProviders } from "@earendil-works/pi-ai/compat";
+import type { Api, Model } from "@earendil-works/pi-ai";
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 // faux-provider sits in server/provider/ because it is part of the provider
 // MENU, but it is pi-shaped (it imports pi-ai directly — see the
 // pi-quarantine guard test) and its models exist only on its live
 // registration, so resolving it belongs here with the rest of model
 // resolution. Same-layer import, no cycle: faux-provider never imports pi/*.
-import { ensureFauxProvider, FAUX_PROVIDER_ID } from "../provider/faux-provider";
+import {
+  ensureFauxProvider,
+  FAUX_PROVIDER_ID,
+  registerFauxRuntimeProvider,
+} from "../provider/faux-provider";
 
 type Provider = Parameters<typeof getModels>[0];
 
@@ -47,6 +52,20 @@ export function resolveModelSelection(selection: ModelSelection): Model<Api> {
     );
   }
   return model;
+}
+
+/**
+ * Make sure the session's ModelRuntime can serve `selection`. Builtin
+ * providers are already in the runtime's collection; faux (a live, dev-only
+ * registration) must be registered on the runtime per session start — 0.80
+ * sessions stream exclusively through the runtime's provider set, and its
+ * prompt gate requires the provider to be registered AND authed.
+ */
+export async function prepareRuntimeForSelection(
+  runtime: ModelRuntime,
+  selection: ModelSelection,
+): Promise<void> {
+  if (selection.provider === FAUX_PROVIDER_ID) await registerFauxRuntimeProvider(runtime);
 }
 
 /** Every model pi-ai's static registry knows for `provider` — the host's

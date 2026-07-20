@@ -9,7 +9,7 @@
 // anywhere.
 // ---------------------------------------------------------------------------
 
-import { getAuthStorage, isProviderAuthed, login, logoutProvider } from "@repo/agent/auth";
+import { isProviderAuthed, login, logoutProvider } from "@repo/agent/auth";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { ModelSelection } from "@repo/agent/pi/model";
 import type { Api, Model } from "@repo/agent/pi/pi-types";
@@ -38,21 +38,15 @@ export function getSelectedProvider(): { provider: SupportedProviderId; modelId:
   return normalizeSelection(getProviderConfig().get());
 }
 
-/** pi's prompt gate requires SOME auth for the model's provider; a runtime
- * key (never persisted) satisfies it and the faux stream ignores the value.
- * Re-asserted on every selection because logout rebuilds the AuthStorage. */
-function ensureFauxRuntimeAuth(provider: SupportedProviderId): void {
-  if (provider !== FAUX_PROVIDER_ID) return;
-  getAuthStorage().setRuntimeApiKey(FAUX_PROVIDER_ID, "faux-dev-key");
-}
-
 /** Pair `modelId` with the SELECTED provider — the ghost-text session's
  * fast-model override rides through here so its override follows a provider
  * switch instead of pointing at a foreign registry. Resolution to a pi Model
- * happens inside the PiAgent wrapper at start() (#460). */
+ * happens inside the PiAgent wrapper at start() (#460). Faux runtime auth
+ * (the in-memory key satisfying pi's prompt gate) is asserted inside the
+ * wrapper at session start (pi/model.ts::prepareRuntimeForSelection), so a
+ * faux selection needs no side effect here. */
 export function providerModelSelection(modelId: string): ModelSelection {
   const { provider } = getSelectedProvider();
-  ensureFauxRuntimeAuth(provider);
   return { provider, modelId };
 }
 
@@ -61,9 +55,7 @@ export function providerModelSelection(modelId: string): ModelSelection {
  * pi Model inside the PiAgent wrapper at start() (#460: pi-ai's Model type
  * stays inside @repo/agent/pi/*). */
 export function agentModelSelection(): ModelSelection {
-  const selection = getSelectedProvider();
-  ensureFauxRuntimeAuth(selection.provider);
-  return selection;
+  return getSelectedProvider();
 }
 
 /** Models the selected provider can run (the ghost-text settings picker). */
@@ -139,10 +131,12 @@ export async function connectAiProvider(providerId: string): Promise<AiConnectRe
 
 /** Drop `providerId`'s credentials from pi's auth.json. Disconnecting the
  * SELECTED provider disables AI (turns surface the existing not-authed error
- * path) but the app stays fully usable locally. */
-export function disconnectAiProvider(providerId: string): AiProviderSettings {
+ * path) but the app stays fully usable locally. Async: the 0.80 credential
+ * store's delete is a serialized file-locked write, awaited so the returned
+ * snapshot reflects the post-delete auth.json. */
+export async function disconnectAiProvider(providerId: string): Promise<AiProviderSettings> {
   const provider = parseSupportedProvider(providerId);
   if (provider === null) throw new Error(`Unknown AI provider "${providerId}"`);
-  if (providerRequiresAuth(provider)) logoutProvider(provider);
+  if (providerRequiresAuth(provider)) await logoutProvider(provider);
   return getAiProviderSettings();
 }

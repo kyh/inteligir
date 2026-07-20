@@ -26,7 +26,7 @@ const MAIN_BUNDLE = join(APP_ROOT, ".output/app/main/index.js");
 // pi ships bundled into the main process, not via node_modules. Verify the
 // bundle actually contains it rather than guessing from package.json. (sherpa
 // is the opposite — a native dep checked on-disk below, not bundled.)
-const BUNDLED_RUNTIME_DEPS = ["@mariozechner/pi-coding-agent", "@mariozechner/pi-ai"];
+const BUNDLED_RUNTIME_DEPS = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-ai"];
 
 // `electron-builder --mac` produces a .app inside .output/bin/mac{,-arm64}/
 function findAppBundle() {

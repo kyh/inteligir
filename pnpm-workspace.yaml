@@ -7,6 +7,8 @@ catalog:
   "@better-auth/expo": ^1.6.23
   "@cloudflare/vite-plugin": ^1.44.0
   "@cloudflare/vitest-pool-workers": ^0.18.4
+  "@earendil-works/pi-ai": ^0.80.10
+  "@earendil-works/pi-coding-agent": ^0.80.10
   "@expo/metro-runtime": ~57.0.3
   "@sinclair/typebox": ^0.34.50
   "@tailwindcss/postcss": ^4.3.2

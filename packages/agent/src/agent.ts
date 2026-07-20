@@ -13,7 +13,7 @@ import type { ModelSelection } from "@repo/agent/pi/model";
 import { SessionManager } from "@repo/agent/pi/pi-types";
 import type { AgentSessionEvent, ImageContent } from "@repo/agent/pi/pi-types";
 
-import { getAuthStorage } from "./auth";
+import { getModelRuntime } from "./auth";
 import { EXTENSION_BUNDLES } from "./bundles";
 import { buildValidatedFactories, type AgentPorts } from "./extension";
 import { AGENT_DIR, SESSION_DIR, WORKSPACE_DIR } from "./paths";
@@ -73,7 +73,7 @@ export class Agent {
       this.pi = new PiAgent({
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,
-        authStorage: getAuthStorage(),
+        modelRuntime: getModelRuntime,
         model: this.opts.selectModel(),
         sessionManager,
         // A hard allowlist (even `[]`) replaces the default active-tool set.

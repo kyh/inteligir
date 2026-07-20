@@ -2,7 +2,7 @@
 // Catches "model id renamed/removed by pi-ai bump" before we ship a build that
 // would crash at startup when it calls getModel(...).
 
-import { getModel } from "@mariozechner/pi-ai";
+import { getModel } from "@earendil-works/pi-ai/compat";
 
 const PROVIDER = "openai-codex";
 const MODEL_ID = "gpt-5.5";

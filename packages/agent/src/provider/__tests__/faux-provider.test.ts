@@ -5,8 +5,13 @@
 // setFauxResponses stages an exact sequence including tool calls.
 
 import { afterEach, describe, expect, it } from "vitest";
-import { complete, fauxAssistantMessage, fauxText, fauxToolCall } from "@mariozechner/pi-ai";
-import type { Context } from "@mariozechner/pi-ai";
+import {
+  complete,
+  fauxAssistantMessage,
+  fauxText,
+  fauxToolCall,
+} from "@earendil-works/pi-ai/compat";
+import type { Context } from "@earendil-works/pi-ai";
 
 import { ensureFauxProvider, resetFauxResponses, setFauxResponses } from "../faux-provider";
 

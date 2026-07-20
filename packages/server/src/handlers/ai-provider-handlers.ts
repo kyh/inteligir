@@ -42,7 +42,7 @@ export function registerAiProviderHandlers(handle: HandlerRegistrar): void {
   // the not-authed path and the composer's connect affordance takes over.
   handle("disconnectAiProvider", async ({ provider }) => {
     const wasSelected = provider === getSelectedProvider().provider;
-    const settings = disconnectAiProvider(provider);
+    const settings = await disconnectAiProvider(provider);
     if (wasSelected) {
       await applySelectedProviderChange();
     }

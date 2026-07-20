@@ -76,7 +76,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@mariozechner/pi-ai": "^0.73.1",
+    "@earendil-works/pi-ai": "catalog:",
     "@sqlite.org/sqlite-wasm": "3.53.0-build1",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/router-plugin": "^1.168.19",
