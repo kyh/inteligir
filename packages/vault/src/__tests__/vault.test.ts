@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -220,6 +220,40 @@ describe("VaultManager", () => {
       expect(mgr.listAllPaths()).toEqual(["keep.md", "locked/hidden.md"]);
     },
   );
+
+  // A per-FILE statSync hiccup (a flaky network mount) on a still-present file
+  // is the same "transient read → drop → sync reads it as a delete" class as a
+  // failed readdir: the file was LISTED but couldn't be stat'd, so it silently
+  // fell out of the crawl. It must mark the crawl incomplete too, not just the
+  // readdir-failure path.
+  it("listAllPaths() throws when a listed file's statSync fails; list() serves the partial", () => {
+    const mgr = newManager();
+    mgr.writeText("keep.md", "x");
+    mgr.writeText("flaky.md", "x");
+
+    const realStatSync = fs.statSync.bind(fs);
+    const flaky = path.join(root, "flaky.md");
+    const statSpy = vi.spyOn(fs, "statSync").mockImplementation((target, options) => {
+      // readdir still lists flaky.md, but its stat throws (transient) — the file
+      // is present, yet dropped from this crawl.
+      if (target === flaky) throw new Error("EIO: simulated transient stat failure");
+      return realStatSync(target, options);
+    });
+    try {
+      // Sync-facing: the drop is refused, never presented as a deletion.
+      expect(() => mgr.listAllPaths()).toThrow(VaultListingIncompleteError);
+      // UI-facing: lenient — the stattable files still list, flaky.md dropped.
+      const paths = mgr.list().map((e) => e.path);
+      expect(paths).toContain("keep.md");
+      expect(paths).not.toContain("flaky.md");
+      expect(mgr.listWithStats().map((e) => e.path)).toEqual(paths);
+    } finally {
+      statSpy.mockRestore();
+    }
+    // Recovery is immediate (incomplete crawls are never cached): with stat
+    // succeeding again, sync sees the full listing.
+    expect(mgr.listAllPaths()).toEqual(["flaky.md", "keep.md"]);
+  });
 
   it("respects root .gitignore / .ignore in both list() and listAllPaths()", () => {
     const mgr = newManager();

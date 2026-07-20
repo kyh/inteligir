@@ -313,7 +313,14 @@ export class VaultManager {
         try {
           stat = fs.statSync(path.join(root, file.path));
         } catch {
-          continue; // vanished mid-crawl (a real deletion/rename) — the next refresh settles it
+          // readdir SAW this file but stat failed — a transient hiccup (a flaky
+          // network mount) on a still-present file, indistinguishable from a
+          // real vanish mid-crawl. Either way the file is dropped from this
+          // listing, so mark the crawl incomplete (mirrors the readdir-failure
+          // path): list() stays lenient on the partial, but listAllPaths()
+          // must refuse rather than let sync read the drop as a delete (#429).
+          complete = false;
+          continue;
         }
         const entry: VaultStatEntry = {
           path: file.path,
