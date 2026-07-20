@@ -46,7 +46,7 @@ import {
   type RemoteAccessManager,
 } from "@repo/server/transport/remote-access-manager";
 import { startWsHost, type WsHost } from "@repo/server/transport/ws-host";
-import { isHttpUrl, isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
+import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import {
   extractDeepLinkFromArgv,
@@ -55,6 +55,7 @@ import {
   markDeepLinksReady,
 } from "@/main/deep-link";
 import { createElectronPlatform } from "@/main/electron-platform";
+import { classifyNavigation, classifyWindowOpen } from "@/main/navigation-guard";
 import { setupAutoUpdater, type Updater } from "@/main/updater";
 import {
   mintHtmlAppToken,
@@ -255,47 +256,23 @@ function createWindow(backgroundColor: string): BrowserWindow {
   });
 
   window.webContents.setWindowOpenHandler((details) => {
-    if (isHttpUrl(details.url)) {
+    if (classifyWindowOpen(details.url) === "deny-and-open-external") {
       void shell.openExternal(details.url);
     }
     return { action: "deny" };
   });
 
-  // The app window loads exactly one origin: the electron-vite dev server in
-  // dev, or the packaged file:// bundle in production. Any top-level navigation
-  // away from it (a crafted link in a note, agent output, injected content) is
-  // a phishing surface inside the product chrome, so we pin the window: allow
-  // navigation that stays on the loaded origin (HMR relies on this in dev) and
-  // block everything else, routing http(s) out to the system browser to match
-  // the window-open handler above. `loadedUrlPrefix` is set at load time below.
-  //
-  // http(s) compares true URL origins — a raw startsWith on a prefix like
-  // "http://localhost:5173" would also match "http://localhost:5173.evil.com".
-  // file: URLs all parse to the opaque origin "null", so the packaged bundle
-  // is matched by exact URL (plus a "#fragment" suffix for in-page anchors).
+  // Top-level navigation is pinned to the loaded origin (the electron-vite
+  // dev server in dev, the packaged file:// bundle in production) — the
+  // allow/block policy lives in navigation-guard.ts (#433, pure and
+  // unit-tested); these closures only wire its verdicts to webContents.
+  // `loadedUrlPrefix` is set at load time below.
   let loadedUrlPrefix = "";
-  const isSameOrigin = (candidate: string): boolean => {
-    if (loadedUrlPrefix.length === 0) return false;
-    let parsed: URL;
-    let loaded: URL;
-    try {
-      parsed = new URL(candidate);
-      loaded = new URL(loadedUrlPrefix);
-    } catch {
-      return false; // unparseable → not same origin
-    }
-    if (loaded.protocol === "file:") {
-      return (
-        parsed.protocol === "file:" &&
-        (candidate === loadedUrlPrefix || candidate.startsWith(loadedUrlPrefix + "#"))
-      );
-    }
-    return parsed.origin === loaded.origin;
-  };
   const guardNavigation = (event: Electron.Event, url: string): void => {
-    if (isSameOrigin(url)) return;
+    const verdict = classifyNavigation(url, loadedUrlPrefix);
+    if (verdict === "allow") return;
     event.preventDefault();
-    if (isHttpUrl(url)) {
+    if (verdict === "block-and-open-external") {
       void shell.openExternal(url);
     }
   };
