@@ -221,3 +221,75 @@ describe("SyncEngine over the RN adapters", () => {
     expect(await remoteText("journal.md")).toBe("day\n- remote\n- local\n");
   });
 });
+
+// #434: the mobile SyncIo now feeds the engine's stat-keyed hash cache — an
+// unchanged fingerprint reuses the cached hash instead of re-reading + re-hashing
+// the whole vault every pass. These drive the REAL mobile adapter (createSyncIo
+// over a VaultFs) against the engine; the engine-side cache matrix lives in
+// @repo/notes's engine-hash-cache.test.ts.
+describe("stat-fingerprint hash cache over the RN adapters", () => {
+  /** An engine over `fs` with a hasher that records every (decoded) input, so
+   * tests count exactly which files were re-hashed. Cache is per-instance —
+   * reuse tests must run both passes on the SAME engine (as manager.ts does:
+   * one engine lives as long as its token). */
+  function countingEngine(fs: VaultFs = vault.fs): { engine: SyncEngine; calls: string[] } {
+    const inner = webCryptoHasher();
+    const calls: string[] = [];
+    const engine = new SyncEngine({
+      vaultId: VAULT_ID,
+      port,
+      io: createSyncIo(fs),
+      base: createJsonFileBaseStore(baseFile.file),
+      blobs,
+      hash: (bytes) => {
+        calls.push(new TextDecoder().decode(bytes));
+        return inner(bytes);
+      },
+      stamp: FIXED_STAMP,
+      debounceMs: 0,
+    });
+    return { engine, calls };
+  }
+
+  it("reuses an unchanged file's hash across passes — hasher runs once, not twice", async () => {
+    vault.writeText("a.md", "AAA");
+    vault.writeText("notes/b.md", "BBB");
+    const { engine, calls } = countingEngine();
+
+    await engine.syncOnce();
+    expect(calls).toEqual(["AAA", "BBB"]); // first pass hashes everything once
+
+    const before = calls.length;
+    await engine.syncOnce();
+    expect(calls.length).toBe(before); // unchanged fingerprints — zero re-hashes
+  });
+
+  it("re-hashes a file whose fingerprint moved — even a same-length edit", async () => {
+    vault.writeText("a.md", "AAA");
+    vault.writeText("b.md", "BBB");
+    const { engine, calls } = countingEngine();
+    await engine.syncOnce();
+
+    const before = calls.length;
+    vault.writeText("a.md", "AAB"); // same size — only the fake mtime moves
+    await engine.syncOnce();
+
+    expect(calls.slice(before)).toEqual(["AAB"]); // a.md re-hashed, b.md reused
+  });
+
+  it("a stat failure yields a null fingerprint — safe re-hash every pass", async () => {
+    vault.writeText("a.md", "AAA");
+    const statless: VaultFs = {
+      ...vault.fs,
+      stat: () => {
+        throw new Error("stat failed");
+      },
+    };
+    const { engine, calls } = countingEngine(statless);
+
+    await engine.syncOnce();
+    expect(calls).toEqual(["AAA"]);
+    await engine.syncOnce();
+    expect(calls).toEqual(["AAA", "AAA"]); // null fingerprint → never cached
+  });
+});

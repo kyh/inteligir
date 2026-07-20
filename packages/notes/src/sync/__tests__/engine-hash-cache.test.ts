@@ -91,7 +91,10 @@ class FingerprintVault {
   }
 }
 
-/** A plain Map-backed vault WITHOUT a fingerprint — the mobile fallback. */
+/** A plain Map-backed vault WITHOUT a fingerprint — an adapter without cheap
+ * stat. (No shipping platform is in this bucket anymore — desktop fingerprints
+ * via VaultManager.statFingerprint, mobile via its VaultFs stat (#434) — but
+ * the port stays optional and the fallback must stay correct.) */
 class NoFingerprintVault {
   private readonly files = new Map<VaultPath, Uint8Array>();
 
@@ -188,7 +191,7 @@ describe("SyncEngine stat-keyed hash cache", () => {
     expect(calls.slice(afterFirst)).toEqual(["AAA"]);
   });
 
-  it("re-hashes every file each pass when the adapter omits fingerprint (mobile pin)", async () => {
+  it("re-hashes every file each pass when the adapter omits fingerprint (fallback pin)", async () => {
     const vault = new NoFingerprintVault();
     vault.writeText("a.md", "AAA");
     vault.writeText("b.md", "BBB");

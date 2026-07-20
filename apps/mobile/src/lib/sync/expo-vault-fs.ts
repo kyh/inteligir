@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // The Expo File-API backing for the SyncIo's `VaultFs` port. Roots the vault at
 // `${Paths.document}/vault/` and uses the NEW synchronous File API
-// (`bytesSync`/`write`/`list`/`exists`) so it satisfies the engine's synchronous
-// `SyncIo`. A fresh File/Directory instance is created per call so `exists`
-// always reflects current filesystem state.
+// (`bytesSync`/`write`/`list`/`exists`/`lastModified`/`size`) so it satisfies
+// the engine's synchronous `SyncIo`. A fresh File/Directory instance is created
+// per call so `exists` (and every stat) always reflects current filesystem
+// state.
 // ---------------------------------------------------------------------------
 
 import { Directory, File, Paths } from "expo-file-system";
@@ -62,6 +63,20 @@ export function createExpoVaultFs(): VaultFs {
     remove: (path) => {
       const file = fileFor(path);
       if (file.exists) file.delete();
+    },
+    stat: (path) => {
+      try {
+        const file = fileFor(path);
+        // Both are SYNCHRONOUS native properties (like `bytesSync` above).
+        // `lastModified` is null when the file is missing or unreadable;
+        // `size` degrades to 0 in those cases (indistinguishable from an
+        // empty file), so gate on lastModified FIRST — an unstat-able file
+        // must yield null, never a guessed fingerprint (VaultFs contract).
+        const lastModified = file.lastModified;
+        return lastModified === null ? null : { lastModified, size: file.size };
+      } catch {
+        return null;
+      }
     },
   };
 }

@@ -22,7 +22,10 @@ export function webCryptoHasher(): Hasher {
   };
 }
 
-/** A flat-map `VaultFs` fake that derives directory structure from POSIX paths. */
+/** A flat-map `VaultFs` fake that derives directory structure from POSIX paths.
+ * `stat` mirrors a real filesystem's: a monotonic per-write "mtime" tick, so an
+ * unchanged file keeps its stat across passes and EVERY write moves it — even a
+ * same-length content edit (what a real ms mtime does). */
 type MemVault = {
   readonly fs: VaultFs;
   readonly files: Map<VaultPath, Uint8Array>;
@@ -32,6 +35,12 @@ type MemVault = {
 
 export function memVaultFs(): MemVault {
   const files = new Map<VaultPath, Uint8Array>();
+  const mtimes = new Map<VaultPath, number>();
+  let tick = 0;
+  const touch = (path: VaultPath): void => {
+    tick += 1;
+    mtimes.set(path, tick);
+  };
 
   const fs: VaultFs = {
     listDir: (relDir) => {
@@ -56,9 +65,16 @@ export function memVaultFs(): MemVault {
     },
     writeBytes: (path, bytes) => {
       files.set(path, new Uint8Array(bytes));
+      touch(path);
     },
     remove: (path) => {
       files.delete(path);
+      mtimes.delete(path);
+    },
+    stat: (path) => {
+      const bytes = files.get(path);
+      if (bytes === undefined) return null;
+      return { lastModified: mtimes.get(path) ?? 0, size: bytes.byteLength };
     },
   };
 
@@ -67,6 +83,7 @@ export function memVaultFs(): MemVault {
     files,
     writeText: (path, text) => {
       files.set(path, encoder.encode(text));
+      touch(path);
     },
     readText: (path) => {
       const bytes = files.get(path);
