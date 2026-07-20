@@ -13,7 +13,7 @@ import {
   fauxText,
   fauxToolCall,
   registerFauxProvider,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai/compat";
 import type {
   AssistantMessage,
   Context,
@@ -21,7 +21,8 @@ import type {
   FauxProviderRegistration,
   FauxResponseFactory,
   FauxResponseStep,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { FauxAgentScript } from "@repo/bridge/ipc-registry";
 
 import { areDevFlagsAllowed } from "@repo/bridge/dev-flags";
@@ -77,6 +78,32 @@ export function ensureFauxProvider(): FauxProviderRegistration {
     registration = next;
   }
   return registration;
+}
+
+/** Register faux as a provider on a session's ModelRuntime (0.80 sessions
+ * stream exclusively through the runtime's provider collection; the compat
+ * api registration alone — ensureFauxProvider — only supplies the faux API
+ * the composed provider streams through). The runtime API key satisfies
+ * pi's prompt-gate auth requirement: in-memory only, never persisted, and
+ * the faux stream ignores the value. Idempotent (registerProvider replaces).
+ * Invoked from pi/model.ts::prepareRuntimeForSelection at session start. */
+export async function registerFauxRuntimeProvider(runtime: ModelRuntime): Promise<void> {
+  const reg = ensureFauxProvider();
+  runtime.registerProvider(FAUX_PROVIDER_ID, {
+    name: FAUX_PROVIDER_ID,
+    api: FAUX_PROVIDER_ID,
+    apiKey: "faux-dev-key",
+    models: reg.models.map((model) => ({
+      id: model.id,
+      name: model.name,
+      reasoning: model.reasoning,
+      input: [...model.input],
+      cost: model.cost,
+      contextWindow: model.contextWindow,
+      maxTokens: model.maxTokens,
+    })),
+  });
+  await runtime.setRuntimeApiKey(FAUX_PROVIDER_ID, "faux-dev-key");
 }
 
 /** THE response-scripting seam (the E2E harness depends on it): replace the

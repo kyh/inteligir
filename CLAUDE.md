@@ -21,7 +21,7 @@ marketing site + shared packages.
 - **Web**: TanStack Start + React 19 + Tailwind CSS 4 on Cloudflare Workers (marketing site, no backend)
 - **Mobile**: Expo SDK 56 + Expo Router + NativeWind (@repo/mobile) — sync/read/light-edit companion, no agent
 - **Cloud**: Cloudflare Worker (@repo/cloud) — Better Auth on D1 + a Durable Object per vault + R2
-- **AI Agent**: pi coding agent framework (@mariozechner/pi-coding-agent)
+- **AI Agent**: pi coding agent framework (@earendil-works/pi-coding-agent)
 
 The agent runs locally in the desktop app; agent auth is provider OAuth
 (OpenAI or Claude — the selection lives in the `provider-config` store under
@@ -53,7 +53,7 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  # GitHub-release binary install, seeding, execFile runner; leaf, no deps
   agent/         # The pi capability (@repo/agent) — Agent lifecycle, extension bundles,
                  # setup/auth, faux provider, and pi/ (the harness quarantine: the ONLY
-                 # place @mariozechner/pi* may be imported). The server injects AgentPorts.
+                 # place @earendil-works/pi* may be imported). The server injects AgentPorts.
   storage/       # Node fs/json substrate (@repo/storage) — versioned JsonStore over
                  # ~/.inteligir, atomic-write, host lock, hardenAppDir sweep, agent.log
                  # tee, encrypted SecretStore (cipher injected by the host)

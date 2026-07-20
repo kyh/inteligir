@@ -1,20 +1,19 @@
 import {
   createAgentSession,
   DefaultResourceLoader,
-  ModelRegistry,
   SessionManager,
   SettingsManager,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import type {
   AgentSession,
   AgentSessionEvent,
-  AuthStorage,
   ExtensionFactory,
-} from "@mariozechner/pi-coding-agent";
-import type { Api, AssistantMessage, ImageContent, Model } from "@mariozechner/pi-ai";
+  ModelRuntime,
+} from "@earendil-works/pi-coding-agent";
+import type { Api, AssistantMessage, ImageContent, Model } from "@earendil-works/pi-ai";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
-import { resolveModelSelection, type ModelSelection } from "./model";
+import { prepareRuntimeForSelection, resolveModelSelection, type ModelSelection } from "./model";
 
 export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
@@ -25,8 +24,12 @@ export type PiAgentConfig = {
   cwd: string;
   /** Directory where pi keeps its agent-specific state (skills, AGENTS.md, etc). */
   agentDir: string;
-  /** AuthStorage for credential lookup. */
-  authStorage: AuthStorage;
+  /** ModelRuntime supplier for credential lookup + provider streaming (0.80's
+   * canonical model/auth handle — replaces 0.73's AuthStorage+ModelRegistry
+   * pair). A thunk resolved inside start() so runtime construction failures
+   * reject the async start() path, and so all sessions share the host's one
+   * cached runtime (agent/auth.ts::getModelRuntime). */
+  modelRuntime: () => Promise<ModelRuntime>;
   /** Default model for new sessions, as a NEUTRAL (provider, modelId) pair —
    * resolved to pi-ai's Model inside start() (resolveModelSelection), so a
    * bad selection rejects the async start() path instead of throwing from
@@ -80,7 +83,10 @@ export class PiAgent {
     // start() before any registry/loader side effects run.
     const model = resolveModelSelection(this.config.model);
 
-    const modelRegistry = ModelRegistry.create(this.config.authStorage);
+    const modelRuntime = await this.config.modelRuntime();
+    // Faux (dev-only) lives outside the runtime's builtin provider set —
+    // register it before the session exists so the prompt gate passes.
+    await prepareRuntimeForSelection(modelRuntime, this.config.model);
 
     const factories =
       typeof this.config.extensionFactories === "function"
@@ -97,8 +103,7 @@ export class PiAgent {
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
-      authStorage: this.config.authStorage,
-      modelRegistry,
+      modelRuntime,
       resourceLoader,
       model,
       thinkingLevel: this.config.thinkingLevel ?? "off",
@@ -313,6 +318,6 @@ export function buildPromptFailureEvents(model: Model<Api>, reason: string): Age
   return [
     { type: "message_start", message },
     { type: "message_end", message },
-    { type: "agent_end", messages: [message] },
+    { type: "agent_end", messages: [message], willRetry: false },
   ];
 }

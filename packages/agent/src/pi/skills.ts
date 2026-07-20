@@ -1,4 +1,4 @@
-import { loadSkills } from "@mariozechner/pi-coding-agent";
+import { loadSkills } from "@earendil-works/pi-coding-agent";
 
 import type { SkillInfo } from "@repo/bridge/ipc-registry";
 
