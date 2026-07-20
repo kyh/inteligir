@@ -20,6 +20,13 @@ export type VaultEntry = {
   readonly isDirectory: boolean;
 };
 
+/** The cheap stat of a vault file — the raw fields the sync fingerprint is
+ * built from. `lastModified` is milliseconds since epoch. */
+type VaultStat = {
+  readonly lastModified: number;
+  readonly size: number;
+};
+
 /**
  * Thrown by a `VaultFs` when the vault ROOT itself cannot be read. To a
  * directory walk a missing root is indistinguishable from "every file was
@@ -55,6 +62,11 @@ export type VaultFs = {
   writeBytes(path: VaultPath, bytes: Uint8Array): void;
   /** Remove a vault file (idempotent — absent is fine). */
   remove(path: VaultPath): void;
+  /** Cheap stat of a vault file, or `null` when it is missing or unreadable.
+   * MUST return `null` (never a guessed/stale value) on ANY doubt: the stat
+   * feeds the sync engine's hash cache, where a wrong-but-stable value would
+   * license reusing a stale content hash — a silently missed edit. */
+  stat(path: VaultPath): VaultStat | null;
 };
 
 /** Depth-first collect every FILE under `relDir` as sorted vault-relative paths. */
@@ -78,6 +90,24 @@ export function createSyncIo(fs: VaultFs): SyncIo {
     },
     remove: (path) => {
       fs.remove(path);
+    },
+    // Change-detection key for the engine's stat-keyed hash cache:
+    // `${lastModified}:${size}`. A content change moves at least one of the two
+    // in every ordinary case — size catches length changes, lastModified
+    // catches same-length edits. The theoretical residue (same size + same
+    // ms-granularity mtime + different bytes) is the SAME gap the desktop's
+    // mtime-based fingerprint accepts (mobile just lacks its `ino` third
+    // field), and the engine invalidates its own writes explicitly, so a
+    // matching key only ever licenses reuse across EXTERNAL quiet periods.
+    // Any stat failure yields null — the engine then re-hashes: fail toward
+    // slow-but-correct, never toward fast-but-stale.
+    fingerprint: (path) => {
+      try {
+        const stat = fs.stat(path);
+        return stat === null ? null : `${stat.lastModified}:${stat.size}`;
+      } catch {
+        return null;
+      }
     },
   };
 }

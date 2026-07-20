@@ -38,6 +38,46 @@ describe("createSyncIo", () => {
     expect(io.list()).toEqual([]);
   });
 
+  // The engine's hash-cache fingerprint (#434). THE INVARIANT: a content
+  // change must move the fingerprint; any stat doubt must yield null (the
+  // engine's re-hash fallback), never a guessed value that could license
+  // reusing a stale hash.
+  describe("fingerprint", () => {
+    it("derives `lastModified:size` from the VaultFs stat", () => {
+      const vault = memVaultFs();
+      vault.writeText("a.md", "hello");
+      const io = createSyncIo(vault.fs);
+      const stat = vault.fs.stat("a.md");
+      expect(stat).not.toBeNull();
+      expect(io.fingerprint?.("a.md")).toBe(`${stat?.lastModified}:${stat?.size}`);
+    });
+
+    it("moves on a rewrite even when the content length is unchanged", () => {
+      const vault = memVaultFs();
+      vault.writeText("a.md", "hello");
+      const io = createSyncIo(vault.fs);
+      const before = io.fingerprint?.("a.md");
+      vault.writeText("a.md", "world"); // same byte length — only mtime moves
+      expect(io.fingerprint?.("a.md")).not.toBe(before);
+    });
+
+    it("is null for an absent file", () => {
+      expect(createSyncIo(memVaultFs().fs).fingerprint?.("missing.md")).toBeNull();
+    });
+
+    it("is null when the stat throws (fail toward re-hashing)", () => {
+      const vault = memVaultFs();
+      vault.writeText("a.md", "hello");
+      const throwingStat: VaultFs = {
+        ...vault.fs,
+        stat: () => {
+          throw new Error("stat failed");
+        },
+      };
+      expect(createSyncIo(throwingStat).fingerprint?.("a.md")).toBeNull();
+    });
+  });
+
   // The VaultFs contract (#429): a missing ROOT throws (expo-vault-fs's
   // listDir("")), and list() must PROPAGATE it — never swallow it into an
   // empty listing, which the engine would reconcile as a mass deletion.
