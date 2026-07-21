@@ -25,7 +25,7 @@ import { resetCaptureManager } from "../capture/capture-manager";
 import { getRestoreManager, resetRestoreManager } from "../restore/restore-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { resetSnapshotStore } from "../restore/snapshot-store";
-import { getKnowledgeManager } from "../knowledge/knowledge-manager";
+import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "@repo/connectors/executor-client";
 import {
   EXECUTOR_CLI,
@@ -172,7 +172,12 @@ export async function loginAgent(): Promise<void> {
  * account, and every other app store die together; provider disconnect and
  * account sign-out are independent actions that touch only their own storage
  * (#459 teardown decouple). Leaves vault writes SUSPENDED — the RESET effect
- * resumes them before re-seeding. */
+ * resumes them before re-seeding.
+ *
+ * COMPLETENESS: every disposable host singleton MUST appear here (directly or
+ * via a cascaded reset) — teardown-completeness.test.ts enforces it. A
+ * singleton missed here survives the wipe with warm caches/open handles
+ * pointed at deleted files. */
 export function teardownAgentResources(): void {
   // Drop singletons that hold JsonStore caches BEFORE removing the directory,
   // so an in-flight debounced write can't resurrect a store file from a warm
@@ -191,6 +196,11 @@ export function teardownAgentResources(): void {
   resetUiState();
   resetSecretStore();
   resetProviderConfig();
+  // Release the knowledge singleton (cancels pending reconcile work + closes
+  // the sqlite index handle) BEFORE the rm deletes the index file — an open
+  // handle on a deleted file is a silent leak on POSIX and a hard rm failure
+  // on Windows.
+  disposeKnowledgeManager();
   // Suspend vault writes BEFORE wiping ~/.inteligir, so a late autosave from a
   // still-mounted panel can't rebuild a fresh manager at the default root and
   // write the user's edits there (or recreate app data).

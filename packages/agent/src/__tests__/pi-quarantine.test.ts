@@ -2,11 +2,12 @@
 // pi-quarantine guard (#460): `@earendil-works/pi*` (pi-coding-agent /
 // pi-ai / pi-agent-core — the maintained successor scope of the deprecated
 // predecessor, #430) may be imported ONLY inside the harness quarantine —
-// the server/pi/* wrappers, the faux stub, and two named tests. Everything
-// else (agent/*, handlers, delegation, the entire renderer) must go through
-// the wrappers, so a future harness swap is bounded to the quarantine (see
-// server/pi/README.md, the Harness contract). A pi import anywhere else
-// fails here before it can calcify. Mirrors account-boundary.test.ts.
+// the packages/agent/src/pi/* wrappers, the faux stub, and two named tests.
+// Everything else (agent/*, handlers, delegation, the entire renderer) must
+// go through the wrappers, so a future harness swap is bounded to the
+// quarantine (see packages/agent/src/pi/README.md, the Harness contract). A
+// pi import anywhere else fails here before it can calcify. Mirrors
+// account-boundary.test.ts.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -15,19 +16,20 @@ import path from "node:path";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
 
-/** Source trees the guard sweeps (product code on every platform). */
-const SCANNED_DIRS = [
-  "packages/agent/src",
-  "packages/bridge/src",
-  "packages/installer/src",
-  "packages/server/src",
-  "packages/notes/src",
-  "packages/ui/src",
-  "apps/desktop/src",
-  "apps/desktop/dev",
-  "apps/mobile/src",
-  "apps/web/src",
-];
+/** Source trees the guard sweeps (product code on every platform) — DERIVED
+ * from the filesystem (every `packages/<p>/src` + `apps/<a>/src`, plus
+ * `apps/desktop/dev` where the fixture Bridge lives), so a future package or
+ * app is swept automatically instead of drifting out of a hand list. */
+function scannedDirs(): string[] {
+  const dirs: string[] = [];
+  for (const parent of ["packages", "apps"]) {
+    for (const entry of fs.readdirSync(path.join(REPO_ROOT, parent), { withFileTypes: true })) {
+      if (entry.isDirectory()) dirs.push(path.join(parent, entry.name, "src"));
+    }
+  }
+  dirs.push("apps/desktop/dev");
+  return dirs;
+}
 
 const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".cache", ".output", ".expo", "coverage"]);
 
@@ -63,7 +65,7 @@ function walk(dir: string, out: string[]): void {
 
 function sourceFiles(): string[] {
   const files: string[] = [];
-  for (const dir of SCANNED_DIRS) {
+  for (const dir of scannedDirs()) {
     const abs = path.join(REPO_ROOT, dir);
     if (fs.existsSync(abs)) walk(abs, files);
   }
@@ -75,7 +77,7 @@ function rel(file: string): string {
 }
 
 describe("pi quarantine (#460)", () => {
-  it("only server/pi/*, the faux stub, and the two named tests import @earendil-works/pi*", () => {
+  it("only agent/src/pi/*, the faux stub, and the two named tests import @earendil-works/pi*", () => {
     const violations: string[] = [];
     for (const file of sourceFiles()) {
       const relative = rel(file);
@@ -86,8 +88,8 @@ describe("pi quarantine (#460)", () => {
     }
     expect(
       violations,
-      `pi imported outside the harness quarantine — go through the server/pi/* wrappers ` +
-        `(see server/pi/README.md):\n${violations.join("\n")}`,
+      `pi imported outside the harness quarantine — go through the packages/agent/src/pi/* ` +
+        `wrappers (see packages/agent/src/pi/README.md):\n${violations.join("\n")}`,
     ).toEqual([]);
   });
 });

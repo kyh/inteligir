@@ -17,24 +17,20 @@ import path from "node:path";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
 
-/** Source trees the guard sweeps (product code on every platform). */
-const SCANNED_DIRS = [
-  "packages/agent/src",
-  "packages/bridge/src",
-  "packages/connectors/src",
-  "packages/installer/src",
-  "packages/server/src",
-  "packages/notes/src",
-  "packages/storage/src",
-  "packages/sync/src",
-  "packages/ui/src",
-  "packages/vault/src",
-  "packages/voice/src",
-  "apps/desktop/src",
-  "apps/desktop/dev",
-  "apps/mobile/src",
-  "apps/web/src",
-];
+/** Source trees the guard sweeps (product code on every platform) — DERIVED
+ * from the filesystem (every `packages/<p>/src` + `apps/<a>/src`, plus
+ * `apps/desktop/dev` where the fixture Bridge lives), so a future package or
+ * app is swept automatically instead of drifting out of a hand list. */
+function scannedDirs(): string[] {
+  const dirs: string[] = [];
+  for (const parent of ["packages", "apps"]) {
+    for (const entry of fs.readdirSync(path.join(REPO_ROOT, parent), { withFileTypes: true })) {
+      if (entry.isDirectory()) dirs.push(path.join(parent, entry.name, "src"));
+    }
+  }
+  dirs.push("apps/desktop/dev");
+  return dirs;
+}
 
 const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".cache", ".output", ".expo", "coverage"]);
 
@@ -75,7 +71,7 @@ function walk(dir: string, out: string[]): void {
 
 function sourceFiles(): string[] {
   const files: string[] = [];
-  for (const dir of SCANNED_DIRS) {
+  for (const dir of scannedDirs()) {
     const abs = path.join(REPO_ROOT, dir);
     if (fs.existsSync(abs)) walk(abs, files);
   }
