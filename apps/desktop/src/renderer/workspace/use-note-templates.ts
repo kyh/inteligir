@@ -13,7 +13,7 @@ import {
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultActions } from "@renderer/workspace/vault-context";
 
 const parseString = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined;
@@ -32,7 +32,7 @@ async function readTemplate(path: string): Promise<string | null> {
  * Open-or-create, so a name collision just opens the existing note untouched.
  */
 export function useCreateFromTemplate(): (templatePath: string, rawName: string) => void {
-  const { openOrCreateNote } = useVault();
+  const { openOrCreateNote } = useVaultActions();
   return useCallback(
     (templatePath: string, rawName: string) => {
       const name = rawName.trim();
@@ -56,7 +56,7 @@ export function useCreateFromTemplate(): (templatePath: string, rawName: string)
  * is seeded from it with placeholders substituted; otherwise it starts empty.
  */
 export function useOpenDailyNote(): () => void {
-  const { openOrCreateNote } = useVault();
+  const { openOrCreateNote } = useVaultActions();
   const [folder] = useDiskState(DAILY_FOLDER_KEY, DEFAULT_DAILY_FOLDER, parseString);
   const [format] = useDiskState(DAILY_FORMAT_KEY, DEFAULT_DAILY_FORMAT, parseString);
   return useCallback(() => {

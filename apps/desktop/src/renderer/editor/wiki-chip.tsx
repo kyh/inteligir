@@ -13,7 +13,7 @@ import { FilePlusIcon } from "lucide-react";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/utils";
 
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 /** Shared chip label: alias wins, else target(+anchor) as written. */
@@ -29,7 +29,8 @@ export const UNRESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm px-1 text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-2 transition-colors hover:bg-muted";
 
 export default function WikiChip({ body }: { body: string }) {
-  const { resolveWikiTarget, openFile, createFile } = useVault();
+  const { resolveWikiTarget } = useVaultListing();
+  const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
   const chipRef = useRef<HTMLButtonElement>(null);
 

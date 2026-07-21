@@ -27,7 +27,8 @@ import { injectHtmlAppRuntime } from "@/html-app-inject";
 import { getBridge } from "@renderer/lib/bridge";
 import { handleBrokerRequest } from "@renderer/workspace/html-app-broker";
 import { openDocPath } from "@renderer/workspace/open-doc";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { useVaultActions } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
@@ -52,8 +53,8 @@ function isElectronHost(): boolean {
 }
 
 export function HtmlAppView() {
-  const { openDoc, openFile, showHtmlAsText } = useVault();
-  const openPath = openDocPath(openDoc);
+  const { openFile, showHtmlAsText } = useVaultActions();
+  const openPath = useOpenNote((s) => openDocPath(s.openDoc));
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

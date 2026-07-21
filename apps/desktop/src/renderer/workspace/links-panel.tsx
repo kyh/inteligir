@@ -21,7 +21,7 @@ import {
 } from "@repo/ui/components/collapsible";
 
 import { getBridge } from "@renderer/lib/bridge";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultActions } from "@renderer/workspace/vault-context";
 import type { BacklinkEntry, ForwardLinkEntry } from "@repo/notes/knowledge/link-graph-index";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -91,7 +91,7 @@ function LinkGroupList({ groups }: { groups: LinkGroup[] }) {
 // ---------------------------------------------------------------------------
 
 export function BacklinksPanel({ path }: { path: string }) {
-  const { openFile } = useVault();
+  const { openFile } = useVaultActions();
   const [backlinks, setBacklinks] = useState<BacklinkEntry[]>([]);
 
   const refresh = useCallback((notePath: string) => {
@@ -153,7 +153,7 @@ export function BacklinksPanel({ path }: { path: string }) {
 // ---------------------------------------------------------------------------
 
 export function ForwardLinksPanel({ path }: { path: string }) {
-  const { openFile } = useVault();
+  const { openFile } = useVaultActions();
   const [links, setLinks] = useState<ForwardLinkEntry[]>([]);
 
   const refresh = useCallback((notePath: string) => {

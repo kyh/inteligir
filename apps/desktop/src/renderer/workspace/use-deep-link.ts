@@ -14,7 +14,7 @@ import type { DeepLinkNav, DeepLinkNavEvent } from "@repo/bridge/deep-link";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 
 export type DeepLinkNavPorts = {
   /** Subscribe to pushed nav events. Returns unsubscribe. */
@@ -54,7 +54,8 @@ export function connectDeepLinkNav(ports: DeepLinkNavPorts): () => void {
  * query prefilled.
  */
 export function useDeepLinkNav(onSearch: (query: string) => void): void {
-  const { entries, openFile, resolveWikiTarget } = useVault();
+  const { entries, resolveWikiTarget } = useVaultListing();
+  const { openFile } = useVaultActions();
   const openDailyNote = useOpenDailyNote();
 
   // Effect-event so the one-shot subscription reads live vault state.

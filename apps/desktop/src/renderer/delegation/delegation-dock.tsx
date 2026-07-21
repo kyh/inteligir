@@ -23,7 +23,7 @@ import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 
 import { useDelegationStore } from "@renderer/stores/delegation-store";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultListing } from "@renderer/workspace/vault-context";
 import type { Delegation } from "@repo/bridge/delegation";
 
 /**
@@ -39,7 +39,7 @@ export function DelegationDock() {
   const streams = useDelegationStore((s) => s.streams);
   const cancel = useDelegationStore((s) => s.cancel);
   const restore = useDelegationStore((s) => s.restore);
-  const { entries } = useVault();
+  const { entries } = useVaultListing();
   const [tracked, setTracked] = useState<ReadonlySet<string>>(new Set());
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   // The delegation awaiting restore confirmation (null = dialog closed).

@@ -34,7 +34,7 @@ import {
 import { insertWikiChipFromPicker } from "@renderer/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@renderer/editor/wiki-input-key";
 import { composeWikiBody, wikiBodyForPath } from "@renderer/editor/wiki-target";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
@@ -54,7 +54,8 @@ const wikiFilter: FilterFn = (item, search) => {
 
 function WikiInputElement(props: PlateElementProps) {
   const { children, editor, element } = props;
-  const { resolveWikiTarget, createFileAt } = useVault();
+  const { resolveWikiTarget } = useVaultListing();
+  const { createFileAt } = useVaultActions();
   const [value, setValue] = useState("");
   const [targets, setTargets] = useState<WikiTarget[]>([]);
 
