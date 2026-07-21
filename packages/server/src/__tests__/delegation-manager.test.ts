@@ -258,9 +258,12 @@ describe("DelegationManager run lifecycle", () => {
     live = "## Today\n\nSome new note above.\n\n- [ ] task one\n- [ ] task two\n";
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
-    await flush();
-
-    expect(mgr.getDelegations()[0]?.status).toBe("running");
+    // Poll the terminal state rather than a single tick: dispatch runs through
+    // several async hops (processNext → run → resolve), and one setTimeout(0) is
+    // not guaranteed to cover them on a contended CI runner.
+    await vi.waitFor(() => {
+      expect(mgr.getDelegations()[0]?.status).toBe("running");
+    });
     expect(fake.prompts[0]).toContain("task one");
   });
 
@@ -280,10 +283,10 @@ describe("DelegationManager run lifecycle", () => {
     live = "## Today\n\n- [ ] inserted\n- [ ] task one\n- [ ] task two\n";
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
-    await flush();
-
+    await vi.waitFor(() => {
+      expect(mgr.getDelegations()[0]?.status).toBe("failed");
+    });
     const d = mgr.getDelegations()[0];
-    expect(d?.status).toBe("failed");
     expect(d?.error).toContain("changed");
     expect(fake.prompts.length).toBe(0);
   });
@@ -301,10 +304,10 @@ describe("DelegationManager run lifecycle", () => {
     live = "## Today\n\n(all tasks removed)\n";
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
-    await flush();
-
+    await vi.waitFor(() => {
+      expect(mgr.getDelegations()[0]?.status).toBe("failed");
+    });
     const d = mgr.getDelegations()[0];
-    expect(d?.status).toBe("failed");
     expect(d?.error).toContain("no longer");
     expect(fake.prompts.length).toBe(0);
   });
