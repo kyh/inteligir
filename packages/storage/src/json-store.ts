@@ -5,8 +5,8 @@ import os from "node:os";
 import { type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 import { atomicWrite } from "./atomic-write";
+import { isRecord, toErrorMessage } from "./fs-errors";
 
 const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
 

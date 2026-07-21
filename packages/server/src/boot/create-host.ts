@@ -32,7 +32,8 @@ import {
   setSyncEventSink,
   setSyncVaultAccessor,
 } from "@repo/sync/sync-coordinator";
-import { installHostRuntime } from "../platform-instance";
+import { setSyncBrowserOpener } from "@repo/sync/sync-account";
+import { installHostRuntime, openExternalHttpUrl } from "../platform-instance";
 import {
   getVaultManager,
   setVaultChangeNotifier,
@@ -93,6 +94,11 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // extracted-pkg→extracted-pkg singleton coupling); the accessor keeps a
   // logout/login vault rebuild transparent.
   setSyncVaultAccessor(getVaultManager);
+
+  // Social sign-in opens the coordinator-supplied authorization URL through
+  // the guarded host opener (scheme-checked; sync/ never owns a browser
+  // launcher). No opener installed = socialSignIn refuses with {ok:false}.
+  setSyncBrowserOpener(openExternalHttpUrl);
 
   // Voice's model machinery resolves the per-user data dir + progress events
   // through this seam (voice/ never imports the platform seam or the event

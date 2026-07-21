@@ -20,8 +20,7 @@ import {
   getBundledGoogleClient,
 } from "@repo/connectors/google-oauth-client";
 import type { HandlerRegistrar } from "./handler-registry";
-import { getHostOptions, getPlatform } from "../platform-instance";
-import { isHttpUrl } from "@repo/bridge/wire-helpers";
+import { getHostOptions, openExternalHttpUrl } from "../platform-instance";
 import type { ExecutorStatus } from "@repo/bridge/ipc-registry";
 
 // The real ports the connector orchestration runs on: the executor-client 1:1,
@@ -41,12 +40,10 @@ const connectorOps: ConnectorInstallOps = {
   oauthProbe: executor.oauthProbe,
   oauthStart: executor.oauthStart,
   awaitOAuth: executor.awaitOAuth,
-  openExternal: async (url) => {
-    // Throw on a non-http(s) URL so the install fails fast (and the renderer
-    // sees the message) rather than an OAuth flow silently timing out.
-    if (!isHttpUrl(url)) throw new Error(`refusing to open non-http URL: ${url}`);
-    await getPlatform().openExternal(url);
-  },
+  // Guarded shared opener: throws on a non-http(s) URL so the install fails
+  // fast (and the renderer sees the message) rather than an OAuth flow
+  // silently timing out.
+  openExternal: openExternalHttpUrl,
   waitMs: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 

@@ -6,7 +6,6 @@
 // callers: agent/ receives, never chooses.
 
 import fs from "node:fs";
-import open from "open";
 
 import {
   createModelRuntime,
@@ -54,11 +53,20 @@ export function isProviderAuthed(provider: string): boolean {
 // NOTE: after a successful login the shell write-suspension must be lifted
 // (resumeShellWrites). That is the host's concern — server/boot/agent-wiring.ts
 // wraps this in loginAgent(); call that, not this, from app lifecycle code.
-export async function login(provider: string): Promise<void> {
+// `openUrl` is the host's browser opener (HostPlatform.openExternal via the
+// guarded openExternalHttpUrl) — agent/ receives, never owns an OS capability.
+export async function login(
+  provider: string,
+  openUrl: (url: string) => void | Promise<void>,
+): Promise<void> {
   const epoch = authEpoch;
   await loginWithProvider(await getModelRuntime(), provider, {
     onAuth: (info) => {
-      void open(info.url);
+      // Fire-and-forget: pi keeps waiting for the OAuth round-trip either
+      // way; a failed browser launch surfaces as a warn, not a turn error.
+      void (async () => openUrl(info.url))().catch((err: unknown) => {
+        console.warn("[agent] failed to open the auth URL in a browser:", err);
+      });
     },
   });
   if (epoch !== authEpoch) {
