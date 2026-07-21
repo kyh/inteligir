@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -23,16 +22,18 @@ import {
   registerOpenNotePrivacy,
 } from "@renderer/workspace/open-note-flush";
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
-import {
-  type GateReason,
-  analyzeMarkdown,
-  describeGateReason,
-  gateReasonFor,
-} from "@renderer/editor/markdown/markdown-doc";
 import { getLiveEditor } from "@renderer/editor/live-editor";
 import { createCaptureApplier, insertCaptureLine } from "@renderer/workspace/capture-apply";
 import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-runtime";
-import { type OpenDoc, deriveOpenDoc, isMarkdownPath } from "@renderer/workspace/open-doc";
+import { type OpenDoc } from "@renderer/workspace/open-doc";
+import {
+  publishEditor,
+  publishOpenPath,
+  setOpenNoteMode,
+  showOpenHtmlAsApp,
+  showOpenHtmlAsText,
+  useOpenNote,
+} from "@renderer/workspace/open-note-store";
 import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
@@ -41,7 +42,6 @@ import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
-const HTML_RE = /\.html$/i;
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
 
 /** ui-state key the open note persists under (restored on boot). */
@@ -85,26 +85,21 @@ const VAULT_IO: VaultIO = {
       .then(() => undefined),
 };
 
-// The `editor` snapshot rendered while no note is open. Root lives at the
-// provider level (state below), so this can be a stable module constant.
-const NO_NOTE_STATE: VaultEditorState = {
-  root: "",
-  path: null,
-  content: "",
-  dirty: false,
-  saving: false,
-};
-const noNoteSubscribe = () => () => {};
-const getNoNoteState = () => NO_NOTE_STATE;
+// ---------------------------------------------------------------------------
+// The three exposure seams (#470), split by change CADENCE so a keystroke
+// re-renders only what depends on the open note's content:
+// - VaultActionsContext — the stable callbacks (identity never changes).
+//   Consumers that only ACT (wiki chips, palette actions, sidebar handlers)
+//   never re-render from vault state at all.
+// - VaultListingContext — entries + folderName + resolveWikiTarget; changes
+//   only on a structural refresh (or when the wiki resolver rebuilds).
+// - useOpenNote (open-note-store.ts) — the high-cadence open-note slice,
+//   subscribed via selectors.
+// ---------------------------------------------------------------------------
 
-type VaultContextValue = {
-  /** Live editor session state of the open note (file, content, dirty,
-   * saving). A stable empty snapshot when no note is open. */
-  editor: VaultEditorState;
-  /** Flat listing of every file in the vault (the tree is derived from it). */
-  entries: VaultEntry[];
-  /** The vault root folder name (display only). */
-  folderName: string;
+/** The stable vault actions — one object, identity fixed for the provider's
+ * lifetime, so action-only consumers never re-render on vault state. */
+export type VaultActions = {
   /** Open a file, replacing the current note. Pending edits on the current
    * note are flushed first; a failed flush refuses to navigate. */
   openFile: (path: string) => void;
@@ -139,62 +134,46 @@ type VaultContextValue = {
   /** Persist the open note's pending edits to disk now (e.g. before
    * delegating a checkbox). Resolves `true` once the buffer is clean. */
   flush: () => Promise<boolean>;
-  /** Resolve a wiki target (`[[target]]`) against the current file listing —
-   * the same Obsidian-style tiers the host's knowledge index uses. */
-  resolveWikiTarget: (target: string) => string | null;
   /** Rebuild the ephemeral vault snapshot now (re-list + reindex + sync kick).
    * The command palette's "Refresh vault" invokes this; window focus does too,
    * debounced (vault liveness — CLAUDE.md § Decisions). */
   refreshVault: () => void;
-  // ---- Open document (lifted so the header can own the controls) -----------
-  /** The open document as ONE discriminated union — none / loading /
-   * non-markdown / markdown (path + privacy + effective editing surface).
-   * Illegal combinations of the old flat view fields are unrepresentable;
-   * consumers switch on `openDoc.kind` (see open-doc.ts). */
-  openDoc: OpenDoc;
   /** The user's raw/rich pick for a rich-capable markdown note (the header
    * toggle). Honored only while rich is available — a gated note shows Raw
    * regardless, and the pick survives a mid-session gate flip so a note that
    * recovers pops back to the surface the user chose. */
   setMode: (mode: "raw" | "rich") => void;
-
-  // ---- HTML Apps -----------------------------------------------------------
-  /** Whether the open file is a vault `.html` file (renderable as an app). */
-  openIsHtml: boolean;
-  /** Whether to show the open `.html` as a sandboxed app (vs. as raw text). App
-   * is the default on open; "Open as text" flips it. Only meaningful when
-   * `openIsHtml`. */
-  isHtmlApp: boolean;
   /** Show the open `.html` as raw text in the editor ("Open as text"). */
   showHtmlAsText: () => void;
   /** Show the open `.html` as a sandboxed app again ("Open as app"). */
   showHtmlAsApp: () => void;
 };
 
-// Gate policy: classify SAVED bytes with the full round-trip oracle
-// (parse + vocabulary + serialize + bounded fixpoint + content-loss check) so
-// a serializer bug on in-vocabulary content gates the file to Raw instead of
-// letting the first Rich save persist corrupted bytes. A pipeline THROW —
-// markdown-doc deliberately rethrows non-depth errors as real bugs — degrades
-// to Raw here too, rather than crashing the surface (the seedValue
-// never-crash precedent). Residual window: the oracle sees bytes at open and
-// save-settle; a bug triggered only by newly-typed content still lands ONE
-// corrupt save before the post-save re-analysis flips the gate ("file went
-// Raw mid-session" in triage = that save may already be on disk).
-function safeGateReason(md: string): GateReason | null {
-  try {
-    return gateReasonFor(analyzeMarkdown(md));
-  } catch (error) {
-    console.error("Markdown gate analysis failed", error);
-    return { kind: "parse-error", line: null, message: "Editor pipeline error" };
-  }
+/** The vault listing — changes only on a structural refresh, never on typing. */
+export type VaultListing = {
+  /** Flat listing of every file in the vault (the tree is derived from it). */
+  entries: VaultEntry[];
+  /** The vault root folder name (display only). */
+  folderName: string;
+  /** Resolve a wiki target (`[[target]]`) against the current file listing —
+   * the same Obsidian-style tiers the host's knowledge index uses. Identity
+   * changes when the resolver rebuilds (listing / alias refresh), so chips
+   * that render a resolved/unresolved state re-render exactly then. */
+  resolveWikiTarget: (target: string) => string | null;
+};
+
+const VaultActionsContext = createContext<VaultActions | null>(null);
+const VaultListingContext = createContext<VaultListing | null>(null);
+
+export function useVaultActions(): VaultActions {
+  const ctx = useContext(VaultActionsContext);
+  if (!ctx) throw new Error("useVaultActions must be used within a VaultProvider");
+  return ctx;
 }
 
-const VaultContext = createContext<VaultContextValue | null>(null);
-
-export function useVault(): VaultContextValue {
-  const ctx = useContext(VaultContext);
-  if (!ctx) throw new Error("useVault must be used within a VaultProvider");
+export function useVaultListing(): VaultListing {
+  const ctx = useContext(VaultListingContext);
+  if (!ctx) throw new Error("useVaultListing must be used within a VaultProvider");
   return ctx;
 }
 
@@ -205,23 +184,23 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   // ---- Open note -----------------------------------------------------------
   // The ref is the source of truth every operation reads and writes
-  // SYNCHRONOUSLY; the state is its render mirror. Keeping mutations out of
-  // setState updaters keeps them single-shot under StrictMode's double-invoke.
+  // SYNCHRONOUSLY; the open-note store is its exposure mirror. Keeping
+  // mutations out of setState updaters keeps them single-shot under
+  // StrictMode's double-invoke.
   const openPathRef = useRef<string | null>(null);
-  const [openPath, setOpenPath] = useState<string | null>(null);
   const runtimeRef = useRef<NoteRuntime | null>(null);
+  // The provider's own subscription publishing this runtime's controller
+  // emissions into the open-note store (separate from the runtime's internal
+  // vanish watcher — dispose must clear both).
+  const runtimeSubRef = useRef<(() => void) | null>(null);
   const setUiState = useUiStateStore((s) => s.set);
   const uiLoaded = useUiStateStore((s) => s.loaded);
-  // Per-open view choice for `.html` files: app (default) vs. raw text. Reset
-  // on every open so a new `.html` always starts as an app.
-  const [htmlAsText, setHtmlAsText] = useState(false);
 
   const applyOpenPath = useCallback(
     (next: string | null) => {
       if (next === openPathRef.current) return;
       openPathRef.current = next;
-      setOpenPath(next);
-      setHtmlAsText(false);
+      publishOpenPath(next);
       setUiState(OPEN_NOTE_KEY, next);
       // Point the host's single open-note watcher at the new file (or clear it).
       // This is the only file watched for external edits (vault liveness —
@@ -234,6 +213,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   const disposeRuntime = useCallback(() => {
+    runtimeSubRef.current?.();
+    runtimeSubRef.current = null;
     runtimeRef.current?.dispose();
     runtimeRef.current = null;
   }, []);
@@ -259,6 +240,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         onVanished: dropNote,
       });
       runtimeRef.current = runtime;
+      // Publish this runtime's controller emissions into the open-note store —
+      // synchronously with each emission, so a keystroke's value lands in the
+      // same event flush (see open-note-store.ts). Subscribe BEFORE the first
+      // publish so no emission can slip between snapshot and subscription.
+      const publish = () => publishEditor(runtime.controller.getState());
+      runtimeSubRef.current = runtime.controller.subscribe(publish);
+      publish();
       return runtime;
     },
     [dropNote],
@@ -300,13 +288,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       })();
     },
     [applyOpenPath, disposeRuntime, ensureRuntime, flushCurrent],
-  );
-
-  // ---- Open-note editor state ----------------------------------------------
-  const activeController = openPath !== null ? (runtimeRef.current?.controller ?? null) : null;
-  const editor = useSyncExternalStore(
-    activeController ? activeController.subscribe : noNoteSubscribe,
-    activeController ? activeController.getState : getNoNoteState,
   );
 
   // Ordering token so overlapping list calls (initial load + onVaultChanged, or
@@ -682,126 +663,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [resolver],
   );
 
-  // ---- Editor view (mode + parseability) -----------------------------------
-  const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
-  const [mode, setMode] = useState<"raw" | "rich">("raw");
-  // Analysis timing is SPLIT by what's at stake:
-  // - Path change: derived in LOCKSTEP with (path, content) within a single
-  //   render — the state-adjustment-during-render pattern. Recomputing in an
-  //   effect committed one frame where a freshly opened Raw-only file still
-  //   wore the PREVIOUS file's verdict: the rich editor mounted against
-  //   unparseable bytes (console error + a throwaway editor instance) before
-  //   the effect corrected the gate. Adjusting state during render re-renders
-  //   before any child mounts, so the gate and the content can never disagree.
-  // - Same-path content change (every 600ms autosave settle): deferred to a
-  //   microtask (not an idle callback — bounded latency). analyzeMarkdown is
-  //   a full Slate construct + remark parse + serialize (up to 3 passes);
-  //   running it synchronously in render blocked every autosave commit. The
-  //   accepted window is one frame at most: the note is ALREADY rendered with
-  //   the prior verdict for the same path, and the flip toast below is
-  //   async anyway, so a one-frame-late gate flip is invisible. The microtask
-  //   rechecks path+content against the live buffer before applying and
-  //   drops itself when superseded or cancelled by a path change.
-  const [analyzed, setAnalyzed] = useState<{
-    rawReason: GateReason | null;
-    content: string;
-    path: string | null;
-  }>({ rawReason: null, content: "", path: null });
-  // Live mirror + pending deferred-analysis target for the microtask's
-  // recheck (render-phase ref writes are safe here: pure value mirrors).
-  const liveEditorRef = useRef(editor);
-  liveEditorRef.current = editor;
-  const pendingAnalysisRef = useRef<{ path: string | null; content: string } | null>(null);
-  // While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
-  // intentionally retained — one analysis pass per SAVED content change (the
-  // Raw badge + the `showRich` gate), not per keystroke.
-  const pathChanged = analyzed.path !== editor.path;
-  if ((pathChanged || analyzed.content !== editor.content) && !editor.dirty) {
-    // Rich is the default surface: any file that parses within the vocabulary
-    // AND round-trips losslessly opens rich (normalizing on the first real
-    // edit); unrepresentable content (unknown JSX, parse errors) and files
-    // whose round-trip would lose content are Raw-only.
-    if (pathChanged) {
-      pendingAnalysisRef.current = null; // cancel any deferred same-path pass
-      const rawReason =
-        isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
-      setAnalyzed({ rawReason, content: editor.content, path: editor.path });
-      // The mode (raw/rich) is the user's choice, picked once per file open — a
-      // post-save flush (dirty→false, content unchanged) and an external/agent
-      // reload of the same file must not yank the user out of the surface they
-      // picked. (The exposed surface is the EFFECTIVE one — deriveOpenDoc shows
-      // rich only while the gate is clear — so a file that turns unparseable
-      // out from under us still falls back to raw regardless.)
-      setMode(isMarkdownOpen && rawReason === null ? "rich" : "raw");
-    } else {
-      const pending = pendingAnalysisRef.current;
-      if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
-        const target = { path: editor.path, content: editor.content };
-        pendingAnalysisRef.current = target;
-        const markdownOpen = isMarkdownOpen;
-        queueMicrotask(() => {
-          // Identity check: superseded by newer content or cancelled by a
-          // path change (both replace/null the ref) → this pass is stale.
-          if (pendingAnalysisRef.current !== target) return;
-          pendingAnalysisRef.current = null;
-          const live = liveEditorRef.current;
-          if (live.path !== target.path || live.content !== target.content || live.dirty) return;
-          const rawReason =
-            markdownOpen && target.content.trim() !== "" ? safeGateReason(target.content) : null;
-          setAnalyzed({ rawReason, content: target.content, path: target.path });
-        });
-      }
-    }
-  }
-
-  // A mid-session Rich→Raw flip (post-save re-analysis caught a serializer
-  // bug, or an external reload landed unrepresentable content) swaps Plate for
-  // the textarea under the user's cursor — explain the yank once. Fresh opens
-  // (pathChanged) don't toast: the badge covers them.
-  const gateFlipRef = useRef<{ path: string | null; rawReason: GateReason | null }>({
-    path: null,
-    rawReason: null,
-  });
-  useEffect(() => {
-    const prev = gateFlipRef.current;
-    gateFlipRef.current = { path: analyzed.path, rawReason: analyzed.rawReason };
-    if (
-      analyzed.path !== null &&
-      prev.path === analyzed.path &&
-      prev.rawReason === null &&
-      analyzed.rawReason !== null &&
-      mode === "rich"
-    ) {
-      toast.warning(`Switched to Raw editing — ${describeGateReason(analyzed.rawReason)}`);
-    }
-  }, [analyzed, mode]);
-
-  // ---- The open document (the exposed ADT) ---------------------------------
-  // Derived in lockstep with (openPath, editor, analysis, mode) — deriveOpenDoc
-  // is pure, so the union can never disagree with the values it came from.
-  const openDoc = useMemo<OpenDoc>(
-    () =>
-      deriveOpenDoc({
-        openPath,
-        loadedPath: editor.path,
-        content: editor.content,
-        rawReason: analyzed.rawReason,
-        chosenMode: mode,
-      }),
-    [openPath, editor.path, editor.content, analyzed.rawReason, mode],
-  );
-
-  // ---- HTML Apps -----------------------------------------------------------
-  const openIsHtml = openPath !== null && HTML_RE.test(openPath);
-  const isHtmlApp = openIsHtml && !htmlAsText;
-  const showHtmlAsText = useCallback(() => setHtmlAsText(true), []);
-  const showHtmlAsApp = useCallback(() => setHtmlAsText(false), []);
-
-  const value = useMemo<VaultContextValue>(
+  // Stable for the provider's lifetime — every dep is a stable callback.
+  const actions = useMemo<VaultActions>(
     () => ({
-      editor,
-      entries,
-      folderName,
       openFile,
       editNote,
       registerNoteSerializeFlush,
@@ -812,19 +676,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       deleteEntry,
       changeFolder,
       flush,
-      resolveWikiTarget,
       refreshVault,
-      openDoc,
-      setMode,
-      openIsHtml,
-      isHtmlApp,
-      showHtmlAsText,
-      showHtmlAsApp,
+      setMode: setOpenNoteMode,
+      showHtmlAsText: showOpenHtmlAsText,
+      showHtmlAsApp: showOpenHtmlAsApp,
     }),
     [
-      editor,
-      entries,
-      folderName,
       openFile,
       editNote,
       registerNoteSerializeFlush,
@@ -835,15 +692,51 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       deleteEntry,
       changeFolder,
       flush,
-      resolveWikiTarget,
       refreshVault,
-      openDoc,
-      openIsHtml,
-      isHtmlApp,
-      showHtmlAsText,
-      showHtmlAsApp,
     ],
   );
 
-  return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
+  const listing = useMemo<VaultListing>(
+    () => ({ entries, folderName, resolveWikiTarget }),
+    [entries, folderName, resolveWikiTarget],
+  );
+
+  return (
+    <VaultActionsContext.Provider value={actions}>
+      <VaultListingContext.Provider value={listing}>{children}</VaultListingContext.Provider>
+    </VaultActionsContext.Provider>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Migration compat (#470) — the legacy merged view. Subscribes to the WHOLE
+// open-note store, so consumers keep the old re-render cadence until they
+// move to the split seams. DELETE once every consumer has migrated.
+// ---------------------------------------------------------------------------
+
+type VaultContextValue = VaultActions &
+  VaultListing & {
+    editor: VaultEditorState;
+    openDoc: OpenDoc;
+    openIsHtml: boolean;
+    isHtmlApp: boolean;
+  };
+
+/** @deprecated Migration shim — use useVaultActions / useVaultListing /
+ * useOpenNote selectors instead. */
+export function useVault(): VaultContextValue {
+  const actions = useVaultActions();
+  const listing = useVaultListing();
+  const open = useOpenNote((s) => s);
+  return useMemo(
+    () => ({
+      ...actions,
+      ...listing,
+      editor: open.editor,
+      openDoc: open.openDoc,
+      openIsHtml: open.openIsHtml,
+      isHtmlApp: open.isHtmlApp,
+    }),
+    [actions, listing, open],
+  );
 }
