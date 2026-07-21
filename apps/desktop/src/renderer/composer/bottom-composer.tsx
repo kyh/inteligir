@@ -79,16 +79,21 @@ export function BottomComposer() {
   // Linger open for a few seconds after the agent goes idle so the answer is
   // readable, then auto-collapse (unless pinned).
   const [recentlyActive, setRecentlyActive] = useState(false);
+  // The X while busy: `busy` alone would reopen the panel on the next render,
+  // so Close latches a dismissal that only the NEXT turn start clears.
+  // Dismissing a long stream mid-flight is legitimate — the X stays visible.
+  const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
     if (busy) {
       setRecentlyActive(true);
+      setDismissed(false);
       return;
     }
     const t = setTimeout(() => setRecentlyActive(false), IDLE_LINGER_MS);
     return () => clearTimeout(t);
   }, [busy]);
 
-  const open = (pinned || busy || recentlyActive) && messages.length > 0;
+  const open = (pinned || busy || recentlyActive) && !dismissed && messages.length > 0;
   const visibleMessages = messages.filter(isRenderableMessage);
 
   return (
@@ -126,6 +131,7 @@ export function BottomComposer() {
                   onClick={() => {
                     setPinned(false);
                     setRecentlyActive(false);
+                    setDismissed(true);
                   }}
                   title="Close"
                   className="rounded p-1 hover:bg-muted hover:text-foreground"

@@ -40,6 +40,12 @@ import type { TagCount } from "@repo/notes/knowledge/tag-index";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 8;
+// Cap how many filename matches the root list renders as CommandItems. An empty
+// query would otherwise map EVERY vault file into cmdk (no virtualization) — a
+// large vault mounts thousands of rows on every ⌘K open. Search still reaches
+// every file; this only bounds what's shown at once (full-text hits are capped
+// at SEARCH_LIMIT for the same reason).
+const ROOT_NAME_LIMIT = 50;
 
 /** Multi-step palette navigation. The root is search + commands; picking "New
  * note from template…" walks into template selection then note-naming, reusing
@@ -378,8 +384,9 @@ export function CommandPalette({
   // ---- Root: search + commands ---------------------------------------------
   // Notes = filename matches, then full-text hits that the filename filter
   // missed (deduped by path, host ranking preserved).
-  const nameMatches =
-    trimmed === "" ? entries : entries.filter((e) => matchesQuery(e.path, trimmed));
+  const nameMatches = (
+    trimmed === "" ? entries : entries.filter((e) => matchesQuery(e.path, trimmed))
+  ).slice(0, ROOT_NAME_LIMIT);
   const namePaths = new Set(nameMatches.map((e) => e.path));
   const contentHits = hits.filter((hit) => !namePaths.has(hit.path));
 
