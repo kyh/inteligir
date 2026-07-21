@@ -25,16 +25,14 @@ import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { getLiveEditor } from "@renderer/editor/live-editor";
 import { createCaptureApplier, insertCaptureLine } from "@renderer/workspace/capture-apply";
 import { type NoteRuntime, createNoteRuntime } from "@renderer/workspace/note-runtime";
-import { type OpenDoc } from "@renderer/workspace/open-doc";
 import {
   publishEditor,
   publishOpenPath,
   setOpenNoteMode,
   showOpenHtmlAsApp,
   showOpenHtmlAsText,
-  useOpenNote,
 } from "@renderer/workspace/open-note-store";
-import { type VaultEditorState, type VaultIO } from "@renderer/editor/vault-editor";
+import { type VaultIO } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
@@ -705,38 +703,5 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     <VaultActionsContext.Provider value={actions}>
       <VaultListingContext.Provider value={listing}>{children}</VaultListingContext.Provider>
     </VaultActionsContext.Provider>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Migration compat (#470) — the legacy merged view. Subscribes to the WHOLE
-// open-note store, so consumers keep the old re-render cadence until they
-// move to the split seams. DELETE once every consumer has migrated.
-// ---------------------------------------------------------------------------
-
-type VaultContextValue = VaultActions &
-  VaultListing & {
-    editor: VaultEditorState;
-    openDoc: OpenDoc;
-    openIsHtml: boolean;
-    isHtmlApp: boolean;
-  };
-
-/** @deprecated Migration shim — use useVaultActions / useVaultListing /
- * useOpenNote selectors instead. */
-export function useVault(): VaultContextValue {
-  const actions = useVaultActions();
-  const listing = useVaultListing();
-  const open = useOpenNote((s) => s);
-  return useMemo(
-    () => ({
-      ...actions,
-      ...listing,
-      editor: open.editor,
-      openDoc: open.openDoc,
-      openIsHtml: open.openIsHtml,
-      isHtmlApp: open.isHtmlApp,
-    }),
-    [actions, listing, open],
   );
 }

@@ -47,9 +47,7 @@ export function Header() {
       : null,
   );
   const canRich = useOpenNote((s) => richAvailable(s.openDoc));
-  const markdownPath = useOpenNote((s) =>
-    s.openDoc.kind === "markdown" ? s.openDoc.path : null,
-  );
+  const markdownPath = useOpenNote((s) => (s.openDoc.kind === "markdown" ? s.openDoc.path : null));
   const { state } = useSidebar();
   const segments = path ? path.split("/") : [];
 
