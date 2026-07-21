@@ -156,11 +156,13 @@ assuming a URL.
 - **The renderer never imports electron/node/`@repo/server`** — that's a package
   fact (no dep edge), not a lint opinion. `@repo/notes` stays platform-neutral.
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip `entry`
-  glob in `knip.json` or it reads as unused and CI goes red. Tooling deps are
-  usually fine as-is — knip's config-file plugins resolve them (it finds
-  `@libsql/client` from `drizzle.config.local.ts`); `ignoreDependencies` is the
-  escape hatch for the ones it genuinely can't see, not a blanket rule. Run it
-  rather than guess.
+  glob in `knip.json` or it reads as unused and CI goes red. A tooling dep may
+  pass for a non-obvious reason — `@libsql/client` survives because it is an
+  optional peer of the used `drizzle-orm`, not because a config plugin found it
+  (knip's drizzle plugin only matches `drizzle.config.{ts,js,json}`, never
+  `drizzle.config.local.ts`, and resolves only the `schema` field).
+  `ignoreDependencies` is the escape hatch for the ones it genuinely can't see,
+  not a blanket rule. Run it rather than guess.
 - Plan files and ADR docs are deleted on purpose — `CLAUDE.md` § Decisions plus
   the PR history is the record. Don't add `plans/` or `*_GAPS.md`.
 
