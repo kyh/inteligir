@@ -76,8 +76,8 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
-Dep DAG (all edges): notes, installer, ui are leaves; bridge→notes;
-storage→bridge; vault→storage+notes+bridge; agent→bridge+installer+notes;
+Dep DAG (all edges): notes, installer, storage, ui are leaves; bridge→notes;
+vault→storage+notes+bridge; agent→bridge+installer+notes;
 voice→storage+bridge; connectors→installer+storage+bridge (agent never
 imports connectors: code-mode reaches the daemon through the injected
 ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source

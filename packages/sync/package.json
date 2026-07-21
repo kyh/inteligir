@@ -5,6 +5,7 @@
   "description": "Desktop vault-sync adapters over @repo/notes' pure engine: the node SyncManager (vault IO + hashing + base/blob stores under ~/.inteligir), the SyncAccount (Better Auth client, bearer token + config JsonStores, social sign-in state nonce), and the SyncCoordinator lifecycle (runtime gate, engine rebuild/teardown, conflict tracking). Host event emission is injected (setSyncEventSink) — this package never imports server/electron code.",
   "type": "module",
   "exports": {
+    "./sync-account": "./src/sync-account.ts",
     "./sync-coordinator": "./src/sync-coordinator.ts"
   },
   "scripts": {
@@ -18,8 +19,7 @@
     "@repo/storage": "workspace:*",
     "@repo/vault": "workspace:*",
     "@sinclair/typebox": "catalog:",
-    "better-auth": "catalog:",
-    "open": "^11.0.0"
+    "better-auth": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

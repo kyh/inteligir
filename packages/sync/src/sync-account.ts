@@ -16,7 +16,6 @@
 import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 import { createAuthClient } from "better-auth/client";
-import open from "open";
 
 import {
   JsonStore,
@@ -84,14 +83,30 @@ const DEFAULT_VAULT_ID: StoredVaultId = { version: VAULT_ID_VERSION, vaultId: ""
 
 const rejectLegacy = rejectLegacyVersion("sync");
 
+/** Open a URL in the system browser. A throw (sync or async) fails the
+ * sign-in as an `{ok:false}` value — socialSignIn awaits it. */
+export type BrowserOpener = (url: string) => void | Promise<void>;
+
+// Module-scoped install seam (idiom of setSyncEventSink/setSyncVaultAccessor):
+// sync/ never imports the platform layer — the composition root (createHost)
+// fills this with the guarded HostPlatform.openExternal path. No opener
+// installed = social sign-in refuses with an {ok:false}, never a silent
+// fallback to a package-owned browser launcher.
+let installedBrowserOpener: BrowserOpener | null = null;
+
+export function setSyncBrowserOpener(opener: BrowserOpener): void {
+  installedBrowserOpener = opener;
+}
+
 export type SyncAccountOptions = {
   fs?: FsAdapter;
   configPath?: string;
   authPath?: string;
   vaultIdPath?: string;
   /** Open a URL in the system browser (social sign-in). Injectable so tests
-   * never launch a real browser; defaults to the `open` package. */
-  openExternal?: (url: string) => void;
+   * never launch a real browser; defaults to the installed
+   * setSyncBrowserOpener seam. */
+  openExternal?: BrowserOpener;
 };
 
 /** Signing/persistence for vault sync — the config gate, the bearer session,
@@ -100,7 +115,7 @@ export class SyncAccount {
   private readonly configStore: JsonStore<StoredConfig>;
   private readonly authStore: JsonStore<StoredAuth>;
   private readonly vaultIdStore: JsonStore<StoredVaultId>;
-  private readonly openExternal: (url: string) => void;
+  private readonly openExternalOverride: BrowserOpener | null;
   /** The ONE in-flight social sign-in this device initiated (state nonce +
    * TTL). In-memory on purpose: the browser leg spans seconds, and a session
    * deep link arriving after a restart SHOULD be refused — it can no longer
@@ -108,11 +123,9 @@ export class SyncAccount {
   private pendingSocial: { state: string; expiresAt: number } | null = null;
 
   constructor(opts: SyncAccountOptions = {}) {
-    this.openExternal =
-      opts.openExternal ??
-      ((url) => {
-        void open(url);
-      });
+    // The installed seam is read at CALL time (not captured here) so a
+    // SyncAccount built before createHost fills the seam still opens.
+    this.openExternalOverride = opts.openExternal ?? null;
     this.configStore = new JsonStore<StoredConfig>(
       opts.configPath ?? inteligirPath("sync-config.json"),
       SyncConfigSchema,
@@ -288,6 +301,10 @@ export class SyncAccount {
   async socialSignIn(provider: string): Promise<SyncSignInResult> {
     const session = this.tokenCapturingClient();
     if (session === null) return { ok: false, error: "Set a coordinator URL first." };
+    const openExternal = this.openExternalOverride ?? installedBrowserOpener;
+    if (openExternal === null) {
+      return { ok: false, error: "This host cannot open a browser for sign-in." };
+    }
     const state = crypto.randomBytes(16).toString("base64url");
     // Relative to the coordinator's own origin — always a trusted callback
     // target. The same path serves errorCallbackURL: no session cookie there
@@ -308,7 +325,10 @@ export class SyncAccount {
         return { ok: false, error: "Coordinator did not return an authorization URL." };
       }
       this.pendingSocial = { state, expiresAt: Date.now() + PENDING_SOCIAL_TTL_MS };
-      this.openExternal(url);
+      // Awaited inside the try: the opener's scheme guard (openExternalHttpUrl
+      // refuses a non-http coordinator-supplied URL) and any launch failure
+      // land as the {ok:false} below, never an unhandled rejection.
+      await openExternal(url);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: toErrorMessage(err) };

@@ -19,7 +19,6 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@repo/bridge": "workspace:*",
     "@sinclair/typebox": "catalog:"
   },
   "devDependencies": {

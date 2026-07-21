@@ -26,6 +26,7 @@ import {
   providerRequiresAuth,
   type SupportedProviderId,
 } from "./provider-catalog";
+import { openExternalHttpUrl } from "../platform-instance";
 import { getProviderConfig } from "./provider-config";
 
 /** The active selection, normalized. The INTELIGIR_FAUX_AGENT dev flag FORCES
@@ -79,7 +80,7 @@ export function isSelectedProviderConnected(): boolean {
 export async function loginSelectedProvider(): Promise<void> {
   const { provider } = getSelectedProvider();
   if (!providerRequiresAuth(provider)) return;
-  await login(provider);
+  await login(provider, openExternalHttpUrl);
 }
 
 // ---------------------------------------------------------------------------
@@ -122,7 +123,7 @@ export async function connectAiProvider(providerId: string): Promise<AiConnectRe
   if (provider === null) return { ok: false, error: `Unknown AI provider "${providerId}"` };
   if (!providerRequiresAuth(provider)) return { ok: true };
   try {
-    await login(provider);
+    await login(provider, openExternalHttpUrl);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: toErrorMessage(err) };

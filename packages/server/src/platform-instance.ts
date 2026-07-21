@@ -5,6 +5,8 @@
 // every getter would churn the whole call graph for zero flexibility gain.
 // ---------------------------------------------------------------------------
 
+import { isHttpUrl } from "@repo/bridge/wire-helpers";
+
 import type { HostOptions, HostPlatform } from "./platform";
 
 let platform: HostPlatform | null = null;
@@ -22,4 +24,15 @@ export function getPlatform(): HostPlatform {
 
 export function getHostOptions(): HostOptions {
   return options;
+}
+
+/** The ONE guarded browser-open path: refuses non-http(s) URLs (a custom
+ * scheme handed to the OS opener could invoke an arbitrary protocol handler),
+ * then defers to the installed platform's openExternal. Every host surface
+ * that opens a URL a peer supplied — provider OAuth (agent/auth login),
+ * sync's coordinator-supplied social sign-in URL, connector OAuth consent —
+ * routes through this instead of growing its own opener. */
+export async function openExternalHttpUrl(url: string): Promise<void> {
+  if (!isHttpUrl(url)) throw new Error(`refusing to open non-http URL: ${url}`);
+  await getPlatform().openExternal(url);
 }

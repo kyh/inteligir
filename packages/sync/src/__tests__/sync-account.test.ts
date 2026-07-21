@@ -131,7 +131,11 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
       vi.fn(async () => Response.json({ url: "https://github.com/login/oauth/authorize?x=1" })),
     );
     const opened: string[] = [];
-    const account = accountAt(tmp, { openExternal: (url) => opened.push(url) });
+    const account = accountAt(tmp, {
+      openExternal: (url) => {
+        opened.push(url);
+      },
+    });
     account.setConfig({ coordinatorUrl: "https://sync.example" });
     const result = await account.socialSignIn("github");
     expect(result).toEqual({ ok: true });
@@ -139,6 +143,15 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
     // Initiation only: the session lands in the browser; this device stays
     // signed out until Phase 4's deep-link callback captures it.
     expect(account.getToken()).toBeNull();
+  });
+
+  it("socialSignIn refuses as a VALUE when no browser opener is installed", async () => {
+    // No openExternal override and no setSyncBrowserOpener seam fill: the
+    // sign-in must fail {ok:false} — never a silent package-owned fallback.
+    const account = accountAt(tmp);
+    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    const result = await account.socialSignIn("github");
+    expect(result.ok).toBe(false);
   });
 
   it("requestPasswordReset hits the coordinator's reset endpoint and stays NEUTRAL", async () => {

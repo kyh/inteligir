@@ -30,8 +30,7 @@
     "@repo/bridge": "workspace:*",
     "@repo/installer": "workspace:*",
     "@repo/notes": "workspace:*",
-    "@sinclair/typebox": "catalog:",
-    "open": "^11.0.0"
+    "@sinclair/typebox": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
