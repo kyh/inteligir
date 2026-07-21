@@ -35,7 +35,8 @@ import {
   type TransclusionScope,
 } from "@renderer/editor/transclusion-guard";
 import WikiChip, { wikiChipLabel } from "@renderer/editor/wiki-chip";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 // Depth/cycle scope context — the policy itself lives in transclusion-guard.ts.
@@ -256,10 +257,11 @@ function TransclusionBody({ content }: { content: string }) {
 }
 
 export default function Transclusion({ body }: { body: string }) {
-  const { resolveWikiTarget, openFile } = useVault();
+  const { resolveWikiTarget } = useVaultListing();
+  const { openFile } = useVaultActions();
   // The cycle chain roots at the note HOSTING this embed — the single
   // mounted editor always serves vault-context's open note.
-  const hostPath = useVault().editor.path;
+  const hostPath = useOpenNote((s) => s.editor.path);
   const scope = useContext(TransclusionScopeContext);
   const parsed = parseWikiBody(body);
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);

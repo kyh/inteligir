@@ -33,8 +33,9 @@ import { getLiveEditor } from "@renderer/editor/live-editor";
 import { toggleEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
+import { openNoteState, useOpenNote } from "@renderer/workspace/open-note-store";
 import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 
@@ -95,8 +96,13 @@ export function CommandPalette({
   seedQuery?: string | null;
   onSeedConsumed?: () => void;
 }) {
-  const { entries, openFile, createFile, changeFolder, refreshVault, editor, editNote, openDoc } =
-    useVault();
+  const { entries } = useVaultListing();
+  const { openFile, createFile, changeFolder, refreshVault, editNote } = useVaultActions();
+  // Narrow subscriptions (#470): only the private-toggle action's PRESENCE and
+  // LABEL are render inputs; the live content is read imperatively at action
+  // time (togglePrivate below), so typing never re-renders the palette.
+  const openIsMarkdown = useOpenNote((s) => s.openDoc.kind === "markdown");
+  const openIsPrivate = useOpenNote((s) => s.openDoc.kind === "markdown" && s.openDoc.isPrivate);
   const createFromTemplate = useCreateFromTemplate();
   const openDailyNote = useOpenDailyNote();
   const setSurface = useViewStore((s) => s.setSurface);
@@ -193,6 +199,9 @@ export function CommandPalette({
   // helpers and lands via editNote. Unreadable frontmatter is refused — what
   // we can't read, we never rewrite (the properties panel's rule).
   const togglePrivate = useCallback(() => {
+    // LIVE store read at action time — never a subscription (the palette must
+    // not re-render per keystroke) and never a captured snapshot (#470).
+    const { openDoc, editor } = openNoteState();
     if (openDoc.kind !== "markdown") return;
     if (openDoc.surface.mode === "rich") {
       const live = getLiveEditor(openDoc.path);
@@ -207,7 +216,7 @@ export function CommandPalette({
       return;
     }
     editNote(openDoc.path, next);
-  }, [openDoc, editor.content, editNote]);
+  }, [editNote]);
 
   // Run an action then dismiss — every leaf item closes the palette.
   const run = useCallback(
@@ -438,13 +447,13 @@ export function CommandPalette({
       label: `Switch to ${resolved === "dark" ? "light" : "dark"} theme`,
       onSelect: () => setTheme(resolved === "dark" ? "light" : "dark"),
     },
-    ...(openDoc.kind === "markdown"
+    ...(openIsMarkdown
       ? [
           {
             value: "toggle-private",
             keywords: "toggle private note lock privacy ai off exclude",
             icon: <LockIcon />,
-            label: openDoc.isPrivate ? "Remove private mark from note" : "Mark note as private",
+            label: openIsPrivate ? "Remove private mark from note" : "Mark note as private",
             onSelect: () => togglePrivate(),
           },
         ]

@@ -27,11 +27,12 @@ import { Button } from "@repo/ui/components/button";
 
 import { isTodoItem, todoIndex } from "@renderer/editor/todo-item";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { useVaultActions } from "@renderer/workspace/vault-context";
 import type { Delegation } from "@repo/bridge/delegation";
 
 function DelegateControl({ element, checked }: { element: TElement; checked: boolean }) {
-  const { editor: vaultEditor, flush } = useVault();
+  const { flush } = useVaultActions();
   const plateEditor = useEditorRef();
   const delegations = useDelegationStore((s) => s.delegations);
   const delegate = useDelegationStore((s) => s.delegate);
@@ -40,7 +41,7 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
 
   // The checkbox belongs to the open note — the single mounted editor always
   // serves vault-context's open file, and flush() flushes exactly this file.
-  const sourceFile = vaultEditor.path;
+  const sourceFile = useOpenNote((s) => s.editor.path);
   const text = elementText(element);
   const ordinal = todoIndex(plateEditor, element);
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
   ChevronsUpDownIcon,
@@ -35,7 +35,8 @@ import { flattenTree, resolveTreeKey, type FlatRow } from "@renderer/sidebar/tre
 import { useResizableSidebar } from "@renderer/sidebar/use-resizable-sidebar";
 import { buildVaultTree } from "@renderer/sidebar/vault-tree";
 import { useViewStore } from "@renderer/stores/view-store";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 
 function withName(path: string, name: string): string {
   const slash = path.lastIndexOf("/");
@@ -55,16 +56,11 @@ function rowPadding(depth: number): number {
 }
 
 export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
-  const {
-    entries,
-    folderName,
-    editor,
-    openFile,
-    createFile,
-    renameEntry,
-    deleteEntry,
-    changeFolder,
-  } = useVault();
+  const { entries, folderName } = useVaultListing();
+  const { openFile, createFile, renameEntry, deleteEntry, changeFolder } = useVaultActions();
+  // The tree re-renders on navigation + structural refresh — never on typing
+  // (the open note's CONTENT is not a subscription here, only its path, #470).
+  const selectedPath = useOpenNote((s) => s.editor.path);
 
   const { handlePointerDown } = useResizableSidebar();
   const [newName, setNewName] = useState("");
@@ -135,20 +131,30 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     [rows, activePath],
   );
 
-  const rowProps = {
-    selectedPath: editor.path,
-    renaming,
-    onOpen: (path: string) => openFile(path),
-    onToggleFolder: toggleFolder,
-    onFocusRow: setFocusedPath,
-    onStartRename: setRenaming,
-    onCommitRename: (from: string, to: string) => {
+  // Handlers hoisted into ONE stable object (every dep is a stable action or
+  // setState), so a memoized TreeRow only re-renders when ITS row/selection/
+  // rename state changes — not whenever the tree does (#470 interim win).
+  const onCommitRename = useCallback(
+    (from: string, to: string) => {
       setRenaming(null);
       void renameEntry(from, to);
     },
-    onCancelRename: () => setRenaming(null),
-    onDelete: (path: string) => void deleteEntry(path),
-  };
+    [renameEntry],
+  );
+  const onCancelRename = useCallback(() => setRenaming(null), []);
+  const onDelete = useCallback((path: string) => void deleteEntry(path), [deleteEntry]);
+  const rowProps = useMemo<RowHandlers>(
+    () => ({
+      onOpen: openFile,
+      onToggleFolder: toggleFolder,
+      onFocusRow: setFocusedPath,
+      onStartRename: setRenaming,
+      onCommitRename,
+      onCancelRename,
+      onDelete,
+    }),
+    [openFile, toggleFolder, onCommitRename, onCancelRename, onDelete],
+  );
 
   return (
     <Sidebar collapsible="offcanvas" className="border-r border-border">
@@ -242,6 +248,8 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                   key={row.node.path}
                   row={row}
                   tabbable={row.node.path === activePath}
+                  selected={row.node.path === selectedPath}
+                  renaming={renaming === row.node.path}
                   {...rowProps}
                 />
               ))}
@@ -270,8 +278,6 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 }
 
 type RowHandlers = {
-  selectedPath: string | null;
-  renaming: string | null;
   onOpen: (path: string) => void;
   onToggleFolder: (path: string) => void;
   onFocusRow: (path: string) => void;
@@ -299,10 +305,13 @@ function IndentGuides({ depth }: { depth: number }) {
   );
 }
 
-function TreeRow({
+// Memoized: a tree render (nav, structural refresh, focus move) re-renders
+// only the rows whose selected/renaming/tabbable actually changed — the
+// handlers object is stable and `rows` is memoized upstream (#470).
+const TreeRow = memo(function TreeRow({
   row,
   tabbable,
-  selectedPath,
+  selected,
   renaming,
   onOpen,
   onToggleFolder,
@@ -311,12 +320,12 @@ function TreeRow({
   onCommitRename,
   onCancelRename,
   onDelete,
-}: { row: FlatRow; tabbable: boolean } & RowHandlers) {
+}: { row: FlatRow; tabbable: boolean; selected: boolean; renaming: boolean } & RowHandlers) {
   const { node, depth } = row;
   const [draft, setDraft] = useState(node.type === "file" ? node.name : "");
 
   // Inline rename occupies the row as an input, indented to match.
-  if (node.type === "file" && renaming === node.path) {
+  if (node.type === "file" && renaming) {
     return (
       <SidebarMenuItem>
         <Input
@@ -363,7 +372,6 @@ function TreeRow({
     );
   }
 
-  const isSelected = selectedPath === node.path;
   const confirmDelete = async () => {
     const confirmed = await confirm({
       title: `Delete ${node.path}?`,
@@ -378,15 +386,15 @@ function TreeRow({
     <SidebarMenuItem>
       <SidebarMenuButton
         {...commonButtonProps}
-        isActive={isSelected}
-        aria-selected={isSelected}
+        isActive={selected}
+        aria-selected={selected}
         onClick={() => onOpen(node.path)}
         className={cn(
           "relative focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-inset",
           // Clear the two hover-revealed actions (Delete at right-1, Rename at
           // right-7, w-5 each) so they never overlay the truncated name.
           "group-focus-within/menu-item:pr-12 group-hover/menu-item:pr-12",
-          isSelected && "bg-sidebar-accent text-sidebar-accent-foreground",
+          selected && "bg-sidebar-accent text-sidebar-accent-foreground",
         )}
         style={{ paddingLeft: rowPadding(depth) }}
       >
@@ -420,4 +428,4 @@ function TreeRow({
       </SidebarMenuAction>
     </SidebarMenuItem>
   );
-}
+});
