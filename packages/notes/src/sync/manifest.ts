@@ -1,4 +1,10 @@
-import { isValidHash, type Hash, type VaultFile, type VaultPath } from "./vault-file";
+import {
+  isValidHash,
+  isValidVaultPath,
+  type Hash,
+  type VaultFile,
+  type VaultPath,
+} from "./vault-file";
 import { isRecord } from "./guards";
 
 // ---------------------------------------------------------------------------
@@ -55,7 +61,12 @@ function isNonNegativeInt(value: unknown): value is number {
 export function parseVaultFile(raw: unknown): VaultFile | null {
   if (!isRecord(raw)) return null;
   const { path, contentHash, version, size } = raw;
-  if (typeof path !== "string" || path === "") return null;
+  // A path is the file's identity AND the argument to a platform write sink;
+  // reject anything that could escape the vault root (absolute, `..`, control
+  // chars, …) HERE so a hostile/buggy coordinator manifest can never drive a
+  // traversal on a client that doesn't re-confine — the mobile sink notably
+  // does not. Rejecting nulls the whole manifest (all-or-nothing contract).
+  if (typeof path !== "string" || !isValidVaultPath(path)) return null;
   if (typeof contentHash !== "string" || !isValidHash(contentHash)) return null;
   if (!isNonNegativeInt(version) || !isNonNegativeInt(size)) return null;
   return { path, contentHash, version, size };

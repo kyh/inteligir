@@ -38,6 +38,47 @@ export function isValidHash(value: string): boolean {
  */
 export type VaultPath = string;
 
+/** Longest path any platform's write sink should honor — a generous bound that
+ * still rejects a pathological unbounded manifest entry. */
+const MAX_VAULT_PATH_LENGTH = 1024;
+
+/** True if `value` contains a C0 control character or DEL — never legitimate in
+ * a vault-relative path and a classic smuggling vector (NUL-truncation, CR/LF).
+ * A codepoint scan rather than a regex: matching a control-char range in a
+ * RegExp trips oxlint's no-control-regex, and this reads clearer anyway. */
+function hasControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
+/**
+ * True when `value` is a well-formed vault-relative path safe to hand to a
+ * platform write sink. Use at a transport boundary before trusting a path that
+ * arrived over the network (or from a persisted manifest cache) — it is the
+ * enforcement of the `VaultPath` contract that was previously only documented.
+ *
+ * Rejects the traversal / escape vectors a confined vault must never resolve:
+ * an absolute path (leading `/`), any `..` or `.` segment, an empty segment
+ * (leading/trailing/double slash), a Windows separator or drive letter, a NUL
+ * or other control character, and an over-length string. A rejected path nulls
+ * the whole manifest at `parseVaultFile` (all-or-nothing, the existing
+ * contract), so no confined write sink ever sees a path that escapes the root.
+ */
+export function isValidVaultPath(value: string): boolean {
+  if (value === "" || value.length > MAX_VAULT_PATH_LENGTH) return false;
+  if (value.startsWith("/")) return false; // absolute
+  if (value.includes("\\")) return false; // Windows separator / UNC
+  if (/^[A-Za-z]:/.test(value)) return false; // drive letter (C:...)
+  if (hasControlChar(value)) return false; // NUL, C0 controls, DEL
+  for (const segment of value.split("/")) {
+    if (segment === "" || segment === "." || segment === "..") return false;
+  }
+  return true;
+}
+
 /** One file in a vault as the coordinator sees it. */
 export type VaultFile = {
   /** Vault-relative POSIX path — the file's identity. */

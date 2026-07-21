@@ -1,6 +1,6 @@
 import type { VaultManifest } from "./manifest";
 import type { DeleteResult, PutResult, VaultChange } from "./sync-port";
-import type { VaultPath } from "./vault-file";
+import { isValidVaultPath, type VaultPath } from "./vault-file";
 
 // ---------------------------------------------------------------------------
 // wire.ts — the HTTP wire contract for vault sync.
@@ -116,7 +116,11 @@ export function parseFilePathParam(search: string): VaultPath | null {
     if (raw === "") return null;
     try {
       const decoded = decodeURIComponent(raw);
-      return decoded === "" ? null : decoded;
+      // The coordinator persists this path (an R2 key + a manifest entry
+      // re-served to every client), so reject a traversal/escape shape here
+      // rather than store one a client must defend against — the same
+      // VaultPath contract parseVaultFile enforces on the pull side.
+      return isValidVaultPath(decoded) ? decoded : null;
     } catch {
       return null; // malformed percent-encoding
     }

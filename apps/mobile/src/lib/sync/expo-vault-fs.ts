@@ -9,21 +9,35 @@
 
 import { Directory, File, Paths } from "expo-file-system";
 
-import type { VaultPath } from "@repo/notes/sync/vault-file";
+import { isValidVaultPath, type VaultPath } from "@repo/notes/sync/vault-file";
 import { VaultRootMissingError, type VaultFs } from "./sync-io";
 
 /** The vault directory name under the app's document directory. */
 const VAULT_DIR = "vault";
+
+// Confine every path this sink resolves to the vault root. Sync-supplied paths
+// are already validated at the wire boundary (parseVaultFile), but Expo's File
+// resolves `..` segments, so this sink must never trust a path it's handed — a
+// `..`/absolute/escape path is a defect (or a hostile coordinator manifest), so
+// throw rather than write outside the vault. The empty string ("" = the root
+// dir itself) is legitimate for dirFor and is allowed through.
+function assertConfined(rel: string): void {
+  if (rel !== "" && !isValidVaultPath(rel)) {
+    throw new Error(`refusing a vault path that escapes the root: ${JSON.stringify(rel)}`);
+  }
+}
 
 function segments(rel: string): string[] {
   return rel === "" ? [] : rel.split("/");
 }
 
 function fileFor(path: VaultPath): File {
+  assertConfined(path);
   return new File(Paths.document, VAULT_DIR, ...segments(path));
 }
 
 function dirFor(relDir: string): Directory {
+  assertConfined(relDir);
   return new Directory(Paths.document, VAULT_DIR, ...segments(relDir));
 }
 
