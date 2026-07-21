@@ -120,6 +120,10 @@ export default function GraphView() {
   const hoveredRef = useRef<SimNode | null>(null);
   const activePathRef = useRef<string | null>(openPath);
   const frameRef = useRef<number | null>(null);
+  // Cache the resolved CSS palette instead of re-reading it via getComputedStyle
+  // on every rAF draw (the sim ticks a draw per frame). Invalidated on a theme
+  // flip in the useLayoutEffect below, the only vector that changes the tokens.
+  const paletteRef = useRef<Palette | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -130,7 +134,7 @@ export default function GraphView() {
     const dpr = window.devicePixelRatio || 1;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
-    const palette = readPalette(canvas);
+    const palette = paletteRef.current ?? (paletteRef.current = readPalette(canvas));
     const { x, y, k } = transformRef.current;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -286,8 +290,10 @@ export default function GraphView() {
     return () => observer.disconnect();
   }, [scheduleDraw]);
 
-  // Redraw on theme flips (colors are read at draw time) and active-note moves.
+  // Redraw on theme flips (invalidate the cached palette — a theme flip is the
+  // only thing that changes the tokens) and active-note moves.
   useLayoutEffect(() => {
+    paletteRef.current = null;
     activePathRef.current = openPath;
     scheduleDraw();
   }, [scheduleDraw, resolvedTheme, openPath]);

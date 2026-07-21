@@ -459,9 +459,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         await runtime.remove();
         dropNote(path);
       } else {
-        await getBridge()
+        // Surface the failure (siblings createFileAt/renameEntry toast
+        // theirs too) — a swallowed reject just silently reappears the row
+        // after refreshList.
+        const ok = await getBridge()
           .deleteVaultEntry({ path })
-          .catch(() => undefined);
+          .then(() => true)
+          .catch(() => false);
+        if (!ok) toast.error(`Couldn't delete ${path}.`);
       }
       refreshList();
     },
@@ -680,18 +685,33 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // ---- Editor view (mode + parseability) -----------------------------------
   const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
   const [mode, setMode] = useState<"raw" | "rich">("raw");
-  // Analysis is derived state kept in LOCKSTEP with (path, content) within a
-  // single render — the state-adjustment-during-render pattern. Recomputing in
-  // an effect committed one frame where a freshly opened Raw-only file still
-  // wore the PREVIOUS file's verdict: the rich editor mounted against
-  // unparseable bytes (console error + a throwaway editor instance) before
-  // the effect corrected the gate. Adjusting state during render re-renders
-  // before any child mounts, so the gate and the content can never disagree.
+  // Analysis timing is SPLIT by what's at stake:
+  // - Path change: derived in LOCKSTEP with (path, content) within a single
+  //   render — the state-adjustment-during-render pattern. Recomputing in an
+  //   effect committed one frame where a freshly opened Raw-only file still
+  //   wore the PREVIOUS file's verdict: the rich editor mounted against
+  //   unparseable bytes (console error + a throwaway editor instance) before
+  //   the effect corrected the gate. Adjusting state during render re-renders
+  //   before any child mounts, so the gate and the content can never disagree.
+  // - Same-path content change (every 600ms autosave settle): deferred to a
+  //   microtask (not an idle callback — bounded latency). analyzeMarkdown is
+  //   a full Slate construct + remark parse + serialize (up to 3 passes);
+  //   running it synchronously in render blocked every autosave commit. The
+  //   accepted window is one frame at most: the note is ALREADY rendered with
+  //   the prior verdict for the same path, and the flip toast below is
+  //   async anyway, so a one-frame-late gate flip is invisible. The microtask
+  //   rechecks path+content against the live buffer before applying and
+  //   drops itself when superseded or cancelled by a path change.
   const [analyzed, setAnalyzed] = useState<{
     rawReason: GateReason | null;
     content: string;
     path: string | null;
   }>({ rawReason: null, content: "", path: null });
+  // Live mirror + pending deferred-analysis target for the microtask's
+  // recheck (render-phase ref writes are safe here: pure value mirrors).
+  const liveEditorRef = useRef(editor);
+  liveEditorRef.current = editor;
+  const pendingAnalysisRef = useRef<{ path: string | null; content: string } | null>(null);
   // While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
   // intentionally retained — one analysis pass per SAVED content change (the
   // Raw badge + the `showRich` gate), not per keystroke.
@@ -701,16 +721,37 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     // AND round-trips losslessly opens rich (normalizing on the first real
     // edit); unrepresentable content (unknown JSX, parse errors) and files
     // whose round-trip would lose content are Raw-only.
-    const rawReason =
-      isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
-    setAnalyzed({ rawReason, content: editor.content, path: editor.path });
-    // The mode (raw/rich) is the user's choice, picked once per file open — a
-    // post-save flush (dirty→false, content unchanged) and an external/agent
-    // reload of the same file must not yank the user out of the surface they
-    // picked. (The exposed surface is the EFFECTIVE one — deriveOpenDoc shows
-    // rich only while the gate is clear — so a file that turns unparseable
-    // out from under us still falls back to raw regardless.)
-    if (pathChanged) setMode(isMarkdownOpen && rawReason === null ? "rich" : "raw");
+    if (pathChanged) {
+      pendingAnalysisRef.current = null; // cancel any deferred same-path pass
+      const rawReason =
+        isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
+      setAnalyzed({ rawReason, content: editor.content, path: editor.path });
+      // The mode (raw/rich) is the user's choice, picked once per file open — a
+      // post-save flush (dirty→false, content unchanged) and an external/agent
+      // reload of the same file must not yank the user out of the surface they
+      // picked. (The exposed surface is the EFFECTIVE one — deriveOpenDoc shows
+      // rich only while the gate is clear — so a file that turns unparseable
+      // out from under us still falls back to raw regardless.)
+      setMode(isMarkdownOpen && rawReason === null ? "rich" : "raw");
+    } else {
+      const pending = pendingAnalysisRef.current;
+      if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
+        const target = { path: editor.path, content: editor.content };
+        pendingAnalysisRef.current = target;
+        const markdownOpen = isMarkdownOpen;
+        queueMicrotask(() => {
+          // Identity check: superseded by newer content or cancelled by a
+          // path change (both replace/null the ref) → this pass is stale.
+          if (pendingAnalysisRef.current !== target) return;
+          pendingAnalysisRef.current = null;
+          const live = liveEditorRef.current;
+          if (live.path !== target.path || live.content !== target.content || live.dirty) return;
+          const rawReason =
+            markdownOpen && target.content.trim() !== "" ? safeGateReason(target.content) : null;
+          setAnalyzed({ rawReason, content: target.content, path: target.path });
+        });
+      }
+    }
   }
 
   // A mid-session Rich→Raw flip (post-save re-analysis caught a serializer
