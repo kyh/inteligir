@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",
+    "@libsql/client": "^0.17.4",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",

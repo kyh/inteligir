@@ -18,6 +18,11 @@ packages/          Libraries
   bridge/          Iso wire contract — Bridge/IPC registry, ws client, schemas (@repo/bridge)
   installer/       Generic CLI provisioning (@repo/installer)
   agent/           The pi capability (@repo/agent)
+  storage/         Node fs/json substrate over ~/.inteligir (@repo/storage)
+  vault/           VaultManager — the user's markdown folder (@repo/vault)
+  voice/           Voice capability — STT + TTS proxy (@repo/voice)
+  connectors/      MCP/connectors capability + executor daemon (@repo/connectors)
+  sync/            Desktop vault-sync adapters (@repo/sync)
   server/          Node backend — vault, delegation, connectors, voice, boot (@repo/server)
   ui/              Shared UI components (@repo/ui)
 ```
@@ -32,10 +37,12 @@ Workspace `README.md`s:
 | `packages/server/src` | [node backend — createHost, HostPlatform](./packages/server/src/README.md) |
 | `packages/ui`         | [shared design system](./packages/ui/README.md)                            |
 
+**[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — quickstart, the
+platform matrix of what is headlessly verifiable, and the runtime recipes.
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
 ways to run the app, ports/shared state, gates, verification, and
-change checklists. `CLAUDE.md` (root) is read by Claude Code / agents working
-in the repo — architecture summary + conventions.
+change checklists. `CLAUDE.md` (root) holds the architecture summary,
+conventions, and the durable decisions.
 
 ## Common commands
 
@@ -46,9 +53,10 @@ pnpm dev:desktop      # Desktop only
 pnpm build
 pnpm typecheck
 pnpm lint             # oxlint
-pnpm format           # oxfmt
+pnpm format           # oxfmt --check
 pnpm test
 pnpm knip             # Dead exports / unused deps
+pnpm verify           # All of the above, in CI's order
 ```
 
 ## Quality gates
@@ -56,5 +64,7 @@ pnpm knip             # Dead exports / unused deps
 Before committing:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build
+pnpm format:fix && pnpm verify
 ```
+
+`format:fix` runs FIRST and never after the gates — see `docs/development.md`.
