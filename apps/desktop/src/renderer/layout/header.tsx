@@ -29,7 +29,6 @@ import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-cont
  * macOS traffic lights, so we pad the left to keep the toggle clear of them.
  */
 export function Header() {
-  { const w = window as unknown as { __rc?: Record<string, number> }; const rc = (w.__rc ??= {}); rc["header"] = (rc["header"] ?? 0) + 1; document.title = JSON.stringify(rc); }
   const { folderName } = useVaultListing();
   const { setMode, deleteEntry, showHtmlAsApp } = useVaultActions();
   // Narrow selectors (#470): every value here is a primitive (or the gate

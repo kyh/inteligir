@@ -32,7 +32,6 @@ export default function WikiChip({ body }: { body: string }) {
   const { resolveWikiTarget } = useVaultListing();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
-  { const w = window as unknown as { __rc?: Record<string, number> }; const rc = (w.__rc ??= {}); rc["wikiChip"] = (rc["wikiChip"] ?? 0) + 1; document.title = JSON.stringify(rc); }
   const chipRef = useRef<HTMLButtonElement>(null);
 
   const parsed = parseWikiBody(body);
