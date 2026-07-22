@@ -6,7 +6,7 @@
  * they track — hence the capabilities arrive through `ports.knowledge` (built
  * main-side in boot/agent-wiring.ts). Pure in-process: no CLI, no setup().
  *
- * search_vault / get_backlinks are read-only, so there is no confirmation
+ * search_vault / get_backlinks / related_notes are read-only, so there is no confirmation
  * gating (mirrors how the browser/executor tools leave non-mutating calls
  * ungated). rename_note mutates, but only via the same reversible pipeline a
  * user rename takes — no gating there either.
@@ -46,6 +46,12 @@ const SearchVaultSchema = Type.Object({
 const GetBacklinksSchema = Type.Object({
   path: Type.String({
     description: "Vault-relative note path (e.g. 'notes/ideas.md') to find links pointing to it.",
+  }),
+});
+
+const RelatedNotesSchema = Type.Object({
+  path: Type.String({
+    description: "Vault-relative note path (e.g. 'notes/ideas.md') to find notes related to it.",
   }),
 });
 
@@ -109,6 +115,24 @@ const knowledgeExtension: PiExtensionBundle = {
           // lines, but the agent only needs the set of linking notes.
           const paths = [...new Set(hits.map((hit) => hit.sourcePath))];
           return textResult(paths.join("\n"));
+        },
+      });
+
+      pi.registerTool({
+        name: "related_notes",
+        label: "related_notes",
+        description:
+          "Notes RELATED to the given vault-relative note path by indirect connection — " +
+          "shared link targets, co-citation, shared tags, similar text — ranked, each " +
+          "with the reason. Directly linked notes are excluded (use get_backlinks or " +
+          "read the note for those). Use this for 'what else touches this topic?'.",
+        parameters: RelatedNotesSchema,
+        execute: async (_toolCallId, params: Static<typeof RelatedNotesSchema>) => {
+          const hits = ports.knowledge.relatedNotes(params.path);
+          if (hits.length === 0) return textResult("No related notes.");
+          return textResult(
+            hits.map((hit) => `${hit.path} — ${hit.reasons.join("; ")}`).join("\n"),
+          );
         },
       });
 

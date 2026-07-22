@@ -56,6 +56,7 @@ import type {
   VaultTaskEntry,
   WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
+import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { NotePrivacy } from "@repo/notes/markdown/frontmatter";
 import {
@@ -576,6 +577,14 @@ export const IPC = {
   ),
   getForwardLinks: invoke<typeof VaultPathSchema, ForwardLinkEntry[]>(
     "knowledge:forward-links",
+    VaultPathSchema,
+  ),
+  /** Ranked "related notes" for one note — shared link targets, co-citation,
+   * shared tags, lexical similarity — each entry carrying human-readable
+   * `reasons`. Direct link neighbors are excluded by design (the Links and
+   * Backlinks panels already surface them). */
+  getRelatedNotes: invoke<typeof VaultPathSchema, RelatedNoteEntry[]>(
+    "knowledge:related-notes",
     VaultPathSchema,
   ),
   /** Whole-vault link graph, shaped for a force-graph renderer (unresolved

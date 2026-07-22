@@ -21,11 +21,7 @@ import type {
 } from "./link-graph-index";
 import { titleFromPath } from "./link-extract";
 import { clipSnippet, projectDoc } from "./projection";
-import {
-  relatedNotes,
-  type RelatedNoteEntry,
-  type RelatedNotesOpts,
-} from "./related-notes";
+import { relatedNotes, type RelatedNoteEntry, type RelatedNotesOpts } from "./related-notes";
 import { SearchIndex, tokenize } from "./search-index";
 import type { TagCount } from "./tag-index";
 
@@ -121,7 +117,12 @@ export class KnowledgeIndex {
   /** Ranked related notes (shared links, co-citation, shared tags, lexical
    * similarity via the in-memory SearchIndex) — see related-notes.ts. */
   relatedNotes(path: string, opts?: RelatedNotesOpts): RelatedNoteEntry[] {
-    return relatedNotes(this.linkGraph, (query, limit) => this.searchIndex.search(query, limit), path, opts);
+    return relatedNotes(
+      this.linkGraph,
+      (query, limit) => this.searchIndex.search(query, limit),
+      path,
+      opts,
+    );
   }
 
   // ---- Internals --------------------------------------------------------------

@@ -31,6 +31,11 @@ import {
   type VaultTaskEntry,
   type WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
+import {
+  relatedNotes,
+  type RelatedNoteEntry,
+  type RelatedNotesOpts,
+} from "@repo/notes/knowledge/related-notes";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { KnowledgeStore, StoredFingerprint } from "@repo/notes/knowledge/knowledge-store";
 import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
@@ -131,6 +136,21 @@ export class KnowledgeManager {
   notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
     this.ensureBuilt();
     return this.linkGraph.notesWithTag(tag, opts);
+  }
+
+  /** Ranked related notes (shared links, co-citation, shared tags, lexical
+   * similarity). The pure scorer reads the in-memory graph; its lexical
+   * signal is THIS shell's composition seam — the SQL store's FTS5 bm25
+   * through the same recovery-wrapped `search` the palette uses (the scorer
+   * max-normalizes, so bm25's scale never matters). */
+  relatedNotes(vaultPath: string, opts?: RelatedNotesOpts): RelatedNoteEntry[] {
+    this.ensureBuilt();
+    return relatedNotes(
+      this.linkGraph,
+      (query, limit) => this.search(query, limit),
+      vaultPath,
+      opts,
+    );
   }
 
   /** Indexed private note paths — the agent gate's best-effort prefilter for

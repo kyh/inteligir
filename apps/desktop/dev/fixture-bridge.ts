@@ -31,6 +31,7 @@ import { LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
+import { relatedNotes } from "@repo/notes/knowledge/related-notes";
 import { addFrontmatterAlias, notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { conflictCopyName, fsSafeStamp } from "@repo/notes/sync/reconcile";
 
@@ -1120,6 +1121,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // Knowledge — live queries: link graph in memory, search through FTS5.
     getBacklinks: async ({ path }) => linkGraph.backlinks(path),
     getForwardLinks: async ({ path }) => linkGraph.forwardLinks(path),
+    // The REAL scorer in the host's exact composition: pure graph + the SQL
+    // store's FTS5 bm25 as the lexical port.
+    getRelatedNotes: async ({ path }) =>
+      relatedNotes(linkGraph, (query, limit) => knowledgeStore.search(query, limit), path),
     getLinkGraph: async () => linkGraph.graph(),
     searchVault: async ({ query, limit }) =>
       knowledgeStore.search(query, limit ?? SEARCH_DEFAULT_LIMIT),

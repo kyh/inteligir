@@ -27,6 +27,7 @@ function fakePorts(): AgentPorts {
     knowledge: {
       search: () => [],
       backlinks: () => [],
+      relatedNotes: () => [],
       notesWithTag: () => [],
       rename: () => ({ ok: false, reason: "not wired in this test" }),
     },

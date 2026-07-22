@@ -11,6 +11,7 @@
 import type { ExtensionAPI, ExtensionFactory } from "@repo/agent/pi/pi-types";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import type { BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 
 import { isRecord } from "@repo/bridge/wire-helpers";
 import type { NotePrivacyProbe, SetupProgress } from "@repo/bridge/ipc-registry";
@@ -56,6 +57,11 @@ export type ExecutorPort = {
 export type KnowledgePort = {
   search(query: string, limit?: number): SearchResult[];
   backlinks(path: string): BacklinkEntry[];
+  /** Ranked related notes (shared link targets, co-citation, shared tags,
+   * lexical similarity) with human-readable `reasons` — NOT raw forward
+   * links. Same silent privacy rule as backlinks: a private subject reads
+   * as "no related notes", private candidates never appear. */
+  relatedNotes(path: string): RelatedNoteEntry[];
   /** Vault paths of notes carrying a tag (case-insensitive). */
   notesWithTag(tag: string): string[];
   /** Rename/move a vault file through the SAME pipeline the user-facing
