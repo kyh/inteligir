@@ -678,5 +678,9 @@ describe("RoutinesManager bookkeeping", () => {
     fake.finish();
     await flush();
     expect(rig.mgr.list().routines[0]?.lastRun).toBeNull(); // no late outcome
+    // …and crucially, the abandoned run does NOT write to the vault: an append
+    // here would be un-undoable (lastRun is null, so its snapshot is
+    // unreachable) and, after a vault-switch teardown, could hit the new vault.
+    expect(rig.vault.get("notes/log.md")).toBe("# Log\n");
   });
 });

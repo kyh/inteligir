@@ -547,6 +547,15 @@ export class RoutinesManager {
       return;
     }
 
+    // The run was abandoned mid-turn (stop() on logout/reset/vault-switch/quit
+    // bumped the epoch and released the lock): DO NOT write. Writing here would
+    // append bytes the UI can't undo (recordOutcome below no-ops on a stale
+    // epoch, so lastRun stays null and its snapshot is unreachable), and on a
+    // vault-switch the append could land in the newly-mounted vault. Bail
+    // before touching the vault — the abandoned run leaves only an orphan
+    // snapshot, which the newest-N prune reclaims.
+    if (epoch !== this.runEpoch) return;
+
     // APPEND host-side, against the target's bytes as they are NOW (the user
     // may have edited during the run — never clobber, only append).
     let current: string | null;
