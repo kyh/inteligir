@@ -20,6 +20,13 @@ import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import type { ChatSessionSummary } from "@repo/bridge/chat-sessions";
 import type { Bridge, VaultEntry } from "@repo/bridge/ipc-registry";
 import type { RemoteAccessState } from "@repo/bridge/remote-access";
+import type { ListRoutinesResult, Routine } from "@repo/bridge/routines";
+import {
+  DAILY_FOLDER_KEY,
+  DAILY_FORMAT_KEY,
+  DEFAULT_DAILY_FOLDER,
+  DEFAULT_DAILY_FORMAT,
+} from "@repo/bridge/daily-notes";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 import type { SyncSignInResult, SyncState } from "@repo/bridge/sync";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -33,6 +40,7 @@ import { projectDoc } from "@repo/notes/knowledge/projection";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { relatedNotes } from "@repo/notes/knowledge/related-notes";
 import { addFrontmatterAlias, notePrivacy } from "@repo/notes/markdown/frontmatter";
+import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
 import { conflictCopyName, fsSafeStamp } from "@repo/notes/sync/reconcile";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
@@ -676,6 +684,21 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     if (at !== -1) delegations[at] = next;
     delegationEvents.emit({ delegations: [...delegations] });
   };
+  // Routines — durable config in memory; "Run now" simulates the host run
+  // (running → snapshot → host-side append → done). The boot scheduler is
+  // host-only: no timers fire on a wall clock here.
+  const routines: Routine[] = [];
+  let routineRunningId: string | null = null;
+  // Pre-run copies keyed by runId — the twin of the routine-origin snapshots.
+  const routineSnapshots = new Map<string, { path: string; content: string | null }>();
+  const emitRoutines = (): void => {
+    routineEvents.emit({ routines: [...routines], runningId: routineRunningId });
+  };
+  const replaceRoutine = (next: Routine): void => {
+    const at = routines.findIndex((r) => r.id === next.id);
+    if (at !== -1) routines[at] = next;
+    emitRoutines();
+  };
   let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
   // Sync — an in-memory stand-in so the settings Sync section is demoable
@@ -760,6 +783,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   const vaultEvents = new Emitter<{ root: string }>();
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();
+  const routineEvents = new Emitter<ListRoutinesResult>();
   const knowledgeEvents = new Emitter<{ revision: number }>();
   const syncEvents = new Emitter<SyncState>();
   const emitSync = () => syncEvents.emit(syncState);
@@ -1267,6 +1291,163 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
     onDelegationsUpdated: delegationEvents.subscribe,
     onDelegationStreamed: () => () => {},
+
+    // Routines — Settings CRUD is real against the in-memory list; "Run now"
+    // simulates the host run against the in-memory vault (running → snapshot
+    // → append a result block → done), so status, the appended note, and
+    // "Restore" are all exercisable. Private targets refuse like the host.
+    listRoutines: async () => ({ routines: [...routines], runningId: routineRunningId }),
+    upsertRoutine: async (params) => {
+      if (params.target.kind === "note") {
+        const raw = vault.get(params.target.path);
+        if (raw !== undefined && notePrivacy(raw) !== "public") {
+          return {
+            ok: false,
+            error:
+              "The target note is private — running would send its content to the AI provider.",
+          };
+        }
+      }
+      if (params.id === undefined) {
+        const routine: Routine = {
+          id: `fixture-routine-${Date.now()}`,
+          name: params.name,
+          prompt: params.prompt,
+          schedule: params.schedule,
+          target: params.target,
+          enabled: params.enabled,
+          createdAt: Date.now(),
+          lastRunAt: null,
+          lastRun: null,
+        };
+        routines.push(routine);
+        emitRoutines();
+        return { ok: true, routine };
+      }
+      const existing = routines.find((r) => r.id === params.id);
+      if (!existing) return { ok: false, error: "Unknown routine." };
+      const updated: Routine = {
+        ...existing,
+        name: params.name,
+        prompt: params.prompt,
+        schedule: params.schedule,
+        target: params.target,
+        enabled: params.enabled,
+      };
+      replaceRoutine(updated);
+      return { ok: true, routine: updated };
+    },
+    deleteRoutine: async (id) => {
+      const at = routines.findIndex((r) => r.id === id);
+      if (at === -1) return { ok: false };
+      routines.splice(at, 1);
+      emitRoutines();
+      return { ok: true };
+    },
+    runRoutineNow: async (id) => {
+      const routine = routines.find((r) => r.id === id);
+      if (!routine) return { ok: false, error: "Unknown routine." };
+      if (routineRunningId !== null)
+        return { ok: false, error: "This routine is already running." };
+      const now = new Date();
+      const folder = uiState[DAILY_FOLDER_KEY];
+      const format = uiState[DAILY_FORMAT_KEY];
+      const path =
+        routine.target.kind === "daily"
+          ? dailyNotePath(
+              typeof folder === "string" ? folder : DEFAULT_DAILY_FOLDER,
+              typeof format === "string" ? format : DEFAULT_DAILY_FORMAT,
+              now,
+            )
+          : routine.target.path;
+      routineRunningId = id;
+      const startedAt = Date.now();
+      replaceRoutine({ ...routine, lastRunAt: startedAt });
+      setTimeout(() => {
+        const runId = `fixture-run-${Date.now()}`;
+        const current = vault.get(path) ?? null;
+        const settle = (next: Routine): void => {
+          routineRunningId = null;
+          replaceRoutine(next);
+        };
+        // The host's fail-closed privacy check at run time.
+        if (current !== null && notePrivacy(current) !== "public") {
+          settle({
+            ...routine,
+            lastRunAt: startedAt,
+            lastRun: {
+              status: "failed",
+              runId,
+              path,
+              startedAt,
+              finishedAt: Date.now(),
+              error:
+                "The target note is private — running would send its content to the AI provider.",
+              hasSnapshot: false,
+              restoredAt: null,
+            },
+          });
+          return;
+        }
+        // Snapshot BEFORE the "agent" output lands, mirroring the host order.
+        routineSnapshots.set(runId, { path, content: current });
+        const summary = "Simulated routine result from the dev harness.";
+        const block = `## ${routine.name} — ${formatIsoDate(now)}\n\n${summary}\n`;
+        const appended =
+          current === null || current === ""
+            ? block
+            : current.endsWith("\n\n")
+              ? current + block
+              : current.endsWith("\n")
+                ? `${current}\n${block}`
+                : `${current}\n\n${block}`;
+        vault.set(path, appended);
+        indexEntry(path);
+        touchVault();
+        settle({
+          ...routine,
+          lastRunAt: startedAt,
+          lastRun: {
+            status: "done",
+            runId,
+            path,
+            startedAt,
+            finishedAt: Date.now(),
+            summary,
+            hasSnapshot: true,
+            restoredAt: null,
+          },
+        });
+      }, 800);
+      return { ok: true };
+    },
+    restoreRoutineRun: async (id) => {
+      const routine = routines.find((r) => r.id === id);
+      if (!routine) return { ok: false, error: "Unknown routine." };
+      if (routineRunningId === id) {
+        return { ok: false, error: "Wait for the routine to finish before restoring." };
+      }
+      const lastRun = routine.lastRun;
+      if (lastRun === null || !lastRun.hasSnapshot) {
+        return { ok: false, error: "No saved copy exists for this routine's last run." };
+      }
+      const snapshot = routineSnapshots.get(lastRun.runId);
+      if (!snapshot) return { ok: false, error: "The saved copy is missing." };
+      if (snapshot.content === null) {
+        // The run created the note — undo deletes it (host: OS trash).
+        if (vault.delete(snapshot.path)) {
+          removeEntry(snapshot.path);
+          touchVault();
+        }
+      } else if (vault.get(snapshot.path) !== snapshot.content) {
+        vault.set(snapshot.path, snapshot.content);
+        indexEntry(snapshot.path);
+        touchVault();
+      }
+      replaceRoutine({ ...routine, lastRun: { ...lastRun, restoredAt: Date.now() } });
+      return { ok: true };
+    },
+    onRoutinesUpdated: routineEvents.subscribe,
 
     // AI-write checkpoints — the harness chat agent is a canned echo that
     // never edits notes, so no capture event ever fires; a restore arriving

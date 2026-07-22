@@ -12,13 +12,16 @@
 
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { getRestoreManager } from "../restore/restore-manager";
+import { getRoutinesManager } from "../routines/routines-manager";
 
-/** Repoint delegations and AI-edit snapshots from `from` to `to` after a
- * successful note rename. Best-effort; never throws. */
+/** Repoint delegations, routine targets, and AI-edit snapshots from `from`
+ * to `to` after a successful note rename. Best-effort; never throws. */
 export function remapNoteMetadata(from: string, to: string): void {
   try {
     // Delegations: badges keep matching and queued runs target the new path.
     getDelegationManager().renameSource(from, to);
+    // Routines: fixed note targets and last-run restore paths move with it.
+    getRoutinesManager().renameTarget(from, to);
     // AI-edit snapshots: a chat capture's entry path is its restore
     // target, so undo must follow the moved file.
     getRestoreManager().renamePath(from, to);

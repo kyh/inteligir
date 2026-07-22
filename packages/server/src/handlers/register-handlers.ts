@@ -15,6 +15,7 @@ import { registerKnowledgeHandlers } from "./knowledge-handlers";
 import { registerLifecycleHandlers } from "./lifecycle-handlers";
 import { registerNotificationHandlers } from "./notification-handlers";
 import { registerRemoteAccessHandlers } from "./remote-access-handlers";
+import { registerRoutinesHandlers } from "./routines-handlers";
 import { registerSkillsHandlers } from "./skills-handlers";
 import { registerSyncHandlers } from "./sync-handlers";
 import { registerUiStateHandlers } from "./ui-state-handlers";
@@ -32,6 +33,7 @@ export function registerAllHandlers(handle: HandlerRegistrar): void {
   registerVaultHandlers(handle);
   registerKnowledgeHandlers(handle);
   registerDelegationHandlers(handle);
+  registerRoutinesHandlers(handle);
   registerRestoreHandlers(handle);
   registerCaptureHandlers(handle);
   registerAiHandlers(handle);

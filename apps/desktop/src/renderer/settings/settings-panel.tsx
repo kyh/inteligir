@@ -12,6 +12,7 @@ import { AiProviderSection } from "@renderer/settings/sections/ai-provider-secti
 import { EditorAiSection } from "@renderer/settings/sections/editor-ai-section";
 import { NotesSection } from "@renderer/settings/sections/notes-section";
 import { RemoteAccessSection } from "@renderer/settings/sections/remote-access-section";
+import { RoutinesSection } from "@renderer/settings/sections/routines-section";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
 import { SyncSection } from "@renderer/settings/sections/sync-section";
 import { VoiceSection } from "@renderer/settings/sections/voice-section";
@@ -131,6 +132,8 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
       </div>
 
       <NotesSection />
+
+      <RoutinesSection />
 
       <AccountSection />
 

@@ -16,6 +16,11 @@ import { Value } from "@sinclair/typebox/value";
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import { findTaskLine } from "./find-task-line";
+import {
+  BackgroundTurnLock,
+  getBackgroundTurnLock,
+  type BackgroundTurnToken,
+} from "./background-turn-lock";
 import { remapVaultPath } from "../restore/snapshot-store";
 import { getRestoreManager, type RestoreManager } from "../restore/restore-manager";
 import {
@@ -99,6 +104,11 @@ export type DelegationManagerOptions = {
    * Defaults to the live vault
    * refresh; unit tests leave it unset. */
   onRunSettled?: () => void;
+  /** Cross-manager serialization for the shared background session — routines
+   * and delegations must never run concurrent turns on it. The live singleton
+   * passes the process-wide getBackgroundTurnLock(); the default is a private
+   * per-instance lock so unit tests stay hermetic. */
+  turnLock?: BackgroundTurnLock;
 };
 
 export class DelegationManager {
@@ -109,8 +119,14 @@ export class DelegationManager {
   private readonly onChanged: ((delegations: Delegation[]) => void) | null;
   private readonly onStream: ((id: string, text: string) => void) | null;
   private readonly onRunSettled: (() => void) | null;
+  private readonly turnLock: BackgroundTurnLock;
   private getAgent: (() => DelegationAgent | null) | null = null;
   private running = false;
+  // The shared-session lock token the in-flight run holds. stop() releases it
+  // (the session is being torn down) so a fresh runner — or the routines
+  // manager — isn't blocked behind an abandoned run; the abandoned run's own
+  // late release is then a no-op mismatch.
+  private heldToken: BackgroundTurnToken | null = null;
   // Id of a running delegation the user asked to stop — the run marks it stopped
   // once the interrupt lands the agent idle.
   private stopRequested: string | null = null;
@@ -131,6 +147,7 @@ export class DelegationManager {
     this.onChanged = opts?.onChanged ?? null;
     this.onStream = opts?.onStream ?? null;
     this.onRunSettled = opts?.onRunSettled ?? null;
+    this.turnLock = opts?.turnLock ?? new BackgroundTurnLock();
     this.store = new JsonStore<Delegation[]>(
       opts?.path ?? inteligirPath("delegations.json"),
       DelegationsFileSchema,
@@ -174,6 +191,13 @@ export class DelegationManager {
     // racing the abandoned one.
     this.runEpoch++;
     this.running = false;
+    // Same story for the shared-session lock: the background session is being
+    // torn down, so the abandoned run must not keep routines (or a fresh
+    // delegation runner) waiting on its token.
+    if (this.heldToken !== null) {
+      this.turnLock.release(this.heldToken);
+      this.heldToken = null;
+    }
     if (this.retryTimer !== null) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
@@ -356,7 +380,15 @@ export class DelegationManager {
    * records lose `hasSnapshot` at the data level so no surface (present or
    * future) can offer a restore whose bytes are gone. */
   pruneSnapshots(): void {
-    const prunedIds = new Set(this.restore.prune());
+    this.applyPrunedSnapshots(this.restore.prune());
+  }
+
+  /** Clear `hasSnapshot` on records whose pre-run bytes a sweep just pruned.
+   * Split from pruneSnapshots so the composition root can run ONE store
+   * sweep and fan the pruned ids to every manager sharing the store (the
+   * routines manager holds routine-origin snapshots in the same store). */
+  applyPrunedSnapshots(ids: string[]): void {
+    const prunedIds = new Set(ids);
     if (prunedIds.size === 0) return;
     this.store.update((all) =>
       all.map((d) => (prunedIds.has(d.id) && d.hasSnapshot ? { ...d, hasSnapshot: false } : d)),
@@ -410,13 +442,26 @@ export class DelegationManager {
     const next = this.getDelegations().find((d) => d.status === "queued");
     if (!next) return;
 
+    // The SHARED background session may be mid-routine — same retry story as
+    // an agent-busy state: poll until the other manager's turn releases.
+    const token = this.turnLock.tryAcquire("delegation");
+    if (token === null) {
+      this.scheduleRetry();
+      return;
+    }
+
     this.running = true;
+    this.heldToken = token;
     const epoch = this.runEpoch;
     try {
       await this.run(agent, next);
     } catch (err) {
       console.error("[delegation] run failed:", err);
     } finally {
+      // Always release OUR token (a post-stop() release is a no-op mismatch —
+      // stop already released it), independent of the epoch guard below.
+      this.turnLock.release(token);
+      if (this.heldToken === token) this.heldToken = null;
       // Only the current run owns the lock + pump. A run abandoned by stop()
       // (epoch bumped) must not reset the lock a new runner now holds, nor
       // re-enter the queue — that would start a second concurrent run.
@@ -606,6 +651,9 @@ export function getDelegationManager(): DelegationManager {
       onChanged: (delegations) => emitEvent("onDelegationsUpdated", { delegations }),
       onStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
       onRunSettled: () => getVaultManager().refresh(),
+      // Shared with the routines manager: one turn at a time on the shared
+      // background session, across both surfaces.
+      turnLock: getBackgroundTurnLock(),
     });
   }
   return instance;

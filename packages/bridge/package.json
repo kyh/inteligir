@@ -22,6 +22,8 @@
     "./ipc-registry": "./src/ipc-registry.ts",
     "./note-context": "./src/note-context.ts",
     "./remote-access": "./src/remote-access.ts",
+    "./routine-schedule": "./src/routine-schedule.ts",
+    "./routines": "./src/routines.ts",
     "./sync": "./src/sync.ts",
     "./ui-state": "./src/ui-state.ts",
     "./voice": "./src/voice.ts",

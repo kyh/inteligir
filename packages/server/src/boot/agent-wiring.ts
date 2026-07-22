@@ -25,6 +25,7 @@ import { resetAgentInstructionsSeedMarks } from "../agent-instructions/agent-ins
 import { resetCaptureManager } from "../capture/capture-manager";
 import { getRestoreManager, resetRestoreManager } from "../restore/restore-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
+import { resetRoutinesManager } from "../routines/routines-manager";
 import { resetSnapshotStore } from "../restore/snapshot-store";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "@repo/connectors/executor-client";
@@ -188,6 +189,7 @@ export function teardownAgentResources(): void {
   resetCaptureManager();
   resetRestoreManager();
   resetDelegationManager();
+  resetRoutinesManager();
   resetSnapshotStore();
   resetExecutorDaemon();
   resetSyncCoordinator();
