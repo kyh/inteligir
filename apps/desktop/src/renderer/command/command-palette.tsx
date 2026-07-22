@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  BotIcon,
   CalendarDaysIcon,
   FilePlusIcon,
   FileTextIcon,
@@ -26,6 +27,10 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { notePrivacy, setNotePrivate } from "@repo/notes/markdown/frontmatter";
 
+import {
+  AGENT_INSTRUCTIONS_PATH,
+  AGENT_INSTRUCTIONS_SKELETON,
+} from "@repo/bridge/agent-instructions";
 import { TEMPLATES_DIR, isTemplatePath } from "@repo/bridge/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
@@ -97,7 +102,8 @@ export function CommandPalette({
   onSeedConsumed?: () => void;
 }) {
   const { entries } = useVaultListing();
-  const { openFile, createFile, changeFolder, refreshVault, editNote } = useVaultActions();
+  const { openFile, createFile, changeFolder, refreshVault, editNote, openOrCreateNote } =
+    useVaultActions();
   // Narrow subscriptions (#470): only the private-toggle action's PRESENCE and
   // LABEL are render inputs; the live content is read imperatively at action
   // time (togglePrivate below), so typing never re-renders the palette.
@@ -458,6 +464,16 @@ export function CommandPalette({
           },
         ]
       : []),
+    {
+      value: "agent-instructions",
+      keywords: "open agent instructions memory customize ai personalize agents.md",
+      icon: <BotIcon />,
+      label: "Open agent instructions",
+      // Open-or-create: an existing vault/AGENTS.md opens untouched; an
+      // absent one is created from the skeleton first (same idempotent path
+      // daily notes + templates use).
+      onSelect: () => void openOrCreateNote(AGENT_INSTRUCTIONS_PATH, AGENT_INSTRUCTIONS_SKELETON),
+    },
     {
       value: "refresh",
       keywords: "refresh vault reload rescan files sync snapshot",

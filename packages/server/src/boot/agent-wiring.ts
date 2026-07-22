@@ -21,6 +21,7 @@ import { AGENT_DIR } from "@repo/agent/paths";
 import { seedResources, type BundledResources } from "@repo/agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "@repo/storage/host-lock";
+import { resetAgentInstructionsSeedMarks } from "../agent-instructions/agent-instructions";
 import { resetCaptureManager } from "../capture/capture-manager";
 import { getRestoreManager, resetRestoreManager } from "../restore/restore-manager";
 import { resetDelegationManager } from "../delegation/delegation-manager";
@@ -194,6 +195,7 @@ export function teardownAgentResources(): void {
   // their live ws sockets — remote credentials must not survive logout.
   resetRemoteAccessManager();
   resetUiState();
+  resetAgentInstructionsSeedMarks();
   resetSecretStore();
   resetProviderConfig();
   // Release the knowledge singleton (cancels pending reconcile work + closes

@@ -16,6 +16,7 @@
 
 import { Agent } from "@repo/agent/agent";
 import { BACKGROUND_SESSION_DIR } from "@repo/agent/paths";
+import { loadUserAgentInstructions } from "../agent-instructions/agent-instructions";
 import { agentModelSelection } from "../provider/provider-service";
 import { getAgentPorts } from "../boot/agent-wiring";
 
@@ -30,6 +31,9 @@ export async function startBackgroundAgent(): Promise<void> {
     newSession: true,
     sessionDir: BACKGROUND_SESSION_DIR,
     selectModel: agentModelSelection,
+    // Delegations edit the vault too — "meeting notes go in meetings/" must
+    // bind them the same as chat. Read fresh at this agent's start.
+    userInstructions: loadUserAgentInstructions,
     // Tool-gate checkpoints are the CHAT undo surface — disabled here. This
     // agent's undo is the pre-run delegation snapshot (delegation-manager)
     // behind the dock's "Restore original"; hook captures from this session

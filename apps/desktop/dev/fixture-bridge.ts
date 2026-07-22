@@ -860,6 +860,11 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         "faux agent scripting (run the real host: pnpm dev:desktop with INTELIGIR_FAUX_AGENT=1)",
       );
     },
+    getAgentSystemPrompt: async () => {
+      throw unavailable(
+        "agent system-prompt inspection (run the real host: pnpm dev:desktop with INTELIGIR_FAUX_AGENT=1)",
+      );
+    },
 
     // AI provider — the in-memory mirror above; switch/connect/disconnect all
     // mutate it so the Settings section's states are exercisable.
