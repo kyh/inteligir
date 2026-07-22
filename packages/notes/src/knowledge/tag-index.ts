@@ -72,6 +72,13 @@ export class TagIndex {
       );
   }
 
+  /** One doc's tags in display case, extraction order (empty when unknown) —
+   * the related-notes scorer's shared-tag basis. */
+  tagsOf(path: string): string[] {
+    const keys = this.docTags.get(path) ?? [];
+    return keys.map((key) => this.tags.get(key)?.display ?? key);
+  }
+
   /** The notes carrying `tag` (case-insensitive), by path. Empty when unknown. */
   notesWithTag(tag: string): string[] {
     const entry = this.tags.get(tag.trim().toLowerCase());

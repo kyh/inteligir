@@ -318,6 +318,11 @@ export class LinkGraphIndex {
     return out;
   }
 
+  /** One doc's tags in display case (empty for unknown paths). */
+  tagsOf(path: string): string[] {
+    return this.tagIndex.tagsOf(path);
+  }
+
   /** Vault paths of notes carrying `tag` (case-insensitive), sorted. */
   notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
     const paths = this.tagIndex.notesWithTag(tag);
