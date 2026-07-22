@@ -268,7 +268,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const openFile = useCallback(
     (path: string) => {
-      console.log("DEBUG openFile", path);
       void (async () => {
         // Navigation always lands on the editor surface — opening a note from
         // the graph, palette, or a wiki chip must show the note, not stay on
@@ -284,7 +283,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         disposeRuntime();
         ensureRuntime(path);
         applyOpenPath(path);
-        console.log("DEBUG openFile applied", path);
       })();
     },
     [applyOpenPath, disposeRuntime, ensureRuntime, flushCurrent],
@@ -543,12 +541,16 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshVault]);
 
-  // Persist on unmount so a change within the debounce window isn't lost.
+  // Persist on unmount so a change within the debounce window isn't lost, then
+  // tear the runtime down — the manual controller subscription + vanish watcher
+  // don't auto-clean the way the old useSyncExternalStore did, so drop them
+  // explicitly (keeps StrictMode's mount/unmount/mount cycle leak-free).
   useEffect(
     () => () => {
       void runtimeRef.current?.flush();
+      disposeRuntime();
     },
-    [],
+    [disposeRuntime],
   );
 
   // Deep-link captures (inteligir://append|task) targeting the OPEN note are
