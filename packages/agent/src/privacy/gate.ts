@@ -81,12 +81,12 @@ const SCAN_TOOLS = new Set(["grep", "find", "ls"]);
 /** Curated knowledge tools: privacy is enforced at the KnowledgePort (private
  * hits dropped entirely + live re-probe), so the gate leaves them alone — a
  * path-shaped arg here is a lookup key, not a read. */
-const KNOWLEDGE_TOOLS = new Set(["search_vault", "get_backlinks"]);
+const KNOWLEDGE_TOOLS = new Set(["search_vault", "get_backlinks", "related_notes"]);
 
 /** Gate one tool call. `input` is the already-validated tool arguments (pi
  * validates before the tool_call hook fires). Unknown tools pass — the
- * curated read surfaces (search_vault/get_backlinks) filter privately at the
- * KnowledgePort instead. */
+ * curated read surfaces (search_vault/get_backlinks/related_notes) filter
+ * privately at the KnowledgePort instead. */
 export function decideToolCall(
   call: { toolName: string; input: Record<string, unknown> },
   env: GateEnv,

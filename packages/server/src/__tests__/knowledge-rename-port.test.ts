@@ -48,7 +48,12 @@ beforeEach(() => {
   afterRenameCalls = [];
   port = buildAgentKnowledgePort({
     // rename never touches the queries; give it an inert set.
-    queries: () => ({ search: () => [], backlinks: () => [], notesWithTag: () => [] }),
+    queries: () => ({
+      search: () => [],
+      backlinks: () => [],
+      relatedNotes: () => [],
+      notesWithTag: () => [],
+    }),
     probe,
     vault: () => vault,
     afterRename: (from, to) => afterRenameCalls.push([from, to]),

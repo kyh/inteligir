@@ -51,17 +51,45 @@ function backlink(sourcePath: string, line: number): BacklinkEntry {
 const emptyPort: KnowledgePort = {
   search: () => [],
   backlinks: () => [],
+  relatedNotes: () => [],
   notesWithTag: () => [],
   rename: () => ({ ok: false, reason: "not wired in this test" }),
 };
 
 describe("knowledge extension tools", () => {
-  it("registers search_vault, get_backlinks, and rename_note with valid schemas", () => {
+  it("registers search_vault, get_backlinks, related_notes, and rename_note with valid schemas", () => {
     const tools = capture(emptyPort);
-    expect([...tools.keys()].toSorted()).toEqual(["get_backlinks", "rename_note", "search_vault"]);
+    expect([...tools.keys()].toSorted()).toEqual([
+      "get_backlinks",
+      "related_notes",
+      "rename_note",
+      "search_vault",
+    ]);
     for (const [, tool] of tools) {
       expect(() => validateToolParametersSchema(tool, "knowledge")).not.toThrow();
     }
+  });
+
+  it("related_notes formats hits as 'path — reasons', one per line", async () => {
+    const relatedNotes = vi.fn(() => [
+      {
+        path: "a.md",
+        title: "A",
+        score: 3,
+        reasons: ["both link to Hub", "shares #alpha"],
+      },
+      { path: "b.md", title: "B", score: 1, reasons: ["similar text"] },
+    ]);
+    const tools = capture({ ...emptyPort, relatedNotes });
+    const result = await tool(tools, "related_notes").execute("id", { path: "subject.md" });
+    expect(text(result)).toBe("a.md — both link to Hub; shares #alpha\nb.md — similar text");
+    expect(relatedNotes).toHaveBeenCalledWith("subject.md");
+  });
+
+  it("related_notes returns the No related notes. sentinel on empty results", async () => {
+    const tools = capture(emptyPort);
+    const result = await tool(tools, "related_notes").execute("id", { path: "subject.md" });
+    expect(text(result)).toBe("No related notes.");
   });
 
   it("search_vault formats hits as 'path — snippet', one per line", async () => {

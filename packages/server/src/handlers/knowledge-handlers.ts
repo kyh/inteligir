@@ -22,6 +22,7 @@ function toggleFailureMessage(reason: "line-missing" | "line-changed" | "not-a-c
 export function registerKnowledgeHandlers(handle: HandlerRegistrar): void {
   handle("getBacklinks", ({ path }) => getKnowledgeManager().backlinks(path));
   handle("getForwardLinks", ({ path }) => getKnowledgeManager().forwardLinks(path));
+  handle("getRelatedNotes", ({ path }) => getKnowledgeManager().relatedNotes(path));
   handle("getLinkGraph", () => getKnowledgeManager().graph());
   handle("searchVault", ({ query, limit }) => getKnowledgeManager().search(query, limit));
   handle("listWikiTargets", () => getKnowledgeManager().wikiTargets());

@@ -32,6 +32,7 @@
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import type { BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
 import type { PrivacyOpts } from "@repo/notes/knowledge/link-graph-index";
+import type { RelatedNoteEntry, RelatedNotesOpts } from "@repo/notes/knowledge/related-notes";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -44,6 +45,7 @@ import type { VaultManager } from "@repo/vault/vault";
 export type KnowledgeQueries = {
   search(query: string, limit?: number, opts?: PrivacyOpts): SearchResult[];
   backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[];
+  relatedNotes(path: string, opts?: RelatedNotesOpts): RelatedNoteEntry[];
   notesWithTag(tag: string, opts?: PrivacyOpts): string[];
 };
 
@@ -77,6 +79,16 @@ export function buildAgentKnowledgePort(deps: {
         .queries()
         .backlinks(path, EXCLUDE)
         .filter((entry) => isPublicNow(entry.sourcePath));
+    },
+    relatedNotes: (path) => {
+      // A private/unreadable SUBJECT yields [] — silently, exactly like
+      // backlinks (see header): "no related notes" never confirms a path.
+      const target = deps.probe(path);
+      if (target === "private" || target === "indeterminate") return [];
+      return deps
+        .queries()
+        .relatedNotes(path, EXCLUDE)
+        .filter((entry) => isPublicNow(entry.path));
     },
     notesWithTag: (tag) => deps.queries().notesWithTag(tag, EXCLUDE).filter(isPublicNow),
     rename: (from, to) => renameNote(deps, from, to),

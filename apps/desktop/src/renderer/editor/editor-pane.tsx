@@ -5,7 +5,11 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@renderer/editor/editor-chrome";
 import { MarkdownEditor } from "@renderer/editor/markdown-editor";
-import { BacklinksPanel, ForwardLinksPanel } from "@renderer/workspace/links-panel";
+import {
+  BacklinksPanel,
+  ForwardLinksPanel,
+  RelatedNotesPanel,
+} from "@renderer/workspace/links-panel";
 import { openDocPath } from "@renderer/workspace/open-doc";
 import { useOpenNote } from "@renderer/workspace/open-note-store";
 import { useVaultActions } from "@renderer/workspace/vault-context";
@@ -209,6 +213,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       <div className={EDITOR_COLUMN_PX}>
         <ForwardLinksPanel path={path} />
         <BacklinksPanel path={path} />
+        <RelatedNotesPanel path={path} />
       </div>
     </div>
   );

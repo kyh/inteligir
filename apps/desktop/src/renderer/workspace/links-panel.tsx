@@ -23,6 +23,7 @@ import {
 import { getBridge } from "@renderer/lib/bridge";
 import { useVaultActions } from "@renderer/workspace/vault-context";
 import type { BacklinkEntry, ForwardLinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
 function noteTitle(path: string): string {
@@ -201,6 +202,56 @@ export function ForwardLinksPanel({ path }: { path: string }) {
         <span>Links</span>
         <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums">
           {links.length}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <LinkGroupList groups={groups} />
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Related — notes CONNECTED to this one without a direct link: shared link
+// targets, co-citation, shared tags, similar text (the pure relatedNotes
+// scorer). Each row shows the note plus its `reasons` as the hint line —
+// explainability is the point ("notes you forgot are connected to this one").
+// Direct neighbors never appear here; Links/Backlinks above own them.
+// ---------------------------------------------------------------------------
+
+export function RelatedNotesPanel({ path }: { path: string }) {
+  const { openFile } = useVaultActions();
+  const [related, setRelated] = useState<RelatedNoteEntry[]>([]);
+
+  const refresh = useCallback((notePath: string) => {
+    getBridge()
+      .getRelatedNotes({ path: notePath })
+      .then((entries) => setRelated(entries))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refresh(path);
+    return getBridge().onKnowledgeUpdated(() => refresh(path));
+  }, [path, refresh]);
+
+  if (related.length === 0) return null;
+
+  const groups: LinkGroup[] = related.map((entry) => ({
+    key: entry.path,
+    label: entry.title,
+    onOpen: () => openFile(entry.path),
+    // One hint line per note: the scorer's reasons, joined.
+    lines: [{ key: 0, snippet: entry.reasons.join(" · ") }],
+  }));
+
+  return (
+    <Collapsible defaultOpen className="group/related mt-10 border-t border-border pt-3">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <ChevronRightIcon className="size-3.5 transition-transform group-data-[panel-open]/related:rotate-90" />
+        <span>Related</span>
+        <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums">
+          {related.length}
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent>

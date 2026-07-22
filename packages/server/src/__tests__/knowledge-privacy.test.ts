@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Outbound-payload guarantee for the agent knowledge tools (reflect's
 // stream-chat payload-assertion pattern, adapted to the tool level): run the
-// REAL search_vault / get_backlinks execute() closures over the REAL
+// REAL search_vault / get_backlinks / related_notes execute() closures over the REAL
 // privacy-filtered port and a real core index, stringify every result the
 // model would receive, and assert the private note's path, title, and body
 // text never appear — including via backlinks-from-a-private-source and the
@@ -30,6 +30,12 @@ const VAULT: Record<string, string> = {
   [PRIVATE_PATH]: `---\nprivate: true\ntags: [meta]\n---\n# ${PRIVATE_TITLE}\n\n${PRIVATE_BODY}\n\n[[open-notes]]\n`,
   "open-notes.md": "# Open notes\n\npublic umbrella research #meta\n\n[[secret-plans]]\n",
   "other.md": "# Other\n\numbrella stand shopping list\n",
+  // Private and RELATED to open-notes without any direct link (shared #meta
+  // tag + a lexical hit) — the related_notes candidate that must never show.
+  "hidden-lab.md":
+    "---\nprivate: true\ntags: [meta]\n---\n# Hidden Lab\n\nclassified centrifuge notes\n",
+  // Public tagmate so related_notes(open-notes) has a legitimate survivor.
+  "meta-index.md": "# Meta index\n\n#meta\n",
 };
 
 function seededIndex(): KnowledgeIndex {
@@ -99,6 +105,9 @@ function expectNoLeak(payload: string): void {
   expect(payload).not.toContain(PRIVATE_TITLE);
   expect(payload).not.toContain("TOP-SECRET");
   expect(payload).not.toContain("rocket");
+  expect(payload).not.toContain("hidden-lab");
+  expect(payload).not.toContain("Hidden Lab");
+  expect(payload).not.toContain("centrifuge");
 }
 
 describe("agent knowledge tools — private notes never reach the model", () => {
@@ -150,5 +159,28 @@ describe("agent knowledge tools — private notes never reach the model", () => 
     );
     const payload = await outbound(tools, "search_vault", { query: "umbrella" });
     expect(payload).not.toContain("other.md");
+  });
+
+  it("related_notes drops a private candidate (related via tag + text, no direct link)", async () => {
+    const tools = captureTools(buildPort());
+    const payload = await outbound(tools, "related_notes", { path: "open-notes.md" });
+    expectNoLeak(payload); // hidden-lab shares #meta and text — must not show
+    expect(payload).toContain("meta-index.md"); // the public tagmate survives
+  });
+
+  it("related_notes on a private subject answers 'No related notes.' — a silent drop", async () => {
+    const tools = captureTools(buildPort());
+    const payload = await outbound(tools, "related_notes", { path: PRIVATE_PATH });
+    expect(payload).toContain("No related notes.");
+    expectNoLeak(payload);
+  });
+
+  it("related_notes TOCTOU: a candidate public in the index but private on disk NOW drops", async () => {
+    const tools = captureTools(
+      buildPort({ "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n" }),
+    );
+    const payload = await outbound(tools, "related_notes", { path: "open-notes.md" });
+    expect(payload).not.toContain("meta-index.md");
+    expectNoLeak(payload);
   });
 });
