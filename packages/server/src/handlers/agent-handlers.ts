@@ -1,5 +1,5 @@
 import { dispatchAgentCommand } from "../app/agent-gateway";
-import { reauthenticate } from "../app/app-machine";
+import { getAgent, reauthenticate } from "../app/app-machine";
 import { readSessionHistory } from "../app/session-history";
 import type { HandlerRegistrar } from "./handler-registry";
 import { applyFauxAgentScript, isFauxAgentEnabled } from "@repo/agent/provider/faux-provider";
@@ -21,5 +21,13 @@ export function registerAgentHandlers(handle: HandlerRegistrar): void {
       throw new Error("setFauxAgentScript requires INTELIGIR_FAUX_AGENT=1");
     }
     applyFauxAgentScript(script);
+  });
+
+  // Dev-only E2E assertion seam — fails closed in production like the above.
+  handle("getAgentSystemPrompt", () => {
+    if (!isFauxAgentEnabled()) {
+      throw new Error("getAgentSystemPrompt requires INTELIGIR_FAUX_AGENT=1");
+    }
+    return getAgent()?.getSystemPrompt() ?? null;
   });
 }

@@ -131,6 +131,12 @@ export class Agent {
     return this.pi?.getState() ?? { status: "starting", error: null };
   }
 
+  /** The live session's composed system prompt, or null before start().
+   * Dev-only E2E surface (agent:system-prompt) — see PiAgent.getSystemPrompt. */
+  getSystemPrompt(): string | null {
+    return this.pi?.getSystemPrompt() ?? null;
+  }
+
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {
     // Throw — silently dropping the listener would mean no agent events
     // ever reach the renderer.

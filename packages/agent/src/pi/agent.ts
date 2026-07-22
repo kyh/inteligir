@@ -260,6 +260,13 @@ export class PiAgent {
     return { status: this.status, error: this.error };
   }
 
+  /** The live session's composed system prompt (base + tools + context files),
+   * or null before start(). Read-only; serves the dev-only E2E assertion that
+   * injected instructions actually reached the constructed session. */
+  getSystemPrompt(): string | null {
+    return this.session?.systemPrompt ?? null;
+  }
+
   // ---- subscriptions -------------------------------------------------------
 
   subscribe(listener: PiAgentEventListener): () => void {

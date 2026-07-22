@@ -422,6 +422,11 @@ export const IPC = {
     "agent:set-faux-script",
     FauxAgentScriptSchema,
   ),
+  /** Dev-only (INTELIGIR_FAUX_AGENT=1; throws otherwise): the chat session's
+   * composed system prompt, or null before the agent starts. Lets a headless
+   * E2E drive assert injected context (e.g. vault/AGENTS.md instructions)
+   * actually reached the constructed session. */
+  getAgentSystemPrompt: invokeVoid<string | null>("agent:system-prompt"),
 
   // AI provider — WHICH pi provider+model the agent surfaces run on. These
   // channels move only the SELECTION and per-provider connected booleans;
