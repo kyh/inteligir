@@ -66,22 +66,22 @@ export function PastChatsDialog() {
     setListError(null);
     setView({ kind: "list" });
     const seq = ++fetchSeq.current;
-    getBridge()
-      .listChatSessions()
-      .then((list) => {
+    void (async () => {
+      try {
+        const list = await getBridge().listChatSessions();
         if (fetchSeq.current === seq) setSessions(list);
-      })
-      .catch((err: unknown) => {
+      } catch (err) {
         if (fetchSeq.current === seq) setListError(toErrorMessage(err));
-      });
+      }
+    })();
   }, [open]);
 
   const openSession = useCallback((session: ChatSessionSummary) => {
     const seq = ++fetchSeq.current;
     setView({ kind: "transcript", session, messages: null, error: null });
-    getBridge()
-      .readChatSession({ id: session.id })
-      .then((result) => {
+    void (async () => {
+      try {
+        const result = await getBridge().readChatSession({ id: session.id });
         if (fetchSeq.current !== seq) return;
         setView(
           result.ok
@@ -93,11 +93,11 @@ export function PastChatsDialog() {
               }
             : { kind: "transcript", session, messages: null, error: result.error },
         );
-      })
-      .catch((err: unknown) => {
+      } catch (err) {
         if (fetchSeq.current !== seq) return;
         setView({ kind: "transcript", session, messages: null, error: toErrorMessage(err) });
-      });
+      }
+    })();
   }, []);
 
   const backToList = useCallback(() => {
@@ -139,11 +139,7 @@ export function PastChatsDialog() {
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {view.kind === "list" ? (
-            <SessionList
-              sessions={sessions}
-              error={listError}
-              onSelect={openSession}
-            />
+            <SessionList sessions={sessions} error={listError} onSelect={openSession} />
           ) : (
             <Transcript messages={view.messages} error={view.error} />
           )}

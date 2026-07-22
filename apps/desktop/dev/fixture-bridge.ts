@@ -895,11 +895,11 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // Read-only past-chat browser over the in-memory sample sessions above.
     // Unknown ids answer with the host's { ok: false } VALUE, so the
     // browser's inline error path is exercisable too.
-    listChatSessions: async () => pastSessions.map((s) => ({ ...s.summary })),
+    listChatSessions: async () => pastSessions.map((s) => Object.assign({}, s.summary)),
     readChatSession: async ({ id }) => {
       const session = pastSessions.find((s) => s.summary.id === id);
       return session
-        ? { ok: true, entries: session.entries.map((e) => ({ ...e })) }
+        ? { ok: true, entries: session.entries.map((e) => Object.assign({}, e)) }
         : { ok: false, error: `No session with id "${id}"` };
     },
     reauthenticate: async () => ({ ok: true }),

@@ -1,10 +1,6 @@
 import { dispatchAgentCommand } from "../app/agent-gateway";
 import { getAgent, reauthenticate } from "../app/app-machine";
-import {
-  listChatSessions,
-  readChatSessionById,
-  readSessionHistory,
-} from "../app/session-history";
+import { listChatSessions, readChatSessionById, readSessionHistory } from "../app/session-history";
 import type { HandlerRegistrar } from "./handler-registry";
 import { applyFauxAgentScript, isFauxAgentEnabled } from "@repo/agent/provider/faux-provider";
 

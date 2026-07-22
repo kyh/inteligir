@@ -157,7 +157,7 @@ export function summarizeSessions(
 ): ChatSessionSummary[] {
   return listings
     .filter((s) => s.id !== activeSessionId && s.messageCount > 0)
-    .sort((a, b) => b.modified.getTime() - a.modified.getTime())
+    .toSorted((a, b) => b.modified.getTime() - a.modified.getTime())
     .map((s) => ({
       id: s.id,
       title: sessionTitle(s.firstMessage),
