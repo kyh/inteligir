@@ -16,6 +16,9 @@ type ViewStore = {
   setPinned: (pinned: boolean) => void;
   surface: WorkspaceSurface;
   setSurface: (surface: WorkspaceSurface) => void;
+  /** The read-only past-chat browser dialog (palette: "Browse past chats"). */
+  pastChatsOpen: boolean;
+  setPastChatsOpen: (open: boolean) => void;
 };
 
 export const useViewStore = create<ViewStore>((set) => ({
@@ -24,4 +27,6 @@ export const useViewStore = create<ViewStore>((set) => ({
   setPinned: (responsePinned) => set({ responsePinned }),
   surface: "editor",
   setSurface: (surface) => set({ surface }),
+  pastChatsOpen: false,
+  setPastChatsOpen: (pastChatsOpen) => set({ pastChatsOpen }),
 }));

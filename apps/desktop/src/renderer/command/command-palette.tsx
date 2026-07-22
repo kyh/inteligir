@@ -6,6 +6,7 @@ import {
   FileTextIcon,
   FolderIcon,
   HashIcon,
+  HistoryIcon,
   LayoutTemplateIcon,
   ListTodoIcon,
   LockIcon,
@@ -112,6 +113,7 @@ export function CommandPalette({
   const createFromTemplate = useCreateFromTemplate();
   const openDailyNote = useOpenDailyNote();
   const setSurface = useViewStore((s) => s.setSurface);
+  const setPastChatsOpen = useViewStore((s) => s.setPastChatsOpen);
   const { resolved, setTheme } = useTheme();
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "root" });
@@ -473,6 +475,14 @@ export function CommandPalette({
       // absent one is created from the skeleton first (same idempotent path
       // daily notes + templates use).
       onSelect: () => void openOrCreateNote(AGENT_INSTRUCTIONS_PATH, AGENT_INSTRUCTIONS_SKELETON),
+    },
+    {
+      value: "past-chats",
+      keywords: "browse past chats history previous conversations threads sessions",
+      icon: <HistoryIcon />,
+      label: "Browse past chats",
+      // Read-only viewer — a past thread is never resumed (single-thread chat).
+      onSelect: () => setPastChatsOpen(true),
     },
     {
       value: "refresh",
