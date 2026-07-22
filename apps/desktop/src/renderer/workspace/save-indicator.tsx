@@ -2,7 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/too
 import { cn } from "@repo/ui/lib/utils";
 
 import { useAiReviewStore } from "@renderer/stores/ai-review-store";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
 
 /**
  * Save status as a quiet dot pinned to the content column's bottom-right:
@@ -10,8 +10,9 @@ import { useVault } from "@renderer/workspace/vault-context";
  * frozen while AI suggestions await review). The words live in the tooltip.
  */
 export function SaveIndicator() {
-  const { editor } = useVault();
-  const path = editor.path;
+  const path = useOpenNote((s) => s.editor.path);
+  const saving = useOpenNote((s) => s.editor.saving);
+  const dirty = useOpenNote((s) => s.editor.dirty);
   // While an AI suggestion session pends ON THIS note, its autosave is frozen
   // (the transient gate) — say so instead of silently reading "Saved" over
   // stale bytes.
@@ -20,12 +21,12 @@ export function SaveIndicator() {
 
   if (path === null) return null;
 
-  const saved = !reviewing && !editor.saving && !editor.dirty;
+  const saved = !reviewing && !saving && !dirty;
   const label = reviewing
     ? "Saving is paused while AI suggestions await review — resolve or leave to settle them"
-    : editor.saving
+    : saving
       ? "Saving…"
-      : editor.dirty
+      : dirty
         ? "Unsaved"
         : "Saved";
 

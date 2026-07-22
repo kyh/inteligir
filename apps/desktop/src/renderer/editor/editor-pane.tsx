@@ -6,7 +6,9 @@ import { cn } from "@repo/ui/lib/utils";
 import { EDITOR_COLUMN_PX } from "@renderer/editor/editor-chrome";
 import { MarkdownEditor } from "@renderer/editor/markdown-editor";
 import { BacklinksPanel, ForwardLinksPanel } from "@renderer/workspace/links-panel";
-import { useVault } from "@renderer/workspace/vault-context";
+import { openDocPath } from "@renderer/workspace/open-doc";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { useVaultActions } from "@renderer/workspace/vault-context";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -18,7 +20,15 @@ import { basenamePath } from "@repo/notes/knowledge/vault-path";
  * padding clears the pinned composer.
  */
 export function EditorPane() {
-  const { editor, openDoc } = useVault();
+  // Narrow selectors (#470): the pane's mount decision depends on the doc's
+  // kind/path/surface — never on the content buffer, so typing re-renders
+  // only the NotePane below.
+  const kind = useOpenNote((s) => s.openDoc.kind);
+  const docPath = useOpenNote((s) => openDocPath(s.openDoc));
+  const loadedPath = useOpenNote((s) => s.editor.path);
+  const showRich = useOpenNote(
+    (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
+  );
 
   // Opening a different note starts reading from the top (the workspace
   // <main> is the scroll container and survives the swap, so it must be
@@ -26,9 +36,9 @@ export function EditorPane() {
   useLayoutEffect(() => {
     const scroller = document.querySelector("main");
     if (scroller) scroller.scrollTop = 0;
-  }, [editor.path]);
+  }, [loadedPath]);
 
-  if (openDoc.kind === "none") {
+  if (kind === "none") {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
         Select a note to edit, or create one. The agent edits these same files.
@@ -37,16 +47,19 @@ export function EditorPane() {
   }
 
   // Still loading (or vanishing) — nothing to show yet; the runtime either
-  // fills in content or closes the note.
-  if (openDoc.kind === "loading") return null;
+  // fills in content or closes the note. (docPath is null only for "none",
+  // handled above — the guard keeps the narrowing explicit.)
+  if (kind === "loading" || docPath === null) return null;
 
-  const showRich = openDoc.kind === "markdown" && openDoc.surface.mode === "rich";
   // Keyed by path: a fresh pane (undo history, title contentEditable) per note.
-  return <NotePane key={openDoc.path} path={openDoc.path} showRich={showRich} />;
+  return <NotePane key={docPath} path={docPath} showRich={showRich} />;
 }
 
 function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
-  const { editor, editNote, registerNoteSerializeFlush, renameEntry } = useVault();
+  // The ONE content subscriber: the editor legitimately re-renders per
+  // keystroke (Raw) / serialize settle (Rich).
+  const content = useOpenNote((s) => s.editor.content);
+  const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
 
   const fileName = basenamePath(path);
   const dot = fileName.lastIndexOf(".");
@@ -169,7 +182,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       {showRich ? (
         <MarkdownEditor
           path={path}
-          value={editor.content}
+          value={content}
           onChange={(md) => editNote(path, md)}
           // Teardown settle (#374): route by the path THIS editor served —
           // the pane unmounts on note switch, when the open note may
@@ -182,7 +195,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         />
       ) : (
         <textarea
-          value={editor.content}
+          value={content}
           onChange={(e) => editNote(path, e.target.value)}
           spellCheck={false}
           className={cn(

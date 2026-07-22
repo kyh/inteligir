@@ -17,7 +17,8 @@ import { cn } from "@repo/ui/lib/utils";
 import { describeGateReason } from "@renderer/editor/markdown/markdown-doc";
 import { PageDetails } from "@renderer/editor/properties/page-details";
 import { richAvailable } from "@renderer/workspace/open-doc";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 
 /**
  * The shell header — a single sticky toolbar over the editor card. Left: the
@@ -28,18 +29,26 @@ import { useVault } from "@renderer/workspace/vault-context";
  * macOS traffic lights, so we pad the left to keep the toggle clear of them.
  */
 export function Header() {
-  const {
-    editor,
-    folderName,
-    openDoc,
-    setMode,
-    deleteEntry,
-    openIsHtml,
-    isHtmlApp,
-    showHtmlAsApp,
-  } = useVault();
+  const { folderName } = useVaultListing();
+  const { setMode, deleteEntry, showHtmlAsApp } = useVaultActions();
+  // Narrow selectors (#470): every value here is a primitive (or the gate
+  // reason, which changes only per saved-content re-analysis), so typing in
+  // the note never re-renders the header — only privacy/surface/path flips do.
+  const path = useOpenNote((s) => s.editor.path);
+  const openIsHtml = useOpenNote((s) => s.openIsHtml);
+  const isHtmlApp = useOpenNote((s) => s.isHtmlApp);
+  const isPrivate = useOpenNote((s) => s.openDoc.kind === "markdown" && s.openDoc.isPrivate);
+  const surfaceMode = useOpenNote((s) =>
+    s.openDoc.kind === "markdown" ? s.openDoc.surface.mode : null,
+  );
+  const rawReason = useOpenNote((s) =>
+    s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "raw"
+      ? s.openDoc.surface.reason
+      : null,
+  );
+  const canRich = useOpenNote((s) => richAvailable(s.openDoc));
+  const markdownPath = useOpenNote((s) => (s.openDoc.kind === "markdown" ? s.openDoc.path : null));
   const { state } = useSidebar();
-  const path = editor.path;
   const segments = path ? path.split("/") : [];
 
   const confirmDelete = async () => {
@@ -94,7 +103,7 @@ export function Header() {
               Open as app
             </Button>
           )}
-          {openDoc.kind === "markdown" && openDoc.isPrivate && (
+          {isPrivate && (
             <Badge
               variant="outline"
               className="text-muted-foreground"
@@ -104,28 +113,26 @@ export function Header() {
               Private
             </Badge>
           )}
-          {openDoc.kind === "markdown" &&
-            openDoc.surface.mode === "raw" &&
-            openDoc.surface.reason !== null && (
-              <Badge
-                variant="outline"
-                className="text-muted-foreground"
-                title={describeGateReason(openDoc.surface.reason)}
-              >
-                Raw
-              </Badge>
-            )}
-          {openDoc.kind === "markdown" && richAvailable(openDoc) && (
+          {rawReason !== null && (
+            <Badge
+              variant="outline"
+              className="text-muted-foreground"
+              title={describeGateReason(rawReason)}
+            >
+              Raw
+            </Badge>
+          )}
+          {canRich && (
             <div className="flex items-center rounded-md border border-border p-0.5 text-xs">
               {(["raw", "rich"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
-                  aria-pressed={openDoc.surface.mode === m}
+                  aria-pressed={surfaceMode === m}
                   className={cn(
                     "rounded px-2 py-0.5 capitalize transition-colors",
-                    openDoc.surface.mode === m
+                    surfaceMode === m
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground",
                   )}
@@ -139,8 +146,8 @@ export function Header() {
               panel used: only a markdown note open in Rich mode has a live
               rich editor to write through. Keyed by path so switching notes
               closes it. */}
-          {openDoc.kind === "markdown" && openDoc.surface.mode === "rich" && (
-            <PageDetails key={openDoc.path} path={openDoc.path} />
+          {markdownPath !== null && surfaceMode === "rich" && (
+            <PageDetails key={markdownPath} path={markdownPath} />
           )}
           <Button
             variant="ghost"

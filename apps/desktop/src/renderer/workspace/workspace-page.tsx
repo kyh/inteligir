@@ -16,7 +16,8 @@ import { HtmlAppView } from "@renderer/workspace/html-app-view";
 import { useAgentEditUndo } from "@renderer/workspace/use-agent-edit-undo";
 import { useDeepLinkNav } from "@renderer/workspace/use-deep-link";
 import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
-import { VaultProvider, useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { VaultProvider } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useDelegationStore } from "@renderer/stores/delegation-store";
 import { useViewStore, type WorkspaceSurface } from "@renderer/stores/view-store";
@@ -31,7 +32,7 @@ const TasksView = lazy(() => import("@renderer/workspace/tasks-view"));
  * shown as an app), or the editor. Lives inside VaultProvider so it can read
  * `isHtmlApp`. */
 function MainSurface({ surface }: { surface: WorkspaceSurface }) {
-  const { isHtmlApp } = useVault();
+  const isHtmlApp = useOpenNote((s) => s.isHtmlApp);
   if (surface === "graph" || surface === "tasks") {
     return (
       <Suspense

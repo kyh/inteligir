@@ -39,7 +39,8 @@ import { useDiskState } from "@renderer/lib/use-disk-state";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
 import { useViewStore } from "@renderer/stores/view-store";
 import { openDocPath } from "@renderer/workspace/open-doc";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useOpenNote } from "@renderer/workspace/open-note-store";
+import { useVaultActions } from "@renderer/workspace/vault-context";
 
 const parseString = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined;
@@ -64,8 +65,8 @@ function byNote(
 
 export default function TasksView() {
   const setSurface = useViewStore((s) => s.setSurface);
-  const { openDoc, openFile, flush } = useVault();
-  const openPath = openDocPath(openDoc);
+  const { openFile, flush } = useVaultActions();
+  const openPath = useOpenNote((s) => openDocPath(s.openDoc));
   const delegations = useDelegationStore((s) => s.delegations);
   const delegate = useDelegationStore((s) => s.delegate);
   const cancel = useDelegationStore((s) => s.cancel);

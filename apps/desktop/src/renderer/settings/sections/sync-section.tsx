@@ -5,7 +5,7 @@ import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
-import { useVault } from "@renderer/workspace/vault-context";
+import { useVaultActions } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import type { SyncStatus } from "@repo/notes/sync/status";
 import type { SyncState } from "@repo/bridge/sync";
@@ -43,7 +43,7 @@ function formatSyncStatus(status: SyncStatus): string {
 export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) | undefined }) {
   const [state, setSyncView] = useState<SyncState | null>(null);
   const [busy, setBusy] = useState(false);
-  const { openFile, deleteEntry } = useVault();
+  const { openFile, deleteEntry } = useVaultActions();
 
   useEffect(() => {
     const bridge = getBridge();
