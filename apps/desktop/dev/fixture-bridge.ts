@@ -17,6 +17,7 @@ import type { AppState } from "@repo/bridge/app-state";
 import type { Delegation, ListDelegationsResult } from "@repo/bridge/delegation";
 import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/bridge/inline-ai";
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
+import type { ChatSessionSummary } from "@repo/bridge/chat-sessions";
 import type { Bridge, VaultEntry } from "@repo/bridge/ipc-registry";
 import type { RemoteAccessState } from "@repo/bridge/remote-access";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
@@ -621,6 +622,43 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   // whole AI surface should be drivable out of the box.
   const uiState: Record<string, unknown> = { [GHOST_TEXT_ENABLED_UI_STATE]: true };
   const history: ChatHistoryEntry[] = [];
+  // Past chat threads for the read-only session browser — real in-memory
+  // sample sessions (the harness twin of SESSION_DIR), so "Browse past
+  // chats" lists, opens, and error-paths are all drivable without a host.
+  const pastSessions: { summary: ChatSessionSummary; entries: ChatHistoryEntry[] }[] = [
+    {
+      summary: {
+        id: "fx-plan-week",
+        title: "Help me plan this week from my open tasks",
+        updatedAt: Date.now() - 26 * 60 * 60 * 1000,
+        messageCount: 4,
+      },
+      entries: [
+        { role: "user", text: "Help me plan this week from my open tasks" },
+        {
+          role: "assistant",
+          text: "Here's a plan built from your open tasks:\n\n1. **Monday** — finish the sync writeup\n2. **Wednesday** — review the garden notes\n3. **Friday** — clear the reading queue",
+        },
+        { role: "user", text: "Move the reading queue to Thursday" },
+        { role: "assistant", text: "Done — the reading queue is now on Thursday." },
+      ],
+    },
+    {
+      summary: {
+        id: "fx-atlas-links",
+        title: "Which notes link to Project Atlas?",
+        updatedAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
+        messageCount: 2,
+      },
+      entries: [
+        { role: "user", text: "Which notes link to Project Atlas?" },
+        {
+          role: "assistant",
+          text: "Two notes link to **Project Atlas**: `journal/2026-07-14.md` and `ideas/roadmap.md`.",
+        },
+      ],
+    },
+  ];
   const delegations: Delegation[] = [];
   // Pre-run copies keyed by delegation id — the in-memory twin of the host's
   // ~/.inteligir/snapshots store, so "Restore original" is exercisable.
@@ -854,6 +892,16 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       cannedReply(command.text);
     },
     getAgentHistory: async () => [...history],
+    // Read-only past-chat browser over the in-memory sample sessions above.
+    // Unknown ids answer with the host's { ok: false } VALUE, so the
+    // browser's inline error path is exercisable too.
+    listChatSessions: async () => pastSessions.map((s) => Object.assign({}, s.summary)),
+    readChatSession: async ({ id }) => {
+      const session = pastSessions.find((s) => s.summary.id === id);
+      return session
+        ? { ok: true, entries: session.entries.map((e) => Object.assign({}, e)) }
+        : { ok: false, error: `No session with id "${id}"` };
+    },
     reauthenticate: async () => ({ ok: true }),
     setFauxAgentScript: async () => {
       throw unavailable(

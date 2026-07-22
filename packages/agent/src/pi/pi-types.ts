@@ -10,6 +10,8 @@ export type {
   ExtensionAPI,
   ExtensionFactory,
   ModelRuntime,
+  SessionEntry,
+  SessionInfo,
   SessionMessageEntry,
   ToolCallEvent,
   ToolCallEventResult,

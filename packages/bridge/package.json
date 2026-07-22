@@ -12,6 +12,7 @@
     "./app-state": "./src/app-state.ts",
     "./backoff": "./src/backoff.ts",
     "./chat-log": "./src/chat-log.ts",
+    "./chat-sessions": "./src/chat-sessions.ts",
     "./daily-notes": "./src/daily-notes.ts",
     "./deep-link": "./src/deep-link.ts",
     "./delegation": "./src/delegation.ts",

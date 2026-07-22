@@ -66,6 +66,8 @@ export class Agent {
   // Lazy so synchronous selectModel/SessionManager throws surface
   // through the async start() path rather than out of `new Agent()`.
   private pi: PiAgent | null = null;
+  // Kept only to answer getSessionId() — pi owns the session lifecycle.
+  private sessionManager: SessionManager | null = null;
 
   constructor(private readonly opts: AgentOptions) {}
 
@@ -78,6 +80,7 @@ export class Agent {
         : this.opts.newSession
           ? SessionManager.create(WORKSPACE_DIR, sessionDir)
           : SessionManager.continueRecent(WORKSPACE_DIR, sessionDir);
+      this.sessionManager = sessionManager;
       this.pi = new PiAgent({
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,
@@ -135,6 +138,13 @@ export class Agent {
    * Dev-only E2E surface (agent:system-prompt) — see PiAgent.getSystemPrompt. */
   getSystemPrompt(): string | null {
     return this.pi?.getSystemPrompt() ?? null;
+  }
+
+  /** The live session's id, or null before start(). Serves the read-only
+   * past-chat browser's active-thread exclusion (agent:list-sessions) — a
+   * lookup, never a handle to resume by. */
+  getSessionId(): string | null {
+    return this.sessionManager?.getSessionId() ?? null;
   }
 
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {

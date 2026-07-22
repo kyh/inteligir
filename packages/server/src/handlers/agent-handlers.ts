@@ -1,6 +1,6 @@
 import { dispatchAgentCommand } from "../app/agent-gateway";
 import { getAgent, reauthenticate } from "../app/app-machine";
-import { readSessionHistory } from "../app/session-history";
+import { listChatSessions, readChatSessionById, readSessionHistory } from "../app/session-history";
 import type { HandlerRegistrar } from "./handler-registry";
 import { applyFauxAgentScript, isFauxAgentEnabled } from "@repo/agent/provider/faux-provider";
 
@@ -13,6 +13,10 @@ export function registerAgentHandlers(handle: HandlerRegistrar): void {
   handle("sendAgentCommand", (command) => dispatchAgentCommand(command));
 
   handle("getAgentHistory", () => readSessionHistory());
+  // The read-only past-chat browser: list + read, nothing else. The live
+  // agent's session id keeps the active thread out of the listing.
+  handle("listChatSessions", () => listChatSessions(getAgent()?.getSessionId() ?? null));
+  handle("readChatSession", ({ id }) => readChatSessionById(id));
   handle("reauthenticate", () => reauthenticate());
 
   // Dev-only E2E scripting seam (#461 Phase 4b) — fails closed in production.

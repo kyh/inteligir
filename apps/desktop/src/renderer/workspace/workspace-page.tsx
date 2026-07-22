@@ -8,6 +8,7 @@ import { getBridge } from "@renderer/lib/bridge";
 import { CommandPalette } from "@renderer/command/command-palette";
 import { DelegationDock } from "@renderer/delegation/delegation-dock";
 import { BottomComposer } from "@renderer/composer/bottom-composer";
+import { PastChatsDialog } from "@renderer/composer/past-chats-dialog";
 import { SaveIndicator } from "@renderer/workspace/save-indicator";
 import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
@@ -167,6 +168,7 @@ export function WorkspacePage() {
         seedQuery={paletteSeed}
         onSeedConsumed={consumeSeed}
       />
+      <PastChatsDialog />
     </VaultProvider>
   );
 }
