@@ -18,6 +18,11 @@ import {
 } from "./ai-provider";
 import { AppEventSchema, type AppState } from "./app-state";
 import type { ChatHistoryEntry } from "./chat-log";
+import {
+  ReadChatSessionSchema,
+  type ChatSessionSummary,
+  type ReadChatSessionResult,
+} from "./chat-sessions";
 import type { DeepLinkNavEvent } from "./deep-link";
 import {
   ConnectorInstallRequestSchema,
@@ -412,6 +417,16 @@ export const IPC = {
     TextChatMessageSchema,
   ),
   getAgentHistory: invokeVoid<ChatHistoryEntry[]>("agent:history"),
+  /** Past chat threads on disk, newest first; the ACTIVE thread is excluded
+   * (it's already the live chat). Read-only browsing — see ./chat-sessions:
+   * there is deliberately no resume-arbitrary-session channel. */
+  listChatSessions: invokeVoid<ChatSessionSummary[]>("agent:list-sessions"),
+  /** One past thread's transcript (getAgentHistory's shape). Unknown or
+   * malformed ids come back as an { ok: false } VALUE, never a throw. */
+  readChatSession: invoke<typeof ReadChatSessionSchema, ReadChatSessionResult>(
+    "agent:read-session",
+    ReadChatSessionSchema,
+  ),
   reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>("agent:reauthenticate"),
   /** Dev-only (INTELIGIR_FAUX_AGENT=1; throws otherwise): replace the faux
    * provider's queued responses so a headless E2E drive scripts exact agent
