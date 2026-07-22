@@ -65,6 +65,12 @@ import {
   type PairingInfo,
   type RemoteAccessState,
 } from "./remote-access";
+import {
+  UpsertRoutineParamsSchema,
+  type ListRoutinesResult,
+  type RunRoutineNowResult,
+  type UpsertRoutineResult,
+} from "./routines";
 import type { SyncOutcome } from "@repo/notes/sync/engine";
 import {
   SyncRequestPasswordResetSchema,
@@ -649,6 +655,35 @@ export const IPC = {
    * keyed by id) so the response dock can show it live. */
   onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
 
+  // Routines — scheduled agent tasks (delegation's sibling: the same
+  // background session, serialized with it; results append to a target note).
+  listRoutines: invokeVoid<ListRoutinesResult>("routines:list"),
+  /** Create (no id) or edit (with id) a routine's config; run bookkeeping is
+   * host-owned. Refuses a private target note up front (run time re-checks). */
+  upsertRoutine: invoke<typeof UpsertRoutineParamsSchema, UpsertRoutineResult>(
+    "routines:upsert",
+    UpsertRoutineParamsSchema,
+  ),
+  deleteRoutine: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
+    "routines:delete",
+    Type.String({ minLength: 1 }),
+  ),
+  /** Queue an immediate run (Settings "Run now" — works on disabled routines
+   * too, as the test-your-config affordance). Serialized like any run. */
+  runRoutineNow: invoke<ReturnType<typeof Type.String>, RunRoutineNowResult>(
+    "routines:run-now",
+    Type.String({ minLength: 1 }),
+  ),
+  /** Restore the target note's pre-run bytes from the routine's LAST run
+   * snapshot (the append is undone; a run that created the note trashes it). */
+  restoreRoutineRun: invoke<ReturnType<typeof Type.String>, RestoreSnapshotResult>(
+    "routines:restore-run",
+    Type.String({ minLength: 1 }),
+  ),
+  /** Fired on every routines change (config, run start/finish) so Settings →
+   * Routines stays live. */
+  onRoutinesUpdated: event<ListRoutinesResult>("routines:updated"),
+
   // AI-write checkpoints — the chat agent's undo (see the section header on
   // AgentEditCaptured above).
   /** A chat-agent write was checkpointed pre-execution — drives the
@@ -905,6 +940,7 @@ export const HYDRATED_EVENTS = {
   onSyncStateChanged: "getSyncState",
   onAppState: "getAppState",
   onDelegationsUpdated: "listDelegations",
+  onRoutinesUpdated: "listRoutines",
 } as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
 
 // Object.keys returns string[]; the predicate re-proves membership so the

@@ -29,6 +29,7 @@
 import { emitEvent } from "../events";
 import { getRestoreManager } from "../restore/restore-manager";
 import { getDelegationManager } from "../delegation/delegation-manager";
+import { getRoutinesManager } from "../routines/routines-manager";
 import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getNotifications } from "../notifications";
@@ -85,6 +86,7 @@ export function constructHostSingletons(): HostNotifiers {
   getKnowledgeManager(); // vault
   getRestoreManager(); // shared snapshot store (capture channel wires to emitEvent)
   getDelegationManager(); // vault + restore (push channels wire to emitEvent at construction)
+  getRoutinesManager(); // vault + restore + the shared background-turn lock (same wiring story)
   getExecutorDaemon(); // paths
   getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
 

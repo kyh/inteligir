@@ -56,8 +56,12 @@ export const SNAPSHOT_RETENTION = 50;
 const SNAPSHOTS_VERSION = 2;
 
 /** Which AI surface captured the snapshot. Delegation ids double as the
- * delegation record's id (the manager reads by it); chat ids are opaque. */
-type SnapshotOrigin = "delegation" | "chat";
+ * delegation record's id, routine ids are the per-run runId (each manager
+ * reads back by its own id); chat ids are opaque. Adding "routine" WIDENED
+ * the union — v2 files stay valid, no version bump (an old build reading a
+ * new file with routine entries quarantines + resets, which snapshots, being
+ * transient undo points, tolerate by design). */
+type SnapshotOrigin = "delegation" | "chat" | "routine";
 
 /** What the pre-write state was. `edit` = the file existed and `content` is
  * its exact prior bytes; `create` = the file did NOT exist (a new-file
@@ -69,7 +73,7 @@ const SnapshotEntrySchema = Type.Object(
     /** Unique snapshot id. For origin "delegation" this IS the delegation id
      * (the manager's read-by-id contract, unchanged from v1). */
     id: Type.String(),
-    origin: Type.Union([Type.Literal("delegation"), Type.Literal("chat")]),
+    origin: Type.Union([Type.Literal("delegation"), Type.Literal("chat"), Type.Literal("routine")]),
     /** Vault-relative path of the target file AT CAPTURE TIME, remapped across
      * renames (renamePath). For chat snapshots this is the restore target;
      * delegation restore targets the delegation record's current sourceFile,
@@ -258,7 +262,7 @@ export class SnapshotStore {
   prune(): string[] {
     const all = this.index.read();
     const keptIds = new Set<string>();
-    for (const origin of ["delegation", "chat"] as const) {
+    for (const origin of ["delegation", "chat", "routine"] as const) {
       const byNewest = all
         .filter((e) => e.origin === origin)
         .toSorted((a, b) => b.capturedAt - a.capturedAt);

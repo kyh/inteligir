@@ -47,7 +47,12 @@ import type { RestoreSnapshotResult } from "@repo/bridge/delegation";
  * dispatch. */
 export type RestoreCapture =
   | { origin: "chat"; target: VaultDocWrite }
-  | { origin: "delegation"; id: string; path: string; content: string };
+  | { origin: "delegation"; id: string; path: string; content: string }
+  // Routine pre-run capture: the routines-manager resolved the target itself
+  // (same no-race contract as delegation). `content: null` = the target did
+  // not exist yet (a daily note before its first write) → kind "create", so
+  // restore deletes rather than writes an empty file.
+  | { origin: "routine"; id: string; path: string; content: string | null };
 
 export type RestoreManagerOptions = {
   /** Snapshot store. Defaults to the shared ~/.inteligir-backed singleton. */
@@ -96,6 +101,20 @@ export class RestoreManager {
       this.snapshots.capture(
         { id: request.id, origin: "delegation", path: request.path, kind: "edit" },
         request.content,
+      );
+      return;
+    }
+    if (request.origin === "routine") {
+      // Same provided-bytes contract as delegation; null = target absent →
+      // "create", whose restore is a delete. Throws through to abort the run.
+      this.snapshots.capture(
+        {
+          id: request.id,
+          origin: "routine",
+          path: request.path,
+          kind: request.content === null ? "create" : "edit",
+        },
+        request.content ?? "",
       );
       return;
     }
@@ -207,6 +226,41 @@ export class RestoreManager {
       }
     }
     return { ok: true };
+  }
+
+  /** Write a routine run's pre-run bytes back to `targetPath` — the byte-level
+   * half of Settings → Routines "Restore". The caller (routines-manager) owns
+   * the record side (refuses while that routine is running, records
+   * restoredAt). An `edit` snapshot writes back atomically like the
+   * delegation path; a `create` snapshot (the target didn't exist pre-run)
+   * undoes by moving the created file to the OS trash — already-gone counts
+   * as done, mirroring the chat create-undo. */
+  async restoreRoutineSnapshot(id: string, targetPath: string): Promise<RestoreSnapshotResult> {
+    const snapshot = this.snapshots.read(id);
+    if (!snapshot.ok) return { ok: false, error: snapshot.error };
+    if (snapshot.origin !== "routine") {
+      // Unreachable through Settings (runIds key routine-origin snapshots),
+      // kept for symmetry with the other origin guards.
+      return { ok: false, error: "Not a routine edit." };
+    }
+    try {
+      if (snapshot.kind === "create") {
+        await this.trashVault(targetPath);
+        return { ok: true };
+      }
+      let current: string | null;
+      try {
+        current = this.readVault(targetPath);
+      } catch {
+        current = null; // deleted (or unreadable) — the write below recreates it
+      }
+      if (current !== snapshot.content) {
+        this.writeVault(targetPath, snapshot.content);
+      }
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: `Couldn't restore ${targetPath}: ${toErrorMessage(err)}` };
+    }
   }
 
   /** A vault file/folder was renamed/moved — repoint snapshot entry paths so

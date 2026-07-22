@@ -30,6 +30,7 @@ import {
 import { stopGhostAgent } from "./ghost-text";
 import { startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
 import { getDelegationManager } from "../delegation/delegation-manager";
+import { getRoutinesManager } from "../routines/routines-manager";
 import { getNotifications } from "../notifications";
 import { downloadModel } from "@repo/voice/model-download";
 import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
@@ -207,17 +208,26 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   // with feedback instead of sitting "Queued" forever behind a null runner.
   await bgStarted;
   const delegations = getDelegationManager();
+  // Routines share the background session (serialized against delegation via
+  // the shared BackgroundTurnLock) — wired to the same runner, and its boot
+  // scheduler starts here (setRunner runs the launch catch-up tick).
+  const routines = getRoutinesManager();
   if (getBackgroundAgent()) {
     delegations.setRunner(() => getBackgroundAgent());
+    routines.setRunner(() => getBackgroundAgent());
   } else {
     delegations.markUnavailable(
       "The background agent isn't available — restart the app to delegate tasks.",
+    );
+    routines.markUnavailable(
+      "The background agent isn't available — restart the app to run routines.",
     );
   }
 }
 
 async function stopAgent(): Promise<void> {
   getDelegationManager().stop();
+  getRoutinesManager().stop();
   if (agent) {
     await agent.stop();
     agent = null;

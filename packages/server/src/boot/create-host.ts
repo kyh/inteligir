@@ -26,6 +26,8 @@ import { collectHandlers, type HostHandlers } from "../handlers/handler-registry
 import { registerAllHandlers } from "../handlers/register-handlers";
 import { getCaptureManager } from "../capture/capture-manager";
 import { getDelegationManager } from "../delegation/delegation-manager";
+import { getRestoreManager } from "../restore/restore-manager";
+import { getRoutinesManager } from "../routines/routines-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
 import {
   getSyncCoordinator,
@@ -182,11 +184,16 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       getKnowledgeManager().scheduleRefresh();
 
       // Snapshot retention sweep (keep the newest SNAPSHOT_RETENTION pre-run
-      // copies). Best-effort — a prune failure must never block boot.
+      // copies PER ORIGIN). ONE store sweep, its pruned ids fanned to every
+      // manager holding restore affordances over that store, so no surface
+      // can offer a restore whose bytes are gone. Best-effort — a prune
+      // failure must never block boot.
       try {
-        getDelegationManager().pruneSnapshots();
+        const pruned = getRestoreManager().prune();
+        getDelegationManager().applyPrunedSnapshots(pruned);
+        getRoutinesManager().applyPrunedSnapshots(pruned);
       } catch (err) {
-        console.warn("[host] delegation snapshot prune failed:", err);
+        console.warn("[host] snapshot prune failed:", err);
       }
 
       // Deep-link captures that survived a crash or arrived on a cold launch:
