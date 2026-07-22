@@ -268,6 +268,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const openFile = useCallback(
     (path: string) => {
+      console.log("DEBUG openFile", path);
       void (async () => {
         // Navigation always lands on the editor surface — opening a note from
         // the graph, palette, or a wiki chip must show the note, not stay on
@@ -283,6 +284,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         disposeRuntime();
         ensureRuntime(path);
         applyOpenPath(path);
+        console.log("DEBUG openFile applied", path);
       })();
     },
     [applyOpenPath, disposeRuntime, ensureRuntime, flushCurrent],

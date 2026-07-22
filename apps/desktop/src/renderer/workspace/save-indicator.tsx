@@ -10,6 +10,7 @@ import { useOpenNote } from "@renderer/workspace/open-note-store";
  * frozen while AI suggestions await review). The words live in the tooltip.
  */
 export function SaveIndicator() {
+  { const w = window as unknown as { __rc?: Record<string, number> }; const rc = (w.__rc ??= {}); rc["saveIndicator"] = (rc["saveIndicator"] ?? 0) + 1; document.title = JSON.stringify(rc); }
   const path = useOpenNote((s) => s.editor.path);
   const saving = useOpenNote((s) => s.editor.saving);
   const dirty = useOpenNote((s) => s.editor.dirty);

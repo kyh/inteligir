@@ -56,6 +56,7 @@ function rowPadding(depth: number): number {
 }
 
 export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
+  { const w = window as unknown as { __rc?: Record<string, number> }; const rc = (w.__rc ??= {}); rc["sidebar"] = (rc["sidebar"] ?? 0) + 1; document.title = JSON.stringify(rc); }
   const { entries, folderName } = useVaultListing();
   const { openFile, createFile, renameEntry, deleteEntry, changeFolder } = useVaultActions();
   // The tree re-renders on navigation + structural refresh — never on typing
@@ -322,6 +323,7 @@ const TreeRow = memo(function TreeRow({
   onDelete,
 }: { row: FlatRow; tabbable: boolean; selected: boolean; renaming: boolean } & RowHandlers) {
   const { node, depth } = row;
+  { const w = window as unknown as { __rc?: Record<string, number> }; const rc = (w.__rc ??= {}); rc["treeRow"] = (rc["treeRow"] ?? 0) + 1; document.title = JSON.stringify(rc); }
   const [draft, setDraft] = useState(node.type === "file" ? node.name : "");
 
   // Inline rename occupies the row as an input, indented to match.

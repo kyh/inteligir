@@ -113,6 +113,7 @@ export function CommandPalette({
   const [tags, setTags] = useState<TagCount[]>([]);
   const [tagNotes, setTagNotes] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  { const w = window as unknown as { __rc?: Record<string, number> }; const rc = (w.__rc ??= {}); rc["palette"] = (rc["palette"] ?? 0) + 1; document.title = JSON.stringify(rc); }
 
   // Clear the filter AND reset navigation on every close, no matter the path —
   // Esc / select run `close()`, but ⌘K-to-dismiss toggles `open` in

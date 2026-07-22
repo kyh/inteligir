@@ -62,6 +62,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
 
   const fileName = basenamePath(path);
+  { const w = window as unknown as { __rc?: Record<string, number> }; const rc = (w.__rc ??= {}); rc["notePane"] = (rc["notePane"] ?? 0) + 1; document.title = JSON.stringify(rc); }
   const dot = fileName.lastIndexOf(".");
   const displayName = dot > 0 ? fileName.slice(0, dot) : fileName;
 
