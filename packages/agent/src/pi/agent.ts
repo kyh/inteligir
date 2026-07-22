@@ -17,6 +17,11 @@ import { prepareRuntimeForSelection, resolveModelSelection, type ModelSelection 
 
 export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
+/** One AGENTS.md-style context file: `path` is the label the model sees in
+ * the system prompt (`<project_instructions path="…">`), `content` the raw
+ * markdown. Structurally identical to pi's own agents-file entries. */
+export type AgentsFileEntry = { path: string; content: string };
+
 export type PiAgentEventListener = (event: AgentSessionEvent) => void;
 
 export type PiAgentConfig = {
@@ -60,6 +65,16 @@ export type PiAgentConfig = {
    * `initialActiveToolNames`. Leave unset to keep extension tools available.
    */
   allowedToolNames?: string[];
+  /**
+   * Extra AGENTS.md-style context files APPENDED to pi's own discovered set
+   * (agentDir + cwd-ancestor AGENTS.md) via the loader's supported
+   * `agentsFilesOverride` hook — they join the system prompt's
+   * `<project_context>` block like any discovered file. A thunk, invoked
+   * during `resourceLoader.reload()` (i.e. at session start), so content is
+   * read fresh each time a session is constructed. Used for the user's
+   * vault/AGENTS.md instructions (chat + delegation sessions only).
+   */
+  extraAgentsFiles?: () => AgentsFileEntry[];
 };
 
 /** Lifecycle wrapper around pi-coding-agent's AgentSession. */
@@ -93,10 +108,18 @@ export class PiAgent {
         ? await this.config.extensionFactories()
         : this.config.extensionFactories;
 
+    const extraAgentsFiles = this.config.extraAgentsFiles;
     const resourceLoader = new DefaultResourceLoader({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
       extensionFactories: factories,
+      ...(extraAgentsFiles !== undefined
+        ? {
+            agentsFilesOverride: (base: { agentsFiles: AgentsFileEntry[] }) => ({
+              agentsFiles: [...base.agentsFiles, ...extraAgentsFiles()],
+            }),
+          }
+        : {}),
     });
     await resourceLoader.reload();
 

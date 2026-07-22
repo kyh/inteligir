@@ -3,6 +3,10 @@
 // ---------------------------------------------------------------------------
 
 import { Agent } from "@repo/agent/agent";
+import {
+  loadUserAgentInstructions,
+  seedUserAgentInstructions,
+} from "../agent-instructions/agent-instructions";
 import { agentModelSelection } from "../provider/provider-service";
 import { isSetupComplete } from "@repo/agent/setup";
 import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
@@ -156,7 +160,16 @@ function handleAgentEvent(event: AppAgentEvent): void {
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
-  const next = new Agent({ ...opts, ports: getAgentPorts(), selectModel: agentModelSelection });
+  // First-use skeleton for vault/AGENTS.md — BEFORE the sessions construct,
+  // so the freshly seeded instructions load into this very session. Once per
+  // vault, no clobber, non-fatal (agent-instructions.ts).
+  seedUserAgentInstructions();
+  const next = new Agent({
+    ...opts,
+    ports: getAgentPorts(),
+    selectModel: agentModelSelection,
+    userInstructions: loadUserAgentInstructions,
+  });
   // Start the dedicated background delegation agent concurrently — it shares no
   // session state with the user agent and the executor daemon's start() is
   // idempotent under concurrency. Non-fatal: a background failure must not block

@@ -1,3 +1,4 @@
+import { seedUserAgentInstructions } from "../agent-instructions/agent-instructions";
 import { remapNoteMetadata } from "../boot/rename-orchestration";
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import { probeVaultPrivacy } from "../boot/agent-wiring";
@@ -66,6 +67,11 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
     } catch (err) {
       return { ok: false, reason: "error", error: toErrorMessage(err) };
     }
+    // A vault this app has never seen gets the first-use agent-instructions
+    // skeleton (once per root, no clobber, non-fatal). The running sessions
+    // pick it up on their next construction — same cadence as any other
+    // AGENTS.md edit.
+    seedUserAgentInstructions();
     return { ok: true, root: getVaultManager().getRoot() };
   });
 

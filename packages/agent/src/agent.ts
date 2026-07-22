@@ -8,7 +8,8 @@
 // every registerTool call hits validateToolParametersSchema first (see
 // agent/extension.ts).
 
-import { PiAgent } from "@repo/agent/pi/agent";
+import { PiAgent, type AgentsFileEntry } from "@repo/agent/pi/agent";
+export type { AgentsFileEntry } from "@repo/agent/pi/agent";
 import type { ModelSelection } from "@repo/agent/pi/model";
 import { SessionManager } from "@repo/agent/pi/pi-types";
 import type { AgentSessionEvent, ImageContent } from "@repo/agent/pi/pi-types";
@@ -53,6 +54,12 @@ export type AgentOptions = {
    * pile up session files nor be resumable. Takes precedence over
    * newSession/sessionDir. */
   ephemeralSession?: boolean;
+  /** User-authored instructions (vault/AGENTS.md) injected as an extra
+   * context file in the session's system prompt. A host-injected thunk read
+   * at start() — `null` (file absent/unreadable) is a no-op. Passed only for
+   * the chat + background delegation sessions; the editor-AI and ghost-text
+   * sessions are focused, token-sensitive generators and never get it. */
+  userInstructions?: () => AgentsFileEntry | null;
 };
 
 export class Agent {
@@ -65,6 +72,7 @@ export class Agent {
   async start(): Promise<void> {
     if (!this.pi) {
       const sessionDir = this.opts.sessionDir ?? SESSION_DIR;
+      const userInstructions = this.opts.userInstructions;
       const sessionManager = this.opts.ephemeralSession
         ? SessionManager.inMemory(WORKSPACE_DIR)
         : this.opts.newSession
@@ -80,6 +88,14 @@ export class Agent {
         ...(this.opts.allowedToolNames !== undefined
           ? { allowedToolNames: this.opts.allowedToolNames }
           : { initialActiveToolNames: INITIAL_ACTIVE_TOOLS }),
+        ...(userInstructions !== undefined
+          ? {
+              extraAgentsFiles: () => {
+                const file = userInstructions();
+                return file === null ? [] : [file];
+              },
+            }
+          : {}),
         extensionFactories: () =>
           buildValidatedFactories(EXTENSION_BUNDLES, buildRegisterContext(this.opts.ports)),
       });
