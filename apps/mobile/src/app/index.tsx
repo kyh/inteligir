@@ -1,5 +1,5 @@
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,9 +16,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { SyncStatus } from "@repo/notes/sync/status";
 
 import { authClient, clearBearerToken } from "@/lib/auth";
+import { appendCapture } from "@/lib/capture/daily-capture";
+import { createVaultCaptureIo } from "@/lib/capture/capture-io";
 import { useHostStatus } from "@/lib/host/connection";
 import { hostStatusDotClass } from "@/lib/host/status-display";
-import { syncOnce, useSyncStatus } from "@/lib/sync/manager";
+import { scheduleSync, syncOnce, useSyncStatus } from "@/lib/sync/manager";
 import { useRealtimeSync } from "@/lib/sync/realtime-manager";
 import { listVaultFiles } from "@/lib/sync/vault-access";
 
@@ -181,6 +183,78 @@ function NavPill({
   );
 }
 
+// ---- quick capture --------------------------------------------------------
+
+// The phone's actual job: 5-second capture into TODAY's daily note. One input,
+// two verbs — "Note" appends a bullet, "Task" an unchecked box (which feeds
+// the desktop's checkbox-delegation surface after sync). The write is local
+// and synchronous (works offline); a debounced sync pass is kicked after, and
+// concurrent desktop appends to the same journal merge via the engine's
+// append-union rung.
+function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
+  const [text, setText] = useState("");
+  const [confirmation, setConfirmation] = useState<string | null>(null);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any pending confirmation timer on unmount.
+  useEffect(
+    () => () => {
+      if (confirmTimer.current !== null) clearTimeout(confirmTimer.current);
+    },
+    [],
+  );
+
+  const capture = useCallback(
+    (kind: "append" | "task") => {
+      const result = appendCapture(createVaultCaptureIo(), kind, text, new Date());
+      if (result.kind === "empty") return;
+      setText("");
+      setConfirmation(`Added to ${result.path}`);
+      if (confirmTimer.current !== null) clearTimeout(confirmTimer.current);
+      confirmTimer.current = setTimeout(() => setConfirmation(null), 2500);
+      scheduleSync();
+      onCaptured();
+    },
+    [text, onCaptured],
+  );
+
+  const disabled = text.trim() === "";
+
+  return (
+    <View className="gap-2 px-4 pt-3">
+      <TextInput
+        className="rounded-lg border border-input bg-card px-4 py-3 text-base text-foreground"
+        placeholder="Capture to today’s note…"
+        placeholderTextColor="#737373"
+        value={text}
+        onChangeText={setText}
+        returnKeyType="done"
+        submitBehavior="blurAndSubmit"
+        onSubmitEditing={() => capture("append")}
+      />
+      <View className="flex-row items-center gap-2">
+        <Pressable
+          className="flex-1 items-center rounded-lg bg-primary py-2.5 active:opacity-80 disabled:opacity-50"
+          disabled={disabled}
+          onPress={() => capture("append")}
+        >
+          <Text className="text-sm font-semibold text-primary-foreground">Note it</Text>
+        </Pressable>
+        <Pressable
+          className="flex-1 items-center rounded-lg border border-border bg-card py-2.5 active:opacity-70 disabled:opacity-50"
+          disabled={disabled}
+          onPress={() => capture("task")}
+        >
+          <Text className="text-sm font-semibold text-card-foreground">Task it</Text>
+        </Pressable>
+      </View>
+      {confirmation !== null ? (
+        <Text className="text-xs text-muted-foreground">{confirmation}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 // ---- vault ----------------------------------------------------------------
 
 function describeStatus(status: SyncStatus): string {
@@ -233,6 +307,7 @@ function VaultScreen() {
     <SafeAreaView className="flex-1 bg-background" edges={["top", "left", "right"]}>
       <Stack.Screen options={{ title: "Vault" }} />
       <HostNavRow />
+      <CaptureBox onCaptured={reload} />
       <View className="flex-row items-center justify-between px-4 py-3">
         <Text className="flex-1 pr-3 text-sm text-muted-foreground">{describeStatus(status)}</Text>
         <Pressable
