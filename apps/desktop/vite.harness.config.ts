@@ -1,7 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -15,16 +14,7 @@ export default defineConfig({
   // Per the package's vite guidance: esbuild prebundling breaks the wasm
   // module's own asset resolution — serve its ESM as-is.
   optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
-  plugins: [
-    tanstackRouter({
-      target: "react",
-      routesDirectory: resolve(configDir, "src/renderer/routes"),
-      generatedRouteTree: resolve(configDir, "src/renderer/routeTree.gen.ts"),
-      autoCodeSplitting: false,
-    }),
-    tailwindcss(),
-    react(),
-  ],
+  plugins: [tailwindcss(), react()],
   resolve: {
     alias: {
       "@renderer": resolve(configDir, "src/renderer"),

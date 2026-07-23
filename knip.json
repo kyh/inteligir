@@ -15,14 +15,11 @@
         "src/preload/index.ts",
         "src/renderer/index.html",
         "src/renderer/main.tsx",
-        "src/renderer/router.tsx",
-        "src/renderer/routes/**/*.tsx",
         "src/__tests__/**/*.test.ts",
         "src/renderer/__tests__/**/*.test.ts",
         "scripts/**/*.mjs"
       ],
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
-      "ignore": ["src/renderer/routeTree.gen.ts"],
       "ignoreDependencies": ["electron-builder", "sherpa-onnx-node"]
     },
     "apps/mobile": {

@@ -1,7 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
-import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import type { LibraryFormats } from "vite";
@@ -69,18 +68,7 @@ export default defineConfig(() => ({
     },
   },
   renderer: {
-    plugins: [
-      // Must run before the React plugin. Generates routeTree.gen.ts from
-      // src/renderer/routes and code-transforms createFileRoute calls.
-      tanstackRouter({
-        target: "react",
-        routesDirectory: resolve(configDir, "src/renderer/routes"),
-        generatedRouteTree: resolve(configDir, "src/renderer/routeTree.gen.ts"),
-        autoCodeSplitting: false,
-      }),
-      tailwindcss(),
-      react(),
-    ],
+    plugins: [tailwindcss(), react()],
     resolve: {
       alias: {
         "@": resolve(configDir, "src"),

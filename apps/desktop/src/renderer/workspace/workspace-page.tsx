@@ -115,7 +115,7 @@ export function WorkspacePage() {
   }, []);
 
   // Recoverable agent errors route back here (setup errors surface on the
-  // onboarding screen — see routes/__root.tsx).
+  // onboarding screen — see app-root.tsx).
   const appState = useAgentStore((s) => s.appState);
   const workspaceError =
     appState.phase === "error" && appState.prev === "ready" ? appState.message : null;
