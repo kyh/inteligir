@@ -153,6 +153,17 @@ nested:
 
 Edit the typed properties above; the yaml block round-trips byte-for-byte.
 `,
+  // A `private: true` note so the AI-exclusion surfaces are drivable in the
+  // harness: no lock-free AI affordances, read-aloud hidden in the palette,
+  // and the header lock badge.
+  "private-note.md": `---
+private: true
+---
+
+# Private note
+
+This note is marked private, so every AI surface skips it on this device.
+`,
   // Inline-tag note (tags palette): exercises the palette `#` flow. Its inline
   // #meta unifies with frontmatter-note.md's frontmatter `tags: [meta, demo]`,
   // so the tag list demos BOTH sources (meta count 2) and inline-only tags.
@@ -791,6 +802,9 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     pending: [],
     spoken: [],
   };
+  // Reachable from harness devtools/drivers on purpose: "what would the host
+  // have spoken" assertions (voice narration, read-aloud) read this queue.
+  Object.assign(globalThis, { __fixtureTts: ttsState });
   const vaultEvents = new Emitter<{ root: string }>();
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();

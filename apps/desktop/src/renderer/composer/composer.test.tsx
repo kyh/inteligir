@@ -38,6 +38,7 @@ const voice = vi.hoisted(() => ({
 
 type AgentStoreShape = {
   appState: { phase: "ready"; agent: "idle" | "busy" };
+  log: { streamingId: string | null };
   send: typeof agent.send;
   interrupt: typeof agent.interrupt;
   queuedFollowUp: string[];
@@ -48,6 +49,7 @@ vi.mock("@renderer/stores/agent-store", () => ({
   useAgentStore: <T,>(selector: (s: AgentStoreShape) => T): T =>
     selector({
       appState: { phase: "ready", agent: agent.busy ? "busy" : "idle" },
+      log: { streamingId: null },
       send: agent.send,
       interrupt: agent.interrupt,
       queuedFollowUp: [],
@@ -81,6 +83,11 @@ vi.mock("@renderer/composer/capsule-motion", () => ({
 }));
 
 import { Composer } from "./composer";
+import { useVoiceStore } from "@renderer/stores/voice-store";
+
+// Full module-load snapshot (actions included) so every test starts from the
+// real store and per-test action spies never leak forward.
+const voiceStoreInitial = useVoiceStore.getState();
 
 beforeEach(() => {
   agent.send.mockClear();
@@ -88,6 +95,7 @@ beforeEach(() => {
   voice.phase = "idle";
   voice.transcript = "";
   voice.confirmResult = "";
+  useVoiceStore.setState(voiceStoreInitial, true);
 });
 
 function expandComposer() {
@@ -149,6 +157,47 @@ describe("Composer (controlled draft)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm voice input" }));
     await waitFor(() => expect(getTextarea().value).toBe("just the transcript"));
+  });
+
+  it("keeps the voice-chat button inert until TTS is configured", () => {
+    const toggleVoice = vi.fn();
+    useVoiceStore.setState({ ttsConfigured: false, toggleVoice });
+    render(<Composer />);
+    expandComposer();
+
+    const button = screen.getByRole("button", { name: "Start voice chat" });
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(button);
+    expect(toggleVoice).not.toHaveBeenCalled();
+  });
+
+  it("starts voice chat from the resting pill once TTS is configured", () => {
+    const toggleVoice = vi.fn();
+    useVoiceStore.setState({ ttsConfigured: true, toggleVoice });
+    render(<Composer />);
+
+    // Collapsed: the pill offers the launcher directly (it hides while TTS is
+    // unconfigured — the expanded toolbar's inert button carries the pointer).
+    const button = screen.getByRole("button", { name: "Start voice chat" });
+    expect(button.hasAttribute("aria-disabled")).toBe(false);
+    fireEvent.click(button);
+    expect(toggleVoice).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the conversation row while listening, and Escape ends voice chat", () => {
+    const stopVoice = vi.fn();
+    useVoiceStore.setState({
+      ttsConfigured: true,
+      stopVoice,
+      state: { kind: "listening", currentTranscript: "" },
+    });
+    render(<Composer />);
+
+    expect(screen.getByRole("button", { name: "End voice chat" })).toBeTruthy();
+    expect(screen.getByText("Listening…")).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(stopVoice).toHaveBeenCalledTimes(1);
   });
 
   it("submits an attached image as a base64 data-url payload", async () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUpIcon,
+  AudioLinesIcon,
   CheckIcon,
   ImageIcon,
   ListPlusIcon,
@@ -51,7 +52,9 @@ import {
 import { ConnectProviderRow } from "@renderer/composer/connect-provider-row";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useAiProviderConnected, useAiProviderStore } from "@renderer/stores/ai-provider-store";
+import { useVoiceStore } from "@renderer/stores/voice-store";
 import { useVoiceCapture } from "@renderer/voice/use-voice-capture";
+import type { VoiceState } from "@renderer/voice/voice-machine";
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
 const MAX_ATTACHMENT_COUNT = 8;
@@ -110,7 +113,9 @@ function QueuedRow({ msg, icon }: { msg: QueuedMessage; icon: ReactNode }) {
  * leaves. Talks to the agent via agent-store (routing user/follow-up/steer
  * by live busy state) and auto-attaches the open note as context. Tapping the
  * mic morphs the capsule into a listening surface driven by local STT; the
- * confirmed transcript lands in the draft for review, never auto-sent.
+ * confirmed transcript lands in the draft for review, never auto-sent. The
+ * audio-lines button beside it starts hands-free voice chat instead
+ * (voice-store): finalized transcripts auto-send and the reply is spoken.
  */
 export function Composer() {
   // The draft is controlled state owned here: the textarea renders it and
@@ -156,12 +161,54 @@ export function Composer() {
   const voice = useVoiceCapture();
   const voiceActive = voice.phase !== "idle";
 
+  // --- Voice conversation ----------------------------------------------------
+  // Hands-free mode (voice-store): STT → agent turn → spoken reply, looping
+  // until ended. Distinct from the one-shot dictation mic above — dictation
+  // lands a transcript in the draft; conversation auto-sends turns and the
+  // agent talks back. The two are mutually exclusive by construction: each
+  // surface replaces the toolbar (and the pill) that launches the other.
+
+  const voiceConv = useVoiceStore((s) => s.state);
+  const ttsConfigured = useVoiceStore((s) => s.ttsConfigured);
+  const toggleVoiceConversation = useVoiceStore((s) => s.toggleVoice);
+  const stopVoiceConversation = useVoiceStore((s) => s.stopVoice);
+  const voiceConvActive = voiceConv.kind !== "idle" && voiceConv.kind !== "error";
+  // While the reply streams the TTS is speaking it (agent-store narrates
+  // deltas only in voice mode) — that drives the orb's "speaking" mood.
+  const replyStreaming = useAgentStore((s) => s.log.streamingId !== null);
+
+  // A conversation error (mic denied, model still missing, recognizer fault)
+  // surfaces as a toast and exits voice mode — the same toast idiom the
+  // dictation mic uses, so the capsule never parks on an error surface.
+  useEffect(() => {
+    if (voiceConv.kind !== "error") return;
+    toast.error(`Voice chat unavailable: ${voiceConv.message}`);
+    stopVoiceConversation();
+  }, [voiceConv, stopVoiceConversation]);
+
+  // Escape ends the conversation (the textarea's own Escape handler is inert
+  // while the input surface is hidden) — mirrors the dictation handler below.
+  useEffect(() => {
+    if (!voiceConvActive) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      stopVoiceConversation();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [voiceConvActive, stopVoiceConversation]);
+
+  // Either voice surface (dictation listening row / conversation row) owns the
+  // capsule: the input blurs out of flow and must not eat the engagement latch.
+  const voiceSurface = voiceActive || voiceConvActive;
+
   // The capsule is expanded (full input) or resting (compact pill). `engaged`
   // is pure user intent; everything that must hold the surface open — a
-  // running turn, the listening surface, drafted text, staged attachments —
+  // running turn, a voice surface, drafted text, staged attachments —
   // is OR'd on top so a collapse can never eat state. When busy ends with the
   // draft empty and focus elsewhere, this falls back to the pill on its own.
-  const expanded = engaged || busy || voiceActive || hasInput || hasAttachments;
+  const expanded = engaged || busy || voiceSurface || hasInput || hasAttachments;
 
   /** Confirm listening: the final transcript is appended to the draft for
    * review — never auto-sent. Committing a new value collapses the caret to
@@ -197,30 +244,30 @@ export function Composer() {
   // every descendant): moving between the textarea and toolbar buttons stays
   // inside the wrapper and must not fold the capsule. The `expanded` OR-chain
   // still holds it open if a draft, attachments, or a running turn remain.
-  // Listening vetoes — the input goes inert and blurs itself as the listening
-  // surface takes over, and that must not eat the engagement latch.
+  // A live voice surface vetoes — the input goes inert and blurs itself as
+  // that surface takes over, and that must not eat the engagement latch.
   const handleWrapperBlur = useCallback(
     (e: React.FocusEvent<HTMLDivElement>) => {
-      if (voiceActive) return;
+      if (voiceSurface) return;
       const next = e.relatedTarget;
       if (next instanceof Node && wrapperRef.current?.contains(next)) return;
       setEngaged(false);
     },
-    [voiceActive],
+    [voiceSurface],
   );
 
   // Focus the textarea whenever the input becomes the active surface: on
-  // expand (pill click mounts it) and on return from listening (so the
-  // transcript is immediately reviewable). A cancelled pill-mic session
-  // collapses back to the pill — expanded is false, nothing to focus.
-  const prevSurfaceRef = useRef({ expanded, voiceActive });
+  // expand (pill click mounts it) and on return from a voice surface (so a
+  // dictated transcript is immediately reviewable). A cancelled pill-mic
+  // session collapses back to the pill — expanded is false, nothing to focus.
+  const prevSurfaceRef = useRef({ expanded, voiceSurface });
   useEffect(() => {
     const prev = prevSurfaceRef.current;
-    prevSurfaceRef.current = { expanded, voiceActive };
-    if (expanded && !voiceActive && (!prev.expanded || prev.voiceActive)) {
+    prevSurfaceRef.current = { expanded, voiceSurface };
+    if (expanded && !voiceSurface && (!prev.expanded || prev.voiceSurface)) {
       textareaRef.current?.focus();
     }
-  }, [expanded, voiceActive]);
+  }, [expanded, voiceSurface]);
 
   // --- Submission ------------------------------------------------------------
 
@@ -319,7 +366,7 @@ export function Composer() {
       </AnimatePresence>
 
       <div className="relative">
-        <AnimatePresence>{voiceActive && <ListeningGlow key="glow" />}</AnimatePresence>
+        <AnimatePresence>{voiceSurface && <ListeningGlow key="glow" />}</AnimatePresence>
         <motion.div
           layout={!reduceMotion}
           transition={capsuleSpring}
@@ -343,24 +390,41 @@ export function Composer() {
                 />
               </motion.div>
             )}
+            {voiceConvActive && (
+              <motion.div
+                key="voice-conversation"
+                initial={CAPSULE_CONTENT_HIDDEN}
+                animate={CAPSULE_CONTENT_VISIBLE}
+                exit={CAPSULE_CONTENT_HIDDEN}
+                transition={contentSpring}
+              >
+                <VoiceConversationRow
+                  state={voiceConv}
+                  busy={busy}
+                  replyStreaming={replyStreaming}
+                  onEnd={stopVoiceConversation}
+                />
+              </motion.div>
+            )}
           </AnimatePresence>
 
           {/* Resting, the capsule is a compact pill; engaging (click/focus/type/
            * attach/voice/busy) springs it open to the full input. The input
            * surface unmounts when collapsed — the controlled draft lives in
            * composer state, so nothing is lost (and it's empty by definition
-           * there anyway). While listening the input stays mounted but blurs
-           * out of flow so the capsule can spring down to the listening row. */}
+           * there anyway). While a voice surface is live the input stays
+           * mounted but blurs out of flow so the capsule can spring down to
+           * the listening/conversation row. */}
           <AnimatePresence initial={false} mode="popLayout">
             {expanded ? (
               <motion.div
                 key="input"
                 initial={CAPSULE_CONTENT_HIDDEN}
-                animate={voiceActive ? CAPSULE_CONTENT_HIDDEN : CAPSULE_CONTENT_VISIBLE}
+                animate={voiceSurface ? CAPSULE_CONTENT_HIDDEN : CAPSULE_CONTENT_VISIBLE}
                 exit={CAPSULE_CONTENT_HIDDEN}
-                transition={voiceActive ? { duration: 0.15 } : contentSpring}
-                inert={voiceActive}
-                className={cn(voiceActive && "pointer-events-none absolute inset-x-0 top-0")}
+                transition={voiceSurface ? { duration: 0.15 } : contentSpring}
+                inert={voiceSurface}
+                className={cn(voiceSurface && "pointer-events-none absolute inset-x-0 top-0")}
               >
                 <PromptInput
                   accept={ACCEPTED_IMAGE_MIME}
@@ -389,6 +453,10 @@ export function Composer() {
                     <div className="flex items-center gap-1">
                       <AttachButton />
                       <MicButton onStart={() => void voice.start()} />
+                      <VoiceChatButton
+                        ttsConfigured={ttsConfigured}
+                        onToggle={toggleVoiceConversation}
+                      />
                     </div>
                     <div className="flex items-center gap-1">
                       <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
@@ -405,7 +473,11 @@ export function Composer() {
                 exit={CAPSULE_CONTENT_HIDDEN}
                 transition={contentSpring}
               >
-                <CollapsedPill onExpand={engage} onStartVoice={() => void voice.start()} />
+                <CollapsedPill
+                  onExpand={engage}
+                  onStartVoice={() => void voice.start()}
+                  onStartVoiceChat={ttsConfigured === true ? toggleVoiceConversation : null}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -482,6 +554,92 @@ function ListeningRow({
   );
 }
 
+/** The hands-free conversation surface: end | orb + status. ONE indicator (the
+ * shared orb) carries the whole loop — listening (mood + the live partial
+ * transcript), thinking (agent busy, nothing streamed yet), speaking (the
+ * reply is streaming, so the TTS is voicing it). Height-locked to one row,
+ * mirroring the dictation ListeningRow's geometry. */
+function VoiceConversationRow({
+  state,
+  busy,
+  replyStreaming,
+  onEnd,
+}: {
+  state: VoiceState;
+  busy: boolean;
+  replyStreaming: boolean;
+  onEnd: () => void;
+}) {
+  let orbStatus: "starting" | "listening" | "busy" | "speaking" = "starting";
+  let caption = "Starting…";
+  if (state.kind === "listening") {
+    if (state.currentTranscript) {
+      orbStatus = "listening";
+      caption = state.currentTranscript;
+    } else if (replyStreaming) {
+      orbStatus = "speaking";
+      caption = "Speaking…";
+    } else if (busy) {
+      orbStatus = "busy";
+      caption = "Thinking…";
+    } else {
+      orbStatus = "listening";
+      caption = "Listening…";
+    }
+  }
+  return (
+    <div className="flex h-14 items-center gap-2 px-2">
+      <button
+        type="button"
+        aria-label="End voice chat"
+        onClick={onEnd}
+        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <XIcon className="size-4" />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+        <ListeningOrb status={orbStatus} />
+        <span className="max-w-[55%] truncate text-xs text-muted-foreground">{caption}</span>
+      </div>
+      {/* Spacer mirroring the end button so the orb stays optically centered
+       * (the dictation row's confirm button occupies this slot). */}
+      <div aria-hidden className="size-8 shrink-0" />
+    </div>
+  );
+}
+
+/** Entry point for hands-free voice chat (STT → agent turn → spoken reply) —
+ * the conversation-mode sibling of the one-shot dictation mic. Unconfigured
+ * TTS renders it inert-but-hoverable (aria-disabled, not `disabled`: a native
+ * disabled button swallows the hover, and the tooltip IS the pointer at
+ * Settings). A missing STT model surfaces on attempt via the machine's error
+ * state, exactly like the dictation mic's on-attempt toast. */
+function VoiceChatButton({
+  ttsConfigured,
+  onToggle,
+}: {
+  ttsConfigured: boolean | null;
+  onToggle: () => void;
+}) {
+  const disabled = ttsConfigured !== true;
+  return (
+    <PromptInputButton
+      tooltip={
+        ttsConfigured === false ? "Add an ElevenLabs API key in Settings → Voice" : "Voice chat"
+      }
+      aria-label="Start voice chat"
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onToggle}
+      className={cn(
+        "size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground",
+        disabled && "opacity-50 hover:bg-transparent hover:text-muted-foreground",
+      )}
+    >
+      <AudioLinesIcon className="size-4" />
+    </PromptInputButton>
+  );
+}
+
 function AttachButton() {
   const { openFileDialog } = usePromptInputAttachments();
   return (
@@ -553,13 +711,18 @@ function ComposerTextarea({
 
 /** The resting pill — a compact capsule that springs open to the full input on
  * click (or when the mic starts a voice session). Kept narrow (`whitespace-
- * nowrap` + a short prompt) so the capsule's `w-fit` reads as a small pill. */
+ * nowrap` + a short prompt) so the capsule's `w-fit` reads as a small pill.
+ * The voice-chat launcher only joins the pill once TTS is configured
+ * (`onStartVoiceChat` null hides it) — the resting pill stays minimal; the
+ * expanded toolbar's disabled button carries discoverability. */
 function CollapsedPill({
   onExpand,
   onStartVoice,
+  onStartVoiceChat,
 }: {
   onExpand: () => void;
   onStartVoice: () => void;
+  onStartVoiceChat: (() => void) | null;
 }) {
   return (
     <div className="flex h-12 items-center gap-1 pr-1.5 pl-3">
@@ -579,6 +742,16 @@ function CollapsedPill({
       >
         <MicIcon className="size-4" />
       </button>
+      {onStartVoiceChat && (
+        <button
+          type="button"
+          aria-label="Start voice chat"
+          onClick={onStartVoiceChat}
+          className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <AudioLinesIcon className="size-4" />
+        </button>
+      )}
     </div>
   );
 }

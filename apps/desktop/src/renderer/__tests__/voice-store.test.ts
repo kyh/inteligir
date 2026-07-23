@@ -210,6 +210,48 @@ describe("voice-store", () => {
     });
   });
 
+  describe("stopVoice", () => {
+    it("ends listening (mic released), returns to idle, and keeps the pipeline", async () => {
+      useVoiceStore.getState().init();
+      await flushMicrotasks();
+      useVoiceStore.getState().toggleVoice();
+      await flushMicrotasks();
+      expect(useVoiceStore.getState().state.kind).toBe("listening");
+
+      useVoiceStore.getState().stopVoice();
+      expect(helpers.pipelineInstances[0]?.disconnect).toHaveBeenCalledOnce();
+      expect(useVoiceStore.getState().state.kind).toBe("idle");
+
+      // Unlike reset(), the pipeline + subscriptions survive — the next
+      // toggle starts a fresh session without re-init.
+      useVoiceStore.getState().toggleVoice();
+      await flushMicrotasks();
+      expect(useVoiceStore.getState().state.kind).toBe("listening");
+    });
+
+    it("cancels an in-flight connect — the late-resolving session is dropped", async () => {
+      const connect = createDeferred<void>();
+      useVoiceStore.getState().init();
+      await flushMicrotasks();
+      const inst = helpers.pipelineInstances[0];
+      inst?.connect.mockReturnValue(connect.promise);
+
+      useVoiceStore.getState().toggleVoice();
+      await flushMicrotasks();
+      expect(useVoiceStore.getState().state.kind).toBe("connecting");
+
+      useVoiceStore.getState().stopVoice();
+      expect(useVoiceStore.getState().state.kind).toBe("idle");
+
+      connect.resolve(undefined);
+      await flushMicrotasks();
+      // The generation bump orphaned the connect: its mic is dropped and the
+      // machine never reaches listening.
+      expect(inst?.disconnect).toHaveBeenCalled();
+      expect(useVoiceStore.getState().state.kind).toBe("idle");
+    });
+  });
+
   describe("init cleanup", () => {
     it("resets transient state so a remount doesn't inherit connecting", async () => {
       const cleanup = useVoiceStore.getState().init();

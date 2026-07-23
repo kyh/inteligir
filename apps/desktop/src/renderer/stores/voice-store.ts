@@ -18,6 +18,10 @@ type VoiceStore = {
   init: () => () => void;
   reset: () => void;
   toggleVoice: () => void;
+  /** Exit voice mode from ANY active state (listening, connecting, error) —
+   * the composer's Escape / end-button path. Unlike reset(), the pipeline and
+   * subscriptions survive, so the next toggle starts clean. */
+  stopVoice: () => void;
   speakText: (text: string) => void;
   flushSpeech: () => void;
 };
@@ -185,6 +189,19 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
     // a rapid stop/start can't interleave on the main side.
     machine.dispatch({ type: "user_toggle_on" });
     void runConnect();
+  },
+
+  stopVoice: () => {
+    const state = machine.state;
+    if (state.kind === "idle") return;
+    // Listening holds a live mic — release it. For connecting/downloading the
+    // reset's generation bump makes the in-flight runConnect drop (and
+    // disconnect) its captured session when connect settles; error holds no
+    // session at all.
+    if (state.kind === "listening" && pipeline) {
+      trackTeardown(pipeline.disconnect());
+    }
+    machine.dispatch({ type: "reset" });
   },
 
   speakText: (text: string) => {

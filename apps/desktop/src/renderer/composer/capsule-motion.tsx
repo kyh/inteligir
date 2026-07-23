@@ -8,6 +8,8 @@
 
 import { motion, useReducedMotion, type Transition } from "framer-motion";
 
+import type { DisplayStatus } from "@repo/ui/components/geometric-orb";
+
 import { LazyGeometricOrb } from "@renderer/components/lazy-orb";
 import { useOrbBaseColor } from "@renderer/lib/use-theme";
 
@@ -46,16 +48,19 @@ export function useCapsuleSpring(): {
   return { capsule: CAPSULE_SPRING, content: { ...CAPSULE_SPRING, delay: 0.05 }, reduceMotion };
 }
 
-/** The focal voice animation while listening: the shared GeometricOrb in its
- * built-in "listening" mood. It's a WebGL canvas, so it gets a fixed square
- * box; the base color tracks the theme (shared with the initial-surface orb).
- * Fewer, thinner strands than the hero placement so the sphere reads at ~44px.
- * The orb keeps its own internal animation under prefers-reduced-motion. */
-export function ListeningOrb() {
+/** The focal voice animation while a voice surface is live: the shared
+ * GeometricOrb, defaulting to its "listening" mood. The conversation surface
+ * drives `status` through the other moods (starting / busy / speaking) so ONE
+ * indicator carries the whole hands-free loop. It's a WebGL canvas, so it gets
+ * a fixed square box; the base color tracks the theme (shared with the
+ * initial-surface orb). Fewer, thinner strands than the hero placement so the
+ * sphere reads at ~44px. The orb keeps its own internal animation under
+ * prefers-reduced-motion. */
+export function ListeningOrb({ status = "listening" }: { status?: DisplayStatus }) {
   const baseColor = useOrbBaseColor();
   return (
     <div aria-hidden className="size-11 shrink-0">
-      <LazyGeometricOrb status="listening" baseColor={baseColor} numLines={12} lineWidth={1.5} />
+      <LazyGeometricOrb status={status} baseColor={baseColor} numLines={12} lineWidth={1.5} />
     </div>
   );
 }

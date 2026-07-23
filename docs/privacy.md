@@ -34,6 +34,10 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   canned actions, translate) refuses with a toast, derived live from the
   document — the instant you type `private: true`, before any save. This
   wins over the ghost-text on/off setting.
+- **Read aloud refuses it.** The palette's "Read page aloud" sends the note's
+  text to ElevenLabs for synthesis, so the command is hidden for private
+  notes and the controller re-checks fail-closed before sending a byte —
+  unparseable frontmatter and "no note open" refuse the same way.
 - **The chat context hint omits it.** A fresh chat turn normally tells the
   agent which note is open; for a private note even the path is withheld.
   Checked twice at send time, fail-closed: the live editor buffer (so a
@@ -100,4 +104,6 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   (search/backlinks/related); `editor/note-privacy.ts` with `ai/ghost-text-kit.tsx`
   and `ai/ai-session.ts` (editor AI); `stores/agent-store.ts` (context hint,
   over the `vault:probe-note-privacy` live-disk probe);
-  `delegation/delegation-manager.ts` (delegation).
+  `delegation/delegation-manager.ts` (delegation); `voice/read-aloud.ts`
+  (read aloud, over the same registered fail-closed buffer read the context
+  hint uses).

@@ -293,7 +293,10 @@ and full-text search live in the command palette.
   case-unified in the core tag index) → notes with that tag; "New note from
   template…" applies `templates/*.md` with `{{date}}`/`{{title}}`
   substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
-  Notes configures folder/format).
+  Notes configures folder/format); "Read page aloud"/"Stop reading" speaks
+  the open note over the ElevenLabs TTS path (`renderer/voice/read-aloud.ts`
+  — chunked into the one tts client; hidden for private notes, fail-closed
+  re-check before sending; stops on note switch / voice-chat start).
 - **Deep links / capture**: the world-invokable `inteligir://` scheme has
   exactly six verbs (`packages/bridge/src/deep-link.ts`, pure parser +
   sanitizer): `append`/`task` capture ONE sanitized plain-text line onto
@@ -385,8 +388,8 @@ in-memory session for ghost-text on a fast model.
 contract): excluded from every AI surface on this device, fail-closed — the
 agent's file tools refuse them (per-call live-disk probe in pi's `tool_call`
 hook, `packages/agent/src/privacy/`, path-normalization parity with pi's own tools),
-`search_vault`/`get_backlinks`/`related_notes` drop them entirely, editor AI + ghost text go
-hard-off, the chat context hint withholds even the path, and delegation
+`search_vault`/`get_backlinks`/`related_notes` drop them entirely, editor AI + ghost text +
+read-aloud go hard-off, the chat context hint withholds even the path, and delegation
 refuses. Unparseable frontmatter counts as private. A leak-prevention
 boundary for AI features, NOT a security boundary.
 

@@ -13,6 +13,8 @@ import {
   MoonIcon,
   RefreshCwIcon,
   SunIcon,
+  Volume2Icon,
+  VolumeXIcon,
   WaypointsIcon,
 } from "lucide-react";
 
@@ -39,6 +41,8 @@ import { getLiveEditor } from "@renderer/editor/live-editor";
 import { toggleEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
+import { useVoiceStore } from "@renderer/stores/voice-store";
+import { startReadAloud, stopReadAloud, useReadAloud } from "@renderer/voice/read-aloud";
 import { openNoteState, useOpenNote } from "@renderer/workspace/open-note-store";
 import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
 import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
@@ -109,6 +113,12 @@ export function CommandPalette({
   // time (togglePrivate below), so typing never re-renders the palette.
   const openIsMarkdown = useOpenNote((s) => s.openDoc.kind === "markdown");
   const openIsPrivate = useOpenNote((s) => s.openDoc.kind === "markdown" && s.openDoc.isPrivate);
+  // Read-aloud visibility: hidden for private notes (their bytes would leave
+  // the device for TTS) and until TTS is configured. Unparseable frontmatter
+  // still shows the command — the controller's fail-closed re-check refuses
+  // with the privacy toast (defense in depth, the AI-funnel pattern).
+  const readingAloud = useReadAloud((s) => s.active);
+  const ttsConfigured = useVoiceStore((s) => s.ttsConfigured);
   const createFromTemplate = useCreateFromTemplate();
   const openDailyNote = useOpenDailyNote();
   const setSurface = useViewStore((s) => s.setSurface);
@@ -465,6 +475,30 @@ export function CommandPalette({
           },
         ]
       : []),
+    // Stateful pair, one command id: Stop is ALWAYS offered while a session
+    // plays (even if the note flipped private mid-read — stopping must never
+    // be gated); Read only for an open, non-private note with TTS configured.
+    ...(readingAloud
+      ? [
+          {
+            value: "read-aloud",
+            keywords: "stop reading aloud voice speech tts",
+            icon: <VolumeXIcon />,
+            label: "Stop reading",
+            onSelect: () => stopReadAloud(),
+          },
+        ]
+      : openIsMarkdown && !openIsPrivate && ttsConfigured === true
+        ? [
+            {
+              value: "read-aloud",
+              keywords: "read page aloud note voice speech listen tts",
+              icon: <Volume2Icon />,
+              label: "Read page aloud",
+              onSelect: () => void startReadAloud(),
+            },
+          ]
+        : []),
     {
       value: "agent-instructions",
       keywords: "open agent instructions memory customize ai personalize agents.md",
