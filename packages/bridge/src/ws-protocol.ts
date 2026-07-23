@@ -2,7 +2,7 @@
 // WS Bridge wire protocol — the frame vocabulary shared by the ws host
 // (server/transport/ws-host.ts) and the ws client (ws-bridge.ts). Text frames
 // are JSON; binary frames are [1-byte tag][payload bytes] and carry only the
-// two audio streams. Isomorphic: no node imports — this loads in the browser,
+// STT audio stream. Isomorphic: no node imports — this loads in the browser,
 // React Native, and node alike. All inbound parsing goes through the
 // type-guard parse functions so a malformed frame is a `null`, never a throw.
 // ---------------------------------------------------------------------------
@@ -20,8 +20,6 @@ export const WS_CLOSE_FORBIDDEN_ORIGIN = 4403;
 
 /** Client → server: Float32 PCM chunk for the `sendSttAudio` handler. */
 export const BINARY_STT_AUDIO = 1;
-/** Server → client: Int16 PCM chunk, reconstituted as an `onTtsAudio` event. */
-export const BINARY_TTS_AUDIO = 2;
 
 // ---------------------------------------------------------------------------
 // Text frames

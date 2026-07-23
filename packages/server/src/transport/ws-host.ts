@@ -10,7 +10,7 @@ import type { IncomingMessage } from "node:http";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import { createBackoff, timeoutSchedule } from "@repo/bridge/backoff";
-import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import {
   HYDRATED_EVENTS,
   LOCAL_ONLY_METHODS,
@@ -20,11 +20,9 @@ import {
 } from "@repo/bridge/ipc-registry";
 import {
   BINARY_STT_AUDIO,
-  BINARY_TTS_AUDIO,
   WS_CLOSE_FORBIDDEN_ORIGIN,
   WS_CLOSE_UNAUTHORIZED,
   decodeBinaryFrame,
-  encodeBinaryFrame,
   encodeFrame,
   parseClientFrame,
   type ReqFrame,
@@ -289,17 +287,6 @@ export function startWsHost(options: WsHostOptions): WsHost {
   });
 
   function broadcastEvent(method: EventMethod, payload: unknown): void {
-    if (method === "onTtsAudio") {
-      // Audio crosses as a tag-2 binary frame; the client reconstitutes
-      // `{ audio: ArrayBuffer }` for its onTtsAudio listeners.
-      const audio = isRecord(payload) ? payload["audio"] : null;
-      if (!(audio instanceof ArrayBuffer) && !ArrayBuffer.isView(audio)) return;
-      const frame = encodeBinaryFrame(BINARY_TTS_AUDIO, audio);
-      for (const sock of authedSockets.keys()) {
-        if (sock.readyState === WebSocket.OPEN) sock.send(frame);
-      }
-      return;
-    }
     const frame = encodeFrame({ t: "evt", method, payload });
     for (const sock of authedSockets.keys()) {
       if (sock.readyState === WebSocket.OPEN) sock.send(frame);

@@ -141,7 +141,7 @@ describe("ensureGoogleOAuthClient under the flag", () => {
       },
     };
     const result = await ensureGoogleOAuthClient(ops, emulatePlaceholderGoogleClient());
-    expect(result).toEqual({ status: "ready", source: "bundled" });
+    expect(result).toEqual({ status: "ready" });
     expect(created).toHaveLength(1);
     expect(created[0]).toMatchObject({
       authorizationUrl: EMULATE_GOOGLE_AUTHORIZATION_URL,

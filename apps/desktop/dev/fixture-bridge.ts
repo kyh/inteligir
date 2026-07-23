@@ -2,8 +2,8 @@
 // In-memory fixture Bridge for the browser dev harness. Fully typed against
 // the real Bridge contract — when the IPC registry changes, this file fails
 // typecheck. Vault reads/writes hit a Map seeded with sample notes; agent
-// chat streams a canned reply; STT streams a canned transcript;
-// TTS/executor report unavailable.
+// chat streams a canned reply; STT streams a canned transcript; the
+// executor reports unavailable.
 //
 // Stub convention for new channels: make the stub DO something real against
 // the in-memory state, or throw `unavailable("<feature>")` naming the gap.
@@ -27,7 +27,6 @@ import {
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
 } from "@repo/bridge/daily-notes";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 import type { SyncSignInResult, SyncState } from "@repo/bridge/sync";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
@@ -965,20 +964,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       return aiProviderSettings();
     },
 
-    // Voice — TTS reports unavailable; STT is SIMULATED: startStt arms timers
-    // that stream a canned transcript so the listening capsule is demoable.
-    isTtsAvailable: async () => false,
-    // Mirrors the host: only the `true` presence marker lands in ui-state
-    // (there's no secret store in the harness, and TTS stays unavailable).
-    setVoiceApiKey: async ({ value }) => {
-      const secret = typeof value === "string" ? value.trim() : "";
-      if (secret.length > 0) uiState[ELEVENLABS_API_KEY_UI_STATE] = true;
-      else delete uiState[ELEVENLABS_API_KEY_UI_STATE];
-    },
-    ttsSend: () => {},
-    ttsFlush: () => {},
-    ttsInterrupt: () => {},
-    onTtsAudio: () => () => {},
+    // Voice — STT is SIMULATED: startStt arms timers that stream a canned
+    // transcript so the listening capsule is demoable.
     startStt: async () => {
       for (const t of sttTimers) clearTimeout(t);
       sttFinalPending = true;
@@ -1609,7 +1596,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       // Simulate a pass that hit two conflicts: write real conflict-copy files
       // into the fixture vault (host naming) so the Settings conflict list's
       // Open and Dismiss actions are exercisable end-to-end in the harness.
-      const detectedAt = new Date().toISOString();
       const copies = [
         conflictCopyName("welcome.md", fsSafeStamp(new Date())),
         conflictCopyName("tasks.md", fsSafeStamp(new Date(Date.now() + 1000))),
@@ -1627,7 +1613,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         ...syncState.conflicts,
         ...copies
           .filter((path) => !syncState.conflicts.some((conflict) => conflict.path === path))
-          .map((path) => ({ path, detectedAt })),
+          .map((path) => ({ path })),
       ];
       const outcome = {
         status: "ok",
@@ -1684,10 +1670,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         {
           name: "summarize-note",
           description: "Summarize the open note into a short digest (dev-harness fixture).",
-          source: "user",
           scope: "user",
           filePath: "/fixture/.inteligir/skills/summarize-note/SKILL.md",
-          disableModelInvocation: false,
         },
       ],
     }),

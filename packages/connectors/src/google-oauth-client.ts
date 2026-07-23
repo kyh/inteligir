@@ -68,7 +68,7 @@ export async function ensureGoogleOAuthClient(
 ): Promise<EnsureGoogleClientResult> {
   const clients = await ops.listOAuthClients();
   if (clients.some((c) => c.slug === GOOGLE_OAUTH_CLIENT_SLUG)) {
-    return { status: "ready", source: "existing" };
+    return { status: "ready" };
   }
   if (!bundled) return { status: "unavailable" };
   // Resolved per call (not baked): real Google by default, the emulate/env
@@ -83,5 +83,5 @@ export async function ensureGoogleOAuthClient(
     clientId: bundled.clientId,
     clientSecret: bundled.clientSecret,
   });
-  return { status: "ready", source: "bundled" };
+  return { status: "ready" };
 }

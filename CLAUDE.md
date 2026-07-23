@@ -60,8 +60,8 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
   vault/         # VaultManager (@repo/vault) — the user's markdown folder: confined IO,
                  # ephemeral listing + open-note watcher, pure change classifier; host
                  # callbacks (notifier, workspace link dir, OS trash) injected
-  voice/         # Voice capability (@repo/voice) — sherpa-onnx STT + model download,
-                 # ElevenLabs TTS proxy, voice secret; host seams injected at register
+  voice/         # Voice capability (@repo/voice) — sherpa-onnx STT + model
+                 # download; host seams injected at composition
   connectors/    # MCP/connectors capability (@repo/connectors) — executor daemon
                  # lifecycle + typed client, connector install orchestration (ports-
                  # injected), Google OAuth client, emulate-connectors dev override
@@ -78,7 +78,7 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
 
 Dep DAG (all edges): notes, installer, storage, ui are leaves; bridge→notes;
 vault→storage+notes+bridge; agent→bridge+installer+notes;
-voice→storage+bridge; connectors→installer+storage+bridge (agent never
+voice→bridge; connectors→installer+storage+bridge (agent never
 imports connectors: code-mode reaches the daemon through the injected
 ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source
 in @repo/bridge/dev-flags — #465); sync→vault+storage+notes+bridge;
@@ -89,7 +89,7 @@ fact, not a lint opinion. The extracted host packages (storage, vault, voice,
 connectors, sync) sit BELOW server: they never import @repo/server (that
 would be a package cycle) or electron — upward needs cross module-scoped
 install seams the composition root fills (setSecretCipherProvider,
-setVaultTrashItem, configureVoiceModelHost/configureTtsAudioSink,
+setVaultTrashItem, configureVoiceModelHost,
 setSyncEventSink/setSyncVaultAccessor; ConnectorInstallOps binds openExternal
 per call).
 

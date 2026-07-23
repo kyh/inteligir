@@ -26,9 +26,7 @@ export function listSkills(options: ListSkillsOptions): SkillInfo[] {
   return skills.map((s) => ({
     name: s.name,
     description: s.description,
-    source: s.sourceInfo.source,
     scope: s.sourceInfo.scope,
     filePath: s.filePath,
-    disableModelInvocation: s.disableModelInvocation,
   }));
 }

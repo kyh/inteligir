@@ -6,8 +6,7 @@
 // the file is written 0o600 and the ~/.inteligir dir is kept 0o700 by the
 // store layer.
 //
-// Scope: credentials that host features read directly (currently the
-// ElevenLabs TTS key, routed here by UiStateManager). This is distinct from
+// Scope: credentials that host features read directly. This is distinct from
 // the Extensions panel's secrets section, which is backed by the executor
 // daemon's own store under ~/.inteligir/executor, and from pi's provider
 // OAuth tokens in auth.json (pi-internal, already chmod 0o600 upstream).

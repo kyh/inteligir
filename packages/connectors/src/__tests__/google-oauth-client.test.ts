@@ -51,7 +51,7 @@ describe("ensureGoogleOAuthClient", () => {
   it("seeds the bundled client when none is registered, then reports ready", async () => {
     const ops = fakeOps();
     const result = await ensureGoogleOAuthClient(ops, BUNDLED);
-    expect(result).toEqual({ status: "ready", source: "bundled" });
+    expect(result).toEqual({ status: "ready" });
     expect(ops.created).toEqual([
       {
         owner: "user",
@@ -69,14 +69,14 @@ describe("ensureGoogleOAuthClient", () => {
     const ops = fakeOps();
     await ensureGoogleOAuthClient(ops, BUNDLED);
     const second = await ensureGoogleOAuthClient(ops, BUNDLED);
-    expect(second).toEqual({ status: "ready", source: "existing" });
+    expect(second).toEqual({ status: "ready" });
     expect(ops.created).toHaveLength(1);
   });
 
   it("never overwrites an already-registered client with the bundled one", async () => {
     const ops = fakeOps([client({ clientId: "users-own-id" })]);
     const result = await ensureGoogleOAuthClient(ops, BUNDLED);
-    expect(result).toEqual({ status: "ready", source: "existing" });
+    expect(result).toEqual({ status: "ready" });
     expect(ops.created).toHaveLength(0);
   });
 
@@ -90,7 +90,7 @@ describe("ensureGoogleOAuthClient", () => {
   it("a registered client satisfies ensure even without bundled credentials", async () => {
     const ops = fakeOps([client({})]);
     const result = await ensureGoogleOAuthClient(ops, null);
-    expect(result).toEqual({ status: "ready", source: "existing" });
+    expect(result).toEqual({ status: "ready" });
   });
 });
 

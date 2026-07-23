@@ -22,7 +22,6 @@ import { VaultProvider } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useDelegationStore } from "@renderer/stores/delegation-store";
 import { useViewStore, type WorkspaceSurface } from "@renderer/stores/view-store";
-import { useVoiceStore } from "@renderer/stores/voice-store";
 
 // The graph and tasks views stay out of the main chunk: each (and the graph's
 // d3-force dependency) loads on first open.
@@ -90,9 +89,6 @@ function DailyNoteHotkey() {
  * opens the command palette.
  */
 export function WorkspacePage() {
-  const initVoice = useVoiceStore((s) => s.init);
-  useEffect(() => initVoice(), [initVoice]);
-
   const initDelegations = useDelegationStore((s) => s.init);
   useEffect(() => initDelegations(), [initDelegations]);
 

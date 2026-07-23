@@ -73,8 +73,6 @@ export const SyncRequestPasswordResetSchema = Type.Object(
 export type SyncConflict = {
   /** Vault-relative path of the conflict COPY file (not the canonical note). */
   readonly path: string;
-  /** ISO instant this device first noticed the copy (pass time or boot scan). */
-  readonly detectedAt: string;
 };
 
 /** The reactive sync state surfaced to the renderer — the payload of both

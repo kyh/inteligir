@@ -66,7 +66,6 @@ describe("SyncCoordinator", () => {
     coordinator.start();
     const conflicts = coordinator.getState().conflicts;
     expect(conflicts.map((c) => c.path)).toEqual([copy]);
-    expect(typeof conflicts[0]?.detectedAt).toBe("string");
   });
 
   it("drops a conflict row once its copy file leaves the vault", () => {

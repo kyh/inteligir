@@ -289,11 +289,10 @@ export class SyncCoordinator {
     } catch {
       return; // no vault yet — passes will still record their own conflicts
     }
-    const detectedAt = new Date().toISOString();
     const known = new Set(this.conflicts.map((conflict) => conflict.path));
     for (const path of paths) {
       if (!known.has(path) && isConflictCopyPath(path)) {
-        this.conflicts.push({ path, detectedAt });
+        this.conflicts.push({ path });
       }
     }
   }
@@ -301,11 +300,10 @@ export class SyncCoordinator {
   /** Append this pass's freshly created conflict copies (dedup by path). */
   private recordConflicts(outcome: SyncOutcome): void {
     if (outcome.status !== "ok" || outcome.conflictPaths.length === 0) return;
-    const detectedAt = new Date().toISOString();
     const known = new Set(this.conflicts.map((conflict) => conflict.path));
     for (const path of outcome.conflictPaths) {
       if (!known.has(path)) {
-        this.conflicts.push({ path, detectedAt });
+        this.conflicts.push({ path });
         known.add(path);
       }
     }

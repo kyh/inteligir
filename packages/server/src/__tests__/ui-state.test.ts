@@ -16,8 +16,8 @@ afterEach(() => {
 });
 
 // ui-state is a GENERIC key→value store — no per-feature key knowledge, no
-// secret routing (voice owns its secret in voice/voice-secret.ts, covered by
-// voice-secret.test.ts).
+// secret routing (a feature that stores a secret writes the encrypted
+// SecretStore itself).
 describe("UiStateManager", () => {
   it("stores and returns plain keys", () => {
     const mgr = new UiStateManager(storePath);

@@ -15,7 +15,6 @@ import { RemoteAccessSection } from "@renderer/settings/sections/remote-access-s
 import { RoutinesSection } from "@renderer/settings/sections/routines-section";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
 import { SyncSection } from "@renderer/settings/sections/sync-section";
-import { VoiceSection } from "@renderer/settings/sections/voice-section";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import type { NotificationSettings } from "@repo/bridge/ipc-registry";
 
@@ -142,8 +141,6 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
       <RemoteAccessSection />
 
       <EditorAiSection />
-
-      <VoiceSection />
 
       <div className="flex flex-col gap-2">
         <Label className="text-xs font-medium text-muted-foreground">App data</Label>

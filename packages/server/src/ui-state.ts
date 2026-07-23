@@ -5,8 +5,7 @@
 //
 // Deliberately GENERIC: no per-feature key knowledge lives here. Credentials
 // never do either — a feature that stores a secret writes the encrypted
-// SecretStore itself and keeps only a `true` presence marker in ui-state
-// (see voice/voice-secret.ts, the one current example).
+// SecretStore itself and keeps only a `true` presence marker in ui-state.
 // ---------------------------------------------------------------------------
 
 import { JsonStore, inteligirPath } from "@repo/storage/json-store";

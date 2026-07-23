@@ -252,19 +252,19 @@ describe("dispatch", () => {
     await expect(bridge.mintHtmlAppToken()).resolves.toBe("tok-1");
   });
 
-  it("delivers fire-and-forget sends to the handler", async () => {
+  it("delivers fire-and-forget text send frames to the handler", async () => {
     const sent: unknown[] = [];
     const host = await startTestHost({
-      getVaultRoot: () => "/v",
-      ttsSend: (raw) => {
+      sendSttAudio: (raw) => {
         sent.push(raw);
       },
     });
-    const { bridge } = connectBridge(host.url, host.manager.getLocalToken());
-    await bridge.getVaultRoot(); // ensure welcomed — sends are dropped before
-    bridge.ttsSend({ text: "hello" });
+    const raw = new RawClient(host.url);
+    await raw.send({ t: "auth", token: host.manager.getLocalToken() });
+    expect(await raw.nextFrame()).toEqual({ t: "welcome" });
+    await raw.send({ t: "send", method: "sendSttAudio", payload: [0.5, -0.5] });
     await vi.waitFor(() => {
-      expect(sent).toEqual([{ text: "hello" }]);
+      expect(sent).toEqual([[0.5, -0.5]]);
     });
   });
 });
@@ -300,21 +300,6 @@ describe("events + binary audio", () => {
       expect(received).toBeInstanceOf(ArrayBuffer);
     });
     expect(received instanceof ArrayBuffer && [...new Float32Array(received)]).toEqual([8, 7, 6]);
-  });
-
-  it("ships onTtsAudio as binary and reconstitutes { audio } client-side", async () => {
-    const host = await startTestHost({ getVaultRoot: () => "/v" });
-    const { bridge } = connectBridge(host.url, host.manager.getLocalToken());
-    const chunks: ArrayBuffer[] = [];
-    bridge.onTtsAudio((event) => chunks.push(event.audio));
-    await bridge.getVaultRoot();
-
-    const pcm = new Int16Array([1000, -2000, 3000]);
-    host.emit("onTtsAudio", { audio: pcm.buffer });
-    await vi.waitFor(() => {
-      expect(chunks).toHaveLength(1);
-    });
-    expect(chunks[0] && [...new Int16Array(chunks[0])]).toEqual([1000, -2000, 3000]);
   });
 });
 
