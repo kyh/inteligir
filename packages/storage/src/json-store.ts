@@ -33,7 +33,7 @@ export type FsAdapter = {
   rename: (from: string, to: string) => void;
 };
 
-// ~/.inteligir holds credentials (pi's auth.json) — keep the
+// ~/.inteligir holds credentials (pi's auth.json, secrets.json) — keep the
 // directory itself owner-only. New dirs are created 0o700 by the mkdir calls
 // below; this covers pre-existing installs created before the mode was set.
 // Once per process: a wiped-and-recreated dir gets 0o700 from mkdir anyway.
@@ -51,8 +51,8 @@ function restrictInteligirDir(filePath: string): void {
 // Writes go through the shared tmp-then-rename atomicWrite (storage/atomic-write).
 //
 // Mode is fixed owner-only (0o600): every JsonStore lives under
-// ~/.inteligir, and several hold credentials or note content (the
-// snapshots index, delegation records naming note lines). Revisit
+// ~/.inteligir, and several hold credentials or note content (secrets,
+// the snapshots index, delegation records naming note lines). Revisit
 // before ever pointing a JsonStore outside ~/.inteligir.
 //
 // Exported so other ~/.inteligir JSON writers (e.g. @repo/sync's base-manifest

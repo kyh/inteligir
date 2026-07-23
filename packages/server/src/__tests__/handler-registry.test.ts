@@ -69,10 +69,12 @@ describe("collectHandlers", () => {
       const fn = vi.fn(() => {
         throw new Error("boom");
       });
-      const handlers = collectHandlers(registerAll({ sendSttAudio: fn }));
-      expect(() => handlers.sendSttAudio(new ArrayBuffer(8))).not.toThrow();
-      expect(fn).toHaveBeenCalled();
+      const handlers = collectHandlers(registerAll({ ttsSend: fn }));
+      expect(() => handlers.ttsSend({ text: "hi" })).not.toThrow();
+      expect(fn).toHaveBeenCalledWith({ text: "hi" });
       expect(consoleError).toHaveBeenCalled();
+      // Invalid payload on a send channel is also swallowed.
+      expect(() => handlers.ttsSend(42)).not.toThrow();
     } finally {
       consoleError.mockRestore();
     }

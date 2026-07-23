@@ -1,15 +1,19 @@
 # @repo/voice
 
-Local on-device STT for the Inteligir host: sherpa-onnx streaming Parakeet plus
-its pinned-checksum model downloader.
+Local on-device STT for the Inteligir host — sherpa-onnx streaming Parakeet plus
+its pinned-checksum model downloader — and the ElevenLabs streaming-TTS proxy
+with the voice API-key store over @repo/storage's SecretStore.
 
 ## Why it exists
 
-Runs in the desktop main process (node; loads a native addon). Sits BELOW
-@repo/server in the dep DAG — it never imports server or electron; sole
-workspace dep is @repo/bridge (wire helpers + the `VoiceModelStateEvent`
-type). Its own package so the native/ML surface stays quarantined behind two
-narrow subpath exports instead of leaking into the host.
+Runs in the desktop main process (node; loads a native addon, opens the
+outbound ElevenLabs websocket so the API key never sits in renderer memory).
+Sits BELOW @repo/server in the dep DAG — it never imports server or electron;
+workspace deps are @repo/bridge (wire helpers + the `VoiceModelStateEvent`
+type + `ELEVENLABS_API_KEY_UI_STATE`) and @repo/storage (the encrypted
+SecretStore behind the voice secret). Its own package so the native/ML/vendor
+surface stays quarantined behind four narrow subpath exports instead of
+leaking into the host.
 
 ## Layout
 
@@ -21,6 +25,11 @@ src/
                         #   idempotent + inflight-shared; VoiceModelHost seam lives here
   sherpa-onnx-node.d.ts # Ambient decl for the untyped native module — loaded via a
                         #   types-only /// reference so no runtime import is emitted
+  tts-proxy.ts          # ElevenLabs streaming TTS: one lazy WS per session, text in /
+                        #   base64 PCM out (emitted via the injected sink); TtsHost seam
+  voice-secret.ts       # The ElevenLabs key: plaintext into the SecretStore, only a
+                        #   `true` presence marker into the caller-bound ui-state sink
+  __tests__/            # voice-secret.test.ts — marker/secret routing contract
 ```
 
 ## Invariants
@@ -41,16 +50,35 @@ src/
 - `stopSession` captures the stream at entry: a racing `startSession`
   (renderer stop+start back-to-back over IPC) can't have its fresh stream
   finished or nulled by the old session's teardown.
+- **The TTS key never reaches ui-state or the renderer.** voice-secret writes
+  the plaintext to the encrypted SecretStore and only a `true` presence
+  marker to the caller-bound marker sink; the proxy resolves the key lazily
+  per connection/availability check (stored key first, `ELEVENLABS_API_KEY`
+  env as the dev-only fallback), so a key saved mid-session works without a
+  restart.
 
 ## Seams
 
-`VoiceModelHost` (`{ userDataDir, emitState }`) is the only injected port —
-installed once via `configureVoiceModelHost` by the composition root,
-`packages/server/src/boot/create-host.ts`. Handlers
-(`packages/server/src/handlers/voice-handlers.ts`) drive the recognizer;
+- `VoiceModelHost` (`{ userDataDir, emitState }`) — installed once via
+  `configureVoiceModelHost` by the composition root,
+  `packages/server/src/boot/create-host.ts`.
+- `TtsHost` (`{ getApiKey, emitAudio }`) — installed via `configureTts` at
+  handler-register time (`packages/server/src/handlers/voice-handlers.ts`):
+  the key source is voice-secret's SecretStore read, the audio sink is an
+  `onTtsAudio` event-bus emit (voice/ never imports the event bus).
+- voice-secret's marker sink (ui-state) is PASSED PER CALL — ui-state is a
+  server store and voice sits below the server.
+
+Handlers (`voice-handlers.ts`) drive the recognizer and the TTS proxy;
 `app-machine.ts` triggers `downloadModel`.
 
 ## Testing
 
-No test suite — `pnpm --filter @repo/voice typecheck` is the package gate;
-behavior is exercised through the server's voice handlers.
+```bash
+pnpm --filter @repo/voice test
+```
+
+`voice-secret.test.ts` pins the secret/marker routing (trimmed key into the
+secret sink, `true`-only marker, clear-on-empty). STT and the TTS proxy's
+wire behavior are exercised through the server's voice handlers and
+transport tests.

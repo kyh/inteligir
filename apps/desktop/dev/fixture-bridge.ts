@@ -2,8 +2,8 @@
 // In-memory fixture Bridge for the browser dev harness. Fully typed against
 // the real Bridge contract — when the IPC registry changes, this file fails
 // typecheck. Vault reads/writes hit a Map seeded with sample notes; agent
-// chat streams a canned reply; STT streams a canned transcript; the
-// executor reports unavailable.
+// chat streams a canned reply; STT streams a canned transcript; TTS queues
+// text and emits silent PCM; the executor reports unavailable.
 //
 // Stub convention for new channels: make the stub DO something real against
 // the in-memory state, or throw `unavailable("<feature>")` naming the gap.
@@ -27,6 +27,7 @@ import {
   DEFAULT_DAILY_FOLDER,
   DEFAULT_DAILY_FORMAT,
 } from "@repo/bridge/daily-notes";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 import type { SyncSignInResult, SyncState } from "@repo/bridge/sync";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
@@ -779,6 +780,17 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   const sttEvents = new Emitter<{ text: string; isFinal: boolean }>();
   let sttTimers: ReturnType<typeof setTimeout>[] = [];
   let sttFinalPending = false;
+  const ttsAudioEvents = new Emitter<{ audio: ArrayBuffer }>();
+  // Mirrors the host TTS proxy's pending-text model: sends queue text (each
+  // emitting a silent PCM chunk so the renderer's playback path runs), flush
+  // finalizes the queued utterance into `spoken`, interrupt discards it; the
+  // "secret" half of setVoiceApiKey lands in `apiKey` (ui-state gets only the
+  // presence marker, like the host). Inspectable from harness devtools.
+  const ttsState: { apiKey: string | null; pending: string[]; spoken: string[] } = {
+    apiKey: null,
+    pending: [],
+    spoken: [],
+  };
   const vaultEvents = new Emitter<{ root: string }>();
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();
@@ -962,8 +974,36 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       return aiProviderSettings();
     },
 
-    // Voice — STT is SIMULATED: startStt arms timers that stream a canned
-    // transcript so the listening capsule is demoable.
+    // Voice — TTS is REAL against in-memory state: always "configured", the
+    // API key mirrors the host (secret held here, `true` presence marker in
+    // ui-state), sends/flushes/interrupts drive the ttsState queue above and
+    // emit silent PCM so playback is exercisable. STT is SIMULATED: startStt
+    // arms timers that stream a canned transcript so the listening capsule is
+    // demoable.
+    isTtsAvailable: async () => true,
+    setVoiceApiKey: async ({ value }) => {
+      const secret = typeof value === "string" ? value.trim() : "";
+      if (secret.length > 0) {
+        ttsState.apiKey = secret;
+        uiState[ELEVENLABS_API_KEY_UI_STATE] = true;
+      } else {
+        ttsState.apiKey = null;
+        delete uiState[ELEVENLABS_API_KEY_UI_STATE];
+      }
+    },
+    ttsSend: ({ text }) => {
+      ttsState.pending.push(text);
+      // ~50ms of 24kHz Int16 silence per chunk — the renderer schedules and
+      // "plays" it, so the audio path runs without real synthesis.
+      ttsAudioEvents.emit({ audio: new Int16Array(1200).buffer });
+    },
+    ttsFlush: () => {
+      ttsState.spoken.push(...ttsState.pending.splice(0));
+    },
+    ttsInterrupt: () => {
+      ttsState.pending.length = 0;
+    },
+    onTtsAudio: ttsAudioEvents.subscribe,
     startStt: async () => {
       for (const t of sttTimers) clearTimeout(t);
       sttFinalPending = true;

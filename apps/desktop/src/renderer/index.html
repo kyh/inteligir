@@ -7,7 +7,8 @@
       Strict CSP for the renderer. Everything ships local ('self' covers both
       the dev server origin and the packaged file:// load); the host is reached
       over the loopback ws bridge, which connect-src's ws://localhost:* /
-      ws://127.0.0.1:* allowance covers.
+      ws://127.0.0.1:* allowance covers. The TTS websocket to ElevenLabs runs
+      in the main process (voice/tts-proxy), so connect-src stays tight.
       Dev-mode allowances:
       - the sha256 hash is @vitejs/plugin-react's inline fast-refresh preamble
         (recompute on plugin upgrade: sha256-base64 of preambleCode with

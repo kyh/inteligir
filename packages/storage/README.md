@@ -2,7 +2,8 @@
 
 Node fs/json substrate for the host: versioned `JsonStore` over `~/.inteligir`,
 atomic-write, the single-host pidfile lock, the boot-time permission sweep
-(`hardenAppDir`), and the `agent.log` console tee.
+(`hardenAppDir`), the `agent.log` console tee, and the encrypted
+`SecretStore`.
 
 ## Why it exists
 
@@ -10,8 +11,9 @@ Node-only (Electron main / the `@repo/server` host) — never renderer or
 mobile. A **leaf**: no workspace deps (two one-line guard copies in
 `fs-errors.ts` exist precisely to keep it that way); upward needs (recovery
 notifier, pi session-dir names) cross injected seams the composition root
-fills. Anything persisting app state under `~/.inteligir` goes through it so
-atomicity and owner-only modes are inherited, not re-implemented.
+fills (recovery notifier, pi session-dir names, the secret cipher). Anything
+persisting app state under `~/.inteligir` goes through it so atomicity and
+owner-only modes are inherited, not re-implemented.
 
 ## Layout
 
@@ -32,9 +34,12 @@ src/
   agent-log.ts       # Tee console.warn/error + [tag]-prefixed log lines to
                      #   ~/.inteligir/logs/agent.log; size-capped, one rotation
   fs-errors.ts       # isEnoent / isRecord / toErrorMessage — leaf-local guards
+  secrets.ts         # SecretStore: key→credential map at ~/.inteligir/secrets.json,
+                     #   encrypted at rest via the injected SecretCipher (Electron
+                     #   safeStorage), marked-plaintext fallback when no cipher
 ```
 
-Exports map = exactly these six subpaths; no barrel.
+Exports map = exactly these seven subpaths; no barrel.
 
 ## Invariants
 
@@ -61,6 +66,11 @@ Exports map = exactly these six subpaths; no barrel.
   exec bits and user-owned vault. Every chmod try/caught: never block boot.
 - `agent.log` skips per-token deltas and untagged info lines — one model turn
   must not amplify into thousands of file writes.
+- **Secrets degrade to "not configured", never garbage.** An entry written
+  under a cipher the current platform can't read (keychain reset, different
+  machine) reads as absent; when encryption is unavailable at write time the
+  entry is recorded as marked plaintext (0600 file mode is the protection) so
+  a later read knows not to attempt decryption.
 
 ## Seams
 
@@ -73,8 +83,15 @@ Exports map = exactly these six subpaths; no barrel.
   silently escape the 0600 sweep; storage never imports agent code. Called at
   boot by `packages/server/src/boot/create-host.ts`, re-run on wake by the app
   machine.
+- `setSecretCipherProvider` — the production `SecretCipher` source
+  (`HostPlatform.secretCipher`, Electron safeStorage), installed once by
+  `packages/server/src/boot/create-host.ts` before the singletons eagerly
+  build the store; module-scoped so the fresh instance a re-login lazily
+  builds resolves the cipher the same way. `resetSecretStore()` (logout
+  teardown) closes the store and drops the singleton.
 - `JsonStore.fs`, `hardenAppDir`'s `root`, `createAgentLogWriter`'s
-  `dir`/`maxBytes` — test-only injection; production uses the defaults.
+  `dir`/`maxBytes`, `SecretStore`'s `storePath`/`cipher`/`fs` — test-only
+  injection; production uses the defaults.
 
 ## Testing
 
@@ -88,3 +105,6 @@ backup + defaults, bytes preserved), write-time schema refusal, real-fs
 leaks. `host-lock.test.ts`: refuse-live / reclaim-stale / release-only-our-own.
 `harden-app-dir.test.ts`: the sweep's reach and its skips. `agent-log.test.ts`:
 tag filtering, `message_update` skipping, rotation, logout-wipe survival.
+`secrets.test.ts`: cipher round-trip, no plaintext on disk when encryption is
+available, the marked-plaintext fallback, 0600 mode, undecryptable-reads-as-
+absent.

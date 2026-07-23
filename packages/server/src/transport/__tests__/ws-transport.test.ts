@@ -267,6 +267,22 @@ describe("dispatch", () => {
       expect(sent).toEqual([[0.5, -0.5]]);
     });
   });
+
+  it("delivers bridge-client sends to the handler", async () => {
+    const sent: unknown[] = [];
+    const host = await startTestHost({
+      getVaultRoot: () => "/v",
+      ttsSend: (raw) => {
+        sent.push(raw);
+      },
+    });
+    const { bridge } = connectBridge(host.url, host.manager.getLocalToken());
+    await bridge.getVaultRoot(); // ensure welcomed — sends are dropped before
+    bridge.ttsSend({ text: "hello" });
+    await vi.waitFor(() => {
+      expect(sent).toEqual([{ text: "hello" }]);
+    });
+  });
 });
 
 describe("events + binary audio", () => {
@@ -300,6 +316,21 @@ describe("events + binary audio", () => {
       expect(received).toBeInstanceOf(ArrayBuffer);
     });
     expect(received instanceof ArrayBuffer && [...new Float32Array(received)]).toEqual([8, 7, 6]);
+  });
+
+  it("ships onTtsAudio as binary and reconstitutes { audio } client-side", async () => {
+    const host = await startTestHost({ getVaultRoot: () => "/v" });
+    const { bridge } = connectBridge(host.url, host.manager.getLocalToken());
+    const chunks: ArrayBuffer[] = [];
+    bridge.onTtsAudio((event) => chunks.push(event.audio));
+    await bridge.getVaultRoot();
+
+    const pcm = new Int16Array([1000, -2000, 3000]);
+    host.emit("onTtsAudio", { audio: pcm.buffer });
+    await vi.waitFor(() => {
+      expect(chunks).toHaveLength(1);
+    });
+    expect(chunks[0] && [...new Int16Array(chunks[0])]).toEqual([1000, -2000, 3000]);
   });
 });
 

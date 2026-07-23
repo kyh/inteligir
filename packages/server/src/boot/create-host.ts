@@ -18,6 +18,7 @@ import { initMachine, shutdown } from "../app/app-machine";
 import { emitEvent, subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
 import { initAgentLog } from "@repo/storage/agent-log";
+import { setSecretCipherProvider } from "@repo/storage/secrets";
 import { configureVoiceModelHost } from "@repo/voice/model-download";
 import { hardenAppDir } from "@repo/storage/harden-app-dir";
 import { acquireHostLock, releaseHostLock } from "@repo/storage/host-lock";
@@ -74,6 +75,11 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   created = true;
 
   installHostRuntime(platform, options);
+
+  // Storage's SecretStore resolves its cipher through this provider at
+  // construction (storage never imports the platform seam) — install it before
+  // constructHostSingletons() eagerly builds the store.
+  setSecretCipherProvider(() => platform.secretCipher);
 
   // Vault's user-initiated delete goes to the OS trash through this host
   // capability (vault/ never imports the platform seam). Installed before any

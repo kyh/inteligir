@@ -12,7 +12,9 @@ import { createBackoff, timeoutSchedule } from "./backoff";
 import { IPC, type Bridge } from "./ipc-registry";
 import {
   BINARY_STT_AUDIO,
+  BINARY_TTS_AUDIO,
   WS_CLOSE_UNAUTHORIZED,
+  decodeBinaryFrame,
   encodeBinaryFrame,
   encodeFrame,
   parseServerFrame,
@@ -165,9 +167,17 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
   }
 
   function handleMessage(data: unknown): void {
-    if (typeof data !== "string") return; // binary frames only flow client → server
-    const frame = parseServerFrame(data);
-    if (frame !== null) handleFrame(frame);
+    if (typeof data === "string") {
+      const frame = parseServerFrame(data);
+      if (frame !== null) handleFrame(frame);
+      return;
+    }
+    if (data instanceof ArrayBuffer) {
+      const decoded = decodeBinaryFrame(data);
+      if (decoded !== null && decoded.tag === BINARY_TTS_AUDIO) {
+        dispatchEvent("onTtsAudio", { audio: decoded.payload });
+      }
+    }
   }
 
   function handleFrame(frame: ServerFrame): void {
@@ -241,7 +251,7 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
   }
 
   // Fire-and-forget frames are dropped while disconnected (queueing stale
-  // audio frames for a later socket would be worse).
+  // audio or tts control frames for a later socket would be worse).
   function sendFrame(method: string, payload: unknown): void {
     if (!welcomed || sock === null) return;
     sock.send(encodeFrame({ t: "send", method, payload }));

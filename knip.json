@@ -81,6 +81,7 @@
       "includeEntryExports": false
     },
     "packages/voice": {
+      "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     }

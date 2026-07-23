@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BINARY_STT_AUDIO,
+  BINARY_TTS_AUDIO,
   decodeBinaryFrame,
   encodeBinaryFrame,
   encodeFrame,
@@ -22,6 +23,7 @@ describe("client frames", () => {
     { t: "req", id: 1, method: "getVaultRoot" },
     { t: "req", id: 2, method: "readVaultDoc", payload: { path: "a.md" } },
     { t: "send", method: "sendSttAudio", payload: [0.25, -0.5] },
+    { t: "send", method: "ttsSend", payload: { text: "hi" } },
   ];
 
   it.each(frames)("round-trips %j", (frame) => {
@@ -74,13 +76,13 @@ describe("server frames", () => {
 describe("binary frames", () => {
   it("prefixes the tag and round-trips an ArrayBuffer payload", () => {
     const pcm = new Int16Array([100, -200, 300]);
-    const frame = encodeBinaryFrame(BINARY_STT_AUDIO, pcm.buffer);
-    expect(frame[0]).toBe(BINARY_STT_AUDIO);
+    const frame = encodeBinaryFrame(BINARY_TTS_AUDIO, pcm.buffer);
+    expect(frame[0]).toBe(BINARY_TTS_AUDIO);
     expect(frame.byteLength).toBe(1 + pcm.byteLength);
 
     const decoded = decodeBinaryFrame(frame);
     expect(decoded).not.toBeNull();
-    expect(decoded?.tag).toBe(BINARY_STT_AUDIO);
+    expect(decoded?.tag).toBe(BINARY_TTS_AUDIO);
     expect(decoded && [...new Int16Array(decoded.payload)]).toEqual([100, -200, 300]);
   });
 

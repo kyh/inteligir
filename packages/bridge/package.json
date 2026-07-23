@@ -27,6 +27,7 @@
     "./routines": "./src/routines.ts",
     "./sync": "./src/sync.ts",
     "./ui-state": "./src/ui-state.ts",
+    "./voice": "./src/voice.ts",
     "./wire-helpers": "./src/wire-helpers.ts",
     "./ws-bridge": "./src/ws-bridge.ts",
     "./ws-protocol": "./src/ws-protocol.ts",

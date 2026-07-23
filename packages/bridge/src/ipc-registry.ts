@@ -335,6 +335,15 @@ export type ToggleTaskResult =
 // approximate with Type.Any plus a runtime instanceof guard at the handler.
 const BinaryAudioSchema = Type.Any();
 
+const TtsSendSchema = Type.Object({ text: Type.String() }, { additionalProperties: false });
+
+/** setVoiceApiKey payload: a non-empty `value` stores the key; anything else
+ * (absent, empty, whitespace) clears it. */
+const VoiceApiKeySchema = Type.Object(
+  { value: Type.Optional(Type.String()) },
+  { additionalProperties: false },
+);
+
 // ---------------------------------------------------------------------------
 // Entry helpers — phantom types carry result/event shapes through the registry
 // ---------------------------------------------------------------------------
@@ -457,7 +466,20 @@ export const IPC = {
     AiProviderRefSchema,
   ),
 
-  // Voice — the push-to-talk dictation path (STT only).
+  // Voice
+  isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
+  /** Store/clear the ElevenLabs API key. Voice owns its secret: the handler
+   * writes the encrypted SecretStore directly and keeps only a `true`
+   * presence marker under ELEVENLABS_API_KEY_UI_STATE in ui-state (which is
+   * what getUiState exposes to Settings) — plaintext never crosses back. */
+  setVoiceApiKey: invoke<typeof VoiceApiKeySchema, void>(
+    "voice:tts:set-api-key",
+    VoiceApiKeySchema,
+  ),
+  ttsSend: send<typeof TtsSendSchema>("voice:tts:send", TtsSendSchema),
+  ttsFlush: send<ReturnType<typeof Type.Undefined>>("voice:tts:flush", Type.Undefined()),
+  ttsInterrupt: send<ReturnType<typeof Type.Undefined>>("voice:tts:interrupt", Type.Undefined()),
+  onTtsAudio: event<{ audio: ArrayBuffer }>("voice:tts:audio"),
   startStt: invokeVoid<{ ok: true } | { ok: false; error: string }>("voice:stt:start"),
   // ArrayBuffer / ArrayBufferView can't be expressed in TypeBox; pass through.
   sendSttAudio: send<typeof BinaryAudioSchema>("voice:stt:audio", BinaryAudioSchema),

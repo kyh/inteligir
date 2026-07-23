@@ -26,6 +26,8 @@ const helpers = vi.hoisted(
       getAppState: ReturnType<typeof vi.fn>;
       getAgentHistory: ReturnType<typeof vi.fn>;
       transition: ReturnType<typeof vi.fn>;
+      isTtsAvailable: ReturnType<typeof vi.fn>;
+      onVoiceModelState: ReturnType<typeof vi.fn>;
       probeNotePrivacy: ReturnType<typeof vi.fn>;
     };
   } => ({
@@ -37,6 +39,8 @@ const helpers = vi.hoisted(
       getAppState: vi.fn(),
       getAgentHistory: vi.fn(),
       transition: vi.fn(),
+      isTtsAvailable: vi.fn(() => Promise.resolve(false)),
+      onVoiceModelState: vi.fn(() => () => {}),
       probeNotePrivacy: vi.fn(() => Promise.resolve("public")),
     },
   }),
@@ -44,6 +48,12 @@ const helpers = vi.hoisted(
 
 vi.mock("@renderer/lib/bridge", () => ({
   getBridge: () => helpers.bridgeMock,
+}));
+
+vi.mock("@renderer/voice/voice-pipeline", () => ({
+  // Never constructed here (isTtsAvailable resolves false), but the module
+  // must export the symbol voice-store imports.
+  VoicePipeline: vi.fn(),
 }));
 
 const { useAgentStore } = await import("@renderer/stores/agent-store");

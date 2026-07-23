@@ -51,7 +51,7 @@ notifications.ts, ui-state.ts
 
 ## Seams
 
-`createHost(platform, options)` — desktop main (`apps/desktop/src/main/index.ts`, via `electron-platform.ts`) injects `HostPlatform` and serves `host.handlers`/`host.events` over `startWsHost`. `boot/` fills the downward install seams: `setVaultChangeNotifier`/`setVaultTrashItem`/`setVaultWorkspaceLinkDir` (@repo/vault), `setSyncEventSink`/`setSyncVaultAccessor`/`setSyncBrowserOpener` (@repo/sync), `configureVoiceModelHost` (@repo/voice), json-store's store-recovery notifier (@repo/storage), `setDevFlagsAllowed` (@repo/bridge). `agent-wiring.ts` builds `AgentPorts` (`{ executor, knowledge, privacy, checkpoints }`) for `@repo/agent`'s extension bundles — the agent has no dep edge on this package.
+`createHost(platform, options)` — desktop main (`apps/desktop/src/main/index.ts`, via `electron-platform.ts`) injects `HostPlatform` and serves `host.handlers`/`host.events` over `startWsHost`. `boot/` fills the downward install seams: `setVaultChangeNotifier`/`setVaultTrashItem`/`setVaultWorkspaceLinkDir` (@repo/vault), `setSyncEventSink`/`setSyncVaultAccessor`/`setSyncBrowserOpener` (@repo/sync), `configureVoiceModelHost` (@repo/voice; `configureTts` is register-time, in `handlers/voice-handlers.ts`), `setSecretCipherProvider` (platform `secretCipher` → @repo/storage's SecretStore) + json-store's store-recovery notifier (@repo/storage), `setDevFlagsAllowed` (@repo/bridge). `agent-wiring.ts` builds `AgentPorts` (`{ executor, knowledge, privacy, checkpoints }`) for `@repo/agent`'s extension bundles — the agent has no dep edge on this package.
 
 ## Testing
 

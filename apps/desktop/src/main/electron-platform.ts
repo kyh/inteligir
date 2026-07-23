@@ -5,7 +5,15 @@
 // ---------------------------------------------------------------------------
 
 import path from "node:path";
-import { app, BrowserWindow, dialog, Notification, shell, type OpenDialogOptions } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  Notification,
+  safeStorage,
+  shell,
+  type OpenDialogOptions,
+} from "electron";
 
 import type { HostNotification, HostPlatform } from "@repo/server/platform";
 
@@ -46,6 +54,13 @@ export function createElectronPlatform(): ElectronPlatform {
 
     // A packaged install missing its resources is corrupt — fail loudly.
     strictResources: app.isPackaged,
+
+    secretCipher: {
+      kind: "safe-storage",
+      isAvailable: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (plaintext) => safeStorage.encryptString(plaintext).toString("base64"),
+      decrypt: (data) => safeStorage.decryptString(Buffer.from(data, "base64")),
+    },
 
     openExternal: (url) => shell.openExternal(url),
 

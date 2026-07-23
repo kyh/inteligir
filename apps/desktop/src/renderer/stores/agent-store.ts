@@ -28,13 +28,14 @@ import {
   openNotePath,
 } from "@renderer/workspace/open-note-flush";
 import { useAiProviderStore } from "@renderer/stores/ai-provider-store";
+import { onUserTranscript, useVoiceStore } from "@renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
 // The chat surface is the SHARED @repo/bridge/chat-log fold (the same
 // reducer the mobile app renders), projected into AI SDK UIMessages by
 // @renderer/stores/chat-log-view. This store owns the desktop-only halves:
-// the per-item metadata (steer, image count), queue state, and the IPC
-// command routing.
+// the per-item metadata (steer, image count), queue state, voice side
+// effects, and the IPC command routing.
 // ---------------------------------------------------------------------------
 
 type SendOptions = {
@@ -126,8 +127,12 @@ function sendCommandSurfacingFailure(
 // Subscription handlers (split out of init() for readability)
 // ---------------------------------------------------------------------------
 
-function subscribeAgentEvents(bridge: Bridge, set: SetFn): () => void {
+function subscribeAgentEvents(bridge: Bridge, set: SetFn, get: GetFn): () => void {
   return bridge.onAgentEvent((event: AppAgentEvent) => {
+    // Pre-fold streaming state gates the voice side effects below — the same
+    // "is a reply mid-stream" check the inline fold kept in a closure.
+    const wasStreaming = get().log.streamingId !== null;
+
     set((s) => {
       const log = applyAgentEvent(s.log, event);
       const chat = log === s.log ? null : chatState(log, s.chatMeta);
@@ -146,6 +151,15 @@ function subscribeAgentEvents(bridge: Bridge, set: SetFn): () => void {
       }
       return chat ?? s;
     });
+
+    // Voice narration follows the streamed reply (desktop-only side effect).
+    if (event.type === "message_update" && wasStreaming) {
+      const voice = useVoiceStore.getState();
+      if (voice.state.kind === "listening") voice.speakText(event.delta);
+    } else if (event.type === "message_end" && wasStreaming && event.role === "assistant") {
+      const voice = useVoiceStore.getState();
+      if (voice.state.kind === "listening") voice.flushSpeech();
+    }
   });
 }
 
@@ -226,22 +240,32 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   init: () => {
     const bridge = getBridge();
 
-    const unsubAgent = subscribeAgentEvents(bridge, set);
+    const unsubAgent = subscribeAgentEvents(bridge, set, get);
     const unsubState = subscribeAppState(bridge, set, get);
     const unsubProgress = subscribeSetupProgress(bridge, set);
+    // A completed voice transcript is just a user turn: route it through the
+    // SAME send() as a typed message, so flush, note-context, failed-flush
+    // handling and the logout bail all live in one place and can't drift. Serialize
+    // so rapid transcripts dispatch (and their bubbles append) in spoken order;
+    // send() is async, so without the chain two could race.
+    let voiceChain: Promise<unknown> = Promise.resolve();
+    const unsubVoice = onUserTranscript((text) => {
+      voiceChain = voiceChain.then(() => get().send(text)).catch(() => undefined);
+    });
     void loadInitialHistory(bridge, set);
 
     return () => {
       unsubAgent();
       unsubState();
       unsubProgress();
+      unsubVoice();
     };
   },
 
   // --- Agent commands (IPC) -------------------------------------------------
 
-  // The single entry point for sending a user turn, so the
-  // flush-then-contextualize behavior can't diverge across callers.
+  // The single entry point for sending a user turn — typed (composer) or voice.
+  // Both go through here so the flush-then-contextualize behavior can't diverge.
   // Returns `flushed` so a UI caller can warn; resolves once dispatched.
   send: async (text, images, options) => {
     const bridge = getBridge();
@@ -288,9 +312,9 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
           : undefined;
       sentText = buildNoteContext(text, activeNote);
       // The flush may have awaited a moment — bail if the world is being torn
-      // down/rebuilt meanwhile (a reset or retry kicked in during the flush):
-      // the agent is definitionally absent and the chat may have just been
-      // cleared.
+      // down/rebuilt meanwhile (a reset or retry kicked in while a voice turn
+      // was queued behind the flush): the agent is definitionally absent and
+      // the chat may have just been cleared.
       if (get().appState.phase === "setting_up") return { flushed };
     }
 
@@ -324,6 +348,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
       queuedSteering: [],
       setupProgress: null,
     });
+    useVoiceStore.getState().reset();
     await getBridge().transition({ type: "RESET_APP_DATA" });
   },
 }));
