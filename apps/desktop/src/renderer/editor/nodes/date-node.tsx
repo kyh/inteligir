@@ -16,6 +16,8 @@ import {
   type PlateElementProps,
 } from "platejs/react";
 
+import { formatIsoDate } from "@repo/notes/daily-path";
+
 import { cn } from "@repo/ui/lib/utils";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
@@ -25,12 +27,6 @@ const Calendar = lazy(() =>
 );
 
 const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-const pad = (n: number) => String(n).padStart(2, "0");
-
-function toIso(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 // Parse ISO as a LOCAL date — `new Date("YYYY-MM-DD")` is UTC midnight and
 // renders a day early west of Greenwich.
@@ -83,7 +79,7 @@ export function DateElement(props: PlateElementProps) {
               selected={fromIso(value) ?? undefined}
               onSelect={(date) => {
                 const at = editor.api.findPath(element);
-                if (date && at) editor.tf.setNodes({ date: toIso(date) }, { at });
+                if (date && at) editor.tf.setNodes({ date: formatIsoDate(date) }, { at });
                 setOpen(false);
               }}
             />

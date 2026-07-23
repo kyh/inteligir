@@ -1,12 +1,13 @@
-// A Map-backed SyncPort fake for driving SyncEngine end-to-end without a real
-// coordinator. It mints monotonic per-file versions, honors optimistic
-// concurrency exactly like the wire contract (a stale expected-version comes
-// back as a typed `version-conflict`, never a throw), bumps a vault generation,
-// and broadcasts VaultChange to subscribers — enough to exercise the whole
-// reconcile+execute loop.
+// The shared in-memory rig for driving SyncEngine end-to-end without a real
+// coordinator: a Map-backed SyncPort fake (mints monotonic per-file versions,
+// honors optimistic concurrency exactly like the wire contract — a stale
+// expected-version comes back as a typed `version-conflict`, never a throw —
+// and broadcasts VaultChange to subscribers), plus the Map-backed `MemoryVault`
+// SyncIo fake and the Web Crypto hasher the engine tests inject.
 
 import { ABSENT_VERSION, type VaultFile, type VaultPath } from "../vault-file";
 import type { VaultManifest } from "../manifest";
+import type { Hasher, SyncIo } from "../engine";
 import type {
   DeleteResult,
   GetResult,
@@ -15,6 +16,9 @@ import type {
   Unsubscribe,
   VaultChange,
 } from "../sync-port";
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
 
 // Web Crypto (the WebWorker-lib global) rather than node crypto: @repo/notes
 // stays node-free even in tests, and this is the exact async digest the mobile
@@ -27,24 +31,63 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** The engine-injectable form of the same digest the port fake hashes with. */
+export function webCryptoHasher(): Hasher {
+  return sha256Hex;
+}
+
+export function encode(text: string): Uint8Array {
+  return enc.encode(text);
+}
+
+/** A Map-backed vault implementing the engine's `SyncIo`, plus text helpers. */
+export class MemoryVault {
+  private readonly files = new Map<VaultPath, Uint8Array>();
+
+  readonly io: SyncIo = {
+    list: () => [...this.files.keys()].toSorted(),
+    read: (path) => {
+      const bytes = this.files.get(path);
+      if (bytes === undefined) throw new Error(`MemoryVault: read of absent ${path}`);
+      return bytes;
+    },
+    write: (path, content) => {
+      this.files.set(path, new Uint8Array(content));
+    },
+    remove: (path) => {
+      this.files.delete(path);
+    },
+  };
+
+  writeText(path: string, text: string): void {
+    this.files.set(path, enc.encode(text));
+  }
+
+  readText(path: string): string | null {
+    const bytes = this.files.get(path);
+    return bytes === undefined ? null : dec.decode(bytes);
+  }
+
+  delete(path: string): void {
+    this.files.delete(path);
+  }
+
+  paths(): string[] {
+    return [...this.files.keys()].toSorted();
+  }
+}
+
 type Stored = { file: VaultFile; content: Uint8Array };
 
 export class InMemorySyncPort implements SyncPort {
   private readonly files = new Map<VaultPath, Stored>();
-  private generation = 0;
   private readonly subscribers = new Set<(change: VaultChange) => void>();
 
   constructor(private readonly vaultId: string) {}
 
-  /** Current vault-wide generation counter (test assertions). */
-  currentGeneration(): number {
-    return this.generation;
-  }
-
   listManifest(): Promise<VaultManifest> {
     return Promise.resolve({
       vaultId: this.vaultId,
-      generation: this.generation,
       files: [...this.files.values()].map((stored) => stored.file),
     });
   }
@@ -83,7 +126,6 @@ export class InMemorySyncPort implements SyncPort {
       size: content.length,
     };
     this.files.set(path, { file, content: new Uint8Array(content) });
-    this.generation += 1;
     this.emit({ kind: "upserted", file });
     return { ok: true, file };
   }
@@ -95,7 +137,6 @@ export class InMemorySyncPort implements SyncPort {
       return Promise.resolve({ ok: false, reason: "version-conflict", current: current.file });
     }
     this.files.delete(path);
-    this.generation += 1;
     this.emit({ kind: "deleted", path });
     return Promise.resolve({ ok: true });
   }

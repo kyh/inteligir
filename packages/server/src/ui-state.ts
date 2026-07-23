@@ -35,10 +35,6 @@ export class UiStateManager {
   }
 
   set(key: string, value: unknown): UiState {
-    return this.writeValue(key, value);
-  }
-
-  private writeValue(key: string, value: unknown): UiState {
     return this.store.update((current) => {
       // Writing `undefined` removes the key — JSON.stringify would drop it
       // anyway, so model removal explicitly to keep the file tidy.

@@ -49,8 +49,6 @@ export type ExtractedLink = {
   alias?: string;
   /** 1-based source line the link starts on. */
   line: number;
-  /** Code-unit span of the whole construct (`[[..]]`, `![[..]]`, `[..](..)`). */
-  span: Span;
   /** Verified code-unit span of the rewritable target text (wiki target /
    * md path-part, excluding `<>` and `#fragment`). Absent when the raw bytes
    * could not be verified — such a link is indexed but never rewritten. */
@@ -416,7 +414,6 @@ function wikiToLink(
     embed,
     target: parsed.target,
     line: pos.line,
-    span: pos.span,
   };
   if (parsed.anchor !== undefined) link.anchor = parsed.anchor;
   if (parsed.alias !== undefined) link.alias = parsed.alias;
@@ -462,7 +459,6 @@ function mdToLink(
     embed: kind === "image",
     target,
     line: pos.line,
-    span: pos.span,
   };
   if (anchor !== "") link.anchor = anchor;
   if (label !== "") link.alias = label;

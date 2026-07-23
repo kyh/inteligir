@@ -3,7 +3,6 @@ import { LockIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,6 +13,7 @@ import {
 import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
+import { confirmVaultDelete } from "@renderer/components/confirm-vault-delete";
 import { describeGateReason } from "@renderer/editor/markdown/markdown-doc";
 import { PageDetails } from "@renderer/editor/properties/page-details";
 import { richAvailable } from "@renderer/workspace/open-doc";
@@ -52,14 +52,7 @@ export function Header() {
   const segments = path ? path.split("/") : [];
 
   const confirmDelete = async () => {
-    if (!path) return;
-    const confirmed = await confirm({
-      title: `Delete ${path}?`,
-      body: "This permanently deletes the file from your vault.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (confirmed) await deleteEntry(path);
+    if (path && (await confirmVaultDelete(path))) await deleteEntry(path);
   };
 
   return (

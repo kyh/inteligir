@@ -20,10 +20,16 @@
 //   executorDaemon   ──▶ agentPorts
 //   auth.json        ──▶ authStorage
 //
-// The notifiers are composed here (buildHostNotifiers) and installed BEFORE any
-// piece that fires them is constructed. Only the LOW-LEVEL pieces that must not
-// import the event registry get a slot (json-store, vault); everything else
-// calls the typed emitEvent directly — see notifier-wiring.ts.
+// The notifiers for the LOW-LEVEL pieces that must never import the IPC event
+// registry themselves are composed here and installed BEFORE any piece that
+// fires them is constructed: json-store's store-recovery seam (installed
+// below) and the vault's change callback (returned — create-host's start()
+// installs it post-ensureReady). Both installation seams are module-scoped in
+// their targets, so a manager rebuilt after a logout/login reset keeps firing
+// them. Everything higher-level (delegation, checkpoints, inline-AI, capture,
+// deep-link, sync) calls the typed `emitEvent` in ../events directly —
+// events.ts is a leaf module, so that import carries no cycle risk. A notifier
+// belongs here ONLY when the firing piece must stay registry-free.
 // ---------------------------------------------------------------------------
 
 import { emitEvent } from "../events";
@@ -35,41 +41,32 @@ import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getNotifications } from "../notifications";
 import { getSecretStore } from "@repo/storage/secrets";
 import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
-import { getVaultManager } from "@repo/vault/vault";
+import { getVaultManager, type VaultChangeKind } from "@repo/vault/vault";
 import { setStoreRecoveryNotifier } from "@repo/storage/json-store";
-import type { HostNotifiers } from "./notifier-wiring";
 
-/** Compose the host notifiers for the registry-free low-level pieces. Each
- * fans into the IPC event bus / the notifications manager — the only place in
- * the host that both owns these closures and is allowed to import both ends. */
-function buildHostNotifiers(): HostNotifiers {
-  return {
-    storeRecovery: (event) => getNotifications().notifyStoreRecovered(event),
-    vaultChange: (root, kind) => {
-      // A `save` (autosave content overwrite) keeps the knowledge index live but
-      // must NOT broadcast — the user's own typing generates zero vault-changed
-      // traffic (vault liveness — CLAUDE.md § Decisions); the open-note
-      // watcher covers the open file's own
-      // reloads. A `refresh` is a structural/external/on-demand change: broadcast
-      // so the sidebar re-lists and the editor reloads, and reindex.
-      if (kind === "refresh") emitEvent("onVaultChanged", { root });
-      getKnowledgeManager().scheduleRefresh();
-    },
-  };
+/** The vault-change notifier create-host's start() installs post-ensureReady.
+ * A `save` (autosave content overwrite) keeps the knowledge index live but
+ * must NOT broadcast — the user's own typing generates zero vault-changed
+ * traffic (vault liveness — CLAUDE.md § Decisions); the open-note watcher
+ * covers the open file's own reloads. A `refresh` is a structural/external/
+ * on-demand change: broadcast so the sidebar re-lists and the editor reloads,
+ * and reindex. */
+function vaultChange(root: string, kind: VaultChangeKind): void {
+  if (kind === "refresh") emitEvent("onVaultChanged", { root });
+  getKnowledgeManager().scheduleRefresh();
 }
 
 /** Force the initial, dependency-ordered construction of the core host
  * singletons and install the notifier composition. Requires installHostRuntime()
- * to have run (platform installed). Returns the composed notifiers for the
- * caller's start() wiring (vaultChange is installed there, post-ensureReady);
- * every service is reached afterward through its getX() accessor. Constructs
- * the pi-free, read-free core singletons eagerly in order. */
-export function constructHostSingletons(): HostNotifiers {
-  const notifiers = buildHostNotifiers();
+ * to have run (platform installed). Returns the vault-change notifier for the
+ * caller's start() wiring (installed there, post-ensureReady); every service
+ * is reached afterward through its getX() accessor. Constructs the pi-free,
+ * read-free core singletons eagerly in order. */
+export function constructHostSingletons(): (root: string, kind: VaultChangeKind) => void {
   // Quarantine notices must be user-visible before any store is read; this is
   // the json-store default recovery seam (a plain callback — json-store never
   // imports the event registry).
-  setStoreRecoveryNotifier(notifiers.storeRecovery);
+  setStoreRecoveryNotifier((event) => getNotifications().notifyStoreRecovered(event));
 
   // Eager, dependency-ordered construction. Every constructor here allocates
   // only (disk reads stay lazy inside JsonStore), so this changes nothing
@@ -90,5 +87,5 @@ export function constructHostSingletons(): HostNotifiers {
   getExecutorDaemon(); // paths
   getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
 
-  return notifiers;
+  return vaultChange;
 }

@@ -51,6 +51,7 @@ import {
   turnIntoLabelFor,
   turnIntoSelection,
 } from "@renderer/editor/block-transforms";
+import { BarButton } from "@renderer/editor/toolbar-button";
 
 // Elevation: toolbars sit on the menu tier (shadow-surface-4). animate-in
 // runs once on mount.
@@ -131,32 +132,6 @@ function MarkButton({
     >
       {children}
     </IconButton>
-  );
-}
-
-function BarButton({
-  onClick,
-  children,
-  variant = "default",
-}: {
-  onClick: () => void;
-  children: ReactNode;
-  variant?: "default" | "primary" | "danger";
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-        variant === "default" && "text-foreground hover:bg-accent",
-        variant === "primary" && "text-primary hover:bg-primary/10",
-        variant === "danger" && "text-muted-foreground hover:bg-muted hover:text-destructive",
-        "[&_svg]:size-3.5",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 

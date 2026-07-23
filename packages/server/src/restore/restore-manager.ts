@@ -10,11 +10,11 @@
 //     toast can offer "Undo" (the renderer groups captures per turn — first
 //     capture per path = the pre-turn bytes); restoreChatEdits() is that
 //     toast's restore.
-//   - "delegation": the delegation-manager captures the target file's
-//     resolved bytes at run START (id = the delegation id) and never fires
-//     the toast notifier — delegation's undo surface is the dock's "Restore
-//     original", which lands in restoreDelegationSnapshot() behind the
-//     manager's own run-state guard.
+//   - "delegation" / "routine": the owning manager captures the target file's
+//     resolved bytes at run START (id = the delegation id / run id) and never
+//     fires the toast notifier — their undo surfaces (the dock's "Restore
+//     original", Settings → Routines "Restore") land in restoreRunSnapshot()
+//     behind the manager's own run-state guard.
 // The bytes live in the SnapshotStore (snapshot-store.ts) either way — one
 // store, one retention sweep, one rename remap.
 //
@@ -24,8 +24,8 @@
 // file captures nothing — pi's edit tool ENOENTs, so there is no write to
 // protect. Any other read failure THROWS: the gate lets it propagate and pi
 // blocks the call (fail-closed — an AI edit with no undo point must never
-// happen). The delegation variant throws on any capture failure for the same
-// reason: the delegation-manager aborts the run rather than dispatch an agent
+// happen). The run-origin variants throw on any capture failure for the same
+// reason: the owning manager aborts the run rather than dispatch an agent
 // whose edit the user can't revert.
 // ---------------------------------------------------------------------------
 
@@ -95,22 +95,14 @@ export class RestoreManager {
    * blocks the tool call; the delegation-manager aborts the run (see the
    * header). */
   capture(request: RestoreCapture): void {
-    if (request.origin === "delegation") {
+    if (request.origin !== "chat") {
       // Bytes provided by the caller (the exact content the run was resolved
-      // against); a store failure throws through to abort the run.
-      this.snapshots.capture(
-        { id: request.id, origin: "delegation", path: request.path, kind: "edit" },
-        request.content,
-      );
-      return;
-    }
-    if (request.origin === "routine") {
-      // Same provided-bytes contract as delegation; null = target absent →
-      // "create", whose restore is a delete. Throws through to abort the run.
+      // against); null = target absent → "create", whose restore is a delete.
+      // A store failure throws through to abort the run.
       this.snapshots.capture(
         {
           id: request.id,
-          origin: "routine",
+          origin: request.origin,
           path: request.path,
           kind: request.content === null ? "create" : "edit",
         },
@@ -193,61 +185,37 @@ export class RestoreManager {
     return failures.length === 0 ? { ok: true } : { ok: false, error: failures.join(" ") };
   }
 
-  /** Write a delegation's pre-run bytes back to `targetPath` — the byte-level
-   * half of the dock's "Restore original". The caller (delegation-manager)
-   * owns the record side: it refuses while the run is queued/running and
-   * passes the delegation's CURRENT sourceFile (renameSource keeps it
-   * pointing at the moved file), then records `restoredAt` on success. The
-   * write goes through the vault's atomic write (the watcher refreshes
-   * editors naturally) and recreates the file if it was deleted since; when
-   * the file already matches the snapshot this is a no-op success (no write,
-   * no watcher churn). */
-  restoreDelegationSnapshot(id: string, targetPath: string): RestoreSnapshotResult {
+  /** Write a run's pre-run bytes back to `targetPath` — the byte-level half
+   * of the dock's "Restore original" (delegation) and Settings → Routines
+   * "Restore" (routine). The caller (the origin's manager) owns the record
+   * side: it refuses while the run is queued/running, passes the CURRENT
+   * target path (its rename remap keeps it pointing at the moved file), then
+   * records `restoredAt` on success. An `edit` snapshot writes back through
+   * the vault's atomic write (the watcher refreshes editors naturally) and
+   * recreates the file if it was deleted since; when the file already matches
+   * the snapshot this is a no-op success (no write, no watcher churn). A
+   * `create` snapshot (the target didn't exist pre-run) undoes by moving the
+   * created file to the OS trash — already-gone counts as done, mirroring
+   * the chat create-undo. */
+  async restoreRunSnapshot(
+    origin: "delegation" | "routine",
+    id: string,
+    targetPath: string,
+  ): Promise<RestoreSnapshotResult> {
     const snapshot = this.snapshots.read(id);
     if (!snapshot.ok) return { ok: false, error: snapshot.error };
-    if (snapshot.origin !== "delegation") {
-      // Unreachable through the dock (delegation ids key delegation-origin
+    if (snapshot.origin !== origin) {
+      // Unreachable through the UI (each surface's ids key its own origin's
       // snapshots), kept for symmetry with the chat-side origin guard.
-      return { ok: false, error: "Not a delegation edit." };
-    }
-    // Byte-equality IS hash-equality here — the snapshot's recorded hash was
-    // already verified against its content in read().
-    let current: string | null;
-    try {
-      current = this.readVault(targetPath);
-    } catch {
-      current = null; // deleted (or unreadable) — the write below recreates it
-    }
-    if (current !== snapshot.content) {
-      try {
-        this.writeVault(targetPath, snapshot.content);
-      } catch (err) {
-        return { ok: false, error: `Couldn't restore ${targetPath}: ${toErrorMessage(err)}` };
-      }
-    }
-    return { ok: true };
-  }
-
-  /** Write a routine run's pre-run bytes back to `targetPath` — the byte-level
-   * half of Settings → Routines "Restore". The caller (routines-manager) owns
-   * the record side (refuses while that routine is running, records
-   * restoredAt). An `edit` snapshot writes back atomically like the
-   * delegation path; a `create` snapshot (the target didn't exist pre-run)
-   * undoes by moving the created file to the OS trash — already-gone counts
-   * as done, mirroring the chat create-undo. */
-  async restoreRoutineSnapshot(id: string, targetPath: string): Promise<RestoreSnapshotResult> {
-    const snapshot = this.snapshots.read(id);
-    if (!snapshot.ok) return { ok: false, error: snapshot.error };
-    if (snapshot.origin !== "routine") {
-      // Unreachable through Settings (runIds key routine-origin snapshots),
-      // kept for symmetry with the other origin guards.
-      return { ok: false, error: "Not a routine edit." };
+      return { ok: false, error: `Not a ${origin} edit.` };
     }
     try {
       if (snapshot.kind === "create") {
         await this.trashVault(targetPath);
         return { ok: true };
       }
+      // Byte-equality IS hash-equality here — the snapshot's recorded hash was
+      // already verified against its content in read().
       let current: string | null;
       try {
         current = this.readVault(targetPath);

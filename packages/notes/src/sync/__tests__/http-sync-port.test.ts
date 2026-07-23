@@ -73,7 +73,6 @@ describe("HttpSyncPort", () => {
   it("GETs and parses the manifest, sending the bearer token", async () => {
     const manifest: VaultManifest = {
       vaultId: VAULT_ID,
-      generation: 4,
       files: [{ path: "a.md", contentHash: sha256Hex("AAA"), version: 2, size: 3 }],
     };
     const { fetchImpl, calls } = fakeFetch(() => Response.json(manifest));

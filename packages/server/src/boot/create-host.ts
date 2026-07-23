@@ -125,9 +125,9 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // Force the ordered construction of the core singletons and install the
   // notifier composition (store-recovery is wired inside, before any store is
   // read — it used to be an import-time side effect of notifications.ts).
-  // `notifiers` also carries vault-change, wired in start() because the
+  // The returned vault-change notifier is wired in start() because the
   // watcher must not start until ensureReady() has run.
-  const notifiers = constructHostSingletons();
+  const vaultChangeNotifier = constructHostSingletons();
 
   const handlers = collectHandlers(registerAllHandlers);
 
@@ -165,8 +165,8 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // fires from app-initiated writes, the open-note watcher, and on-demand
       // refresh (focus / "Refresh vault" / delegation completion). The notifier
       // is module-scoped, so it survives a logout/login reset. Every vault change
-      // nudges the knowledge index (in notifiers.vaultChange) and, when sync is
-      // live, the sync engine — including a `save` (autosave), which must still
+      // nudges the knowledge index (in the vault-change notifier) and, when sync
+      // is live, the sync engine — including a `save` (autosave), which must still
       // sync even though it does not broadcast onVaultChanged. Wrapping here
       // (once) keeps the sync engine rebuildable underneath without re-installing
       // this notifier.
@@ -174,9 +174,8 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // outbound capability edges — the host composes, vault receives.
       setVaultWorkspaceLinkDir(WORKSPACE_DIR);
       getVaultManager().ensureReady();
-      const baseVaultNotifier = notifiers.vaultChange;
       setVaultChangeNotifier((root, kind) => {
-        baseVaultNotifier(root, kind);
+        vaultChangeNotifier(root, kind);
         getSyncCoordinator().onVaultChanged();
       });
       // First index build rides the debounce too, keeping it off the boot

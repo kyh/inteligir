@@ -10,8 +10,8 @@
 // line inside a leading `---` block never counts) is scanTaskItems' own
 // contract.
 //
-// Heading + section are read at the located item as agent-prompt context only
-// — the local parse below serves ONLY that context, never the ordinal.
+// The heading is read at the located item as agent-prompt context only — the
+// local parse below serves ONLY that context, never the ordinal.
 
 import type { Heading, Nodes } from "mdast";
 import remarkFrontmatter from "remark-frontmatter";
@@ -23,20 +23,13 @@ import { scanTaskItems } from "@repo/notes/knowledge/link-extract";
 
 const processor = unified().use(remarkParse).use(remarkFrontmatter).use(remarkGfm);
 
-const MAX_SECTION_LINES = 60;
-
 export type TaskLineMatch = {
-  /** Zero-based index of the matched line in the file. */
-  lineIndex: number;
   /** The full original line (e.g. "- [ ] book the flight"). */
   lineText: string;
   /** The item text (after `- [ ] `), for the agent prompt. */
   text: string;
   /** Nearest heading above the line, or null. */
   heading: string | null;
-  /** The markdown section the task lives in (heading → next heading / cap),
-   * for the agent's prompt context. */
-  section: string;
 };
 
 type HeadingInfo = { line: number; text: string };
@@ -57,13 +50,10 @@ export function findTaskLine(raw: string, ordinal: number): TaskLineMatch | null
   const lines = raw.split(/\r\n|\r|\n/);
   const headings: HeadingInfo[] = [];
   collectHeadings(processor.parse(raw), headings, lines);
-  const lineIndex = task.line - 1;
   return {
-    lineIndex,
     lineText: task.raw,
     text: task.text,
-    heading: nearestHeading(headings, lineIndex),
-    section: sectionAround(lines, headings, lineIndex),
+    heading: nearestHeading(headings, task.line - 1),
   };
 }
 
@@ -91,19 +81,4 @@ function nearestHeading(headings: HeadingInfo[], lineIndex: number): string | nu
     if (h.line < lineIndex && (best === undefined || h.line > best.line)) best = h;
   }
   return best ? best.text || null : null;
-}
-
-/** The lines from the nearest heading at/above the item (inclusive) to the next
- * heading below (exclusive), capped so a giant section doesn't flood the prompt. */
-function sectionAround(lines: string[], headings: HeadingInfo[], lineIndex: number): string {
-  let start = 0;
-  for (const h of headings) {
-    if (h.line <= lineIndex && h.line > start) start = h.line;
-  }
-  let end = lines.length;
-  for (const h of headings) {
-    if (h.line > start && h.line < end) end = h.line;
-  }
-  if (end - start > MAX_SECTION_LINES) end = start + MAX_SECTION_LINES;
-  return lines.slice(start, end).join("\n").trim();
 }

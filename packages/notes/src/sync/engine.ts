@@ -119,7 +119,7 @@ export type SyncEngineOptions = {
   readonly debounceMs?: number | undefined;
   /** Fires after EVERY completed pass — whether triggered by an explicit
    * `syncOnce()` call or an internal debounced one (`scheduleSync`,
-   * `onVaultChanged`, the remote-change subscription). `syncOnce()`'s return
+   * the remote-change subscription). `syncOnce()`'s return
    * value already covers its own caller; this is what lets a platform surface
    * a debounced pass's conflicts/status without polling. Called synchronously
    * before the pass's promise resolves, so a caller awaiting `syncOnce()` sees
@@ -171,8 +171,9 @@ export class SyncEngine {
   // ---- triggers -----------------------------------------------------------
 
   /** Subscribe to remote changes (a peer committed something) → debounced sync.
-   * The composition root ALSO wires `onVaultChanged` to `scheduleSync` when the
-   * capability is enabled; both funnel through the single serialized queue. */
+   * The composition root ALSO wires local vault-change notifications to
+   * `scheduleSync` when the capability is enabled; both funnel through the
+   * single serialized queue. */
   start(): void {
     if (this.remoteUnsub) return;
     this.remoteUnsub = this.port.subscribe(() => this.scheduleSync());
@@ -186,11 +187,6 @@ export class SyncEngine {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
-  }
-
-  /** Hook the vault-change notifier calls when a local file changed. */
-  onVaultChanged(): void {
-    this.scheduleSync();
   }
 
   /** Coalesce a burst of triggers into one sync pass. */
@@ -284,7 +280,6 @@ export class SyncEngine {
 
       this.saveBase({
         vaultId: this.vaultId,
-        generation: remote.generation,
         files: [...converged.values()].toSorted((a, b) => a.path.localeCompare(b.path)),
       });
       // Blob GC: the new base is the ONLY thing base bytes serve — drop every
@@ -561,6 +556,6 @@ export class SyncEngine {
   }
 
   private emptyManifest(): VaultManifest {
-    return { vaultId: this.vaultId, generation: 0, files: [] };
+    return { vaultId: this.vaultId, files: [] };
   }
 }

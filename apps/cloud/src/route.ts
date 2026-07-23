@@ -5,7 +5,8 @@ import type { VaultPath } from "@repo/notes/sync/vault-file";
 // Route matching for the vault-sync wire contract. Parses an incoming
 // `(method, pathname, search)` into a typed `RouteMatch` — the ADT the worker
 // (to pick the DO) and the DO (to dispatch) both switch over. Mirrors the route
-// table in `@repo/notes/sync/wire` (`SYNC_ROUTES`); it does NOT redefine it.
+// table documented in `@repo/notes/sync/wire`'s header comment; it does NOT
+// redefine it.
 //
 //   GET    /v1/vault/:vaultId/manifest        -> manifest
 //   GET    /v1/vault/:vaultId/file?path=…      -> getFile

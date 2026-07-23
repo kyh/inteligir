@@ -67,7 +67,7 @@ function Page() {
           <MacLogoIcon className="size-5 shrink-0" />
           Download for Mac
         </a>
-        <span className="text-xs text-foreground/60">Requires an OpenAI account</span>
+        <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
       </div>
     </main>
   );

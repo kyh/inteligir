@@ -141,7 +141,7 @@ touching anything. The essentials:
   `agent-browser connect 9222`, the Worker via curl.
 - **No seeded login.** If you need an account, stand up the local Worker —
   `AGENTS.md` § "There is no seeded login" has the verified four-command
-  recipe. Never run `db:push` / `db:push:remote`: both hit production D1.
+  recipe. Never run `db:push`: it hits production D1.
 - **Login-free agent flows**: `INTELIGIR_FAUX_AGENT=1` /
   `INTELIGIR_EMULATE_CONNECTORS=1` (both fail closed) drive chat, delegation
   and a connector connect with zero OAuth — `.claude/skills/e2e-drive` and

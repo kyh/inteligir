@@ -24,7 +24,6 @@ describe("findTaskLine", () => {
     expect(m?.text).toBe("book the flight");
     expect(m?.lineText).toBe("- [ ] book the flight");
     expect(m?.heading).toBe("This week");
-    expect(m?.lineIndex).toBe(4);
   });
 
   it("counts checked boxes in the ordinal but won't delegate one", () => {
@@ -39,12 +38,6 @@ describe("findTaskLine", () => {
 
   it("returns null for an out-of-range ordinal", () => {
     expect(findTaskLine(DOC, 4)).toBeNull();
-  });
-
-  it("captures the section the task lives in", () => {
-    const m = findTaskLine(DOC, 2);
-    expect(m?.section).toContain("## This week");
-    expect(m?.section).not.toContain("## Backlog");
   });
 
   it("matches -, *, + bullets and CRLF/CR line endings", () => {
@@ -180,7 +173,6 @@ describe("findTaskLine ↔ scanTaskItems ordinal lockstep", () => {
       if (task.checked) continue; // findTaskLine refuses checked items by design
       const match = findTaskLine(FIXTURE, task.ordinal);
       expect(match).not.toBeNull();
-      expect(match?.lineIndex).toBe(task.line - 1);
       expect(match?.lineText).toBe(task.raw);
       expect(match?.text).toBe(task.text);
     }

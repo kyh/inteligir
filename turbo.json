@@ -39,6 +39,5 @@
       "cache": false
     }
   },
-  "globalEnv": ["PORT"],
   "globalPassThroughEnv": ["NODE_ENV", "CI", "npm_lifecycle_event"]
 }

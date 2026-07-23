@@ -258,8 +258,7 @@ describe("end-to-end sync", () => {
         await SELF.fetch(`${ORIGIN}/v1/vault/${vaultId}/manifest`, {
           headers: { authorization: formatBearer(token) },
         })
-      ).json()) as { generation: number; files: unknown[] };
-      expect(manifest.generation).toBe(0);
+      ).json()) as { files: unknown[] };
       expect(manifest.files).toEqual([]);
     });
 

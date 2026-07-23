@@ -30,14 +30,8 @@ import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
-import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
+import { formatIsoDate } from "@repo/notes/daily-path";
 
-import {
-  DAILY_FOLDER_KEY,
-  DAILY_FORMAT_KEY,
-  DEFAULT_DAILY_FOLDER,
-  DEFAULT_DAILY_FORMAT,
-} from "@repo/bridge/daily-notes";
 import { isRoutineDue } from "@repo/bridge/routine-schedule";
 import {
   RoutineSchema,
@@ -69,7 +63,7 @@ import type { DelegationAgent } from "../delegation/delegation-manager";
 import { remapVaultPath } from "../restore/snapshot-store";
 import { getRestoreManager, type RestoreManager } from "../restore/restore-manager";
 import { isSelectedProviderConnected } from "../provider/provider-service";
-import { getUiState } from "../ui-state";
+import { resolveDailyNotePath } from "../daily-note";
 import { emitEvent } from "../events";
 
 const ROUTINES_VERSION = 1;
@@ -156,18 +150,7 @@ export class RoutinesManager {
     this.restore = opts?.restore ?? getRestoreManager();
     this.isProviderConnected = opts?.isProviderConnected ?? isSelectedProviderConnected;
     this.clock = opts?.clock ?? (() => new Date());
-    this.dailyPath =
-      opts?.dailyPath ??
-      ((now) => {
-        const uiState = getUiState().getAll();
-        const folder = uiState[DAILY_FOLDER_KEY];
-        const format = uiState[DAILY_FORMAT_KEY];
-        return dailyNotePath(
-          typeof folder === "string" ? folder : DEFAULT_DAILY_FOLDER,
-          typeof format === "string" ? format : DEFAULT_DAILY_FORMAT,
-          now,
-        );
-      });
+    this.dailyPath = opts?.dailyPath ?? resolveDailyNotePath;
     this.onChanged = opts?.onChanged ?? null;
     this.onRunSettled = opts?.onRunSettled ?? null;
     this.turnLock = opts?.turnLock ?? new BackgroundTurnLock();
@@ -350,7 +333,7 @@ export class RoutinesManager {
     if (lastRun === null || !lastRun.hasSnapshot) {
       return { ok: false, error: "No saved copy exists for this routine's last run." };
     }
-    const result = await this.restore.restoreRoutineSnapshot(lastRun.runId, lastRun.path);
+    const result = await this.restore.restoreRunSnapshot("routine", lastRun.runId, lastRun.path);
     if (!result.ok) return result;
     this.patch(id, (r) =>
       r.lastRun === null

@@ -1,5 +1,4 @@
-import type { VaultManifest } from "./manifest";
-import type { DeleteResult, PutResult, VaultChange } from "./sync-port";
+import type { VaultChange } from "./sync-port";
 import { isValidVaultPath, type VaultPath } from "./vault-file";
 
 // ---------------------------------------------------------------------------
@@ -8,11 +7,19 @@ import { isValidVaultPath, type VaultPath } from "./vault-file";
 // A PURE description of the HTTP surface the coordinator (a Cloudflare Worker,
 // later) exposes and the client (desktop, mobile) calls, so both ends build
 // against ONE contract. NO fetch, NO server, NO I/O — only route shapes, header
-// + content-type names, the JSON envelopes that mirror the `SyncPort` result
-// ADTs, and a handful of pure build/parse helpers. Same purity rules as the
+// + content-type names, and a handful of pure build/parse helpers (the JSON
+// bodies are the `SyncPort` result ADTs verbatim). Same purity rules as the
 // rest of @repo/notes: no node, no dom, no `Buffer`, no clock, no crypto. Even
 // `URL`/`URLSearchParams` are avoided (dom-lib types) — the helpers here parse
 // plain strings so the module type-checks with `lib: ES2023`, `types: []`.
+//
+// ROUTE TABLE (the paths come from the builders below; the coordinator's
+// `matchRoute` in apps/cloud mirrors this — it does not redefine it):
+//   manifest    GET    /v1/vault/:vaultId/manifest
+//   getFile     GET    /v1/vault/:vaultId/file?path=…
+//   putFile     PUT    /v1/vault/:vaultId/file?path=…   (body = raw bytes)
+//   deleteFile  DELETE /v1/vault/:vaultId/file?path=…
+//   changes     GET    /v1/vault/:vaultId/changes       (SSE stream)
 //
 // TRANSPORT SHAPE
 //   File bodies are RAW BYTES (`Content-Type: application/octet-stream`): the
@@ -34,40 +41,8 @@ export const API_VERSION = "v1";
 
 // ---- routes ---------------------------------------------------------------
 
-/** The HTTP methods this protocol uses. */
-export type HttpMethod = "GET" | "PUT" | "DELETE";
-
 /** The vault-scoped sub-resources, i.e. the last path segment of a route. */
 export type VaultSubResource = "manifest" | "file" | "changes";
-
-/** Stable identifiers for the five routes (for a server-side router match). */
-export type RouteName = "manifest" | "getFile" | "putFile" | "deleteFile" | "changes";
-
-/** A route's method + sub-resource. The concrete path is built by `vaultPath`
- *  (+ `?path=` for the file routes) once a `vaultId` is known. */
-export type RouteSpec = {
-  readonly method: HttpMethod;
-  readonly sub: VaultSubResource;
-};
-
-/**
- * The full route table, keyed by `RouteName`. A coordinator matches an incoming
- * `(method, sub-resource)` against these; a client picks the method to send.
- * Typed, not stringly-built — the paths come from the builders below.
- *
- *   manifest    GET    /v1/vault/:vaultId/manifest
- *   getFile     GET    /v1/vault/:vaultId/file?path=…
- *   putFile     PUT    /v1/vault/:vaultId/file?path=…   (body = raw bytes)
- *   deleteFile  DELETE /v1/vault/:vaultId/file?path=…
- *   changes     GET    /v1/vault/:vaultId/changes       (SSE stream)
- */
-export const SYNC_ROUTES: Record<RouteName, RouteSpec> = {
-  manifest: { method: "GET", sub: "manifest" },
-  getFile: { method: "GET", sub: "file" },
-  putFile: { method: "PUT", sub: "file" },
-  deleteFile: { method: "DELETE", sub: "file" },
-  changes: { method: "GET", sub: "changes" },
-};
 
 /** The query-string key the file routes carry the vault path in (`?path=…`). */
 export const FILE_PATH_PARAM = "path";
@@ -146,9 +121,6 @@ export const HEADER_CONTENT_HASH = "x-vault-content-hash";
 /** The authorization request header (`Authorization: Bearer <token>`). */
 export const HEADER_AUTHORIZATION = "authorization";
 
-/** The bearer auth scheme used in `HEADER_AUTHORIZATION`. */
-export const AUTH_SCHEME = "Bearer";
-
 /** Format a non-negative integer version as its header string. */
 export function formatVersionHeader(version: number): string {
   return String(version);
@@ -167,20 +139,7 @@ export function parseVersionHeader(raw: string | null): number | null {
 
 /** Format a bearer authorization header value: `formatBearer(t)` → `"Bearer <t>"`. */
 export function formatBearer(token: string): string {
-  return `${AUTH_SCHEME} ${token}`;
-}
-
-/**
- * Parse the bearer token out of an `Authorization` header value. Returns the
- * token, or `null` when the header is missing, isn't `Bearer …`, or the token
- * is blank.
- */
-export function parseBearer(raw: string | null): string | null {
-  if (raw === null) return null;
-  const prefix = `${AUTH_SCHEME} `;
-  if (!raw.startsWith(prefix)) return null;
-  const token = raw.slice(prefix.length).trim();
-  return token === "" ? null : token;
+  return `Bearer ${token}`;
 }
 
 // ---- content types --------------------------------------------------------
@@ -188,40 +147,10 @@ export function parseBearer(raw: string | null): string | null {
 /** `Content-Type` for file bodies (GET/PUT): raw, opaque bytes. */
 export const CONTENT_TYPE_OCTET_STREAM = "application/octet-stream";
 
-/** `Content-Type` for the metadata routes (manifest, put/delete envelopes). */
-export const CONTENT_TYPE_JSON = "application/json";
-
 /** `Content-Type` for the `changes` route: a Server-Sent Events stream. */
 export const CONTENT_TYPE_SSE = "text/event-stream";
 
-// ---- JSON envelopes (mirror the SyncPort ADTs) ----------------------------
-
-/**
- * `GET .../manifest` response body: the coordinator's `VaultManifest` verbatim.
- * Already JSON-safe (all primitives), so it crosses the wire unchanged.
- */
-export type ManifestResponse = VaultManifest;
-
-/**
- * `PUT .../file` response body — the JSON mirror of `SyncPort`'s `PutResult`.
- * `ok: false` (a version conflict, carrying the coordinator's `current` file)
- * rides HTTP 200, not an error status: a conflict is a value.
- */
-export type PutFileResponse = PutResult;
-
-/**
- * `DELETE .../file` response body — the JSON mirror of `SyncPort`'s
- * `DeleteResult` (`ok`, or a `not-found` / `version-conflict` reason).
- */
-export type DeleteFileResponse = DeleteResult;
-
-/**
- * One SSE frame's decoded payload on the `changes` stream — the JSON mirror of a
- * `SyncPort` `VaultChange`. Serialize a frame with `formatChangeFrame`; on the
- * client, a stock `EventSource` yields the frame and `JSON.parse(ev.data)` gives
- * this shape back.
- */
-export type ChangeEventData = VaultChange;
+// ---- SSE change frames ----------------------------------------------------
 
 /** The SSE `event:` name every frame on the `changes` stream uses. */
 export const SSE_CHANGE_EVENT = "change";

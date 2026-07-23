@@ -472,6 +472,5 @@ describe("gate API", () => {
       "<callout> has an unsupported attribute (draft)",
     );
     expect(describeRawReason({ kind: "expression" })).toBe("Contains a {…} expression");
-    expect(describeRawReason({ kind: "esm" })).toBe("Contains an import/export statement");
   });
 });

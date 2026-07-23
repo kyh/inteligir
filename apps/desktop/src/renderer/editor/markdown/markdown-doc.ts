@@ -56,8 +56,6 @@ export function describeRawReason(reason: RawReason): string {
       return `<${reason.name}> has an unsupported attribute (${reason.attr})`;
     case "expression":
       return "Contains a {…} expression";
-    case "esm":
-      return "Contains an import/export statement";
   }
 }
 

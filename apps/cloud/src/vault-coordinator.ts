@@ -18,7 +18,7 @@ import { matchRoute } from "./route";
 // ---------------------------------------------------------------------------
 // VaultCoordinator — one Durable Object per vault, the source of truth for that
 // vault's file set. It owns the MANIFEST in DO SQLite storage (a `files` row per
-// path: version + contentHash + size) and a monotonic `generation` counter, and
+// path: version + contentHash + size), and
 // implements the `SyncPort` semantics over the `@repo/notes/sync/wire` HTTP
 // routes. Raw file bytes live in R2 (`VAULT_FILES`, keyed `${vaultId}/${path}`);
 // the manifest here is authoritative for versions + hashes.
@@ -93,10 +93,6 @@ export class VaultCoordinator extends DurableObject<Env> {
            size INTEGER NOT NULL
          )`,
       );
-      this.ctx.storage.sql.exec(
-        `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)`,
-      );
-      this.ctx.storage.sql.exec(`INSERT OR IGNORE INTO meta (key, value) VALUES ('generation', 0)`);
     });
   }
 
@@ -127,13 +123,7 @@ export class VaultCoordinator extends DurableObject<Env> {
     const rows = this.ctx.storage.sql
       .exec<FileRow>("SELECT path, version, content_hash, size FROM files ORDER BY path")
       .toArray();
-    return { vaultId, generation: this.readGeneration(), files: rows.map(rowToFile) };
-  }
-
-  private readGeneration(): number {
-    return this.ctx.storage.sql
-      .exec<{ value: number }>("SELECT value FROM meta WHERE key = 'generation'")
-      .one().value;
+    return { vaultId, files: rows.map(rowToFile) };
   }
 
   private readFile(path: VaultPath): VaultFile | null {
@@ -192,9 +182,7 @@ export class VaultCoordinator extends DurableObject<Env> {
       const version = currentVersion + 1;
       // Bytes first (durable) so the manifest never points at a missing blob.
       await this.env.VAULT_FILES.put(objectKey(vaultId, path), bytes);
-      // Then commit the manifest row + generation atomically (synchronous SQL,
-      // write-coalesced — no await between them).
-      const nextGeneration = this.readGeneration() + 1;
+      // Then commit the manifest row (synchronous SQL).
       this.ctx.storage.sql.exec(
         `INSERT INTO files (path, version, content_hash, size) VALUES (?, ?, ?, ?)
          ON CONFLICT(path) DO UPDATE SET
@@ -205,10 +193,6 @@ export class VaultCoordinator extends DurableObject<Env> {
         version,
         contentHash,
         bytes.length,
-      );
-      this.ctx.storage.sql.exec(
-        "UPDATE meta SET value = ? WHERE key = 'generation'",
-        nextGeneration,
       );
 
       const file: VaultFile = { path, contentHash, version, size: bytes.length };
@@ -238,13 +222,8 @@ export class VaultCoordinator extends DurableObject<Env> {
         return Response.json(result);
       }
 
-      // Remove the manifest pointer first (+ bump generation), then the blob.
-      const nextGeneration = this.readGeneration() + 1;
+      // Remove the manifest pointer first, then the blob.
       this.ctx.storage.sql.exec("DELETE FROM files WHERE path = ?", path);
-      this.ctx.storage.sql.exec(
-        "UPDATE meta SET value = ? WHERE key = 'generation'",
-        nextGeneration,
-      );
       await this.env.VAULT_FILES.delete(objectKey(vaultId, path));
 
       this.broadcast({ kind: "deleted", path });

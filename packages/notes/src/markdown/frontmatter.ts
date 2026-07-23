@@ -33,8 +33,6 @@ export type SplitDoc = {
   properties: Properties;
   /** Everything after the frontmatter block, byte-for-byte. */
   body: string;
-  /** Whether the source opened with a `---` frontmatter fence. */
-  hadFrontmatter: boolean;
 };
 
 // A leading YAML frontmatter block: `---` on its own line, the yaml, then a
@@ -59,12 +57,11 @@ export function frontmatterYaml(text: string): string | null {
 }
 
 /** Split raw doc text into `{ properties, body }`. Never throws on malformed
- * yaml — a block that doesn't parse to a mapping yields empty properties with
- * `hadFrontmatter: true` so the caller can decide, and the body is always the
- * exact remainder. */
+ * yaml — a block that doesn't parse to a mapping yields empty properties, and
+ * the body is always the exact remainder. */
 export function splitFrontmatter(text: string): SplitDoc {
   const match = FRONTMATTER_RE.exec(text);
-  if (!match) return { properties: {}, body: text, hadFrontmatter: false };
+  if (!match) return { properties: {}, body: text };
   const body = text.slice(match[0].length);
   let parsed: unknown;
   try {
@@ -72,7 +69,7 @@ export function splitFrontmatter(text: string): SplitDoc {
   } catch {
     parsed = null;
   }
-  return { properties: isPlainRecord(parsed) ? parsed : {}, body, hadFrontmatter: true };
+  return { properties: isPlainRecord(parsed) ? parsed : {}, body };
 }
 
 /** Recombine a properties mapping + body into doc text. An empty mapping emits

@@ -238,13 +238,13 @@ describe("RestoreManager.restoreChatEdits", () => {
   });
 });
 
-describe("RestoreManager.restoreDelegationSnapshot", () => {
-  it("refuses chat-origin snapshots — the mirror of the chat-side origin guard", () => {
+describe("RestoreManager.restoreRunSnapshot", () => {
+  it("refuses chat-origin snapshots — the mirror of the chat-side origin guard", async () => {
     const rig = makeRig({ "a.md": "current" });
     rig.mgr.capture({ origin: "chat", target: { rel: "a.md", tool: "edit" } });
     const id = rig.events[0]?.id ?? "";
 
-    const result = rig.mgr.restoreDelegationSnapshot(id, "a.md");
+    const result = await rig.mgr.restoreRunSnapshot("delegation", id, "a.md");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("Not a delegation edit");
     expect(rig.writes).toEqual([]);

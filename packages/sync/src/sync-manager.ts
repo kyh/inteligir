@@ -229,7 +229,7 @@ export type SyncManagerOptions = {
 /**
  * Construct the desktop vault-sync engine: bind the node ports (hasher, vault
  * IO, base store, clock) and hand them to the platform-neutral `SyncEngine`.
- * The returned engine exposes start/stop/onVaultChanged/syncOnce/scheduleSync.
+ * The returned engine exposes start/stop/syncOnce/scheduleSync.
  */
 export function createSyncManager(opts: SyncManagerOptions): SyncEngine {
   return new SyncEngine({

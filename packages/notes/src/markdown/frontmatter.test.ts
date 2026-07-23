@@ -13,14 +13,12 @@ describe("splitFrontmatter", () => {
     expect(splitFrontmatter(text)).toEqual({
       properties: {},
       body: text,
-      hadFrontmatter: false,
     });
   });
 
   it("parses a leading yaml block into a mapping and keeps the body verbatim", () => {
     const text = "---\ntitle: Note\ntags:\n  - a\n  - b\n---\n# Body\n\ntext\n";
     const split = splitFrontmatter(text);
-    expect(split.hadFrontmatter).toBe(true);
     expect(split.properties).toEqual({ title: "Note", tags: ["a", "b"] });
     expect(split.body).toBe("# Body\n\ntext\n");
   });
@@ -28,20 +26,18 @@ describe("splitFrontmatter", () => {
   it("does not treat a mid-document --- as frontmatter", () => {
     const text = "para\n\n---\n\nmore\n";
     const split = splitFrontmatter(text);
-    expect(split.hadFrontmatter).toBe(false);
+    expect(split.properties).toEqual({});
     expect(split.body).toBe(text);
   });
 
   it("treats empty frontmatter as an empty mapping", () => {
     const split = splitFrontmatter("---\n---\nbody\n");
-    expect(split.hadFrontmatter).toBe(true);
     expect(split.properties).toEqual({});
     expect(split.body).toBe("body\n");
   });
 
   it("treats a non-mapping frontmatter as empty properties without throwing", () => {
     const split = splitFrontmatter("---\n- just\n- a list\n---\nbody\n");
-    expect(split.hadFrontmatter).toBe(true);
     expect(split.properties).toEqual({});
   });
 });

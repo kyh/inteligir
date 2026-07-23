@@ -52,8 +52,7 @@ mac:
   hardenedRuntime: true
   notarize: true
   extendInfo:
-    NSCameraUsageDescription: Application requests access to the device's camera.
-    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSMicrophoneUsageDescription: Inteligir uses the microphone for voice dictation (on-device speech-to-text).
     NSAppleEventsUsageDescription: Inteligir uses Apple Events to control other applications when you ask the agent to act on them.
     NSScreenCaptureUsageDescription: Inteligir captures the screen so the agent can see and interact with native applications.
 dmg:

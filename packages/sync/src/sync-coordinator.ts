@@ -128,7 +128,7 @@ export class SyncCoordinator {
   /** A local vault file changed — nudge the running engine (debounced there).
    * No-op when sync is off. */
   onVaultChanged(): void {
-    this.engine?.onVaultChanged();
+    this.engine?.scheduleSync();
   }
 
   getState(): SyncState {
@@ -256,7 +256,7 @@ export class SyncCoordinator {
     this.engine = engine;
     // Periodic background reconcile while the engine is live — a focus refresh
     // and remote pushes already kick sync; this catches everything in between.
-    this.syncTimer = setInterval(() => this.engine?.onVaultChanged(), SYNC_INTERVAL_MS);
+    this.syncTimer = setInterval(() => this.engine?.scheduleSync(), SYNC_INTERVAL_MS);
     if (opts.kickInitial) void this.runInitialSync(engine);
   }
 

@@ -10,26 +10,16 @@
 // file. Deferring to render time breaks the cycle structurally.
 
 import { useEffect, useRef, useState } from "react";
-import {
-  AlertCircleIcon,
-  CheckCircle2Icon,
-  Clock3Icon,
-  Loader2Icon,
-  RotateCwIcon,
-  SparklesIcon,
-  XIcon,
-} from "lucide-react";
 import type { Descendant, TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
 
 import { toast } from "@repo/ui/components/sonner";
-import { Button } from "@repo/ui/components/button";
 
+import { DelegateButton, DelegationStatusBadge } from "@renderer/delegation/status-badge";
 import { isTodoItem, todoIndex } from "@renderer/editor/todo-item";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
 import { useOpenNote } from "@renderer/workspace/open-note-store";
 import { useVaultActions } from "@renderer/workspace/vault-context";
-import type { Delegation } from "@repo/bridge/delegation";
 
 function DelegateControl({ element, checked }: { element: TElement; checked: boolean }) {
   const { flush } = useVaultActions();
@@ -101,95 +91,19 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
       onMouseDown={(e) => e.preventDefault()}
     >
       {showBadge && delegation ? (
-        <StatusBadge
+        <DelegationStatusBadge
           delegation={delegation}
           onCancel={() => cancel(delegation.id)}
           onRetry={() => void handleDelegate()}
         />
       ) : (
-        !checked && (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => void handleDelegate()}
-            title="Delegate this task to an agent"
-            className="h-auto rounded-full px-2 py-0.5 text-[10px] font-normal text-muted-foreground opacity-0 group-hover:opacity-100"
-          >
-            <SparklesIcon className="size-3" />
-            Delegate
-          </Button>
-        )
+        !checked && <DelegateButton onClick={() => void handleDelegate()} />
       )}
     </span>
   );
 }
 
 export default DelegateControl;
-
-function StatusBadge({
-  delegation,
-  onCancel,
-  onRetry,
-}: {
-  delegation: Delegation;
-  onCancel: () => void;
-  onRetry: () => void;
-}) {
-  switch (delegation.status) {
-    case "queued":
-      return (
-        <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-          <Clock3Icon className="size-3" />
-          Queued
-          <button
-            type="button"
-            aria-label="Cancel delegation"
-            onClick={onCancel}
-            title="Cancel"
-            className="hover:text-foreground"
-          >
-            <XIcon className="size-3" />
-          </button>
-        </span>
-      );
-    case "running":
-      return (
-        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-          <Loader2Icon className="size-3 animate-spin" />
-          Working…
-        </span>
-      );
-    case "done":
-      return (
-        <span
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400"
-          title={delegation.resultSummary ?? "Done"}
-        >
-          <CheckCircle2Icon className="size-3" />
-          Done
-        </span>
-      );
-    case "failed":
-      return (
-        <span
-          className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-destructive"
-          title={delegation.error ?? "Failed"}
-        >
-          <AlertCircleIcon className="size-3" />
-          Failed
-          <button
-            type="button"
-            aria-label="Retry delegation"
-            onClick={onRetry}
-            title="Retry delegation"
-            className="hover:text-foreground"
-          >
-            <RotateCwIcon className="size-3" />
-          </button>
-        </span>
-      );
-  }
-}
 
 /** Concatenate an element's text content (recursing through inline children). */
 function elementText(node: Descendant): string {

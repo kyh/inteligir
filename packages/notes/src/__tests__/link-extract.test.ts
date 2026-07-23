@@ -19,17 +19,16 @@ function only(source: string): ExtractedLink {
   return first;
 }
 
-/** The span/targetSpan contract: slicing the source re-derives the bytes. */
+/** The targetSpan contract: slicing the source re-derives the bytes. */
 function sliceTarget(source: string, link: ExtractedLink): string | null {
   return link.targetSpan ? source.slice(link.targetSpan.start, link.targetSpan.end) : null;
 }
 
 describe("scanDoc — wiki links", () => {
-  it("extracts a plain wiki link with verified spans", () => {
+  it("extracts a plain wiki link with a verified target span", () => {
     const src = "before [[target note]] after\n";
     const link = only(src);
     expect(link).toMatchObject({ kind: "wiki", embed: false, target: "target note", line: 1 });
-    expect(src.slice(link.span.start, link.span.end)).toBe("[[target note]]");
     expect(sliceTarget(src, link)).toBe("target note");
   });
 
@@ -51,7 +50,6 @@ describe("scanDoc — wiki links", () => {
     const src = "see ![[target note]]";
     const link = only(src);
     expect(link.embed).toBe(true);
-    expect(src.slice(link.span.start, link.span.end)).toBe("![[target note]]");
     expect(sliceTarget(src, link)).toBe("target note");
   });
 
@@ -182,7 +180,6 @@ describe("scanDoc — md images", () => {
       alias: "a diagram",
       line: 1,
     });
-    expect(src.slice(link.span.start, link.span.end)).toBe("![a diagram](img/diagram.png)");
     expect(sliceTarget(src, link)).toBe("img/diagram.png");
   });
 

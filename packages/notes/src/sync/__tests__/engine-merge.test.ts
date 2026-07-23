@@ -1,12 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InMemorySyncPort } from "./in-memory-sync-port";
-import { SyncEngine, type Clock, type Hasher, type SyncIo } from "../engine";
+import { encode, InMemorySyncPort, MemoryVault, webCryptoHasher } from "./in-memory-sync-port";
+import { SyncEngine, type Clock } from "../engine";
 import { InMemoryBaseStore } from "../base-store";
 import { InMemoryBaseBlobStore } from "../blob-store";
 import { conflictCopyName, isConflictCopyPath } from "../reconcile";
 import type { PutResult, SyncPort } from "../sync-port";
-import type { VaultPath } from "../vault-file";
 
 // Engine-level merge-ladder tests: the same in-memory rig as engine.test.ts
 // PLUS an `InMemoryBaseBlobStore`, so both-sides-changed markdown reaches the
@@ -15,53 +14,9 @@ import type { VaultPath } from "../vault-file";
 const VAULT_ID = "vault-1";
 const STAMP = "2026-07-05T12-34-56-000Z";
 
-const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-function webCryptoHasher(): Hasher {
-  return async (bytes) => {
-    const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
-    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  };
-}
-
 const fixedStamp: Clock = () => STAMP;
-
-class MemoryVault {
-  private readonly files = new Map<VaultPath, Uint8Array>();
-
-  readonly io: SyncIo = {
-    list: () => [...this.files.keys()].toSorted(),
-    read: (path) => {
-      const bytes = this.files.get(path);
-      if (bytes === undefined) throw new Error(`MemoryVault: read of absent ${path}`);
-      return bytes;
-    },
-    write: (path, content) => {
-      this.files.set(path, new Uint8Array(content));
-    },
-    remove: (path) => {
-      this.files.delete(path);
-    },
-  };
-
-  writeText(path: string, text: string): void {
-    this.files.set(path, enc.encode(text));
-  }
-
-  readText(path: string): string | null {
-    const bytes = this.files.get(path);
-    return bytes === undefined ? null : dec.decode(bytes);
-  }
-
-  paths(): string[] {
-    return [...this.files.keys()].toSorted();
-  }
-}
-
-function encode(text: string): Uint8Array {
-  return enc.encode(text);
-}
 
 let vault: MemoryVault;
 let base: InMemoryBaseStore;
@@ -87,7 +42,7 @@ async function remoteText(p: string): Promise<string | null> {
 }
 
 async function sha256Hex(text: string): Promise<string> {
-  return webCryptoHasher()(enc.encode(text));
+  return webCryptoHasher()(encode(text));
 }
 
 beforeEach(() => {
@@ -141,13 +96,13 @@ describe("SyncEngine + merge ladder", () => {
     await port.putFile("note.md", encode("text\nadd\n"), 1);
     vault.writeText("note.md", "text\nadd  \n");
 
-    const gen = port.currentGeneration();
+    const putSpy = vi.spyOn(port, "putFile");
     const out = await newEngine().syncOnce();
 
     expect(out).toMatchObject({ status: "ok", merged: 1, conflicts: 0, conflictPaths: [] });
     // Converged to the REMOTE bytes locally; nothing pushed.
     expect(vault.readText("note.md")).toBe("text\nadd\n");
-    expect(port.currentGeneration()).toBe(gen);
+    expect(putSpy).not.toHaveBeenCalled();
   });
 
   it("falls back to a conflict copy when the base blob is missing (legacy base)", async () => {

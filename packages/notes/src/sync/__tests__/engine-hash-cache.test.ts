@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InMemorySyncPort } from "./in-memory-sync-port";
+import { InMemorySyncPort, webCryptoHasher } from "./in-memory-sync-port";
 import { SyncEngine, type Clock, type Hasher, type SyncIo } from "../engine";
 import { InMemoryBaseStore } from "../base-store";
 import { InMemoryBaseBlobStore } from "../blob-store";
@@ -15,14 +15,6 @@ const STAMP = "2026-07-05T12-34-56-000Z";
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
-
-// Web Crypto keeps @repo/notes node-free even in tests and matches the port fake.
-function webCryptoHasher(): Hasher {
-  return async (bytes) => {
-    const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
-    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  };
-}
 
 /** A hasher that records the (decoded) text of every input it hashes, so tests
  * can count calls and see WHICH files were re-hashed. */
@@ -241,8 +233,8 @@ describe("SyncEngine stat-keyed hash cache", () => {
     // The follow-up pass must see the file as converged (its manifest carries
     // the NEW content's hash). If invalidation were broken, the cache would
     // still hold hash("shared") under the unchanged fingerprint and this pass
-    // would spuriously re-push the stale bytes, bumping the generation.
-    const genBefore = port.currentGeneration();
+    // would spuriously re-push the stale bytes.
+    const putSpy = vi.spyOn(port, "putFile");
     const settled = await engine.syncOnce();
     expect(settled).toEqual({
       status: "ok",
@@ -253,7 +245,7 @@ describe("SyncEngine stat-keyed hash cache", () => {
       merged: 0,
       conflictPaths: [],
     });
-    expect(port.currentGeneration()).toBe(genBefore);
+    expect(putSpy).not.toHaveBeenCalled();
     expect(calls).toContain("remote-new"); // the pulled bytes were hashed
   });
 });

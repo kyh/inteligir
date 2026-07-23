@@ -30,7 +30,7 @@ apps/cloud/
 
 - **One DO per vault** (`env.VaultCoordinator.idFromName(vaultId)`). It owns the
   manifest in DO SQLite storage (a `files` row per path: `version`, `contentHash`,
-  `size`) plus a monotonic `generation` counter. File bytes live in R2, keyed
+  `size`). File bytes live in R2, keyed
   `${vaultId}/${path}` — the manifest is authoritative for versions/hashes.
 - **Versions & optimistic concurrency**: a PUT/DELETE carries `x-base-version`.
   A mismatch returns `version-conflict` **as a value at HTTP 200** (never an error
@@ -56,7 +56,7 @@ Bearer <token>` — the token comes back in the `set-auth-token` header on
   returns the session bearer.
 - The auth tables live in **D1** (`DB` binding) via the Drizzle adapter
   (`provider: "sqlite"`). Schema in `src/db/schema.ts`, applied with `drizzle-kit
-push` — no migration files (`pnpm db:push:local` / `db:push:remote`).
+push` — no migration files (`pnpm db:push:local` / `db:push`).
 - **Ownership** (`vault_owner` table): the first authenticated user to touch a
   `vaultId` claims it. A sync request for a claimed vault by a different user → 403;
   no/invalid bearer token → 401.
@@ -84,10 +84,9 @@ the binding. So: start `dev`, hit a D1 route
 full recipe, including creating an account, is in AGENTS.md § "There is no
 seeded login".
 
-> **Never run `db:push`, `db:push:remote` or `db:studio`.** All three go through
-> `drizzle.config.ts` (`driver: "d1-http"`) at the PRODUCTION D1 — `db:push`
-> differs from `db:push:remote` only in which env file it reads, and `db:studio`
-> is a read/write UI over the same database. The local one is `db:push:local`.
+> **Never run `db:push` or `db:studio`.** Both go through `drizzle.config.ts`
+> (`driver: "d1-http"`) at the PRODUCTION D1 — `db:studio` is a read/write UI
+> over the same database. The local one is `db:push:local`.
 
 ## Deploy (run by the account owner)
 
@@ -110,10 +109,11 @@ wrangler r2 bucket create inteligir-vault-files
 wrangler d1 create inteligir-auth
 
 # 4. Push the schema (user/session/account/verification + vault_owner) to the
-#    remote D1. No migration files — set the three creds, then push:
+#    remote D1. No migration files — put the three creds in the root
+#    .env.production.local (see .env.example), then push:
 #      CLOUDFLARE_ACCOUNT_ID  CLOUDFLARE_DATABASE_ID  CLOUDFLARE_D1_TOKEN
 #    (D1_TOKEN = a Cloudflare API token with D1 edit; DATABASE_ID = the id above)
-pnpm --filter @repo/cloud db:push:remote
+pnpm --filter @repo/cloud db:push
 
 # 5. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED signing
 #    key — generate a fresh random 32+ char value, don't reuse another key.

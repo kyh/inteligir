@@ -89,7 +89,8 @@ describe("SyncEngine over the RN adapters", () => {
   it("is a no-op once both sides have converged (a second engine reads the persisted base)", async () => {
     vault.writeText("a.md", "AAA");
     await newEngine().syncOnce();
-    const genAfterFirst = port.currentGeneration();
+    const putSpy = vi.spyOn(port, "putFile");
+    const deleteSpy = vi.spyOn(port, "deleteFile");
 
     const out = await newEngine().syncOnce();
 
@@ -102,7 +103,9 @@ describe("SyncEngine over the RN adapters", () => {
       merged: 0,
       conflictPaths: [],
     });
-    expect(port.currentGeneration()).toBe(genAfterFirst);
+    // No coordinator writes.
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
   });
 
   it("mirrors a local delete to the coordinator", async () => {
@@ -137,7 +140,6 @@ describe("SyncEngine over the RN adapters", () => {
     vault.writeText("notes/b.md", "BBB");
     await newEngine().syncOnce();
     const baseBefore = baseFile.peek();
-    const genBefore = port.currentGeneration();
 
     const rootMissing: VaultFs = {
       ...vault.fs,
@@ -159,7 +161,6 @@ describe("SyncEngine over the RN adapters", () => {
     // base anchor byte-identical for the next pass to retry from.
     expect(deleteSpy).not.toHaveBeenCalled();
     expect(putSpy).not.toHaveBeenCalled();
-    expect(port.currentGeneration()).toBe(genBefore);
     expect(await remoteText("a.md")).toBe("AAA");
     expect(await remoteText("notes/b.md")).toBe("BBB");
     expect(baseFile.peek()).toBe(baseBefore);

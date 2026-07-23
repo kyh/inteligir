@@ -154,8 +154,11 @@ export function releaseAiSession(): void {
   lastRun = null;
 }
 
-/** Hard-off in private notes (every entry point guards, not just the menu —
- * the note can turn private mid-session). One deduped sonner toast; derived
+/** Hard-off in private notes. Guarded at the two request funnels
+ * (startGenerate/startEdit) — every path lands there, so a note turning
+ * private mid-session, even across submitAiPrompt's async classify
+ * round-trip, still refuses — plus openAiMenu (the menu won't open) and the
+ * pre-classify check in submitAiPrompt. One deduped sonner toast; derived
  * live from the document via isEditorNotePrivate, fail-closed on unreadable
  * frontmatter. `private` wins over everything, including ghostTextEnabled. */
 function refusePrivate(editor: PlateEditor): boolean {
@@ -165,9 +168,9 @@ function refusePrivate(editor: PlateEditor): boolean {
 }
 
 /** The AI feature gate (#459): hard-off when no provider is connected, same
- * every-entry-point treatment as the private gate above. Privacy is checked
- * FIRST — a private note must refuse with the privacy message even when a
- * provider is also missing. */
+ * funnel treatment as the private gate above. Privacy is checked FIRST — a
+ * private note must refuse with the privacy message even when a provider is
+ * also missing. */
 function refuseAi(editor: PlateEditor): boolean {
   if (refusePrivate(editor)) return true;
   if (hasConnectedProvider(useAiProviderStore.getState().settings)) return false;
@@ -244,7 +247,10 @@ function unwindGenerate(editor: PlateEditor): void {
 /** Free-form prompt path: classify host-side, then route. Submitting from the
  * generate review discards the pending output first (a follow-up replaces). */
 export function submitAiPrompt(editor: PlateEditor, text: string): void {
-  if (refuseAi(editor)) return;
+  // Privacy-only pre-check (#451): the funnel guards again after
+  // classification, but even the prompt TEXT typed into a private note must
+  // not reach the classifier model.
+  if (refusePrivate(editor)) return;
   const bridge = getBridge();
   const prompt = text.trim();
   if (prompt.length === 0) return;
@@ -268,7 +274,6 @@ export function submitAiPrompt(editor: PlateEditor, text: string): void {
 
 /** Canned action path: fixed intent, no classification round-trip. */
 export function runCannedAction(editor: PlateEditor, id: CannedActionId): void {
-  if (refuseAi(editor)) return;
   const action = CANNED_ACTIONS.find((a) => a.id === id);
   if (!action) return;
   lastRun = { kind: "canned", action: id };
@@ -279,7 +284,6 @@ export function runCannedAction(editor: PlateEditor, id: CannedActionId): void {
 /** Translate the selection's blocks — the AI menu's language page. Recorded
  * as a prompt lastRun so "Try again" re-runs it. */
 export function runTranslate(editor: PlateEditor, language: string): void {
-  if (refuseAi(editor)) return;
   const instruction = `Translate the content to ${language}, keeping the markdown structure and formatting.`;
   lastRun = { kind: "prompt", text: instruction, intent: "edit" };
   startEdit(editor, instruction);
@@ -287,7 +291,6 @@ export function runTranslate(editor: PlateEditor, language: string): void {
 
 /** Discard the current pending output (if any) and re-run the last request. */
 export function retryLastRun(editor: PlateEditor): void {
-  if (refuseAi(editor)) return;
   const run = lastRun;
   if (!run) return;
   if (editor.getOption(AiSessionPlugin, "status") === "review") unwindGenerate(editor);
@@ -301,6 +304,14 @@ export function retryLastRun(editor: PlateEditor): void {
 // ---------------------------------------------------------------------------
 
 function startGenerate(editor: PlateEditor, action: CannedActionId | null, request: string): void {
+  // The funnel gate (#451): every request path ends here, so a note that
+  // turned private (or a provider that vanished) after an entry point ran
+  // still refuses. The status reset matters — refusal can fire while
+  // "classifying", or after retryLastRun already unwound a pending review.
+  if (refuseAi(editor)) {
+    setOptions(editor, { status: "input", error: null });
+    return;
+  }
   const bridge = getBridge();
   const sel = savedSelection(editor) ?? editor.selection;
   if (!sel) return;
@@ -399,6 +410,11 @@ function editTargetPaths(editor: PlateEditor): Path[] {
 }
 
 function startEdit(editor: PlateEditor, instruction: string): void {
+  // The funnel gate (#451) — see startGenerate.
+  if (refuseAi(editor)) {
+    setOptions(editor, { status: "input", error: null });
+    return;
+  }
   const bridge = getBridge();
   const paths = editTargetPaths(editor);
   const nodes = paths.flatMap((path) => {

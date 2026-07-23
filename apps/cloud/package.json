@@ -7,15 +7,13 @@
     "build": "wrangler deploy --dry-run --outdir dist",
     "clean": "git clean -xdf .cache .turbo .wrangler dist node_modules",
     "cf-typegen": "wrangler types",
-    "db:push": "pnpm with-env drizzle-kit push",
-    "db:push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
+    "db:push": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "db:push:local": "drizzle-kit push --config drizzle.config.local.ts --force",
-    "db:studio": "pnpm with-env drizzle-kit studio",
+    "db:studio": "dotenv -e ../../.env.production.local -- drizzle-kit studio",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "with-env": "dotenv -e ../../.env --"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@repo/notes": "workspace:*",

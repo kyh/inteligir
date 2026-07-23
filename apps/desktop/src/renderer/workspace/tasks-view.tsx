@@ -9,18 +9,8 @@
 // (sourceFile, ordinal); Esc returns to the editor (graph parity).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AlertCircleIcon,
-  CheckIcon,
-  ChevronRightIcon,
-  Clock3Icon,
-  Loader2Icon,
-  RotateCwIcon,
-  SparklesIcon,
-  XIcon,
-} from "lucide-react";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
-import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 
 import type { VaultTaskEntry } from "@repo/notes/knowledge/link-graph-index";
@@ -34,6 +24,7 @@ import {
 } from "@repo/bridge/daily-notes";
 import type { Delegation } from "@repo/bridge/delegation";
 
+import { DelegateButton, DelegationStatusBadge } from "@renderer/delegation/status-badge";
 import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
@@ -357,24 +348,14 @@ function TaskRow({
         </button>
       )}
       {delegation !== null && isActiveDelegation(delegation) ? (
-        <DelegationBadge
+        <DelegationStatusBadge
           delegation={delegation}
-          onCancel={onCancel}
+          compact
+          onCancel={() => onCancel(delegation.id)}
           onRetry={() => void onDelegate(task)}
         />
       ) : (
-        !task.checked && (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => void onDelegate(task)}
-            title="Delegate this task to an agent"
-            className="h-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-normal text-muted-foreground opacity-0 group-hover:opacity-100"
-          >
-            <SparklesIcon className="size-3" />
-            Delegate
-          </Button>
-        )
+        !task.checked && <DelegateButton compact onClick={() => void onDelegate(task)} />
       )}
     </div>
   );
@@ -387,60 +368,4 @@ type ActiveDelegation = Delegation & { status: Exclude<Delegation["status"], "do
 
 function isActiveDelegation(delegation: Delegation): delegation is ActiveDelegation {
   return delegation.status !== "done";
-}
-
-/** Compact inline status (todo-delegation's badge, sized for list rows). */
-function DelegationBadge({
-  delegation,
-  onCancel,
-  onRetry,
-}: {
-  delegation: ActiveDelegation;
-  onCancel: (id: string) => void;
-  onRetry: () => void;
-}) {
-  switch (delegation.status) {
-    case "queued":
-      return (
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-          <Clock3Icon className="size-3" />
-          Queued
-          <button
-            type="button"
-            aria-label="Cancel delegation"
-            onClick={() => onCancel(delegation.id)}
-            title="Cancel"
-            className="hover:text-foreground"
-          >
-            <XIcon className="size-3" />
-          </button>
-        </span>
-      );
-    case "running":
-      return (
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-          <Loader2Icon className="size-3 animate-spin" />
-          Working…
-        </span>
-      );
-    case "failed":
-      return (
-        <span
-          className="flex shrink-0 items-center gap-1 px-2 py-0.5 text-[10px] text-destructive"
-          title={delegation.error ?? "Failed"}
-        >
-          <AlertCircleIcon className="size-3" />
-          Failed
-          <button
-            type="button"
-            aria-label="Retry delegation"
-            onClick={onRetry}
-            title="Retry delegation"
-            className="hover:text-foreground"
-          >
-            <RotateCwIcon className="size-3" />
-          </button>
-        </span>
-      );
-  }
 }

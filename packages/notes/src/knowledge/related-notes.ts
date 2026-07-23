@@ -2,7 +2,7 @@
 // Related notes — the "notes you forgot are connected to this one" scorer.
 // PURE and platform-neutral: it reads the link graph / tag index through a
 // minimal structural view (LinkGraphIndex satisfies it directly) plus an
-// OPTIONAL injected lexical `search` port, so the ranking brain exists once
+// injected lexical `search` port, so the ranking brain exists once
 // while each composition brings its own text engine — the in-memory tiered
 // SearchIndex (core reference, dev harness) or the SQL store's FTS5 bm25
 // (desktop host). No ML, no embeddings (that's a v2, separately).
@@ -80,12 +80,10 @@ const LEXICAL_MAX_TOKENS = 8;
 const LEXICAL_MIN_TOKEN_LENGTH = 3;
 
 /** Rank the notes related to `path`, best-first, with `reasons`. Empty when
- * the note has no connections (or, under `excludePrivate`, is private).
- * `search: null` scores links + tags only (a composition without a text
- * engine loses the lexical signal, nothing else). */
+ * the note has no connections (or, under `excludePrivate`, is private). */
 export function relatedNotes(
   sources: RelatedNotesGraph,
-  search: LexicalSearch | null,
+  search: LexicalSearch,
   path: string,
   opts?: RelatedNotesOpts,
 ): RelatedNoteEntry[] {
@@ -145,16 +143,14 @@ export function relatedNotes(
   // Lexical: per-title-token probes merged by score sum, then max-normalized
   // into a bounded contribution — scale-free across engines.
   const lexical = new Map<string, number>();
-  if (search) {
-    const title = sources.titleOf(path);
-    const tokens = title === null ? [] : [...new Set(tokenize(title))];
-    for (const token of tokens
-      .filter((t) => t.length >= LEXICAL_MIN_TOKEN_LENGTH)
-      .slice(0, LEXICAL_MAX_TOKENS)) {
-      for (const hit of search(token, LEXICAL_PROBE_LIMIT)) {
-        if (excluded(hit.path) || hit.score <= 0) continue;
-        lexical.set(hit.path, (lexical.get(hit.path) ?? 0) + hit.score);
-      }
+  const title = sources.titleOf(path);
+  const tokens = title === null ? [] : [...new Set(tokenize(title))];
+  for (const token of tokens
+    .filter((t) => t.length >= LEXICAL_MIN_TOKEN_LENGTH)
+    .slice(0, LEXICAL_MAX_TOKENS)) {
+    for (const hit of search(token, LEXICAL_PROBE_LIMIT)) {
+      if (excluded(hit.path) || hit.score <= 0) continue;
+      lexical.set(hit.path, (lexical.get(hit.path) ?? 0) + hit.score);
     }
   }
   let lexicalMax = 0;

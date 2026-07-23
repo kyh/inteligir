@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import {
   Sidebar,
@@ -29,6 +28,7 @@ import {
 } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
+import { confirmVaultDelete } from "@renderer/components/confirm-vault-delete";
 import { ThemeToggle } from "@renderer/components/theme-toggle";
 import { SettingsDialog } from "@renderer/settings/settings-dialog";
 import { flattenTree, resolveTreeKey, type FlatRow } from "@renderer/sidebar/tree-navigation";
@@ -373,13 +373,7 @@ const TreeRow = memo(function TreeRow({
   }
 
   const confirmDelete = async () => {
-    const confirmed = await confirm({
-      title: `Delete ${node.path}?`,
-      body: "This permanently deletes the file from your vault.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (confirmed) onDelete(node.path);
+    if (await confirmVaultDelete(node.path)) onDelete(node.path);
   };
 
   return (

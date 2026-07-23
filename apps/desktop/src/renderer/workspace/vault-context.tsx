@@ -114,9 +114,10 @@ export type VaultActions = {
   registerNoteSerializeFlush: (path: string, flush: () => void) => void;
   /** Create a file at `path` (e.g. "folder/note.md") and open it. */
   createFile: (path: string) => Promise<void>;
-  /** Create an empty file WITHOUT opening it (wiki create-on-complete). An
-   * existing file is left untouched and counts as success. */
-  createFileAt: (path: string) => Promise<boolean>;
+  /** Create a file WITHOUT opening it (wiki create-on-complete), seeded with
+   * `seedContent` (default empty). An existing file is left untouched and
+   * counts as success. Resolves the normalized path, or null on failure. */
+  createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
   /** Open the note at `path`; if it doesn't exist yet, create it seeded with
    * `content` (byte-exact) FIRST, then open it. An existing file is opened
    * untouched — this is the open-or-create used by templates + daily notes, so
@@ -340,58 +341,44 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const createFileAt = useCallback(
-    async (rawPath: string): Promise<boolean> => {
+    async (rawPath: string, seedContent = ""): Promise<string | null> => {
       const trimmed = rawPath.trim();
-      if (!trimmed) return false;
+      if (!trimmed) return null;
       const path = validNotePath(withDefaultExtension(trimmed));
-      if (path === null) return false;
+      if (path === null) return null;
       const bridge = getBridge();
       // Don't truncate an existing file — it already satisfies "exists".
-      if (await docExists(bridge, path)) return true;
+      // Open-or-create seeds only when the file is genuinely new, so a second
+      // "open today's note" reopens the existing note byte-for-byte.
+      if (await docExists(bridge, path)) return path;
       const created = await bridge
-        .writeVaultDoc({ path, content: "" })
+        .writeVaultDoc({ path, content: seedContent })
         .then(() => true)
         .catch(() => false);
-      if (created) refreshList();
-      else toast.error(`Couldn't create ${path}.`);
-      return created;
+      if (!created) {
+        toast.error(`Couldn't create ${path}.`);
+        return null;
+      }
+      refreshList();
+      return path;
     },
     [refreshList],
   );
 
   const createFile = useCallback(
     async (rawPath: string) => {
-      const trimmed = rawPath.trim();
-      if (!trimmed) return;
-      const path = withDefaultExtension(trimmed);
-      if (await createFileAt(path)) openFile(path);
+      const path = await createFileAt(rawPath);
+      if (path !== null) openFile(path);
     },
     [createFileAt, openFile],
   );
 
   const openOrCreateNote = useCallback(
     async (rawPath: string, content: string) => {
-      const trimmed = rawPath.trim();
-      if (!trimmed) return;
-      const path = validNotePath(withDefaultExtension(trimmed));
-      if (path === null) return;
-      const bridge = getBridge();
-      // Open-or-create: only write (seed) when the file is genuinely new, so a
-      // second "open today's note" reopens the existing note byte-for-byte.
-      if (!(await docExists(bridge, path))) {
-        const created = await bridge
-          .writeVaultDoc({ path, content })
-          .then(() => true)
-          .catch(() => false);
-        if (!created) {
-          toast.error(`Couldn't create ${path}.`);
-          return;
-        }
-        refreshList();
-      }
-      openFile(path);
+      const path = await createFileAt(rawPath, content);
+      if (path !== null) openFile(path);
     },
-    [openFile, refreshList],
+    [createFileAt, openFile],
   );
 
   const renameEntry = useCallback(
@@ -471,8 +458,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     applyOpenPath(null);
     refreshList();
   }, [applyOpenPath, disposeRuntime, flushCurrent, refreshList]);
-
-  const flush = useCallback((): Promise<boolean> => flushCurrent(), [flushCurrent]);
 
   const refreshVault = useCallback(() => {
     getBridge()
@@ -594,7 +579,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // file "this note" means — same as the typed composer. The path getter reads
   // the live runtime, so it stays correct without re-registering per open.
   useEffect(() => {
-    registerOpenNoteFlush(flush);
+    registerOpenNoteFlush(flushCurrent);
     registerOpenNotePath(() => runtimeRef.current?.controller.getState().path ?? null);
     // AI-path privacy read (fail-closed: indeterminate counts as private) —
     // agent-store omits the note-context hint for a private note. Reads the
@@ -613,7 +598,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       registerOpenNotePath(null);
       registerOpenNotePrivacy(null);
     };
-  }, [flush]);
+  }, [flushCurrent]);
 
   const folderName = useMemo(() => {
     const cleaned = root.replace(/[/\\]+$/, "");
@@ -677,7 +662,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       renameEntry,
       deleteEntry,
       changeFolder,
-      flush,
+      flush: flushCurrent,
       refreshVault,
       setMode: setOpenNoteMode,
       showHtmlAsText: showOpenHtmlAsText,
@@ -693,7 +678,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       renameEntry,
       deleteEntry,
       changeFolder,
-      flush,
+      flushCurrent,
       refreshVault,
     ],
   );

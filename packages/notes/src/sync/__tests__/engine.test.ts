@@ -1,70 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InMemorySyncPort } from "./in-memory-sync-port";
-import { SyncEngine, type Clock, type Hasher, type SyncIo, type SyncOutcome } from "../engine";
+import { encode, InMemorySyncPort, MemoryVault, webCryptoHasher } from "./in-memory-sync-port";
+import { SyncEngine, type Clock, type SyncOutcome } from "../engine";
 import { InMemoryBaseStore } from "../base-store";
 import { InMemoryBaseBlobStore } from "../blob-store";
 import { conflictCopyName } from "../reconcile";
-import type { VaultPath } from "../vault-file";
 
 const VAULT_ID = "vault-1";
 const FIXED_ISO = "2026-07-05T12:34:56.000Z";
 // Mirror the desktop's nodeStamp(): ISO with `:`/`.` swapped for filesystem safety.
 const STAMP = FIXED_ISO.replaceAll(":", "-").replace(".", "-");
 
-const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-// Web Crypto (the WebWorker-lib global) keeps @repo/notes node-free even in
-// tests, and is the exact async digest the mobile client will inject. It must
-// match the coordinator fake's hasher so equal bytes hash equal.
-function webCryptoHasher(): Hasher {
-  return async (bytes) => {
-    // Copy into a fresh (non-shared) buffer so the type is `<ArrayBuffer>`, which
-    // `BufferSource` requires — a plain Uint8Array may be SharedArrayBuffer-backed.
-    const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
-    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  };
-}
-
 const fixedStamp: Clock = () => STAMP;
-
-/** A Map-backed vault implementing the engine's `SyncIo`, plus text helpers. */
-class MemoryVault {
-  private readonly files = new Map<VaultPath, Uint8Array>();
-
-  readonly io: SyncIo = {
-    list: () => [...this.files.keys()].toSorted(),
-    read: (path) => {
-      const bytes = this.files.get(path);
-      if (bytes === undefined) throw new Error(`MemoryVault: read of absent ${path}`);
-      return bytes;
-    },
-    write: (path, content) => {
-      this.files.set(path, new Uint8Array(content));
-    },
-    remove: (path) => {
-      this.files.delete(path);
-    },
-  };
-
-  writeText(path: string, text: string): void {
-    this.files.set(path, enc.encode(text));
-  }
-
-  readText(path: string): string | null {
-    const bytes = this.files.get(path);
-    return bytes === undefined ? null : dec.decode(bytes);
-  }
-
-  delete(path: string): void {
-    this.files.delete(path);
-  }
-}
-
-function encode(text: string): Uint8Array {
-  return enc.encode(text);
-}
 
 let vault: MemoryVault;
 let base: InMemoryBaseStore;
@@ -146,7 +95,8 @@ describe("SyncEngine.syncOnce", () => {
     vault.writeText("a.md", "AAA");
     await newEngine().syncOnce(); // converge + advance base
 
-    const genAfterFirst = port.currentGeneration();
+    const putSpy = vi.spyOn(port, "putFile");
+    const deleteSpy = vi.spyOn(port, "deleteFile");
     // A fresh engine reads the persisted base — nothing should move.
     const out = await newEngine().syncOnce();
 
@@ -159,7 +109,9 @@ describe("SyncEngine.syncOnce", () => {
       merged: 0,
       conflictPaths: [],
     });
-    expect(port.currentGeneration()).toBe(genAfterFirst); // no coordinator writes
+    // No coordinator writes.
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
   });
 
   it("resolves a both-sides edit: winner keeps the path, loser becomes a conflict copy", async () => {
@@ -259,7 +211,6 @@ describe("SyncEngine mass-deletion guard (#429)", () => {
     await newEngine().syncOnce();
     const baseBefore = base.load();
     expect(baseBefore?.files).toHaveLength(2);
-    const genBefore = port.currentGeneration();
 
     // The vault now lists NOTHING — indistinguishable from a truncated/failed
     // crawl (which is exactly why the engine must refuse).
@@ -274,11 +225,10 @@ describe("SyncEngine mass-deletion guard (#429)", () => {
       status: "error",
       message: expect.stringContaining("mass deletion"),
     });
-    // ZERO ops reached the coordinator — no deletes, no writes, no generation
-    // bump; every remote file survives.
+    // ZERO ops reached the coordinator — no deletes, no writes; every remote
+    // file survives.
     expect(deleteSpy).not.toHaveBeenCalled();
     expect(putSpy).not.toHaveBeenCalled();
-    expect(port.currentGeneration()).toBe(genBefore);
     expect(await remoteText("a.md")).toBe("AAA");
     expect(await remoteText("notes/b.md")).toBe("BBB");
     // The base anchor is untouched, so the next pass retries from the same
@@ -355,7 +305,7 @@ describe("SyncEngine mass-deletion guard (#429)", () => {
 
 describe("SyncEngine.scheduleSync (debounced) — onOutcome", () => {
   // Mirrors "resolves a both-sides edit" above, but the pass is triggered by
-  // the internal debounce (scheduleSync/onVaultChanged) instead of an
+  // the internal debounce (scheduleSync) instead of an
   // explicit syncOnce() — a caller that never calls syncOnce() directly (a
   // remote-change subscription, a periodic timer) must still learn the
   // outcome, which is exactly what a platform's coordinator needs to surface
@@ -383,7 +333,7 @@ describe("SyncEngine.scheduleSync (debounced) — onOutcome", () => {
       resolveSeen?.();
     });
 
-    engine.onVaultChanged(); // the debounced path — NOT syncOnce()
+    engine.scheduleSync(); // the debounced path — NOT syncOnce()
     await seen;
 
     expect(outcomes).toHaveLength(1);

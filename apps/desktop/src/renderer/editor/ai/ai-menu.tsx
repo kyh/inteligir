@@ -45,7 +45,6 @@ type MenuItem = {
   label: string;
   icon: React.ReactNode;
   run: () => void;
-  keywords?: string[];
 };
 
 const BUSY_LABEL: Partial<Record<AiMenuStatus, string>> = {
@@ -142,7 +141,6 @@ export function AiMenu() {
         key: action.id,
         label: action.label,
         icon: <SparklesIcon />,
-        keywords: action.keywords,
         run: () => runCannedAction(editor, action.id),
       }));
     if (

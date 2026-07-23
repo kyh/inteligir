@@ -9,7 +9,6 @@ import {
   formatChangeFrame,
   formatVersionHeader,
   manifestPath,
-  parseBearer,
   parseFilePathParam,
   parseVersionHeader,
   SSE_CHANGE_EVENT,
@@ -83,15 +82,8 @@ describe("version header", () => {
 });
 
 describe("bearer auth", () => {
-  it("formats and parses a token round-trip", () => {
+  it("formats a bearer authorization header value", () => {
     expect(formatBearer("tok123")).toBe("Bearer tok123");
-    expect(parseBearer("Bearer tok123")).toBe("tok123");
-  });
-
-  it("returns null when missing, wrong scheme, or blank", () => {
-    expect(parseBearer(null)).toBeNull();
-    expect(parseBearer("Basic abc")).toBeNull();
-    expect(parseBearer("Bearer ")).toBeNull();
   });
 });
 

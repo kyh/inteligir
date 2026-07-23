@@ -19,13 +19,10 @@ import { isRecord } from "./guards";
 
 /**
  * A coordinator snapshot: every file in a vault with its assigned version, at a
- * point in time. `generation` is a vault-wide monotonic counter bumped on every
- * accepted mutation, so a client can cheaply tell "nothing changed since the
- * generation I last synced" without diffing the whole file list.
+ * point in time.
  */
 export type VaultManifest = {
   readonly vaultId: string;
-  readonly generation: number;
   readonly files: readonly VaultFile[];
 };
 
@@ -76,8 +73,8 @@ export function parseVaultFile(raw: unknown): VaultFile | null {
  * malformed (all-or-nothing — a partial manifest would corrupt a 3-way diff). */
 export function parseVaultManifest(raw: unknown): VaultManifest | null {
   if (!isRecord(raw)) return null;
-  const { vaultId, generation, files } = raw;
-  if (typeof vaultId !== "string" || !isNonNegativeInt(generation) || !Array.isArray(files)) {
+  const { vaultId, files } = raw;
+  if (typeof vaultId !== "string" || !Array.isArray(files)) {
     return null;
   }
   const parsed: VaultFile[] = [];
@@ -86,5 +83,5 @@ export function parseVaultManifest(raw: unknown): VaultManifest | null {
     if (!file) return null;
     parsed.push(file);
   }
-  return { vaultId, generation, files: parsed };
+  return { vaultId, files: parsed };
 }

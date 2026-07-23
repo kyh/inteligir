@@ -85,11 +85,10 @@ Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
 the limiter.
 
-> **Never run `db:push`, `db:push:remote` or `db:studio`.** All three load
-> `drizzle.config.ts` (`driver: "d1-http"`) and hit the PRODUCTION D1 —
-> `db:push` differs from `db:push:remote` only in which env file it reads, and
-> `db:studio` is a read/write UI over that same database, not a local
-> inspector. The only local command is `db:push:local`.
+> **Never run `db:push` or `db:studio`.** Both load `drizzle.config.ts`
+> (`driver: "d1-http"`) with the root `.env.production.local` creds and hit
+> the PRODUCTION D1 — `db:studio` is a read/write UI over that same database,
+> not a local inspector. The only local command is `db:push:local`.
 
 ## Verify a change end-to-end
 

@@ -8,8 +8,6 @@ import * as React from "react";
 import { CheckCheckIcon, CheckIcon, ChevronLeft, ChevronRight, XIcon } from "lucide-react";
 import { useEditorRef, useEditorSelector, usePluginOption } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
-
 import { suggestionPlugin } from "@renderer/editor/ai/suggestion-kit";
 import {
   firstSuggestionNode,
@@ -17,35 +15,7 @@ import {
   resolveSuggestion,
   transientSuggestionIds,
 } from "@renderer/editor/ai/suggestions";
-
-function BarButton({
-  onClick,
-  title,
-  children,
-  variant = "default",
-}: {
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-  variant?: "default" | "primary" | "danger";
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      onMouseDown={(event) => event.preventDefault()}
-      className={cn(
-        "flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors [&_svg]:size-3.5",
-        variant === "default" && "text-foreground hover:bg-accent",
-        variant === "primary" && "text-primary hover:bg-primary/10",
-        variant === "danger" && "text-muted-foreground hover:bg-muted hover:text-destructive",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
+import { BarButton } from "@renderer/editor/toolbar-button";
 
 export function SuggestionReviewBar() {
   const editor = useEditorRef();

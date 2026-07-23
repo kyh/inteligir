@@ -133,7 +133,7 @@ function makeRestoreRig(initial = DOC) {
     restore,
     isProviderConnected: () => true,
   });
-  return { mgr, state, writes, snapshots };
+  return { mgr, state, writes, snapshots, restore };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -514,7 +514,7 @@ describe("DelegationManager.restoreSnapshot", () => {
     // The agent edited the file after the snapshot was taken.
     rig.state.live = "## Today\n\n- [x] task one\n  - ✅ did it\n- [ ] task two\n";
 
-    expect(rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
+    expect(await rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
     expect(rig.writes).toEqual([{ path: "n.md", content: DOC }]);
     expect(rig.state.live).toBe(DOC); // byte-identical to the pre-run copy
     expect(rig.mgr.getDelegations()[0]?.restoredAt).not.toBeNull();
@@ -524,7 +524,7 @@ describe("DelegationManager.restoreSnapshot", () => {
     const rig = makeRestoreRig();
     const id = await runOne(rig);
 
-    expect(rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
+    expect(await rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
     expect(rig.writes).toEqual([]); // no write → no watcher churn
     expect(rig.mgr.getDelegations()[0]?.restoredAt).not.toBeNull();
   });
@@ -535,7 +535,7 @@ describe("DelegationManager.restoreSnapshot", () => {
 
     rig.state.live = null; // file deleted — readVault now throws
 
-    expect(rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
+    expect(await rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
     expect(rig.writes).toEqual([{ path: "n.md", content: DOC }]);
   });
 
@@ -548,19 +548,19 @@ describe("DelegationManager.restoreSnapshot", () => {
     await flush();
     expect(rig.mgr.getDelegations()[0]?.status).toBe("running");
 
-    const result = rig.mgr.restoreSnapshot(id);
+    const result = await rig.mgr.restoreSnapshot(id);
     expect(result.ok).toBe(false);
     expect(rig.writes).toEqual([]);
   });
 
-  it("rejects an unknown delegation and a delegation that never snapshotted", () => {
+  it("rejects an unknown delegation and a delegation that never snapshotted", async () => {
     const rig = makeRestoreRig();
-    expect(rig.mgr.restoreSnapshot("nope").ok).toBe(false);
+    expect((await rig.mgr.restoreSnapshot("nope")).ok).toBe(false);
 
     // Queued (no runner) → never ran, no snapshot, and also not terminal.
     const created = rig.mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
     const id = created.ok ? created.delegation.id : "";
-    expect(rig.mgr.restoreSnapshot(id).ok).toBe(false);
+    expect((await rig.mgr.restoreSnapshot(id)).ok).toBe(false);
     expect(rig.writes).toEqual([]);
   });
 
@@ -589,10 +589,10 @@ describe("DelegationManager.restoreSnapshot", () => {
     await flush();
     expect(rig.mgr.getDelegations().map((d) => d.status)).toEqual(["done", "done"]);
 
-    expect(rig.mgr.restoreSnapshot(secondId)).toEqual({ ok: true });
+    expect(await rig.mgr.restoreSnapshot(secondId)).toEqual({ ok: true });
     expect(rig.state.live).toBe(afterFirst); // undo just the second edit
 
-    expect(rig.mgr.restoreSnapshot(firstId)).toEqual({ ok: true });
+    expect(await rig.mgr.restoreSnapshot(firstId)).toEqual({ ok: true });
     expect(rig.state.live).toBe(DOC); // back to the original document
   });
 
@@ -605,7 +605,7 @@ describe("DelegationManager.restoreSnapshot", () => {
     // The "agent" checks the box and appends a result on its own line endings.
     rig.state.live = `${nasty.replace("- [ ]", "- [x]")}\n  - ✅ done\n`;
 
-    expect(rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
+    expect(await rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
     expect(rig.state.live).toBe(nasty); // byte-identical, not merely equivalent
   });
 
@@ -623,9 +623,9 @@ describe("DelegationManager.restoreSnapshot", () => {
         `filler ${i}`,
       );
     }
-    rig.mgr.pruneSnapshots();
+    rig.mgr.applyPrunedSnapshots(rig.restore.prune());
 
-    const result = rig.mgr.restoreSnapshot(id);
+    const result = await rig.mgr.restoreSnapshot(id);
     expect(result).toMatchObject({ ok: false });
     if (!result.ok) expect(result.error).toContain("No saved copy");
     expect(rig.writes).toEqual([]);

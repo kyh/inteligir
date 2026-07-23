@@ -6,7 +6,6 @@ import { createJsonFileBaseStore, type JsonFile } from "../base-store";
 const HASH = "a".repeat(64);
 const MANIFEST: VaultManifest = {
   vaultId: "vault-1",
-  generation: 3,
   files: [
     { path: "a.md", contentHash: HASH, version: 2, size: 5 },
     { path: "notes/b.md", contentHash: "b".repeat(64), version: 1, size: 9 },
@@ -52,7 +51,6 @@ describe("createJsonFileBaseStore", () => {
     backing.file.write(
       JSON.stringify({
         vaultId: "vault-1",
-        generation: 0,
         files: [{ path: "a.md", contentHash: "nothex", version: 1, size: 1 }],
       }),
     );
@@ -61,7 +59,7 @@ describe("createJsonFileBaseStore", () => {
 
   it("returns null when required fields are missing", () => {
     const backing = fakeJsonFile();
-    backing.file.write(JSON.stringify({ vaultId: "vault-1", files: [] }));
+    backing.file.write(JSON.stringify({ vaultId: "vault-1" }));
     expect(createJsonFileBaseStore(backing.file).load()).toBeNull();
   });
 });

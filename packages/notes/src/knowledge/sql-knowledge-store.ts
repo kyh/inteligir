@@ -26,7 +26,7 @@ import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 5; // 5: dropped the unused resolution-key schema (stem/alias_ci/doc_keys, links/tags indexes) — resolution is 100% in-memory LinkGraphIndex
+export const KNOWLEDGE_SCHEMA_VERSION = 6; // 6: dropped the unread links.span_start/span_end columns (only targetSpan is consumed) — wipe-and-rebuild is the migration
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 export type SqlValue = null | number | string;
@@ -86,8 +86,6 @@ CREATE TABLE links (
   alias TEXT,
   line INTEGER NOT NULL,
   snippet TEXT NOT NULL,
-  span_start INTEGER NOT NULL,
-  span_end INTEGER NOT NULL,
   target_span_start INTEGER,
   target_span_end INTEGER,
   PRIMARY KEY (source_path, ord)
@@ -230,7 +228,6 @@ function parseStoredLink(row: SqlRow): StoredLink {
     embed: columnNumber(row, "embed") !== 0,
     target: columnString(row, "target"),
     line: columnNumber(row, "line"),
-    span: { start: columnNumber(row, "span_start"), end: columnNumber(row, "span_end") },
     snippet: columnString(row, "snippet"),
   };
   const anchor = columnStringOrNull(row, "anchor");
@@ -368,7 +365,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
         });
       }
       for (const row of driver.all(
-        "SELECT source_path, kind, embed, target, anchor, alias, line, snippet, span_start, span_end, target_span_start, target_span_end FROM links ORDER BY source_path, ord",
+        "SELECT source_path, kind, embed, target, anchor, alias, line, snippet, target_span_start, target_span_end FROM links ORDER BY source_path, ord",
         [],
       )) {
         docs.get(columnString(row, "source_path"))?.projection.links.push(parseStoredLink(row));
@@ -417,8 +414,8 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
         deleteChildren(row.path);
         for (const [ord, link] of projection.links.entries()) {
           driver.run(
-            `INSERT INTO links (source_path, ord, kind, embed, target, anchor, alias, line, snippet, span_start, span_end, target_span_start, target_span_end)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO links (source_path, ord, kind, embed, target, anchor, alias, line, snippet, target_span_start, target_span_end)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               row.path,
               ord,
@@ -429,8 +426,6 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
               link.alias ?? null,
               link.line,
               link.snippet,
-              link.span.start,
-              link.span.end,
               link.targetSpan?.start ?? null,
               link.targetSpan?.end ?? null,
             ],

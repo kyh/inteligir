@@ -155,12 +155,6 @@ export class VaultEditorController {
     this.emit({ path: null, content: "", dirty: false });
   }
 
-  /** Drop the open file (e.g. after the component switches folder). */
-  clear(): void {
-    this.readSeq++;
-    this.emit({ path: null, content: "", dirty: false });
-  }
-
   private async reloadOpen(): Promise<void> {
     const path = this.st.path;
     // Never reload over unsaved edits or under an in-flight save.

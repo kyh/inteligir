@@ -14,16 +14,16 @@
 //     is identical either way (parent-window postMessage).
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCwIcon, FileTextIcon } from "lucide-react";
 
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { Button } from "@repo/ui/components/button";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 
 import { injectHtmlAppRuntime } from "@/html-app-inject";
+import { confirmVaultDelete } from "@renderer/components/confirm-vault-delete";
 import { getBridge } from "@renderer/lib/bridge";
 import { handleBrokerRequest } from "@renderer/workspace/html-app-broker";
 import { openDocPath } from "@renderer/workspace/open-doc";
@@ -158,17 +158,6 @@ export function HtmlAppView() {
     return unsubscribe;
   }, [openPath]);
 
-  const confirmRemove = useCallback(
-    (path: string) =>
-      confirm({
-        title: `Delete ${path}?`,
-        body: "This permanently deletes the file from your vault.",
-        confirmLabel: "Delete",
-        destructive: true,
-      }),
-    [],
-  );
-
   // Broker: validate the envelope + frame + token, dispatch, post the response.
   useEffect(() => {
     const bridge = getBridge();
@@ -188,7 +177,7 @@ export function HtmlAppView() {
           const value = await handleBrokerRequest(msg.method, msg.args, {
             bridge,
             openFile,
-            confirmRemove,
+            confirmRemove: confirmVaultDelete,
           });
           reply({ ok: true, value });
         } catch (err) {
@@ -198,7 +187,7 @@ export function HtmlAppView() {
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [openFile, confirmRemove]);
+  }, [openFile]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

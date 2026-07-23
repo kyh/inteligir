@@ -13,8 +13,7 @@ export type RawReason =
   | { kind: "parse-error"; message: string; line: number | null }
   | { kind: "unknown-jsx"; name: string } // <Steps>, <div>, <kbd>, <> fragments
   | { kind: "jsx-attr"; name: string; attr: string } // non-string / bare / spread attr
-  | { kind: "expression" } // {count}, {1+1} (agnostic expressions)
-  | { kind: "esm" }; // unreachable under agnostic MDX; kept for safety
+  | { kind: "expression" }; // {count}, {1+1} (agnostic expressions)
 
 // The fixed vocabulary (this phase). Flow tags map to block nodes; `date` is
 // the only inline (text) JSX element — but it is ALSO admitted in flow
@@ -79,8 +78,6 @@ function scanNode(node: Nodes): RawReason | null {
     case "mdxFlowExpression":
     case "mdxTextExpression":
       return { kind: "expression" };
-    case "mdxjsEsm":
-      return { kind: "esm" };
     default:
       break;
   }

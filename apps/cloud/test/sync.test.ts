@@ -97,11 +97,11 @@ async function readDelete(res: Response): Promise<DeleteResult> {
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s);
 
 describe("vault sync coordinator", () => {
-  it("manifest of an empty vault is empty at generation 0", async () => {
+  it("manifest of an untouched vault is empty", async () => {
     const res = await getManifest("vault-empty");
     expect(res.status).toBe(200);
     const manifest = await readManifest(res);
-    expect(manifest).toEqual({ vaultId: "vault-empty", generation: 0, files: [] });
+    expect(manifest).toEqual({ vaultId: "vault-empty", files: [] });
   });
 
   it("rejects a request with no / wrong bearer token (401)", async () => {
@@ -127,7 +127,6 @@ describe("vault sync coordinator", () => {
     expect(put.file.size).toBe(content.length);
 
     const manifest = await readManifest(await getManifest(vaultId));
-    expect(manifest.generation).toBe(1);
     expect(manifest.files).toEqual([put.file]);
   });
 
@@ -182,10 +181,9 @@ describe("vault sync coordinator", () => {
     const ok = await readDelete(await deleteFile(vaultId, "d.md", 1));
     expect(ok.ok).toBe(true);
 
-    // Gone from the manifest (generation advanced), and GET is 404.
+    // Gone from the manifest, and GET is 404.
     const manifest = await readManifest(await getManifest(vaultId));
     expect(manifest.files).toEqual([]);
-    expect(manifest.generation).toBe(2); // create + delete
     expect((await getFile(vaultId, "d.md")).status).toBe(404);
 
     // Deleting an absent file -> not-found.

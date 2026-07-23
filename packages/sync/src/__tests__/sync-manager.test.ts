@@ -47,7 +47,6 @@ describe("createJsonBaseStore", () => {
     const basePath = path.join(tmp, "base.json");
     const manifest: VaultManifest = {
       vaultId: VAULT_ID,
-      generation: 3,
       files: [{ path: "a.md", contentHash: sha256Hex("AAA"), version: 2, size: 3 }],
     };
     createJsonBaseStore(VAULT_ID, { path: basePath }).save(manifest);
@@ -57,7 +56,7 @@ describe("createJsonBaseStore", () => {
 
   it("returns the persisted manifest as-is even when scoped to a different vaultId — the engine, not the store, guards against a foreign anchor (engine.ts loadBase)", () => {
     const basePath = path.join(tmp, "base.json");
-    const manifest: VaultManifest = { vaultId: VAULT_ID, generation: 1, files: [] };
+    const manifest: VaultManifest = { vaultId: VAULT_ID, files: [] };
     createJsonBaseStore(VAULT_ID, { path: basePath }).save(manifest);
     expect(createJsonBaseStore("other-vault", { path: basePath }).load()).toEqual(manifest);
   });
@@ -66,9 +65,9 @@ describe("createJsonBaseStore", () => {
     // Desktop base files predating this refactor carried a
     // {version, vaultId, generation, files} envelope. The lifted store
     // persists the bare manifest, so an old file either still parses (the
-    // extra `version` key is tolerated — parseVaultManifest ignores unknown
-    // keys) or fails validation and the store starts from empty. Either way
-    // it must not throw.
+    // extra `version`/`generation` keys are tolerated — parseVaultManifest
+    // ignores unknown keys) or fails validation and the store starts from
+    // empty. Either way it must not throw.
     const basePath = path.join(tmp, "old-envelope.json");
     fs.writeFileSync(
       basePath,
@@ -79,7 +78,7 @@ describe("createJsonBaseStore", () => {
     expect(() => store.load()).not.toThrow();
     const loaded = store.load();
     if (loaded !== null) {
-      expect(loaded).toEqual({ vaultId: VAULT_ID, generation: 2, files: [] });
+      expect(loaded).toEqual({ vaultId: VAULT_ID, files: [] });
     }
   });
 });

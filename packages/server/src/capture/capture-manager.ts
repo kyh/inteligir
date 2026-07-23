@@ -31,18 +31,11 @@ import {
   type FsAdapter,
 } from "@repo/storage/json-store";
 import { emitEvent } from "../events";
-import { getUiState } from "../ui-state";
+import { resolveDailyNotePath } from "../daily-note";
 import { getVaultManager } from "@repo/vault/vault";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
-import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
-import {
-  DAILY_FOLDER_KEY,
-  DAILY_FORMAT_KEY,
-  DAILY_TEMPLATE_PATH,
-  DEFAULT_DAILY_FOLDER,
-  DEFAULT_DAILY_FORMAT,
-  applyTemplate,
-} from "@repo/bridge/daily-notes";
+import { formatIsoDate } from "@repo/notes/daily-path";
+import { DAILY_TEMPLATE_PATH, applyTemplate } from "@repo/bridge/daily-notes";
 import {
   appendCaptureLine,
   formatCaptureLine,
@@ -133,18 +126,9 @@ export class CaptureManager {
 
   constructor(opts: CaptureManagerOptions = {}) {
     this.io = opts.io ?? defaultIo();
-    this.dailyPath =
-      opts.dailyPath ??
-      (() => {
-        const uiState = getUiState().getAll();
-        const folder = uiState[DAILY_FOLDER_KEY];
-        const format = uiState[DAILY_FORMAT_KEY];
-        return dailyNotePath(
-          typeof folder === "string" ? folder : DEFAULT_DAILY_FOLDER,
-          typeof format === "string" ? format : DEFAULT_DAILY_FORMAT,
-          this.now(),
-        );
-      });
+    // Safe closure: `this.now` is assigned below but only read lazily, at
+    // drain/enqueue time.
+    this.dailyPath = opts.dailyPath ?? (() => resolveDailyNotePath(this.now()));
     this.readTemplate =
       opts.readTemplate ??
       (() => {

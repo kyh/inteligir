@@ -360,13 +360,13 @@ export class DelegationManager {
    * (renameSource keeps it pointing at the moved file), and `restoredAt` is
    * recorded on success (a no-op restore counts — the user's intent
    * succeeded). */
-  restoreSnapshot(id: string): RestoreSnapshotResult {
+  async restoreSnapshot(id: string): Promise<RestoreSnapshotResult> {
     const delegation = this.getDelegations().find((d) => d.id === id);
     if (!delegation) return { ok: false, error: "Unknown delegation." };
     if (delegation.status === "queued" || delegation.status === "running") {
       return { ok: false, error: "Wait for the delegation to finish before restoring." };
     }
-    const result = this.restore.restoreDelegationSnapshot(id, delegation.sourceFile);
+    const result = await this.restore.restoreRunSnapshot("delegation", id, delegation.sourceFile);
     if (!result.ok) return result;
     // The queued/running guard above makes the record terminal here — the only
     // variants that carry a settable restoredAt.
@@ -376,16 +376,10 @@ export class DelegationManager {
     return { ok: true };
   }
 
-  /** Retention sweep for the snapshot store — run once at host start. Pruned
-   * records lose `hasSnapshot` at the data level so no surface (present or
-   * future) can offer a restore whose bytes are gone. */
-  pruneSnapshots(): void {
-    this.applyPrunedSnapshots(this.restore.prune());
-  }
-
-  /** Clear `hasSnapshot` on records whose pre-run bytes a sweep just pruned.
-   * Split from pruneSnapshots so the composition root can run ONE store
-   * sweep and fan the pruned ids to every manager sharing the store (the
+  /** Clear `hasSnapshot` on records whose pre-run bytes a sweep just pruned —
+   * at the data level, so no surface (present or future) can offer a restore
+   * whose bytes are gone. The composition root runs ONE store sweep at host
+   * start and fans the pruned ids to every manager sharing the store (the
    * routines manager holds routine-origin snapshots in the same store). */
   applyPrunedSnapshots(ids: string[]): void {
     const prunedIds = new Set(ids);

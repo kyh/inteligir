@@ -10,7 +10,6 @@ const configDir = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => ({
   main: {
-    plugins: [],
     define: {
       PROJECT_ROOT: JSON.stringify(configDir),
       // Bundled Google OAuth client, baked into the main bundle at build time
@@ -52,10 +51,6 @@ export default defineConfig(() => ({
     },
   },
   preload: {
-    plugins: [],
-    resolve: {
-      alias: { "@": resolve(configDir, "src") },
-    },
     build: {
       outDir: ".output/app/preload",
       lib: {

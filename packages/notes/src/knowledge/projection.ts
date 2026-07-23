@@ -17,7 +17,7 @@ import { scanDoc, titleFromPath } from "./link-extract";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
-export const PROJECTION_VERSION = 4; // 4: docs gained `tasks` (GFM task items)
+export const PROJECTION_VERSION = 5; // 5: links dropped the unread whole-construct `span` (StoredLink shape changed)
 
 const SNIPPET_MAX = 200;
 
