@@ -10,10 +10,8 @@ export type InstallCliFromGithubReleaseOptions = {
   owner: string;
   /** Repository name. */
   repo: string;
-  /** Release version (without tag prefix), e.g. "0.22.5". */
+  /** Release version (without the leading "v"), e.g. "0.22.5" → tag v0.22.5. */
   version: string;
-  /** Tag prefix on the GitHub release. Default "v" (so `version` 0.22.5 → tag v0.22.5). */
-  tagPrefix?: string;
   /**
    * Returns the release artifact filename for the current platform/arch.
    * Caller picks the naming convention upstream uses — some projects use LLVM
@@ -44,19 +42,14 @@ export type InstallCliFromGithubReleaseOptions = {
   archiveBinPath?: string;
   /**
    * Integrity check:
-   * - "sha256-sidecar" (default): expects `${artifactUrl}.sha256` next to the artifact.
    * - "checksums-txt": expects `checksums.txt` at the release root with
    *   `<hex>  <filename>` lines; we find the row matching our artifact.
    * - "inline-sha256": uses `sha256` (a per-artifact hash baked into this app).
-   *   Stronger than the upstream-checksum modes — guards against a compromised
+   *   Stronger than the upstream-checksum mode — guards against a compromised
    *   release too, not just transport corruption. Use when the maintainer is
    *   willing to update the pinned hash on every dependency bump.
-   * - "version-check": runs `${binName} --version` on the staged binary and
-   *   matches against `version`. Weakest — a malicious binary that fakes
-   *   --version output passes. Reserve for upstreams that publish neither
-   *   checksums nor stable enough release engineering to pin against.
    */
-  verify?: "sha256-sidecar" | "checksums-txt" | "inline-sha256" | "version-check";
+  verify: "checksums-txt" | "inline-sha256";
   /**
    * Per-artifact SHA-256 hex hash, required when `verify === "inline-sha256"`.
    * Keys are artifact filenames as returned by `artifactName()`, values are
@@ -86,8 +79,8 @@ export type InstallCliFromGithubReleaseOptions = {
  * Failures are swallowed and logged — onboarding must succeed offline. The caller's
  * tool surfaces "binary not installed" later.
  *
- * NOTE on checksum-based verify modes: the checksum and the artifact share the
- * same origin, so they only guard against download corruption — not a
+ * NOTE on the checksums-txt mode: the checksum and the artifact share the
+ * same origin, so it only guards against download corruption — not a
  * compromised upstream release.
  */
 export async function installCliFromGithubRelease(
@@ -134,9 +127,8 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
   }
 
   const artifactKind = opts.artifactKind ?? "tarball";
-  const verify = opts.verify ?? "sha256-sidecar";
   const archiveBinPath = opts.archiveBinPath ?? opts.binName;
-  const tag = `${opts.tagPrefix ?? "v"}${opts.version}`;
+  const tag = `v${opts.version}`;
   const releaseBaseUrl = `https://github.com/${opts.owner}/${opts.repo}/releases/download/${tag}`;
   const artifactUrl = `${releaseBaseUrl}/${artifact}`;
   const stagingDir = path.join(opts.binDir, `.${opts.binName}-staging-${process.pid}`);
@@ -155,10 +147,10 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
   console.log(`[install] downloading ${opts.binName} from ${artifactUrl}`);
 
   try {
-    if (verify === "sha256-sidecar" || verify === "checksums-txt") {
-      const expectedSha = await fetchExpectedSha(verify, artifactUrl, releaseBaseUrl, artifact);
+    if (opts.verify === "checksums-txt") {
+      const expectedSha = await fetchExpectedSha(releaseBaseUrl, artifact);
       await downloadVerified(artifactUrl, stagedArtifactPath, expectedSha);
-    } else if (verify === "inline-sha256") {
+    } else {
       const expectedSha = opts.sha256?.[artifact];
       if (!expectedSha || !/^[0-9a-f]{64}$/.test(expectedSha)) {
         throw new Error(
@@ -168,8 +160,6 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
         );
       }
       await downloadVerified(artifactUrl, stagedArtifactPath, expectedSha);
-    } else {
-      await downloadFile(artifactUrl, stagedArtifactPath);
     }
 
     if (artifactKind === "tarball") {
@@ -180,15 +170,6 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
     }
 
     fs.chmodSync(stagedBinPath, 0o755);
-
-    if (verify === "version-check") {
-      const reported = await getInstalledVersion(stagedBinPath);
-      if (reported !== opts.version) {
-        throw new Error(
-          `version check failed: expected ${opts.version}, got ${reported ?? "unknown"}`,
-        );
-      }
-    }
 
     if (artifactKind === "archive") {
       // Multi-file artifact: move every extracted file into binDir (binary +
@@ -222,35 +203,22 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
   }
 }
 
-async function fetchExpectedSha(
-  mode: "sha256-sidecar" | "checksums-txt",
-  artifactUrl: string,
-  releaseBaseUrl: string,
-  artifact: string,
-): Promise<string> {
-  const url =
-    mode === "sha256-sidecar" ? `${artifactUrl}.sha256` : `${releaseBaseUrl}/checksums.txt`;
+async function fetchExpectedSha(releaseBaseUrl: string, artifact: string): Promise<string> {
+  const url = `${releaseBaseUrl}/checksums.txt`;
   const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
   if (!resp.ok) {
     throw new Error(`checksum fetch failed: ${resp.status} ${resp.statusText}`);
   }
   const text = await resp.text();
 
-  // sha256-sidecar files are `<hex>  <filename>` (one line); checksums.txt is
-  // the same line format but with one entry per release artifact. Both reduce
-  // to: find the line for our artifact and take its first whitespace-delimited
-  // token. For sidecar files we accept any single line since most upstreams
-  // omit the filename column entirely.
-  let expectedSha: string | undefined;
-  if (mode === "sha256-sidecar") {
-    expectedSha = text.trim().split(/\s+/)[0]?.toLowerCase();
-  } else {
-    expectedSha = text
-      .split("\n")
-      .map((line) => line.trim().split(/\s+/))
-      .find(([, name]) => name === artifact)?.[0]
-      ?.toLowerCase();
-  }
+  // checksums.txt is `<hex>  <filename>` lines, one entry per release
+  // artifact: find the line for our artifact and take its first
+  // whitespace-delimited token.
+  const expectedSha = text
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/))
+    .find(([, name]) => name === artifact)?.[0]
+    ?.toLowerCase();
 
   if (!expectedSha || !/^[0-9a-f]{64}$/.test(expectedSha)) {
     throw new Error(`checksum for ${artifact} not found / invalid in ${url}`);
@@ -285,14 +253,6 @@ async function downloadVerified(url: string, dest: string, expectedSha: string):
 
 function isHashableChunk(chunk: unknown): chunk is NodeJS.ArrayBufferView {
   return ArrayBuffer.isView(chunk);
-}
-
-async function downloadFile(url: string, dest: string): Promise<void> {
-  const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
-  if (!resp.ok || !resp.body) {
-    throw new Error(`fetch failed: ${resp.status} ${resp.statusText}`);
-  }
-  await pipeline(resp.body, await openWriteStream(dest));
 }
 
 /**

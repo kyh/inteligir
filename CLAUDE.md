@@ -56,7 +56,7 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  # place @earendil-works/pi* may be imported). The server injects AgentPorts.
   storage/       # Node fs/json substrate (@repo/storage) — versioned JsonStore over
                  # ~/.inteligir, atomic-write, host lock, hardenAppDir sweep, agent.log
-                 # tee, encrypted SecretStore (cipher injected by the host)
+                 # tee
   vault/         # VaultManager (@repo/vault) — the user's markdown folder: confined IO,
                  # ephemeral listing + open-note watcher, pure change classifier; host
                  # callbacks (notifier, workspace link dir, OS trash) injected
@@ -88,8 +88,8 @@ The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
 fact, not a lint opinion. The extracted host packages (storage, vault, voice,
 connectors, sync) sit BELOW server: they never import @repo/server (that
 would be a package cycle) or electron — upward needs cross module-scoped
-install seams the composition root fills (setSecretCipherProvider,
-setVaultTrashItem, configureVoiceModelHost,
+install seams the composition root fills (setVaultTrashItem,
+configureVoiceModelHost,
 setSyncEventSink/setSyncVaultAccessor; ConnectorInstallOps binds openExternal
 per call).
 

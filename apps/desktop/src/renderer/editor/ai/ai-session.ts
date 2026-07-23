@@ -44,17 +44,11 @@ import {
   CANNED_ACTIONS,
   editInstructionFor,
   generatePromptFor,
-  TRANSLATE_LANGUAGES,
   type CannedActionId,
 } from "@renderer/editor/ai/ai-prompts";
 import { runManager } from "@renderer/editor/ai/run-manager";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
 import { hasConnectedProvider, useAiProviderStore } from "@renderer/stores/ai-provider-store";
-
-// The menu UI + canned-action tests import these from here — re-exported so
-// their import paths stay put while the definitions live in ai-prompts.ts.
-export { CANNED_ACTIONS, TRANSLATE_LANGUAGES };
-export type { CannedActionId };
 
 // ---------------------------------------------------------------------------
 // Plugin state

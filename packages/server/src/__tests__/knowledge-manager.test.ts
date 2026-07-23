@@ -13,7 +13,7 @@ let tmp: string;
 let root: string;
 let settingsPath: string;
 let vault: VaultManager;
-let updates: number[];
+let updates: number;
 let manager: KnowledgeManager;
 /** Store-write counters, reset per open — pins "hydration means zero writes". */
 let counts: { upsertDoc: number; updateFingerprint: number };
@@ -36,7 +36,7 @@ function countingStore(store: KnowledgeStore): KnowledgeStore {
 function newManager(openStore?: (r: string) => KnowledgeStore): KnowledgeManager {
   return new KnowledgeManager(
     () => vault,
-    (revision) => updates.push(revision),
+    () => updates++,
     openStore ?? ((r) => countingStore(createSqliteKnowledgeStore(":memory:", r))),
   );
 }
@@ -47,7 +47,7 @@ beforeEach(() => {
   settingsPath = path.join(tmp, "settings.json");
   vault = new VaultManager({ settingsPath, defaultRoot: root, manageAgentLink: false });
   vault.ensureReady();
-  updates = [];
+  updates = 0;
   counts = { upsertDoc: 0, updateFingerprint: 0 };
   manager = newManager();
 });
@@ -69,10 +69,10 @@ describe("KnowledgeManager", () => {
     expect(manager.backlinks("target.md")).toEqual([
       expect.objectContaining({ sourcePath: "hub.md", snippet: "links to [[target]]" }),
     ]);
-    expect(updates).toEqual([1]);
+    expect(updates).toBe(1);
   });
 
-  it("picks up writes incrementally and bumps the revision", async () => {
+  it("picks up writes incrementally and emits an update", async () => {
     vault.writeText("target.md", "# Target\n");
     await manager.refresh();
     expect(manager.backlinks("target.md")).toEqual([]);
@@ -80,7 +80,7 @@ describe("KnowledgeManager", () => {
     vault.writeText("hub.md", "now links to [[target]]\n");
     await manager.refresh();
     expect(manager.backlinks("target.md")).toHaveLength(1);
-    expect(updates).toEqual([1, 2]);
+    expect(updates).toBe(2);
   });
 
   it("re-indexes an atomic swap that collides on mtime and size (ino differs)", async () => {
@@ -102,14 +102,14 @@ describe("KnowledgeManager", () => {
     vault.refresh();
     await manager.refresh();
     expect(manager.forwardLinks("note.md").map((l) => l.target)).toEqual(["bravo"]);
-    expect(updates).toEqual([1, 2]);
+    expect(updates).toBe(2);
   });
 
   it("does not emit when nothing changed", async () => {
     vault.writeText("note.md", "# Note\n");
     await manager.refresh();
     await manager.refresh();
-    expect(updates).toEqual([1]);
+    expect(updates).toBe(1);
   });
 
   it("persists fingerprints on an mtime-only rewrite without re-projecting", async () => {
@@ -126,7 +126,7 @@ describe("KnowledgeManager", () => {
     await manager.refresh();
     expect(counts.upsertDoc).toBe(1);
     expect(counts.updateFingerprint).toBe(1);
-    expect(updates).toEqual([1]);
+    expect(updates).toBe(1);
 
     // The persisted fingerprint holds: the next pass is entirely quiet.
     vault.refresh();
@@ -233,13 +233,13 @@ describe("KnowledgeManager", () => {
       manager.scheduleRefresh();
       manager.scheduleRefresh();
       manager.scheduleRefresh();
-      expect(updates).toEqual([]);
+      expect(updates).toBe(0);
       vi.advanceTimersByTime(100);
     } finally {
       vi.useRealTimers();
     }
     await manager.refreshDone();
-    expect(updates).toEqual([1]);
+    expect(updates).toBe(1);
   });
 
   it("answers instantly from the persisted projection on a relaunch (zero re-parses)", async () => {
@@ -259,7 +259,7 @@ describe("KnowledgeManager", () => {
     // Second launch over the same DB: hydration answers every query BEFORE
     // any reconcile ran, and the reconcile then re-writes nothing.
     counts = { upsertDoc: 0, updateFingerprint: 0 };
-    updates = [];
+    updates = 0;
     manager = newManager(openOnDisk);
     expect(manager.backlinks("target.md")).toEqual([
       expect.objectContaining({ sourcePath: "hub.md" }),
@@ -269,7 +269,7 @@ describe("KnowledgeManager", () => {
     expect(manager.search("searchable").map((r) => r.path)).toEqual(["target.md"]);
     await manager.refreshDone();
     expect(counts).toEqual({ upsertDoc: 0, updateFingerprint: 0 });
-    expect(updates).toEqual([]);
+    expect(updates).toBe(0);
   });
 
   it("recovers by rebuilding when the store throws mid-pass", async () => {

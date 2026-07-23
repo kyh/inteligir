@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Chat-message wire types shared between main <-> preload <-> renderer
+// Chat-message wire types shared between renderer and host over the Bridge
 // ---------------------------------------------------------------------------
 
 import { type Static, Type } from "@sinclair/typebox";
@@ -20,7 +20,7 @@ const TextWithImagesObject = {
   images: Type.Optional(Type.Array(ImageAttachmentSchema)),
 };
 
-/** Messages sent between renderer and agent via IPC. */
+/** Messages sent between renderer and agent over the Bridge. */
 export const TextChatMessageSchema = Type.Union([
   Type.Object(
     { type: Type.Literal("user_message"), ...TextWithImagesObject },

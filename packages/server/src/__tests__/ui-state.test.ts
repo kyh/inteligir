@@ -15,9 +15,8 @@ afterEach(() => {
   fs.rmSync(storePath, { force: true });
 });
 
-// ui-state is a GENERIC key→value store — no per-feature key knowledge, no
-// secret routing (a feature that stores a secret writes the encrypted
-// SecretStore itself).
+// ui-state is a GENERIC key→value store — no per-feature key knowledge, and
+// credentials never live here.
 describe("UiStateManager", () => {
   it("stores and returns plain keys", () => {
     const mgr = new UiStateManager(storePath);

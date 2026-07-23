@@ -15,7 +15,7 @@ import {
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { Bridge, SetupProgress } from "@repo/bridge/ipc-registry";
 import { buildNoteContext } from "@repo/bridge/note-context";
-import type { ImageAttachment } from "@repo/bridge/voice";
+import type { ImageAttachment } from "@repo/bridge/chat-message";
 import { getBridge } from "@renderer/lib/bridge";
 import {
   projectChatLog,

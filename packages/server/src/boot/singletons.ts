@@ -12,8 +12,7 @@
 //
 // Dependency order (leaves first). Each edge is "needs the piece to its left to
 // be constructable":
-//   platform/options ──▶ secrets, notifications, bundledResources
-//   secrets          ──▶ uiState
+//   platform/options ──▶ notifications, bundledResources
 //   (paths)          ──▶ vault ──▶ knowledge
 //   vault, restore   ──▶ delegation
 //   (paths)          ──▶ executorDaemon
@@ -39,7 +38,6 @@ import { getRoutinesManager } from "../routines/routines-manager";
 import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getNotifications } from "../notifications";
-import { getSecretStore } from "@repo/storage/secrets";
 import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { getVaultManager, type VaultChangeKind } from "@repo/vault/vault";
 import { setStoreRecoveryNotifier } from "@repo/storage/json-store";
@@ -77,7 +75,6 @@ export function constructHostSingletons(): (root: string, kind: VaultChangeKind)
   //   - authStorage: it is a pi call, which must wait for configurePaths() in
   //     start(); constructing it here would run before that.
   // Both stay reachable via their live getX() accessors.
-  getSecretStore(); // platform.secretCipher
   getNotifications(); // platform.notify
   getVaultManager(); // paths (watcher stays off until start() wires it post-ensureReady)
   getKnowledgeManager(); // vault

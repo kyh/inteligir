@@ -145,10 +145,7 @@ export class SyncEngine {
   // Stat-keyed hash cache: a passing fingerprint lets a pass reuse a file's
   // hash without re-reading it. Keyed by path; invalidated whenever the engine
   // itself writes/removes a file (the fingerprint would otherwise go stale).
-  private readonly hashCache = new Map<
-    VaultPath,
-    { fp: string; contentHash: string; size: number }
-  >();
+  private readonly hashCache = new Map<VaultPath, { fp: string; contentHash: string }>();
 
   // Serialize passes so two never overlap (a debounce fire during an in-flight
   // pass queues behind it rather than racing the same files).
@@ -521,19 +518,18 @@ export class SyncEngine {
         const cached = this.hashCache.get(path);
         if (cached && cached.fp === fp) {
           // Fingerprint matches — content can't have changed; reuse the hash.
-          files.push({ path, contentHash: cached.contentHash, size: cached.size });
+          files.push({ path, contentHash: cached.contentHash });
           continue;
         }
       }
       const bytes = this.io.read(path);
       const contentHash = await this.hash(bytes);
-      const size = bytes.length;
-      files.push({ path, contentHash, size });
+      files.push({ path, contentHash });
       // Every read+hash is a capture moment — this is ALSO what backfills a
       // legacy base (pre-blob-store) with bytes for every still-converged file.
       this.captureBlob(path, contentHash, bytes);
       // Only cache when we have a fingerprint to validate future reuse against.
-      if (fp !== null) this.hashCache.set(path, { fp, contentHash, size });
+      if (fp !== null) this.hashCache.set(path, { fp, contentHash });
     }
     // Prune entries for files that vanished from the vault since last pass.
     for (const path of this.hashCache.keys()) {

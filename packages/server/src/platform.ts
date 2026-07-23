@@ -5,8 +5,6 @@
 // crosses this seam, so the host library itself never imports electron.
 // ---------------------------------------------------------------------------
 
-import type { SecretCipher } from "@repo/storage/secrets";
-
 export type HostNotification = {
   title: string;
   body: string;
@@ -44,9 +42,6 @@ export type HostPlatform = {
    * agent/setup.ts.
    */
   strictResources: boolean;
-
-  /** Secret-at-rest encryption for ~/.inteligir/secrets.json. */
-  secretCipher: SecretCipher;
 
   /** Open a URL in the user's default browser (OAuth consent, links). */
   openExternal: (url: string) => Promise<void>;

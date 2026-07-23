@@ -149,7 +149,7 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 - `pnpm --filter @repo/agent test` — the pi capability (extensions, privacy
   gate, faux provider) + the pi-quarantine and bundle drift guards.
 - `pnpm --filter @repo/server test` — the node backend (vault, delegation
-  +snapshots, knowledge manager, sync adapters, handlers, secrets).
+  +snapshots, knowledge manager, sync adapters, handlers).
 - `pnpm --filter @repo/cloud test` — the sync Worker against real in-process
   miniflare (DO + R2 + D1 + Better Auth), incl. the end-to-end sync test that
   drives @repo/notes's engine through the real backend.

@@ -84,7 +84,7 @@ export function OnboardingPage() {
   const isIndeterminate = percent === null;
 
   return (
-    <div className="shell-dots flex flex-1 flex-col items-center justify-end px-6 pb-16">
+    <div className="flex flex-1 flex-col items-center justify-end px-6 pb-16">
       <InitialOrb />
       <div className="flex w-full max-w-xs flex-col gap-3 text-center">
         {setupError ? (
@@ -97,8 +97,8 @@ export function OnboardingPage() {
         ) : (
           <>
             <p className="text-xs text-muted-foreground">{label}</p>
-            {/* bg-muted ≈ canvas on the new ladder — use the overlay tint so
-                the track stays visible on the dotted floor. */}
+            {/* bg-muted ≈ canvas on the new ladder — the overlay tint keeps
+                the track visible against the plain canvas. */}
             <div className="h-1 w-full overflow-hidden rounded-full bg-foreground/10">
               <div
                 className={

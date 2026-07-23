@@ -74,7 +74,6 @@ export class KnowledgeManager {
   private store: KnowledgeStore | null = null;
   private builtRoot: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
-  private revision = 0;
   /** Bumped on root switch / recovery / dispose: an in-flight pass checks it
    * at every yield and aborts when the world moved on under it. */
   private generation = 0;
@@ -83,7 +82,7 @@ export class KnowledgeManager {
 
   constructor(
     private readonly getVault: () => VaultManager,
-    private readonly onUpdated: (revision: number) => void,
+    private readonly onUpdated: () => void,
     private readonly openStore: (root: string) => KnowledgeStore,
   ) {}
 
@@ -410,8 +409,7 @@ export class KnowledgeManager {
       if (index < work.length) {
         if (changed && Date.now() - lastEmit >= PROGRESS_EMIT_MS) {
           lastEmit = Date.now();
-          this.revision++;
-          this.onUpdated(this.revision);
+          this.onUpdated();
         }
         await yieldToEventLoop();
         // The world may have moved on during the yield (root switch, recovery,
@@ -421,8 +419,7 @@ export class KnowledgeManager {
     }
 
     if (changed) {
-      this.revision++;
-      this.onUpdated(this.revision);
+      this.onUpdated();
     }
   }
 }
@@ -450,7 +447,7 @@ export function getKnowledgeManager(): KnowledgeManager {
   if (!instance) {
     instance = new KnowledgeManager(
       getVaultManager,
-      (revision) => emitEvent("onKnowledgeUpdated", { revision }),
+      () => emitEvent("onKnowledgeUpdated", {}),
       (root) => createSqliteKnowledgeStore(indexDbPathFor(root), root),
     );
   }

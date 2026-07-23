@@ -103,8 +103,7 @@ export function CommandPalette({
   onSeedConsumed?: () => void;
 }) {
   const { entries } = useVaultListing();
-  const { openFile, createFile, changeFolder, refreshVault, editNote, openOrCreateNote } =
-    useVaultActions();
+  const { openFile, createFile, changeFolder, refreshVault, editNote } = useVaultActions();
   // Narrow subscriptions (#470): only the private-toggle action's PRESENCE and
   // LABEL are render inputs; the live content is read imperatively at action
   // time (togglePrivate below), so typing never re-renders the palette.
@@ -474,7 +473,7 @@ export function CommandPalette({
       // Open-or-create: an existing vault/AGENTS.md opens untouched; an
       // absent one is created from the skeleton first (same idempotent path
       // daily notes + templates use).
-      onSelect: () => void openOrCreateNote(AGENT_INSTRUCTIONS_PATH, AGENT_INSTRUCTIONS_SKELETON),
+      onSelect: () => void createFile(AGENT_INSTRUCTIONS_PATH, AGENT_INSTRUCTIONS_SKELETON),
     },
     {
       value: "past-chats",

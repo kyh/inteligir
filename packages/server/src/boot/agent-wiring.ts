@@ -36,7 +36,6 @@ import {
   resetExecutorDaemon,
 } from "@repo/connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
-import { resetSecretStore } from "@repo/storage/secrets";
 import { resetSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { resetRemoteAccessManager } from "../transport/remote-access-manager";
 import { resetUiState } from "../ui-state";
@@ -198,7 +197,6 @@ export function teardownAgentResources(): void {
   resetRemoteAccessManager();
   resetUiState();
   resetAgentInstructionsSeedMarks();
-  resetSecretStore();
   resetProviderConfig();
   // Release the knowledge singleton (cancels pending reconcile work + closes
   // the sqlite index handle) BEFORE the rm deletes the index file — an open

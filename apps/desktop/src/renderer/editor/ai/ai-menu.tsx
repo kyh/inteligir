@@ -27,7 +27,6 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import {
   acceptGenerate,
   AiSessionPlugin,
-  CANNED_ACTIONS,
   cancelActiveRun,
   closeAiMenu,
   discardGenerate,
@@ -36,9 +35,9 @@ import {
   runCannedAction,
   runTranslate,
   submitAiPrompt,
-  TRANSLATE_LANGUAGES,
   type AiMenuStatus,
 } from "@renderer/editor/ai/ai-session";
+import { CANNED_ACTIONS, TRANSLATE_LANGUAGES } from "@renderer/editor/ai/ai-prompts";
 
 type MenuItem = {
   key: string;

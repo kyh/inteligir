@@ -35,7 +35,6 @@ export type VaultManifest = {
 export type LocalFile = {
   readonly path: VaultPath;
   readonly contentHash: Hash;
-  readonly size: number;
 };
 
 /** The local device's current view of its vault. */

@@ -5,13 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--
       Strict CSP for the renderer. Everything ships local ('self' covers both
-      the dev server origin and the packaged file:// load); voice websockets
-      and TTS fetches run in the main process, so connect-src stays tight.
+      the dev server origin and the packaged file:// load); the host is reached
+      over the loopback ws bridge, which connect-src's ws://localhost:* /
+      ws://127.0.0.1:* allowance covers.
       Dev-mode allowances:
       - the sha256 hash is @vitejs/plugin-react's inline fast-refresh preamble
         (recompute on plugin upgrade: sha256-base64 of preambleCode with
         __BASE__ -> "/"); prod has no inline scripts.
-      - ws://localhost/127.0.0.1 is Vite's HMR socket; unused in prod.
+      - ws://localhost/127.0.0.1 covers the bridge websocket (always) and
+        Vite's HMR socket (dev only).
       - style-src 'unsafe-inline' covers Vite's dev style injection and React
         inline style attributes.
       img-src allows https:/data: because note and chat markdown may render

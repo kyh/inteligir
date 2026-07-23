@@ -129,6 +129,7 @@ function baseOpts(
     artifactName: () => ARTIFACT,
     binName: "fakecli",
     binDir,
+    verify: "checksums-txt",
     ...over,
   };
 }
@@ -143,14 +144,14 @@ function expectFailedClosed(binDir: string, errFragment: string): void {
   );
 }
 
-describe("tarball + sha256-sidecar (default mode)", () => {
+describe("tarball + checksums-txt (shared install machinery)", () => {
   it("downloads, verifies, extracts, and installs the binary", async () => {
     const binDir = tmpDir();
     const tarGz = makeTarGz({ fakecli: fakeCliScript(VERSION) });
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -164,22 +165,6 @@ describe("tarball + sha256-sidecar (default mode)", () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
-  it("accepts a bare-hash sidecar with no filename column", async () => {
-    const binDir = tmpDir();
-    const tarGz = makeTarGz({ fakecli: fakeCliScript(VERSION) });
-    stubFetch(
-      new Map([
-        [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}\n`)],
-      ]),
-    );
-
-    await installCliFromGithubRelease(baseOpts(binDir));
-
-    expect(fs.existsSync(path.join(binDir, "fakecli"))).toBe(true);
-    expect(consoleError).not.toHaveBeenCalled();
-  });
-
   it("fails closed on checksum mismatch", async () => {
     const binDir = tmpDir();
     const tarGz = makeTarGz({ fakecli: fakeCliScript(VERSION) });
@@ -187,7 +172,7 @@ describe("tarball + sha256-sidecar (default mode)", () => {
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
         // Valid-looking hash, but of different bytes.
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256("other bytes")}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256("other bytes")}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -207,7 +192,7 @@ describe("tarball + sha256-sidecar (default mode)", () => {
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256("corrupted")}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256("corrupted")}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -226,7 +211,7 @@ describe("tarball + sha256-sidecar (default mode)", () => {
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => partialBody(tarGz.subarray(0, 8))],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -241,7 +226,7 @@ describe("tarball + sha256-sidecar (default mode)", () => {
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(garbage)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(garbage)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(garbage)}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -265,12 +250,14 @@ describe("tarball + sha256-sidecar (default mode)", () => {
     await installCliFromGithubRelease(baseOpts(binDir));
 
     expectFailedClosed(binDir, "checksum fetch failed");
-    expect(calls).toEqual([`${ARTIFACT_URL}.sha256`]);
+    expect(calls).toEqual([`${TAG_BASE}/checksums.txt`]);
   });
 
   it("fails closed when the artifact fetch 404s", async () => {
     const binDir = tmpDir();
-    stubFetch(new Map([[`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256("x")}  ${ARTIFACT}\n`)]]));
+    stubFetch(
+      new Map([[`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256("x")}  ${ARTIFACT}\n`)]]),
+    );
 
     await installCliFromGithubRelease(baseOpts(binDir));
 
@@ -283,7 +270,7 @@ describe("tarball + sha256-sidecar (default mode)", () => {
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -379,30 +366,25 @@ describe("inline-sha256 mode", () => {
   });
 });
 
-describe.skipIf(isWindows)("binary kind + version-check", () => {
-  it("downloads the raw binary, chmods it, and verifies via --version", async () => {
+describe.skipIf(isWindows)("binary kind", () => {
+  // The live browser-extension config: a raw binary artifact + inline-sha256.
+  it("downloads the raw binary, verifies the pinned hash, and chmods it", async () => {
     const binDir = tmpDir();
-    stubFetch(new Map([[ARTIFACT_URL, () => okBody(fakeCliScript(VERSION))]]));
+    const script = fakeCliScript(VERSION);
+    stubFetch(new Map([[ARTIFACT_URL, () => okBody(script)]]));
 
     await installCliFromGithubRelease(
-      baseOpts(binDir, { artifactKind: "binary", verify: "version-check" }),
+      baseOpts(binDir, {
+        artifactKind: "binary",
+        verify: "inline-sha256",
+        sha256: { [ARTIFACT]: sha256(script) },
+      }),
     );
 
     const binPath = path.join(binDir, "fakecli");
     expect(fs.statSync(binPath).mode & 0o111).not.toBe(0);
     expect(await readCliVersion(binPath)).toBe(VERSION);
     expect(consoleError).not.toHaveBeenCalled();
-  });
-
-  it("fails closed when the staged binary reports the wrong version", async () => {
-    const binDir = tmpDir();
-    stubFetch(new Map([[ARTIFACT_URL, () => okBody(fakeCliScript("9.9.9"))]]));
-
-    await installCliFromGithubRelease(
-      baseOpts(binDir, { artifactKind: "binary", verify: "version-check" }),
-    );
-
-    expectFailedClosed(binDir, "version check failed: expected 1.2.3, got 9.9.9");
   });
 });
 
@@ -432,7 +414,7 @@ describe.skipIf(isWindows)("idempotent re-install", () => {
     const calls = stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -453,7 +435,7 @@ describe.skipIf(isWindows)("idempotent re-install", () => {
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -475,7 +457,7 @@ describe("archive kind (binary + sidecars)", () => {
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
       ]),
     );
 
@@ -512,7 +494,7 @@ describe("postInstall hook", () => {
     stubFetch(
       new Map([
         [ARTIFACT_URL, () => okBody(tarGz)],
-        [`${ARTIFACT_URL}.sha256`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
+        [`${TAG_BASE}/checksums.txt`, () => okBody(`${sha256(tarGz)}  ${ARTIFACT}\n`)],
       ]),
     );
 

@@ -83,7 +83,7 @@ import {
   type SyncState,
 } from "./sync";
 import { UiStateSetSchema } from "./ui-state";
-import { TextChatMessageSchema } from "./voice";
+import { TextChatMessageSchema } from "./chat-message";
 
 // ---------------------------------------------------------------------------
 // Shared shapes referenced by registry entries
@@ -463,10 +463,6 @@ export const IPC = {
   sendSttAudio: send<typeof BinaryAudioSchema>("voice:stt:audio", BinaryAudioSchema),
   stopStt: invokeVoid<Array<{ text: string; isFinal: boolean }>>("voice:stt:stop"),
   onSttTranscript: event<{ text: string; isFinal: boolean }>("voice:stt:transcript"),
-  getVoiceModelStatus: invokeVoid<"ready" | "missing">("voice:model:status"),
-  downloadVoiceModel: invokeVoid<{ ok: true } | { ok: false; error: string }>(
-    "voice:model:download",
-  ),
   onVoiceModelState: event<VoiceModelStateEvent>("voice:model:state"),
 
   // Notifications
@@ -597,9 +593,9 @@ export const IPC = {
     "knowledge:toggle-task",
     ToggleTaskSchema,
   ),
-  /** Fired after every index refresh (revision is monotonic) so backlink
-   * panes / graph views re-query. */
-  onKnowledgeUpdated: event<{ revision: number }>("knowledge:updated"),
+  /** Fired after every index refresh so backlink panes / graph views
+   * re-query. */
+  onKnowledgeUpdated: event<Record<string, never>>("knowledge:updated"),
 
   // Delegation — a checkbox handed to a background agent.
   createDelegation: invoke<typeof CreateDelegationParamsSchema, CreateDelegationResult>(

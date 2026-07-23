@@ -2,18 +2,20 @@
 //
 // While suggestions are under review, the save buffer is frozen at the
 // pre-session bytes (transient.ts) — any typing the user interleaves rides
-// ONLY the live editor value. If the session is abandoned (tab replaced or
+// ONLY the live editor value. If the session is abandoned (note switched or
 // closed, folder switched, an explicit flush), that typing must not vanish
 // with the AI marks: the mounted editor registers a settler here, and
-// VaultProvider's flushTab invokes it BEFORE flushing — the settler resolves
-// the session reject-all (reject reverts only suggestion-marked ranges, so
-// the user's typing survives while the AI's proposal disappears) and returns
-// the settled markdown for the flush to persist.
+// VaultProvider's flushCurrent invokes it BEFORE the runtime flush that
+// precedes every save/rename/close — the settler resolves the session
+// reject-all (reject reverts only suggestion-marked ranges, so the user's
+// typing survives while the AI's proposal disappears) and returns the
+// settled markdown for the flush to persist.
 //
 // Mirrors the open-note-flush seam: the editor owns the implementation, this
-// module is just the wire. One rich editor mounts PER OPEN TAB (#369 keeps
-// hidden tabs' editors alive), so this is a registry keyed by path — flushing
-// one tab settles exactly that tab's editor, never a sibling's.
+// module is just the wire. The registry stays keyed by path because
+// unregister/settle can interleave across a note switch (see the
+// stale-unregister test) — a settle routed to one path resolves exactly that
+// path's editor, never another's.
 
 const settlers = new Map<string, () => string | null>();
 

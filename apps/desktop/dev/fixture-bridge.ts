@@ -783,7 +783,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();
   const routineEvents = new Emitter<ListRoutinesResult>();
-  const knowledgeEvents = new Emitter<{ revision: number }>();
+  const knowledgeEvents = new Emitter<Record<string, never>>();
   const syncEvents = new Emitter<SyncState>();
   const emitSync = () => syncEvents.emit(syncState);
   const socialResultEvents = new Emitter<SyncSignInResult>();
@@ -840,11 +840,9 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   knowledgeStore.transaction(() => {
     for (const path of vault.keys()) indexEntry(path);
   });
-  let knowledgeRevision = 0;
   const touchVault = (): void => {
     vaultEvents.emit({ root: FIXTURE_ROOT });
-    knowledgeRevision++;
-    knowledgeEvents.emit({ revision: knowledgeRevision });
+    knowledgeEvents.emit({});
   };
 
   const cannedReply = (text: string) => {
@@ -997,11 +995,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       return [{ text: STT_CANNED_TRANSCRIPT, isFinal: true }];
     },
     onSttTranscript: sttEvents.subscribe,
-    getVoiceModelStatus: async () => "missing",
-    downloadVoiceModel: async () => ({
-      ok: false,
-      error: "voice models are not available in the dev harness",
-    }),
     onVoiceModelState: () => () => {},
 
     // Notifications

@@ -8,7 +8,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 
-export type DisplayStatus = "idle" | "busy" | "error" | "starting" | "listening" | "speaking";
+export type DisplayStatus = "idle" | "error" | "starting" | "listening";
 
 extend({ Line2, LineMaterial, LineGeometry });
 
@@ -66,15 +66,6 @@ function makeMoods(baseColor: string): Record<DisplayStatus, Mood> {
       helixSpin: 0,
       ...rgb(baseColor),
     },
-    busy: {
-      speed: 10,
-      squiggleAmount: 0.08,
-      squiggleFrequency: 6,
-      squiggleSpeed: 5,
-      morphProgress: 1,
-      helixSpin: 0,
-      ...rgb("#66bbff"),
-    },
     error: {
       speed: 14,
       squiggleAmount: 0.12,
@@ -101,15 +92,6 @@ function makeMoods(baseColor: string): Record<DisplayStatus, Mood> {
       morphProgress: 1,
       helixSpin: 0,
       ...rgb("#44dd88"),
-    },
-    speaking: {
-      speed: 8,
-      squiggleAmount: 0.1,
-      squiggleFrequency: 7,
-      squiggleSpeed: 6,
-      morphProgress: 1,
-      helixSpin: 0,
-      ...rgb("#aa88ff"),
     },
   };
 }

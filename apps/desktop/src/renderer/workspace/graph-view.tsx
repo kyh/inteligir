@@ -6,7 +6,7 @@
 //
 // Interactions: wheel zooms about the cursor, drag pans, click opens the node
 // (phantom nodes offer to create the note), Esc returns to the editor. Nodes
-// are sized by degree; phantoms draw dashed; the active tab's note gets a
+// are sized by degree; phantoms draw dashed; the open note gets a
 // highlight ring. Data refreshes on onKnowledgeUpdated, preserving layout
 // positions by node id.
 

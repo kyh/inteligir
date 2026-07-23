@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { CANNED_ACTIONS, TRANSLATE_LANGUAGES } from "@renderer/editor/ai/ai-session";
+import { CANNED_ACTIONS, TRANSLATE_LANGUAGES } from "@renderer/editor/ai/ai-prompts";
 
 const ids = (scope: "cursor" | "selection") =>
   CANNED_ACTIONS.filter((a) => a.scope === scope).map((a) => a.id);

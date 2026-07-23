@@ -112,17 +112,16 @@ export type VaultActions = {
    * Routed by path like editNote: a registration from an editor whose note
    * already closed must not land on the next note's runtime. */
   registerNoteSerializeFlush: (path: string, flush: () => void) => void;
-  /** Create a file at `path` (e.g. "folder/note.md") and open it. */
-  createFile: (path: string) => Promise<void>;
+  /** Open the note at `path` (e.g. "folder/note.md"); if it doesn't exist
+   * yet, create it seeded with `content` (byte-exact, default empty) FIRST,
+   * then open it. An existing file is opened untouched — open-or-create
+   * semantics that templates + daily notes rely on, so re-running it never
+   * clobbers a note the user already has. */
+  createFile: (path: string, content?: string) => Promise<void>;
   /** Create a file WITHOUT opening it (wiki create-on-complete), seeded with
    * `seedContent` (default empty). An existing file is left untouched and
    * counts as success. Resolves the normalized path, or null on failure. */
   createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
-  /** Open the note at `path`; if it doesn't exist yet, create it seeded with
-   * `content` (byte-exact) FIRST, then open it. An existing file is opened
-   * untouched — this is the open-or-create used by templates + daily notes, so
-   * re-running it never clobbers a note the user already has. */
-  openOrCreateNote: (path: string, content: string) => Promise<void>;
   /** Rename/move the file at `from` to `to`. Resolves `false` if the rename
    * failed (so callers like the title field can roll back their UI). */
   renameEntry: (from: string, to: string) => Promise<boolean>;
@@ -366,15 +365,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   const createFile = useCallback(
-    async (rawPath: string) => {
-      const path = await createFileAt(rawPath);
-      if (path !== null) openFile(path);
-    },
-    [createFileAt, openFile],
-  );
-
-  const openOrCreateNote = useCallback(
-    async (rawPath: string, content: string) => {
+    async (rawPath: string, content = "") => {
       const path = await createFileAt(rawPath, content);
       if (path !== null) openFile(path);
     },
@@ -658,7 +649,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       registerNoteSerializeFlush,
       createFile,
       createFileAt,
-      openOrCreateNote,
       renameEntry,
       deleteEntry,
       changeFolder,
@@ -674,7 +664,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       registerNoteSerializeFlush,
       createFile,
       createFileAt,
-      openOrCreateNote,
       renameEntry,
       deleteEntry,
       changeFolder,

@@ -164,25 +164,39 @@ export class RestoreManager {
         continue;
       }
       try {
-        if (snapshot.kind === "create") {
-          // Undo of a created file = delete it, recoverably (OS trash).
-          await this.trashVault(snapshot.path);
-        } else {
-          let current: string | null;
-          try {
-            current = this.readVault(snapshot.path);
-          } catch {
-            current = null; // deleted since — the write below recreates it
-          }
-          if (current !== snapshot.content) {
-            this.writeVault(snapshot.path, snapshot.content);
-          }
-        }
+        await this.applyRestore(snapshot.kind, snapshot.content, snapshot.path);
       } catch (err) {
         failures.push(`Couldn't restore ${snapshot.path}: ${toErrorMessage(err)}`);
       }
     }
     return failures.length === 0 ? { ok: true } : { ok: false, error: failures.join(" ") };
+  }
+
+  /** The byte-restore shared by both undo surfaces: a `create` snapshot undoes
+   * by trashing the created file (recoverably — OS trash, already-gone counts
+   * as done); an `edit` snapshot writes the pre-write bytes back, recreating
+   * the file if it was deleted since. Byte-equality IS hash-equality here —
+   * the snapshot's recorded hash was already verified against its content in
+   * read() — so a matching file is a no-op success (no write, no watcher
+   * churn). */
+  private async applyRestore(
+    kind: "create" | "edit",
+    content: string,
+    targetPath: string,
+  ): Promise<void> {
+    if (kind === "create") {
+      await this.trashVault(targetPath);
+      return;
+    }
+    let current: string | null;
+    try {
+      current = this.readVault(targetPath);
+    } catch {
+      current = null; // deleted (or unreadable) since — the write below recreates it
+    }
+    if (current !== content) {
+      this.writeVault(targetPath, content);
+    }
   }
 
   /** Write a run's pre-run bytes back to `targetPath` — the byte-level half
@@ -210,21 +224,7 @@ export class RestoreManager {
       return { ok: false, error: `Not a ${origin} edit.` };
     }
     try {
-      if (snapshot.kind === "create") {
-        await this.trashVault(targetPath);
-        return { ok: true };
-      }
-      // Byte-equality IS hash-equality here — the snapshot's recorded hash was
-      // already verified against its content in read().
-      let current: string | null;
-      try {
-        current = this.readVault(targetPath);
-      } catch {
-        current = null; // deleted (or unreadable) — the write below recreates it
-      }
-      if (current !== snapshot.content) {
-        this.writeVault(targetPath, snapshot.content);
-      }
+      await this.applyRestore(snapshot.kind, snapshot.content, targetPath);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: `Couldn't restore ${targetPath}: ${toErrorMessage(err)}` };

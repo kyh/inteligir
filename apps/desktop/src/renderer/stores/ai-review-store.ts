@@ -4,10 +4,10 @@ import { create } from "zustand";
 // session. While one pends, that file's autosave is frozen at the pre-session
 // bytes (see editor/ai/transient.ts) — the header's save badge reads this
 // store to show "Reviewing suggestions" instead of silently claiming Saved
-// (#374). Keyed by path because every open tab keeps its editor mounted
-// (#369): a background tab's pending review must not relabel the ACTIVE
-// tab's badge. Written by markdown-editor's onChange (and cleared on
-// unmount); read by the header for the active path.
+// (#374). Keyed by path because a pending review must survive the
+// unmount/mount overlap of a note switch and never relabel a different
+// note's badge. Written by markdown-editor's onChange (and cleared on
+// unmount); read by the header for the open path.
 
 type AiReviewStore = {
   reviewing: ReadonlySet<string>;

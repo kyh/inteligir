@@ -32,7 +32,7 @@ async function readTemplate(path: string): Promise<string | null> {
  * Open-or-create, so a name collision just opens the existing note untouched.
  */
 export function useCreateFromTemplate(): (templatePath: string, rawName: string) => void {
-  const { openOrCreateNote } = useVaultActions();
+  const { createFile } = useVaultActions();
   return useCallback(
     (templatePath: string, rawName: string) => {
       const name = rawName.trim();
@@ -43,10 +43,10 @@ export function useCreateFromTemplate(): (templatePath: string, rawName: string)
           title: titleFromPath(name),
           date: formatIsoDate(new Date()),
         });
-        await openOrCreateNote(name, content);
+        await createFile(name, content);
       })();
     },
-    [openOrCreateNote],
+    [createFile],
   );
 }
 
@@ -56,7 +56,7 @@ export function useCreateFromTemplate(): (templatePath: string, rawName: string)
  * is seeded from it with placeholders substituted; otherwise it starts empty.
  */
 export function useOpenDailyNote(): () => void {
-  const { openOrCreateNote } = useVaultActions();
+  const { createFile } = useVaultActions();
   const [folder] = useDiskState(DAILY_FOLDER_KEY, DEFAULT_DAILY_FOLDER, parseString);
   const [format] = useDiskState(DAILY_FORMAT_KEY, DEFAULT_DAILY_FORMAT, parseString);
   return useCallback(() => {
@@ -68,7 +68,7 @@ export function useOpenDailyNote(): () => void {
         template === null
           ? ""
           : applyTemplate(template, { title: titleFromPath(path), date: formatIsoDate(now) });
-      await openOrCreateNote(path, content);
+      await createFile(path, content);
     })();
-  }, [folder, format, openOrCreateNote]);
+  }, [folder, format, createFile]);
 }

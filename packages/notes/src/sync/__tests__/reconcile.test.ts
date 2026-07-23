@@ -10,7 +10,7 @@ function remote(path: string, hash: string, version: number): VaultFile {
   return { path, contentHash: hash, version, size: hash.length };
 }
 function local(path: string, hash: string): LocalFile {
-  return { path, contentHash: hash, size: hash.length };
+  return { path, contentHash: hash };
 }
 function coordinatorManifest(files: readonly VaultFile[]): VaultManifest {
   return { vaultId: VAULT, files };

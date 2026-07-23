@@ -4,8 +4,7 @@
 // each preference needing its own IPC channel.
 //
 // Deliberately GENERIC: no per-feature key knowledge lives here. Credentials
-// never do either — a feature that stores a secret writes the encrypted
-// SecretStore itself and keeps only a `true` presence marker in ui-state.
+// never do either.
 // ---------------------------------------------------------------------------
 
 import { JsonStore, inteligirPath } from "@repo/storage/json-store";

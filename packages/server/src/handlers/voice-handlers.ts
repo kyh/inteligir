@@ -1,6 +1,5 @@
 import { emitEvent } from "../events";
 import type { HandlerRegistrar } from "./handler-registry";
-import { downloadModel, isModelInstalled } from "@repo/voice/model-download";
 import { initParakeet, pushAudio, startSession, stopSession } from "@repo/voice/parakeet";
 
 // The voice package's MODEL host seam is installed at composition time
@@ -38,6 +37,4 @@ export function registerVoiceHandlers(handle: HandlerRegistrar): void {
   });
 
   handle("stopStt", () => stopSession());
-  handle("getVoiceModelStatus", () => (isModelInstalled() ? "ready" : "missing"));
-  handle("downloadVoiceModel", () => downloadModel());
 }

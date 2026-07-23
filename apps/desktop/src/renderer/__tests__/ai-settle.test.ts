@@ -86,9 +86,9 @@ describe("transient-settle registry", () => {
     expect(settleTransients("b.md")).toBeNull();
   });
 
-  it("holds settlers for every mounted pane at once (#369)", () => {
-    // Hidden tabs keep their editors mounted, so N settlers coexist —
-    // flushing one tab settles exactly that tab's editor.
+  it("holds coexisting settlers across a note-switch overlap", () => {
+    // Two editors can be registered at once mid-switch (unmount/mount
+    // overlap) — settling one path resolves exactly that path's editor.
     const offA = registerTransientSettler("a.md", () => "A");
     const offB = registerTransientSettler("b.md", () => "B");
     expect(settleTransients("a.md")).toBe("A");

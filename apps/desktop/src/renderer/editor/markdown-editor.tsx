@@ -44,7 +44,8 @@ function seedValue(md: string): Value {
 
 type Props = {
   /** Vault-relative path this editor serves — keys the transient-settle seam
-   * so a flush of some OTHER tab never resolves this editor's AI session. */
+   * so a flush routed to some OTHER note's path never resolves this editor's
+   * AI session. */
   path: string;
   /** Markdown to render. Seeds the editor on mount and re-seeds it when the
    * prop changes externally (a vault reload / file switch) — see the effect. */
@@ -54,7 +55,7 @@ type Props = {
   /** Teardown escape hatch (#374): called with the settled markdown when the
    * editor unmounts while an AI suggestion session was still pending
    * (reject-all — the user's typing survives, the AI marks disappear). The
-   * OWNER must route these bytes by `path`: by unmount time the active tab
+   * OWNER must route these bytes by `path`: by unmount time the open note
    * may already have changed, so the normal onChange must not carry them. */
   onSettled: (markdown: string) => void;
   /** Register a synchronous flush for the debounced serialize. The owner calls
@@ -175,7 +176,7 @@ export function MarkdownEditor({
   }, [editor]);
 
   // Flush path: VaultProvider settles through this registration BEFORE
-  // flushing this file (tab replace/close, folder switch, explicit flush).
+  // flushing this file (note switch/close, folder switch, explicit flush).
   useEffect(() => registerTransientSettler(path, settleSuggestions), [path, settleSuggestions]);
 
   // Expose this editor to chrome outside the Plate tree — the header's
