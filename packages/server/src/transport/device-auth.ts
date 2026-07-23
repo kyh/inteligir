@@ -10,12 +10,7 @@
 import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import type { RemoteDeviceInfo } from "@repo/bridge/remote-access";
 
 const DEVICES_VERSION = 1;
@@ -99,8 +94,7 @@ export class DeviceAuthStore {
       DEFAULT_DEVICES,
       {
         fs: opts.fs,
-        mode: 0o600,
-        versioning: { current: DEVICES_VERSION, fromLegacy: rejectLegacyVersion("remote-devices") },
+        versioning: { current: DEVICES_VERSION },
       },
     );
   }

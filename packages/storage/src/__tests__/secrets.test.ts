@@ -44,7 +44,6 @@ describe("SecretStore", () => {
     store.set("voice.key", "sk-elevenlabs-123");
 
     expect(store.get("voice.key")).toBe("sk-elevenlabs-123");
-    expect(store.has("voice.key")).toBe(true);
     expect(store.get("missing")).toBeNull();
   });
 
@@ -97,7 +96,6 @@ describe("SecretStore", () => {
     store.set("voice.key", "sk");
     store.delete("voice.key");
 
-    expect(store.has("voice.key")).toBe(false);
     expect(store.get("voice.key")).toBeNull();
     expect(fs.files.get(PATH) ?? "").not.toContain("voice.key");
   });

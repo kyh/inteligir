@@ -5,12 +5,7 @@ import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import {
-  JsonStore,
-  type FsAdapter,
-  type StoreRecoveryEvent,
-  type StoreVersioning,
-} from "../json-store";
+import { JsonStore, type FsAdapter, type StoreRecoveryEvent } from "../json-store";
 
 function memoryFs(): FsAdapter & { files: Map<string, string>; modes: Map<string, number> } {
   const files = new Map<string, string>();
@@ -194,12 +189,11 @@ describe("JsonStore write-time validation", () => {
 });
 
 describe("JsonStore file modes", () => {
-  it("passes the configured mode to every write, including recovery backups", () => {
+  it("passes owner-only 0o600 to every write, including recovery backups", () => {
     const fs = memoryFs();
     fs.files.set("/cred.json", "{broken");
     const store = new JsonStore<number[]>("/cred.json", NumbersSchema, [], {
       fs,
-      mode: 0o600,
       onRecovery: () => undefined,
     });
 
@@ -214,7 +208,7 @@ describe("JsonStore file modes", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "json-store-mode-"));
     const filePath = path.join(dir, "nested", "secrets.json");
     try {
-      const store = new JsonStore<number[]>(filePath, NumbersSchema, [], { mode: 0o600 });
+      const store = new JsonStore<number[]>(filePath, NumbersSchema, []);
       store.write([1, 2]);
 
       expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
@@ -255,12 +249,15 @@ describe("JsonStore corruption recovery", () => {
     expect(consoleError).toHaveBeenCalledWith(expect.stringContaining(backupKey));
   });
 
-  it("falls back to a backup copy when the adapter cannot rename", () => {
+  it("falls back to a backup copy when rename throws", () => {
     const files = new Map<string, string>([["/test.json", "not json"]]);
     const fs: FsAdapter = {
       read: (path) => files.get(path) ?? null,
       write: (path, content) => {
         files.set(path, content);
+      },
+      rename: () => {
+        throw new Error("rename unsupported");
       },
     };
     const store = new JsonStore<number[]>("/test.json", NumbersSchema, [], {
@@ -285,7 +282,8 @@ describe("JsonStore corruption recovery", () => {
   });
 });
 
-// Versioned wire format: v1 stored items as strings, v2 stores numbers.
+// Versioned wire format: v2 is current; any other version (or none) is
+// quarantine-only — no migration registry exists.
 const VersionedSchema = Type.Object(
   { version: Type.Literal(2), items: Type.Array(Type.Number()) },
   { additionalProperties: false },
@@ -295,51 +293,18 @@ type Versioned = { version: 2; items: number[] };
 
 const DEFAULT_VERSIONED: Versioned = { version: 2, items: [] };
 
-function migrateV1toV2(raw: unknown): unknown {
-  if (typeof raw !== "object" || raw === null || !("items" in raw) || !Array.isArray(raw.items)) {
-    throw new Error("bad v1 shape");
-  }
-  return { version: 2, items: raw.items.map((item) => Number(item)) };
-}
-
 function versionedStore(
   fs: FsAdapter,
-  over?: Partial<StoreVersioning>,
   onRecovery?: (event: StoreRecoveryEvent) => void,
 ): JsonStore<Versioned> {
   return new JsonStore<Versioned>("/test.json", VersionedSchema, DEFAULT_VERSIONED, {
     fs,
     onRecovery: onRecovery ?? (() => undefined),
-    versioning: {
-      current: 2,
-      // The unversioned era stored a bare string array.
-      fromLegacy: (raw) => ({ version: 1, items: raw }),
-      migrations: { 1: migrateV1toV2 },
-      ...over,
-    },
+    versioning: { current: 2 },
   });
 }
 
 describe("JsonStore versioning", () => {
-  it("migrates a legacy unversioned file through the full chain and persists the result", () => {
-    const fs = memoryFs();
-    fs.files.set("/test.json", JSON.stringify(["1", "2"]));
-    const store = versionedStore(fs);
-
-    expect(store.read()).toEqual({ version: 2, items: [1, 2] });
-    // Upgrade is written back so the chain doesn't re-run every launch.
-    expect(JSON.parse(fs.files.get("/test.json") ?? "")).toEqual({ version: 2, items: [1, 2] });
-  });
-
-  it("runs a vN→vN+1 migration on a versioned file", () => {
-    const fs = memoryFs();
-    fs.files.set("/test.json", JSON.stringify({ version: 1, items: ["3"] }));
-    const store = versionedStore(fs);
-
-    expect(store.read()).toEqual({ version: 2, items: [3] });
-    expect(JSON.parse(fs.files.get("/test.json") ?? "")).toEqual({ version: 2, items: [3] });
-  });
-
   it("reads a current-version file without touching it", () => {
     const fs = memoryFs();
     const content = JSON.stringify({ version: 2, items: [4] });
@@ -355,7 +320,7 @@ describe("JsonStore versioning", () => {
     const newer = JSON.stringify({ version: 3, items: [9], futureField: true });
     fs.files.set("/test.json", newer);
     const events: StoreRecoveryEvent[] = [];
-    const store = versionedStore(fs, undefined, (event) => events.push(event));
+    const store = versionedStore(fs, (event) => events.push(event));
 
     expect(store.read()).toEqual(DEFAULT_VERSIONED);
 
@@ -375,70 +340,27 @@ describe("JsonStore versioning", () => {
     expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("newer than supported"));
   });
 
-  it("treats a throwing migration as corruption", () => {
+  it("treats a version below current as corruption", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", JSON.stringify({ version: 1, items: ["3"] }));
     const events: StoreRecoveryEvent[] = [];
-    const store = versionedStore(
-      fs,
-      {
-        migrations: {
-          1: () => {
-            throw new Error("boom");
-          },
-        },
-      },
-      (event) => events.push(event),
-    );
+    const store = versionedStore(fs, (event) => events.push(event));
 
     expect(store.read()).toEqual(DEFAULT_VERSIONED);
-    expect(events[0]).toMatchObject({ kind: "corrupt" });
     if (events[0]?.kind !== "corrupt") throw new Error("expected corrupt event");
-    expect(events[0].reason).toContain("migration from v1 failed: boom");
+    expect(events[0].reason).toContain("unsupported version v1");
     expect([...fs.files.keys()].some((k) => k.startsWith("/test.json.corrupt-"))).toBe(true);
   });
 
-  it("treats a migration that does not advance the version as corruption", () => {
-    const fs = memoryFs();
-    fs.files.set("/test.json", JSON.stringify({ version: 1, items: ["3"] }));
-    const events: StoreRecoveryEvent[] = [];
-    const store = versionedStore(fs, { migrations: { 1: (raw) => raw } }, (event) =>
-      events.push(event),
-    );
-
-    expect(store.read()).toEqual(DEFAULT_VERSIONED);
-    if (events[0]?.kind !== "corrupt") throw new Error("expected corrupt event");
-    expect(events[0].reason).toContain("did not advance");
-  });
-
-  it("treats a version with no registered migration as corruption", () => {
-    const fs = memoryFs();
-    fs.files.set("/test.json", JSON.stringify({ version: 0, items: [] }));
-    const events: StoreRecoveryEvent[] = [];
-    const store = versionedStore(fs, undefined, (event) => events.push(event));
-
-    expect(store.read()).toEqual(DEFAULT_VERSIONED);
-    if (events[0]?.kind !== "corrupt") throw new Error("expected corrupt event");
-    expect(events[0].reason).toContain("no migration registered from v0");
-  });
-
-  it("treats a throwing fromLegacy as corruption", () => {
+  it("treats a file without a version field as corruption", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", JSON.stringify({ items: [] }));
     const events: StoreRecoveryEvent[] = [];
-    const store = versionedStore(
-      fs,
-      {
-        fromLegacy: () => {
-          throw new Error("never had an unversioned era");
-        },
-      },
-      (event) => events.push(event),
-    );
+    const store = versionedStore(fs, (event) => events.push(event));
 
     expect(store.read()).toEqual(DEFAULT_VERSIONED);
     if (events[0]?.kind !== "corrupt") throw new Error("expected corrupt event");
-    expect(events[0].reason).toContain("legacy migration failed");
+    expect(events[0].reason).toContain("no version field");
   });
 });
 
@@ -458,13 +380,6 @@ describe("JsonStore file modes (real fs)", () => {
     const store = new JsonStore<number[]>(file, NumbersSchema, []);
     store.write([1]);
     expect(fileMode(file)).toBe(0o600);
-  });
-
-  it("lets an explicit mode win over the default", () => {
-    const file = path.join(tempDir(), "store.json");
-    const store = new JsonStore<number[]>(file, NumbersSchema, [], { mode: 0o640 });
-    store.write([1]);
-    expect(fileMode(file)).toBe(0o640);
   });
 
   it("heals a stale crash-leftover tmp file's mode instead of inheriting it", () => {

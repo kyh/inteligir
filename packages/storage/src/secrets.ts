@@ -101,14 +101,7 @@ export class SecretStore {
       DEFAULT_SECRETS,
       {
         ...(options.fs ? { fs: options.fs } : {}),
-        // Credential file: owner read/write only.
-        mode: 0o600,
-        versioning: {
-          current: 1,
-          fromLegacy: () => {
-            throw new Error("secrets.json was never written without a version field");
-          },
-        },
+        versioning: { current: 1 },
       },
     );
   }
@@ -136,10 +129,6 @@ export class SecretStore {
       console.error(`[secrets] failed to decrypt '${key}' (keychain changed?):`, err);
       return null;
     }
-  }
-
-  has(key: string): boolean {
-    return this.store.read().secrets[key] !== undefined;
   }
 
   delete(key: string): void {

@@ -45,12 +45,7 @@ import {
 import type { RestoreSnapshotResult } from "@repo/bridge/delegation";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import { runTextTurn } from "@repo/agent/text-turn";
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import { isEnoent } from "@repo/storage/fs-errors";
 import { getVaultManager } from "@repo/vault/vault";
 
@@ -160,11 +155,7 @@ export class RoutinesManager {
       [],
       {
         fs: opts?.fs,
-        versioning: {
-          current: ROUTINES_VERSION,
-          // routines.json was born versioned; nothing legacy can exist.
-          fromLegacy: rejectLegacyVersion("routines.json"),
-        },
+        versioning: { current: ROUTINES_VERSION },
         decode: (raw) => {
           if (!Value.Check(RoutinesFileSchema, raw)) throw new Error("routines shape rejected");
           return raw.routines;

@@ -23,12 +23,7 @@ import {
 } from "./background-turn-lock";
 import { remapVaultPath } from "../restore/snapshot-store";
 import { getRestoreManager, type RestoreManager } from "../restore/restore-manager";
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import { isSelectedProviderConnected } from "../provider/provider-service";
 import { getVaultManager } from "@repo/vault/vault";
 import { emitEvent } from "../events";
@@ -154,13 +149,10 @@ export class DelegationManager {
       [],
       {
         fs: opts?.fs,
-        versioning: {
-          current: DELEGATIONS_VERSION,
-          // Pre-v3 formats predate launch — no released build ever wrote them.
-          // A stray dev-machine file quarantines once and resets; delegations
-          // are documented transient, so nothing of value is lost.
-          fromLegacy: rejectLegacyVersion("delegations.json"),
-        },
+        // Pre-v3 formats predate launch — no released build ever wrote them.
+        // A stray dev-machine file quarantines once and resets; delegations
+        // are documented transient, so nothing of value is lost.
+        versioning: { current: DELEGATIONS_VERSION },
         decode: (raw) => {
           if (!Value.Check(DelegationsFileSchema, raw))
             throw new Error("delegations shape rejected");

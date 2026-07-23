@@ -29,7 +29,7 @@ import {
 import type { AgentsFileEntry } from "@repo/agent/agent";
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { isEnoent } from "@repo/storage/fs-errors";
-import { JsonStore, inteligirPath, rejectLegacyVersion } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
 import { getVaultManager } from "@repo/vault/vault";
 
 // ---- Loader ----------------------------------------------------------------
@@ -105,11 +105,7 @@ export type SeedMarks = {
 
 function jsonStoreMarks(storePath: string): { marks: SeedMarks; close: () => void } {
   const store = new JsonStore<string[]>(storePath, SeedMarksFileSchema, [], {
-    versioning: {
-      current: SEED_MARKS_VERSION,
-      // No unversioned era — the file was born versioned.
-      fromLegacy: rejectLegacyVersion("agent-instructions.json"),
-    },
+    versioning: { current: SEED_MARKS_VERSION },
     decode: (raw) => {
       if (!Value.Check(SeedMarksFileSchema, raw)) throw new Error("seed-marks shape rejected");
       return raw.seededRoots;

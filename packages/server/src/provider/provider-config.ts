@@ -9,12 +9,7 @@
 
 import { type Static, Type } from "@sinclair/typebox";
 
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import { DEFAULT_PROVIDER } from "./provider-catalog";
 
 const PROVIDER_CONFIG_VERSION = 1;
@@ -54,11 +49,7 @@ export class ProviderConfigStore {
       DEFAULT_CONFIG,
       {
         ...(options.fs ? { fs: options.fs } : {}),
-        mode: 0o600,
-        versioning: {
-          current: PROVIDER_CONFIG_VERSION,
-          fromLegacy: rejectLegacyVersion("provider-config"),
-        },
+        versioning: { current: PROVIDER_CONFIG_VERSION },
       },
     );
   }

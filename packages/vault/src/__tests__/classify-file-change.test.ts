@@ -4,40 +4,20 @@ import { classifyFileChange, SelfSaveRegistry } from "../classify-file-change";
 
 describe("classifyFileChange", () => {
   it("returns none when the file is missing/unreadable (vanish handled elsewhere)", () => {
-    expect(classifyFileChange({ lastKnown: "1:2", current: null, editorDirty: false })).toBe(
-      "none",
-    );
-    expect(classifyFileChange({ lastKnown: "1:2", current: null, editorDirty: true })).toBe("none");
-    expect(classifyFileChange({ lastKnown: null, current: null, editorDirty: false })).toBe("none");
+    expect(classifyFileChange({ lastKnown: "1:2", current: null })).toBe("none");
+    expect(classifyFileChange({ lastKnown: null, current: null })).toBe("none");
   });
 
   it("returns none when there is no baseline to diff against", () => {
-    expect(classifyFileChange({ lastKnown: null, current: "1:2", editorDirty: false })).toBe(
-      "none",
-    );
-    expect(classifyFileChange({ lastKnown: null, current: "1:2", editorDirty: true })).toBe("none");
+    expect(classifyFileChange({ lastKnown: null, current: "1:2" })).toBe("none");
   });
 
   it("returns match when the disk fingerprint is unchanged (own write / dup event)", () => {
-    expect(classifyFileChange({ lastKnown: "9:9", current: "9:9", editorDirty: false })).toBe(
-      "match",
-    );
-    // Even with a dirty editor, an unchanged fingerprint is not an external change.
-    expect(classifyFileChange({ lastKnown: "9:9", current: "9:9", editorDirty: true })).toBe(
-      "match",
-    );
+    expect(classifyFileChange({ lastKnown: "9:9", current: "9:9" })).toBe("match");
   });
 
-  it("returns reload when disk changed and the editor is clean", () => {
-    expect(classifyFileChange({ lastKnown: "1:2", current: "3:4", editorDirty: false })).toBe(
-      "reload",
-    );
-  });
-
-  it("returns conflict when disk changed and the editor is dirty", () => {
-    expect(classifyFileChange({ lastKnown: "1:2", current: "3:4", editorDirty: true })).toBe(
-      "conflict",
-    );
+  it("returns reload when the disk genuinely changed", () => {
+    expect(classifyFileChange({ lastKnown: "1:2", current: "3:4" })).toBe("reload");
   });
 });
 

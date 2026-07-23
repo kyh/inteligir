@@ -24,12 +24,7 @@ import crypto from "node:crypto";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import { emitEvent } from "../events";
 import { resolveDailyNotePath } from "../daily-note";
 import { getVaultManager } from "@repo/vault/vault";
@@ -147,12 +142,7 @@ export class CaptureManager {
       [],
       {
         fs: opts.fs,
-        versioning: {
-          current: INBOX_VERSION,
-          // No unversioned era — the inbox is new. Anything without a version
-          // field is corrupt (quarantined, reset to empty).
-          fromLegacy: rejectLegacyVersion("capture-inbox.json"),
-        },
+        versioning: { current: INBOX_VERSION },
         decode: (raw) => {
           if (!Value.Check(InboxFileSchema, raw)) throw new Error("capture inbox shape rejected");
           return raw.entries;

@@ -12,12 +12,7 @@ import os from "node:os";
 import { type Static, Type } from "@sinclair/typebox";
 
 import { emitEvent } from "../events";
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import { DeviceAuthStore, type PairingRedeemResult, type TokenValidator } from "./device-auth";
 import type { PairingInfo, RemoteAccessState } from "@repo/bridge/remote-access";
 
@@ -71,8 +66,7 @@ export class RemoteAccessManager {
       DEFAULT_CONFIG,
       {
         fs: opts.fs,
-        mode: 0o600,
-        versioning: { current: CONFIG_VERSION, fromLegacy: rejectLegacyVersion("remote-access") },
+        versioning: { current: CONFIG_VERSION },
       },
     );
     this.devices = new DeviceAuthStore({

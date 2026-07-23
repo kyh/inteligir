@@ -30,16 +30,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import ignore, { type Ignore } from "ignore";
-import { Type } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { type Static, Type } from "@sinclair/typebox";
 
 import { atomicWrite } from "@repo/storage/atomic-write";
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
@@ -57,7 +51,8 @@ const SettingsFileSchema = Type.Object(
   { additionalProperties: false },
 );
 
-type VaultSettings = { vaultPath: string };
+// Stored shape carries the version field; getters project it away.
+type VaultSettings = Static<typeof SettingsFileSchema>;
 
 /** Default vault location — ~/Documents/Inteligir, created on first use. */
 function defaultVaultRoot(): string {
@@ -187,21 +182,8 @@ export class VaultManager {
     this.settings = new JsonStore<VaultSettings>(
       opts.settingsPath ?? inteligirPath("settings.json"),
       SettingsFileSchema,
-      { vaultPath: this.defaultRoot },
-      {
-        fs: opts.fs,
-        versioning: {
-          current: SETTINGS_VERSION,
-          // No unversioned era — settings.json is new. Treat any such file as
-          // corrupt rather than guessing its shape.
-          fromLegacy: rejectLegacyVersion("settings.json"),
-        },
-        decode: (raw) => {
-          if (!Value.Check(SettingsFileSchema, raw)) throw new Error("settings shape rejected");
-          return { vaultPath: raw.vaultPath };
-        },
-        encode: (value) => ({ version: SETTINGS_VERSION, vaultPath: value.vaultPath }),
-      },
+      { version: SETTINGS_VERSION, vaultPath: this.defaultRoot },
+      { fs: opts.fs, versioning: { current: SETTINGS_VERSION } },
     );
   }
 
@@ -747,18 +729,10 @@ export class VaultManager {
     // wrote. Compared on the FULL fingerprint: an external edit that collides
     // on mtime alone still differs in size/ino and must surface below.
     if (this.selfSaves.isSelfSave(rel, current)) return;
-    const verdict = classifyFileChange({
-      lastKnown: this.watchedFingerprint,
-      current,
-      // The host doesn't track the editor's dirty state; it broadcasts on any
-      // external change and lets the renderer's externalChange resolve reload
-      // vs. conflict (its behavior today). `reload` and `conflict` both
-      // broadcast, so passing false here is safe and never suppresses.
-      editorDirty: false,
-    });
+    const verdict = classifyFileChange({ lastKnown: this.watchedFingerprint, current });
     // Advance the baseline so a duplicate event for the same state is a no-op.
     this.watchedFingerprint = current;
-    if (verdict === "reload" || verdict === "conflict") this.notify("refresh");
+    if (verdict === "reload") this.notify("refresh");
   }
 
   private closeOpenWatcher(): void {

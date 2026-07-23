@@ -34,12 +34,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { atomicWrite } from "@repo/storage/atomic-write";
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 
 // Retention: keep the newest 50 snapshots PER ORIGIN, pruned on host start.
 // A count cap (not an age window) keeps disk usage proportional to actual AI
@@ -192,13 +187,9 @@ export class SnapshotStore {
       [],
       {
         fs: opts.fs,
-        versioning: {
-          current: SNAPSHOTS_VERSION,
-          // No unversioned era — snapshots.json was born versioned. The v1
-          // format predates launch (no released build wrote it); a stray
-          // dev-machine file quarantines once and resets.
-          fromLegacy: rejectLegacyVersion("snapshots.json"),
-        },
+        // The v1 format predates launch (no released build wrote it); a stray
+        // dev-machine file quarantines once and resets.
+        versioning: { current: SNAPSHOTS_VERSION },
         decode: (raw) => {
           if (!Value.Check(SnapshotsFileSchema, raw)) throw new Error("snapshots shape rejected");
           return raw.snapshots;

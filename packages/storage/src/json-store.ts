@@ -27,10 +27,10 @@ export type FsAdapter = {
   write: (filePath: string, content: string, mode?: number) => void;
   /**
    * Atomic move — used to quarantine corrupt/newer-version files so they
-   * stop being re-detected on every launch. Adapters without it fall back
+   * stop being re-detected on every launch. If it throws, backup falls back
    * to copy-on-write (backup written, original left in place).
    */
-  rename?: (from: string, to: string) => void;
+  rename: (from: string, to: string) => void;
 };
 
 // ~/.inteligir holds credentials (pi's auth.json, secrets.json) — keep the
@@ -50,11 +50,10 @@ function restrictInteligirDir(filePath: string): void {
 
 // Writes go through the shared tmp-then-rename atomicWrite (storage/atomic-write).
 //
-// Mode DEFAULTS to owner-only (0o600): every JsonStore lives under
+// Mode is fixed owner-only (0o600): every JsonStore lives under
 // ~/.inteligir, and several hold credentials or note content (secrets,
-// the snapshots index, delegation records naming note lines). A store that
-// genuinely needed shared visibility would pass an explicit mode — none does;
-// revisit this default before ever pointing a JsonStore outside ~/.inteligir.
+// the snapshots index, delegation records naming note lines). Revisit
+// before ever pointing a JsonStore outside ~/.inteligir.
 //
 // Exported so other ~/.inteligir JSON writers (e.g. @repo/sync's base-manifest
 // store) inherit the same atomic-write + owner-only guarantees instead of
@@ -105,25 +104,15 @@ export function setStoreRecoveryNotifier(notifier: (event: StoreRecoveryEvent) =
 }
 
 /**
- * On-disk format version + migration registry. Every new store MUST provide
- * this — registering a migration chain without declaring the current version
- * and the unversioned-era story is not expressible. Only pre-existing stores
+ * On-disk format version. Every new store MUST provide this. Version drift is
+ * quarantine-only until a real migration ships: a file at any version other
+ * than `current` (newer, older, or unversioned) is set aside and the store
+ * resets to defaults — no migration registry exists. Only pre-existing stores
  * whose contents are documented as ephemeral (ui-state.json) may omit it.
  */
 export type StoreVersioning = {
-  /** Version the current schema describes. Files already here skip migration. */
+  /** Version the current schema describes. */
   current: number;
-  /**
-   * Upgrade a file from the unversioned era (no integer `version` field).
-   * Required even when no such era ever existed — throw to declare
-   * unversioned files corrupt. The returned value must carry a `version`.
-   */
-  fromLegacy: (raw: unknown) => unknown;
-  /**
-   * vN→vN+1 steps keyed by source version N. Each step must write the
-   * version it migrated to into the returned value.
-   */
-  migrations?: Readonly<Partial<Record<number, (raw: unknown) => unknown>>>;
 };
 
 export type JsonStoreOptions<T> = {
@@ -146,38 +135,15 @@ export type JsonStoreOptions<T> = {
    * Inverse of `decode` — used when writing back to disk. Defaults to identity.
    */
   encode?: (value: T) => unknown;
-  /** Version + migrations for the on-disk format. Required for new stores. */
+  /** On-disk format version. Required for new stores. */
   versioning?: StoreVersioning;
-  /**
-   * POSIX permission bits applied to the file on every write. Defaults to
-   * 0o600 (owner-only — every store lives under ~/.inteligir); explicit
-   * values at call sites document intent. Backups written on recovery
-   * inherit it too.
-   */
-  mode?: number;
 };
-
-/**
- * A `fromLegacy` for stores that never had an unversioned era: any file
- * without an integer `version` field is corrupt by definition. `storeName`
- * names the store in the quarantine reason.
- */
-export function rejectLegacyVersion(storeName: string): (raw: unknown) => never {
-  return () => {
-    throw new Error(`${storeName} store has no version field`);
-  };
-}
 
 function readVersion(value: unknown): number | null {
   if (!isRecord(value)) return null;
   const version = value["version"];
   return typeof version === "number" && Number.isInteger(version) ? version : null;
 }
-
-type MigrateOutcome =
-  | { kind: "ok"; value: unknown; migrated: boolean }
-  | { kind: "corrupt"; reason: string }
-  | { kind: "newer-version"; fileVersion: number };
 
 export class JsonStore<T> {
   private cache: T | undefined;
@@ -192,7 +158,6 @@ export class JsonStore<T> {
   private readonly decode: (raw: unknown) => T;
   private readonly encode: (value: T) => unknown;
   private readonly versioning: StoreVersioning | undefined;
-  private readonly mode: number | undefined;
 
   constructor(
     private readonly filePath: string,
@@ -210,16 +175,15 @@ export class JsonStore<T> {
     this.decode = options.decode ?? ((raw) => raw as T);
     this.encode = options.encode ?? ((value) => value);
     this.versioning = options.versioning;
-    this.mode = options.mode;
   }
 
   /**
-   * Read + migrate + validate. Returns the defaultValue if the file is
-   * missing. A file whose version is newer than `versioning.current`
-   * (downgraded build) is quarantined to <path>.newer-v<N>-<ts>; an
-   * unrecoverable file (unparseable / failed migration / schema-rejected)
-   * is moved aside to <path>.corrupt-<ts>. Both paths log, keep the
-   * original bytes at the backup path, and surface a recovery event.
+   * Read + validate. Returns the defaultValue if the file is missing. A file
+   * whose version is newer than `versioning.current` (downgraded build) is
+   * quarantined to <path>.newer-v<N>-<ts>; an unrecoverable file
+   * (unparseable / wrong version / schema-rejected) is moved aside to
+   * <path>.corrupt-<ts>. Both paths log, keep the original bytes at the
+   * backup path, and surface a recovery event.
    */
   read(): T {
     if (this.cache !== undefined) return structuredClone(this.cache);
@@ -234,15 +198,15 @@ export class JsonStore<T> {
     } catch {
       return this.recoverCorrupt(raw, "unparseable JSON");
     }
-    let migrated = false;
     if (this.versioning) {
-      const outcome = this.migrate(parsed, this.versioning);
-      if (outcome.kind === "corrupt") return this.recoverCorrupt(raw, outcome.reason);
-      if (outcome.kind === "newer-version") {
-        return this.quarantineNewer(raw, outcome.fileVersion, this.versioning.current);
+      const version = readVersion(parsed);
+      if (version === null) return this.recoverCorrupt(raw, "no version field");
+      if (version > this.versioning.current) {
+        return this.quarantineNewer(raw, version, this.versioning.current);
       }
-      parsed = outcome.value;
-      migrated = outcome.migrated;
+      if (version < this.versioning.current) {
+        return this.recoverCorrupt(raw, `unsupported version v${version}`);
+      }
     }
     if (!Value.Check(this.schema, parsed)) {
       return this.recoverCorrupt(raw, "schema validation failed");
@@ -252,14 +216,6 @@ export class JsonStore<T> {
     } catch (err) {
       return this.recoverCorrupt(raw, `decode failed: ${toErrorMessage(err)}`);
     }
-    if (migrated && !this.closed) {
-      // Persist the upgraded shape so the chain doesn't re-run every launch.
-      try {
-        this.fs.write(this.filePath, JSON.stringify(this.encode(this.cache), null, 2), this.mode);
-      } catch {
-        // Best-effort: the migrated value is live in memory either way.
-      }
-    }
     return structuredClone(this.cache);
   }
 
@@ -267,7 +223,7 @@ export class JsonStore<T> {
     if (this.closed) return;
     this.assertWritable(data);
     this.cache = structuredClone(data);
-    this.fs.write(this.filePath, JSON.stringify(this.encode(this.cache), null, 2), this.mode);
+    this.fs.write(this.filePath, JSON.stringify(this.encode(this.cache), null, 2), 0o600);
   }
 
   /**
@@ -309,49 +265,6 @@ export class JsonStore<T> {
     this.closed = true;
   }
 
-  private migrate(parsed: unknown, versioning: StoreVersioning): MigrateOutcome {
-    let value = parsed;
-    let version = readVersion(value);
-    let migrated = false;
-    if (version === null) {
-      try {
-        value = versioning.fromLegacy(value);
-      } catch (err) {
-        return { kind: "corrupt", reason: `legacy migration failed: ${toErrorMessage(err)}` };
-      }
-      version = readVersion(value);
-      if (version === null) {
-        return { kind: "corrupt", reason: "legacy migration produced an unversioned value" };
-      }
-      migrated = true;
-    }
-    while (version < versioning.current) {
-      const step = versioning.migrations?.[version];
-      if (!step) {
-        return { kind: "corrupt", reason: `no migration registered from v${version}` };
-      }
-      try {
-        value = step(value);
-      } catch (err) {
-        return {
-          kind: "corrupt",
-          reason: `migration from v${version} failed: ${toErrorMessage(err)}`,
-        };
-      }
-      const next = readVersion(value);
-      if (next === null || next <= version) {
-        return {
-          kind: "corrupt",
-          reason: `migration from v${version} did not advance the version field`,
-        };
-      }
-      version = next;
-      migrated = true;
-    }
-    if (version > versioning.current) return { kind: "newer-version", fileVersion: version };
-    return { kind: "ok", value, migrated };
-  }
-
   private recoverCorrupt(raw: string, reason: string): T {
     const backupPath = `${this.filePath}.corrupt-${Date.now()}`;
     this.backup(raw, backupPath);
@@ -386,19 +299,17 @@ export class JsonStore<T> {
     return structuredClone(this.cache);
   }
 
-  /** Move the bad file aside (preferred), or copy its bytes if the adapter
-   * can't rename. Best-effort: if the disk is dead we can't help. */
+  /** Move the bad file aside (preferred), or copy its bytes if the rename
+   * throws. Best-effort: if the disk is dead we can't help. */
   private backup(raw: string, backupPath: string): void {
-    if (this.fs.rename) {
-      try {
-        this.fs.rename(this.filePath, backupPath);
-        return;
-      } catch {
-        // Fall back to a copy below.
-      }
+    try {
+      this.fs.rename(this.filePath, backupPath);
+      return;
+    } catch {
+      // Fall back to a copy below.
     }
     try {
-      this.fs.write(backupPath, raw, this.mode);
+      this.fs.write(backupPath, raw, 0o600);
     } catch {
       // Recovery is best-effort; the console.error is the durable record.
     }

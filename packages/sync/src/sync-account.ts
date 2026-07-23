@@ -17,12 +17,7 @@ import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 import { createAuthClient } from "better-auth/client";
 
-import {
-  JsonStore,
-  inteligirPath,
-  rejectLegacyVersion,
-  type FsAdapter,
-} from "@repo/storage/json-store";
+import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
 import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { AccountCapabilities, SyncSignInResult } from "@repo/bridge/sync";
 
@@ -81,8 +76,6 @@ const PENDING_SOCIAL_TTL_MS = 10 * 60_000;
 const DEFAULT_AUTH: StoredAuth = { version: AUTH_VERSION, token: null, email: null };
 const DEFAULT_VAULT_ID: StoredVaultId = { version: VAULT_ID_VERSION, vaultId: "" };
 
-const rejectLegacy = rejectLegacyVersion("sync");
-
 /** Open a URL in the system browser. A throw (sync or async) fails the
  * sign-in as an `{ok:false}` value — socialSignIn awaits it. */
 export type BrowserOpener = (url: string) => void | Promise<void>;
@@ -130,27 +123,19 @@ export class SyncAccount {
       opts.configPath ?? inteligirPath("sync-config.json"),
       SyncConfigSchema,
       DEFAULT_CONFIG,
-      {
-        fs: opts.fs,
-        mode: 0o600,
-        versioning: { current: CONFIG_VERSION, fromLegacy: rejectLegacy },
-      },
+      { fs: opts.fs, versioning: { current: CONFIG_VERSION } },
     );
     this.authStore = new JsonStore<StoredAuth>(
       opts.authPath ?? inteligirPath("sync-auth.json"),
       SyncAuthSchema,
       DEFAULT_AUTH,
-      { fs: opts.fs, mode: 0o600, versioning: { current: AUTH_VERSION, fromLegacy: rejectLegacy } },
+      { fs: opts.fs, versioning: { current: AUTH_VERSION } },
     );
     this.vaultIdStore = new JsonStore<StoredVaultId>(
       opts.vaultIdPath ?? inteligirPath("sync-vault-id.json"),
       SyncVaultIdSchema,
       DEFAULT_VAULT_ID,
-      {
-        fs: opts.fs,
-        mode: 0o600,
-        versioning: { current: VAULT_ID_VERSION, fromLegacy: rejectLegacy },
-      },
+      { fs: opts.fs, versioning: { current: VAULT_ID_VERSION } },
     );
   }
 
