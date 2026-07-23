@@ -38,8 +38,9 @@ pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 `@repo/server` (real vault, real pi agent, delegation, knowledge indexes) and
 serves the Bridge over ONE local WebSocket server (`startWsHost`); the
 renderer dials it with `createWsBridge` using the endpoint + per-boot token
-the bootstrap-only preload exposes. pi auth (OpenAI OAuth) is on-device; if
-this machine is logged in, chat/AI/delegation are fully live. Uses the
+the bootstrap-only preload exposes. Agent auth is provider OAuth (OpenAI or
+Claude, switchable in Settings → AI), handled by pi on-device; if this
+machine is logged in, chat/AI/delegation are fully live. Uses the
 last-opened vault from `~/.inteligir`.
 
 **Vault liveness is ephemeral, not watched (a deliberate decision — PR #411).** There is NO recursive
@@ -161,5 +162,5 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 Use the `release` skill (`.claude/skills/release/`) — bump, build, notarize,
 publish to GitHub Releases (electron-updater). Note: the electron-builder
 packaging path moved in the host split (extraResources now sources
-`packages/server/resources/agent`) — `pnpm verify:release` +
+`packages/agent/resources/agent`) — `pnpm verify:release` +
 `pnpm verify:packaged` in `apps/desktop` are the guards.

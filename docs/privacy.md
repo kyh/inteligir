@@ -24,11 +24,12 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   private path probes the file pi will actually open; a drift-guard test
   pins our resolver against pi's installed one so a pi upgrade can't
   silently reopen the gap.
-- **`search_vault` / `get_backlinks` drop it entirely.** Private notes are
-  excluded inside the index query and every surviving hit is re-probed
-  against live disk — no path, no title, no snippet ever reaches the model.
-  A private note's backlinks read as "No backlinks.", indistinguishable from
-  a note that has none.
+- **`search_vault` / `get_backlinks` / `related_notes` drop it entirely.**
+  Private notes are excluded inside the index query and every surviving hit
+  is re-probed against live disk — no path, no title, no snippet ever
+  reaches the model. A private note's backlinks read as "No backlinks.",
+  indistinguishable from a note that has none; a private subject's related
+  notes read as "No related notes." the same way.
 - **Editor AI is hard-off.** Ghost-text stops and the ⌘J menu (prompts,
   canned actions, translate) refuses with a toast, derived live from the
   document — the instant you type `private: true`, before any save. This
@@ -96,7 +97,7 @@ boundary**. Read the "What it does NOT do" list before relying on it.
 - Enforcement points, for review: `agent/privacy/gate.ts` (tool gate) with
   `agent/privacy/pi-path-parity.ts` (path normalization, pinned against pi
   by `__tests__/pi-path-parity.test.ts`); `boot/agent-knowledge-port.ts`
-  (search/backlinks); `editor/note-privacy.ts` with `ai/ghost-text-kit.tsx`
+  (search/backlinks/related); `editor/note-privacy.ts` with `ai/ghost-text-kit.tsx`
   and `ai/ai-session.ts` (editor AI); `stores/agent-store.ts` (context hint,
   over the `vault:probe-note-privacy` live-disk probe);
   `delegation/delegation-manager.ts` (delegation).

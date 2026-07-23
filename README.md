@@ -20,7 +20,7 @@ packages/          Libraries
   agent/           The pi capability (@repo/agent)
   storage/         Node fs/json substrate over ~/.inteligir (@repo/storage)
   vault/           VaultManager — the user's markdown folder (@repo/vault)
-  voice/           Voice capability — STT + TTS proxy (@repo/voice)
+  voice/           Voice capability — sherpa-onnx STT dictation (@repo/voice)
   connectors/      MCP/connectors capability + executor daemon (@repo/connectors)
   sync/            Desktop vault-sync adapters (@repo/sync)
   server/          Node backend — vault, delegation, connectors, voice, boot (@repo/server)

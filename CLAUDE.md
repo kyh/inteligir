@@ -248,12 +248,18 @@ settings behind a dialog; backlinks collapse under the editor column; a
 right-edge TOC minimap expands on hover; the graph view (lazy d3-force canvas)
 and full-text search live in the command palette.
 
-- `workspace/vault-context.tsx` — a `VaultProvider` owning the open note
-  (`openPath`, persisted in ui-state under `workspace.openNote`), the file
-  listing, and all vault actions; the note's live machinery (controller +
-  autosave debounce + vanish watcher) is the extracted, unit-tested
-  `workspace/note-runtime.ts`. Sidebar + editor + composer consume
-  `useVault()`. Links + Backlinks panels (`workspace/links-panel.tsx`)
+- `workspace/vault-context.tsx` — a `VaultProvider` that PRODUCES all vault
+  state but exposes it through three cadence-split seams (#470): the stable
+  `VaultActionsContext` callbacks (`useVaultActions` — identity fixed, so
+  action-only consumers never re-render), `VaultListingContext`
+  (`useVaultListing`: entries + folderName + wiki resolver, changes only on
+  a structural refresh), and the high-cadence open-note slice in a zustand
+  store (`workspace/open-note-store.ts`, `useOpenNote` via selectors —
+  `openPath` persisted in ui-state under `workspace.openNote`) so a
+  keystroke re-renders only the editor. The note's live machinery
+  (controller + autosave debounce + vanish watcher) is the extracted,
+  unit-tested `workspace/note-runtime.ts`. Links + Backlinks + Related
+  panels (`workspace/links-panel.tsx`)
   collapse under the editor column. The sidebar file tree is VS Code-style
   (full-width rows, depth as in-row padding, roving-tabindex keyboard nav —
   `sidebar/tree-navigation.ts`).
@@ -365,8 +371,9 @@ Extension bundles are listed in `packages/agent/src/bundles.ts` (static registry
 test) and receive `AgentPorts` at register time — adding/removing a capability
 is one folder + one line. `code-mode/` is the MCP/connectors capability
 (over the @repo/connectors daemon); `knowledge-tools/` exposes
-`search_vault` (lexical, optional `tag` filter) and `get_backlinks` over the
-knowledge engine.
+`search_vault` (lexical, optional `tag` filter), `get_backlinks`,
+`related_notes` (ranked indirect connections with reasons), and the
+link-rewriting `rename_note` over the knowledge engine.
 `validateToolParametersSchema` rejects tool schemas that aren't a top-level
 `Type.Object` (OpenAI silently rejects `anyOf`-rooted schemas). The chat agent
 edits notes with pi's native file tools pointed at `./vault` — no custom edit
@@ -378,7 +385,7 @@ in-memory session for ghost-text on a fast model.
 contract): excluded from every AI surface on this device, fail-closed — the
 agent's file tools refuse them (per-call live-disk probe in pi's `tool_call`
 hook, `packages/agent/src/privacy/`, path-normalization parity with pi's own tools),
-`search_vault`/`get_backlinks` drop them entirely, editor AI + ghost text go
+`search_vault`/`get_backlinks`/`related_notes` drop them entirely, editor AI + ghost text go
 hard-off, the chat context hint withholds even the path, and delegation
 refuses. Unparseable frontmatter counts as private. A leak-prevention
 boundary for AI features, NOT a security boundary.

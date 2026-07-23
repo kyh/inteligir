@@ -96,6 +96,12 @@ consumed per assistant turn (the queue is SHARED by chat and the delegation
 background agent — script, then drive exactly one flow before re-scripting).
 Empty `steps` restores the self-refilling echo.
 
+`getAgentSystemPrompt` is the assertion seam beside it: a payload-free call —
+`call("getAgentSystemPrompt")` — returning the live chat agent's system prompt
+(`string`, or `null` when no agent is up), so a prompt-shaping change can be
+asserted byte-for-byte instead of inferred from model behavior. Same fail-closed
+gate as `setFauxAgentScript`: it throws unless `INTELIGIR_FAUX_AGENT=1`.
+
 1. Script the reply, over the Bridge:
    `call("setFauxAgentScript", { steps: [{ text: "SCRIPTED_CHAT_REPLY_42" }] })`
 2. Type into the composer and submit (agent-browser): click "Ask the agent…",
