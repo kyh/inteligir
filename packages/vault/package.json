@@ -17,7 +17,7 @@
     "@repo/notes": "workspace:*",
     "@repo/storage": "workspace:*",
     "@sinclair/typebox": "catalog:",
-    "ignore": "^7.0.5"
+    "ignore": "^7.0.6"
   },
   "devDependencies": {
     "@types/node": "catalog:",
