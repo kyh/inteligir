@@ -39,6 +39,8 @@ function testPlatform(): HostPlatform {
     resourcesDir: path.join(tmpHome, "resources"),
     strictResources: false,
     secretCipher: {
+      kind: "safe-storage",
+      isAvailable: () => true,
       encrypt: (plain: string) => Buffer.from(plain, "utf8").toString("base64"),
       decrypt: (cipher: string) => Buffer.from(cipher, "base64").toString("utf8"),
     },

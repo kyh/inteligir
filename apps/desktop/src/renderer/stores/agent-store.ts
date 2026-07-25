@@ -28,7 +28,34 @@ import {
   openNotePath,
 } from "@renderer/workspace/open-note-flush";
 import { useAiProviderStore } from "@renderer/stores/ai-provider-store";
-import { onUserTranscript, useVoiceStore } from "@renderer/stores/voice-store";
+// ---------------------------------------------------------------------------
+// Assistant-stream taps. Voice narration is an OPTIONAL capability, so it
+// subscribes here instead of the core chat store importing its store and
+// poking at it — deleting @repo/voice must not touch this file. The wiring in
+// the other direction (a finished transcript becoming a user turn) lives with
+// voice too: @renderer/voice/narration.ts, installed once by app-root.
+// ---------------------------------------------------------------------------
+
+/** `delta`/`end` track a streaming assistant reply; `reset` means the chat was
+ * wiped (RESET_APP_DATA) and any dependent surface should drop its state. */
+export type AssistantStreamEvent =
+  | { kind: "delta"; text: string }
+  | { kind: "end" }
+  | { kind: "reset" };
+
+const assistantStreamListeners = new Set<(event: AssistantStreamEvent) => void>();
+
+/** Subscribe to the streamed assistant reply. Returns unsubscribe. */
+export function onAssistantStream(listener: (event: AssistantStreamEvent) => void): () => void {
+  assistantStreamListeners.add(listener);
+  return () => {
+    assistantStreamListeners.delete(listener);
+  };
+}
+
+function emitAssistantStream(event: AssistantStreamEvent): void {
+  for (const listener of assistantStreamListeners) listener(event);
+}
 
 // ---------------------------------------------------------------------------
 // The chat surface is the SHARED @repo/bridge/chat-log fold (the same
@@ -152,13 +179,12 @@ function subscribeAgentEvents(bridge: Bridge, set: SetFn, get: GetFn): () => voi
       return chat ?? s;
     });
 
-    // Voice narration follows the streamed reply (desktop-only side effect).
+    // Broadcast the streamed reply for optional consumers (voice narration).
+    // The chat store does NOT know who is listening — see onAssistantStream.
     if (event.type === "message_update" && wasStreaming) {
-      const voice = useVoiceStore.getState();
-      if (voice.state.kind === "listening") voice.speakText(event.delta);
+      emitAssistantStream({ kind: "delta", text: event.delta });
     } else if (event.type === "message_end" && wasStreaming && event.role === "assistant") {
-      const voice = useVoiceStore.getState();
-      if (voice.state.kind === "listening") voice.flushSpeech();
+      emitAssistantStream({ kind: "end" });
     }
   });
 }
@@ -243,22 +269,12 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const unsubAgent = subscribeAgentEvents(bridge, set, get);
     const unsubState = subscribeAppState(bridge, set, get);
     const unsubProgress = subscribeSetupProgress(bridge, set);
-    // A completed voice transcript is just a user turn: route it through the
-    // SAME send() as a typed message, so flush, note-context, failed-flush
-    // handling and the logout bail all live in one place and can't drift. Serialize
-    // so rapid transcripts dispatch (and their bubbles append) in spoken order;
-    // send() is async, so without the chain two could race.
-    let voiceChain: Promise<unknown> = Promise.resolve();
-    const unsubVoice = onUserTranscript((text) => {
-      voiceChain = voiceChain.then(() => get().send(text)).catch(() => undefined);
-    });
     void loadInitialHistory(bridge, set);
 
     return () => {
       unsubAgent();
       unsubState();
       unsubProgress();
-      unsubVoice();
     };
   },
 
@@ -348,7 +364,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
       queuedSteering: [],
       setupProgress: null,
     });
-    useVoiceStore.getState().reset();
+    emitAssistantStream({ kind: "reset" });
     await getBridge().transition({ type: "RESET_APP_DATA" });
   },
 }));

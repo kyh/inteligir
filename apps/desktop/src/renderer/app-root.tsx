@@ -8,6 +8,7 @@ import { ReauthDialog } from "@renderer/components/reauth-dialog";
 import { DesktopThemeProvider } from "@renderer/lib/use-theme";
 import { OnboardingPage } from "@renderer/onboarding/onboarding-page";
 import { useAgentStore } from "@renderer/stores/agent-store";
+import { installVoiceNarration } from "@renderer/voice/narration";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { WorkspacePage } from "@renderer/workspace/workspace-page";
 import type { AppState } from "@repo/bridge/app-state";
@@ -40,6 +41,8 @@ function RootLayout() {
 
   useEffect(() => init(), [init]);
   useEffect(() => void initUiState(), [initUiState]);
+  // Voice's own wiring into chat — the chat store does not know voice exists.
+  useEffect(() => installVoiceNarration(), []);
 
   const surface =
     appState.phase === "error" ? phaseSurface(appState.prev) : phaseSurface(appState.phase);
