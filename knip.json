@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["gh", "ps", "tasklist", "xcrun", "spctl"],
+  "ignoreBinaries": ["gh", "pkill", "ps", "spctl", "tasklist", "xcrun"],
   "ignore": [".design-sync/**"],
   "workspaces": {
     ".": {},
