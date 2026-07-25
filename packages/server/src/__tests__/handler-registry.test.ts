@@ -19,11 +19,6 @@ describe("method partitions", () => {
     const invokable = IPC_METHODS.filter((m) => IPC[m].kind !== "event").toSorted();
     expect([...HOST_METHODS, ...DESKTOP_SHELL_METHODS].toSorted()).toEqual(invokable);
   });
-
-  it("registry channels are unique", () => {
-    const channels = Object.values(IPC).map((def) => def.channel);
-    expect(new Set(channels).size).toBe(channels.length);
-  });
 });
 
 describe("collectHandlers", () => {

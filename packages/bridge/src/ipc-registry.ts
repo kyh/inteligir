@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // IPC registry — single source of truth for every channel that crosses the
-// host <-> renderer boundary. Each entry pairs a channel name with a TypeBox
-// payload schema (for runtime validation) and a TypeScript result/event type
-// (for compile-time inference). The Bridge type and the ws transport's
-// dispatch are both derived from this registry, so a rename here is a
-// compile error everywhere it matters.
+// host <-> renderer boundary. Each entry pairs a TypeBox payload schema (for
+// runtime validation) with a TypeScript result/event type (for compile-time
+// inference); the registry KEY is the method name on the wire. The Bridge type
+// and the ws transport's dispatch are both derived from this registry, so a
+// rename here is a compile error everywhere it matters.
 // ---------------------------------------------------------------------------
 
 import { type Static, type TSchema, Type } from "@sinclair/typebox";
@@ -353,7 +353,6 @@ const VoiceApiKeySchema = Type.Object(
 // out of an entry (see Bridge / IpcResult below).
 type Invoke<S extends TSchema, R> = {
   readonly kind: "invoke";
-  readonly channel: string;
   readonly payload: S;
   readonly _payload?: Static<S>;
   readonly _result?: R;
@@ -361,43 +360,29 @@ type Invoke<S extends TSchema, R> = {
 
 type InvokeVoid<R> = {
   readonly kind: "invoke-void";
-  readonly channel: string;
   readonly _result?: R;
 };
 
 type Send<S extends TSchema> = {
   readonly kind: "send";
-  readonly channel: string;
   readonly payload: S;
   readonly _payload?: Static<S>;
 };
 
 type Event<E> = {
   readonly kind: "event";
-  readonly channel: string;
   readonly _event?: E;
 };
 
 type IpcEntry = Invoke<TSchema, unknown> | InvokeVoid<unknown> | Send<TSchema> | Event<unknown>;
 
-const invoke = <S extends TSchema, R>(channel: string, payload: S): Invoke<S, R> => ({
+const invoke = <S extends TSchema, R>(payload: S): Invoke<S, R> => ({
   kind: "invoke",
-  channel,
   payload,
 });
-const invokeVoid = <R>(channel: string): InvokeVoid<R> => ({
-  kind: "invoke-void",
-  channel,
-});
-const send = <S extends TSchema>(channel: string, payload: S): Send<S> => ({
-  kind: "send",
-  channel,
-  payload,
-});
-const event = <E>(channel: string): Event<E> => ({
-  kind: "event",
-  channel,
-});
+const invokeVoid = <R>(): InvokeVoid<R> => ({ kind: "invoke-void" });
+const send = <S extends TSchema>(payload: S): Send<S> => ({ kind: "send", payload });
+const event = <E>(): Event<E> => ({ kind: "event" });
 
 // ---------------------------------------------------------------------------
 // The registry — every method that crosses the IPC boundary
@@ -405,228 +390,171 @@ const event = <E>(channel: string): Event<E> => ({
 
 export const IPC = {
   // App lifecycle
-  getAppState: invokeVoid<AppState>("app:get-state"),
-  transition: invoke<typeof AppEventSchema, void>("app:transition", AppEventSchema),
-  onAppState: event<AppState>("app:state"),
-  onSetupProgress: event<SetupProgress>("app:setup-progress"),
+  getAppState: invokeVoid<AppState>(),
+  transition: invoke<typeof AppEventSchema, void>(AppEventSchema),
+  onAppState: event<AppState>(),
+  onSetupProgress: event<SetupProgress>(),
 
   // Agent
-  onAgentEvent: event<AppAgentEvent>("agent:event"),
-  sendAgentCommand: invoke<typeof TextChatMessageSchema, void>(
-    "agent:command",
-    TextChatMessageSchema,
-  ),
-  getAgentHistory: invokeVoid<ChatHistoryEntry[]>("agent:history"),
+  onAgentEvent: event<AppAgentEvent>(),
+  sendAgentCommand: invoke<typeof TextChatMessageSchema, void>(TextChatMessageSchema),
+  getAgentHistory: invokeVoid<ChatHistoryEntry[]>(),
   /** Past chat threads on disk, newest first; the ACTIVE thread is excluded
    * (it's already the live chat). Read-only browsing — see ./chat-sessions:
    * there is deliberately no resume-arbitrary-session channel. */
-  listChatSessions: invokeVoid<ChatSessionSummary[]>("agent:list-sessions"),
+  listChatSessions: invokeVoid<ChatSessionSummary[]>(),
   /** One past thread's transcript (getAgentHistory's shape). Unknown or
    * malformed ids come back as an { ok: false } VALUE, never a throw. */
   readChatSession: invoke<typeof ReadChatSessionSchema, ReadChatSessionResult>(
-    "agent:read-session",
     ReadChatSessionSchema,
   ),
-  reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>("agent:reauthenticate"),
+  reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>(),
   /** Dev-only (INTELIGIR_FAUX_AGENT=1; throws otherwise): replace the faux
    * provider's queued responses so a headless E2E drive scripts exact agent
    * turns. One step is consumed per assistant turn across EVERY faux-backed
    * agent (chat + background delegation share one queue — script, then drive
    * exactly one flow). Empty `steps` restores the self-refilling echo. */
-  setFauxAgentScript: invoke<typeof FauxAgentScriptSchema, void>(
-    "agent:set-faux-script",
-    FauxAgentScriptSchema,
-  ),
+  setFauxAgentScript: invoke<typeof FauxAgentScriptSchema, void>(FauxAgentScriptSchema),
   /** Dev-only (INTELIGIR_FAUX_AGENT=1; throws otherwise): the chat session's
    * composed system prompt, or null before the agent starts. Lets a headless
    * E2E drive assert injected context (e.g. vault/AGENTS.md instructions)
    * actually reached the constructed session. */
-  getAgentSystemPrompt: invokeVoid<string | null>("agent:system-prompt"),
+  getAgentSystemPrompt: invokeVoid<string | null>(),
 
   // AI provider — WHICH pi provider+model the agent surfaces run on. These
   // channels move only the SELECTION and per-provider connected booleans;
   // tokens stay on-device in pi's auth.json and never cross the Bridge.
   /** Selection + every offered provider with connected state and model menu. */
-  getAiProviderSettings: invokeVoid<AiProviderSettings>("ai-provider:get"),
+  getAiProviderSettings: invokeVoid<AiProviderSettings>(),
   /** Patch the selection (partial; a provider switch defaults the model).
    * Rolls the live sessions so the next turn runs the new provider+model. */
   setAiProviderConfig: invoke<typeof AiProviderSetConfigSchema, AiProviderSettings>(
-    "ai-provider:set-config",
     AiProviderSetConfigSchema,
   ),
   /** Run the interactive OAuth connect flow for one provider (opens the
    * system browser; resolves when credentials land in pi's auth.json). */
-  connectAiProvider: invoke<typeof AiProviderRefSchema, AiConnectResult>(
-    "ai-provider:connect",
-    AiProviderRefSchema,
-  ),
+  connectAiProvider: invoke<typeof AiProviderRefSchema, AiConnectResult>(AiProviderRefSchema),
   /** Drop one provider's on-device credentials. */
-  disconnectAiProvider: invoke<typeof AiProviderRefSchema, AiProviderSettings>(
-    "ai-provider:disconnect",
-    AiProviderRefSchema,
-  ),
+  disconnectAiProvider: invoke<typeof AiProviderRefSchema, AiProviderSettings>(AiProviderRefSchema),
 
   // Voice
-  isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
+  isTtsAvailable: invokeVoid<boolean>(),
   /** Store/clear the ElevenLabs API key. Voice owns its secret: the handler
    * writes the encrypted SecretStore directly and keeps only a `true`
    * presence marker under ELEVENLABS_API_KEY_UI_STATE in ui-state (which is
    * what getUiState exposes to Settings) — plaintext never crosses back. */
-  setVoiceApiKey: invoke<typeof VoiceApiKeySchema, void>(
-    "voice:tts:set-api-key",
-    VoiceApiKeySchema,
-  ),
-  ttsSend: send<typeof TtsSendSchema>("voice:tts:send", TtsSendSchema),
-  ttsFlush: send<ReturnType<typeof Type.Undefined>>("voice:tts:flush", Type.Undefined()),
-  ttsInterrupt: send<ReturnType<typeof Type.Undefined>>("voice:tts:interrupt", Type.Undefined()),
-  onTtsAudio: event<{ audio: ArrayBuffer }>("voice:tts:audio"),
-  startStt: invokeVoid<{ ok: true } | { ok: false; error: string }>("voice:stt:start"),
+  setVoiceApiKey: invoke<typeof VoiceApiKeySchema, void>(VoiceApiKeySchema),
+  ttsSend: send<typeof TtsSendSchema>(TtsSendSchema),
+  ttsFlush: send<ReturnType<typeof Type.Undefined>>(Type.Undefined()),
+  ttsInterrupt: send<ReturnType<typeof Type.Undefined>>(Type.Undefined()),
+  onTtsAudio: event<{ audio: ArrayBuffer }>(),
+  startStt: invokeVoid<{ ok: true } | { ok: false; error: string }>(),
   // ArrayBuffer / ArrayBufferView can't be expressed in TypeBox; pass through.
-  sendSttAudio: send<typeof BinaryAudioSchema>("voice:stt:audio", BinaryAudioSchema),
-  stopStt: invokeVoid<Array<{ text: string; isFinal: boolean }>>("voice:stt:stop"),
-  onSttTranscript: event<{ text: string; isFinal: boolean }>("voice:stt:transcript"),
-  onVoiceModelState: event<VoiceModelStateEvent>("voice:model:state"),
+  sendSttAudio: send<typeof BinaryAudioSchema>(BinaryAudioSchema),
+  stopStt: invokeVoid<Array<{ text: string; isFinal: boolean }>>(),
+  onSttTranscript: event<{ text: string; isFinal: boolean }>(),
+  onVoiceModelState: event<VoiceModelStateEvent>(),
 
   // Notifications
-  getNotificationSettings: invokeVoid<NotificationSettings>("notifications:get"),
+  getNotificationSettings: invokeVoid<NotificationSettings>(),
   updateNotificationSettings: invoke<typeof NotificationsPatchSchema, NotificationSettings>(
-    "notifications:update",
     NotificationsPatchSchema,
   ),
 
   // UI state
-  getUiState: invokeVoid<Record<string, unknown>>("ui-state:get"),
-  setUiState: invoke<typeof UiStateSetSchema, void>("ui-state:set", UiStateSetSchema),
+  getUiState: invokeVoid<Record<string, unknown>>(),
+  setUiState: invoke<typeof UiStateSetSchema, void>(UiStateSetSchema),
 
   // Vault (knowledge folder) — trusted renderer surface for the editor.
-  getVaultRoot: invokeVoid<string>("vault:get-root"),
-  chooseVaultRoot: invokeVoid<ChooseVaultResult>("vault:choose-root"),
-  listVault: invokeVoid<VaultEntry[]>("vault:list"),
-  readVaultDoc: invoke<typeof VaultPathSchema, string>("vault:read-doc", VaultPathSchema),
-  writeVaultDoc: invoke<typeof VaultWriteDocSchema, void>("vault:write-doc", VaultWriteDocSchema),
-  deleteVaultEntry: invoke<typeof VaultPathSchema, { removed: boolean }>(
-    "vault:delete",
-    VaultPathSchema,
-  ),
+  getVaultRoot: invokeVoid<string>(),
+  chooseVaultRoot: invokeVoid<ChooseVaultResult>(),
+  listVault: invokeVoid<VaultEntry[]>(),
+  readVaultDoc: invoke<typeof VaultPathSchema, string>(VaultPathSchema),
+  writeVaultDoc: invoke<typeof VaultWriteDocSchema, void>(VaultWriteDocSchema),
+  deleteVaultEntry: invoke<typeof VaultPathSchema, { removed: boolean }>(VaultPathSchema),
   /** Rename/move a file to a new vault-relative path (creating parent dirs).
    * Refuses to clobber an existing file. */
   renameVaultEntry: invoke<typeof VaultRenameSchema, { ok: true } | { ok: false; error: string }>(
-    "vault:rename",
     VaultRenameSchema,
   ),
   /** Write image (or other) bytes into the vault under `dir` (e.g. "assets"),
    * picking a collision-free name derived from `baseName`. Returns the final
    * vault-relative path. The editor's paste/drop image ingestion uses this. */
-  writeVaultAsset: invoke<typeof VaultWriteAssetSchema, { path: string }>(
-    "vault:write-asset",
-    VaultWriteAssetSchema,
-  ),
+  writeVaultAsset: invoke<typeof VaultWriteAssetSchema, { path: string }>(VaultWriteAssetSchema),
   /** Read an in-vault asset's bytes as base64 (image rendering). Capped; a
    * missing/oversized file returns `{ ok: false }` rather than throwing. */
-  readVaultAsset: invoke<typeof VaultPathSchema, ReadVaultAssetResult>(
-    "vault:read-asset",
-    VaultPathSchema,
-  ),
+  readVaultAsset: invoke<typeof VaultPathSchema, ReadVaultAssetResult>(VaultPathSchema),
   /** Mint a per-open token authorizing `vault-app://` reads for one HTML-App
    * open. Desktop-shell-only: the token lives in the main-process token store
    * the protocol handler checks, so this can't be a platform-neutral host
    * handler (see DESKTOP_SHELL_METHODS). */
-  mintHtmlAppToken: invokeVoid<string>("vault:mint-html-app-token"),
+  mintHtmlAppToken: invokeVoid<string>(),
   /** Revoke a per-open token when its HTML-App closes/unmounts, so a captured
    * or leaked token can't keep reading the vault. The FIFO bound in
    * vault-app-protocol.ts is a backstop, not a substitute — this is the normal
    * path. Desktop-shell-only, same reasoning as `mintHtmlAppToken`. */
-  revokeHtmlAppToken: invoke<typeof HtmlAppTokenSchema, void>(
-    "vault:revoke-html-app-token",
-    HtmlAppTokenSchema,
-  ),
+  revokeHtmlAppToken: invoke<typeof HtmlAppTokenSchema, void>(HtmlAppTokenSchema),
   /** LIVE-disk privacy probe for one note — the SAME probe the agent tool
    * gate runs (never an index, never the renderer buffer). The context-hint
    * path needs it: a sync pull or agent write can flip a note `private: true`
    * on disk before the open-note watcher refreshes the editor buffer, and a
    * private note's PATH must not reach the model either. */
-  probeNotePrivacy: invoke<typeof VaultPathSchema, NotePrivacyProbe>(
-    "vault:probe-note-privacy",
-    VaultPathSchema,
-  ),
+  probeNotePrivacy: invoke<typeof VaultPathSchema, NotePrivacyProbe>(VaultPathSchema),
   /** Tell the host which note is open so it watches that single file for
    * external edits (vault liveness — CLAUDE.md § Decisions). Pass
    * `{ path: null }` when no note is open. */
-  setWatchedNote: invoke<typeof WatchedNoteSchema, void>(
-    "vault:set-watched-note",
-    WatchedNoteSchema,
-  ),
+  setWatchedNote: invoke<typeof WatchedNoteSchema, void>(WatchedNoteSchema),
   /** Rebuild the ephemeral snapshot now: re-list + reindex + sync kick. The
    * renderer calls this on window focus (debounced) and from the "Refresh vault"
    * command; the host also calls it internally on delegation completion. */
-  refreshVault: invokeVoid<void>("vault:refresh"),
+  refreshVault: invokeVoid<void>(),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
-  onVaultChanged: event<{ root: string }>("vault:changed"),
+  onVaultChanged: event<{ root: string }>(),
 
   // Knowledge — link + search indexes over the vault, kept fresh from vault
   // change events. Queries are cheap index reads.
-  getBacklinks: invoke<typeof VaultPathSchema, BacklinkEntry[]>(
-    "knowledge:backlinks",
-    VaultPathSchema,
-  ),
-  getForwardLinks: invoke<typeof VaultPathSchema, ForwardLinkEntry[]>(
-    "knowledge:forward-links",
-    VaultPathSchema,
-  ),
+  getBacklinks: invoke<typeof VaultPathSchema, BacklinkEntry[]>(VaultPathSchema),
+  getForwardLinks: invoke<typeof VaultPathSchema, ForwardLinkEntry[]>(VaultPathSchema),
   /** Ranked "related notes" for one note — shared link targets, co-citation,
    * shared tags, lexical similarity — each entry carrying human-readable
    * `reasons`. Direct link neighbors are excluded by design (the Links and
    * Backlinks panels already surface them). */
-  getRelatedNotes: invoke<typeof VaultPathSchema, RelatedNoteEntry[]>(
-    "knowledge:related-notes",
-    VaultPathSchema,
-  ),
+  getRelatedNotes: invoke<typeof VaultPathSchema, RelatedNoteEntry[]>(VaultPathSchema),
   /** Whole-vault link graph, shaped for a force-graph renderer (unresolved
    * targets appear as flagged phantom nodes). */
-  getLinkGraph: invokeVoid<LinkGraph>("knowledge:graph"),
+  getLinkGraph: invokeVoid<LinkGraph>(),
   /** Ranked lexical full-text search (title > heading > body tiers). */
-  searchVault: invoke<typeof KnowledgeSearchSchema, SearchResult[]>(
-    "knowledge:search",
-    KnowledgeSearchSchema,
-  ),
+  searchVault: invoke<typeof KnowledgeSearchSchema, SearchResult[]>(KnowledgeSearchSchema),
   /** Every linkable target for the `[[`-autocomplete picker: notes first,
    * then attachments (flagged `type: "asset"` so the picker groups them and
    * inserts `![[embeds]]`). */
-  listWikiTargets: invokeVoid<WikiTarget[]>("knowledge:wiki-targets"),
+  listWikiTargets: invokeVoid<WikiTarget[]>(),
   /** Every tag in the vault with its note count (inline `#tags` ∪ frontmatter
    * `tags`, unified case-insensitively) — the palette's `#` tag list. */
-  listTags: invokeVoid<TagCount[]>("knowledge:tags"),
+  listTags: invokeVoid<TagCount[]>(),
   /** Vault paths of the notes carrying a tag (case-insensitive). */
-  getNotesByTag: invoke<typeof KnowledgeTagSchema, string[]>(
-    "knowledge:notes-by-tag",
-    KnowledgeTagSchema,
-  ),
+  getNotesByTag: invoke<typeof KnowledgeTagSchema, string[]>(KnowledgeTagSchema),
   /** Every task in the vault (checked and not), path-then-ordinal — the Tasks
    * view's whole-vault query over the projection. */
-  listVaultTasks: invokeVoid<VaultTaskEntry[]>("knowledge:tasks"),
+  listVaultTasks: invokeVoid<VaultTaskEntry[]>(),
   /** Guarded checkbox toggle: re-read the file, locate the ordinal-th task
    * item, require its current line to equal `expectedRaw` byte-for-byte, and
    * flip only the marker char (atomic write; the watcher broadcasts). On ANY
    * {ok:false} the host refreshes the index (self-heal) and the renderer
    * refetches + toasts — refuse loudly, never write wrong. Invalidation rides
    * the existing onKnowledgeUpdated event. */
-  toggleVaultTask: invoke<typeof ToggleTaskSchema, ToggleTaskResult>(
-    "knowledge:toggle-task",
-    ToggleTaskSchema,
-  ),
+  toggleVaultTask: invoke<typeof ToggleTaskSchema, ToggleTaskResult>(ToggleTaskSchema),
   /** Fired after every index refresh so backlink panes / graph views
    * re-query. */
-  onKnowledgeUpdated: event<Record<string, never>>("knowledge:updated"),
+  onKnowledgeUpdated: event<Record<string, never>>(),
 
   // Delegation — a checkbox handed to a background agent.
   createDelegation: invoke<typeof CreateDelegationParamsSchema, CreateDelegationResult>(
-    "delegation:create",
     CreateDelegationParamsSchema,
   ),
-  listDelegations: invokeVoid<ListDelegationsResult>("delegation:list"),
+  listDelegations: invokeVoid<ListDelegationsResult>(),
   cancelDelegation: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
-    "delegation:cancel",
     Type.String({ minLength: 1 }),
   ),
   /** Restore the target file's pre-run bytes (captured before the background
@@ -634,57 +562,51 @@ export const IPC = {
    * standard onVaultChanged refreshes editors; no-op success when the file
    * already matches the snapshot. Records `restoredAt` on the delegation. */
   restoreDelegationSnapshot: invoke<ReturnType<typeof Type.String>, RestoreSnapshotResult>(
-    "delegation:restore-snapshot",
     Type.String({ minLength: 1 }),
   ),
   /** Fired on every delegation status change so the editor's inline badges
    * stay live. */
-  onDelegationsUpdated: event<ListDelegationsResult>("delegation:updated"),
+  onDelegationsUpdated: event<ListDelegationsResult>(),
   /** Fired as a running delegation streams its response text (accumulating,
    * keyed by id) so the response dock can show it live. */
-  onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
+  onDelegationStreamed: event<{ id: string; text: string }>(),
 
   // Routines — scheduled agent tasks (delegation's sibling: the same
   // background session, serialized with it; results append to a target note).
-  listRoutines: invokeVoid<ListRoutinesResult>("routines:list"),
+  listRoutines: invokeVoid<ListRoutinesResult>(),
   /** Create (no id) or edit (with id) a routine's config; run bookkeeping is
    * host-owned. Refuses a private target note up front (run time re-checks). */
   upsertRoutine: invoke<typeof UpsertRoutineParamsSchema, UpsertRoutineResult>(
-    "routines:upsert",
     UpsertRoutineParamsSchema,
   ),
   deleteRoutine: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
-    "routines:delete",
     Type.String({ minLength: 1 }),
   ),
   /** Queue an immediate run (Settings "Run now" — works on disabled routines
    * too, as the test-your-config affordance). Serialized like any run. */
   runRoutineNow: invoke<ReturnType<typeof Type.String>, RunRoutineNowResult>(
-    "routines:run-now",
     Type.String({ minLength: 1 }),
   ),
   /** Restore the target note's pre-run bytes from the routine's LAST run
    * snapshot (the append is undone; a run that created the note trashes it). */
   restoreRoutineRun: invoke<ReturnType<typeof Type.String>, RestoreSnapshotResult>(
-    "routines:restore-run",
     Type.String({ minLength: 1 }),
   ),
   /** Fired on every routines change (config, run start/finish) so Settings →
    * Routines stays live. */
-  onRoutinesUpdated: event<ListRoutinesResult>("routines:updated"),
+  onRoutinesUpdated: event<ListRoutinesResult>(),
 
   // AI-write checkpoints — the chat agent's undo (see the section header on
   // AgentEditCaptured above).
   /** A chat-agent write was checkpointed pre-execution — drives the
    * post-turn undo toast. */
-  onAgentEditCaptured: event<AgentEditCaptured>("checkpoint:captured"),
+  onAgentEditCaptured: event<AgentEditCaptured>(),
   /** Undo a set of chat checkpoints: each `edit` writes its pre-write bytes
    * back atomically through the vault (no-op when already matching; the
    * open-note watcher refreshes editors), each `create` moves the created
    * file to the OS trash. The renderer flushes the open note FIRST so the
    * restore never fights a dirty buffer. */
   restoreAgentEdits: invoke<typeof RestoreAgentEditsSchema, RestoreAgentEditsResult>(
-    "checkpoint:restore",
     RestoreAgentEditsSchema,
   ),
 
@@ -695,52 +617,37 @@ export const IPC = {
   /** A capture targets the open note: apply `line` through the live editor
    * buffer so the next autosave persists it (a host disk write to an open
    * DIRTY note would be overwritten by the next whole-buffer flush). */
-  onCaptureApply: event<CaptureApplyEvent>("capture:apply"),
+  onCaptureApply: event<CaptureApplyEvent>(),
   /** The renderer's capture-apply verdict — see AckCaptureSchema. */
-  ackCapture: invoke<typeof AckCaptureSchema, void>("capture:ack", AckCaptureSchema),
+  ackCapture: invoke<typeof AckCaptureSchema, void>(AckCaptureSchema),
   /** A deep-link nav verb arrived (inteligir://today | note/<target> |
    * search?q=). Id-stamped so the renderer can dedupe the cold-launch
    * overlap between this push and the takePendingDeepLinkNav pull. */
-  onDeepLinkNav: event<DeepLinkNavEvent>("deep-link:nav"),
+  onDeepLinkNav: event<DeepLinkNavEvent>(),
   /** Pull-and-clear the parked nav on mount — a cold launch delivers the URL
    * before any renderer subscribed. Callers MUST subscribe onDeepLinkNav
    * BEFORE pulling (the reverse order silently drops a nav landing between
    * the two) and dedupe by event id. */
-  takePendingDeepLinkNav: invokeVoid<DeepLinkNavEvent | null>("deep-link:take-pending"),
+  takePendingDeepLinkNav: invokeVoid<DeepLinkNavEvent | null>(),
 
   // Inline AI — one-shot text generation for the editor's AI menu (generate
   // and edit flows), run on an isolated no-tools session.
-  generateInlineAi: invoke<typeof AiGenerateParamsSchema, AiGenerateResult>(
-    "ai:generate",
-    AiGenerateParamsSchema,
-  ),
+  generateInlineAi: invoke<typeof AiGenerateParamsSchema, AiGenerateResult>(AiGenerateParamsSchema),
   /** Fired for each text delta of an in-flight inline-AI request (keyed by the
    * caller's requestId) so the editor can insert the generation live. */
-  onAiStreamed: event<{ requestId: string; delta: string }>("ai:streamed"),
+  onAiStreamed: event<{ requestId: string; delta: string }>(),
   /** Abort an in-flight generateInlineAi turn (Escape mid-stream). */
-  cancelInlineAi: invoke<typeof AiCancelParamsSchema, void>(
-    "ai:generate-cancel",
-    AiCancelParamsSchema,
-  ),
+  cancelInlineAi: invoke<typeof AiCancelParamsSchema, void>(AiCancelParamsSchema),
   /** Classify a free-form AI-menu prompt as generate vs edit intent. Runs on
    * the inline-AI session; unparseable answers fall back to generate. */
-  classifyAiIntent: invoke<typeof AiIntentParamsSchema, AiIntentResult>(
-    "ai:classify-intent",
-    AiIntentParamsSchema,
-  ),
+  classifyAiIntent: invoke<typeof AiIntentParamsSchema, AiIntentResult>(AiIntentParamsSchema),
   /** One ghost-text completion on the dedicated fast session. A new request
    * supersedes (aborts) the previous one. */
-  generateGhostText: invoke<typeof GhostTextParamsSchema, GhostTextResult>(
-    "ai:ghost-text",
-    GhostTextParamsSchema,
-  ),
+  generateGhostText: invoke<typeof GhostTextParamsSchema, GhostTextResult>(GhostTextParamsSchema),
   /** Abort an in-flight ghost completion (typing / Escape / blur). */
-  cancelGhostText: invoke<typeof AiCancelParamsSchema, void>(
-    "ai:ghost-text-cancel",
-    AiCancelParamsSchema,
-  ),
+  cancelGhostText: invoke<typeof AiCancelParamsSchema, void>(AiCancelParamsSchema),
   /** Models the ghost-text session can run (for the settings picker). */
-  listGhostModels: invokeVoid<GhostModelsResult>("ai:ghost-models"),
+  listGhostModels: invokeVoid<GhostModelsResult>(),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection
@@ -748,53 +655,39 @@ export const IPC = {
   // The per-step integration/connection/OAuth channels are gone too (#461
   // Phase 4a): install/uninstall is host-orchestrated, so the renderer only
   // needs status + the read lists + the Google-client dialogs' create/ensure.
-  executorStatus: invokeVoid<ExecutorStatus>("executor:status"),
-  listExecutorIntegrations: invokeVoid<Static<typeof ExecutorIntegrationSchema>[]>(
-    "executor:integrations:list",
-  ),
+  executorStatus: invokeVoid<ExecutorStatus>(),
+  listExecutorIntegrations: invokeVoid<Static<typeof ExecutorIntegrationSchema>[]>(),
   detectExecutorIntegration: invoke<
     ReturnType<typeof Type.String>,
     Static<typeof ExecutorDetectResultSchema>[]
-  >("executor:integrations:detect", Type.String()),
-  listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionSchema>[]>(
-    "executor:connections:list",
-  ),
+  >(Type.String()),
+  listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionSchema>[]>(),
   createExecutorOAuthClient: invoke<typeof CreateOAuthClientInputSchema, { client: string }>(
-    "executor:oauth:client:create",
     CreateOAuthClientInputSchema,
   ),
-  ensureGoogleOAuthClient: invokeVoid<EnsureGoogleClientResult>(
-    "executor:oauth:google-client:ensure",
-  ),
+  ensureGoogleOAuthClient: invokeVoid<EnsureGoogleClientResult>(),
   // Connector install/uninstall — host-orchestrated (register integration →
   // mint connection → browser OAuth → rollback on failure) in
   // @repo/connectors/connector-install.ts; the renderer sends ONE request per
   // user action and surfaces the rejection message on failure.
   installConnector: invoke<typeof ConnectorInstallRequestSchema, void>(
-    "executor:connector:install",
     ConnectorInstallRequestSchema,
   ),
   uninstallConnector: invoke<typeof ConnectorUninstallRequestSchema, void>(
-    "executor:connector:uninstall",
     ConnectorUninstallRequestSchema,
   ),
   /** Dev-only (INTELIGIR_EMULATE_CONNECTORS=1; throws otherwise): the
    * in-flight connector OAuth consent, or null when none is pending (#462). */
-  getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(
-    "executor:connector:pending-auth",
-  ),
+  getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(),
 
   // Vault sync — reconcile the local vault against the coordinator Worker.
   // OFF by default; gated at runtime by the sync-config store + a bearer token.
   /** Current sync state (enabled/signed-in/coordinator/last-status). */
-  getSyncState: invokeVoid<SyncState>("sync:get-state"),
+  getSyncState: invokeVoid<SyncState>(),
   /** Patch the sync config (enable toggle + coordinator URL). */
-  setSyncConfig: invoke<typeof SyncSetConfigSchema, SyncState>(
-    "sync:set-config",
-    SyncSetConfigSchema,
-  ),
+  setSyncConfig: invoke<typeof SyncSetConfigSchema, SyncState>(SyncSetConfigSchema),
   /** Email+password sign-in against the configured coordinator. */
-  syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>("sync:sign-in", SyncSignInSchema),
+  syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>(SyncSignInSchema),
   /** Ask the coordinator to email a password-reset link (#463). NEUTRAL by
    * contract: `ok` means "request accepted", NEVER "that email exists" — the
    * coordinator answers identically for known and unknown emails, and the
@@ -802,64 +695,56 @@ export const IPC = {
    * `ok:false` carries only transport/config failures (no coordinator URL,
    * network down), which reveal nothing about any account. */
   syncRequestPasswordReset: invoke<typeof SyncRequestPasswordResetSchema, SyncSignInResult>(
-    "sync:request-password-reset",
     SyncRequestPasswordResetSchema,
   ),
   /** Email+password sign-UP (guest→account upgrade); success signs in. */
-  syncSignUp: invoke<typeof SyncSignUpSchema, SyncSignInResult>("sync:sign-up", SyncSignUpSchema),
+  syncSignUp: invoke<typeof SyncSignUpSchema, SyncSignInResult>(SyncSignUpSchema),
   /** INITIATE social OAuth for a capability-listed provider: opens the system
    * browser at the coordinator's authorization URL. ok = browser opened —
    * the session lands on-device when the `inteligir://session` deep link
    * completes the exchange (see onSocialSignInResult). */
-  syncSocialSignIn: invoke<typeof SyncSocialSignInSchema, SyncSignInResult>(
-    "sync:social-sign-in",
-    SyncSocialSignInSchema,
-  ),
+  syncSocialSignIn: invoke<typeof SyncSocialSignInSchema, SyncSignInResult>(SyncSocialSignInSchema),
   /** The RESULT of a social sign-in's deep-link completion (the
    * `inteligir://session` callback → HTTPS code exchange → session adoption).
    * Deep-link-driven — there is no request to respond to — so the account
    * UI's "finish in your browser…" pending state resolves on this event: ok
    * clears it (onSyncStateChanged flips signedIn too), an error carries the
    * user-facing message (expired/replayed link, exchange failure). */
-  onSocialSignInResult: event<SyncSignInResult>("sync:social-sign-in-result"),
+  onSocialSignInResult: event<SyncSignInResult>(),
   /** Which social providers the configured coordinator serves (env-gated
    * server-side) — drives the Account section's social buttons. */
-  getAccountCapabilities: invokeVoid<AccountCapabilities>("sync:account-capabilities"),
+  getAccountCapabilities: invokeVoid<AccountCapabilities>(),
   /** Clear the local session (best-effort remote revoke). */
-  syncSignOut: invokeVoid<void>("sync:sign-out"),
+  syncSignOut: invokeVoid<void>(),
   /** Force one reconcile pass now; returns the outcome. */
-  syncNow: invokeVoid<SyncOutcome>("sync:now"),
+  syncNow: invokeVoid<SyncOutcome>(),
   /** Fired on every config / auth / status change so the settings Sync UI is
    * reactive. Same shape as getSyncState. */
-  onSyncStateChanged: event<SyncState>("sync:state-changed"),
+  onSyncStateChanged: event<SyncState>(),
 
   // Remote access — the WS transport's device-pairing surface: an enable
   // toggle, LAN URLs, paired devices, and one-time pairing tokens. All state
   // reads/writes go through the remote-access manager.
   /** Current remote-access state (enabled/port/listening/lanUrls/devices). */
-  getRemoteAccessState: invokeVoid<RemoteAccessState>("remote:get-state"),
+  getRemoteAccessState: invokeVoid<RemoteAccessState>(),
   /** Patch the remote-access config (enable toggle only; port stays fixed). */
   setRemoteAccessConfig: invoke<typeof RemoteAccessSetConfigSchema, RemoteAccessState>(
-    "remote:set-config",
     RemoteAccessSetConfigSchema,
   ),
   /** Mint a one-time pairing token (10-minute TTL) for another device to
    * redeem over the ws transport's `pair` frame. */
-  createPairingToken: invokeVoid<PairingInfo>("remote:create-pairing-token"),
+  createPairingToken: invokeVoid<PairingInfo>(),
   /** Forget a paired device — its token stops validating immediately. */
-  revokeRemoteDevice: invoke<typeof RevokeDeviceSchema, RemoteAccessState>(
-    "remote:revoke-device",
-    RevokeDeviceSchema,
-  ),
+  revokeRemoteDevice: invoke<typeof RevokeDeviceSchema, RemoteAccessState>(RevokeDeviceSchema),
   /** Fired on every remote-access config / device / listen change. */
-  onRemoteAccessChanged: event<RemoteAccessState>("remote:state-changed"),
+  onRemoteAccessChanged: event<RemoteAccessState>(),
 
   // Skills
-  listSkills: invokeVoid<SkillsList>("skills:list"),
+  listSkills: invokeVoid<SkillsList>(),
 
   // Integrations
-  listIntegrations: invokeVoid<IntegrationInfo[]>("integrations:list"),
-  repairIntegrations: invokeVoid<void>("integrations:repair"),
+  listIntegrations: invokeVoid<IntegrationInfo[]>(),
+  repairIntegrations: invokeVoid<void>(),
 } as const satisfies Record<string, IpcEntry>;
 
 type IpcRegistry = typeof IPC;
