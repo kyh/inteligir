@@ -19,6 +19,23 @@ function MacLogoIcon({ className }: { className?: string }) {
 // API hit per worker isolate per hour, falling back to the releases page.
 let cached: { url: string; expires: number } | null = null;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/** The `.dmg` asset's download URL from a GitHub release payload, or null if
+ * the response isn't shaped the way we expect. */
+function findDmgUrl(payload: unknown): string | null {
+  if (!isRecord(payload) || !Array.isArray(payload["assets"])) return null;
+  for (const asset of payload["assets"]) {
+    if (!isRecord(asset)) continue;
+    const name = asset["name"];
+    const url = asset["browser_download_url"];
+    if (typeof name === "string" && name.endsWith(".dmg") && typeof url === "string") return url;
+  }
+  return null;
+}
+
 const getDownloadUrl = createServerFn().handler(async (): Promise<string> => {
   if (cached && cached.expires > Date.now()) return cached.url;
 
@@ -28,12 +45,11 @@ const getDownloadUrl = createServerFn().handler(async (): Promise<string> => {
     });
     if (!res.ok) return FALLBACK_URL;
 
-    const release: {
-      assets: Array<{ name: string; browser_download_url: string }>;
-    } = await res.json();
-
-    const dmg = release.assets.find((a) => a.name.endsWith(".dmg"));
-    const url = dmg?.browser_download_url ?? FALLBACK_URL;
+    // GitHub's response is untrusted input: PARSE it rather than annotate it.
+    // The old `const release: {...} = await res.json()` was an unchecked
+    // assertion — a shape change downstream became a TypeError caught by the
+    // outer catch, which reads as "GitHub is down" instead of "we mis-parsed".
+    const url = findDmgUrl(await res.json()) ?? FALLBACK_URL;
     cached = { url, expires: Date.now() + CACHE_TTL_MS };
     return url;
   } catch {

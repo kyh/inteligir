@@ -1,6 +1,4 @@
 import { useEffect } from "react";
-import { Toaster } from "@repo/ui/components/sonner";
-import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
@@ -98,11 +96,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="bg-background text-foreground font-sans antialiased">
         <ThemeProvider>
-          <TooltipProvider>
-            <SiteHeader />
-            {children}
-            <Toaster />
-          </TooltipProvider>
+          <SiteHeader />
+          {children}
         </ThemeProvider>
         <Scripts />
       </body>
