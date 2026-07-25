@@ -250,6 +250,11 @@ describe("DelegationManager run lifecycle", () => {
       path: "/d.json",
       readVault: () => live,
       restore: new RestoreManager({ snapshots: memorySnapshots() }),
+      // Without this the manager falls back to isSelectedProviderConnected(),
+      // which reads the REAL ~/.inteligir/provider-config.json — so these
+      // tests passed on a machine with a connected provider and failed on
+      // every clean CI runner, where createDelegation refuses up front.
+      isProviderConnected: () => true,
     });
     mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 }); // anchor = "task one"
 
@@ -274,6 +279,11 @@ describe("DelegationManager run lifecycle", () => {
       path: "/d.json",
       readVault: () => live,
       restore: new RestoreManager({ snapshots: memorySnapshots() }),
+      // Without this the manager falls back to isSelectedProviderConnected(),
+      // which reads the REAL ~/.inteligir/provider-config.json — so these
+      // tests passed on a machine with a connected provider and failed on
+      // every clean CI runner, where createDelegation refuses up front.
+      isProviderConnected: () => true,
     });
     mgr.createDelegation({ sourceFile: "n.md", ordinal: 1 }); // anchor = "task two"
     expect(mgr.getDelegations()[0]?.anchor.text).toBe("task two");
@@ -298,6 +308,11 @@ describe("DelegationManager run lifecycle", () => {
       path: "/d.json",
       readVault: () => live,
       restore: new RestoreManager({ snapshots: memorySnapshots() }),
+      // Without this the manager falls back to isSelectedProviderConnected(),
+      // which reads the REAL ~/.inteligir/provider-config.json — so these
+      // tests passed on a machine with a connected provider and failed on
+      // every clean CI runner, where createDelegation refuses up front.
+      isProviderConnected: () => true,
     });
     mgr.createDelegation({ sourceFile: "n.md", ordinal: 0 });
 
