@@ -439,6 +439,23 @@ an error naming the gap — never silently return `[]`/undefined.
 
 ## Decisions
 
+**Before raising a "new" finding, check the rejection records.** Several
+plausible-looking findings have already been investigated and deliberately
+declined; re-raising one costs a review cycle and lands back where it started.
+They live as open `note` issues because they are records, not work:
+
+| Issue                                               | Covers                                                                        |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [#446](https://github.com/kyh/inteligir/issues/446) | 2026-07-12 audit — findings considered and rejected                           |
+| [#453](https://github.com/kyh/inteligir/issues/453) | Privacy model — accepted, by-design holes (`docs/privacy.md` is the contract) |
+| [#472](https://github.com/kyh/inteligir/issues/472) | Routines/delegation — accepted autonomous-write residuals                     |
+| [#474](https://github.com/kyh/inteligir/issues/474) | 2026-07-24 whole-repo review — rejected findings + measurements               |
+
+A related trap: an issue's PLAN can be stale even when its concern is live.
+#437 and #438 both prescribed edits to types and packages deleted in the
+restructure, and #442/#444/#448/#452 needed the same repair. Verify every path
+an issue names still exists before following it.
+
 Durable architecture decisions code comments cite (plan files and ADR docs
 are deleted on purpose — this section + PRs are the record):
 
