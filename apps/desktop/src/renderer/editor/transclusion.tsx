@@ -19,7 +19,15 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { createSlateEditor } from "platejs";
+import {
+  ElementApi,
+  KEYS,
+  TextApi,
+  createSlateEditor,
+  type TElement,
+  type TText,
+  type Value,
+} from "platejs";
 import { PlateStatic, SlateElement, type SlateElementProps } from "platejs/static";
 
 import { cn } from "@repo/ui/lib/utils";
@@ -29,6 +37,11 @@ import { BASE_KIT } from "@renderer/editor/kits/base-kit";
 import { classNameSlateElement } from "@renderer/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@renderer/editor/kits/table-kit";
 import { parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
+import {
+  alertMarkerPrefix,
+  alertPresentation,
+  type AlertVariant,
+} from "@renderer/editor/nodes/blockquote-node";
 import {
   decideTransclusion,
   nestedScope,
@@ -165,6 +178,7 @@ const STATIC_COMPONENTS: Record<string, (props: SlateElementProps) => ReactNode>
   th: classNameSlateElement("th", TABLE_HEADER_CELL_CLASS),
   wikiLink: WikiLinkStatic,
   wikiEmbed: WikiEmbedStatic,
+  blockquote: BlockquoteStatic,
 };
 
 // withComponent returns extended copies — BASE_KIT itself (the serialization
@@ -173,6 +187,99 @@ const TRANSCLUSION_KIT = BASE_KIT.map((plugin) => {
   const component = STATIC_COMPONENTS[plugin.key];
   return component ? plugin.withComponent(component) : plugin;
 });
+
+// ---------------------------------------------------------------------------
+// GitHub-alert markers in the STATIC path (#382).
+//
+// The live editor hides a `> [!TIP]` marker line behind the variant badge with
+// the `calloutMarker` DECORATION (basic-blocks-kit.tsx). PlateStatic runs no
+// decorations, so a transcluded alert rendered the marker literally next to the
+// badge. Rather than teach the static renderer about decorations, strip the
+// marker from the copy being rendered — the same information the decoration
+// hides, removed one layer earlier.
+//
+// Safe precisely because this value is a THROWAWAY parse of a read-only embed:
+// the vault file is never written from here, so removing bytes cannot reach
+// disk. Do NOT reuse this on any editable path.
+// ---------------------------------------------------------------------------
+
+/** Where stripAlertMarkers stashes the detected variant for BlockquoteStatic.
+ * Lives only on the throwaway render copy, never in the document model. */
+export const ALERT_VARIANT_KEY = "transclusionAlertVariant";
+
+const ALERT_VARIANTS_SET = new Set(["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]);
+
+function isAlertVariant(value: string): value is AlertVariant {
+  return ALERT_VARIANTS_SET.has(value);
+}
+
+/** The blockquote's first leaf, if it is the marker-bearing one the live
+ * decoration would target (first leaf of the first paragraph). */
+function alertLeaf(quote: TElement): TText | null {
+  const first = quote.children[0];
+  if (!ElementApi.isElement(first) || first.type !== KEYS.p) return null;
+  const leaf = first.children[0];
+  return TextApi.isText(leaf) ? leaf : null;
+}
+
+/** Alert blockquotes in the static path: the badge the live element renders,
+ * over a body whose marker stripAlertMarkers already removed. Non-alert
+ * blockquotes fall through to the default static rendering. */
+function BlockquoteStatic(props: SlateElementProps) {
+  const variant = props.element[ALERT_VARIANT_KEY];
+  const presentation =
+    typeof variant === "string" && isAlertVariant(variant) ? alertPresentation(variant) : null;
+  if (!presentation) {
+    return (
+      <SlateElement {...props} as="blockquote">
+        {props.children}
+      </SlateElement>
+    );
+  }
+  const { Icon, accent, icon, label } = presentation;
+  return (
+    <SlateElement
+      {...props}
+      as="blockquote"
+      className={cn("callout-alert rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0", accent)}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-1.5 py-[3px] text-[13px] leading-[1.3] font-semibold select-none",
+          icon,
+        )}
+        contentEditable={false}
+      >
+        <Icon className="size-4" />
+        {label}
+      </div>
+      {props.children}
+    </SlateElement>
+  );
+}
+
+export function stripAlertMarkers(value: Value): Value {
+  return value.map((node) => {
+    if (!ElementApi.isElement(node) || node.type !== KEYS.blockquote) return node;
+    const leaf = alertLeaf(node);
+    const marker = leaf ? alertMarkerPrefix(leaf.text) : null;
+    if (!leaf || !marker) return node;
+    const [paragraph, ...rest] = node.children;
+    if (!ElementApi.isElement(paragraph)) return node;
+    const [, ...siblings] = paragraph.children;
+    return {
+      ...node,
+      [ALERT_VARIANT_KEY]: marker.variant,
+      children: [
+        {
+          ...paragraph,
+          children: [{ ...leaf, text: leaf.text.slice(marker.hidden) }, ...siblings],
+        },
+        ...rest,
+      ],
+    };
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Target content, read through the bridge and refreshed on vault changes.
@@ -242,7 +349,12 @@ function TransclusionBody({ content }: { content: string }) {
   const parsed = useMemo(() => parseMarkdown(content), [content]);
   const editor = useMemo(
     () =>
-      parsed.ok ? createSlateEditor({ plugins: TRANSCLUSION_KIT, value: parsed.value }) : null,
+      parsed.ok
+        ? createSlateEditor({
+            plugins: TRANSCLUSION_KIT,
+            value: stripAlertMarkers(parsed.value),
+          })
+        : null,
     [parsed],
   );
   if (content.trim() === "") {

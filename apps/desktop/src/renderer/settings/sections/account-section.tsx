@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+
+import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
@@ -291,32 +293,35 @@ export function AccountSection() {
                         ? "Send reset link"
                         : "Sign in"}
                 </Button>
-                {mode === "reset" ? (
-                  <button
-                    type="button"
-                    onClick={() => switchMode("sign-in")}
-                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    Back to sign in
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => switchMode(mode === "sign-up" ? "sign-in" : "sign-up")}
-                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {mode === "sign-up" ? "Have an account? Sign in" : "New here? Create account"}
-                  </button>
-                )}
-                {mode === "sign-in" && (
-                  <button
-                    type="button"
-                    onClick={() => switchMode("reset")}
-                    className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    Forgot password?
-                  </button>
-                )}
+                {/* These two stay MOUNTED across every mode change, swapping
+                    label/handler in place (#473). A button that unmounts itself
+                    on click detaches the press target before Base UI's
+                    outside-press check resolves, so the whole Settings dialog
+                    reads it as an outside click and closes. Same reason
+                    "Forgot password?" hides with a class instead of a guard. */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    switchMode(mode === "reset" || mode === "sign-up" ? "sign-in" : "sign-up")
+                  }
+                  className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {mode === "reset"
+                    ? "Back to sign in"
+                    : mode === "sign-up"
+                      ? "Have an account? Sign in"
+                      : "New here? Create account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchMode("reset")}
+                  className={cn(
+                    "text-[10px] text-muted-foreground transition-colors hover:text-foreground",
+                    mode !== "sign-in" && "hidden",
+                  )}
+                >
+                  Forgot password?
+                </button>
               </div>
 
               {/* Social sign-in, live end to end: the button opens the system

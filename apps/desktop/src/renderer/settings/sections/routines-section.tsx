@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
@@ -276,19 +277,25 @@ export function RoutinesSection() {
           </div>
         ))}
 
-        {draft === null ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setError(null);
-              setDraft(EMPTY_DRAFT);
-            }}
-            className="h-auto self-start px-2 py-0.5 text-[10px] text-muted-foreground"
-          >
-            Add routine…
-          </Button>
-        ) : (
+        {/* Stays MOUNTED while the form is open, hidden by class (#473): a
+            button that unmounts itself on click detaches the press target
+            before Base UI's outside-press check resolves, and the whole
+            Settings dialog closes. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setError(null);
+            setDraft(EMPTY_DRAFT);
+          }}
+          className={cn(
+            "h-auto self-start px-2 py-0.5 text-[10px] text-muted-foreground",
+            draft !== null && "hidden",
+          )}
+        >
+          Add routine…
+        </Button>
+        {draft !== null && (
           <div className="flex flex-col gap-2 rounded-[8px] bg-card px-2.5 py-2">
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-muted-foreground">Name</span>
