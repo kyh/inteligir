@@ -47,15 +47,24 @@ export type TtsHost = {
    * so the proxy stays constructible without the host composition (tests,
    * harness). */
   emitAudio: (audio: ArrayBuffer) => void;
+  /** How the upstream socket is opened. Defaults to the global `WebSocket`;
+   * tests inject a fake so the decode path is exercisable without a network
+   * or an ElevenLabs account. Omitting it always restores the default, so a
+   * test's fake can never leak into a later configuration. */
+  openSocket?: (url: string) => WebSocket;
 };
+
+const defaultOpenSocket = (url: string): WebSocket => new WebSocket(url);
 
 let getApiKey: TtsHost["getApiKey"] = () => null;
 let emitAudio: TtsHost["emitAudio"] = () => {};
+let openSocket: (url: string) => WebSocket = defaultOpenSocket;
 
 /** Install the host seams once at register time. */
 export function configureTts(host: TtsHost): void {
   getApiKey = host.getApiKey;
   emitAudio = host.emitAudio;
+  openSocket = host.openSocket ?? defaultOpenSocket;
 }
 
 function resolveApiKey(): string | null {
@@ -73,7 +82,7 @@ function ensureConnection(): WebSocket | null {
   // not "unset"), which `??` would happily pass through into the endpoint URL.
   const voiceOverride = process.env["ELEVENLABS_VOICE_ID"]?.trim();
   const voiceId = voiceOverride ? voiceOverride : DEFAULT_VOICE_ID;
-  const socket = new WebSocket(endpoint(voiceId));
+  const socket = openSocket(endpoint(voiceId));
   ws = socket;
 
   socket.addEventListener("open", () => {
@@ -95,8 +104,15 @@ function ensureConnection(): WebSocket | null {
       const data: unknown = JSON.parse(String(event.data));
       if (isAudioPayload(data)) {
         // Base64-decoded PCM 24kHz int16 chunk — emit raw bytes to renderer.
-        const buffer = Buffer.from(data.audio, "base64").buffer.slice(0);
-        emitAudio(buffer);
+        // Honor byteOffset/byteLength: Buffer.from returns a VIEW into Node's
+        // shared allocation pool, so `.buffer` is the whole pool and a bare
+        // `.slice(0)` copies it from offset 0 — every chunk emitted as
+        // pool-sized garbage (64KB on Node 24) instead of its audio, taking
+        // adjacent heap bytes across to the renderer with it. Same hazard the
+        // STT path guards (server/handlers/voice-handlers.ts); regression
+        // pinned in __tests__/tts-proxy.test.ts.
+        const chunk = Buffer.from(data.audio, "base64");
+        emitAudio(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength));
       }
     } catch {
       // ignore malformed frames
