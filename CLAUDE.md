@@ -349,6 +349,35 @@ per allowed write (fail-closed — a capture failure blocks the tool) behind the
 post-turn undo toast, and delegation captures pre-run behind the dock's
 "Restore original".
 
+### Routines — `packages/server/src/routines/`
+
+Delegation's sibling, on the SAME background pi session and the shared
+`background-turn-lock`: a routine is a saved prompt plus a schedule (cadence +
+time-of-day), run UNPROMPTED by a timer. `routine-schedule.ts` in
+`@repo/bridge` is the pure due-computation; `routines-manager.ts` owns the
+versioned store, the serialized run queue and the pre-run snapshot. The risk
+shape differs from delegation on purpose and the code leans on it: nobody is
+watching when a routine fires, so the write path is HOST-owned (the manager
+appends the result) rather than agent-owned, and an epoch guard bails mid-run
+if the routine was disabled or deleted while the turn was in flight. Surfaced
+in Settings → Routines (list, add/edit, enable, Run now, Restore last run).
+
+### Remote access — `packages/server/src/transport/`
+
+Off by default. When enabled (Settings → Remote access) the ws host binds
+0.0.0.0 instead of loopback and a phone pairs with a one-time token, minting a
+revocable device token; `remote-access-manager.ts` owns the device roster, and
+a revoke closes the live socket, not just future auths.
+
+A paired device is NOT the renderer. It reaches only
+`REMOTE_ALLOWED_METHODS` / `REMOTE_ALLOWED_EVENTS`
+(`@repo/bridge/ipc-registry`) — today the chat + delegation-dock channels the
+Expo companion drives, and nothing else. These are ALLOWLISTS on purpose: a new
+channel is unreachable from a remote device until named. The ws host enforces
+them at three points, all three required — invoke/send dispatch, event
+broadcast, AND the reconnect hydration push (which resolves a getter host-side
+and would otherwise volunteer state the method gate forbids asking for).
+
 ### Vault sync — `@repo/notes/sync` + `apps/cloud` + platform adapters
 
 **Off by default** (runtime `sync-config` store; Settings → Sync). One pure
@@ -450,3 +479,37 @@ are deleted on purpose — this section + PRs are the record):
   re-asserts it on every boot for files third parties (pi) create 0644.
   pi's auth.json stays pi-owned: plaintext-but-0600 by design — pi reads it
   directly during OAuth refresh, so there is no cipher-injection seam.
+- **Remote-device capability is an ALLOWLIST, never a blocklist.** It was a
+  blocklist once (`LOCAL_ONLY_METHODS`, 6 entries) and every channel added
+  afterward was silently reachable by a paired phone — including
+  `RESET_APP_DATA`, native host dialogs, and binary repair. Allowlists fail
+  closed. Adding a channel to `REMOTE_ALLOWED_*` is a deliberate act with a
+  threat model attached, not a default.
+- **Host services are process-global `getX()` singletons ON PURPOSE.**
+  Evaluated 2026-07-24 and REJECTED: threading an explicit `HostContext`
+  through the handlers, and any disposable-registry variant. One host per
+  process is a domain fact (a single-user desktop app), enforced by the
+  `createHost` guard plus `host.lock`. The managers are already
+  constructor-injectable, so the test suite builds them with fakes today
+  (`delegation-manager.test.ts`) — the conversion buys testability that
+  already exists, at 185 `getX()` call sites across 53 files and 5 package
+  APIs. The `reset*()` set that `teardownAgentResources()` calls is
+  ORDER-INDEPENDENT — every body is `instance?.close(); instance = null`, and
+  a reset that reads another singleton is a bug. The only real ordering is the
+  four pins around `fs.rmSync` (drop caches, close the sqlite handle, suspend
+  vault writes, re-assert the lock afterward), which no construction order
+  derives and which stay hand-written with their inline comments. Completeness
+  is enforced by a DERIVED test that greps every `packages/*/src` for the
+  reset/dispose export convention — self-extending, not a maintained list.
+- **Palette commands and settings sections stay hardcoded lists.** No command
+  registry, no section registry, at ~11 commands and ~10 sections. Every
+  survey that has looked at this declined to propose one; a registry buys
+  indirection and an ordering problem in exchange for a `.push()`. Revisit if
+  a THIRD surface needs to contribute commands it does not own.
+- **`KnowledgeIndex` is not dead code.** It never runs in production (the SQL
+  `KnowledgeStore`'s FTS5 does), and audits keep proposing its deletion.
+  `@repo/notes` carries no sqlite dependency deliberately — it is the pure
+  sharing seam, `SqlDriver` is platform-injected — so this in-memory
+  composition is the ONLY way the package can test its own knowledge engine;
+  ~1,200 lines of tests for related-notes, tags, the link graph, the perf
+  oracle and the privacy gate drive production logic through it.

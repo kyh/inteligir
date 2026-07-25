@@ -3,8 +3,9 @@
 A sync/read/light-edit companion for the vault: Expo SDK 56 + Expo Router +
 NativeWind. It drives the SAME platform-neutral sync engine as desktop
 (`@repo/notes/sync`) through Expo adapters, against the coordinator Worker
-(`apps/cloud`). **No agent on mobile** — chat, delegation, and the rich editor
-stay desktop-only.
+(`apps/cloud`). **No agent RUNS on mobile** — the agent is a desktop-host
+capability. Mobile can drive a PAIRED desktop host's agent remotely over the ws
+transport (chat + the delegation dock); the rich editor stays desktop-only.
 
 ## Layout
 
@@ -16,6 +17,9 @@ src/
                      signed in → vault file list + manual Sync + pull-to-refresh
     note/[path].tsx  Single note — READ renders GFM markdown; EDIT is a raw
                      textarea over the bytes; save writes locally, then syncs
+    chat.tsx         Remote chat with a PAIRED desktop host's agent
+    delegations.tsx  Remote delegation dock — list, cancel, restore
+    connect.tsx      Pair with a desktop host (one-time pairing token)
   lib/
     auth.ts          Better Auth client (expo plugin, SecureStore session);
                      captures the bearer token from `set-auth-token`
@@ -27,7 +31,11 @@ src/
 
 ## What it deliberately is NOT
 
-- No agent, no chat, no delegation.
+- No agent PROCESS. Chat and the delegation dock are remote controls over a
+  paired desktop host, not a local agent — unpaired, neither screen has a
+  backend. The host restricts a paired device to exactly those channels
+  (`REMOTE_ALLOWED_METHODS`/`_EVENTS` in `@repo/bridge/ipc-registry`); the
+  vault/settings/admin surface is local-session-only.
 - No rich editor: notes render as GFM. Inteligir's custom MDX vocabulary
   (`[[wiki-links]]`, `<toggle>`, `$$` math, mermaid, alerts) has no mobile
   renderer and shows as raw source by design.
