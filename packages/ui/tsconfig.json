@@ -3,9 +3,11 @@
   "compilerOptions": {
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "preserve",
+    // node: the orphan-component guard walks the repo from src/__tests__.
+    "types": ["node"],
     "paths": {
       "@repo/ui/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }

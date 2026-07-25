@@ -73,6 +73,8 @@
       "includeEntryExports": false
     },
     "packages/ui": {
+      "entry": [],
+      "project": ["src/**/*.{ts,tsx}"],
       "includeEntryExports": false
     },
     "packages/vault": {
