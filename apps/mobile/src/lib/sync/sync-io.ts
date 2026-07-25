@@ -46,15 +46,35 @@ export class VaultRootMissingError extends Error {
 }
 
 /**
+ * Thrown by a `VaultFs` when a SUB-directory cannot be read. Same hazard as a
+ * missing root, one level down and harder to see: siblings still list, so the
+ * overall result is non-empty and the empty-vault guard never fires — the
+ * vanished subtree reconciles as a pile of deletions and propagates to every
+ * peer. Desktop has always refused this (its crawl marks `complete:false` and
+ * `listAllPaths()` throws); mobile returned `[]` and silently deleted (#466).
+ *
+ * A pass that cannot see the whole vault must not run at all.
+ */
+export class VaultListingIncompleteError extends Error {
+  constructor(relDir: string) {
+    super(
+      `vault subtree "${relDir}" could not be listed — refusing to sync a partial ` +
+        "listing; the missing files would sync as deletions",
+    );
+    this.name = "VaultListingIncompleteError";
+  }
+}
+
+/**
  * The minimal synchronous filesystem the SyncIo needs, rooted at the vault. All
  * paths are vault-relative POSIX (`"notes/todo.md"`); `""` is the vault root.
  * Implemented over Expo's File API in expo-vault-fs.ts; faked in tests.
  */
 export type VaultFs = {
-  /** Immediate children of a vault-relative dir. A missing SUB-dir → `[]`
-   * (vanished mid-walk — the next pass settles it); a missing ROOT (`""`)
-   * must throw `VaultRootMissingError` instead — an empty result there would
-   * read as a mass deletion (#429). */
+  /** Immediate children of a vault-relative dir. An unreadable directory must
+   * THROW, never return `[]`: `VaultRootMissingError` for the root, and
+   * `VaultListingIncompleteError` for a sub-dir. Either way an empty or partial
+   * listing would reconcile as deletions (#429, #466). */
   listDir(relDir: string): readonly VaultEntry[];
   /** Raw bytes of a vault file. */
   readBytes(path: VaultPath): Uint8Array;

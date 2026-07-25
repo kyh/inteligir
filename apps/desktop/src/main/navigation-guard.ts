@@ -65,3 +65,52 @@ export type WindowOpenVerdict = "deny-and-open-external" | "deny";
 export function classifyWindowOpen(url: string): WindowOpenVerdict {
   return isHttpUrl(url) ? "deny-and-open-external" : "deny";
 }
+
+// ---------------------------------------------------------------------------
+// PDF sub-frame content gate (#467).
+//
+// The editor embeds a PDF in an UN-sandboxed iframe, unavoidably: Chromium
+// blocks its native PDF viewer (a MimeHandler document) inside a frame with
+// any sandbox token, so the alternative is no PDF embedding at all. The
+// renderer decides what is a PDF from the URL's SHAPE (a `.pdf` suffix), which
+// a server is free to disagree with — `https://evil.com/notes.pdf` answering
+// `text/html` renders attacker markup in that un-sandboxed frame. It is
+// cross-origin, so it cannot touch the app or the Bridge; the residual is
+// convincing phishing inside the product's chrome.
+//
+// Main sees the real response, so the mismatch is checkable exactly where the
+// renderer's guess can be confirmed. Deliberately narrow: it only judges
+// sub-frames whose URL matches the SAME shape test the renderer used, so the
+// html embeds (youtube, media) are never in scope.
+// ---------------------------------------------------------------------------
+
+/** The renderer's shape test (pdf-node.tsx's PDF_RE) — kept in lockstep. */
+const PDF_URL_RE = /\.pdf(?:[?#]|$)/i;
+
+/** Content types Chromium will hand to its PDF viewer. */
+const PDF_CONTENT_TYPES = new Set(["application/pdf", "application/x-pdf"]);
+
+export type FrameResponse = {
+  readonly url: string;
+  /** Electron's `details.resourceType` — only "subFrame" is judged. */
+  readonly resourceType: string;
+  /** The response's Content-Type, or undefined when the server sent none. */
+  readonly contentType: string | undefined;
+};
+
+/**
+ * Should this response be blocked as a PDF frame that isn't a PDF?
+ *
+ * A missing Content-Type is ALLOWED: Chromium sniffs those, plenty of static
+ * hosts omit it for .pdf, and blocking them would break real embeds to buy
+ * nothing — an attacker controls their own headers and would simply send none.
+ * The gate exists to stop `text/html` rendering where a PDF was promised.
+ */
+export function isPdfFrameMismatch(response: FrameResponse): boolean {
+  if (response.resourceType !== "subFrame") return false;
+  if (!PDF_URL_RE.test(response.url)) return false;
+  if (response.contentType === undefined) return false;
+  const essence = response.contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (essence === "") return false;
+  return !PDF_CONTENT_TYPES.has(essence);
+}

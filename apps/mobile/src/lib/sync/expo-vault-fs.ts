@@ -10,7 +10,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 
 import { isValidVaultPath, type VaultPath } from "@repo/notes/sync/vault-file";
-import { VaultRootMissingError, type VaultFs } from "./sync-io";
+import { VaultListingIncompleteError, VaultRootMissingError, type VaultFs } from "./sync-io";
 
 /** The vault directory name under the app's document directory. */
 const VAULT_DIR = "vault";
@@ -59,7 +59,11 @@ export function createExpoVaultFs(): VaultFs {
       const dir = dirFor(relDir);
       if (!dir.exists) {
         if (relDir === "") throw new VaultRootMissingError();
-        return []; // sub-dir vanished mid-walk — the next pass settles it
+        // NOT `[]` (#466): siblings would still list, so the overall result
+        // stays non-empty, the empty-vault guard never fires, and this
+        // subtree's files reconcile as deletions on every peer. Desktop has
+        // always refused a partial crawl; mobile now matches.
+        throw new VaultListingIncompleteError(relDir);
       }
       return dir.list().map((entry) => ({
         name: entry.name,

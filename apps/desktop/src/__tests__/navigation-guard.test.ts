@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyNavigation,
   classifyWindowOpen,
+  isPdfFrameMismatch,
   isSameOriginNavigation,
 } from "@/main/navigation-guard";
 
@@ -152,5 +153,72 @@ describe("classifyWindowOpen", () => {
     expect(classifyWindowOpen("data:text/html,x")).toBe("deny");
     expect(classifyWindowOpen("vault-app://token/app.html")).toBe("deny");
     expect(classifyWindowOpen("not a url")).toBe("deny");
+  });
+});
+
+// #467 — a `.pdf` sub-frame is the one frame the editor cannot sandbox
+// (Chromium blocks its PDF viewer inside any sandboxed frame), so a server
+// answering `text/html` to a `.pdf` URL would render attacker markup there.
+const pdfFrame = (contentType: string | undefined) => ({
+  url: "https://example.com/paper.pdf",
+  resourceType: "subFrame",
+  contentType,
+});
+
+describe("isPdfFrameMismatch", () => {
+  it("blocks a .pdf frame serving html", () => {
+    expect(isPdfFrameMismatch(pdfFrame("text/html"))).toBe(true);
+    expect(isPdfFrameMismatch(pdfFrame("text/html; charset=utf-8"))).toBe(true);
+  });
+
+  it("allows a genuine PDF, including parameters and odd casing", () => {
+    expect(isPdfFrameMismatch(pdfFrame("application/pdf"))).toBe(false);
+    expect(isPdfFrameMismatch(pdfFrame("Application/PDF"))).toBe(false);
+    expect(isPdfFrameMismatch(pdfFrame(" application/pdf ; qs=1"))).toBe(false);
+    expect(isPdfFrameMismatch(pdfFrame("application/x-pdf"))).toBe(false);
+  });
+
+  it("allows a missing or empty Content-Type — Chromium sniffs those", () => {
+    // Blocking them would break real static hosts and buy nothing: an attacker
+    // controls their own headers and would simply omit it.
+    expect(isPdfFrameMismatch(pdfFrame(undefined))).toBe(false);
+    expect(isPdfFrameMismatch(pdfFrame(""))).toBe(false);
+  });
+
+  it("judges only sub-frames", () => {
+    expect(isPdfFrameMismatch({ ...pdfFrame("text/html"), resourceType: "mainFrame" })).toBe(false);
+    expect(isPdfFrameMismatch({ ...pdfFrame("text/html"), resourceType: "xhr" })).toBe(false);
+  });
+
+  it("ignores frames the renderer would never treat as a PDF", () => {
+    // The html embeds (youtube, media) must stay untouched — they are
+    // sandboxed and legitimately serve html.
+    expect(
+      isPdfFrameMismatch({
+        url: "https://www.youtube.com/embed/abc",
+        resourceType: "subFrame",
+        contentType: "text/html",
+      }),
+    ).toBe(false);
+  });
+
+  it("matches the renderer's shape test, query and fragment included", () => {
+    for (const url of [
+      "https://example.com/a.pdf?download=1",
+      "https://example.com/a.pdf#page=2",
+      "https://example.com/a.PDF",
+    ]) {
+      expect(isPdfFrameMismatch({ url, resourceType: "subFrame", contentType: "text/html" })).toBe(
+        true,
+      );
+    }
+    // Not a pdf-shaped URL: `.pdf` must end the path, not merely appear.
+    expect(
+      isPdfFrameMismatch({
+        url: "https://example.com/a.pdf.html",
+        resourceType: "subFrame",
+        contentType: "text/html",
+      }),
+    ).toBe(false);
   });
 });

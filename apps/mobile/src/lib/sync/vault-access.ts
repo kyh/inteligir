@@ -7,7 +7,7 @@
 import type { VaultPath } from "@repo/notes/sync/vault-file";
 
 import { createExpoVaultFs } from "./expo-vault-fs";
-import { createSyncIo, VaultRootMissingError } from "./sync-io";
+import { createSyncIo, VaultListingIncompleteError, VaultRootMissingError } from "./sync-io";
 
 const io = createSyncIo(createExpoVaultFs());
 const encoder = new TextEncoder();
@@ -22,7 +22,11 @@ export function listVaultFiles(): VaultPath[] {
   try {
     return [...io.list()];
   } catch (err) {
-    if (err instanceof VaultRootMissingError) return [];
+    // Both refusals are SYNC-safety errors; the UI stays lenient for either
+    // (#429 root, #466 subtree) rather than showing an error screen.
+    if (err instanceof VaultRootMissingError || err instanceof VaultListingIncompleteError) {
+      return [];
+    }
     throw err;
   }
 }

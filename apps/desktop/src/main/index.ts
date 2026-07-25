@@ -55,7 +55,11 @@ import {
   markDeepLinksReady,
 } from "@/main/deep-link";
 import { createElectronPlatform } from "@/main/electron-platform";
-import { classifyNavigation, classifyWindowOpen } from "@/main/navigation-guard";
+import {
+  classifyNavigation,
+  classifyWindowOpen,
+  isPdfFrameMismatch,
+} from "@/main/navigation-guard";
 import { setupAutoUpdater, type Updater } from "@/main/updater";
 import {
   mintHtmlAppToken,
@@ -278,6 +282,30 @@ function createWindow(backgroundColor: string): BrowserWindow {
   };
   window.webContents.on("will-navigate", guardNavigation);
   window.webContents.on("will-redirect", guardNavigation);
+
+  // A `.pdf` sub-frame that answers with something other than a PDF is
+  // attacker markup in the one frame the editor cannot sandbox (#467). Main
+  // sees the real Content-Type, so it can confirm what the renderer could only
+  // guess from the URL; the verdict itself is pure + unit-tested.
+  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const headers = details.responseHeaders ?? {};
+    const contentTypeKey = Object.keys(headers).find((key) => key.toLowerCase() === "content-type");
+    const rawContentType = contentTypeKey === undefined ? undefined : headers[contentTypeKey]?.[0];
+    if (
+      isPdfFrameMismatch({
+        url: details.url,
+        resourceType: details.resourceType,
+        contentType: rawContentType,
+      })
+    ) {
+      console.warn(
+        `[main] blocked a .pdf frame serving "${rawContentType ?? "?"}": ${details.url}`,
+      );
+      callback({ cancel: true });
+      return;
+    }
+    callback({});
+  });
 
   window.on("page-title-updated", (event) => {
     event.preventDefault();

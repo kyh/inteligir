@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { createSyncIo, VaultRootMissingError, type VaultFs } from "../sync-io";
+import {
+  createSyncIo,
+  VaultListingIncompleteError,
+  VaultRootMissingError,
+  type VaultFs,
+} from "../sync-io";
 import { memVaultFs } from "./fakes";
 
 const decoder = new TextDecoder();
@@ -93,5 +98,34 @@ describe("createSyncIo", () => {
     };
     expect(() => createSyncIo(rootMissing).list()).toThrow(VaultRootMissingError);
     expect(() => createSyncIo(rootMissing).list()).toThrow(/mass deletion/);
+  });
+});
+
+// #466 — a vanished SUB-directory used to return `[]`, which is the same
+// mass-deletion hazard as a missing root but harder to see: siblings still
+// list, so the overall result is non-empty and the empty-vault guard never
+// fires. Desktop always refused a partial crawl; mobile now matches.
+describe("incomplete subtree", () => {
+  const withMissingSubdir: VaultFs = {
+    listDir: (relDir) => {
+      if (relDir === "") {
+        return [
+          { name: "notes", isDirectory: true },
+          { name: "top.md", isDirectory: false },
+        ];
+      }
+      if (relDir === "notes") throw new VaultListingIncompleteError("notes");
+      return [];
+    },
+    readBytes: () => new Uint8Array(),
+    writeBytes: () => {},
+    remove: () => {},
+    stat: () => null,
+  };
+
+  it("refuses the whole listing rather than reporting a partial vault", () => {
+    // Crucially NOT "returns [top.md]" — that is the shape that would have
+    // deleted everything under notes/ on every peer.
+    expect(() => createSyncIo(withMissingSubdir).list()).toThrow(VaultListingIncompleteError);
   });
 });

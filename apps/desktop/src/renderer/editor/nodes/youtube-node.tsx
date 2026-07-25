@@ -57,7 +57,11 @@ export function VideoElement(props: PlateElementProps) {
           <div className={cn("relative", PROVIDER_ASPECT[embed.provider ?? ""] ?? "pb-[56.25%]")}>
             <iframe
               allowFullScreen
-              sandbox="allow-scripts allow-popups allow-presentation"
+              // No allow-popups: an embedded player has no business spawning
+              // windows, and #435 already made that trim on embed-node. The
+              // src is provider-constructed from a parsed video id, so this is
+              // defense-in-depth consistency rather than a live hole (#467).
+              sandbox="allow-scripts allow-presentation"
               className={cn(
                 "absolute top-0 left-0 size-full rounded-md border-0",
                 focused && selected && "ring-2 ring-ring ring-offset-2",
