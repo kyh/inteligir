@@ -78,6 +78,10 @@ function isMarkdownPath(path: VaultPath): boolean {
  * the conflict copy rather than stalling a pass on line-diffing megabytes. */
 const MAX_MERGE_BYTES = 4 * 1024 * 1024;
 
+/** Change-stream reconnect backoff: 1s, 2s, 4s … capped at 30s. */
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 30_000;
+
 /** What one `syncOnce` pass did (or why it failed). */
 export type SyncOutcome =
   | {
@@ -152,6 +156,8 @@ export class SyncEngine {
   private queue: Promise<unknown> = Promise.resolve();
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private remoteUnsub: Unsubscribe | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempt = 0;
 
   constructor(opts: SyncEngineOptions) {
     this.vaultId = opts.vaultId;
@@ -170,13 +176,26 @@ export class SyncEngine {
   /** Subscribe to remote changes (a peer committed something) → debounced sync.
    * The composition root ALSO wires local vault-change notifications to
    * `scheduleSync` when the capability is enabled; both funnel through the
-   * single serialized queue. */
+   * single serialized queue.
+   *
+   * SUPERVISED: the change stream is long-lived and dies on any network blip.
+   * A port that reports terminations (`subscribe`'s optional `onEnd` — see
+   * HttpSyncPort) gets the subscription reopened with exponential backoff,
+   * because otherwise one dropped connection silently demotes the client to
+   * whatever else happens to call `scheduleSync` (a periodic timer, window
+   * focus) for the rest of the engine's life. A received change resets the
+   * backoff: a live frame is proof the connection works.
+   *
+   * Platforms that must rebuild the PORT per attempt (mobile rotates a bearer
+   * token per stream) supervise outside the engine instead and never call
+   * `start()` — see apps/mobile/src/lib/sync/realtime.ts. */
   start(): void {
-    if (this.remoteUnsub) return;
-    this.remoteUnsub = this.port.subscribe(() => this.scheduleSync());
+    if (this.remoteUnsub !== null || this.reconnectTimer !== null) return;
+    this.reconnectAttempt = 0;
+    this.openRemote();
   }
 
-  /** Stop remote-change subscription + cancel a pending debounce. */
+  /** Stop remote-change subscription + cancel a pending debounce/reconnect. */
   stop(): void {
     this.remoteUnsub?.();
     this.remoteUnsub = null;
@@ -184,6 +203,39 @@ export class SyncEngine {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /** One subscription attempt. `onEnd` fires only for terminations the engine
+   * did NOT cause, so an explicit `stop()` can never schedule a reconnect. */
+  private openRemote(): void {
+    this.reconnectTimer = null;
+    this.remoteUnsub = this.port.subscribe(
+      () => {
+        this.reconnectAttempt = 0;
+        this.scheduleSync();
+      },
+      () => {
+        this.remoteUnsub = null;
+        this.scheduleReconnect();
+      },
+    );
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer !== null) return;
+    const delay = Math.min(
+      RECONNECT_MAX_MS,
+      RECONNECT_BASE_MS * 2 ** Math.min(this.reconnectAttempt, 16),
+    );
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = setTimeout(() => this.openRemote(), delay);
+    // A drop means we may have missed peer commits; the next successful pass
+    // reconciles them, so kick one as soon as the stream is back.
+    this.scheduleSync();
   }
 
   /** Coalesce a burst of triggers into one sync pass. */

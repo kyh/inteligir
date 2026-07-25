@@ -67,6 +67,15 @@ export interface SyncPort {
   /** Delete a file, guarded by the same optimistic-concurrency token. */
   deleteFile(path: VaultPath, expectedBaseVersion: number): Promise<DeleteResult>;
 
-  /** Subscribe to changes other clients commit; returns an unsubscribe fn. */
-  subscribe(onChange: (change: VaultChange) => void): Unsubscribe;
+  /**
+   * Subscribe to changes other clients commit; returns an unsubscribe fn.
+   *
+   * `onEnd` fires at most once, when the stream terminates for a reason OTHER
+   * than the returned unsubscribe (network drop, server close, non-OK
+   * response) — it is how a caller distinguishes "I closed this" from "this
+   * died", and the SyncEngine's reconnect supervision depends on it. A port
+   * over a transport that cannot drop (an in-memory fake) may ignore it, but
+   * one that CAN drop and never calls it silently strands its subscriber.
+   */
+  subscribe(onChange: (change: VaultChange) => void, onEnd?: () => void): Unsubscribe;
 }
