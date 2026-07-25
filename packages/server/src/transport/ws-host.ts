@@ -15,13 +15,13 @@ import {
   HYDRATED_EVENTS,
   REMOTE_ALLOWED_EVENTS,
   REMOTE_ALLOWED_METHODS,
+  binaryChannelFor,
+  binaryChannelForTag,
   type DesktopShellMethod,
   type EventMethod,
   type HostMethod,
 } from "@repo/bridge/ipc-registry";
 import {
-  BINARY_STT_AUDIO,
-  BINARY_TTS_AUDIO,
   WS_CLOSE_FORBIDDEN_ORIGIN,
   WS_CLOSE_UNAUTHORIZED,
   decodeBinaryFrame,
@@ -307,12 +307,13 @@ export function startWsHost(options: WsHostOptions): WsHost {
   // carries pairing tokens + the device roster) nor spoken note content
   // (onTtsAudio). The local renderer receives everything.
   function broadcastEvent(method: EventMethod, payload: unknown): void {
-    if (method === "onTtsAudio") {
-      // Audio crosses as a tag-2 binary frame; the client reconstitutes
-      // `{ audio: ArrayBuffer }` for its onTtsAudio listeners.
-      const audio = isRecord(payload) ? payload["audio"] : null;
-      if (!(audio instanceof ArrayBuffer) && !ArrayBuffer.isView(audio)) return;
-      const frame = encodeBinaryFrame(BINARY_TTS_AUDIO, audio);
+    // Registry-declared binary channels cross as [tag][bytes] instead of JSON;
+    // the client reconstitutes the payload from the same declaration.
+    const binary = binaryChannelFor(method);
+    if (binary !== undefined) {
+      const bytes = "field" in binary && isRecord(payload) ? payload[binary.field] : payload;
+      if (!(bytes instanceof ArrayBuffer) && !ArrayBuffer.isView(bytes)) return;
+      const frame = encodeBinaryFrame(binary.tag, bytes);
       for (const [sock, session] of authedSockets) {
         if (!remoteMayReceive(session, method)) continue;
         if (sock.readyState === WebSocket.OPEN) sock.send(frame);
@@ -482,17 +483,22 @@ export function startWsHost(options: WsHostOptions): WsHost {
       }
     }
 
-    function handleBinary(data: RawData): void {
-      // decodeBinaryFrame yields a standalone ArrayBuffer of exactly the PCM
-      // bytes (the existing handler normalizes ArrayBuffer|View).
+    function handleBinary(data: RawData, authed: DeviceSession): void {
+      // decodeBinaryFrame yields a standalone ArrayBuffer of exactly the
+      // payload bytes (handlers normalize ArrayBuffer|View).
       const decoded = decodeBinaryFrame(rawDataToView(data));
-      if (decoded === null || decoded.tag !== BINARY_STT_AUDIO) return;
-      const handler = dispatch.get("sendSttAudio");
+      if (decoded === null) return;
+      const channel = binaryChannelForTag(decoded.tag);
+      if (channel === undefined) return;
+      // Binary frames bypass handleSend, so re-apply the remote gate here —
+      // otherwise a paired device could reach a binary channel it may not call.
+      if (!remoteMayInvoke(authed, channel.method)) return;
+      const handler = dispatch.get(channel.method);
       if (handler === undefined) return;
       try {
         handler(decoded.payload);
       } catch (err) {
-        console.error("[ws-host] sendSttAudio handler failed:", err);
+        console.error(`[ws-host] ${channel.method} handler failed:`, err);
       }
     }
 
@@ -503,7 +509,7 @@ export function startWsHost(options: WsHostOptions): WsHost {
         return;
       }
       if (isBinary) {
-        handleBinary(data);
+        handleBinary(data, authed);
         return;
       }
       const frame = parseClientFrame(rawDataToString(data));

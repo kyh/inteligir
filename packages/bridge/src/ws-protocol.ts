@@ -1,8 +1,10 @@
 // ---------------------------------------------------------------------------
 // WS Bridge wire protocol — the frame vocabulary shared by the ws host
 // (server/transport/ws-host.ts) and the ws client (ws-bridge.ts). Text frames
-// are JSON; binary frames are [1-byte tag][payload bytes] and carry only the
-// two audio streams. Isomorphic: no node imports — this loads in the browser,
+// are JSON; binary frames are [1-byte tag][payload bytes], and WHICH channels
+// use them is declared in ipc-registry's BINARY_CHANNELS — this module only
+// knows how to frame bytes, never which feature owns them. Isomorphic: no node
+// imports — this loads in the browser,
 // React Native, and node alike. All inbound parsing goes through the
 // type-guard parse functions so a malformed frame is a `null`, never a throw.
 // ---------------------------------------------------------------------------
@@ -18,10 +20,8 @@ export const WS_CLOSE_UNAUTHORIZED = 4401;
 /** The connection came from a disallowed HTTP Origin — rejected before auth. */
 export const WS_CLOSE_FORBIDDEN_ORIGIN = 4403;
 
-/** Client → server: Float32 PCM chunk for the `sendSttAudio` handler. */
-export const BINARY_STT_AUDIO = 1;
-/** Server → client: Int16 PCM chunk, reconstituted as an `onTtsAudio` event. */
-export const BINARY_TTS_AUDIO = 2;
+// Binary tag values live in ipc-registry's BINARY_CHANNELS, beside every other
+// channel declaration.
 
 // ---------------------------------------------------------------------------
 // Text frames
@@ -34,7 +34,7 @@ export type AuthFrame = { t: "auth"; token: string };
 export type PairFrame = { t: "pair"; pairingToken: string; deviceName: string };
 /** Invoke / invoke-void request (invoke-void carries no payload). */
 export type ReqFrame = { t: "req"; id: number; method: string; payload?: unknown };
-/** Fire-and-forget send (except sendSttAudio, which goes binary). */
+/** Fire-and-forget send (except BINARY_CHANNELS sends, which go binary). */
 export type SendFrame = { t: "send"; method: string; payload?: unknown };
 export type ClientFrame = AuthFrame | PairFrame | ReqFrame | SendFrame;
 

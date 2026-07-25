@@ -5,8 +5,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BINARY_STT_AUDIO,
-  BINARY_TTS_AUDIO,
   decodeBinaryFrame,
   encodeBinaryFrame,
   encodeFrame,
@@ -15,6 +13,12 @@ import {
   type ClientFrame,
   type ServerFrame,
 } from "../ws-protocol";
+import { binaryChannelFor } from "../ipc-registry";
+
+// Derived from the registry rather than hardcoded, so a retagged channel fails
+// here instead of silently changing the wire.
+const STT_TAG = binaryChannelFor("sendSttAudio")?.tag ?? -1;
+const TTS_TAG = binaryChannelFor("onTtsAudio")?.tag ?? -1;
 
 describe("client frames", () => {
   const frames: ClientFrame[] = [
@@ -76,13 +80,13 @@ describe("server frames", () => {
 describe("binary frames", () => {
   it("prefixes the tag and round-trips an ArrayBuffer payload", () => {
     const pcm = new Int16Array([100, -200, 300]);
-    const frame = encodeBinaryFrame(BINARY_TTS_AUDIO, pcm.buffer);
-    expect(frame[0]).toBe(BINARY_TTS_AUDIO);
+    const frame = encodeBinaryFrame(TTS_TAG, pcm.buffer);
+    expect(frame[0]).toBe(TTS_TAG);
     expect(frame.byteLength).toBe(1 + pcm.byteLength);
 
     const decoded = decodeBinaryFrame(frame);
     expect(decoded).not.toBeNull();
-    expect(decoded?.tag).toBe(BINARY_TTS_AUDIO);
+    expect(decoded?.tag).toBe(TTS_TAG);
     expect(decoded && [...new Int16Array(decoded.payload)]).toEqual([100, -200, 300]);
   });
 
@@ -91,11 +95,11 @@ describe("binary frames", () => {
     const view = backing.subarray(1, 4); // byteOffset 4, values [8, 7, 6]
     expect(view.byteOffset).toBe(4);
 
-    const frame = encodeBinaryFrame(BINARY_STT_AUDIO, view);
+    const frame = encodeBinaryFrame(STT_TAG, view);
     expect(frame.byteLength).toBe(1 + view.byteLength);
 
     const decoded = decodeBinaryFrame(frame);
-    expect(decoded?.tag).toBe(BINARY_STT_AUDIO);
+    expect(decoded?.tag).toBe(STT_TAG);
     // The payload must be a standalone, exactly-sized buffer — downstream
     // does `new Float32Array(buffer)` over the WHOLE thing.
     expect(decoded?.payload.byteLength).toBe(view.byteLength);

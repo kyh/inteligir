@@ -813,6 +813,40 @@ export const REMOTE_ALLOWED_EVENTS = [
   "onDelegationStreamed",
 ] as const satisfies readonly EventMethod[];
 
+// ---------------------------------------------------------------------------
+// Binary channels.
+//
+// A handful of channels carry raw PCM at streaming rates, where base64-in-JSON
+// would be wasteful. Those cross as `[1-byte tag][payload bytes]` binary frames
+// instead (ws-protocol.ts). This table is the ONLY place that mapping lives:
+// the transports (ws-bridge, ws-host) read it and no longer name a single voice
+// channel, so removing the voice capability is two entries here rather than
+// surgery on both endpoints.
+//
+// `field` distinguishes the two payload conventions: absent means the channel's
+// payload IS the buffer (a send), present means the payload is a record with
+// the buffer under that key (an event), and the transports pack/unpack it.
+//
+// Tags are wire values — never renumber one; retire it and take the next.
+// ---------------------------------------------------------------------------
+
+export const BINARY_CHANNELS = [
+  { method: "sendSttAudio", tag: 1 },
+  { method: "onTtsAudio", tag: 2, field: "audio" },
+] as const satisfies readonly { method: IpcMethod; tag: number; field?: string }[];
+
+export type BinaryChannel = (typeof BINARY_CHANNELS)[number];
+
+/** Binary-channel descriptor for `method`, or undefined for a JSON channel. */
+export function binaryChannelFor(method: string): BinaryChannel | undefined {
+  return BINARY_CHANNELS.find((channel) => channel.method === method);
+}
+
+/** Binary-channel descriptor for a received frame's tag. */
+export function binaryChannelForTag(tag: number): BinaryChannel | undefined {
+  return BINARY_CHANNELS.find((channel) => channel.tag === tag);
+}
+
 /** Methods the platform-agnostic host implements. */
 export type HostMethod = Exclude<IpcMethod, EventMethod | DesktopShellMethod>;
 

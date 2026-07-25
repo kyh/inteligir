@@ -12,11 +12,13 @@ import path from "node:path";
 import { WebSocket as WsWebSocket } from "ws";
 
 import { isRecord } from "@repo/bridge/wire-helpers";
+import { binaryChannelFor } from "@repo/bridge/ipc-registry";
 import type { Bridge, EventMethod, HostMethod } from "@repo/bridge/ipc-registry";
 import { createWsBridge, type WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import {
   WS_CLOSE_FORBIDDEN_ORIGIN,
   WS_CLOSE_UNAUTHORIZED,
+  encodeBinaryFrame,
   encodeFrame,
   parseServerFrame,
   type ClientFrame,
@@ -646,6 +648,36 @@ describe("remote-device allowlists", () => {
     // …and the local session hydrates the full set.
     connectBridge(host.url, host.manager.getLocalToken());
     await vi.waitFor(() => expect(hydrated).toContain("remote"));
+  });
+
+  it("gates BINARY frames too — they bypass handleSend's check", async () => {
+    // sendSttAudio is a registry binary channel and is NOT remote-allowed.
+    // Binary frames take their own path into dispatch, so the gate has to be
+    // re-applied there; without it a paired device could stream audio into the
+    // host's STT session.
+    let reached = 0;
+    const host = await startTestHost({
+      sendSttAudio: () => {
+        reached += 1;
+      },
+      listDelegations: () => ({ delegations: [] }),
+    });
+
+    const pairing = host.manager.createPairingToken();
+    const raw = new RawClient(host.url);
+    await raw.send({ t: "pair", pairingToken: pairing.token, deviceName: "Pixel" });
+    const paired = await raw.nextFrame();
+    if (paired?.t !== "paired") throw new Error(`expected paired frame, got ${paired?.t}`);
+
+    const sttTag = binaryChannelFor("sendSttAudio")?.tag;
+    if (sttTag === undefined) throw new Error("sendSttAudio is no longer a binary channel");
+    await raw.sendBinary(encodeBinaryFrame(sttTag, new Uint8Array([1, 2, 3, 4])));
+
+    // Give it a beat to be (wrongly) dispatched, then a live JSON round-trip to
+    // prove the socket stayed healthy rather than the frame merely being lost.
+    const device = connectBridge(host.url, paired.deviceToken).bridge;
+    await expect(device.listDelegations()).resolves.toEqual({ delegations: [] });
+    expect(reached).toBe(0);
   });
 
   it("does not broadcast admin-plane or audio events to a paired device", async () => {

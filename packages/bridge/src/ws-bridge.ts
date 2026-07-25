@@ -9,10 +9,9 @@
 // ---------------------------------------------------------------------------
 
 import { createBackoff, timeoutSchedule } from "./backoff";
-import { IPC, type Bridge } from "./ipc-registry";
+import { IPC, binaryChannelFor, binaryChannelForTag, type Bridge } from "./ipc-registry";
+import { isRecord } from "./wire-helpers";
 import {
-  BINARY_STT_AUDIO,
-  BINARY_TTS_AUDIO,
   WS_CLOSE_UNAUTHORIZED,
   decodeBinaryFrame,
   encodeBinaryFrame,
@@ -174,9 +173,14 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
     }
     if (data instanceof ArrayBuffer) {
       const decoded = decodeBinaryFrame(data);
-      if (decoded !== null && decoded.tag === BINARY_TTS_AUDIO) {
-        dispatchEvent("onTtsAudio", { audio: decoded.payload });
-      }
+      if (decoded === null) return;
+      const channel = binaryChannelForTag(decoded.tag);
+      // Unknown tag = a channel this client's registry doesn't have; drop it.
+      if (channel === undefined) return;
+      dispatchEvent(
+        channel.method,
+        "field" in channel ? { [channel.field]: decoded.payload } : decoded.payload,
+      );
     }
   }
 
@@ -257,10 +261,16 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
     sock.send(encodeFrame({ t: "send", method, payload }));
   }
 
-  function sendSttAudio(payload: unknown): void {
+  /** Send a BINARY_CHANNELS payload as a tagged binary frame. Non-buffer
+   * payloads are dropped rather than silently JSON-encoded — the receiving
+   * side only decodes bytes for these methods. */
+  function sendBinary(method: string, payload: unknown): void {
     if (!welcomed || sock === null) return;
-    if (payload instanceof ArrayBuffer || ArrayBuffer.isView(payload)) {
-      sock.send(encodeBinaryFrame(BINARY_STT_AUDIO, payload));
+    const channel = binaryChannelFor(method);
+    if (channel === undefined) return;
+    const buffer = "field" in channel && isRecord(payload) ? payload[channel.field] : payload;
+    if (buffer instanceof ArrayBuffer || ArrayBuffer.isView(buffer)) {
+      sock.send(encodeBinaryFrame(channel.tag, buffer));
     }
   }
 
@@ -287,8 +297,8 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
       case "invoke-void":
         return [method, () => request(method, undefined)] as const;
       case "send":
-        return method === "sendSttAudio"
-          ? ([method, (payload: unknown) => sendSttAudio(payload)] as const)
+        return binaryChannelFor(method) !== undefined
+          ? ([method, (payload: unknown) => sendBinary(method, payload)] as const)
           : ([method, (payload: unknown) => sendFrame(method, payload)] as const);
       case "event":
         return [
