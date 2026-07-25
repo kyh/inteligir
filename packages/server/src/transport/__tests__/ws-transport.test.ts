@@ -336,7 +336,7 @@ describe("events + binary audio", () => {
 
 describe("pairing", () => {
   it("exchanges a one-time pairing token for a device token that authenticates", async () => {
-    const host = await startTestHost({ getVaultRoot: () => "/v" });
+    const host = await startTestHost({ listDelegations: () => ({ delegations: [] }) });
     const pairing = host.manager.createPairingToken();
 
     const raw = new RawClient(host.url);
@@ -351,9 +351,10 @@ describe("pairing", () => {
     await replay.send({ t: "pair", pairingToken: pairing.token, deviceName: "Evil" });
     expect(await replay.waitClose()).toBe(WS_CLOSE_UNAUTHORIZED);
 
-    // The minted device token is a full credential…
+    // The minted device token is a working credential over the companion
+    // surface (it is NOT a full credential — see "remote-device allowlists")…
     const { bridge } = connectBridge(host.url, paired.deviceToken);
-    await expect(bridge.getVaultRoot()).resolves.toBe("/v");
+    await expect(bridge.listDelegations()).resolves.toEqual({ delegations: [] });
 
     // …until the device is revoked.
     host.manager.revokeDevice(paired.deviceId);
@@ -544,61 +545,122 @@ describe("rebind failure recovery", () => {
   });
 });
 
-describe("local-only methods", () => {
-  it("denies the admin plane to a paired device but leaves its data plane intact", async () => {
+describe("remote-device allowlists", () => {
+  /** Pair a device and return its authenticated Bridge. */
+  async function pairDevice(host: TestHost, name = "Pixel"): Promise<Bridge> {
+    const pairing = host.manager.createPairingToken();
+    const raw = new RawClient(host.url);
+    await raw.send({ t: "pair", pairingToken: pairing.token, deviceName: name });
+    const paired = await raw.nextFrame();
+    if (paired?.t !== "paired") throw new Error(`expected paired frame, got ${paired?.t}`);
+    return connectBridge(host.url, paired.deviceToken).bridge;
+  }
+
+  it("denies every non-allowlisted method to a paired device, before dispatch", async () => {
     const reached: string[] = [];
+    const sentinel = (name: string) => (): null => {
+      reached.push(name);
+      return null;
+    };
     const host = await startTestHost(
       {
-        getVaultRoot: () => "/v",
-        // Sentinels prove denial happens BEFORE dispatch. (getRemoteAccessState
-        // is deliberately absent — the welcome hydration push would invoke it
-        // for every session; denial still precedes the availability check.)
-        setRemoteAccessConfig: () => {
-          reached.push("setRemoteAccessConfig");
-          return null;
-        },
-        createPairingToken: () => {
-          reached.push("createPairingToken");
-          return null;
-        },
-        revokeRemoteDevice: () => {
-          reached.push("revokeRemoteDevice");
-          return null;
-        },
+        // Sentinels prove denial happens BEFORE dispatch. getRemoteAccessState
+        // can now be a sentinel too: hydration is gated per session, so the
+        // welcome push no longer invokes it for a paired device.
+        getRemoteAccessState: sentinel("getRemoteAccessState"),
+        setRemoteAccessConfig: sentinel("setRemoteAccessConfig"),
+        createPairingToken: sentinel("createPairingToken"),
+        revokeRemoteDevice: sentinel("revokeRemoteDevice"),
+        // The host-machine surface the old blocklist silently exposed.
+        transition: sentinel("transition"),
+        chooseVaultRoot: sentinel("chooseVaultRoot"),
+        repairIntegrations: sentinel("repairIntegrations"),
+        setVoiceApiKey: sentinel("setVoiceApiKey"),
+        getVaultRoot: sentinel("getVaultRoot"),
       },
       { shellHandlers: { mintHtmlAppToken: () => "shell-state" } },
     );
 
-    const pairing = host.manager.createPairingToken();
-    const raw = new RawClient(host.url);
-    await raw.send({ t: "pair", pairingToken: pairing.token, deviceName: "Pixel" });
-    const paired = await raw.nextFrame();
-    if (paired?.t !== "paired") throw new Error(`expected paired frame, got ${paired?.t}`);
-
-    const device = connectBridge(host.url, paired.deviceToken);
-    await expect(device.bridge.getRemoteAccessState()).rejects.toThrow(
-      "getRemoteAccessState requires the local device",
-    );
-    await expect(device.bridge.createPairingToken()).rejects.toThrow(
-      "createPairingToken requires the local device",
-    );
-    await expect(device.bridge.setRemoteAccessConfig({ enabled: true })).rejects.toThrow(
-      "setRemoteAccessConfig requires the local device",
-    );
-    await expect(device.bridge.revokeRemoteDevice({ id: "other" })).rejects.toThrow(
-      "revokeRemoteDevice requires the local device",
-    );
-    await expect(device.bridge.mintHtmlAppToken()).rejects.toThrow(
-      "mintHtmlAppToken requires the local device",
-    );
-    // The data plane still works for the paired device…
-    await expect(device.bridge.getVaultRoot()).resolves.toBe("/v");
+    const device = await pairDevice(host);
+    const denied = "requires the local device";
+    await expect(device.getRemoteAccessState()).rejects.toThrow(denied);
+    await expect(device.createPairingToken()).rejects.toThrow(denied);
+    await expect(device.setRemoteAccessConfig({ enabled: true })).rejects.toThrow(denied);
+    await expect(device.revokeRemoteDevice({ id: "other" })).rejects.toThrow(denied);
+    await expect(device.mintHtmlAppToken()).rejects.toThrow(denied);
+    // RESET_APP_DATA wipes ~/.inteligir — reachable under the old blocklist.
+    await expect(device.transition({ type: "RESET_APP_DATA" })).rejects.toThrow(denied);
+    await expect(device.chooseVaultRoot()).rejects.toThrow(denied);
+    await expect(device.repairIntegrations()).rejects.toThrow(denied);
+    await expect(device.setVoiceApiKey({ value: "sk-test" })).rejects.toThrow(denied);
+    // Vault content reaches mobile through sync, never this transport.
+    await expect(device.getVaultRoot()).rejects.toThrow(denied);
     expect(reached).toEqual([]);
+  });
 
-    // …and the local session keeps the whole surface.
-    const local = connectBridge(host.url, host.manager.getLocalToken());
-    await expect(local.bridge.mintHtmlAppToken()).resolves.toBe("shell-state");
-    await expect(local.bridge.createPairingToken()).resolves.toBeNull();
+  it("keeps the companion surface working for a paired device", async () => {
+    const host = await startTestHost({
+      getAgentHistory: () => [],
+      listDelegations: () => ({ delegations: [] }),
+      sendAgentCommand: () => undefined,
+    });
+    const device = await pairDevice(host);
+    await expect(device.getAgentHistory()).resolves.toEqual([]);
+    await expect(device.listDelegations()).resolves.toEqual({ delegations: [] });
+    await expect(device.sendAgentCommand({ type: "interrupt" })).resolves.toBeUndefined();
+  });
+
+  it("leaves the local session the whole surface", async () => {
+    const host = await startTestHost(
+      { createPairingToken: () => null, getVaultRoot: () => "/v" },
+      { shellHandlers: { mintHtmlAppToken: () => "shell-state" } },
+    );
+    const local = connectBridge(host.url, host.manager.getLocalToken()).bridge;
+    await expect(local.mintHtmlAppToken()).resolves.toBe("shell-state");
+    await expect(local.createPairingToken()).resolves.toBeNull();
+    await expect(local.getVaultRoot()).resolves.toBe("/v");
+  });
+
+  it("never hydrates a paired device with admin-plane state on welcome", async () => {
+    // Hydration resolves the getter SERVER-side and pushes the result unasked,
+    // so the leak is observable as the getter running at all for a remote
+    // session — no frame inspection needed.
+    const hydrated: string[] = [];
+    const host = await startTestHost({
+      getRemoteAccessState: () => {
+        hydrated.push("remote");
+        return { enabled: true, devices: [{ id: "secret-device" }] };
+      },
+      listDelegations: () => {
+        hydrated.push("delegations");
+        return { delegations: [] };
+      },
+    });
+
+    await pairDevice(host);
+    // The allowlisted hydration still runs, which proves the gate is selective
+    // rather than simply broken; the admin-plane getter never does.
+    await vi.waitFor(() => expect(hydrated).toContain("delegations"));
+    expect(hydrated).not.toContain("remote");
+
+    // …and the local session hydrates the full set.
+    connectBridge(host.url, host.manager.getLocalToken());
+    await vi.waitFor(() => expect(hydrated).toContain("remote"));
+  });
+
+  it("does not broadcast admin-plane or audio events to a paired device", async () => {
+    const host = await startTestHost({ listDelegations: () => ({ delegations: [] }) });
+    const received: string[] = [];
+    const device = await pairDevice(host);
+    device.onRemoteAccessChanged(() => received.push("onRemoteAccessChanged"));
+    device.onDelegationsUpdated(() => received.push("onDelegationsUpdated"));
+    await vi.waitFor(() => expect(host.wsHost.port()).not.toBeNull());
+
+    host.emit("onRemoteAccessChanged", { enabled: true, devices: [] });
+    host.emit("onDelegationsUpdated", { delegations: [] });
+
+    await vi.waitFor(() => expect(received).toContain("onDelegationsUpdated"));
+    expect(received).not.toContain("onRemoteAccessChanged");
   });
 });
 

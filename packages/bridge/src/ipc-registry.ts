@@ -884,19 +884,49 @@ export type EventMethod = {
 export const DESKTOP_SHELL_METHODS = ["mintHtmlAppToken", "revokeHtmlAppToken"] as const;
 export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
 
-/** Methods only the LOCAL session (the desktop renderer on loopback) may call
- * over the ws transport. Remote paired devices get the data plane, never the
- * admin plane: the remote-access surface would let a compromised device mint
- * shadow pairings or re-enable remote access after a revoke, and the html-app
- * tokens act on the host machine's shell. The ws host enforces this
- * per-session at dispatch. */
-export const LOCAL_ONLY_METHODS = [
-  "getRemoteAccessState",
-  "setRemoteAccessConfig",
-  "createPairingToken",
-  "revokeRemoteDevice",
-  ...DESKTOP_SHELL_METHODS,
+// ---------------------------------------------------------------------------
+// Remote-device capability allowlists.
+//
+// A paired remote device (the Expo companion) is NOT the desktop renderer: it
+// authenticates with a revocable device token over the network, so it must
+// reach only the narrow companion surface, never the host machine.
+//
+// These are ALLOWLISTS, not blocklists, and that direction is the point: a new
+// channel is unreachable from a paired device until someone adds it here on
+// purpose. The previous shape — a LOCAL_ONLY_METHODS blocklist naming four
+// remote-access channels — silently exposed every channel added after it,
+// including `transition` (RESET_APP_DATA wipes ~/.inteligir), `chooseVaultRoot`
+// and `connectAiProvider` (native dialogs on the host's screen),
+// `repairIntegrations` (rewrites host binaries) and `setVoiceApiKey`.
+//
+// The ws host enforces all three of these per-session: invoke/send at dispatch,
+// events at broadcast, and the reconnect hydration push (which resolves through
+// the same dispatch map and would otherwise hand a remote device the state of a
+// getter it is forbidden to call).
+// ---------------------------------------------------------------------------
+
+/** The ONLY methods a paired remote device may invoke. Everything else — the
+ * whole vault/knowledge/settings/provider/sync/remote-access surface and the
+ * desktop-shell methods — is local-session-only. Mobile reads vault CONTENT
+ * through vault sync (R2), never through these channels, so its host-bridge
+ * surface is just chat + the delegation dock. */
+export const REMOTE_ALLOWED_METHODS = [
+  "getAgentHistory",
+  "sendAgentCommand",
+  "listDelegations",
+  "cancelDelegation",
+  "restoreDelegationSnapshot",
 ] as const satisfies readonly IpcMethod[];
+
+/** The ONLY events pushed to a paired remote device, at broadcast AND at
+ * reconnect hydration. Notably excluded: `onRemoteAccessChanged` (pairing
+ * tokens + the device roster — the admin plane the method gate protects) and
+ * `onTtsAudio` (spoken note content as raw PCM). */
+export const REMOTE_ALLOWED_EVENTS = [
+  "onAgentEvent",
+  "onDelegationsUpdated",
+  "onDelegationStreamed",
+] as const satisfies readonly EventMethod[];
 
 /** Methods the platform-agnostic host implements. */
 export type HostMethod = Exclude<IpcMethod, EventMethod | DesktopShellMethod>;

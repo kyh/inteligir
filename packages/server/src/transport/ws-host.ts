@@ -13,7 +13,8 @@ import { createBackoff, timeoutSchedule } from "@repo/bridge/backoff";
 import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 import {
   HYDRATED_EVENTS,
-  LOCAL_ONLY_METHODS,
+  REMOTE_ALLOWED_EVENTS,
+  REMOTE_ALLOWED_METHODS,
   type DesktopShellMethod,
   type EventMethod,
   type HostMethod,
@@ -92,9 +93,22 @@ export type WsHost = {
   close: () => Promise<void>;
 };
 
-/** Admin-plane methods only the local session may dispatch (see the registry
- * partition for the rationale). */
-const LOCAL_ONLY = new Set<string>(LOCAL_ONLY_METHODS);
+/** The companion surface a paired remote device may reach (see the registry
+ * allowlists for the rationale). The LOCAL session is exempt from both. */
+const REMOTE_METHODS = new Set<string>(REMOTE_ALLOWED_METHODS);
+const REMOTE_EVENTS = new Set<string>(REMOTE_ALLOWED_EVENTS);
+
+/** Whether `session` may reach `method`/`event`. The local renderer (loopback,
+ * per-boot token) reaches everything; a paired device reaches only what the
+ * registry allowlists name. Fails CLOSED — a channel added to the registry is
+ * unreachable from a remote device until it is allowlisted on purpose. */
+function remoteMayInvoke(session: DeviceSession, method: string): boolean {
+  return session.deviceId === LOCAL_DEVICE_ID || REMOTE_METHODS.has(method);
+}
+
+function remoteMayReceive(session: DeviceSession, event: string): boolean {
+  return session.deviceId === LOCAL_DEVICE_ID || REMOTE_EVENTS.has(event);
+}
 
 function rawDataToView(data: RawData): Uint8Array {
   if (Buffer.isBuffer(data)) return data;
@@ -288,6 +302,10 @@ export function startWsHost(options: WsHostOptions): WsHost {
     })();
   });
 
+  // Events fan out per SESSION, not to every authed socket: a paired device
+  // must not receive the admin plane it cannot call (onRemoteAccessChanged
+  // carries pairing tokens + the device roster) nor spoken note content
+  // (onTtsAudio). The local renderer receives everything.
   function broadcastEvent(method: EventMethod, payload: unknown): void {
     if (method === "onTtsAudio") {
       // Audio crosses as a tag-2 binary frame; the client reconstitutes
@@ -295,13 +313,15 @@ export function startWsHost(options: WsHostOptions): WsHost {
       const audio = isRecord(payload) ? payload["audio"] : null;
       if (!(audio instanceof ArrayBuffer) && !ArrayBuffer.isView(audio)) return;
       const frame = encodeBinaryFrame(BINARY_TTS_AUDIO, audio);
-      for (const sock of authedSockets.keys()) {
+      for (const [sock, session] of authedSockets) {
+        if (!remoteMayReceive(session, method)) continue;
         if (sock.readyState === WebSocket.OPEN) sock.send(frame);
       }
       return;
     }
     const frame = encodeFrame({ t: "evt", method, payload });
-    for (const sock of authedSockets.keys()) {
+    for (const [sock, session] of authedSockets) {
+      if (!remoteMayReceive(session, method)) continue;
       if (sock.readyState === WebSocket.OPEN) sock.send(frame);
     }
   }
@@ -311,9 +331,15 @@ export function startWsHost(options: WsHostOptions): WsHost {
   /** Push current state as evt frames for the registry's HYDRATED_EVENTS.
    * Getters resolve through the merged dispatch map, so a shell-owned
    * stateful channel would hydrate too. Best-effort: a getter that's
-   * missing on this host or throws just means no push. */
-  function hydrate(sock: WebSocket): void {
+   * missing on this host or throws just means no push.
+   *
+   * Gated by the SAME allowlists as live dispatch. Hydration resolves a
+   * getter server-side and pushes the result unasked, so an ungated hydrate
+   * would hand a paired device exactly the admin-plane state the method gate
+   * forbids it to call for (getRemoteAccessState → pairing tokens). */
+  function hydrate(sock: WebSocket, session: DeviceSession): void {
     for (const [event, getter] of Object.entries(HYDRATED_EVENTS)) {
+      if (!remoteMayReceive(session, event) || !remoteMayInvoke(session, getter)) continue;
       const handler = dispatch.get(getter);
       if (handler === undefined) continue;
       void (async () => {
@@ -370,7 +396,7 @@ export function startWsHost(options: WsHostOptions): WsHost {
         }
       }
       sock.send(encodeFrame({ t: "welcome" }));
-      hydrate(sock);
+      hydrate(sock, authed);
     }
 
     function handlePreAuth(data: RawData, isBinary: boolean): void {
@@ -413,7 +439,7 @@ export function startWsHost(options: WsHostOptions): WsHost {
     }
 
     async function handleReq(frame: ReqFrame, authed: DeviceSession): Promise<void> {
-      if (LOCAL_ONLY.has(frame.method) && authed.deviceId !== LOCAL_DEVICE_ID) {
+      if (!remoteMayInvoke(authed, frame.method)) {
         sock.send(
           encodeFrame({
             t: "res",
@@ -446,7 +472,7 @@ export function startWsHost(options: WsHostOptions): WsHost {
     }
 
     function handleSend(frame: SendFrame, authed: DeviceSession): void {
-      if (LOCAL_ONLY.has(frame.method) && authed.deviceId !== LOCAL_DEVICE_ID) return;
+      if (!remoteMayInvoke(authed, frame.method)) return;
       const handler = dispatch.get(frame.method);
       if (handler === undefined) return;
       try {
