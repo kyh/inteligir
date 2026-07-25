@@ -150,12 +150,51 @@ function originAllowed(origin: string | undefined): boolean {
 export function startWsHost(options: WsHostOptions): WsHost {
   // One flat dispatch map: host handlers first, shell handlers fill the
   // methods the platform-agnostic host doesn't own.
+  //
+  // NOTHING outside resolveHandler() may read this map, and nothing outside
+  // sendEvent() may push an event frame. Those two functions are the ONLY
+  // places the remote-device allowlists are consulted, because scattering the
+  // check is how it gets forgotten: this transport shipped three separate
+  // ungated paths (the welcome hydration push, event broadcast, and binary
+  // frames) before they were found one at a time. no-ungated-dispatch.test.ts
+  // fails the build if a new caller reaches around either chokepoint.
   const dispatch = new Map<string, (raw: unknown) => unknown>();
   for (const [method, handler] of Object.entries(options.host.handlers)) {
     if (handler !== undefined) dispatch.set(method, handler);
   }
   for (const [method, handler] of Object.entries(options.shellHandlers ?? {})) {
     if (handler !== undefined && !dispatch.has(method)) dispatch.set(method, handler);
+  }
+
+  /** THE inbound chokepoint. Every path that runs a handler on a session's
+   * behalf — req, send, binary, and the hydration push — resolves through
+   * here, so the allowlist cannot be skipped by adding a fourth caller.
+   * `forbidden` and `unknown` stay distinct: callers answer a req differently,
+   * and conflating them would also change what an unauthorized peer learns. */
+  function resolveHandler(
+    session: DeviceSession,
+    method: string,
+  ):
+    | { ok: true; handler: (raw: unknown) => unknown }
+    | { ok: false; reason: "forbidden" | "unknown" } {
+    if (!remoteMayInvoke(session, method)) return { ok: false, reason: "forbidden" };
+    const handler = dispatch.get(method);
+    if (handler === undefined) return { ok: false, reason: "unknown" };
+    return { ok: true, handler };
+  }
+
+  /** THE outbound chokepoint for host → client pushes. Broadcast and hydration
+   * both land here, so an event can never reach a session the allowlist would
+   * have withheld it from. `frame` is pre-encoded by the caller because a
+   * broadcast encodes once and fans out to many sockets. */
+  function sendEvent(
+    sock: WebSocket,
+    session: DeviceSession,
+    method: string,
+    frame: string | Uint8Array,
+  ): void {
+    if (!remoteMayReceive(session, method)) return;
+    if (sock.readyState === WebSocket.OPEN) sock.send(frame);
   }
 
   let server: WebSocketServer | null = null;
@@ -314,17 +353,11 @@ export function startWsHost(options: WsHostOptions): WsHost {
       const bytes = "field" in binary && isRecord(payload) ? payload[binary.field] : payload;
       if (!(bytes instanceof ArrayBuffer) && !ArrayBuffer.isView(bytes)) return;
       const frame = encodeBinaryFrame(binary.tag, bytes);
-      for (const [sock, session] of authedSockets) {
-        if (!remoteMayReceive(session, method)) continue;
-        if (sock.readyState === WebSocket.OPEN) sock.send(frame);
-      }
+      for (const [sock, session] of authedSockets) sendEvent(sock, session, method, frame);
       return;
     }
     const frame = encodeFrame({ t: "evt", method, payload });
-    for (const [sock, session] of authedSockets) {
-      if (!remoteMayReceive(session, method)) continue;
-      if (sock.readyState === WebSocket.OPEN) sock.send(frame);
-    }
+    for (const [sock, session] of authedSockets) sendEvent(sock, session, method, frame);
   }
 
   const unsubscribeEvents = options.host.events.onAny(broadcastEvent);
@@ -340,15 +373,15 @@ export function startWsHost(options: WsHostOptions): WsHost {
    * forbids it to call for (getRemoteAccessState → pairing tokens). */
   function hydrate(sock: WebSocket, session: DeviceSession): void {
     for (const [event, getter] of Object.entries(HYDRATED_EVENTS)) {
-      if (!remoteMayReceive(session, event) || !remoteMayInvoke(session, getter)) continue;
-      const handler = dispatch.get(getter);
-      if (handler === undefined) continue;
+      // BOTH gates: the getter must be callable by this session AND the event
+      // deliverable to it. A hydration push is a read the client never asked
+      // for, so it must clear the same bar as asking.
+      const resolved = resolveHandler(session, getter);
+      if (!resolved.ok) continue;
       void (async () => {
         try {
-          const payload = await handler(undefined);
-          if (sock.readyState === WebSocket.OPEN) {
-            sock.send(encodeFrame({ t: "evt", method: event, payload }));
-          }
+          const payload = await resolved.handler(undefined);
+          sendEvent(sock, session, event, encodeFrame({ t: "evt", method: event, payload }));
         } catch {
           // Hydration never breaks the connection it heals.
         }
@@ -440,31 +473,17 @@ export function startWsHost(options: WsHostOptions): WsHost {
     }
 
     async function handleReq(frame: ReqFrame, authed: DeviceSession): Promise<void> {
-      if (!remoteMayInvoke(authed, frame.method)) {
-        sock.send(
-          encodeFrame({
-            t: "res",
-            id: frame.id,
-            ok: false,
-            error: `${frame.method} requires the local device`,
-          }),
-        );
-        return;
-      }
-      const handler = dispatch.get(frame.method);
-      if (handler === undefined) {
-        sock.send(
-          encodeFrame({
-            t: "res",
-            id: frame.id,
-            ok: false,
-            error: `${frame.method} is not available on this host`,
-          }),
-        );
+      const resolved = resolveHandler(authed, frame.method);
+      if (!resolved.ok) {
+        const error =
+          resolved.reason === "forbidden"
+            ? `${frame.method} requires the local device`
+            : `${frame.method} is not available on this host`;
+        sock.send(encodeFrame({ t: "res", id: frame.id, ok: false, error }));
         return;
       }
       try {
-        const result = await handler(frame.payload);
+        const result = await resolved.handler(frame.payload);
         sock.send(encodeFrame({ t: "res", id: frame.id, ok: true, result }));
       } catch (err) {
         // Message only — never a stack over the wire.
@@ -473,11 +492,10 @@ export function startWsHost(options: WsHostOptions): WsHost {
     }
 
     function handleSend(frame: SendFrame, authed: DeviceSession): void {
-      if (!remoteMayInvoke(authed, frame.method)) return;
-      const handler = dispatch.get(frame.method);
-      if (handler === undefined) return;
+      const resolved = resolveHandler(authed, frame.method);
+      if (!resolved.ok) return;
       try {
-        handler(frame.payload);
+        resolved.handler(frame.payload);
       } catch (err) {
         console.error(`[ws-host] send handler "${frame.method}" failed:`, err);
       }
@@ -490,13 +508,10 @@ export function startWsHost(options: WsHostOptions): WsHost {
       if (decoded === null) return;
       const channel = binaryChannelForTag(decoded.tag);
       if (channel === undefined) return;
-      // Binary frames bypass handleSend, so re-apply the remote gate here —
-      // otherwise a paired device could reach a binary channel it may not call.
-      if (!remoteMayInvoke(authed, channel.method)) return;
-      const handler = dispatch.get(channel.method);
-      if (handler === undefined) return;
+      const resolved = resolveHandler(authed, channel.method);
+      if (!resolved.ok) return;
       try {
-        handler(decoded.payload);
+        resolved.handler(decoded.payload);
       } catch (err) {
         console.error(`[ws-host] ${channel.method} handler failed:`, err);
       }
