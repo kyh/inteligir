@@ -8,6 +8,15 @@
 // disk. This class remains the zero-install reference composition: it pins the
 // engine's behavior in core tests and stays the drop-in for any future surface
 // (React Native) that can't carry a SQLite binding.
+//
+// DO NOT DELETE as "unused in production" — audits reach for that repeatedly.
+// @repo/notes carries no sqlite dependency ON PURPOSE (it is the pure sharing
+// seam; SqlDriver is injected by each platform), so this is the ONLY way the
+// package can test its own knowledge engine. Roughly 1,200 lines of tests for
+// related-notes scoring, the tag index, the link graph, the perf oracle and the
+// privacy gate drive production logic THROUGH it. Removing it would force a
+// sqlite devDependency into the pure package or exile those tests to the node
+// host. Its ~230 lines are the cheap side of that trade.
 // ---------------------------------------------------------------------------
 
 import { LinkGraphIndex } from "./link-graph-index";
