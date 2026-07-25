@@ -5,30 +5,40 @@
 // completeness, the lock/harden/vault/knowledge/sync boot sequence, and the
 // teardown that unwinds it — was covered only by launching the real app.
 //
-// It runs against a throwaway $HOME. os.homedir() resolves $HOME on POSIX and
-// both `~/.inteligir` (json-store, agent paths) and the default vault root
-// (~/Documents/Inteligir) are computed from it at MODULE scope — hence the
-// dynamic import below, which must stay after the env assignment. Without it
-// this test would take the developer's real host lock (fighting a running dev
-// app), prune real snapshots, and create a real vault.
+// It runs against a throwaway home directory. Both `~/.inteligir` (json-store,
+// agent paths) and the default vault root (~/Documents/Inteligir) are computed
+// from os.homedir() at MODULE scope, hence the dynamic import below — it must
+// stay after the mock registration. Without the redirect this test would take
+// the developer's real host lock (fighting a running dev app), prune real
+// snapshots, and create a real vault.
+//
+// The redirect MOCKS os.homedir rather than setting process.env.HOME. $HOME is
+// shared process state: vitest imports several test files into one worker
+// before running any of them, so a top-level env assignment here silently
+// repointed ~/.inteligir for every other file in the worker (it broke
+// delegation-manager.test.ts in CI while passing locally). vi.mock is
+// file-scoped and cannot leak.
 //
 // createHost() throws on a second call per process by design, so this file
 // boots exactly one host — keep it that way, and keep it in its own file so
 // vitest's per-file isolation gives it a clean module registry.
 // ---------------------------------------------------------------------------
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import type { HostPlatform } from "../platform";
 
-const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "inteligir-boot-"));
-const realHome = process.env["HOME"];
-process.env["HOME"] = tmpHome;
+const tmpHome = path.join(process.env["TMPDIR"] ?? "/tmp", `inteligir-boot-${process.pid}`);
 
-// Imported AFTER $HOME is redirected — see the header.
+vi.mock("node:os", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:os")>();
+  const patched = { ...actual, homedir: () => tmpHome };
+  return { ...patched, default: patched };
+});
+
+// Imported AFTER the homedir mock is registered — see the header.
 const { createHost } = await import("../boot/create-host");
 const { HOST_METHODS } = await import("../handlers/handler-registry");
 
@@ -56,14 +66,13 @@ describe("createHost", () => {
   let host: ReturnType<typeof createHost>;
 
   beforeAll(() => {
+    fs.rmSync(tmpHome, { recursive: true, force: true });
     fs.mkdirSync(path.join(tmpHome, "resources"), { recursive: true });
     host = createHost(testPlatform());
   });
 
   afterAll(async () => {
     await host.dispose();
-    if (realHome === undefined) delete process.env["HOME"];
-    else process.env["HOME"] = realHome;
     fs.rmSync(tmpHome, { recursive: true, force: true });
   });
 

@@ -14,13 +14,16 @@
 // Deliberately conservative: it matches bare identifiers, so a channel whose
 // name is also an ordinary word could be kept alive by a coincidental mention.
 // It errs toward passing — a failure here is always real.
+//
+// Lives in @repo/server, not @repo/bridge: it walks the filesystem, and bridge
+// is the isomorphic wire contract where node imports are lint-forbidden.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-import { IPC_METHODS } from "../ipc-registry";
+import { IPC_METHODS } from "@repo/bridge/ipc-registry";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
 
@@ -29,7 +32,7 @@ const SUPPLY = new Set(
   [
     "packages/bridge/src/ipc-registry.ts",
     "apps/desktop/dev/fixture-bridge.ts",
-    "packages/bridge/src/__tests__/no-dead-channels.test.ts",
+    "packages/server/src/__tests__/no-dead-channels.test.ts",
   ].map((rel) => path.join(REPO_ROOT, rel)),
 );
 
