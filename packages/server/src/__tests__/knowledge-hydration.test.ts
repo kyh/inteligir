@@ -9,9 +9,9 @@
 // That is machine-independent, unlike a millisecond ceiling (this repo's perf
 // convention — see knowledge-perf-oracle.test.ts, "not timing tests").
 //
-// Wall-clock numbers, MacBook / Node 24, synthetic vault, 8 links + 4 headings
-// + 3 tags + 1 alias + 3 tasks per doc (≈20 persisted rows/doc), measured by
-// the `bench` case below (page size = the manager's 500):
+// Wall-clock numbers, MacBook / Node 24, over the shared synthetic corpus
+// (knowledge-corpus.ts — ≈20 persisted rows/doc), measured by the `bench` case
+// below (page size = the manager's 500):
 //
 //                    worst SINGLE call     whole hydration
 //   50k  monolithic        1198 ms             1202 ms
@@ -32,10 +32,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
 import type { StoredDocRow } from "@repo/notes/knowledge/knowledge-store";
-import type { DocProjection } from "@repo/notes/knowledge/projection";
 import {
   createSqlKnowledgeStore,
   type HydrationPage,
@@ -45,6 +43,7 @@ import {
 
 import { KnowledgeManager } from "../knowledge/knowledge-manager";
 import { createSqliteKnowledgeStore } from "../knowledge/sqlite-knowledge-store";
+import { memorySqlDriver, seedStore } from "./knowledge-corpus";
 import { VaultManager } from "@repo/vault/vault";
 
 const ROOT = "/test/vault";
@@ -66,96 +65,30 @@ afterEach(() => {
 // ---- An instrumented driver: every read's row count is recorded ---------------
 
 type CountingDriver = SqlDriver & {
-  /** Rows returned by the single largest `all()` since the last reset. */
+  /** Rows returned by the single largest `all()` since the last `resetPeak`. */
   peakRows: () => number;
-  reset: () => void;
+  /** Zero the instrumentation. Distinct from the driver's own `reset`, which
+   * destroys the database — shadowing that would silently disarm the store's
+   * recovery path. */
+  resetPeak: () => void;
 };
 
-/** A minimal node:sqlite driver (the production one is private to
- * sqlite-knowledge-store) wrapped in read instrumentation. In-memory only —
- * these tests never exercise the file/WAL lifecycle, which
- * sqlite-knowledge-store.test.ts owns. */
+/** The shared in-memory driver wrapped in read instrumentation. */
 function countingDriver(): CountingDriver {
-  const db = new DatabaseSync(":memory:");
+  const base = memorySqlDriver();
   let peak = 0;
   return {
-    exec: (sql) => {
-      db.exec(sql);
-    },
-    run: (sql, params) => {
-      db.prepare(sql).run(...params);
-    },
+    ...base,
     all: (sql, params) => {
-      const rows = db.prepare(sql).all(...params);
+      const rows = base.all(sql, params);
       peak = Math.max(peak, rows.length);
       return rows;
     },
-    reset: () => {
+    resetPeak: () => {
       peak = 0;
     },
     peakRows: () => peak,
-    close: () => {
-      db.close();
-    },
   };
-}
-
-// ---- Synthetic corpus ----------------------------------------------------------
-
-/** ~20 persisted rows per doc — the shape that makes hydration expensive. */
-function synthetic(i: number): { row: StoredDocRow; body: string } {
-  const id = String(i).padStart(6, "0");
-  const projection: DocProjection = {
-    title: `Note ${id}`,
-    headings: [`Note ${id}`, "Context", "Details", "Next steps"],
-    links: Array.from({ length: 8 }, (_, k) => ({
-      kind: "wiki" as const,
-      embed: k === 7,
-      target: `note-${String((i + k * 37) % 1_000_000).padStart(6, "0")}`,
-      line: 10 + k,
-      snippet: `see [[note-${id}]] for the rest`,
-      ...(k === 0 ? { alias: "the note" } : {}),
-      ...(k === 1 ? { anchor: "Details" } : {}),
-    })),
-    tags: ["project", "meta", `bucket-${i % 50}`],
-    aliases: [`alias-${id}`],
-    private: i % 17 === 0,
-    tasks: Array.from({ length: 3 }, (_, k) => ({
-      checked: k === 0,
-      text: `task ${k} of ${id}`,
-      raw: `- [ ] task ${k} of ${id}`,
-      line: 30 + k,
-      ordinal: k,
-      wikiTargets: [`2026-01-0${(k % 9) + 1}`],
-    })),
-  };
-  const body = `# Note ${id}\n\nbody-${id} ${"filler word ".repeat(20)}\n`;
-  return {
-    row: {
-      path: `notes/note-${id}.md`,
-      fingerprint: { mtimeMs: 1_700_000_000_000 + i, size: body.length, ino: 5000 + i },
-      contentHash: `hash-${id}`,
-      projection,
-    },
-    body,
-  };
-}
-
-/** Fill a store with `docs` synthetic docs and `others` non-doc files. */
-function seed(store: SqlKnowledgeStore, docs: number, others: number): void {
-  for (let start = 0; start < docs; start += 1000) {
-    store.transaction(() => {
-      for (let i = start; i < Math.min(start + 1000, docs); i++) {
-        const { row, body } = synthetic(i);
-        store.upsertDoc(row, body);
-      }
-    });
-  }
-  store.transaction(() => {
-    for (let i = 0; i < others; i++) {
-      store.upsertOther(`assets/pic-${String(i).padStart(6, "0")}.png`);
-    }
-  });
 }
 
 function drain(store: SqlKnowledgeStore, pageDocs: number): HydrationPage[] {
@@ -186,7 +119,7 @@ describe("hydration cursor", () => {
     const driver = countingDriver();
     closers.push(driver.close);
     const store = createSqlKnowledgeStore(driver, ROOT);
-    seed(store, 25, 7);
+    seedStore(store, 25, 7);
     const oneShot = store.loadAll();
     expect(oneShot.docs).toHaveLength(25);
     expect(oneShot.others).toHaveLength(7);
@@ -225,12 +158,12 @@ describe("hydration cursor", () => {
       const driver = countingDriver();
       closers.push(driver.close);
       const store = createSqlKnowledgeStore(driver, ROOT);
-      seed(store, docs, docs);
-      driver.reset();
+      seedStore(store, docs, docs);
+      driver.resetPeak();
       drain(store, 100);
       const paged = driver.peakRows();
       // A monolithic read, as an oracle: one unbounded sweep per child table.
-      driver.reset();
+      driver.resetPeak();
       driver.all("SELECT source_path, target FROM links ORDER BY source_path, ord", []);
       peaks.set(docs, { paged, monolithic: driver.peakRows() });
     }
@@ -372,7 +305,7 @@ describe.skipIf(process.env["KNOWLEDGE_BENCH_DOCS"] === undefined)("hydration be
     const store = createSqliteKnowledgeStore(path.join(tmp, "bench.sqlite"), ROOT);
     closers.push(() => store.dispose());
     const buildStart = performance.now();
-    seed(store, BENCH_DOCS, 0);
+    seedStore(store, BENCH_DOCS);
     const buildMs = performance.now() - buildStart;
 
     // The monolithic baseline: one page the size of the corpus. Against it,

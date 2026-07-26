@@ -23,7 +23,9 @@ import {
   type SlateEditor,
 } from "platejs";
 
-import { TagChipLeaf, inlineTagSpans } from "@renderer/editor/nodes/tag-chip-node";
+import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
+
+import { TagChipLeaf } from "@renderer/editor/nodes/tag-chip-node";
 
 /** Element types whose text the tag index never scans. */
 function isSuppressedAncestor(editor: SlateEditor, type: string): boolean {

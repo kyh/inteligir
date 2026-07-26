@@ -167,15 +167,23 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 // bm25() returns lower-is-better (negative) ranks; weights mirror the pure
 // SearchIndex's TITLE_WEIGHT/HEADING_WEIGHT/BODY_WEIGHT so a title hit beats a
 // body-only hit. Path tiebreak keeps ordering deterministic.
-const SEARCH_SQL = `
+//
+// The renderer's search and the agent's differ by ONE extra WHERE term, so both
+// are cut from this template: the bm25 weights and the snippet config MUST
+// agree between them, or the agent ranks and quotes hits differently from what
+// the user sees. That term is the only interpolation and both call sites pass a
+// literal — every VALUE still binds through `?`.
+const searchSql = (privacyTerm: string): string => `
 SELECT path, title,
   snippet(search_fts, 2, '', '', '…', 12) AS snip,
   bm25(search_fts, 10.0, 4.0, 1.0) AS rank
 FROM search_fts
-WHERE search_fts MATCH ?
+WHERE search_fts MATCH ?${privacyTerm}
 ORDER BY rank, path
 LIMIT ?
 `;
+
+const SEARCH_SQL = searchSql("");
 
 // The agent-facing variant: `private: true` docs are excluded INSIDE the query,
 // so the limit applies to public hits and a private path/snippet can never even
@@ -189,15 +197,7 @@ LIMIT ?
 // 198s, against ~77ms for the same query unfiltered. As a stored column the
 // filter is a residual test on rows the cursor already produced, so the
 // agent-facing search costs what the renderer's does.
-const SEARCH_PUBLIC_SQL = `
-SELECT path, title,
-  snippet(search_fts, 2, '', '', '…', 12) AS snip,
-  bm25(search_fts, 10.0, 4.0, 1.0) AS rank
-FROM search_fts
-WHERE search_fts MATCH ? AND is_private = 0
-ORDER BY rank, path
-LIMIT ?
-`;
+const SEARCH_PUBLIC_SQL = searchSql(" AND is_private = 0");
 
 // Hydration reads. Both `files` pages are keyset-paginated (`path > ?` against
 // the PK index) rather than OFFSET-paginated, so page N costs the same as page

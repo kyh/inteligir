@@ -34,6 +34,7 @@ import { type Static, Type } from "@sinclair/typebox";
 
 import { atomicWrite } from "@repo/storage/atomic-write";
 import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { yieldToEventLoop } from "@repo/storage/yield-to-event-loop";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
@@ -92,9 +93,14 @@ type VaultWalkEntry = { path: string; name: string; kind: VaultEntry["kind"] };
  * moving at least one of these. */
 type StatIdentity = { mtimeMs: number; size: number; ino: number };
 
-/** A listed vault file with its stat identity — the knowledge reconcile's diff
- * basis. */
-export type VaultStatEntry = VaultWalkEntry & StatIdentity;
+/** A listed vault file as the knowledge reconcile sees it. Only `doc` entries
+ * carry a stat identity — a doc's CONTENT is what gets re-projected when the
+ * identity moves, while a non-doc is tracked by path alone, so stat-ing one is
+ * a syscall nobody reads. Discriminated on `kind` so an unstat'd doc and a
+ * stat'd non-doc are both unrepresentable. */
+export type VaultListingEntry =
+  | (VaultWalkEntry & { kind: "doc" } & StatIdentity)
+  | (VaultWalkEntry & { kind: "other" });
 
 /** How long a walk snapshot may be reused. Bounds staleness for sync's
  * snapshot-served fingerprints; a refresh burst (window focus fans into
@@ -109,11 +115,13 @@ const STAT_SLICE_BUDGET_MS = 15;
 type VaultSnapshot = {
   at: number;
   root: string;
-  entries: VaultWalkEntry[];
-  /** Membership set over `entries`: tells `statFingerprint` whether a path came
-   * out of the crawl (already confined under the root) or has to go through the
-   * `resolve()` funnel. */
-  crawled: Set<string>;
+  /** The crawl's files, keyed by vault-relative path, in sorted path order
+   * (every listing serves that order straight off the iterator). Keyed rather
+   * than an array because membership is a second question asked of the same
+   * data: `statFingerprint` needs to know whether a path came out of the crawl
+   * (already confined under the root) or has to go through the `resolve()`
+   * funnel. */
+  entries: Map<string, VaultWalkEntry>;
   /** Stat identities, filled LAZILY by `statOf` and memoized here — so a
    * refresh burst pays each file's stat at most once no matter how many
    * consumers ask, and files nobody asks about cost nothing. */
@@ -256,7 +264,11 @@ export class VaultManager {
    * Drives the sidebar file tree. Served from the shared TTL snapshot so a
    * refresh burst crawls once. */
   list(): VaultEntry[] {
-    return this.getSnapshot().entries.map((e) => ({ path: e.path, name: e.name, kind: e.kind }));
+    return Array.from(this.getSnapshot().entries.values(), (e) => ({
+      path: e.path,
+      name: e.name,
+      kind: e.kind,
+    }));
   }
 
   /** Every file path under the vault (same crawl as list(), minus the entry
@@ -274,15 +286,15 @@ export class VaultManager {
   listAllPaths(): string[] {
     const snapshot = this.getSnapshot();
     if (!snapshot.complete) throw new VaultListingIncompleteError(snapshot.root);
-    return snapshot.entries.map((e) => e.path);
+    return Array.from(snapshot.entries.keys());
   }
 
-  /** The listing WITH stat identities — the knowledge reconcile's diff basis.
-   * Freshness follows the snapshot TTL: external edits surface on the next
-   * refresh trigger, exactly the ephemeral-liveness contract.
+  /** The listing WITH stat identities on the DOCS — the knowledge reconcile's
+   * diff basis. Freshness follows the snapshot TTL: external edits surface on
+   * the next refresh trigger, exactly the ephemeral-liveness contract.
    *
-   * ASYNC because one stat per file is the crawl's dominant syscall cost, and
-   * a whole-vault sweep in one uninterruptible call is a multi-hundred-
+   * ASYNC because one stat per doc is the crawl's dominant syscall cost, and a
+   * whole-vault sweep in one uninterruptible call is a multi-hundred-
    * millisecond stall on the host's only thread at 50k notes. The sweep runs in
    * `STAT_SLICE_BUDGET_MS` slices with event-loop yields between them
    * (SqlKnowledgeStore.hydrate's idiom), so no single synchronous step grows
@@ -290,20 +302,24 @@ export class VaultManager {
    * started on — a snapshot dropped mid-sweep still yields a coherent listing,
    * and the next refresh picks up whatever moved.
    *
-   * Lenient like list(): a file that can't be stat'd is simply absent, because
-   * derived knowledge self-heals on the next refresh. Only sync
-   * (`listAllPaths`) must refuse a partial, and it never stats at all. */
-  async listWithStats(): Promise<VaultStatEntry[]> {
+   * Lenient like list(): a DOC that can't be stat'd is simply absent, because
+   * derived knowledge self-heals on the next refresh. Non-docs never stat, so
+   * nothing can thin them out of the listing — a flaky mount would otherwise
+   * make the reconcile see an asset as deleted and re-add it every pass. Only
+   * sync (`listAllPaths`) must refuse a partial, and it never stats at all. */
+  async listWithStats(): Promise<VaultListingEntry[]> {
     // The slice clock starts BEFORE the walk: a cold call pays for its own
     // crawl, so charging that to the first slice makes the sweep yield right
     // after it rather than stacking a full slice on top of it.
     let sliceStart = Date.now();
     const snapshot = this.getSnapshot();
-    const entries: VaultStatEntry[] = [];
-    for (const entry of snapshot.entries) {
-      const identity = this.statOf(snapshot, entry.path);
-      if (identity !== null) {
-        entries.push({ path: entry.path, name: entry.name, kind: entry.kind, ...identity });
+    const entries: VaultListingEntry[] = [];
+    for (const entry of snapshot.entries.values()) {
+      if (entry.kind === "doc") {
+        const identity = this.statOf(snapshot, entry.path);
+        if (identity !== null) entries.push({ ...entry, kind: "doc", ...identity });
+      } else {
+        entries.push({ ...entry, kind: "other" });
       }
       if (Date.now() - sliceStart >= STAT_SLICE_BUDGET_MS) {
         await yieldToEventLoop();
@@ -331,11 +347,9 @@ export class VaultManager {
   // fail the pass loudly if those are unreadable too.
   private getSnapshot(): VaultSnapshot {
     const root = this.getRoot();
-    const cached = this.snapshot;
-    if (cached && cached.root === root && Date.now() - cached.at <= SNAPSHOT_TTL_MS) {
-      return cached;
-    }
-    let entries: VaultWalkEntry[] = [];
+    const fresh = this.freshSnapshot(root);
+    if (fresh !== null) return fresh;
+    const entries = new Map<string, VaultWalkEntry>();
     // A missing root is an INCOMPLETE crawl, not an empty vault — it feeds the
     // completeness flag (listAllPaths throws; list serves the empty partial)
     // rather than silently reading as "every file was deleted".
@@ -343,16 +357,15 @@ export class VaultManager {
     if (fs.existsSync(root)) {
       const walked = this.walk(root);
       complete = walked.complete;
-      entries = walked.entries;
-      entries.sort((a, b) => a.path.localeCompare(b.path));
+      // Keyed AFTER the sort, so iteration order is the sorted order every
+      // listing serves.
+      walked.entries.sort((a, b) => a.path.localeCompare(b.path));
+      for (const entry of walked.entries) entries.set(entry.path, entry);
     }
-    const crawled = new Set<string>();
-    for (const entry of entries) crawled.add(entry.path);
     const snapshot: VaultSnapshot = {
       at: Date.now(),
       root,
       entries,
-      crawled,
       stats: new Map(),
       complete,
     };
@@ -362,6 +375,16 @@ export class VaultManager {
     // the transient error has cleared.
     this.snapshot = complete ? snapshot : null;
     return snapshot;
+  }
+
+  // The cached snapshot when it is still serviceable — same root, inside the
+  // TTL — else null. The root is a PARAMETER because getRoot() reads the
+  // settings store: the caller that has already resolved it passes it in
+  // instead of paying for it twice.
+  private freshSnapshot(root: string): VaultSnapshot | null {
+    const cached = this.snapshot;
+    if (cached === null || cached.root !== root) return null;
+    return Date.now() - cached.at <= SNAPSHOT_TTL_MS ? cached : null;
   }
 
   // The stat identity of a CRAWLED path, memoized onto its snapshot so every
@@ -516,13 +539,8 @@ export class VaultManager {
    * (ignored files opened directly, non-listing spellings) falls through to a
    * resolve()-confined live stat, never to a false null. */
   statFingerprint(rel: string): string | null {
-    const cached = this.snapshot;
-    if (
-      cached &&
-      cached.root === this.getRoot() &&
-      Date.now() - cached.at <= SNAPSHOT_TTL_MS &&
-      cached.crawled.has(rel)
-    ) {
+    const cached = this.freshSnapshot(this.getRoot());
+    if (cached !== null && cached.entries.has(rel)) {
       const identity = this.statOf(cached, rel);
       return identity === null ? null : fingerprintOf(identity);
     }
@@ -841,13 +859,6 @@ function fingerprintOf(identity: StatIdentity): string {
  * filesystem root. */
 function childPath(dir: string, name: string): string {
   return dir.endsWith(path.sep) ? dir + name : dir + path.sep + name;
-}
-
-/** Hand the event loop a turn between slices of a long sweep. */
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
 }
 
 /** Canonical path with symlinks resolved. For a path that doesn't exist yet,

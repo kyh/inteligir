@@ -15,14 +15,14 @@
 //      hit is probed against disk and kept ONLY when it reads "public" now.
 //
 // Refusal shape: the port drops SILENTLY everywhere. get_backlinks on a
-// private target returns [] and
-// the tool returns an empty JSON array, indistinguishable from a note with none, so
-// the response never confirms a guessed path exists or is private. The
-// explicit "this note is private" refusal lives ONLY on the direct file-tool
-// gate (privacy/gate.ts). That gate IS a per-path existence/privacy oracle for
-// a model-GUESSED path (private → refusal, absent → the tool's own ENOENT) —
-// an ACCEPTED hole, documented in docs/privacy.md: paths only, near-inherent
-// to per-path gating, and already reachable via `bash ls`.
+// private target returns [] and the tool returns an empty JSON array,
+// indistinguishable from a note with none, so the response never confirms a
+// guessed path exists or is private. The explicit "this note is private"
+// refusal lives ONLY on the direct file-tool gate (privacy/gate.ts). That gate
+// IS a per-path existence/privacy oracle for a model-GUESSED path (private →
+// refusal, absent → the tool's own ENOENT) — an ACCEPTED hole, documented in
+// docs/privacy.md: paths only, near-inherent to per-path gating, and already
+// reachable via `bash ls`.
 //
 // This lives on its own, outside agent-wiring, so the guarantee is testable
 // without host singletons — __tests__/knowledge-privacy.test.ts stringifies
@@ -71,26 +71,51 @@ export function buildAgentKnowledgePort(deps: {
    * user-facing rename handler uses, injected so the two paths can't drift. */
   afterRename: (from: string, to: string) => void;
 }): KnowledgePort {
-  const isPublicNow = (rel: string): boolean => deps.probe(rel) === "public";
+  /** One memo, scoped to ONE port call. The probe is a full file read plus a
+   * realpath of the target, and a single query can name the same note many
+   * times over — a hub note that links its index twenty times would otherwise
+   * pay twenty identical disk round-trips inside one call. Sound because a
+   * filter runs to completion synchronously: no write can interleave within a
+   * call, so the memo can never answer something the un-memoized probe would
+   * not have. It must NOT outlive the call — that is the whole point of the
+   * live re-probe (layer 2 above). */
+  const openProbe = (): {
+    verdict: (rel: string) => PrivacyProbe;
+    isPublic: (rel: string) => boolean;
+  } => {
+    const memo = new Map<string, PrivacyProbe>();
+    const verdict = (rel: string): PrivacyProbe => {
+      const seen = memo.get(rel);
+      if (seen !== undefined) return seen;
+      const fresh = deps.probe(rel);
+      memo.set(rel, fresh);
+      return fresh;
+    };
+    return { verdict, isPublic: (rel) => verdict(rel) === "public" };
+  };
   return {
-    search: (query, limit) =>
-      deps
+    search: (query, limit) => {
+      const live = openProbe();
+      return deps
         .queries()
         .search(query, limit, EXCLUDE)
-        .filter((hit) => isPublicNow(hit.path)),
+        .filter((hit) => live.isPublic(hit.path));
+    },
     backlinks: (path) => {
+      const live = openProbe();
       // A private/unreadable TARGET yields [] — silently (see header).
-      const target = deps.probe(path);
+      const target = live.verdict(path);
       if (target === "private" || target === "indeterminate") return [];
       return deps
         .queries()
         .backlinks(path, EXCLUDE)
-        .filter((entry) => isPublicNow(entry.sourcePath));
+        .filter((entry) => live.isPublic(entry.sourcePath));
     },
     forwardLinks: (path) => {
+      const live = openProbe();
       // A private/unreadable SUBJECT yields [] — silently, exactly like
       // backlinks (see header).
-      const subject = deps.probe(path);
+      const subject = live.verdict(path);
       if (subject === "private" || subject === "indeterminate") return [];
       // Layer (1) does not exist for this query — forwardLinks takes no
       // PrivacyOpts (see KnowledgeQueries) — so the live probe below is the
@@ -104,26 +129,33 @@ export function buildAgentKnowledgePort(deps: {
       //
       // A DANGLING entry (targetPath null) passes through untouched: no file
       // stands behind it, so there is nothing to be private, and the tool
-      // renders it as explicitly unresolved. "absent" fails isPublicNow too,
-      // so a target deleted since the last index pass drops exactly the way a
-      // private one does — that ambiguity is what keeps the omission from
-      // being a privacy oracle.
+      // renders it as explicitly unresolved. "absent" fails the public check
+      // too, so a target deleted since the last index pass drops exactly the
+      // way a private one does — that ambiguity is what keeps the omission
+      // from being a privacy oracle.
       return deps
         .queries()
         .forwardLinks(path)
-        .filter((entry) => entry.targetPath === null || isPublicNow(entry.targetPath));
+        .filter((entry) => entry.targetPath === null || live.isPublic(entry.targetPath));
     },
     relatedNotes: (path) => {
+      const live = openProbe();
       // A private/unreadable SUBJECT yields [] — silently, exactly like
       // backlinks (see header): "no related notes" never confirms a path.
-      const target = deps.probe(path);
+      const target = live.verdict(path);
       if (target === "private" || target === "indeterminate") return [];
       return deps
         .queries()
         .relatedNotes(path, EXCLUDE)
-        .filter((entry) => isPublicNow(entry.path));
+        .filter((entry) => live.isPublic(entry.path));
     },
-    notesWithTag: (tag) => deps.queries().notesWithTag(tag, EXCLUDE).filter(isPublicNow),
+    notesWithTag: (tag) => {
+      const live = openProbe();
+      return deps
+        .queries()
+        .notesWithTag(tag, EXCLUDE)
+        .filter((path) => live.isPublic(path));
+    },
     rename: (from, to) => renameNote(deps, from, to),
   };
 }

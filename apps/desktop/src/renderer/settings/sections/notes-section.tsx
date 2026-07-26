@@ -1,16 +1,8 @@
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 
-import {
-  CADENCE_ORDER,
-  CADENCES,
-  type Cadence,
-  type CadenceConfig,
-} from "@repo/bridge/daily-notes";
-import { useDiskState } from "@renderer/lib/use-disk-state";
-
-const parseString = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined;
+import { CADENCE_ORDER, CADENCES, type CadenceConfig } from "@repo/bridge/daily-notes";
+import { parseStoredString, useDiskState } from "@renderer/lib/use-disk-state";
 
 // Periodic-note locations, one group per cadence. Every field persists through
 // the generic ui-state channel (~/.inteligir/ui-state.json) via useDiskState —
@@ -28,14 +20,12 @@ export function NotesSection() {
   );
 }
 
-/** How each cadence is reached, appended to its group's hint line. Kept beside
- * the copy it belongs to rather than in the isomorphic cadence table, which the
- * host reads and has no notion of the palette. */
-const REACHED_BY: Record<Cadence, string> = {
-  daily: "⌘D or “Open today's note”",
-  weekly: "“Open this week's note”",
-  monthly: "“Open this month's note”",
-};
+/** How this cadence is reached, for its group's hint line. The command LABEL
+ * belongs to the cadence table (the host reads it too); the only renderer-local
+ * fact is that daily also sits on a hotkey. */
+function reachedBy(config: CadenceConfig): string {
+  return `${config.cadence === "daily" ? "⌘D or " : ""}“${config.commandLabel}”`;
+}
 
 /** One cadence's folder + filename-format pair. A hook per FIELD, so this is a
  * component rather than a loop body — useDiskState can't be called in a map. */
@@ -43,14 +33,18 @@ function CadenceRows({ config }: { config: CadenceConfig }) {
   const [folder, setFolder, loaded] = useDiskState(
     config.folderKey,
     config.defaultFolder,
-    parseString,
+    parseStoredString,
   );
-  const [format, setFormat] = useDiskState(config.formatKey, config.defaultFormat, parseString);
+  const [format, setFormat] = useDiskState(
+    config.formatKey,
+    config.defaultFormat,
+    parseStoredString,
+  );
 
   return (
     <div className="flex flex-col gap-2 rounded-[12px] bg-muted px-3 py-2">
       <p className="text-[10px] text-muted-foreground">
-        {config.settingsLabel} location, opened with {REACHED_BY[config.cadence]}. Seeded from{" "}
+        {config.settingsLabel} location, opened with {reachedBy(config)}. Seeded from{" "}
         <code>{config.templatePath}</code> when it exists.
       </p>
       <div className="flex flex-col gap-1">

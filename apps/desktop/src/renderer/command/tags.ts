@@ -10,11 +10,11 @@
 // refresh, shared) and ONE way to open a tag, instead of the sidebar and the
 // chips each growing their own list rendering.
 //
-// The counts are a projection of note bodies, so they are refreshed on the
-// same cadence the rest of the app discovers vault changes (see CLAUDE.md
-// § Decisions, "ephemeral listing"): the palette refreshes on open, the
-// sidebar group on a structural listing change and on a completed save. There
-// is deliberately no subscription/push channel for tags.
+// The counts are a projection of the knowledge index, so a refresh is driven
+// by that index's own push (`onKnowledgeUpdated`, which the sidebar group
+// subscribes to) plus a read when the palette opens. The index pushes often —
+// including progress ticks through a rebuild — so an unchanged list keeps its
+// array identity and re-renders nothing.
 // ---------------------------------------------------------------------------
 
 import { create } from "zustand";
@@ -42,10 +42,22 @@ type TagsState = {
 
 export const useTags = create<TagsState>()(() => ({ loaded: false, request: null, tags: [] }));
 
-// Sequence guard: two surfaces can refresh concurrently (palette open while
-// the sidebar reacts to a save), and a slow earlier response must not land
-// over a newer one.
+// Sequence guard: two surfaces can refresh concurrently (a palette open racing
+// the sidebar's index push), and a slow earlier response must not land over a
+// newer one.
 let refreshSeq = 0;
+
+/** Same tags, same counts, same order. Compares the whole payload, so a count
+ * moving on an otherwise-identical list still publishes. */
+function sameTags(a: TagCount[], b: TagCount[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((entry, i) => {
+      const other = b[i];
+      return other !== undefined && other.tag === entry.tag && other.count === entry.count;
+    })
+  );
+}
 
 /** Re-read the tag index. Fire-and-forget: a failed read leaves the last good
  * list in place — a stale count is better than an empty sidebar group. */
@@ -54,7 +66,13 @@ export function refreshTags(): void {
   getBridge()
     .listTags()
     .then((tags) => {
-      if (seq === refreshSeq) useTags.setState({ loaded: true, tags });
+      if (seq !== refreshSeq) return undefined;
+      const state = useTags.getState();
+      // Hold the array identity when nothing moved: the always-mounted palette
+      // and the sidebar group both select `tags`, and a fresh array with
+      // identical contents would re-render both for no visible change.
+      if (state.loaded && sameTags(state.tags, tags)) return undefined;
+      useTags.setState({ loaded: true, tags });
       return undefined;
     })
     .catch(() => {});

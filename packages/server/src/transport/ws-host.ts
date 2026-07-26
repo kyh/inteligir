@@ -31,6 +31,7 @@ import {
   type ReqFrame,
   type SendFrame,
 } from "@repo/bridge/ws-protocol";
+import { yieldToEventLoop } from "@repo/storage/yield-to-event-loop";
 import type { HostEvents } from "../boot/create-host";
 import type { WireHandler } from "../handlers/handler-registry";
 import { LOCAL_DEVICE_ID, type DeviceSession, type TokenValidator } from "./device-auth";
@@ -335,7 +336,7 @@ export function startWsHost(options: WsHostOptions): WsHost {
       // Defer past the current turn's microtasks: the res frame answering the
       // config change that triggered this rebind (and the just-broadcast evt
       // frame) must reach the socket before it starts closing.
-      await new Promise<void>((resolve) => setImmediate(resolve));
+      await yieldToEventLoop();
       if (closed) return;
       await stopServer("rebind");
       listen();

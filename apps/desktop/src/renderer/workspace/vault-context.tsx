@@ -251,8 +251,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   /** Flush the open note's pending edits (clearing the debounce). True when
-   * clean. A pending AI suggestion session on the file is settled first
-   * first: reject-all reverts only the suggestion-marked ranges, so typing
+   * clean. A pending AI suggestion session on the file is settled first:
+   * reject-all reverts only the suggestion-marked ranges, so typing
    * the user interleaved during the review persists while the AI marks
    * disappear — without this, the flush would write the frozen pre-session
    * buffer and the typing would die with the unmounting editor. */

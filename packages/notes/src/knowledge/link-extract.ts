@@ -206,13 +206,34 @@ function textOf(node: Nodes): string {
 // Nested `a/b/c` and dashes are allowed; a trailing `/` or `-` is not captured.
 // Unicode letters/numbers count — the pipeline already runs with the `u` flag
 // (search-index tokenizer), so it costs nothing here.
-// Exported because the editor's tag-chip decoration must highlight EXACTLY
-// what this index counts. It scans Slate text runs rather than mdast text
-// nodes, so the walkers genuinely can't be shared — but a second copy of the
-// grammar would drift into chips over text that is not a tag, so the two share
-// this one regex. It is stateful (`g` flag): callers must use `matchAll`, or
-// reset `lastIndex` before `exec`.
-export const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
+// Module-private: the pattern alone is not the grammar — the trailing-dash trim
+// below is part of it — so `inlineTagSpans` is the only seam a second consumer
+// gets. Stateful (`g` flag): scan it with `matchAll`.
+const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
+
+/** A `#tag` occurrence inside one text run: `[start, end)` covers the `#` and
+ * the tag name, and `tag` is the name alone. */
+export type InlineTagSpan = { start: number; end: number; tag: string };
+
+/** Every `#tag` in one plain-text run, in order — the ONE inline-tag scanner.
+ * Pure string math, no mdast: the index walks mdast `text` nodes and the
+ * editor's chip decoration walks Slate text runs, so the WALKERS genuinely
+ * can't be shared, but the token grammar must not drift between them, so both
+ * come through here. */
+export function inlineTagSpans(text: string): InlineTagSpan[] {
+  const spans: InlineTagSpan[] = [];
+  for (const match of text.matchAll(INLINE_TAG_RE)) {
+    const start = match.index;
+    const raw = match[1];
+    if (start === undefined || raw === undefined) continue;
+    // A trailing dash is captured by the name class but reads as punctuation,
+    // not part of the tag (`#bar-` → `bar`); a trailing `/` never is.
+    const tag = raw.replace(/-+$/, "");
+    if (tag === "") continue;
+    spans.push({ start, end: start + 1 + tag.length, tag });
+  }
+  return spans;
+}
 
 /** The leading `yaml` node's typed properties, parsed ONCE per scanDoc pass,
  * or null when the doc has no frontmatter block. Each `frontmatter*` extractor
@@ -292,12 +313,7 @@ function frontmatterPrivate(parsed: ParsedProperties | null): boolean {
 function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): void {
   if (node.type === "text") {
     if (suppressed) return;
-    for (const match of node.value.matchAll(INLINE_TAG_RE)) {
-      // A trailing dash is captured by the name class but reads as punctuation,
-      // not part of the tag (`#bar-` → `bar`); a trailing `/` never is.
-      const tag = match[1]?.replace(/-+$/, "");
-      if (tag !== undefined && tag !== "") out.push(tag);
-    }
+    for (const { tag } of inlineTagSpans(node.value)) out.push(tag);
     return;
   }
   const nextSuppressed =

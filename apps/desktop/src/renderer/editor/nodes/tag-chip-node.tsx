@@ -14,38 +14,7 @@
 
 import { PlateLeaf, type PlateLeafProps } from "platejs/react";
 
-import { INLINE_TAG_RE } from "@repo/notes/knowledge/link-extract";
-
 import { browseTag } from "@renderer/command/tags";
-
-/** A `#tag` occurrence inside one text run: `[start, end)` covers the `#` and
- * the tag name, and `tag` is the name alone. */
-export type InlineTagSpan = { start: number; end: number; tag: string };
-
-// The tag index's OWN scanner, imported rather than copied: the chip must
-// highlight exactly what the index counted (`#` at a word boundary, then a
-// LETTER-first name, nested `a/b/c` and dashes allowed). The index walks mdast
-// text nodes and this walks Slate text runs, so the walkers can't be shared —
-// but the token grammar is the thing that must not drift, and a second copy
-// would drift into chips over text that is not a tag.
-
-/** Every `#tag` in a text run, in document order. Pure — the kit's `decorate`
- * turns these offsets into Slate ranges. */
-export function inlineTagSpans(text: string): InlineTagSpan[] {
-  const spans: InlineTagSpan[] = [];
-  for (const match of text.matchAll(INLINE_TAG_RE)) {
-    const start = match.index;
-    const raw = match[1];
-    if (start === undefined || raw === undefined) continue;
-    // A trailing dash reads as punctuation, not part of the name (`#bar-` →
-    // `bar`) — link-extract trims the same way, so the chip must stop short of
-    // it or it would link a tag that doesn't exist.
-    const tag = raw.replace(/-+$/, "");
-    if (tag === "") continue;
-    spans.push({ end: start + 1 + tag.length, start, tag });
-  }
-  return spans;
-}
 
 /** True when the user is mid-selection: a drag that ends over a chip fires a
  * click, and popping the palette out from under a selection is never what they
