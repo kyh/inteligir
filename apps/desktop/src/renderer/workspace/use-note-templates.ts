@@ -5,11 +5,8 @@ import { formatIsoDate, periodicNotePath } from "@repo/notes/daily-path";
 import { CADENCES, applyTemplate, type Cadence } from "@repo/bridge/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
-import { useDiskState } from "@renderer/lib/use-disk-state";
+import { parseStoredString, useDiskState } from "@renderer/lib/use-disk-state";
 import { useVaultActions } from "@renderer/workspace/vault-context";
-
-const parseString = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined;
 
 /** Read a template note's raw bytes, or null when it doesn't exist / is
  * unreadable — the seed is optional in every flow. */
@@ -60,8 +57,8 @@ export function useCreateFromTemplate(): (templatePath: string, rawName: string)
 export function useOpenPeriodicNote(cadence: Cadence): () => void {
   const { createFile } = useVaultActions();
   const config = CADENCES[cadence];
-  const [folder] = useDiskState(config.folderKey, config.defaultFolder, parseString);
-  const [format] = useDiskState(config.formatKey, config.defaultFormat, parseString);
+  const [folder] = useDiskState(config.folderKey, config.defaultFolder, parseStoredString);
+  const [format] = useDiskState(config.formatKey, config.defaultFormat, parseStoredString);
   return useCallback(() => {
     void (async () => {
       const now = new Date();

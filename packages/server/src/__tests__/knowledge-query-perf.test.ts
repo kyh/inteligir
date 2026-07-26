@@ -10,9 +10,9 @@
 // These live in @repo/server rather than beside LinkGraphIndex because the
 // second half needs the node:sqlite store to exercise FTS5.
 //
-// MacBook / Node 24, synthetic 50k-doc vault, 8 links + 4 headings + 3 tags +
-// 1 alias per doc (400k links, 55k graph nodes). Absolute values move ±30% with
-// machine load; the ratios do not.
+// MacBook / Node 24, the shared synthetic corpus (knowledge-corpus.ts) at 50k
+// docs — 400k links, 55k graph nodes. Absolute values move ±30% with machine
+// load; the ratios do not.
 //
 //                                              scoped   whole-corpus
 //   re-resolve, 1 doc edited                   0.1 ms         545 ms
@@ -46,7 +46,6 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import {
@@ -57,61 +56,17 @@ import {
 } from "@repo/notes/knowledge/link-graph-index";
 import type { DocProjection, StoredLink } from "@repo/notes/knowledge/projection";
 import { relatedNotes } from "@repo/notes/knowledge/related-notes";
-import {
-  createSqlKnowledgeStore,
-  type SqlDriver,
-  type SqlKnowledgeStore,
-} from "@repo/notes/knowledge/sql-knowledge-store";
+import { createSqlKnowledgeStore, type SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
 
 import { createSqliteKnowledgeStore } from "../knowledge/sqlite-knowledge-store";
+import { docPath, memorySqlDriver, seedStore, syntheticProjection } from "./knowledge-corpus";
 
 const BENCH_DOCS = Number(process.env["KNOWLEDGE_BENCH_DOCS"] ?? 10_000);
 
-// ---- Synthetic corpus ----------------------------------------------------------
-
-function docPath(i: number): string {
-  return `notes/note-${String(i).padStart(6, "0")}.md`;
-}
-
-/** `total` docs' worth of links, 7 of 8 resolving inside the corpus and the
- * 8th dangling — the shape that makes both resolution and the graph expensive.
- * `revision` perturbs the snippets so a re-projection is a real change. */
-function projection(i: number, total: number, revision = 0): DocProjection {
-  const id = String(i).padStart(6, "0");
-  return {
-    title: `Note ${id}`,
-    headings: [`Note ${id}`, "Context", "Details", "Next steps"],
-    links: Array.from({ length: 8 }, (_, k): StoredLink => {
-      const target =
-        k === 7
-          ? `missing-${String((i * 7 + k) % 5000).padStart(6, "0")}`
-          : `note-${String((i + k * 37) % total).padStart(6, "0")}`;
-      return {
-        kind: "wiki",
-        embed: k === 7,
-        target,
-        line: 10 + k,
-        snippet: `rev${revision}: see [[${target}]] for the rest`,
-      };
-    }),
-    tags: ["project", "meta", `bucket-${i % 50}`],
-    aliases: [`alias-${id}`],
-    private: i % 17 === 0,
-    tasks: [],
-  };
-}
-
-/** "the" is in every doc (a term FTS5 must rank the whole corpus for);
- * `body-<id>` is in exactly one. */
-function body(i: number): string {
-  const id = String(i).padStart(6, "0");
-  return `# Note ${id}\n\nbody-${id} the quick brown fox ${"filler word the ".repeat(20)}\n`;
-}
-
 function seedIndex(docs: number): LinkGraphIndex {
   const index = new LinkGraphIndex();
-  for (let i = 0; i < docs; i++) index.applyDoc(docPath(i), projection(i, docs));
+  for (let i = 0; i < docs; i++) index.applyDoc(docPath(i), syntheticProjection(i, docs));
   return index;
 }
 
@@ -156,22 +111,38 @@ function withCountedLinks(base: DocProjection, onResolve: () => void): DocProjec
   return { ...base, links: countingLinks(base.links, onResolve) };
 }
 
+/** A `docs`-doc index whose every doc counts its own re-resolutions, already
+ * folded once so the counts start from a fully resolved state. `applyCounted`
+ * re-projects a doc keeping it counted. */
+function seedCounted(docs: number): {
+  index: LinkGraphIndex;
+  resolves: Map<string, number>;
+  applyCounted: (i: number, proj: DocProjection) => void;
+} {
+  const resolves = new Map<string, number>();
+  const index = new LinkGraphIndex();
+  const applyCounted = (i: number, proj: DocProjection): void => {
+    const p = docPath(i);
+    index.applyDoc(
+      p,
+      withCountedLinks(proj, () => {
+        resolves.set(p, (resolves.get(p) ?? 0) + 1);
+      }),
+    );
+  };
+  for (let i = 0; i < docs; i++) applyCounted(i, syntheticProjection(i, docs));
+  index.backlinks(docPath(0)); // the one whole-corpus fold
+  return { index, resolves, applyCounted };
+}
+
 describe("incremental link resolution", () => {
   it("re-projecting a doc re-resolves that doc's links and nothing else", () => {
-    const resolves = new Map<string, number>();
-    const index = new LinkGraphIndex();
-    const bump = (p: string) => (): void => {
-      resolves.set(p, (resolves.get(p) ?? 0) + 1);
-    };
-    for (let i = 0; i < 20; i++) {
-      index.applyDoc(docPath(i), withCountedLinks(projection(i, 20), bump(docPath(i))));
-    }
-    index.backlinks(docPath(0)); // the one whole-corpus fold
+    const { index, resolves, applyCounted } = seedCounted(20);
     expect([...resolves.values()]).toEqual(Array.from({ length: 20 }, () => 1));
 
     // A body edit — same path, same aliases.
     resolves.clear();
-    index.applyDoc(docPath(3), withCountedLinks(projection(3, 20, 1), bump(docPath(3))));
+    applyCounted(3, syntheticProjection(3, 20, 1));
     index.backlinks(docPath(0));
     expect([...resolves.entries()]).toEqual([[docPath(3), 1]]);
 
@@ -184,19 +155,10 @@ describe("incremental link resolution", () => {
   });
 
   it("a changed alias re-resolves the whole corpus — it can re-point any link", () => {
-    const resolves = new Map<string, number>();
-    const index = new LinkGraphIndex();
-    const bump = (p: string) => (): void => {
-      resolves.set(p, (resolves.get(p) ?? 0) + 1);
-    };
-    for (let i = 0; i < 20; i++) {
-      index.applyDoc(docPath(i), withCountedLinks(projection(i, 20), bump(docPath(i))));
-    }
-    index.backlinks(docPath(0));
+    const { index, resolves, applyCounted } = seedCounted(20);
 
     resolves.clear();
-    const renamedAlias: DocProjection = { ...projection(3, 20, 1), aliases: ["something else"] };
-    index.applyDoc(docPath(3), withCountedLinks(renamedAlias, bump(docPath(3))));
+    applyCounted(3, { ...syntheticProjection(3, 20, 1), aliases: ["something else"] });
     index.backlinks(docPath(0));
     expect(resolves.size).toBe(20);
 
@@ -213,7 +175,7 @@ describe("incremental link resolution", () => {
     const others: string[] = [];
     const index = new LinkGraphIndex();
     const apply = (i: number, revision: number, over?: Partial<DocProjection>): void => {
-      const proj = { ...projection(i, total, revision), ...over };
+      const proj = { ...syntheticProjection(i, total, revision), ...over };
       applied.set(docPath(i), proj);
       index.applyDoc(docPath(i), proj);
     };
@@ -283,9 +245,9 @@ describe("incremental link resolution", () => {
     const index = seedIndex(total);
     index.backlinks(docPath(0));
     const applied = new Map<string, DocProjection>();
-    for (let i = 0; i < total; i++) applied.set(docPath(i), projection(i, total));
+    for (let i = 0; i < total; i++) applied.set(docPath(i), syntheticProjection(i, total));
     for (let i = 0; i < total; i++) {
-      const proj = projection(i, total, 1);
+      const proj = syntheticProjection(i, total, 1);
       applied.set(docPath(i), proj);
       index.applyDoc(docPath(i), proj);
     }
@@ -349,7 +311,7 @@ describe("graph assembly", () => {
     // Parallel links (same pair, same kind) and a self-link: the count/degree
     // rules the per-source collapse has to preserve.
     const twin: DocProjection = {
-      ...projection(0, total, 1),
+      ...syntheticProjection(0, total, 1),
       links: [
         { kind: "wiki", embed: false, target: "note-000001", line: 1, snippet: "a" },
         { kind: "wiki", embed: false, target: "note-000001", line: 2, snippet: "b" },
@@ -368,34 +330,21 @@ describe("graph assembly", () => {
 
 // ---- The agent-facing search's query plan -------------------------------------------
 
-/** A node:sqlite driver that remembers the SQL it was asked to run, so a test
- * can EXPLAIN the store's own statements without the store exporting them. */
+/** The shared in-memory driver, remembering the SQL it was asked to run so a
+ * test can EXPLAIN the store's own statements without the store exporting
+ * them. `explain` reads around the recorder, so it never logs itself. */
 function recordingDriver(): SqlDriver & { queries: string[]; explain: (sql: string) => string[] } {
-  const db = new DatabaseSync(":memory:");
+  const base = memorySqlDriver();
   const queries: string[] = [];
   return {
+    ...base,
     queries,
-    exec: (sql) => {
-      db.exec(sql);
-    },
-    run: (sql, params) => {
-      db.prepare(sql).run(...params);
-    },
     all: (sql, params) => {
       queries.push(sql);
-      return db.prepare(sql).all(...params);
+      return base.all(sql, params);
     },
     explain: (sql) =>
-      db
-        .prepare(`EXPLAIN QUERY PLAN ${sql}`)
-        .all("x", 10)
-        .map((row) => String(row["detail"])),
-    reset: () => {
-      db.exec("DROP TABLE IF EXISTS files");
-    },
-    close: () => {
-      db.close();
-    },
+      base.all(`EXPLAIN QUERY PLAN ${sql}`, ["x", 10]).map((row) => String(row["detail"])),
   };
 }
 
@@ -408,17 +357,7 @@ describe("agent-facing search", () => {
     const driver = recordingDriver();
     try {
       const store = createSqlKnowledgeStore(driver, "/test/vault");
-      for (let i = 0; i < 20; i++) {
-        store.upsertDoc(
-          {
-            path: docPath(i),
-            fingerprint: { mtimeMs: i, size: 1, ino: i },
-            contentHash: `hash-${i}`,
-            projection: projection(i, 20),
-          },
-          body(i),
-        );
-      }
+      seedStore(store, 20);
       driver.queries.length = 0;
       const hits = store.search("the", 10, { excludePrivate: true });
       expect(hits.length).toBeGreaterThan(0);
@@ -434,24 +373,6 @@ describe("agent-facing search", () => {
 });
 
 // ---- The documented benchmark ---------------------------------------------------------
-
-function seedStore(store: SqlKnowledgeStore, docs: number): void {
-  for (let start = 0; start < docs; start += 1000) {
-    store.transaction(() => {
-      for (let i = start; i < Math.min(start + 1000, docs); i++) {
-        store.upsertDoc(
-          {
-            path: docPath(i),
-            fingerprint: { mtimeMs: 1_700_000_000_000 + i, size: 100, ino: 5000 + i },
-            contentHash: `hash-${i}`,
-            projection: projection(i, docs),
-          },
-          body(i),
-        );
-      }
-    });
-  }
-}
 
 function since(start: number): string {
   return `${(performance.now() - start).toFixed(1)}ms`;
@@ -473,7 +394,7 @@ describe.skipIf(process.env["KNOWLEDGE_BENCH_DOCS"] === undefined)("query benchm
     // it, which falls back to the whole-corpus fold.
     const reresolve = (docs: number, revision: number): string => {
       for (let i = 0; i < docs; i++)
-        index.applyDoc(docPath(i), projection(i, BENCH_DOCS, revision));
+        index.applyDoc(docPath(i), syntheticProjection(i, BENCH_DOCS, revision));
       const start = performance.now();
       index.backlinks(docPath(1));
       return since(start);

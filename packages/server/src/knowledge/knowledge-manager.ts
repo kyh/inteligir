@@ -50,6 +50,7 @@ import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { StoredFingerprint } from "@repo/notes/knowledge/knowledge-store";
 import type { HydrationCursor, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
+import { yieldToEventLoop } from "@repo/storage/yield-to-event-loop";
 
 import { emitEvent } from "../events";
 import { getVaultManager, type VaultManager } from "@repo/vault/vault";
@@ -515,12 +516,6 @@ export class KnowledgeManager {
 
 function sha256(text: string): string {
   return crypto.createHash("sha256").update(text).digest("hex");
-}
-
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
 }
 
 // ---------------------------------------------------------------------------

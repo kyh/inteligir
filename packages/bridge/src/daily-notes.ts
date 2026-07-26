@@ -31,10 +31,16 @@ export const DAILY_TEMPLATE_PATH = "templates/daily.md";
  * different folder + filename format. */
 export type Cadence = "daily" | "weekly" | "monthly";
 
-/** Everything that differs between cadences, in one record per cadence — the
- * point of the lookup table below is that there is exactly ONE place to look
- * when adding "quarterly", instead of three parallel constant sets and three
- * parallel hooks/commands/settings rows to keep in step. */
+/** Everything that differs between cadences, in one record per cadence, so a
+ * cadence's folder key, filename format, template path and command label are
+ * defined once rather than spread across parallel constant sets.
+ *
+ * Adding "quarterly" is still more than editing the table below: the renderer
+ * keeps its own per-cadence records (the palette's command map, the Settings
+ * rows, the open-periodic hook). Every one of them is keyed
+ * `Record<Cadence, …>`, so the compiler names each site that needs the new
+ * member — the table does not remove those sites, it makes missing one a
+ * type error instead of a silent gap. */
 export type CadenceConfig = {
   /** Discriminant — a config always knows which cadence it describes. */
   readonly cadence: Cadence;

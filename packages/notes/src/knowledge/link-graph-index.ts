@@ -518,7 +518,7 @@ export class LinkGraphIndex {
  * graph stays global, it just can't lose the open note to the cap.
  *
  * Edges are the ones induced by the kept nodes; if that still exceeds
- * `maxEdges`, the outermost go first (see {@link edgeDistance}). */
+ * `maxEdges`, the outermost go first. */
 export function boundGraph(graph: LinkGraph, bounds: GraphBounds): BoundedLinkGraph {
   const totalNodes = graph.nodes.length;
   const totalEdges = graph.edges.length;
@@ -528,37 +528,45 @@ export function boundGraph(graph: LinkGraph, bounds: GraphBounds): BoundedLinkGr
     return { nodes: graph.nodes, edges: graph.edges, totalNodes, totalEdges };
   }
 
-  // Insertion order IS selection order, and selection order is distance from
-  // the focus — which is what an edge cut wants to order by.
-  const rank = new Map<string, number>();
-  for (const id of selectNodes(graph, bounds.focus, maxNodes)) rank.set(id, rank.size);
+  const rank = selectNodes(graph, bounds.focus, maxNodes);
 
-  const induced = graph.edges.filter((edge) => rank.has(edge.source) && rank.has(edge.target));
-  const edges =
+  // An edge is induced when BOTH endpoints were selected — and that same pair
+  // of lookups is its cut order: an edge becomes drawable only once its LATER
+  // endpoint is selected, so the later rank is exactly its distance from the
+  // focus. Scoring here rather than in a second pass keeps the "both endpoints
+  // are ranked" invariant TOTAL, with no unreachable missing-endpoint case.
+  const induced: Array<{ edge: GraphEdge; at: number }> = [];
+  for (const edge of graph.edges) {
+    const source = rank.get(edge.source);
+    const target = rank.get(edge.target);
+    if (source === undefined || target === undefined) continue;
+    induced.push({ edge, at: Math.max(source, target) });
+  }
+  const kept =
     induced.length <= maxEdges
       ? induced
-      : induced
-          .map((edge) => ({ edge, at: edgeDistance(edge, rank) }))
-          .toSorted((a, b) => a.at - b.at)
-          .slice(0, maxEdges)
-          .map((entry) => entry.edge);
+      : induced.toSorted((a, b) => a.at - b.at).slice(0, maxEdges);
 
   // Kept nodes stay even when the edge cut leaves them isolated: dropping them
   // would make the reported node count a lie.
-  return { nodes: graph.nodes.filter((node) => rank.has(node.id)), edges, totalNodes, totalEdges };
+  return {
+    nodes: graph.nodes.filter((node) => rank.has(node.id)),
+    edges: kept.map((entry) => entry.edge),
+    totalNodes,
+    totalEdges,
+  };
 }
 
-/** An edge becomes drawable only once its LATER endpoint is selected, so the
- * later rank is exactly its distance from the focus. */
-function edgeDistance(edge: GraphEdge, rank: ReadonlyMap<string, number>): number {
-  return Math.max(rank.get(edge.source) ?? 0, rank.get(edge.target) ?? 0);
-}
-
-/** Up to `maxNodes` node ids, nearest the focus first and highest-degree
- * after — in selection order. */
-function selectNodes(graph: LinkGraph, focus: string | undefined, maxNodes: number): Set<string> {
-  const kept = new Set<string>();
-  if (maxNodes <= 0) return kept;
+/** Up to `maxNodes` node ids mapped to their SELECTION ORDER: breadth-first
+ * from the focus, then highest-degree to fill the budget. The rank is the
+ * insertion index, so it doubles as distance from the focus for the edge cut. */
+function selectNodes(
+  graph: LinkGraph,
+  focus: string | undefined,
+  maxNodes: number,
+): Map<string, number> {
+  const rank = new Map<string, number>();
+  if (maxNodes <= 0) return rank;
 
   // A focus that names no node contributes nothing, so the adjacency map (the
   // one O(edges) allocation here) is built only when it will actually be
@@ -567,27 +575,40 @@ function selectNodes(graph: LinkGraph, focus: string | undefined, maxNodes: numb
     const adjacency = buildAdjacency(graph.edges);
     const queue = [focus];
     let head = 0;
-    while (head < queue.length && kept.size < maxNodes) {
+    while (head < queue.length && rank.size < maxNodes) {
       const id = queue[head++];
-      if (id === undefined || kept.has(id)) continue;
-      kept.add(id);
+      if (id === undefined || rank.has(id)) continue;
+      rank.set(id, rank.size);
       for (const neighbour of adjacency.get(id) ?? []) {
         // Never queue more candidates than the remaining budget can consume —
         // one hub with a 20k in-degree would otherwise make a bounded answer
         // cost a whole-vault frontier.
         if (queue.length - head >= maxNodes) break;
-        if (!kept.has(neighbour)) queue.push(neighbour);
+        if (!rank.has(neighbour)) queue.push(neighbour);
       }
     }
   }
 
-  if (kept.size < maxNodes) {
-    for (const node of graph.nodes.toSorted((a, b) => b.degree - a.degree)) {
-      if (kept.size >= maxNodes) break;
-      kept.add(node.id);
+  // Degree fill by COUNTING SORT: bucket every node by its degree, then walk
+  // the buckets high to low. Pushes preserve node order within a bucket, so
+  // this selects EXACTLY what a stable descending sort would — in
+  // O(nodes + maxDegree) instead of O(n log n), and it stops the moment the
+  // budget is full rather than ordering the whole vault first. The bucket array
+  // can't outgrow the graph: edges are deduped per (source, target, kind), so a
+  // degree is at most a small multiple of the node count.
+  if (rank.size < maxNodes) {
+    let maxDegree = 0;
+    for (const node of graph.nodes) maxDegree = Math.max(maxDegree, node.degree);
+    const byDegree: Array<GraphNode[] | undefined> = Array.from({ length: maxDegree + 1 });
+    for (const node of graph.nodes) (byDegree[node.degree] ??= []).push(node);
+    for (let degree = maxDegree; degree >= 0 && rank.size < maxNodes; degree--) {
+      for (const node of byDegree[degree] ?? []) {
+        if (rank.size >= maxNodes) break;
+        if (!rank.has(node.id)) rank.set(node.id, rank.size);
+      }
     }
   }
-  return kept;
+  return rank;
 }
 
 /** Undirected neighbour lists. The graph is drawn undirected, so traversal is

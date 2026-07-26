@@ -26,15 +26,12 @@ import type { Delegation } from "@repo/bridge/delegation";
 
 import { DelegateButton, DelegationStatusBadge } from "@renderer/delegation/status-badge";
 import { getBridge } from "@renderer/lib/bridge";
-import { useDiskState } from "@renderer/lib/use-disk-state";
+import { parseStoredString, useDiskState } from "@renderer/lib/use-disk-state";
 import { findDelegation, useDelegationStore } from "@renderer/stores/delegation-store";
 import { useViewStore } from "@renderer/stores/view-store";
 import { openDocPath } from "@renderer/workspace/open-doc";
 import { useOpenNote } from "@renderer/workspace/open-note-store";
 import { useVaultActions } from "@renderer/workspace/vault-context";
-
-const parseString = (value: unknown): string | undefined =>
-  typeof value === "string" ? value : undefined;
 
 /** Group a bucket's rows by their note, input order preserved. */
 function byNote(
@@ -86,8 +83,8 @@ export default function TasksView() {
     return () => window.removeEventListener("keydown", onKey);
   }, [setSurface]);
 
-  const [dailyFolder] = useDiskState(DAILY_FOLDER_KEY, DEFAULT_DAILY_FOLDER, parseString);
-  const [dailyFormat] = useDiskState(DAILY_FORMAT_KEY, DEFAULT_DAILY_FORMAT, parseString);
+  const [dailyFolder] = useDiskState(DAILY_FOLDER_KEY, DEFAULT_DAILY_FOLDER, parseStoredString);
+  const [dailyFormat] = useDiskState(DAILY_FORMAT_KEY, DEFAULT_DAILY_FORMAT, parseStoredString);
 
   const groups = useMemo(
     () => groupTasks(entries ?? [], { dailyFolder, dailyFormat }, formatIsoDate(new Date())),

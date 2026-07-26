@@ -7,8 +7,8 @@
 // Interactions: wheel zooms about the cursor, drag pans, click opens the node
 // (phantom nodes offer to create the note), Esc returns to the editor. Nodes
 // are sized by degree; phantoms draw dashed; the open note gets a
-// highlight ring. Data refreshes on onKnowledgeUpdated, preserving layout
-// positions by node id.
+// highlight ring. Data refreshes on onKnowledgeUpdated — debounced, and with
+// a stale in-flight response dropped — preserving layout positions by node id.
 //
 // The request is BOUNDED (see MAX_NODES/MAX_EDGES): the whole graph of a 50k
 // vault is ~42MB of JSON and 400k links into d3-force. A vault that fits under
@@ -31,6 +31,7 @@ import {
 import { confirm } from "@repo/ui/components/confirm-dialog";
 
 import { getBridge } from "@renderer/lib/bridge";
+import { createDebouncer } from "@renderer/lib/debounce";
 import { useTheme } from "@renderer/lib/use-theme";
 import { useViewStore } from "@renderer/stores/view-store";
 import { openDocPath } from "@renderer/workspace/open-doc";
@@ -73,6 +74,11 @@ function nodeRadius(node: SimNode): number {
  * a vault under them transfers whole. */
 const MAX_NODES = 2000;
 const MAX_EDGES = 8000;
+
+/** How long a knowledge push waits for a quieter one behind it. Comfortably
+ * longer than the index's progress cadence, so a rebuild yields one refresh at
+ * the end rather than one per tick. */
+const REFRESH_DEBOUNCE_MS = 400;
 
 /** The affordance's numbers, non-null exactly when something was dropped. */
 type Shortfall = {
@@ -294,23 +300,36 @@ export default function GraphView() {
       simRef.current = sim;
     };
 
+    let requestSeq = 0;
     const refresh = () => {
       // Read the open note at request time rather than closing over it: the
       // effect runs once, and navigation leaves this surface anyway.
       const focus = activePathRef.current;
+      const seq = ++requestSeq;
       bridge
         .getLinkGraph({
           maxNodes: MAX_NODES,
           maxEdges: MAX_EDGES,
           ...(focus !== null && { focus }),
         })
-        .then((graph) => apply(graph, focus !== null))
+        .then((graph) => {
+          // Assembling a whole-vault graph is not cheap, so a slower earlier
+          // request must never land over a newer one's layout.
+          if (seq === requestSeq) apply(graph, focus !== null);
+          return undefined;
+        })
         .catch(() => {});
     };
+
+    // First paint is immediate; later pushes coalesce. The index emits
+    // progress through hydration and rebuild, and one assembly per tick would
+    // pile whole-vault work on top of the very rebuild it is watching.
     refresh();
-    const unsubscribe = bridge.onKnowledgeUpdated(refresh);
+    const debounced = createDebouncer(refresh, REFRESH_DEBOUNCE_MS);
+    const unsubscribe = bridge.onKnowledgeUpdated(() => debounced.schedule());
     return () => {
       disposed = true;
+      debounced.cancel();
       unsubscribe();
       simRef.current?.stop();
       simRef.current = null;

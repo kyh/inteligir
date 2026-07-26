@@ -29,3 +29,12 @@ export function useDiskState<T>(
 
   return [value, setValue, loaded];
 }
+
+/**
+ * The `parseStored` every string-valued call site needs: an unknown row is a
+ * value only if it is a string, and anything else falls back to the default.
+ * Lives here rather than in each caller because `useDiskState`'s own signature
+ * is what demands it.
+ */
+export const parseStoredString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;

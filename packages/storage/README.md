@@ -37,9 +37,11 @@ src/
   secrets.ts         # SecretStore: key→credential map at ~/.inteligir/secrets.json,
                      #   encrypted at rest via the injected SecretCipher (Electron
                      #   safeStorage), marked-plaintext fallback when no cipher
+  yield-to-event-loop.ts # setImmediate hop for budgeted sweeps: the one shape
+                     #   long synchronous scans use to stay interruptible
 ```
 
-Exports map = exactly these seven subpaths; no barrel.
+Exports map = exactly these eight subpaths; no barrel.
 
 ## Invariants
 

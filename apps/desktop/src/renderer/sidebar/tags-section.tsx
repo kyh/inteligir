@@ -21,8 +21,7 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 
 import { browseTag, openTagList, refreshTags, useTags } from "@renderer/command/tags";
-import { useOpenNote } from "@renderer/workspace/open-note-store";
-import { useVaultListing } from "@renderer/workspace/vault-context";
+import { getBridge } from "@renderer/lib/bridge";
 
 // A long tail of one-note tags would push the file tree off screen, and the
 // group is a browse shortcut, not a tag manager. Past this many rows the
@@ -32,30 +31,21 @@ const VISIBLE_TAGS = 12;
 
 /**
  * Tags, most-used first, with per-tag note counts. Its own component (not part
- * of AppSidebar) so its subscriptions — the shared tag store and the open
- * note's save flag — re-render this group alone.
+ * of AppSidebar) so its subscription to the shared tag store re-renders this
+ * group alone.
  */
 export function TagsSection() {
-  const { entries } = useVaultListing();
   const tags = useTags((s) => s.tags);
   const loaded = useTags((s) => s.loaded);
   const [expanded, setExpanded] = useState(true);
 
-  // Structural refreshes (window focus, app writes, delegation completion,
-  // "Refresh vault") are when files appear/vanish, so the tag set can move.
+  // Tags are a projection of the knowledge index, so this group refreshes off
+  // the index's own push — the same subscription the links panels and the
+  // tasks view use. Nothing here needs to guess at when the tag set moved.
   useEffect(() => {
     refreshTags();
-  }, [entries]);
-
-  // …but a `#tag` typed into an EXISTING note changes no listing, so also
-  // refresh when a save completes (the false edge of `saving`, which is also
-  // the mount state — that's what performs the initial load). Save-completed
-  // is the right beat: the host reconciles the knowledge index off the same
-  // write.
-  const saving = useOpenNote((s) => s.editor.saving);
-  useEffect(() => {
-    if (!saving) refreshTags();
-  }, [saving]);
+    return getBridge().onKnowledgeUpdated(() => refreshTags());
+  }, []);
 
   // Nothing to browse yet: stay silent rather than showing an empty group.
   if (!loaded || tags.length === 0) return null;

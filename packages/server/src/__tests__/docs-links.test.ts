@@ -11,6 +11,15 @@
 // seam) and this walk needs the filesystem. packages/server is already where
 // the repo-wide derived tests live, and it needs no manifest change to run.
 //
+// Extraction is the vault's own `scanDoc` rather than a bespoke regex: it is
+// the tested extractor this repo already ships and depends on, it hands back
+// every destination percent-decoded with the `#fragment` split off and
+// external/scheme/fragment-only ones already dropped, and it excludes fenced
+// blocks and inline code for free — micromark never runs text constructs
+// inside them. It also reports the source LINE, so a failure names the line to
+// fix. Wiki links are skipped: `[[target]]` is vault syntax resolved against a
+// vault, not a path relative to the file it sits in.
+//
 // Scope is deliberately narrow — markdown LINK DESTINATIONS only. Backtick-
 // quoted paths are the more common citation form in these docs and rot the same
 // way, but a backtick span also carries command names, globs, vault-relative
@@ -27,6 +36,8 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+
+import { scanDoc } from "@repo/notes/knowledge/link-extract";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 
@@ -49,12 +60,6 @@ const SKIP_DIR_NAMES = new Set([
  * `assets/*.png` among them) and their bytes may never be touched. */
 const SKIP_PREFIX = "apps/desktop/src/renderer/__tests__/fixtures/";
 
-/** `[text](dest)` / `![alt](dest)`, tolerating `<dest>` and a `"title"`. */
-const MD_LINK = /\[[^\]]*\]\(\s*<?([^)<>\s]+)>?(?:\s+"[^"]*")?\s*\)/g;
-
-/** Anything with a URI scheme (http, mailto, inteligir, vault-app, ws…). */
-const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-
 function walk(dir: string, out: string[]): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -64,37 +69,6 @@ function walk(dir: string, out: string[]): void {
       out.push(full);
     }
   }
-}
-
-/** Drop fenced blocks and inline code spans: a `[]()` inside either is being
- * shown, not asserted. Line-based rather than one regex so an unterminated
- * fence at EOF degrades to "rest of file is code" instead of matching nothing.
- * Inline stripping is single-line and single-backtick — good enough, because a
- * miss only re-admits a link, and a real link is what we want to check. */
-function stripCode(markdown: string): string {
-  const out: string[] = [];
-  let fence: string | null = null;
-  for (const line of markdown.split("\n")) {
-    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
-    if (fence === null) {
-      if (marker === undefined) out.push(line.replace(/`[^`\n]*`/g, ""));
-      else {
-        fence = marker;
-        out.push("");
-      }
-      continue;
-    }
-    // A closing fence is the same character, at least as long as the opener.
-    if (
-      marker !== undefined &&
-      marker.length >= fence.length &&
-      marker.startsWith(fence.slice(0, 1))
-    ) {
-      fence = null;
-    }
-    out.push("");
-  }
-  return out.join("\n");
 }
 
 function repoRelative(file: string): string {
@@ -110,24 +84,22 @@ describe("docs links", () => {
     const broken: string[] = [];
     let checked = 0;
     for (const file of scanned) {
-      const body = stripCode(fs.readFileSync(file, "utf8"));
-      for (const match of body.matchAll(MD_LINK)) {
-        const raw = match[1];
-        if (raw === undefined || raw.startsWith("#") || HAS_SCHEME.test(raw)) continue;
-        // Drop a `#heading` fragment; a pure fragment already left above.
-        const target = decodeURIComponent(raw.split("#")[0] ?? "");
-        if (target === "") continue;
+      for (const link of scanDoc(fs.readFileSync(file, "utf8")).links) {
+        if (link.kind === "wiki") continue;
         checked += 1;
         // A leading `/` means repo root here — GitHub would resolve it at the
         // site root, i.e. off the repo entirely, so either reading is a bug.
-        const resolved = target.startsWith("/")
-          ? path.join(REPO_ROOT, target)
-          : path.resolve(path.dirname(file), target);
-        if (!fs.existsSync(resolved)) broken.push(`${repoRelative(file)} → ${raw}`);
+        const resolved = link.target.startsWith("/")
+          ? path.join(REPO_ROOT, link.target)
+          : path.resolve(path.dirname(file), link.target);
+        if (!fs.existsSync(resolved)) {
+          broken.push(`${repoRelative(file)}:${link.line} → ${link.target}`);
+        }
       }
     }
 
-    // Floors, so a regex or walk regression can't quietly make this vacuous.
+    // Floors, so an extraction or walk regression can't quietly make this
+    // vacuous.
     expect(scanned.length).toBeGreaterThan(20);
     expect(checked).toBeGreaterThan(10);
     expect(

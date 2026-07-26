@@ -15,7 +15,7 @@ import { useTags } from "@renderer/command/tags";
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
 import { TagChipKit } from "@renderer/editor/kits/tag-chip-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
-import { inlineTagSpans } from "@renderer/editor/nodes/tag-chip-node";
+import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
 
 afterEach(cleanup);
 beforeEach(() => useTags.setState({ request: null }));
@@ -43,7 +43,9 @@ function chips(container: HTMLElement): string[] {
   );
 }
 
-describe("inlineTagSpans (grammar parity with the tag index)", () => {
+// The chip decorates with the tag index's OWN scanner, so these assert the
+// grammar the chip must highlight — the same tokens the index counted.
+describe("inlineTagSpans (the scanner the chip decorates with)", () => {
   it("finds letter-first tags, including nested and dashed names", () => {
     expect(inlineTagSpans("see #alpha and #a/b/c plus #kebab-case.")).toEqual([
       { end: 10, start: 4, tag: "alpha" },
