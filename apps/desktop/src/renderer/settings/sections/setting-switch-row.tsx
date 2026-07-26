@@ -1,7 +1,7 @@
 import { Switch } from "@repo/ui/components/switch";
 
-/** A labeled toggle row (the old fluid Switch bundled label + onToggle; the
- * stock switch is control-only, so the row lives here). */
+/** A labeled toggle row: the shared Switch is control-only, so the label +
+ * row layout live here rather than in @repo/ui. */
 export function SettingSwitchRow({
   label,
   checked,

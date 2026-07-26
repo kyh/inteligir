@@ -1,4 +1,4 @@
-// NoteRuntime — the open note's live machinery, extracted from vault-context so
+// NoteRuntime — the open note's live machinery, kept out of vault-context so
 // the debounce/vanish lifecycle can be characterized in isolation. The provider
 // owns WHEN to create/dispose one (open/rename/delete/root-switch ordering —
 // those races live in vault-context); this owns HOW one behaves: the editor

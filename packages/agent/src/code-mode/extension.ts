@@ -2,7 +2,8 @@
  * Executor (code mode) extension — gives the agent a single `execute` tool
  * (plus `resume`) backed by executor's daemon.
  *
- * Executor runs as a child daemon (managed by main/executor/executor-daemon.ts)
+ * Executor runs as a child daemon (managed by @repo/connectors'
+ * executor-daemon.ts, reached here only through the injected `ports.executor`)
  * and acts as the integration layer / backend. Rather than registering each
  * remote tool individually, the agent writes TypeScript against executor's
  * typed `tools.*` catalog (discover, describe, invoke); only the returned data
@@ -25,7 +26,7 @@ import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { ExtensionAPI } from "@repo/agent/pi/pi-types";
 
 import type { ExecutorPort, PiExtensionBundle } from "../extension";
-import { textResult } from "../extension-helpers";
+import { textResult, truncatedText, TOOL_OUTPUT_LIMIT_TEXT } from "../extension-helpers";
 import type { ExecutorExecuteResult } from "@repo/bridge/executor";
 import { isRecord } from "@repo/bridge/wire-helpers";
 
@@ -44,7 +45,8 @@ Rules:
 - Auth failures are structured: error.code is one of connection_value_missing / connection_rejected / oauth_connection_missing / oauth_refresh_failed / oauth_reauth_required. They mean the user has not connected (or must reconnect) that integration — do NOT retry and do NOT try to create credentials; tell the user to open the Extensions panel (Connectors) and connect the integration named in error.details.source.id.
 - For large collections, filter in code rather than calling per-item tools. Do not use fetch — all API calls go through tools.*.
 - TypeScript type syntax is stripped before execution; decorators and enum are unsupported.
-- If execution pauses for interaction, resume it with the resume tool using the returned executionId.`;
+- If execution pauses for interaction, resume it with the resume tool using the returned executionId.
+- The returned value is truncated from the top at ${TOOL_OUTPUT_LIMIT_TEXT} and the remainder is discarded. Reduce, filter, or page in code rather than returning a whole collection.`;
 
 const ExecuteSchema = Type.Object({
   code: Type.String({ description: "TypeScript to run in the sandbox. Must return a value." }),
@@ -136,16 +138,20 @@ function findAuthFailure(value: unknown, depth = 0): AuthFailure | null {
   return null;
 }
 
-/** Append an actionable connect instruction when the result carries a
- * structured auth failure; pass the text through untouched otherwise. */
+/** Bound the returned value to pi's tool-output limit, then append an
+ * actionable connect instruction when the result carries a structured auth
+ * failure. Truncation runs FIRST so the hint — the one part the model must
+ * act on — can never be the thing that gets cut. Head, because a returned
+ * value's opening carries its shape (the object keys, the first rows). */
 function withAuthHint(result: ExecutorExecuteResult): string {
+  const text = truncatedText(result.text, "head");
   const failure = findAuthFailure(result.structured);
-  if (!failure) return result.text;
+  if (!failure) return text;
   const target = failure.integration
     ? `the "${failure.integration}" integration`
     : "this integration";
   return (
-    `${result.text}\n\n` +
+    `${text}\n\n` +
     `[auth required] ${target} has no working credential (${failure.code}). ` +
     `You cannot fix this from code. Tell the user to open the Extensions panel → Connectors ` +
     `and connect${failure.integration ? ` ${failure.integration}` : " it"}, then retry.`
@@ -158,9 +164,13 @@ function registerExecute(pi: ExtensionAPI, executor: ExecutorPort): void {
     label: "execute",
     description: EXECUTE_DESCRIPTION,
     parameters: ExecuteSchema,
-    execute: async (_id, params) => {
+    execute: async (_id, params, signal) => {
+      // Sandboxed executions run to a 600s ceiling — the longest wait of any
+      // tool here — so an interrupt that doesn't reach the daemon strands the
+      // user for ten minutes.
+      if (signal?.aborted) return textResult("execute cancelled.");
       try {
-        const result = await executor.execute(params.code);
+        const result = await executor.execute(params.code, signal);
         return textResult(withAuthHint(result));
       } catch (err) {
         return textResult(`execute failed: ${toErrorMessage(err)}`);
@@ -177,9 +187,15 @@ function registerResume(pi: ExtensionAPI, executor: ExecutorPort): void {
       "Resume a paused execution by its executionId. Use after `execute` returns a paused result " +
       "that requests interaction (e.g. an approval elicitation).",
     parameters: ResumeSchema,
-    execute: async (_id, params) => {
+    execute: async (_id, params, signal) => {
+      if (signal?.aborted) return textResult("resume cancelled.");
       try {
-        const result = await executor.resume(params.executionId, params.action, params.content);
+        const result = await executor.resume(
+          params.executionId,
+          params.action,
+          params.content,
+          signal,
+        );
         return textResult(withAuthHint(result));
       } catch (err) {
         return textResult(`resume failed: ${toErrorMessage(err)}`);

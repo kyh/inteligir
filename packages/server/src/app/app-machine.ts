@@ -344,7 +344,15 @@ export class AppMachine {
 
   async shutdown(): Promise<void> {
     this.destroying = true;
-    await stopAgent();
+    // `this.deps.stopAgent`, NOT the module-level `stopAgent` — every other
+    // effect in this class routes through the injected deps, and reaching past
+    // them here made shutdown() touch the real host singletons under test:
+    // getDelegationManager() then read (and REWROTE) the developer's actual
+    // ~/.inteligir/delegations.json, flipping live `running` records to
+    // `failed`. `realDeps` below wires the same module-level function, so
+    // production behaviour is unchanged. Same leak class documented in
+    // create-host-boot.test.ts's header.
+    await this.deps.stopAgent();
   }
 
   private async step(event: MachineEvent): Promise<void> {

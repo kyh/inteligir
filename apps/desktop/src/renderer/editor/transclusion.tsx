@@ -149,7 +149,7 @@ function FrontmatterStatic(props: SlateElementProps) {
 }
 
 // Tables: the default static renderer is a bare <div> per node, which
-// flattens a transcluded table into stacked lines (#376). Mirror the live
+// flattens a transcluded table into stacked lines. Mirror the live
 // table-kit markup — table > tbody > tr > td/th, same cell classes.
 function TableStatic(props: SlateElementProps) {
   return (
@@ -189,14 +189,14 @@ const TRANSCLUSION_KIT = BASE_KIT.map((plugin) => {
 });
 
 // ---------------------------------------------------------------------------
-// GitHub-alert markers in the STATIC path (#382).
+// GitHub-alert markers in the STATIC path.
 //
 // The live editor hides a `> [!TIP]` marker line behind the variant badge with
 // the `calloutMarker` DECORATION (basic-blocks-kit.tsx). PlateStatic runs no
-// decorations, so a transcluded alert rendered the marker literally next to the
-// badge. Rather than teach the static renderer about decorations, strip the
-// marker from the copy being rendered — the same information the decoration
-// hides, removed one layer earlier.
+// decorations, so a transcluded alert would render the marker literally next
+// to the badge. Rather than teach the static renderer about decorations, strip
+// the marker from the copy being rendered — the same information the
+// decoration hides, removed one layer earlier.
 //
 // Safe precisely because this value is a THROWAWAY parse of a read-only embed:
 // the vault file is never written from here, so removing bytes cannot reach
@@ -428,9 +428,9 @@ export default function Transclusion({ body }: { body: string }) {
         {content.status === "loading" || innerScope === null ? (
           <span className="text-muted-foreground italic">Loading…</span>
         ) : (
-          <TransclusionScopeContext.Provider value={innerScope}>
+          <TransclusionScopeContext value={innerScope}>
             <TransclusionBody content={content.content} />
-          </TransclusionScopeContext.Provider>
+          </TransclusionScopeContext>
         )}
       </span>
     </span>

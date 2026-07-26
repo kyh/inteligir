@@ -1,13 +1,13 @@
 // ---------------------------------------------------------------------------
-// Model-selection seam (#460): the agent/ seam carries a NEUTRAL
+// Model-selection seam: the agent/ seam carries a NEUTRAL
 // {provider, modelId} pair; pi-ai's Model is resolved INSIDE the PiAgent
 // wrapper at start(). Two contracts pinned here:
 //   1. resolveModelSelection — static-registry + faux-registration resolution,
 //      descriptive throws on unknown provider/model.
 //   2. Lazy failure — a bad selection (or a throwing selectModel thunk) never
-//      throws from construction; it rejects the async start() path. Phase 1
-//      made resolution a lazy thunk precisely for this; the neutral selection
-//      must keep it.
+//      throws from construction; it rejects the async start() path. Resolution
+//      is a lazy thunk precisely so a bad selection surfaces there, where
+//      callers already handle failure, instead of from `new Agent(...)`.
 // ---------------------------------------------------------------------------
 
 import fs from "node:fs";
@@ -45,6 +45,7 @@ function fakePorts(): AgentPorts {
     knowledge: {
       search: () => [],
       backlinks: () => [],
+      forwardLinks: () => [],
       relatedNotes: () => [],
       notesWithTag: () => [],
       rename: () => ({ ok: false, reason: "not wired in this test" }),

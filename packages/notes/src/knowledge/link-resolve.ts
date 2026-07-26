@@ -141,7 +141,7 @@ export function buildResolver(
     }
 
     // Tiers 4/5 — alias, case-sensitive then case-insensitive. Reached from
-    // BOTH branches above (neither returns on a miss anymore): a real
+    // BOTH branches above (neither returns on a miss): a real
     // filename always beats an alias, and an alias may contain `/`.
     const aliasHit = pickBest(aliasCs.get(clean) ?? []);
     if (aliasHit !== null) return aliasHit;

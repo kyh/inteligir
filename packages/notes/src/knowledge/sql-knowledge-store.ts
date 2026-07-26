@@ -16,6 +16,16 @@
 // token char to match core tokenize(); queries AND quoted tokens with the
 // last as a prefix (search-as-you-type), ranked by weighted bm25 mirroring
 // the pure index's TITLE/HEADING/BODY weights (10/4/1).
+//
+// Hydration is PAGED. Every SQLite binding on every target platform is
+// synchronous, so a whole-corpus read is an uninterruptible stall on whatever
+// thread calls it — measured at 1.2s on a synthetic 50k-note vault, where the
+// six full-table sweeps materialize ~1M row objects in one call. `hydrate()`
+// hands back a resumable keyset cursor instead: each `next()` reads ONE bounded
+// page (a `files` slice plus the five child ranges that slice covers), so the
+// cost of a single synchronous call is a function of the page size, never of
+// the corpus. The host shell drives it with event-loop yields between pages.
+// `loadAll()` (the port's one-shot contract) is that same cursor, drained.
 // ---------------------------------------------------------------------------
 
 import type { SearchResult } from "./knowledge-index";
@@ -26,7 +36,7 @@ import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 6; // 6: dropped the unread links.span_start/span_end columns (only targetSpan is consumed) — wipe-and-rebuild is the migration
+export const KNOWLEDGE_SCHEMA_VERSION = 6;
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 export type SqlValue = null | number | string;
@@ -48,6 +58,34 @@ export type SqlDriver = {
   close(): void;
 };
 
+// ---- Paged hydration ----------------------------------------------------------
+
+/** One bounded slice of the persisted projection. Docs come first, in path
+ * order, then the non-doc files — a page is one or the other, never a mix, so
+ * a consumer replaying pages sees exactly `loadAll()`'s ordering. */
+export type HydrationPage =
+  | { kind: "docs"; docs: StoredDocRow[] }
+  | { kind: "others"; others: { path: string }[] }
+  | { kind: "done" };
+
+/** A resumable read of everything persisted. `next()` is the only synchronous
+ * unit of work — call it until it answers `done`, yielding in between. A
+ * cursor reads through the live DB, so it must be abandoned (not resumed)
+ * after a write, a `nuke()`, or a `dispose()`. */
+export type HydrationCursor = {
+  next(): HydrationPage;
+};
+
+/** The SQL store: the `KnowledgeStore` port plus the paged hydration only a
+ * SQL-backed store can offer. The port stays implementation-neutral (a store
+ * that can only answer `loadAll()` is still a valid store); a host shell that
+ * wants to hydrate without stalling asks for THIS type. */
+export type SqlKnowledgeStore = KnowledgeStore & {
+  /** Open a resumable read of the persisted projection, at most `pageDocs`
+   * docs (and their child rows) per `next()`. */
+  hydrate(pageDocs: number): HydrationCursor;
+};
+
 // ---- Schema -------------------------------------------------------------------
 
 // Column layout mirrors DocProjection: files carries identity + fingerprint +
@@ -57,10 +95,12 @@ export type SqlDriver = {
 // table here and bumping PROJECTION_VERSION — the wipe-and-rebuild guard IS
 // the migration.
 //
-// Child rows are read only by loadAll's per-table ORDER BY sweeps (boot
-// hydration) — link/tag/name RESOLUTION happens entirely in the in-memory
-// LinkGraphIndex, so the schema carries no lookup indexes or derived key
-// columns beyond the PKs.
+// Child rows are read only by hydration's per-table ORDER BY sweeps (boot) —
+// link/tag/name RESOLUTION happens entirely in the in-memory LinkGraphIndex,
+// so the schema carries no lookup indexes or derived key columns beyond the
+// PKs. Those PKs are what makes paged hydration cheap: every child table is
+// keyed (path, ord), so a page's `path > ? AND path <= ?` window is an index
+// range scan, not a filtered table sweep.
 const SCHEMA_DDL = `
 CREATE TABLE meta (
   key TEXT PRIMARY KEY,
@@ -151,6 +191,45 @@ WHERE search_fts MATCH ?
 ORDER BY rank, path
 LIMIT ?
 `;
+
+// Hydration reads. Both `files` pages are keyset-paginated (`path > ?` against
+// the PK index) rather than OFFSET-paginated, so page N costs the same as page
+// 0. The five child reads take the page's own [after, last] path window; every
+// child row in that window belongs to a doc in the page, because non-doc files
+// never keep child rows (upsertOther deletes them).
+const DOC_PAGE_SQL = `
+SELECT path, title, content_hash, mtime_ms, size, ino, is_private
+FROM files WHERE kind = 'doc' AND path > ? ORDER BY path LIMIT ?
+`;
+const OTHER_PAGE_SQL = `
+SELECT path FROM files WHERE kind = 'other' AND path > ? ORDER BY path LIMIT ?
+`;
+const LINKS_RANGE_SQL = `
+SELECT source_path, kind, embed, target, anchor, alias, line, snippet,
+       target_span_start, target_span_end
+FROM links WHERE source_path > ? AND source_path <= ? ORDER BY source_path, ord
+`;
+const HEADINGS_RANGE_SQL = `
+SELECT path, text FROM headings WHERE path > ? AND path <= ? ORDER BY path, ord
+`;
+const TAGS_RANGE_SQL = `
+SELECT path, tag FROM tags WHERE path > ? AND path <= ? ORDER BY path, ord
+`;
+const ALIASES_RANGE_SQL = `
+SELECT path, alias FROM aliases WHERE path > ? AND path <= ? ORDER BY path, ord
+`;
+const TASKS_RANGE_SQL = `
+SELECT path, ordinal, line, raw, text, checked, wiki_targets
+FROM tasks WHERE path > ? AND path <= ? ORDER BY path, ordinal
+`;
+
+/** Keyset start: every vault path is non-empty, so "" precedes all of them. */
+const PATH_START = "";
+
+/** Page size `loadAll()` drains at. Only a batching detail — the whole result
+ * is materialized either way — sized so the intermediate arrays stay small
+ * without paying a per-page query round-trip for every few rows. */
+const HYDRATION_DRAIN_PAGE_DOCS = 1000;
 
 /** Core tokenize() → an FTS5 MATCH expression: quoted tokens ANDed, the last
  * one prefix-matched (search-as-you-type). Null when the query has no tokens. */
@@ -246,7 +325,7 @@ function parseStoredLink(row: SqlRow): StoredLink {
 
 /** Bind the shared SQL store over a platform driver. Opens (or recovers) the
  * schema immediately; the returned store is ready to serve. */
-export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): KnowledgeStore {
+export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): SqlKnowledgeStore {
   let transactionDepth = 0;
 
   const metaGet = (key: string): string | null => {
@@ -334,61 +413,122 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): K
     driver.run("DELETE FROM tasks WHERE path = ?", [path]);
   };
 
+  /** One doc page: the `files` slice after `after`, then the child rows in the
+   * exact path window that slice covers. Empty when the corpus is exhausted. */
+  const readDocPage = (after: string, limit: number): StoredDocRow[] => {
+    const docs = new Map<string, StoredDocRow>();
+    for (const row of driver.all(DOC_PAGE_SQL, [after, limit])) {
+      const path = columnString(row, "path");
+      const projection: DocProjection = {
+        title: columnString(row, "title"),
+        headings: [],
+        links: [],
+        tags: [],
+        aliases: [],
+        private: columnNumber(row, "is_private") !== 0,
+        tasks: [],
+      };
+      docs.set(path, {
+        path,
+        fingerprint: {
+          mtimeMs: columnNumber(row, "mtime_ms"),
+          size: columnNumber(row, "size"),
+          ino: columnNumber(row, "ino"),
+        },
+        contentHash: columnString(row, "content_hash"),
+        projection,
+      });
+    }
+    // `files.path` is the PRIMARY KEY, so the map never collapses two rows —
+    // page.length is the row count, which is what the cursor's "short page
+    // ends the phase" test relies on.
+    const page = [...docs.values()];
+    const last = page[page.length - 1];
+    if (last === undefined) return page;
+    const pageWindow: readonly SqlValue[] = [after, last.path];
+    for (const row of driver.all(LINKS_RANGE_SQL, pageWindow)) {
+      docs.get(columnString(row, "source_path"))?.projection.links.push(parseStoredLink(row));
+    }
+    for (const row of driver.all(HEADINGS_RANGE_SQL, pageWindow)) {
+      docs.get(columnString(row, "path"))?.projection.headings.push(columnString(row, "text"));
+    }
+    for (const row of driver.all(TAGS_RANGE_SQL, pageWindow)) {
+      docs.get(columnString(row, "path"))?.projection.tags.push(columnString(row, "tag"));
+    }
+    for (const row of driver.all(ALIASES_RANGE_SQL, pageWindow)) {
+      docs.get(columnString(row, "path"))?.projection.aliases.push(columnString(row, "alias"));
+    }
+    for (const row of driver.all(TASKS_RANGE_SQL, pageWindow)) {
+      docs.get(columnString(row, "path"))?.projection.tasks.push(parseStoredTask(row));
+    }
+    return page;
+  };
+
+  const readOtherPage = (after: string, limit: number): { path: string }[] =>
+    driver.all(OTHER_PAGE_SQL, [after, limit]).map((row) => ({ path: columnString(row, "path") }));
+
+  /** Cursor position — a short page ends its phase immediately, so the corpus
+   * is never re-queried just to learn it ran out. */
+  type HydrationState =
+    | { phase: "docs"; after: string }
+    | { phase: "others"; after: string }
+    | { phase: "done" };
+
+  const hydrate = (pageDocs: number): HydrationCursor => {
+    const limit = Math.max(1, Math.floor(pageDocs));
+    let state: HydrationState = { phase: "docs", after: PATH_START };
+    const next = (): HydrationPage => {
+      for (;;) {
+        switch (state.phase) {
+          case "docs": {
+            const docs = readDocPage(state.after, limit);
+            const last = docs[docs.length - 1];
+            if (last === undefined || docs.length < limit) {
+              state = { phase: "others", after: PATH_START };
+            } else {
+              state = { phase: "docs", after: last.path };
+            }
+            if (last === undefined) continue; // no docs left — fall into others
+            return { kind: "docs", docs };
+          }
+          case "others": {
+            const others = readOtherPage(state.after, limit);
+            const last = others[others.length - 1];
+            if (last === undefined || others.length < limit) {
+              state = { phase: "done" };
+            } else {
+              state = { phase: "others", after: last.path };
+            }
+            if (last === undefined) return { kind: "done" };
+            return { kind: "others", others };
+          }
+          case "done":
+            return { kind: "done" };
+        }
+      }
+    };
+    return { next };
+  };
+
   open();
 
   return {
+    hydrate,
+
+    // The port's one-shot read: the cursor, drained. Callers that can afford
+    // to block (tests, a store-level round-trip check) keep the simple shape;
+    // the host shell hydrates through `hydrate()` so no single call scales
+    // with the corpus.
     loadAll() {
-      const docs = new Map<string, StoredDocRow>();
-      for (const row of driver.all(
-        "SELECT path, title, content_hash, mtime_ms, size, ino, is_private FROM files WHERE kind = 'doc' ORDER BY path",
-        [],
-      )) {
-        const path = columnString(row, "path");
-        const projection: DocProjection = {
-          title: columnString(row, "title"),
-          headings: [],
-          links: [],
-          tags: [],
-          aliases: [],
-          private: columnNumber(row, "is_private") !== 0,
-          tasks: [],
-        };
-        docs.set(path, {
-          path,
-          fingerprint: {
-            mtimeMs: columnNumber(row, "mtime_ms"),
-            size: columnNumber(row, "size"),
-            ino: columnNumber(row, "ino"),
-          },
-          contentHash: columnString(row, "content_hash"),
-          projection,
-        });
+      const cursor = hydrate(HYDRATION_DRAIN_PAGE_DOCS);
+      const docs: StoredDocRow[] = [];
+      const others: { path: string }[] = [];
+      for (;;) {
+        const page = cursor.next();
+        if (page.kind === "done") return { docs, others };
+        if (page.kind === "docs") docs.push(...page.docs);
+        else others.push(...page.others);
       }
-      for (const row of driver.all(
-        "SELECT source_path, kind, embed, target, anchor, alias, line, snippet, target_span_start, target_span_end FROM links ORDER BY source_path, ord",
-        [],
-      )) {
-        docs.get(columnString(row, "source_path"))?.projection.links.push(parseStoredLink(row));
-      }
-      for (const row of driver.all("SELECT path, text FROM headings ORDER BY path, ord", [])) {
-        docs.get(columnString(row, "path"))?.projection.headings.push(columnString(row, "text"));
-      }
-      for (const row of driver.all("SELECT path, tag FROM tags ORDER BY path, ord", [])) {
-        docs.get(columnString(row, "path"))?.projection.tags.push(columnString(row, "tag"));
-      }
-      for (const row of driver.all("SELECT path, alias FROM aliases ORDER BY path, ord", [])) {
-        docs.get(columnString(row, "path"))?.projection.aliases.push(columnString(row, "alias"));
-      }
-      for (const row of driver.all(
-        "SELECT path, ordinal, line, raw, text, checked, wiki_targets FROM tasks ORDER BY path, ordinal",
-        [],
-      )) {
-        docs.get(columnString(row, "path"))?.projection.tasks.push(parseStoredTask(row));
-      }
-      const others = driver
-        .all("SELECT path FROM files WHERE kind = 'other' ORDER BY path", [])
-        .map((row) => ({ path: columnString(row, "path") }));
-      return { docs: [...docs.values()], others };
     },
 
     upsertDoc(row, body) {

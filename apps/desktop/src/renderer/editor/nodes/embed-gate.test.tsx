@@ -1,4 +1,4 @@
-// Scheme-gate tests for the note-authored embed/pdf iframes (#435): a note is
+// Scheme-gate tests for the note-authored embed/pdf iframes: a note is
 // untrusted content, so only http(s) URLs may ever reach a live frame — a
 // javascript:/data:/file:/relative URL renders a blocked fallback, never an
 // iframe. Mounted through the REAL EmbedKit registration (createPlateEditor +

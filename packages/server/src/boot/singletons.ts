@@ -69,11 +69,12 @@ export function constructHostSingletons(): (root: string, kind: VaultChangeKind)
   setStoreRecoveryNotifier((event) => getNotifications().notifyStoreRecovered(event));
 
   // Eager, dependency-ordered construction. Every constructor here allocates
-  // only (disk reads stay lazy inside JsonStore), so this changes nothing
-  // observable — it just materializes the graph in one place, in order, with
-  // notifiers already installed. Two pieces are deliberately NOT eager:
-  //   - uiState: nothing at boot reads it; kept lazy so ui-state.json keeps
-  //     its original first-access timing.
+  // only (disk reads stay lazy inside JsonStore), so eager construction costs
+  // nothing observable — it just materializes the graph in one place, in
+  // order, with notifiers already installed. Two pieces are deliberately NOT
+  // eager:
+  //   - uiState: nothing at boot reads it; kept lazy so ui-state.json is not
+  //     touched until something actually needs it.
   //   - authStorage: it is a pi call, which must wait for configurePaths() in
   //     start(); constructing it here would run before that.
   // Both stay reachable via their live getX() accessors.

@@ -207,8 +207,8 @@ export type SyncManagerOptions = {
   /** The remote transport (an HttpSyncPort in production; a fake in tests). */
   port: SyncPort;
   /** Local vault access. REQUIRED — sync never reaches for the vault
-   * singleton itself (#465); the composition root adapts the live
-   * VaultManager via createVaultSyncIo, tests pass an in-memory io. */
+   * singleton itself; the composition root adapts the live VaultManager via
+   * createVaultSyncIo, tests pass an in-memory io. */
   vault: SyncIo;
   /** Override the base-manifest file path (tests). */
   basePath?: string;

@@ -1,6 +1,6 @@
 # `@repo/mobile` — the Expo companion
 
-A sync/read/light-edit companion for the vault: Expo SDK 56 + Expo Router +
+A sync/read/light-edit companion for the vault: Expo SDK 57 + Expo Router +
 NativeWind. It drives the SAME platform-neutral sync engine as desktop
 (`@repo/notes/sync`) through Expo adapters, against the coordinator Worker
 (`apps/cloud`). **No agent RUNS on mobile** — the agent is a desktop-host
@@ -53,7 +53,7 @@ engine's 3-way reconcile (conflicts preserved as sibling copies).
 The coordinator origin resolves in order (`lib/base-url.ts`):
 
 1. `EXPO_PUBLIC_COORDINATOR_URL`
-2. `app.config.ts` → `extra.coordinatorUrl`
+2. `app.config.js` → `extra.coordinatorUrl`
 3. dev fallback — the Metro host machine on `:8787`, so a device on your LAN
    reaches `wrangler dev` on your laptop
 
@@ -68,3 +68,27 @@ pnpm --filter @repo/mobile android    # expo run:android
 pnpm --filter @repo/mobile typecheck  # tsc --noEmit
 pnpm --filter @repo/mobile test       # vitest — pure sync modules only
 ```
+
+### Which Node version is authoritative
+
+Two answers, and they disagree on purpose. The root `engines.node: ">=24"`
+governs the LOCAL toolchain only — turbo, vitest, the Electron host. `eas.json`
+deliberately pins **no** `build.base.node`, so an EAS build runs whatever the
+sdk-57 image ships (22.x today); that image, not `engines`, is authoritative
+there. Don't add a `build.base.node` pin unless a build
+actually breaks on the image default, and say which failure it fixes — a pin
+below the image's own default is worse than either answer above.
+
+### Why `lightningcss` is pinned in the root `pnpm.overrides`
+
+NativeWind v5's install guide prescribes `lightningcss: 1.30.1` verbatim —
+without it the native CSS transform hits deserialization errors. JSON carries no
+comments, so the reason lives here: the pin exists **for the mobile CSS
+pipeline**, nothing else. Keep the override SCOPED to that pipeline's consumers
+(`react-native-css`, which peers `lightningcss >=1.27.0`, and
+`@expo/metro-config`, which depends on `^1.30.1`). An unscoped
+`"lightningcss": "1.30.1"` also rewrites `@tailwindcss/node`'s **exact** `1.32.0`
+and `@tanstack/start-plugin-core`'s `^1.32.0` — both below their declared
+minimum — in the desktop and web builds, which have nothing to do with
+NativeWind. Go back to a bare `lightningcss` key only if a Metro build proves
+the scoped form is insufficient.

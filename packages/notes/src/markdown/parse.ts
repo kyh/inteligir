@@ -1,7 +1,7 @@
-// The owned unified parse. Replaces Plate's `deserializeMd`, which is banned in
-// app code: it applies a regex `htmlToJsx` pre-pass that corrupts code fences
-// (probe2) and swallows parse errors into silently-degraded models (probe1).
-// Here parse errors are REAL — the gate turns them into Raw mode.
+// The owned unified parse. Plate's `deserializeMd` is banned in app code: it
+// applies a regex `htmlToJsx` pre-pass that corrupts code fences, and it
+// swallows parse errors into silently-degraded models. Here parse errors are
+// REAL — the gate turns them into Raw mode.
 
 import type { Root } from "mdast";
 import remarkParse from "remark-parse";

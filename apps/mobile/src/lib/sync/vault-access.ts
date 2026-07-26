@@ -16,14 +16,14 @@ const decoder = new TextDecoder();
 /** Every vault-relative file path currently on disk (sorted). LENIENT on a
  * missing vault root — the screens tolerate "nothing there yet" as an empty
  * list, while the SYNC path sees the same condition as a hard error (the
- * mass-deletion guard, #429). Mirrors the desktop's list()-lenient /
+ * mass-deletion guard). Mirrors the desktop's list()-lenient /
  * listAllPaths()-strict split. */
 export function listVaultFiles(): VaultPath[] {
   try {
     return [...io.list()];
   } catch (err) {
     // Both refusals are SYNC-safety errors; the UI stays lenient for either
-    // (#429 root, #466 subtree) rather than showing an error screen.
+    // (a lost root, an unreadable subtree) rather than showing an error screen.
     if (err instanceof VaultRootMissingError || err instanceof VaultListingIncompleteError) {
       return [];
     }

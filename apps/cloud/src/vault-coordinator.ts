@@ -13,15 +13,17 @@ import {
 } from "@repo/notes/sync/wire";
 import { DurableObject } from "cloudflare:workers";
 import { sha256Hex } from "./hash";
+import { logUnhandled } from "./log";
 import { matchRoute } from "./route";
 
 // ---------------------------------------------------------------------------
 // VaultCoordinator — one Durable Object per vault, the source of truth for that
-// vault's file set. It owns the MANIFEST in DO SQLite storage (a `files` row per
-// path: version + contentHash + size), and
-// implements the `SyncPort` semantics over the `@repo/notes/sync/wire` HTTP
-// routes. Raw file bytes live in R2 (`VAULT_FILES`, keyed `${vaultId}/${path}`);
-// the manifest here is authoritative for versions + hashes.
+// vault's file set (addressed `env.VaultCoordinator.getByName(vaultId)`). It
+// owns the MANIFEST in DO SQLite storage (a `files` row per path: version +
+// contentHash + size), and implements the `SyncPort` semantics over the
+// `@repo/notes/sync/wire` HTTP routes. Raw file bytes live in R2
+// (`VAULT_FILES`, keyed `${vaultId}/${path}`); the manifest here is
+// authoritative for versions + hashes.
 //
 // CONCURRENCY. Every mutation (PUT/DELETE) runs through `runExclusive`, an
 // in-memory promise-chain mutex, so at most one mutation is in flight per vault.
@@ -97,6 +99,20 @@ export class VaultCoordinator extends DurableObject<Env> {
   }
 
   override async fetch(request: Request): Promise<Response> {
+    // Same contract as the Worker entry (src/log.ts): every expected failure
+    // here is a value (a 4xx, or an `{ok:false}` conflict at 200), so a throw is
+    // a bug or a storage outage — log it once, structured, and answer 500. An
+    // unwrapped throw would surface to the client as the Worker's own opaque
+    // 500 with no log line naming the DO.
+    try {
+      return await this.route(request);
+    } catch (error) {
+      logUnhandled("vault-coordinator", request, error);
+      return new Response("internal error", { status: 500 });
+    }
+  }
+
+  private async route(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const match = matchRoute(request.method, url.pathname, url.search);
     switch (match.kind) {
@@ -181,7 +197,11 @@ export class VaultCoordinator extends DurableObject<Env> {
 
       const version = currentVersion + 1;
       // Bytes first (durable) so the manifest never points at a missing blob.
-      await this.env.VAULT_FILES.put(objectKey(vaultId, path), bytes);
+      // Hand R2 the digest we already computed: R2 verifies it server-side and
+      // rejects the put on a mismatch, so a corrupted transfer can never be
+      // committed under a hash that doesn't describe it. It also lands in the
+      // object's own checksums, which is what a future integrity sweep reads.
+      await this.env.VAULT_FILES.put(objectKey(vaultId, path), bytes, { sha256: contentHash });
       // Then commit the manifest row (synchronous SQL).
       this.ctx.storage.sql.exec(
         `INSERT INTO files (path, version, content_hash, size) VALUES (?, ?, ?, ?)

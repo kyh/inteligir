@@ -35,7 +35,7 @@ export type FsAdapter = {
 
 // ~/.inteligir holds credentials (pi's auth.json, secrets.json) — keep the
 // directory itself owner-only. New dirs are created 0o700 by the mkdir calls
-// below; this covers pre-existing installs created before the mode was set.
+// below; this heals an existing dir that was created with looser permissions.
 // Once per process: a wiped-and-recreated dir gets 0o700 from mkdir anyway.
 let inteligirDirRestricted = false;
 function restrictInteligirDir(filePath: string): void {

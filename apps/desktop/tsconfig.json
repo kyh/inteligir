@@ -6,8 +6,7 @@
     "types": ["electron-vite/node"],
     "paths": {
       "@/*": ["./src/*"],
-      "@renderer/*": ["./src/renderer/*"],
-      "@repo/ui/*": ["../../packages/ui/src/*"]
+      "@renderer/*": ["./src/renderer/*"]
     }
   },
   "include": [
@@ -18,5 +17,5 @@
     "vitest.config.ts",
     "../../packages/voice/src/sherpa-onnx-node.d.ts"
   ],
-  "exclude": ["node_modules", "build", "dist", ".output", "src/renderer/voice/stt-worklet.js"]
+  "exclude": ["node_modules", "build", "dist", ".output"]
 }

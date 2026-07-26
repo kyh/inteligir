@@ -23,7 +23,7 @@ function socialLabel(provider: string): string {
  * un-sticks the UI. */
 const SOCIAL_PENDING_TIMEOUT_MS = 2 * 60_000;
 
-// Account — the first-class OPTIONAL login (#459). Guest is the default and
+// Account — the first-class OPTIONAL login. Guest is the default and
 // the account gates ONLY cloud saves: Sync consumes the session this section
 // establishes, nothing else may. Backed by the same Better Auth coordinator
 // the sync engine talks to (email+password + env-gated social), through the
@@ -204,7 +204,7 @@ export function AccountSection() {
     try {
       // Clears ONLY the account session (sync-auth.json) — provider
       // credentials and every local note stay untouched; the app remains in
-      // the workspace as a guest (#459 teardown decouple).
+      // the workspace as a guest.
       await getBridge().syncSignOut();
     } finally {
       setBusy(false);
@@ -294,7 +294,7 @@ export function AccountSection() {
                         : "Sign in"}
                 </Button>
                 {/* These two stay MOUNTED across every mode change, swapping
-                    label/handler in place (#473). A button that unmounts itself
+                    label/handler in place. A button that unmounts itself
                     on click detaches the press target before Base UI's
                     outside-press check resolves, so the whole Settings dialog
                     reads it as an outside click and closes. Same reason

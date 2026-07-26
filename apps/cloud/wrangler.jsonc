@@ -2,15 +2,31 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "inteligir-cloud",
   "main": "src/index.ts",
-  "compatibility_date": "2026-06-01",
+  // Track the date of the workerd this repo actually pins — 1.20260722.1, i.e.
+  // 2026-07-22 (the version is in the pnpm lockfile; `wrangler types` prints it
+  // in worker-configuration.d.ts's banner). Deliberately NOT "today": a date
+  // ahead of the released runtime is rejected at deploy, and a date far behind
+  // it silently opts out of every runtime fix in between. Bump
+  // this whenever wrangler/miniflare pull a newer workerd.
+  "compatibility_date": "2026-07-22",
   // Better Auth's crypto paths (password hashing, token signing) need node
   // built-ins on workerd — every Cloudflare worker that runs Better Auth sets
   // this. Without it the failure is a latent runtime one that passes typecheck.
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true },
+
+  // Source maps: without them every stack in `wrangler tail` / the dashboard
+  // points at bundled JS. The trade is that the upload makes this Worker's
+  // TypeScript readable in the dashboard — a non-issue for a public repo.
+  "upload_source_maps": true,
+  // Logs on (the default sampling); traces at 1% — enough to spot a latency
+  // shape without paying to trace a sync loop that runs on every save.
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 },
+  },
 
   // One Durable Object per vault: the source of truth for that vault's manifest
-  // (path -> version) + generation counter. Addressed by `idFromName(vaultId)`.
+  // (path -> version) + generation counter. Addressed by `getByName(vaultId)`.
   "durable_objects": {
     "bindings": [{ "name": "VaultCoordinator", "class_name": "VaultCoordinator" }],
   },
@@ -35,7 +51,7 @@
     },
   ],
 
-  // Cloudflare Email Sending — the password-reset transport (issue #463).
+  // Cloudflare Email Sending — the password-reset transport.
   // `env.EMAIL.send({from,to,subject,text,html})` needs NO API key; delivery
   // starts working the moment the owner runs
   // `npx wrangler email sending enable inteligir.app` + completes the
@@ -43,6 +59,15 @@
   // (logged), while the reset flow itself stays correct: tokens are issued
   // before the send and the request response is always neutral.
   "send_email": [{ "name": "EMAIL" }],
+
+  // Declaring the required secret NAMES here (values still live only in
+  // `wrangler secret put` / `.dev.vars`) buys two things: `wrangler types`
+  // emits it onto `Env` so src/env.d.ts doesn't have to hand-declare it, and
+  // `wrangler dev` warns when it's missing instead of failing at the first
+  // /api/auth/* request. The OAuth pairs stay OUT — they are optional by
+  // design (a provider is live only when both halves are set), and listing
+  // them here would type them as always-present.
+  "secrets": { "required": ["BETTER_AUTH_SECRET"] },
 
   // No `vars`: the Better Auth baseURL is derived per-request from the incoming
   // request origin (so localhost/preview/prod all work with no config), and

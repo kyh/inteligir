@@ -15,20 +15,27 @@ apps/cloud/
     vault-coordinator.ts  # Durable Object: owns the manifest + versions + SSE + R2 writes
     route.ts              # matchRoute(): parse the @repo/notes/sync/wire routes into an ADT
     hash.ts               # sha256Hex() — server-authoritative content hashing
-    env.d.ts              # types the runtime secrets (BETTER_AUTH_SECRET, OAuth) onto Env
+    log.ts                # logUnhandled() — the structured error line both fetch entries emit
+    env.d.ts              # types the OPTIONAL runtime vars onto Env (the required one is generated)
     auth/auth.ts          # createAuth(env, baseURL): per-request Better Auth (Drizzle+D1, bearer)
+    auth/desktop-session.ts # the desktop social handoff: mint/burn the single-use exchange code
+    auth/reset-page.ts    # the password-reset form the emailed link lands on
+    auth/reset-email.ts   # sends that link over the EMAIL binding (Cloudflare Email Sending)
     db/
       schema.ts           # Drizzle schema: Better Auth tables + vault_owner (ownership)
       client.ts           # createDb(d1): per-request Drizzle client over the D1 binding
   test/
     sync.test.ts          # miniflare DO + R2 + D1 in-process (@cloudflare/vitest-pool-workers)
+    e2e-sync.test.ts      # the real @repo/notes engine against the real Worker, in-process
+    desktop-session.test.ts # the code mint/exchange path (state check, single use, TTL)
+    password-reset.test.ts  # request → token → reset over real Better Auth, with a mock EMAIL binding
     apply-schema.ts       # applies the exported schema DDL to each test file's D1
     env.d.ts              # types cloudflare:test's env (+ the test-only TEST_SCHEMA binding)
 ```
 
 ### Sync (`/v1/vault/*`)
 
-- **One DO per vault** (`env.VaultCoordinator.idFromName(vaultId)`). It owns the
+- **One DO per vault** (`env.VaultCoordinator.getByName(vaultId)`). It owns the
   manifest in DO SQLite storage (a `files` row per path: `version`, `contentHash`,
   `size`). File bytes live in R2, keyed
   `${vaultId}/${path}` — the manifest is authoritative for versions/hashes.
@@ -90,10 +97,10 @@ seeded login".
 
 ## Deploy (run by the account owner)
 
-> Provisioned 2026-07-09: R2 bucket + D1 (`database_id` in wrangler.jsonc) exist,
-> schema pushed, `BETTER_AUTH_SECRET` set, worker live at
-> <https://inteligir-cloud.kyh.workers.dev>. Steps 1–5 are for rebuilding from
-> scratch; day-to-day redeploys only need step 6.
+> **Already provisioned.** The R2 bucket and D1 (`database_id` in
+> wrangler.jsonc) exist, the schema is pushed, `BETTER_AUTH_SECRET` is set, and
+> the worker is live at <https://inteligir-cloud.kyh.workers.dev>. Steps 1–5 are
+> for rebuilding from scratch; day-to-day redeploys only need step 6.
 
 Deploying needs your Cloudflare account (`wrangler login` first).
 

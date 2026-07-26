@@ -1,9 +1,9 @@
-// #382 — GitHub-alert markers rendered literally inside transclusion cards.
+// GitHub-alert markers must never render literally inside transclusion cards.
 //
 // The live editor hides a `> [!TIP]` marker behind the variant badge with a
-// Slate DECORATION, and PlateStatic runs no decorations, so the embed showed
-// the raw marker. stripAlertMarkers removes it from the throwaway render copy
-// and stashes the variant for the static blockquote component.
+// Slate DECORATION, and PlateStatic runs no decorations, so the embed would
+// show the raw marker. stripAlertMarkers removes it from the throwaway render
+// copy and stashes the variant for the static blockquote component.
 //
 // The rule that matters: this must ONLY ever touch the read-only copy. Every
 // assertion below also checks the input is left intact.

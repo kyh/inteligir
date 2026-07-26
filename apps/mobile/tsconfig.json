@@ -3,6 +3,12 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-native",
+    // Metro resolves package `exports` under the "react-native" condition; the
+    // repo base sets none, so without this TS would check a different entry
+    // point than the bundler actually loads. (Expo's own base sets it — we do
+    // not extend that base, because chaining it would silently drag in its
+    // lib/target/module/exclude too.)
+    "customConditions": ["react-native"],
     "moduleSuffixes": [".ios", ".android", ".native", ""],
     "paths": {
       "@/*": ["./src/*"]

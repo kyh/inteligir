@@ -84,7 +84,7 @@ const VAULT_IO: VaultIO = {
 };
 
 // ---------------------------------------------------------------------------
-// The three exposure seams (#470), split by change CADENCE so a keystroke
+// The three exposure seams, split by change CADENCE so a keystroke
 // re-renders only what depends on the open note's content:
 // - VaultActionsContext — the stable callbacks (identity never changes).
 //   Consumers that only ACT (wiki chips, palette actions, sidebar handlers)
@@ -103,7 +103,7 @@ export type VaultActions = {
   openFile: (path: string) => void;
   /** Record an edit to a SPECIFIC note's buffer (debounced autosave). Bytes
    * always carry the path of the editor that produced them: teardown settles
-   * (#374) and surface switches can emit after the open note already changed,
+   * and surface switches can emit after the open note already changed,
    * and those bytes must no-op rather than land on the wrong file. */
   editNote: (path: string, content: string) => void;
   /** Register a SPECIFIC note's pre-flush hook on its runtime (the Rich
@@ -252,7 +252,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   /** Flush the open note's pending edits (clearing the debounce). True when
    * clean. A pending AI suggestion session on the file is settled first
-   * (#374): reject-all reverts only the suggestion-marked ranges, so typing
+   * first: reject-all reverts only the suggestion-marked ranges, so typing
    * the user interleaved during the review persists while the AI marks
    * disappear — without this, the flush would write the frozen pre-session
    * buffer and the typing would die with the unmounting editor. */
@@ -519,8 +519,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   // Persist on unmount so a change within the debounce window isn't lost, then
   // tear the runtime down — the manual controller subscription + vanish watcher
-  // don't auto-clean the way the old useSyncExternalStore did, so drop them
-  // explicitly (keeps StrictMode's mount/unmount/mount cycle leak-free).
+  // have no automatic teardown, so drop them explicitly (keeps StrictMode's
+  // mount/unmount/mount cycle leak-free).
   useEffect(
     () => () => {
       void runtimeRef.current?.flush();
@@ -678,8 +678,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <VaultActionsContext.Provider value={actions}>
-      <VaultListingContext.Provider value={listing}>{children}</VaultListingContext.Provider>
-    </VaultActionsContext.Provider>
+    <VaultActionsContext value={actions}>
+      <VaultListingContext value={listing}>{children}</VaultListingContext>
+    </VaultActionsContext>
   );
 }

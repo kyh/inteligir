@@ -37,11 +37,10 @@ import {
 } from "@repo/bridge/delegation";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
-// v2: anchor moved from text/heading matching to a positional `index`.
-// v3: pre-run snapshots — records gained `hasSnapshot` + `restoredAt`.
-// v4: anchor field `index` renamed `ordinal` (the name every other task
-//     surface uses) — a v3 file quarantines + resets rather than silently
-//     reading `undefined` anchors.
+// Bump on ANY shape change to a persisted record: a file written at a lower
+// version is quarantined and reset rather than read with the fields this code
+// expects, so a renamed/dropped field can never surface as a silently
+// `undefined` anchor pointing the agent at the wrong checkbox.
 const DELEGATIONS_VERSION = 4;
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_DELEGATIONS = 200;
@@ -236,7 +235,7 @@ export class DelegationManager {
    * file first so a stale/edited checkbox is rejected before it queues. */
   createDelegation(params: CreateDelegationParams): CreateDelegationResult {
     if (this.unavailableReason !== null) return { ok: false, error: this.unavailableReason };
-    // A guest is the DEFAULT (#459): with no connected provider the background
+    // A guest is the DEFAULT: with no connected provider the background
     // agent can only fail the run silently, so refuse up front — a per-attempt
     // refusal like the private-note one, not a global unavailable latch.
     if (!this.isProviderConnected()) {

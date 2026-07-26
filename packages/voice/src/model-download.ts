@@ -35,8 +35,8 @@ let downloadInflight: Promise<ModelDownloadResult> | null = null;
 
 /** What the model machinery needs from the composing host (voice/ never
  * imports the platform seam or the event bus). Installed once at composition
- * time (createHost — alongside the other extracted-package seams), so it is
- * in place before any handler, boot task, or availability probe can land. */
+ * time (createHost — alongside the other host seams), so it is in place
+ * before any handler, boot task, or availability probe can land. */
 export type VoiceModelHost = {
   /** Per-user data dir that survives logout (HostPlatform.userDataDir). */
   userDataDir: () => string;
@@ -73,8 +73,8 @@ export function getModelDir(): string {
 
 /** Whether every model file is on disk. A PROBE, so it never throws: with no
  * host seam installed yet (a bare process, or a call racing composition) the
- * answer is "not installed" — the boot-timing guard #465.3 asked for. Post-
- * composition callers see identical behavior. */
+ * answer is "not installed". Post-composition callers see identical
+ * behavior. */
 export function isModelInstalled(): boolean {
   if (modelHost === null) return false;
   const dir = getModelDir();
@@ -92,7 +92,7 @@ export function downloadModel(): Promise<ModelDownloadResult> {
 async function doDownload(): Promise<ModelDownloadResult> {
   // No host seam yet (a bare process, or a call racing composition): fail as
   // a VALUE, not a rejection — the same boot-timing guard isModelInstalled
-  // applies (#465.3).
+  // applies.
   if (modelHost === null) {
     return { ok: false, error: "Voice model host not configured — createHost() has not run" };
   }

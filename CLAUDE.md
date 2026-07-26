@@ -19,7 +19,8 @@ marketing site + shared packages.
 - **Editor**: Plate (platejs) rich markdown + a raw textarea fallback
 - **UI**: shadcn/ui (Base UI), lucide-react, sonner, zustand
 - **Web**: TanStack Start + React 19 + Tailwind CSS 4 on Cloudflare Workers (marketing site, no backend)
-- **Mobile**: Expo SDK 56 + Expo Router + NativeWind (@repo/mobile) — sync/read/light-edit companion, no agent
+- **Mobile**: Expo + Expo Router + NativeWind (@repo/mobile) — sync/read/light-edit companion, no agent
+  (the Expo SDK major is pinned in `pnpm-workspace.yaml`'s catalog; naming it here only rots)
 - **Cloud**: Cloudflare Worker (@repo/cloud) — Better Auth on D1 + a Durable Object per vault + R2
 - **AI Agent**: pi coding agent framework (@earendil-works/pi-coding-agent)
 
@@ -81,7 +82,7 @@ vault→storage+notes+bridge; agent→bridge+installer+notes;
 voice→storage+bridge; connectors→installer+storage+bridge (agent never
 imports connectors: code-mode reaches the daemon through the injected
 ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source
-in @repo/bridge/dev-flags — #465); sync→vault+storage+notes+bridge;
+in @repo/bridge/dev-flags); sync→vault+storage+notes+bridge;
 server→agent+bridge+connectors+notes+storage+sync+vault+voice.
 The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
 @repo/server — so "no node in the UI's contract" is an unresolvable-import
@@ -168,10 +169,9 @@ pnpm format:fix && pnpm verify
 ```
 
 `verify` is `typecheck && lint && knip && format && test && build` — the same
-six steps CI runs, in one command so the three places that used to spell it out
-can't drift. It is deliberately check-only: `format:fix` runs FIRST and never
-after the gates (a post-gate run once corrupted the byte-pinned fixtures and
-shipped red, #362).
+six steps CI runs, in one command so no caller can drift from CI. It is
+check-only on purpose: `format:fix` runs FIRST and never after the gates,
+because formatting the byte-pinned fixtures corrupts them and ships red.
 
 ## Desktop architecture (@repo/desktop)
 
@@ -192,7 +192,7 @@ capabilities and hands the agent an injected `AgentPorts`
 `packages/vault/src/` (`VaultManager`, @repo/vault) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
-listing** (a deliberate decision — PR #411, § Decisions): NO recursive watcher — the listing is a one-shot crawl
+listing** (§ Decisions): NO recursive watcher — the listing is a one-shot crawl
 (respects `.gitignore`, uncapped) refreshed on window focus, app writes,
 delegation completion, and a "Refresh vault" palette command; only the OPEN
 note gets a (non-recursive) watcher, driven by a pure change classifier with
@@ -249,7 +249,7 @@ right-edge TOC minimap expands on hover; the graph view (lazy d3-force canvas)
 and full-text search live in the command palette.
 
 - `workspace/vault-context.tsx` — a `VaultProvider` that PRODUCES all vault
-  state but exposes it through three cadence-split seams (#470): the stable
+  state but exposes it through three cadence-split seams: the stable
   `VaultActionsContext` callbacks (`useVaultActions` — identity fixed, so
   action-only consumers never re-render), `VaultListingContext`
   (`useVaultListing`: entries + folderName + wiki resolver, changes only on
@@ -274,7 +274,7 @@ and full-text search live in the command palette.
   `editor/kits/*` as a Base (headless) + React pair; `base-kit.ts` composes
   the Base halves for the headless serializer mirror — kit-parity tests make
   drift impossible. The round-trip fixture matrix under
-  `src/__tests__/fixtures/` is byte-pinned (oxfmt ignores it — formatting
+  `src/renderer/__tests__/fixtures/` is byte-pinned (oxfmt ignores it — formatting
   fixtures is corruption).
 - **Editor AI** (pi-backed, transient-only — AI state never reaches disk):
   ⌘J AI menu (cursor vs selection command sets + Translate page, host-side
@@ -404,8 +404,13 @@ test) and receive `AgentPorts` at register time — adding/removing a capability
 is one folder + one line. `code-mode/` is the MCP/connectors capability
 (over the @repo/connectors daemon); `knowledge-tools/` exposes
 `search_vault` (lexical, optional `tag` filter), `get_backlinks`,
-`related_notes` (ranked indirect connections with reasons), and the
-link-rewriting `rename_note` over the knowledge engine.
+`get_links` (resolved forward links; a dangling one surfaces as
+`{target, unresolved: true}`, never dropped), `related_notes` (ranked
+indirect connections with reasons), and the link-rewriting `rename_note`
+over the knowledge engine. The four read tools return a JSON array, not
+newline-joined rows — a note body can contain both the row and field
+delimiters, so prose encoding let a note forge hits pointing at paths it
+does not own.
 `validateToolParametersSchema` rejects tool schemas that aren't a top-level
 `Type.Object` (OpenAI silently rejects `anyOf`-rooted schemas). The chat agent
 edits notes with pi's native file tools pointed at `./vault` — no custom edit
@@ -417,7 +422,10 @@ in-memory session for ghost-text on a fast model.
 contract): excluded from every AI surface on this device, fail-closed — the
 agent's file tools refuse them (per-call live-disk probe in pi's `tool_call`
 hook, `packages/agent/src/privacy/`, path-normalization parity with pi's own tools),
-`search_vault`/`get_backlinks`/`related_notes` drop them entirely, editor AI + ghost text +
+`search_vault`/`get_backlinks`/`get_links`/`related_notes` drop them entirely
+(`get_links` is the one with no index-level prefilter — forwardLinks also
+serves the renderer's Links panel, where the user must see every link, so
+its whole privacy story is the port's live-disk probe), editor AI + ghost text +
 read-aloud go hard-off, the chat context hint withholds even the path, and delegation
 refuses. Unparseable frontmatter counts as private. A leak-prevention
 boundary for AI features, NOT a security boundary.
@@ -439,37 +447,30 @@ an error naming the gap — never silently return `[]`/undefined.
 
 ## Decisions
 
-**Before raising a "new" finding, check the rejection records.** Several
-plausible-looking findings have already been investigated and deliberately
-declined; re-raising one costs a review cycle and lands back where it started.
-They live as open `note` issues because they are records, not work:
+**Before raising a "new" finding, read the `note` issues.** Findings that were
+investigated and deliberately declined live there so they are not re-raised:
+[#446](https://github.com/kyh/inteligir/issues/446) (general),
+[#453](https://github.com/kyh/inteligir/issues/453) (privacy model's accepted
+holes — `docs/privacy.md` is the contract),
+[#472](https://github.com/kyh/inteligir/issues/472) (routines/delegation
+autonomous-write residuals), and
+[#474](https://github.com/kyh/inteligir/issues/474). An issue's PLAN can name
+paths that no longer exist even when its concern is live — verify every path
+before following it.
 
-| Issue                                               | Covers                                                                        |
-| --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [#446](https://github.com/kyh/inteligir/issues/446) | 2026-07-12 audit — findings considered and rejected                           |
-| [#453](https://github.com/kyh/inteligir/issues/453) | Privacy model — accepted, by-design holes (`docs/privacy.md` is the contract) |
-| [#472](https://github.com/kyh/inteligir/issues/472) | Routines/delegation — accepted autonomous-write residuals                     |
-| [#474](https://github.com/kyh/inteligir/issues/474) | 2026-07-24 whole-repo review — rejected findings + measurements               |
+Plan files and ADR docs are not tracked in this repo; this section is the
+record for the decisions code comments cite.
 
-A related trap: an issue's PLAN can be stale even when its concern is live.
-#437 and #438 both prescribed edits to types and packages deleted in the
-restructure, and #442/#444/#448/#452 needed the same repair. Verify every path
-an issue names still exists before following it.
-
-Durable architecture decisions code comments cite (plan files and ADR docs
-are deleted on purpose — this section + PRs are the record):
-
-- **Vault liveness: ephemeral listing + one open-note watcher** (PR #411).
+- **Vault liveness: ephemeral listing + one open-note watcher.**
   NO recursive filesystem watcher, ever. The vault LISTING is an on-demand
   crawl (TTL-shared snapshot) refreshed on window focus, app structural
   writes, delegation completion, and "Refresh vault"; the only watcher is a
   single non-recursive watch on the open note, filtered through a pure change
   classifier with self-save suppression, so the app's own autosaves generate
   zero vault-changed traffic. External edits to other files surface on the
-  next refresh — that trade is the design. The persistent SQLite knowledge
-  projection did NOT reverse this: it changed where DERIVED knowledge lives,
-  not how disk changes are discovered; "ephemeral snapshot" comments refer to
-  this on-disk crawl cadence.
+  next refresh — that trade is the design. "Ephemeral snapshot" in a comment
+  refers to this on-disk crawl cadence, not to the SQLite projection, which
+  governs where DERIVED knowledge lives rather than how disk changes are seen.
 - **The knowledge index is a wipe-and-rebuild cache.** The SQL KnowledgeStore
   persists projections (`~/.inteligir/indexes/<hash>.sqlite`) purely to make
   boot cheap; corruption or a version mismatch deletes and rebuilds from the
@@ -496,37 +497,64 @@ are deleted on purpose — this section + PRs are the record):
   re-asserts it on every boot for files third parties (pi) create 0644.
   pi's auth.json stays pi-owned: plaintext-but-0600 by design — pi reads it
   directly during OAuth refresh, so there is no cipher-injection seam.
-- **Remote-device capability is an ALLOWLIST, never a blocklist.** It was a
-  blocklist once (`LOCAL_ONLY_METHODS`, 6 entries) and every channel added
-  afterward was silently reachable by a paired phone — including
-  `RESET_APP_DATA`, native host dialogs, and binary repair. Allowlists fail
-  closed. Adding a channel to `REMOTE_ALLOWED_*` is a deliberate act with a
-  threat model attached, not a default.
-- **Host services are process-global `getX()` singletons ON PURPOSE.**
-  Evaluated 2026-07-24 and REJECTED: threading an explicit `HostContext`
-  through the handlers, and any disposable-registry variant. One host per
-  process is a domain fact (a single-user desktop app), enforced by the
-  `createHost` guard plus `host.lock`. The managers are already
-  constructor-injectable, so the test suite builds them with fakes today
-  (`delegation-manager.test.ts`) — the conversion buys testability that
-  already exists, at 185 `getX()` call sites across 53 files and 5 package
-  APIs. The `reset*()` set that `teardownAgentResources()` calls is
-  ORDER-INDEPENDENT — every body is `instance?.close(); instance = null`, and
-  a reset that reads another singleton is a bug. The only real ordering is the
-  four pins around `fs.rmSync` (drop caches, close the sqlite handle, suspend
-  vault writes, re-assert the lock afterward), which no construction order
-  derives and which stay hand-written with their inline comments. Completeness
-  is enforced by a DERIVED test that greps every `packages/*/src` for the
-  reset/dispose export convention — self-extending, not a maintained list.
+- **Remote-device capability is an ALLOWLIST, never a blocklist.** A blocklist
+  leaves every channel added after it was written silently reachable by a
+  paired phone — including destructive ones like `RESET_APP_DATA`. Allowlists
+  fail closed. Adding a channel to `REMOTE_ALLOWED_*` is a deliberate act with
+  a threat model attached, not a default.
+- **Host services are process-global `getX()` singletons ON PURPOSE.** Do not
+  thread an explicit `HostContext` through the handlers, and do not build a
+  disposable registry. One host per process is a domain fact (a single-user
+  desktop app), enforced by the `createHost` guard plus `host.lock`. The
+  managers are constructor-injectable, so tests already build them with fakes
+  (`delegation-manager.test.ts`) — the conversion would buy testability that
+  exists, across 185 `getX()` call sites in 53 files and 5 package APIs. The
+  `reset*()` set that `teardownAgentResources()` calls is ORDER-INDEPENDENT:
+  every body is `instance?.close(); instance = null`, and a reset that reads
+  another singleton is a bug. The only real ordering is the four pins around
+  `fs.rmSync` (drop caches, close the sqlite handle, suspend vault writes,
+  re-assert the lock afterward), which no construction order derives and which
+  stay hand-written with their inline comments. Completeness is enforced by a
+  DERIVED test that greps every `packages/*/src` for the reset/dispose export
+  convention — self-extending, not a maintained list.
 - **Palette commands and settings sections stay hardcoded lists.** No command
-  registry, no section registry, at ~11 commands and ~10 sections. Every
-  survey that has looked at this declined to propose one; a registry buys
-  indirection and an ordering problem in exchange for a `.push()`. Revisit if
-  a THIRD surface needs to contribute commands it does not own.
-- **`KnowledgeIndex` is not dead code.** It never runs in production (the SQL
-  `KnowledgeStore`'s FTS5 does), and audits keep proposing its deletion.
-  `@repo/notes` carries no sqlite dependency deliberately — it is the pure
-  sharing seam, `SqlDriver` is platform-injected — so this in-memory
+  registry, no section registry, at ~11 commands and ~10 sections: a registry
+  buys indirection and an ordering problem in exchange for a `.push()`.
+  Revisit if a THIRD surface needs to contribute commands it does not own.
+- **`KnowledgeIndex` is not dead code — do not delete it.** It never runs in
+  production (the SQL `KnowledgeStore`'s FTS5 does), which makes it look
+  deletable. `@repo/notes` carries no sqlite dependency deliberately — it is
+  the pure sharing seam, `SqlDriver` is platform-injected — so this in-memory
   composition is the ONLY way the package can test its own knowledge engine;
   ~1,200 lines of tests for related-notes, tags, the link graph, the perf
   oracle and the privacy gate drive production logic through it.
+- **SSE, not hibernatable WebSockets, for the vault DO changes stream**
+  (`vault-coordinator.ts`). Cloudflare's WebSocket page recommends
+  hibernation, but no doc says don't stream SSE from a Durable Object. Sync is
+  OFF by default, so exposure is one resident DO per online synced device, and
+  a rewrite would cross `@repo/notes/sync/wire` — the pure seam BOTH platforms
+  drive — for a rounding-error bill. Revisit if sync becomes default-on.
+- **React Compiler is deliberately not adopted** (both Vite configs; ~148 memo
+  call sites). react.dev recommends it for _new_ apps and says existing apps
+  should "roll out at your own pace." If it is ever adopted, annotation mode
+  on leaf components is the only defensible entry — explicitly NOT the
+  Plate/Slate tree (it mutates editor nodes) and NOT `vault-context.tsx`,
+  whose memo identities ARE the cadence-split contract, not an optimization
+  the compiler may reason about.
+- **No coverage tooling, on purpose** (0 of 14 vitest configs, no provider, no
+  CI step). This repo enforces targeted invariants STRUCTURALLY —
+  teardown-completeness, no-dead-channels, no-ungated-dispatch, kit-parity,
+  no-orphan-components, pi-quarantine — rather than via a global percentage
+  that would be satisfied by tests asserting nothing. A derived fitness test
+  that fails when a SIXTH dispatch path appears is worth more than a coverage
+  number. If coverage is ever added: `coverage.include` is MANDATORY in
+  Vitest 4 (`coverage.all` was removed), and gate only `@repo/notes`.
+- **The CSP grants bare `https:` to `frame-src` and `connect-src`**
+  (`apps/desktop/src/renderer/index.html`). Three MDX vocabulary nodes render
+  remote https iframes (`<file>`, `<video>`, `<media_embed>`) and the embed
+  dialog promises "any page"; react-tweet fetches its own API host. So **the
+  http(s) scheme gate and the PDF content gate in `navigation-guard.ts` are
+  the only narrowing** — deleting either re-opens exactly what they guard.
+  `apps/desktop/dev/index.html` must carry the same resource directives: it is
+  the only surface that can catch a CSP regression, since jsdom does not
+  enforce CSP.

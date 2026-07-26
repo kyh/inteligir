@@ -58,7 +58,7 @@ export function absorbRacedComboboxText(editor: SlateEditor, element: TElement):
  * Chromium leaves the caret BEFORE the text of an IME-style commit
  * (`Input.insertText` automation, dictation) when it is the first edit after
  * the input was focused programmatically — the next keystroke then lands at
- * offset 0 and "deep" assembles as "eepd" (issue #367). Given the input's
+ * offset 0 and "deep" assembles as "eepd". Given the input's
  * previous value, its new value, and the caret the browser reported, return
  * the caret a native keystroke would have produced — or null when the
  * browser's caret is already consistent (never fight a correct browser).

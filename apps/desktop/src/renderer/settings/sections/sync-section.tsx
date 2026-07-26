@@ -34,7 +34,7 @@ function formatSyncStatus(status: SyncStatus): string {
 }
 
 // Vault sync — reconcile the local vault against the coordinator Worker. Sync
-// CONSUMES the account the Account section establishes (#459): the sign-in
+// CONSUMES the account the Account section establishes: the sign-in
 // form, server URL, and session live there — this section is only the enable
 // toggle, the status line, and the conflict list. Signed out, it defers to
 // the Account section instead of duplicating a login. The whole surface

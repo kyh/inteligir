@@ -9,10 +9,10 @@ import { hardenAppDir } from "../harden-app-dir";
 // it in; storage tests stay agent-free).
 const SESSION_DIRS = ["sessions", "sessions/background", "sessions/inline-ai"];
 
-// The sweep's job is HISTORY: dirs and files created before owner-only became
-// the default (and pi's 0644 session transcripts). Build a worst-case
-// pre-existing install in a temp root and assert the sweep normalizes exactly
-// the private surface — and nothing else.
+// The sweep's job is whatever is ALREADY on disk: dirs and files sitting at
+// looser modes than owner-only, plus pi's 0644 session transcripts. Build a
+// worst-case pre-existing install in a temp root and assert the sweep
+// normalizes exactly the private surface — and nothing else.
 
 const mode = (p: string) => fs.statSync(p).mode & 0o777;
 

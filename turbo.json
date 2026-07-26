@@ -1,6 +1,14 @@
 {
-  "$schema": "https://turborepo.org/schema.json",
+  "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  // Every workspace's tsconfig extends tsconfig.base.json, so the repo-wide
+  // compiler settings (strict, noUncheckedIndexedAccess,
+  // exactOptionalPropertyTypes) are a real input to `typecheck` — but turbo
+  // only hashes files inside a workspace, so without this entry the base
+  // config is in NO task hash. Loosening a compiler setting then leaves every
+  // typecheck hash byte-identical, and CI restores `.turbo` from a
+  // branch-prefix key — the gate serves a green typecheck it never re-ran.
+  "globalDependencies": ["tsconfig.base.json"],
   "tasks": {
     "topo": {
       "dependsOn": ["^topo"]
@@ -9,7 +17,7 @@
       "dependsOn": ["^build"],
       // What the builds actually emit: vite/wrangler -> dist/, electron-vite ->
       // .output/. tsbuildinfo belongs to `typecheck` (tsc --noEmit, incremental),
-      // not here — declaring it as a build output cached the wrong artifact.
+      // not here — declaring it as a build output caches the wrong artifact.
       "outputs": ["dist/**", ".output/**"]
     },
     "@repo/desktop#build": {
@@ -17,9 +25,13 @@
       "outputs": [".output/**"],
       "env": ["INTELIGIR_GOOGLE_OAUTH_CLIENT_ID", "INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET"]
     },
+    // `dev` never exits (vite/electron-vite/expo/wrangler watchers), so it is
+    // declared persistent. This changes nothing under `turbo watch dev` — a
+    // non-exiting task is never restarted either way — but it makes a future
+    // `dependsOn: ["dev"]` a hard error instead of a hang.
     "dev": {
       "cache": false,
-      "persistent": false
+      "persistent": true
     },
     "typecheck": {
       "dependsOn": ["^topo"],

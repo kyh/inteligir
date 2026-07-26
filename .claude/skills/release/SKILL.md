@@ -1,12 +1,24 @@
 ---
 name: release
-description: Bump, build, notarize, and ship a new version of the Inteligir Electron desktop app to GitHub Releases (auto-update via electron-updater). Use when the user wants to cut/ship a desktop release. Args optional: bump type, e.g. "release patch", "release minor".
+description: Bump, build, notarize, and ship a new version of the Inteligir Electron desktop app to GitHub Releases (the electron-updater feed — installed clients check it but do not yet auto-download). Use when the user wants to cut/ship a desktop release. Args optional: bump type, e.g. "release patch", "release minor".
 allowed-tools: Bash(*), Read, Edit, Write
 ---
 
 # Release
 
-Cut a new version of the Inteligir desktop app and publish it to GitHub Releases. Users on the auto-updater (electron-updater) pull the new version's **zip** from that release (MacUpdater installs only from the zip listed in `latest-mac.yml`; the dmg is first-install only), so publishing the release **is** the distribution — but only if the zip ships.
+Cut a new version of the Inteligir desktop app and publish it to GitHub Releases.
+
+**Publishing is not yet distribution.** `apps/desktop/src/main/updater.ts` sets
+`autoDownload = false` and `autoInstallOnAppQuit = false` — a deliberate deferral until a UI
+consumes update state — so today an installed client only _checks_ the feed (on a 15s startup
+delay and from "Check for Updates…") and logs the result. Nothing downloads, nothing installs,
+nobody is notified. Users get a new version by downloading it themselves. Step 7's report block
+says the same thing; keep the two in agreement.
+
+What this runbook does buy is the **precondition** for auto-update once the download path is
+turned on: electron-updater installs only from the **zip** listed in `latest-mac.yml` (the dmg is
+first-install only), so a release is only useful later if the zip ships and is listed — which is
+what step 6 verifies.
 
 ## Context
 
@@ -39,6 +51,8 @@ Run in parallel:
 
 - `gh auth status` — must be authenticated (the publish step pulls `GH_TOKEN` from `gh auth token`). If not, stop and tell the user to `gh auth login`.
 - `git status --porcelain` — if dirty in unrelated files, surface and ask whether to proceed.
+- `pnpm format:fix && pnpm verify` on the exact commit being cut. `release`/`release:publish` run the full gate through `verify:release`, so a red gate stops the build rather than shipping past it — but run it HERE anyway: finding out after `electron-vite build` wastes a notarization cycle. Keep `verify:release` wired to the whole gate: anything narrower lets a release be cut while `main` is red.
+- Electron fuses + entitlements are only exercised by a real packaged build. `verify:packaged` reads the fuse wire off the shipped binary, so a launch failure in a packaged build points at `enableEmbeddedAsarIntegrityValidation` / `onlyLoadAppFromAsar` — see the comment in `electron-builder.yml`.
 - `uname -s` — must be `Darwin`. If not, stop: notarized mac builds require macOS.
 - `test -f apps/desktop/.env` — notarization creds live here. If missing, stop and say so.
 - Bundled Google OAuth client — release builds bake `INTELIGIR_GOOGLE_OAUTH_CLIENT_ID` + `INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET` from `.env` into the main bundle (electron-vite `define`; see `apps/desktop/.env.example`):
@@ -111,6 +125,9 @@ Released: Inteligir v<version>
 Commit: <sha> (pushed to origin/<branch>)
 Tag: v<version> (created by electron-builder, fetched locally)
 Auto-update: zip is in latest-mac.yml — the precondition for electron-updater.
+  Clients do NOT pick this up on their own: autoDownload/autoInstallOnAppQuit
+  are both off (updater.ts), so an installed app only checks and logs. Users
+  update by downloading this release themselves.
   End-to-end update (installed older build → this one) is NOT yet verified;
   don't claim clients will pick it up until that's been run once.
   Note: installs of v0.3.0 and earlier shipped from dmg-only releases and

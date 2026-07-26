@@ -21,7 +21,7 @@ type ViewStore = {
   setPastChatsOpen: (open: boolean) => void;
 };
 
-export const useViewStore = create<ViewStore>((set) => ({
+export const useViewStore = create<ViewStore>()((set) => ({
   responsePinned: false,
   togglePinned: () => set((s) => ({ responsePinned: !s.responsePinned })),
   setPinned: (responsePinned) => set({ responsePinned }),

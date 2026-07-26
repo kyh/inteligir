@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Parity pin for the projection refactor: feeding LinkGraphIndex through
+// Projection parity pin: feeding LinkGraphIndex through
 // projectDoc() must answer every link/graph/tag query EXACTLY like the
 // content-driven KnowledgeIndex — across incremental mutations. This is what
 // licenses the host to hydrate LinkGraphIndex from persisted projections.

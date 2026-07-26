@@ -3,12 +3,12 @@
 // through the injected `openSocket` seam so nothing here touches the network
 // or needs an ElevenLabs key.
 //
-// The decode assertions exist because of a real shipped bug: `Buffer.from(b64,
-// "base64")` returns a VIEW into Node's shared allocation pool, so reading
-// `.buffer` without honoring byteOffset/byteLength hands out the whole pool.
-// Measured on Node 24: BOTH a 64-byte and a 16KB chunk emitted 65,536 bytes —
-// so every chunk was pool-sized garbage, not just small ones, and each frame
-// carried adjacent heap bytes across to the renderer.
+// The decode assertions guard a live hazard: `Buffer.from(b64, "base64")`
+// returns a VIEW into Node's shared allocation pool, so reading `.buffer`
+// without honoring byteOffset/byteLength hands out the whole pool. Measured
+// on Node 24, BOTH a 64-byte and a 16KB chunk then emit 65,536 bytes — every
+// chunk is pool-sized garbage, not just small ones, and each frame carries
+// adjacent heap bytes across to the renderer.
 // ---------------------------------------------------------------------------
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

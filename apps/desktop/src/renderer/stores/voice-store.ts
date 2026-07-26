@@ -121,7 +121,7 @@ async function runConnect(): Promise<void> {
   machine.dispatch({ type: "connect_ok" });
 }
 
-export const useVoiceStore = create<VoiceStore>((set, _get) => ({
+export const useVoiceStore = create<VoiceStore>()((set, _get) => ({
   state: machine.state,
   ttsConfigured: null,
 

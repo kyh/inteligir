@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // Change-stream reconnect supervision. The SSE stream is long-lived and dies on
-// any network blip; before this the engine subscribed exactly once, so one drop
-// silently demoted the client to whatever else happened to call scheduleSync
-// (the coordinator's 5-minute timer, window focus) for the engine's lifetime.
+// any network blip; without a supervisor that re-subscribes, one drop silently
+// demotes the client to whatever else happens to call scheduleSync (the
+// coordinator's 5-minute timer, window focus) for the engine's lifetime.
 //
 // Driven through a port whose subscribe/onEnd is controlled by hand — no
 // network, no real timers.

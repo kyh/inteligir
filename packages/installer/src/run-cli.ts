@@ -15,6 +15,14 @@ export type RunCliOptions = {
    * tool-named message like "peekaboo binary not installed".
    */
   notFoundMessage?: string;
+  /**
+   * Cancellation. Node kills the child (SIGTERM) when this aborts, so a user
+   * interrupt doesn't have to wait out `timeoutMs`. The abort surfaces as a
+   * normal resolve — see the AbortError note on runCli — because the caller
+   * that owns the signal already knows the run was cancelled and only needs
+   * the promise to settle promptly.
+   */
+  signal?: AbortSignal | undefined;
 };
 
 export type RunCliResult = {
@@ -33,6 +41,11 @@ export type RunCliResult = {
  *   come through as strings) → coerced to `1`, never returned as a string.
  * - Resolves on any normal exit, including non-zero; callers decide what
  *   `code !== 0` means for them.
+ * - An aborted `opts.signal` kills the child and lands in the same non-numeric
+ *   branch (`err.code === "ABORT_ERR"`) → resolves with code 1 and whatever
+ *   was buffered. Deliberate: the only caller that can abort is the one that
+ *   owns the signal, and it discards the result anyway, so a rejection would
+ *   just be an error path every call site has to re-swallow.
  */
 export function runCli(
   binPath: string,
@@ -47,6 +60,7 @@ export function runCli(
         timeout: opts.timeoutMs,
         maxBuffer: opts.maxBuffer,
         ...(opts.env ? { env: opts.env } : {}),
+        ...(opts.signal ? { signal: opts.signal } : {}),
       },
       (err, stdout, stderr) => {
         const rawCode = err instanceof Error && "code" in err ? err.code : undefined;

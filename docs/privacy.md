@@ -20,16 +20,16 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   note refuses entirely. The gate resolves the tool's path argument through
   the **same normalization pi's own tools apply** (leading `@` stripped,
   unicode spaces mapped to ASCII, `~` expanded, macOS filename-variant
-  fallbacks — `agent/privacy/pi-path-parity.ts`), so an alias spelling of a
+  fallbacks — `packages/agent/src/privacy/pi-path-parity.ts`), so an alias spelling of a
   private path probes the file pi will actually open; a drift-guard test
   pins our resolver against pi's installed one so a pi upgrade can't
   silently reopen the gap.
-- **`search_vault` / `get_backlinks` / `related_notes` drop it entirely.**
+- **`search_vault` / `get_backlinks` / `get_links` / `related_notes` drop it entirely.**
   Private notes are excluded inside the index query and every surviving hit
   is re-probed against live disk — no path, no title, no snippet ever
-  reaches the model. A private note's backlinks read as "No backlinks.",
-  indistinguishable from a note that has none; a private subject's related
-  notes read as "No related notes." the same way.
+  reaches the model. A private note's backlinks come back as an empty JSON
+  array, indistinguishable from a note that has none; a private subject's
+  related notes come back the same way.
 - **Editor AI is hard-off.** Ghost-text stops and the ⌘J menu (prompts,
   canned actions, translate) refuses with a toast, derived live from the
   document — the instant you type `private: true`, before any save. This
@@ -98,12 +98,16 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   until parsed) and agent-facing search filters inside the SQL query; the
   gate and the knowledge port still re-probe live disk on every call, so the
   index is only ever a prefilter.
-- Enforcement points, for review: `agent/privacy/gate.ts` (tool gate) with
-  `agent/privacy/pi-path-parity.ts` (path normalization, pinned against pi
-  by `__tests__/pi-path-parity.test.ts`); `boot/agent-knowledge-port.ts`
-  (search/backlinks/related); `editor/note-privacy.ts` with `ai/ghost-text-kit.tsx`
-  and `ai/ai-session.ts` (editor AI); `stores/agent-store.ts` (context hint,
-  over the `vault:probe-note-privacy` live-disk probe);
-  `delegation/delegation-manager.ts` (delegation); `voice/read-aloud.ts`
-  (read aloud, over the same registered fail-closed buffer read the context
-  hint uses).
+- Enforcement points, for review — they span three workspaces, so these are
+  repo-relative:
+  - `packages/agent/src/privacy/gate.ts` (tool gate) with
+    `packages/agent/src/privacy/pi-path-parity.ts` (path normalization, pinned
+    against pi by `packages/agent/src/__tests__/pi-path-parity.test.ts`)
+  - `packages/server/src/boot/agent-knowledge-port.ts` (search/backlinks/related)
+  - `packages/server/src/delegation/delegation-manager.ts` (delegation)
+  - `apps/desktop/src/renderer/editor/note-privacy.ts` with
+    `editor/ai/ghost-text-kit.tsx` and `editor/ai/ai-session.ts` (editor AI)
+  - `apps/desktop/src/renderer/stores/agent-store.ts` (context hint, over the
+    `vault:probe-note-privacy` live-disk probe)
+  - `apps/desktop/src/renderer/voice/read-aloud.ts` (read aloud, over the same
+    registered fail-closed buffer read the context hint uses)

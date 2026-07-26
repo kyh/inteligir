@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { applyTemplate, isTemplatePath } from "../daily-notes";
+import { periodicNotePath } from "@repo/notes/daily-path";
+
+import {
+  CADENCE_ORDER,
+  CADENCES,
+  DAILY_FOLDER_KEY,
+  DAILY_FORMAT_KEY,
+  DEFAULT_DAILY_FOLDER,
+  DEFAULT_DAILY_FORMAT,
+  applyTemplate,
+  isTemplatePath,
+} from "../daily-notes";
 
 describe("applyTemplate", () => {
   it("substitutes both placeholders", () => {
@@ -31,6 +42,61 @@ describe("applyTemplate", () => {
   it("does not re-scan a substituted value", () => {
     // A title containing the date token must stay literal, not re-expand.
     expect(applyTemplate("{{title}}", { title: "{{date}}", date: "2026-07-09" })).toBe("{{date}}");
+  });
+});
+
+describe("cadence table", () => {
+  it("pins the daily ui-state key STRINGS (renaming resets user config)", () => {
+    // Not a tautology: these literals address rows in ~/.inteligir/ui-state.json
+    // that shipped users already have. A refactor that "tidies" them into
+    // `notes.daily.folder` silently drops every configured daily note.
+    expect(DAILY_FOLDER_KEY).toBe("notes.dailyFolder");
+    expect(DAILY_FORMAT_KEY).toBe("notes.dailyFilenameFormat");
+    expect(DEFAULT_DAILY_FOLDER).toBe("journal");
+    expect(DEFAULT_DAILY_FORMAT).toBe("YYYY-MM-DD");
+    // The table must REUSE them, never restate them.
+    expect(CADENCES.daily.folderKey).toBe(DAILY_FOLDER_KEY);
+    expect(CADENCES.daily.formatKey).toBe(DAILY_FORMAT_KEY);
+  });
+
+  it("covers every cadence exactly once, in display order", () => {
+    expect([...CADENCE_ORDER].toSorted()).toEqual(Object.keys(CADENCES).toSorted());
+    expect(new Set(CADENCE_ORDER).size).toBe(CADENCE_ORDER.length);
+  });
+
+  it("keeps each config self-describing and collision-free", () => {
+    const keys = new Set<string>();
+    const templates = new Set<string>();
+    for (const cadence of CADENCE_ORDER) {
+      const config = CADENCES[cadence];
+      // The discriminant must agree with the slot it's filed under.
+      expect(config.cadence).toBe(cadence);
+      // Two cadences sharing a ui-state key would silently alias their config.
+      for (const key of [config.folderKey, config.formatKey]) {
+        expect(keys.has(key), `${key} is used twice`).toBe(false);
+        keys.add(key);
+      }
+      expect(isTemplatePath(config.templatePath)).toBe(true);
+      expect(templates.has(config.templatePath), config.templatePath).toBe(false);
+      templates.add(config.templatePath);
+    }
+  });
+
+  it("gives each cadence's default format a distinct path for the same day", () => {
+    // 2021-01-01 is the interesting day: a Friday in ISO week 2020-W53, so the
+    // weekly note files under the PREVIOUS year. Three cadences, three notes,
+    // no collision.
+    const day = new Date(2021, 0, 1);
+    const paths = CADENCE_ORDER.map((cadence) => {
+      const config = CADENCES[cadence];
+      return periodicNotePath(config.defaultFolder, config.defaultFormat, day);
+    });
+    expect(paths).toEqual([
+      "journal/2021-01-01.md",
+      "journal/weekly/2020-W53.md",
+      "journal/monthly/2021-01.md",
+    ]);
+    expect(new Set(paths).size).toBe(paths.length);
   });
 });
 

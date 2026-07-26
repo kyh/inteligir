@@ -196,7 +196,7 @@ describe("SyncEngine.syncOnce", () => {
   });
 });
 
-// The DATA-LOSS guard (#429): a transient vault-read failure yields an empty
+// The DATA-LOSS guard: a transient vault-read failure yields an empty
 // local manifest, and reconcile would read every base path as a local delete —
 // pushing a vault-wide deletion to the coordinator and every peer. The engine
 // must refuse that pass outright. These tests are adversarial: they simulate

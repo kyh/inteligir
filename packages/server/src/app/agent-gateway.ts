@@ -1,12 +1,11 @@
 // ---------------------------------------------------------------------------
 // Agent gateway — the single entry point for interactive agent commands.
 //
-// Historically this serialized several would-be writers to the shared pi
-// session (desktop UI, mobile relay, widget prompts, scheduled tasks, external
-// chat). Those other writers are gone, so the user-facing desktop chat is now
-// the only writer and the gateway is a thin typed pass-through. It survives as
-// a seam so the IPC handler doesn't reach into app-machine directly, and so a
-// future second writer has one obvious place to reintroduce queuing.
+// The user-facing desktop chat is the ONLY writer to the shared pi session, so
+// this is a thin typed pass-through with no queue. It exists as a seam anyway:
+// the IPC handler never reaches into app-machine directly, and a second writer
+// (mobile relay, widget prompt, external chat) gets one obvious place to
+// reintroduce serialization instead of racing the session.
 // ---------------------------------------------------------------------------
 
 import { getAgent, getAppState } from "./app-machine";

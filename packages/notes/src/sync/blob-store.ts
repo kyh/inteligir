@@ -12,8 +12,8 @@ import type { Hash } from "./vault-file";
 //
 // Injected into `SyncEngine` like `BaseStore`, so one engine serves a node
 // flat-dir store (desktop) and an Expo File store (mobile) alike. The store is
-// a pure CACHE: a missing blob only downgrades a merge to today's
-// conflict-copy behavior, never loses data.
+// a pure CACHE: a missing blob only downgrades a merge to the conflict-copy
+// fallback, never loses data.
 // ---------------------------------------------------------------------------
 
 /** Whether `name` is a content-addressed blob file name (sha-256 hex). Only
@@ -29,8 +29,9 @@ export interface BaseBlobStore {
    * mismatch rather than hand back corrupt base bytes). */
   get(hash: Hash): Uint8Array | null;
   /** Store `bytes` under `hash`. PORT CONTRACT: an existence-checked no-op when
-   * `hash` is already stored — mobile has no stat fingerprint, so the manifest
-   * build re-reads every file every pass and calls `put` for each; a naive
+   * `hash` is already stored — a platform whose `SyncIo` cannot supply a cheap
+   * stat fingerprint re-reads every file every pass and calls `put` for each
+   * (and any file whose fingerprint changed re-reads regardless); a naive
    * implementation would rewrite every blob every five minutes. Must not throw:
    * capture is best-effort (a dropped blob degrades to a conflict copy). */
   put(hash: Hash, bytes: Uint8Array): void;

@@ -206,7 +206,13 @@ function textOf(node: Nodes): string {
 // Nested `a/b/c` and dashes are allowed; a trailing `/` or `-` is not captured.
 // Unicode letters/numbers count — the pipeline already runs with the `u` flag
 // (search-index tokenizer), so it costs nothing here.
-const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
+// Exported because the editor's tag-chip decoration must highlight EXACTLY
+// what this index counts. It scans Slate text runs rather than mdast text
+// nodes, so the walkers genuinely can't be shared — but a second copy of the
+// grammar would drift into chips over text that is not a tag, so the two share
+// this one regex. It is stateful (`g` flag): callers must use `matchAll`, or
+// reset `lastIndex` before `exec`.
+export const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
 
 /** The leading `yaml` node's typed properties, parsed ONCE per scanDoc pass,
  * or null when the doc has no frontmatter block. Each `frontmatter*` extractor

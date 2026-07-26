@@ -81,8 +81,9 @@ Tests inject narrower: `SyncCoordinator` takes `listVaultPaths` + a
 pnpm --filter @repo/sync test
 ```
 
-Notable pins: `createVaultSyncIo` lists every file uncapped (the data-loss
-regression); blob `get` integrity-checks (corrupt → null, never merged as
-base); state nonce is single-use and a wrong state does not burn the pending;
+Notable pins: `createVaultSyncIo` lists every file uncapped (a capped listing
+reads as deletions and propagates them); blob `get` integrity-checks (corrupt
+→ null, never merged as base); state nonce is single-use and a wrong state
+does not burn the pending;
 guest→account upgrade adopts the existing vault (pushes, never wipes); a
 debounced background pass surfaces conflicts without an explicit `syncNow`.

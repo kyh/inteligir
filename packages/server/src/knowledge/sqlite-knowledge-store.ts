@@ -20,8 +20,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 
-import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
-import { createSqlKnowledgeStore, type SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
+import {
+  createSqlKnowledgeStore,
+  type SqlDriver,
+  type SqlKnowledgeStore,
+} from "@repo/notes/knowledge/sql-knowledge-store";
 
 import { inteligirPath, shortPathKey } from "@repo/storage/json-store";
 
@@ -118,6 +121,6 @@ function createNodeSqliteDriver(dbPath: string): SqlDriver {
 
 /** The desktop KnowledgeStore: core's SQL store over node:sqlite at `dbPath`
  * (`":memory:"` supported for tests), guarded against `vaultRoot`. */
-export function createSqliteKnowledgeStore(dbPath: string, vaultRoot: string): KnowledgeStore {
+export function createSqliteKnowledgeStore(dbPath: string, vaultRoot: string): SqlKnowledgeStore {
   return createSqlKnowledgeStore(createNodeSqliteDriver(dbPath), vaultRoot);
 }

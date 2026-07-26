@@ -117,7 +117,7 @@ describe("rich-mode apply", () => {
     expect(h.getPersisted()).toBe("Existing note.\n\n- captured\n");
     expect(h.acks).toEqual([{ id: "c1", outcome: "applied" }]);
     expect(h.toasts()).toBe(1);
-    // The clobber vector — routing through the value prop — was never used.
+    // The clobber vector — routing through the value prop — must stay unused.
     expect(h.editBufferCalls).toEqual([]);
   });
 

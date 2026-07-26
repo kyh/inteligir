@@ -4,14 +4,15 @@ import { isValidVaultPath, type VaultPath } from "./vault-file";
 // ---------------------------------------------------------------------------
 // wire.ts — the HTTP wire contract for vault sync.
 //
-// A PURE description of the HTTP surface the coordinator (a Cloudflare Worker,
-// later) exposes and the client (desktop, mobile) calls, so both ends build
-// against ONE contract. NO fetch, NO server, NO I/O — only route shapes, header
-// + content-type names, and a handful of pure build/parse helpers (the JSON
-// bodies are the `SyncPort` result ADTs verbatim). Same purity rules as the
-// rest of @repo/notes: no node, no dom, no `Buffer`, no clock, no crypto. Even
-// `URL`/`URLSearchParams` are avoided (dom-lib types) — the helpers here parse
-// plain strings so the module type-checks with `lib: ES2023`, `types: []`.
+// A PURE description of the HTTP surface the coordinator (the Cloudflare
+// Worker in apps/cloud) exposes and the client (desktop, mobile) calls, so both
+// ends build against ONE contract. NO fetch, NO server, NO I/O — only route
+// shapes, header + content-type names, and a handful of pure build/parse
+// helpers (the JSON bodies are the `SyncPort` result ADTs verbatim). Same
+// purity rules as the rest of @repo/notes: no node, no dom, no `Buffer`, no
+// clock, no crypto. Even `URL`/`URLSearchParams` are avoided (dom-lib types) —
+// the helpers here parse plain strings so the module type-checks with
+// `lib: ES2023`, `types: []`.
 //
 // ROUTE TABLE (the paths come from the builders below; the coordinator's
 // `matchRoute` in apps/cloud mirrors this — it does not redefine it):

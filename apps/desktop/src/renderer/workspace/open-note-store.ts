@@ -1,18 +1,18 @@
-// OpenNote store — the HIGH-CADENCE slice of the vault workspace (#470).
+// OpenNote store — the HIGH-CADENCE slice of the vault workspace.
 //
 // The open note's exposed state (editor snapshot, derived OpenDoc, raw/rich
 // mode, html-app flags) changes on every keystroke (Raw) / serialize settle
-// (Rich) / autosave `saving` flip. Exposing it through the old single
-// VaultContext value re-rendered ALL consumers per keystroke; a zustand store
-// lets each consumer subscribe to exactly the field it reads
+// (Rich) / autosave `saving` flip. Carrying that in the VaultContext value
+// re-renders ALL of its consumers per keystroke; a zustand store lets each
+// consumer subscribe to exactly the field it reads
 // (`useOpenNote((s) => s.editor.path)`), so typing re-renders only the editor.
 //
-// Division of labor: the VaultProvider still PRODUCES everything — it owns the
+// Division of labor: the VaultProvider PRODUCES everything — it owns the
 // note runtime (controller + autosave debounce + vanish watcher) and its
 // open/rename/delete ordering — and drives this store synchronously through
 // the publish* functions below. The store owns EXPOSURE plus the derivations
-// that were previously computed in the provider's render (gate analysis,
-// deriveOpenDoc). Publishing is synchronous with the controller's emission so
+// over it (gate analysis, deriveOpenDoc), keeping them out of the provider's
+// render. Publishing is synchronous with the controller's emission so
 // a controlled textarea's value updates in the same event flush as the
 // keystroke (an effect-time mirror would let React "restore" the input first).
 
@@ -88,7 +88,7 @@ const INITIAL_STATE: OpenNoteState = {
 /** Subscribe to a slice of the open-note state: `useOpenNote((s) => s.mode)`.
  * A consumer re-renders only when ITS selected value changes — the seam that
  * keeps a keystroke from re-rendering the whole app. */
-export const useOpenNote = create<OpenNoteState>(() => INITIAL_STATE);
+export const useOpenNote = create<OpenNoteState>()(() => INITIAL_STATE);
 
 /** Imperative live read for action-time consumers (e.g. the palette's
  * private-toggle reads `editor.content` at click time instead of subscribing
@@ -99,8 +99,8 @@ export function openNoteState(): OpenNoteState {
 }
 
 /** Merge a partial update and recompute the derived fields in the same set,
- * keeping `openDoc` referentially stable when none of its inputs changed
- * (the old provider useMemo's contract). */
+ * keeping `openDoc` referentially stable when none of its inputs changed, so
+ * a consumer selecting it doesn't re-render on unrelated updates. */
 function apply(
   partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed" | "mode" | "htmlAsText">>,
 ): void {
@@ -153,8 +153,7 @@ let pendingAnalysis: { path: string | null; content: string } | null = null;
 
 /**
  * Publish a controller emission (provider-only). Runs the gate-analysis state
- * machine the provider previously ran in render — timing is SPLIT by what's
- * at stake:
+ * machine — timing is SPLIT by what's at stake:
  * - Path change: analyzed synchronously WITH the editor update (one setState),
  *   so the gate and the content can never disagree — a freshly opened
  *   Raw-only file must never mount the rich editor against unparseable bytes.
@@ -166,7 +165,7 @@ let pendingAnalysis: { path: string | null; content: string } | null = null;
  * - Same-path content change (every 600ms autosave settle): deferred to a
  *   microtask (bounded latency; analyzeMarkdown is a full Slate construct +
  *   remark parse + serialize, up to 3 passes — running it synchronously
- *   blocked every autosave commit). The accepted window is one frame at most:
+ *   blocks every autosave commit). The accepted window is one frame at most:
  *   the note is ALREADY rendered with the prior verdict for the same path.
  *   The microtask rechecks path+content against the LIVE store state before
  *   applying and drops itself when superseded or cancelled.

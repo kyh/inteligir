@@ -54,7 +54,7 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
     );
   }, []);
 
-  // The ONLY full teardown (#459 teardown decouple): provider disconnect and
+  // The ONLY full teardown: provider disconnect and
   // account sign-out are independent actions in their own sections; this one
   // wipes ~/.inteligir (chat history, provider credentials, account session,
   // app settings) and re-runs setup. The vault — the user's notes — is

@@ -1,6 +1,7 @@
-// Drift guard for the static extension-bundle registry: auto-discovery via
-// import.meta.glob was dropped (Vite-only), so this test re-checks the disk —
-// every agent/<name>/extension.ts must appear in EXTENSION_BUNDLES.
+// Drift guard for the static extension-bundle registry: nothing
+// auto-discovers bundles (import.meta.glob is Vite-only), so the list is
+// hand-maintained and this test re-checks it against the disk — every
+// agent/<name>/extension.ts must appear in EXTENSION_BUNDLES.
 
 import fs from "node:fs";
 import path from "node:path";

@@ -1,13 +1,13 @@
 // ---------------------------------------------------------------------------
-// Voice owns its secret (restructure step 2): the ElevenLabs API key lives in
-// the encrypted SecretStore under ELEVENLABS_API_KEY_UI_STATE, written HERE —
-// not routed through the generic ui-state store, which used to special-case
-// this one key. ui-state keeps only the `true` presence marker Settings reads
-// through getUiState ("is a key stored"), so the renderer surface is
-// unchanged: same secrets.json entry, same ui-state.json marker.
+// Voice owns its secret: the ElevenLabs API key lives in the encrypted
+// SecretStore under ELEVENLABS_API_KEY_UI_STATE, written HERE rather than
+// routed through the generic ui-state store — a key-shaped special case
+// inside a general store is how plaintext ends up in ui-state.json. ui-state
+// keeps only the `true` presence marker Settings reads through getUiState
+// ("is a key stored").
 //
-// Injection seams (secret sink + marker sink) mirror the old UiStateManager
-// test seam; production uses the process singletons.
+// Both sinks (secret + marker) are injected so this module is unit-testable;
+// production passes the process singletons.
 // ---------------------------------------------------------------------------
 
 import { getSecretStore } from "@repo/storage/secrets";
@@ -30,8 +30,8 @@ export type VoiceMarkerSink = {
 /**
  * Store or clear the ElevenLabs key. A non-empty string (trimmed) is stored
  * in the encrypted SecretStore with a `true` marker in ui-state; anything
- * else (undefined, empty, whitespace, wrong type) clears both — matching the
- * old setUiState routing byte-for-byte.
+ * else (undefined, empty, whitespace, wrong type) clears both — one write
+ * path, so the secret and its marker can never disagree.
  */
 export function setVoiceApiKey(
   value: unknown,

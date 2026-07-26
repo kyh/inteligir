@@ -26,13 +26,11 @@ import { generateDoc } from "./markdown-doc-generator";
 // failing seed + a truncated doc excerpt, so it's replayable in isolation:
 // `ROUNDTRIP_SEED=<n> pnpm --filter @repo/desktop test markdown-roundtrip-property`.
 //
-// N: the original spec targeted 200 seeds under a ~10s suite-time budget,
-// but each seed pays a full parse+serialize (createSlateEditor is not cheap)
-// — 200 measured at ~25s. The spec's tuning order was "tune N down before
-// tuning doc size down" (coverage lives in the ~5-40 block generator range,
-// not seed count), so N is cut instead of shrinking the range; 72 keeps this
-// file at ~7s with margin.
-const BASE_SEED = 20260708; // the spec's authoring date — arbitrary but fixed
+// N: each seed pays a full parse+serialize (createSlateEditor is not cheap),
+// so 200 seeds run ~25s against a ~10s suite-time budget. Coverage lives in
+// the generator's ~5-40 block range, not in seed count — so N is the knob to
+// turn, never the doc-size range; 72 keeps this file at ~7s with margin.
+const BASE_SEED = 20260708; // arbitrary, but fixed: changing it reshuffles every doc
 const N = 72;
 
 function seeds(): number[] {

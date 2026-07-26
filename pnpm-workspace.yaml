@@ -15,6 +15,7 @@ catalog:
   "@tailwindcss/vite": ^4.3.3
   "@tanstack/react-router": ^1.170.18
   "@tanstack/react-start": ^1.168.32
+  "@types/mdast": ^4.0.4
   "@types/node": ^26.1.1
   "@types/react": 19.2.17
   "@types/react-dom": ^19.2.3
@@ -47,13 +48,32 @@ catalog:
   react-native-safe-area-context: ~5.8.0
   react-native-screens: ~4.26.2
   react-native-worklets: ~0.11.3
+  remark-frontmatter: ^5.0.0
+  remark-gfm: ^4.0.1
+  remark-parse: ^11.0.0
+  sherpa-onnx-node: ^1.13.4
   tailwindcss: ^4.3.3
   typescript: ^7.0.2
+  unified: ^11.0.5
   vite: ^8.1.5
   vitest: ^4.1.10
   wrangler: ^4.114.0
 
-linkWorkspacePackages: true
+# Supply-chain cooldown: never resolve a version published less than 24h ago,
+# so a compromised release has a window to be yanked before it can enter the
+# lockfile. pnpm 11 makes 1440 the default — adopting it now de-risks half of
+# that major. CI installs --frozen-lockfile, so this only affects resolution
+# during a local `pnpm add`/`pnpm update`.
+minimumReleaseAge: 1440
+# pi ships fast and the desktop release gate couples to a pi model id, so a
+# day-long hold on @earendil-works/* would block the very thing we upgrade for.
+minimumReleaseAgeExclude:
+  - "@earendil-works/*"
+
+# A transitive dep resolved from git/a tarball/a URL bypasses both the cooldown
+# above and the registry integrity the lockfile records. Direct deps may still
+# be exotic (a deliberate act); a subdep never should be.
+blockExoticSubdeps: true
 
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"

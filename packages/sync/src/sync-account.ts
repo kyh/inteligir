@@ -245,7 +245,7 @@ export class SyncAccount {
     }
   }
 
-  /** Ask the coordinator to email a password-reset link (#463). NEUTRAL by
+  /** Ask the coordinator to email a password-reset link. NEUTRAL by
    * contract (see the registry entry): the coordinator 200s identically for
    * known and unknown emails — with timing-attack mitigation server-side —
    * so `ok` never confirms an account exists. `redirectTo: "/auth/reset"` is

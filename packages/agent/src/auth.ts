@@ -1,4 +1,4 @@
-// Provider credentials. Reaches pi through its ModelRuntime (0.80's canonical
+// Provider credentials. Reaches pi through its ModelRuntime (pi's canonical
 // credential/model handle, backed by auth.json); the runtime is lazy so a
 // logout-flow that deletes auth.json can null the cached instance and the
 // next login rebuilds it. Every function is provider-parametric — WHICH
@@ -27,7 +27,7 @@ let authEpoch = 0;
 
 /** The host's ONE ModelRuntime, shared by every session (chat, delegation,
  * inline AI, ghost text) so login/logout state stays coherent. Lazy +
- * promise-cached: construction is async in 0.80 (auth.json + models.json
+ * promise-cached: construction is async (auth.json + models.json
  * reads), and PiAgent.start() awaits this thunk. */
 export function getModelRuntime(): Promise<ModelRuntime> {
   if (!runtimePromise) runtimePromise = createModelRuntime(AUTH_PATH);
@@ -81,7 +81,7 @@ export async function login(
 }
 
 /** Drop `provider`'s credentials from auth.json (Settings "Disconnect").
- * Async in 0.80: the credential store's delete is a serialized, file-locked
+ * Async: the credential store's delete is a serialized, file-locked
  * write. */
 export async function logoutProvider(provider: string): Promise<void> {
   await removeAuth(await getModelRuntime(), provider);

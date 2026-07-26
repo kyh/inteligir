@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // vault-app:// — the privileged custom protocol that serves a vault `.html`
 // file (and its sibling assets) into a sandboxed iframe as a runnable "HTML
-// App". This is a NEW privileged surface: review it like VaultManager.resolve()
+// App". This is a privileged surface: review it like VaultManager.resolve()
 // (path games, token reuse). Two guards gate every response:
 //
 //  1. Token: the URL must carry `?token=` matching a per-open token the host

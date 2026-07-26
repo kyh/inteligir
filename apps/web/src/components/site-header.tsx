@@ -54,8 +54,8 @@ export function SiteHeader() {
   return (
     <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
       <ThemeToggle />
-      {/* Social links are plain anchors styled as secondary icon buttons (a
-          Fluid Button can't be asChild — its decorative children break Slot). */}
+      {/* Social links are plain anchors styled to match the icon buttons
+          beside them: they navigate, so the semantics are an anchor's. */}
       <a
         href={GITHUB_URL}
         target="_blank"

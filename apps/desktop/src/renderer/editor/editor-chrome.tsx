@@ -1,9 +1,9 @@
 /* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
  * held Plate Plus license. */
 // Editor chrome: potion's editor.tsx container/content pair reduced to its
-// `default` variant (comment/ai/select/demo/fullWidth/… variants deleted, so
-// the cva wrappers collapse to plain class strings) and mapped onto fluid
-// tokens (brand → primary).
+// `default` variant (no comment/ai/select/demo/fullWidth variants, so the cva
+// wrappers collapse to plain class strings) and mapped onto this app's design
+// tokens (potion's `brand` → `primary`).
 //
 // Column geometry follows potion: PlateContent itself carries the centered
 // ~700px column padding (EDITOR_COLUMN_PX) so the block-drag hover gutter —

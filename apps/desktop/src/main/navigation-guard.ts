@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Pure navigation/origin policy for the app window (#433). No electron
+// Pure navigation/origin policy for the app window. No electron
 // import — index.ts owns the webContents wiring (preventDefault,
 // shell.openExternal, the window-open deny) and delegates every DECISION
 // here, so the policy is unit-testable without an Electron env.
@@ -67,7 +67,7 @@ export function classifyWindowOpen(url: string): WindowOpenVerdict {
 }
 
 // ---------------------------------------------------------------------------
-// PDF sub-frame content gate (#467).
+// PDF sub-frame content gate.
 //
 // The editor embeds a PDF in an UN-sandboxed iframe, unavoidably: Chromium
 // blocks its native PDF viewer (a MimeHandler document) inside a frame with

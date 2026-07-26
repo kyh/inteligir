@@ -18,6 +18,34 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { FuseState, FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
+
+// The fuse state electron-builder.yml's `electronFuses` block must produce, read
+// back off the SHIPPED BINARY rather than off the config — a config-only check
+// would pass even if app-builder-lib silently stopped flipping them. Without
+// these the notarized, TCC-granted app runs arbitrary JS as node via
+// ELECTRON_RUN_AS_NODE, honours NODE_OPTIONS, and accepts --inspect.
+//
+// GrantFileProtocolExtraPrivileges is deliberately absent: the packaged
+// renderer still loads over file://, so it must stay enabled. Assert nothing
+// about it here rather than pinning a value we intend to change.
+const EXPECTED_FUSES = [
+  [FuseV1Options.RunAsNode, FuseState.DISABLE, "runAsNode"],
+  [
+    FuseV1Options.EnableNodeOptionsEnvironmentVariable,
+    FuseState.DISABLE,
+    "enableNodeOptionsEnvironmentVariable",
+  ],
+  [FuseV1Options.EnableNodeCliInspectArguments, FuseState.DISABLE, "enableNodeCliInspectArguments"],
+  [FuseV1Options.EnableCookieEncryption, FuseState.ENABLE, "enableCookieEncryption"],
+  [
+    FuseV1Options.EnableEmbeddedAsarIntegrityValidation,
+    FuseState.ENABLE,
+    "enableEmbeddedAsarIntegrityValidation",
+  ],
+  [FuseV1Options.OnlyLoadAppFromAsar, FuseState.ENABLE, "onlyLoadAppFromAsar"],
+];
+
 // Resolve paths relative to the desktop app root (this script's parent
 // directory) so the script behaves the same regardless of CWD.
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -139,5 +167,31 @@ if (process.env.INTELIGIR_SKIP_NOTARY_CHECK === "1") {
     fail(`spctl rejected the app — Gatekeeper would block it: ${detail}`);
   }
 }
+
+// Electron fuses, read off the app's own Mach-O executable. A regression here
+// is invisible in dev (fuses only exist in a packaged binary) and silently
+// re-opens the code-execution surface the hardened runtime is supposed to shut.
+const appExecutable = join(
+  app,
+  "Contents",
+  "MacOS",
+  readdirSync(join(app, "Contents", "MacOS"))[0],
+);
+const wire = await getCurrentFuseWire(appExecutable);
+const fuseFailures = [];
+for (const [fuse, expected, label] of EXPECTED_FUSES) {
+  const actual = wire[fuse];
+  if (actual !== expected) {
+    const want = expected === FuseState.ENABLE ? "enabled" : "disabled";
+    fuseFailures.push(`${label} should be ${want} (wire value ${String(actual)})`);
+  }
+}
+if (fuseFailures.length > 0) {
+  fail(
+    `Electron fuses not flipped as configured — check electronFuses in ` +
+      `electron-builder.yml:\n  - ${fuseFailures.join("\n  - ")}`,
+  );
+}
+console.log(`[verify-packaged] OK: ${EXPECTED_FUSES.length} Electron fuses set as configured`);
 
 console.log(`[verify-packaged] All checks passed for ${app}`);

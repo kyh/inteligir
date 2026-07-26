@@ -21,7 +21,7 @@ type DelegationStore = {
   restore: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
-export const useDelegationStore = create<DelegationStore>((set) => ({
+export const useDelegationStore = create<DelegationStore>()((set) => ({
   delegations: [],
   streams: {},
 

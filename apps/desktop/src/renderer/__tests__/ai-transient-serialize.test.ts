@@ -68,7 +68,7 @@ describe("mid-stream autosave (ai mark)", () => {
     expect(serialize(editor)).toBe(before);
   });
 
-  // #370's block streaming: whole ai-stamped BLOCKS (heading/list/bold) must
+  // Block streaming: whole ai-stamped BLOCKS (heading/list/bold) must
   // vanish from the serializer's output, not leave empty husks behind —
   // that's the element-level arm of shouldSerializeNode.
   it("streamed markdown blocks never serialize mid-stream", () => {

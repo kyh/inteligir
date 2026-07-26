@@ -317,9 +317,9 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("emits bare emails as literal bytes, never <angle> autolinks (V2)", () => {
-    // gfm email literals used to reach mdast-util-to-markdown's
+    // Left to gfm's defaults, email literals reach mdast-util-to-markdown's
     // formatLinkAsAutolink and come back as `<a@b.cd>` — unparseable under
-    // MDX, so a richSafe:true file was corrupted by its first save.
+    // MDX, so a richSafe:true file is corrupted by its first save.
     const bare = "contact a@b.cd today\n";
     expect(roundTrip(bare)).toBe(bare);
     expect(analyzeMarkdown(bare).canonical).toBe(true);
@@ -373,9 +373,9 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("persists table column alignment across the round-trip", () => {
-    // Plate's default table rule dropped mdast `align`, so `:-:` delimiters
-    // were silently stripped by a rich save. The align array now rides on the
-    // Slate table node.
+    // Plate's default table rule drops mdast `align`, which would silently
+    // strip `:-:` delimiters on a rich save; the align array rides on the
+    // Slate table node instead.
     const out = roundTrip("| a |\n|:-:|\n| 1 |\n");
     expect(out).toBe("|  a  |\n| :-: |\n|  1  |\n");
     expect(roundTrip(out)).toBe(out);
@@ -384,8 +384,8 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
 
   it("keeps empty todos checkable via the ZWSP placeholder", () => {
     // gfm's serializer inserts the checkbox after the bullet's following
-    // space, which empty content never produces — an empty todo used to save
-    // as a bare `-`, silently dropping the checkbox.
+    // space, which empty content never produces — without the placeholder an
+    // empty todo saves as a bare `-`, silently dropping the checkbox.
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [

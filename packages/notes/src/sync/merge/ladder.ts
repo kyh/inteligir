@@ -12,7 +12,7 @@
 //   4. append-union — provably append-shaped divergence (creation collision,
 //      or the base a line-prefix of BOTH sides) → union of the tails.
 // No rung can lose a content line; the terminal answer is `conflict`, which
-// keeps today's conflict-copy behavior. We never emit in-file conflict
+// sends the engine to its conflict-copy sibling. We never emit in-file conflict
 // markers (`=======` reparses as a setext H1; `<<<<<<<` is invalid MDX).
 //
 // PURE and deterministic: no clock, no I/O, no hashing — same inputs, same
@@ -94,7 +94,7 @@ function diff3Clean(base: string, local: string, remote: string): string | null 
 /**
  * Run the ladder over one file's three states. Returns the merged BYTES (the
  * caller hashes them: equal to the remote hash → local write only, else push)
- * or `conflict`, which means "do exactly what we did before this existed".
+ * or `conflict`, which tells the engine to write a conflict-copy sibling.
  */
 export function mergeLadder(input: {
   base: MergeBase;
@@ -121,7 +121,7 @@ export function mergeLadder(input: {
   }
 
   // 3. Key-wise frontmatter merge (bodies byte-equal). Refused outright on an
-  // UNAVAILABLE base (legacy manifest entry, blob gone): treating it as empty
+  // UNAVAILABLE base (the base bytes are not held): treating it as empty
   // would resurrect keys a peer deleted — one conflict copy, then healed.
   if (input.base.kind !== "unavailable") {
     const merged = mergeFrontmatterOnly(base, local, remote);

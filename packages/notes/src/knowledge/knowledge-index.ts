@@ -9,7 +9,7 @@
 // engine's behavior in core tests and stays the drop-in for any future surface
 // (React Native) that can't carry a SQLite binding.
 //
-// DO NOT DELETE as "unused in production" — audits reach for that repeatedly.
+// DO NOT DELETE it as "unused in production".
 // @repo/notes carries no sqlite dependency ON PURPOSE (it is the pure sharing
 // seam; SqlDriver is injected by each platform), so this is the ONLY way the
 // package can test its own knowledge engine. Roughly 1,200 lines of tests for

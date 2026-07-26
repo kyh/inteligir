@@ -5,6 +5,15 @@ on:
   push:
     branches: [main]
 
+# The repo default for GITHUB_TOKEN is write-scoped, and a workflow that
+# declares no `permissions:` inherits that default wholesale. Nothing in this
+# gate touches the repo — it checks out the tree, installs, and runs turbo — so
+# pin it to the one scope checkout needs. Worth stating explicitly rather than
+# leaning on the fork rule: the `pull_request` leg already gets a read-only
+# token for fork PRs, but the `push` to main leg does not.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -13,11 +22,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -27,7 +36,7 @@ jobs:
       # instead of rebuilding. Keyed by SHA with a prefix fallback so a run
       # always starts from the most recent cache on this branch.
       - name: Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
@@ -74,11 +83,11 @@ jobs:
   test-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm

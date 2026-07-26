@@ -22,10 +22,29 @@
       frame-src allows the vault-app: scheme so HTML Apps (vault .html files)
       render in their sandboxed iframe; the app document itself gets an opaque
       origin (sandbox has no allow-same-origin) and can't reach the host.
+
+      frame-src ALSO allows bare https:, and connect-src likewise. This is
+      deliberate and it is the widest grant in this policy, so read before
+      narrowing it:
+      - Three shipped MDX vocabulary nodes render remote https iframes —
+        <file> (editor/nodes/pdf-node.tsx), <video> (youtube-node.tsx) and
+        <media_embed> (embed-node.tsx). The embed dialog
+        (embed-url-dialog.tsx) promises "any page", so an origin allow-list
+        would silently narrow a documented product promise.
+      - connect-src carries https: for react-tweet, whose non-Next data path
+        hardcodes a fetch to https://react-tweet.vercel.app/api/tweet/:id.
+      Drop the https: grants and all four features go dead in the packaged
+      app, and the PDF sub-frame gate in navigation-guard.ts never gets a
+      frame to fire on. Those runtime gates are THE ONLY NARROWING left — the
+      http(s) scheme gate on note-authored URLs and the PDF content gate must
+      stay; deleting either re-opens exactly what this policy does not block.
+      Keep this policy and apps/desktop/dev/index.html in sync — a harness
+      running under a looser CSP than the app hides violations until they
+      reach a packaged build.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src vault-app:"
+      content="default-src 'self'; script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self' ws://localhost:* ws://127.0.0.1:* https:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src vault-app: https:"
     />
   </head>
   <body>

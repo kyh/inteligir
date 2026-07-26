@@ -24,7 +24,7 @@ import { basenamePath } from "@repo/notes/knowledge/vault-path";
  * padding clears the pinned composer.
  */
 export function EditorPane() {
-  // Narrow selectors (#470): the pane's mount decision depends on the doc's
+  // Narrow selectors: the pane's mount decision depends on the doc's
   // kind/path/surface — never on the content buffer, so typing re-renders
   // only the NotePane below.
   const kind = useOpenNote((s) => s.openDoc.kind);
@@ -91,8 +91,9 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       return;
     }
     // Validate the would-be basename (title + extension) before any rename: a
-    // `/` used to silently create folders, and `: * ? " < > |` mint names that
-    // break on Windows/sync. Reject + rollback + toast — never sanitize.
+    // an unchecked `/` silently creates folders, and `: * ? " < > |` mint
+    // names that break on Windows/sync. Reject + rollback + toast — never
+    // sanitize.
     const verdict = checkNoteName(`${next}${ext}`);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));
@@ -188,7 +189,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           path={path}
           value={content}
           onChange={(md) => editNote(path, md)}
-          // Teardown settle (#374): route by the path THIS editor served —
+          // Teardown settle: route by the path THIS editor served —
           // the pane unmounts on note switch, when the open note may
           // already differ, so the bytes carry their own path.
           onSettled={(md) => editNote(path, md)}

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
-// The reducer is the SHARED @repo/bridge fold now (it was extracted from
-// this app verbatim); these assertions are intentionally byte-identical to the
-// pre-extraction suite — they are the proof mobile behavior didn't change.
+// The reducer is the SHARED @repo/bridge fold, driven here exactly as this app
+// drives it: these assertions are mobile's guard that a change to the shared
+// fold cannot silently alter what the phone renders.
 import {
   appendNotice,
   appendUser,

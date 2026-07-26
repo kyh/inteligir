@@ -38,8 +38,10 @@ src/
 ## Invariants
 
 - **Install fails closed.** Every release artifact's SHA-256 is pinned in
-  `executor-daemon.ts`; a tampered or re-uploaded release refuses to install
-  (upstream re-uploaded every v1.5.4 asset in place once — the pins caught it).
+  `executor-daemon.ts`; a tampered release, or one upstream re-uploaded in
+  place under the same tag, refuses to install rather than running unverified
+  code. A sudden wave of install failures is that guard working — audit and
+  re-pin, never skip verification.
 - **Pinned port 47888.** The OAuth redirect URI users whitelist in Google Cloud
   must survive restarts. If taken, the daemon falls back to an auto-picked port
   — everything works except externally whitelisted redirect URIs.

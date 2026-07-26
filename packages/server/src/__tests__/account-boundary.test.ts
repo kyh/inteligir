@@ -1,12 +1,12 @@
 // ---------------------------------------------------------------------------
-// Account-boundary guard (#459): the Better Auth account gates ONLY cloud
+// Account-boundary guard: the Better Auth account gates ONLY cloud
 // saves. This test walks the repo's source and asserts every reference to the
 // account layer — the SyncAccount client, its session file, the sign-in/out
 // Bridge channels, and the `signedIn` state — lives inside the sync layer or
 // the Account/Sync settings sections. Any other feature reaching for the
 // account (AI, editor, delegation, vault, …) fails here BEFORE it can ship a
-// gate the product forbids. The import-direction half of the decouple is also
-// pinned: the provider layer never imports sync, and sync never imports the
+// gate the product forbids. The import direction is pinned too:
+// the provider layer never imports sync, and sync never imports the
 // provider layer — so provider disconnect and account sign-out CANNOT touch
 // each other's storage.
 // ---------------------------------------------------------------------------
@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 
 /** Source trees the guard sweeps (product code on every platform) — DERIVED
  * from the filesystem (every `packages/<p>/src` + `apps/<a>/src`, plus

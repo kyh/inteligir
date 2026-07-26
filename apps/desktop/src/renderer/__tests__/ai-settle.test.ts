@@ -1,4 +1,4 @@
-// Teardown of a pending AI suggestion session (#374) — typing the user
+// Teardown of a pending AI suggestion session — typing the user
 // interleaves during a review rides ONLY the live editor value (the save
 // buffer is frozen), so abandoning the session must resolve deterministically:
 // reject-all reverts ONLY the suggestion-marked ranges — the user's typing

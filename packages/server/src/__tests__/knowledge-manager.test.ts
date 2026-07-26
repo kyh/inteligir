@@ -3,7 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
+// The manager hydrates through the SQL store's paged cursor, so the
+// fakes below wrap `SqlKnowledgeStore`, not the narrower `KnowledgeStore`
+// port — spreading the real store keeps `hydrate` wired to the real DB.
+import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 
 import { KnowledgeManager } from "../knowledge/knowledge-manager";
 import { createSqliteKnowledgeStore } from "../knowledge/sqlite-knowledge-store";
@@ -19,7 +22,7 @@ let manager: KnowledgeManager;
 let counts: { upsertDoc: number; updateFingerprint: number };
 
 /** Wrap a store so tests can count the writes that reach it. */
-function countingStore(store: KnowledgeStore): KnowledgeStore {
+function countingStore(store: SqlKnowledgeStore): SqlKnowledgeStore {
   return {
     ...store,
     upsertDoc: (row, body) => {
@@ -33,7 +36,7 @@ function countingStore(store: KnowledgeStore): KnowledgeStore {
   };
 }
 
-function newManager(openStore?: (r: string) => KnowledgeStore): KnowledgeManager {
+function newManager(openStore?: (r: string) => SqlKnowledgeStore): KnowledgeManager {
   return new KnowledgeManager(
     () => vault,
     () => updates++,
@@ -244,7 +247,7 @@ describe("KnowledgeManager", () => {
 
   it("answers instantly from the persisted projection on a relaunch (zero re-parses)", async () => {
     const dbPath = path.join(tmp, "index.sqlite");
-    const openOnDisk = (r: string): KnowledgeStore =>
+    const openOnDisk = (r: string): SqlKnowledgeStore =>
       countingStore(createSqliteKnowledgeStore(dbPath, r));
 
     manager.dispose();
@@ -274,7 +277,7 @@ describe("KnowledgeManager", () => {
 
   it("recovers by rebuilding when the store throws mid-pass", async () => {
     let failNext = false;
-    const openFlaky = (r: string): KnowledgeStore => {
+    const openFlaky = (r: string): SqlKnowledgeStore => {
       const store = createSqliteKnowledgeStore(":memory:", r);
       return {
         ...store,

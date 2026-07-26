@@ -1,8 +1,7 @@
-// Host-side connector install/uninstall orchestration (#461 Phase 4a) — the
-// step sequence, rollback-on-failure, and re-entrancy guard, driven over fake
+// Host-side connector install/uninstall orchestration — the step sequence,
+// rollback-on-failure, and re-entrancy guard, driven over fake
 // ConnectorInstallOps (the executor-client / browser-open seam the handler
-// binds for real). Ported from the renderer's connector-install tests when the
-// orchestration moved server-side.
+// binds for real).
 
 import { describe, expect, it, vi } from "vitest";
 

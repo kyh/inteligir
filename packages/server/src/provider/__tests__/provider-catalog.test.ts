@@ -89,7 +89,7 @@ describe("normalizeSelection (read boundary — heals, never throws)", () => {
   it("falls back to the provider's default model on an unknown model", () => {
     expect(normalizeSelection({ provider: "anthropic", modelId: "gpt-5.5" })).toEqual({
       provider: "anthropic",
-      modelId: "claude-sonnet-4-6",
+      modelId: "claude-sonnet-5",
     });
   });
 });
@@ -100,7 +100,7 @@ describe("applySelectionPatch (Settings — loud on bad input)", () => {
   it("switching provider without a model moves to that provider's default", () => {
     expect(applySelectionPatch(current, { provider: "anthropic" })).toEqual({
       provider: "anthropic",
-      modelId: "claude-sonnet-4-6",
+      modelId: "claude-sonnet-5",
     });
   });
 

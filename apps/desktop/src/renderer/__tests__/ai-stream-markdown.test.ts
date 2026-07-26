@@ -1,4 +1,4 @@
-// Streaming markdown insert (#370) — generate-intent deltas land as PARSED
+// Streaming markdown insert — generate-intent deltas land as PARSED
 // blocks (headings/lists/bold/fences), not literal text in one paragraph.
 // Contracts: chunked and one-shot streams converge; mid-stream bytes stay
 // frozen (transient gate + serializer defense); discard (undo unwind)

@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 const TEARDOWN_FILE = path.join(REPO_ROOT, "packages/server/src/boot/agent-wiring.ts");
 
 /** Teardowns NOT called by name in agent-wiring.ts, with the reason each is

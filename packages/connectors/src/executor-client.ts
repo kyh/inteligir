@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// Typed client over the executor daemon HTTP API (v1.5.4, flat /api/* routes —
-// the v1 per-scope prefix is gone). Thin fetch wrappers around the endpoints
+// Typed client over the executor daemon HTTP API (v1.5.4, flat /api/* routes).
+// Thin fetch wrappers around the endpoints
 // we use; the daemon connection (base URL + bearer token + redirect URI) comes
 // from ExecutorDaemon. Responses are TypeBox-validated at this boundary.
 // Throws ExecutorClientError on a non-2xx response.
@@ -119,7 +119,7 @@ async function request<S extends TSchema>(
   return body;
 }
 
-// ---- integrations (the catalog; was v1 "sources") ---------------------------
+// ---- integrations (the catalog) ---------------------------------------------
 
 export function listIntegrations(): Promise<ExecutorIntegration[]> {
   return request("GET", "/integrations", Type.Array(ExecutorIntegrationSchema));

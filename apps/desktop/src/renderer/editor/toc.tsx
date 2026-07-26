@@ -38,11 +38,31 @@ function editorHeadingEls(editor: ReturnType<typeof useEditorRef>): HTMLElement[
   return root ? [...root.querySelectorAll<HTMLElement>("h1, h2, h3")] : [];
 }
 
+// collectHeadings walks the whole document and returns a FRESH array, and
+// useEditorSelector's default equality is `===` — so without this the outline
+// re-renders and the scrollspy Effect below tears down and re-adds its scroll
+// listener (plus a layout read per heading) on every keystroke and every caret
+// move. Compare structurally instead. `title` is part of the comparison on
+// purpose: typing inside a heading changes no id or depth, but the outline
+// still has to show the new text.
+function sameHeadings(a: readonly HeadingItem[], b: readonly HeadingItem[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((h, i) => {
+    const other = b[i];
+    return (
+      other !== undefined && h.id === other.id && h.depth === other.depth && h.title === other.title
+    );
+  });
+}
+
 export function TableOfContents() {
   const editor = useEditorRef();
   // useEditorSelector recomputes when the editor changes; read the outer editor
-  // ref inside so the helper keeps its concrete PlateEditor type.
-  const headings = useEditorSelector(() => collectHeadings(editor), []);
+  // ref inside so the helper keeps its concrete PlateEditor type. The structural
+  // equalityFn is load-bearing — see sameHeadings.
+  const headings = useEditorSelector(() => collectHeadings(editor), [], {
+    equalityFn: sameHeadings,
+  });
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Scrollspy: the last heading scrolled above the header line is "active". A

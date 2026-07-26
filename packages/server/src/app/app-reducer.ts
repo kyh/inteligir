@@ -4,7 +4,7 @@
 //
 // App lifecycle only: starting → setting_up → ready, plus error/RETRY and the
 // explicit RESET_APP_DATA full wipe. There is no login phase — a guest boots
-// straight through SETUP to the workspace (#459); provider/account auth are
+// straight through SETUP to the workspace; provider/account auth are
 // feature-level concerns outside this machine.
 // ---------------------------------------------------------------------------
 

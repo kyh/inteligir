@@ -52,7 +52,7 @@ type Props = {
   value: string;
   /** Called with serialized markdown on every change. */
   onChange: (markdown: string) => void;
-  /** Teardown escape hatch (#374): called with the settled markdown when the
+  /** Teardown escape hatch: called with the settled markdown when the
    * editor unmounts while an AI suggestion session was still pending
    * (reject-all — the user's typing survives, the AI marks disappear). The
    * OWNER must route these bytes by `path`: by unmount time the open note
@@ -128,8 +128,8 @@ export function MarkdownEditor({
   // stale document and the next edit would serialize it back over the newer
   // file. Flush any pending serialize FIRST: the user's in-debounce keystroke
   // must reach the controller before the external content overwrites the
-  // surface and resets `seeded` — matching the old synchronous behavior where
-  // every keystroke had already propagated by reload time.
+  // surface and resets `seeded` — every keystroke has to have propagated by
+  // the time a reload lands.
   useEffect(() => {
     if (value === lastValueProp.current) return;
     scheduler.flush();
@@ -153,7 +153,7 @@ export function MarkdownEditor({
   // editor's `path`, so it no-ops if the open note already changed.
   useEffect(() => () => scheduler.flush(), [scheduler]);
 
-  // ---- Transient-AI settle seam (#374) -------------------------------------
+  // ---- Transient-AI settle seam --------------------------------------------
   // While a suggestion session pends, autosave is frozen (the gate below) and
   // any typing the user interleaves exists ONLY in this editor's value.
   // Abandoning the session must not drop it: settle resolves reject-all (the

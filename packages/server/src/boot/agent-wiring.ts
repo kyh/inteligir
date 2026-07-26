@@ -163,7 +163,7 @@ export async function seedAgentResources(onProgress: (p: SetupProgress) => void)
  * i.e. faux), then lift any vault write suspension a teardown put in place —
  * after successful re-auth the workspace may materialize again on the next
  * write. Reached from reauthenticate (Settings "Re-authenticate" + the
- * empty-turn dialog); app boot never runs it (#459: no login gate). */
+ * empty-turn dialog); app boot never runs it — there is no login gate. */
 export async function loginAgent(): Promise<void> {
   await loginSelectedProvider();
   resumeVaultWrites();
@@ -172,9 +172,9 @@ export async function loginAgent(): Promise<void> {
 /** The FULL ~/.inteligir wipe — the app-machine's RESET effect ("Reset app
  * data"). This is deliberately the ONLY place provider credentials, the sync
  * account, and every other app store die together; provider disconnect and
- * account sign-out are independent actions that touch only their own storage
- * (#459 teardown decouple). Leaves vault writes SUSPENDED — the RESET effect
- * resumes them before re-seeding.
+ * account sign-out are independent actions that touch only their own storage.
+ * Leaves vault writes SUSPENDED — the RESET effect resumes them before
+ * re-seeding.
  *
  * COMPLETENESS: every disposable host singleton MUST appear here (directly or
  * via a cascaded reset) — teardown-completeness.test.ts enforces it. A

@@ -76,17 +76,18 @@ function toVariant(raw: string): AlertVariant | null {
   return ALERT_VARIANTS.find((variant) => variant === upper) ?? null;
 }
 
-/** Marker-line prefix of `text`, or null. `hidden` = chars to hide (marker +
- * trailing soft break). */
 /** The variant's presentation (icon, tint, label). Exported so the read-only
  * static path (transclusion.tsx) renders an identical badge instead of
- * re-deriving the vocabulary — #382 was exactly that drift. */
+ * re-deriving the vocabulary — a second copy drifts, and the drift shows up
+ * as a transcluded card that disagrees with the live editor. */
 export function alertPresentation(variant: AlertVariant): (typeof ALERTS)[AlertVariant] {
   return ALERTS[variant];
 }
 
 export type { AlertVariant };
 
+/** Marker-line prefix of `text`, or null. `hidden` = chars to hide (marker +
+ * trailing soft break). */
 export function alertMarkerPrefix(text: string): { hidden: number; variant: AlertVariant } | null {
   const match = ALERT_MARKER_RE.exec(text);
   const variant = match ? toVariant(match[1] ?? "") : null;

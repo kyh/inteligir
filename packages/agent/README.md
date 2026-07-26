@@ -32,7 +32,7 @@ src/
                         #   peekaboo, privacy (one folder + one line to add)
   browser/  peekaboo/   # CLI-backed tools (agent-browser, native macOS automation)
   code-mode/            # execute/resume over the executor daemon (ports.executor)
-  knowledge-tools/      # search_vault, get_backlinks, related_notes, rename_note
+  knowledge-tools/      # search_vault, get_backlinks, get_links, related_notes, rename_note
   privacy/              # gate.ts (pure decision core) + extension.ts (tool_call
                         #   hook) + pi-path-parity.ts (pi's path resolution, replicated)
   provider/faux-provider.ts  # pi-ai faux stub behind INTELIGIR_FAUX_AGENT
@@ -54,9 +54,10 @@ resources/agent/        # bundled AGENTS.md + skills, seeded into ~/.inteligir
   a throwing handler still blocks. bash/execute/browser/peekaboo get a
   best-effort literal-path screen ONLY — not a security boundary.
 - **Path parity**: the gate resolves path args with a line-for-line replica of
-  pi's unexported path-utils (`privacy/pi-path-parity.ts`) — resolving the raw
-  string was a confirmed bypass (`@vault/…`, NBSP filenames). Touch only in
-  lockstep with the drift battery; re-verify per pi version bump.
+  pi's unexported path-utils (`privacy/pi-path-parity.ts`). Resolving the raw
+  string instead IS a bypass — the gate classifies one file while pi's tool
+  opens another (`@vault/…`, NBSP filenames). Touch only in lockstep with the
+  drift battery; re-verify per pi version bump.
 - **Checkpoint seam**: allowed in-vault doc writes capture an undo point
   strictly after privacy allows and before pi executes; a capture failure
   blocks the write (no AI edit without an undo point).

@@ -283,13 +283,13 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Inherited by everything (portals included) — the fluid site's font
-       smoothing; `subpixel-antialiased` on a subtree opts back out. */
+    /* Inherited by everything (portals included);
+       `subpixel-antialiased` on a subtree opts back out. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Native scrollbar theme — the fluid site's recipe: a 10px hit area whose
+  /* Native scrollbar theme: a 10px hit area whose
      3px transparent border + content-box clip leaves a ~4px visible thumb;
      low-contrast, darkens on hover. color-mix on --foreground adapts to dark
      mode automatically. */

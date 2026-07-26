@@ -2,8 +2,8 @@
 // Vault file identity — the atom of the sync protocol.
 //
 // @repo/notes is PURE: no node, no dom, no fs, no react. It runs unchanged in a
-// Cloudflare Worker (the future coordinator), React Native (the future mobile
-// client), and the desktop renderer. Keep it that way — nothing here may touch
+// Cloudflare Worker (the coordinator), React Native (the mobile client), and
+// the desktop renderer. Keep it that way — nothing here may touch
 // a filesystem, a clock, or crypto. Values (hashes, timestamps) are computed by
 // the caller on their platform and passed in.
 // ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ function hasControlChar(value: string): boolean {
  * True when `value` is a well-formed vault-relative path safe to hand to a
  * platform write sink. Use at a transport boundary before trusting a path that
  * arrived over the network (or from a persisted manifest cache) — it is the
- * enforcement of the `VaultPath` contract that was previously only documented.
+ * ENFORCEMENT of the `VaultPath` contract, not merely its documentation.
  *
  * Rejects the traversal / escape vectors a confined vault must never resolve:
  * an absolute path (leading `/`), any `..` or `.` segment, an empty segment

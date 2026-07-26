@@ -268,8 +268,8 @@ function createWindow(backgroundColor: string): BrowserWindow {
 
   // Top-level navigation is pinned to the loaded origin (the electron-vite
   // dev server in dev, the packaged file:// bundle in production) — the
-  // allow/block policy lives in navigation-guard.ts (#433, pure and
-  // unit-tested); these closures only wire its verdicts to webContents.
+  // allow/block policy lives in navigation-guard.ts (pure and unit-tested);
+  // these closures only wire its verdicts to webContents.
   // `loadedUrlPrefix` is set at load time below.
   let loadedUrlPrefix = "";
   const guardNavigation = (event: Electron.Event, url: string): void => {
@@ -284,7 +284,7 @@ function createWindow(backgroundColor: string): BrowserWindow {
   window.webContents.on("will-redirect", guardNavigation);
 
   // A `.pdf` sub-frame that answers with something other than a PDF is
-  // attacker markup in the one frame the editor cannot sandbox (#467). Main
+  // attacker markup in the one frame the editor cannot sandbox. Main
   // sees the real Content-Type, so it can confirm what the renderer could only
   // guess from the URL; the verdict itself is pure + unit-tested.
   window.webContents.session.webRequest.onHeadersReceived((details, callback) => {

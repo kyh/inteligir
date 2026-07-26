@@ -1,12 +1,13 @@
 // ---------------------------------------------------------------------------
-// runTextTurn — the shared core of "run one isolated agent text turn". The same
+// runTextTurn — the shared core of "run one isolated agent text turn": the
 // subscribe → capture streamed deltas → sendMessage → waitForIdle(timeout) →
-// interrupt-on-timeout block was hand-copied across the inline-AI generator,
-// intent classifier, ghost-text completer, and delegation runner. This owns
+// interrupt-on-timeout block every caller needs (the inline-AI generator,
+// intent classifier, ghost-text completer, and delegation runner). This owns
 // ONLY the turn mechanics; every caller keeps its own supersession/epoch/queue
 // bookkeeping and post-processes the returned text (trim, empty-reply strings,
 // parse, staleness/stop guards, custom timeout messages) itself — that's
-// exactly where the copies legitimately diverged.
+// exactly where their needs legitimately diverge, so pulling any of it in
+// here would just push per-caller flags across the seam.
 // ---------------------------------------------------------------------------
 
 import { parseAgentEvent } from "@repo/bridge/agent-event-parser";

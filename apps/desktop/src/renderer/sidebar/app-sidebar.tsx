@@ -31,6 +31,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { confirmVaultDelete } from "@renderer/components/confirm-vault-delete";
 import { ThemeToggle } from "@renderer/components/theme-toggle";
 import { SettingsDialog } from "@renderer/settings/settings-dialog";
+import { TagsSection } from "@renderer/sidebar/tags-section";
 import { flattenTree, resolveTreeKey, type FlatRow } from "@renderer/sidebar/tree-navigation";
 import { useResizableSidebar } from "@renderer/sidebar/use-resizable-sidebar";
 import { buildVaultTree } from "@renderer/sidebar/vault-tree";
@@ -59,7 +60,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const { entries, folderName } = useVaultListing();
   const { openFile, createFile, renameEntry, deleteEntry, changeFolder } = useVaultActions();
   // The tree re-renders on navigation + structural refresh — never on typing
-  // (the open note's CONTENT is not a subscription here, only its path, #470).
+  // (the open note's CONTENT is not a subscription here, only its path).
   const selectedPath = useOpenNote((s) => s.editor.path);
 
   const { handlePointerDown } = useResizableSidebar();
@@ -133,7 +134,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
   // Handlers hoisted into ONE stable object (every dep is a stable action or
   // setState), so a memoized TreeRow only re-renders when ITS row/selection/
-  // rename state changes — not whenever the tree does (#470 interim win).
+  // rename state changes — not whenever the tree does.
   const onCommitRename = useCallback(
     (from: string, to: string) => {
       setRenaming(null);
@@ -256,6 +257,10 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             </SidebarMenu>
           )}
         </SidebarGroup>
+        {/* Tags sit UNDER the tree: the file tree is the primary navigation
+         * and must keep the top of the pane; tags are a secondary, collapsible
+         * browse path into the same notes. */}
+        <TagsSection />
       </SidebarContent>
 
       <SidebarFooter className="flex-row items-center justify-between border-t border-sidebar-border p-2">
@@ -307,7 +312,7 @@ function IndentGuides({ depth }: { depth: number }) {
 
 // Memoized: a tree render (nav, structural refresh, focus move) re-renders
 // only the rows whose selected/renaming/tabbable actually changed — the
-// handlers object is stable and `rows` is memoized upstream (#470).
+// handlers object is stable and `rows` is memoized upstream.
 const TreeRow = memo(function TreeRow({
   row,
   tabbable,
@@ -327,7 +332,7 @@ const TreeRow = memo(function TreeRow({
   // Inline rename occupies the row as an input, indented to match.
   if (node.type === "file" && renaming) {
     return (
-      <SidebarMenuItem>
+      <SidebarMenuItem role="none">
         <Input
           autoFocus
           value={draft}
@@ -344,6 +349,13 @@ const TreeRow = memo(function TreeRow({
     );
   }
 
+  // `role="treeitem"` stays on the BUTTON, not the <li>: the roving-tabindex
+  // querySelector in handleTreeKeyDown targets whatever carries
+  // `data-tree-path`, and Enter/Space activation is deliberately left to the
+  // native <button>. The <li> is therefore marked presentational so the
+  // treeitem is a direct child of role="tree" — APG requires tree children to
+  // be treeitem/group, and a listitem in between breaks level/position
+  // announcements for every row.
   const commonButtonProps = {
     size: "sm" as const,
     "data-tree-path": node.path,
@@ -355,7 +367,7 @@ const TreeRow = memo(function TreeRow({
 
   if (node.type === "folder") {
     return (
-      <SidebarMenuItem>
+      <SidebarMenuItem role="none">
         <SidebarMenuButton
           {...commonButtonProps}
           aria-expanded={row.expanded}
@@ -377,7 +389,7 @@ const TreeRow = memo(function TreeRow({
   };
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem role="none">
       <SidebarMenuButton
         {...commonButtonProps}
         isActive={selected}
@@ -399,7 +411,15 @@ const TreeRow = memo(function TreeRow({
         {node.kind === "doc" ? <FileTextIcon /> : <FileIcon />}
         <span>{node.name}</span>
       </SidebarMenuButton>
+      {/* Mouse-only hover affordances, hidden from the a11y tree. They are
+       * already outside the keyboard path (tabIndex -1, and resolveTreeKey
+       * models no rename/delete key), and leaving them exposed would put two
+       * non-treeitem children inside role="tree" on every row — the structural
+       * defect role="none" above exists to close. Both actions have keyboard
+       * routes elsewhere: the page-title <h1> renames, the note header
+       * deletes. Give the tree real F2/Delete keys and this comes back. */}
       <SidebarMenuAction
+        aria-hidden
         showOnHover
         title="Rename"
         className="right-7"
@@ -412,6 +432,7 @@ const TreeRow = memo(function TreeRow({
         <PencilIcon />
       </SidebarMenuAction>
       <SidebarMenuAction
+        aria-hidden
         showOnHover
         title="Delete"
         className="hover:text-destructive"

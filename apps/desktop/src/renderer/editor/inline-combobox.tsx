@@ -175,7 +175,7 @@ function InlineCombobox({
   });
 
   // Chromium strands the caret at 0 on the first IME-style commit into the
-  // freshly focused input ("deep" → "eepd", issue #367); the pure reconciler
+  // freshly focused input ("deep" → "eepd"); the pure reconciler
   // detects that signature and moves the caret where a native keystroke would
   // have left it, before React commits the controlled value.
   const onInputValueChange = React.useCallback(
@@ -276,9 +276,7 @@ function InlineCombobox({
         onOpenChange={() => undefined}
         open={open}
       >
-        <InlineComboboxContext.Provider value={contextValue}>
-          {children}
-        </InlineComboboxContext.Provider>
+        <InlineComboboxContext value={contextValue}>{children}</InlineComboboxContext>
       </Combobox.Root>
     </span>
   );

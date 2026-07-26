@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const PACKAGE_ROOT = path.resolve(__dirname, "../..");
+const PACKAGE_ROOT = path.resolve(import.meta.dirname, "../..");
 const REPO_ROOT = path.resolve(PACKAGE_ROOT, "../..");
 const COMPONENTS_DIR = path.join(PACKAGE_ROOT, "src", "components");
 

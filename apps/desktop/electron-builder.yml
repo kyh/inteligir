@@ -57,6 +57,29 @@ mac:
     NSScreenCaptureUsageDescription: Inteligir captures the screen so the agent can see and interact with native applications.
 dmg:
   artifactName: Inteligir-${version}-${arch}.${ext}
+# Electron fuses — flipped in the binary pre-signing (app-builder-lib
+# platformPackager). Defence in depth on a notarized, TCC-granted app: without
+# these the shipped binary will happily run arbitrary JS as node
+# (ELECTRON_RUN_AS_NODE), accept --inspect, and honour NODE_OPTIONS. Safe to
+# disable for this app: nothing in first-party source reads ELECTRON_RUN_AS_NODE
+# or NODE_OPTIONS, and there is no process.fork/utilityProcess (the executor is
+# a separate spawned binary, unaffected).
+#
+# grantFileProtocolExtraPrivileges is deliberately LEFT ALONE — the packaged
+# renderer still loads over file:// (main/index.ts), so revoking it breaks the
+# app. Revisit together with an app:// migration.
+#
+# MUST be validated with a real packaged build before shipping — hardened
+# runtime is not applied by `pnpm dev:desktop`, so this cannot be exercised in
+# dev. enableEmbeddedAsarIntegrityValidation + onlyLoadAppFromAsar are the two
+# that fail CLOSED (the app will not launch) on an asar hash mismatch.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: true
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
 npmRebuild: false
 publish:
   provider: github

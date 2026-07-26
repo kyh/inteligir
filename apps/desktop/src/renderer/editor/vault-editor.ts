@@ -1,13 +1,13 @@
 // VaultEditorController — the open-file editing session for the Vault panel,
-// extracted from the React component into a plain, synchronous, unit-testable
-// state machine.
+// held outside React as a plain, synchronous, unit-testable state machine.
 //
-// Why: the panel accreted a pile of refs (selected/content/dirty/saving/readSeq/
-// root) that only synced on render, and every async edge (save-vs-reload,
-// open-vs-reload, root switch, delete-vs-save, deleted-elsewhere) needed its own
-// guard. Holding the canonical state in instance fields makes those updates
-// synchronous — eliminating the render-timing class of bugs — and lets the races
-// be tested directly with deferred IO fakes.
+// Why: inside the component this state is a pile of refs (selected/content/
+// dirty/saving/readSeq/root) that only sync on render, and every async edge
+// (save-vs-reload, open-vs-reload, root switch, delete-vs-save,
+// deleted-elsewhere) needs its own guard. Holding the canonical state in
+// instance fields makes those updates synchronous — eliminating the
+// render-timing class of bugs — and lets the races be tested directly with
+// deferred IO fakes.
 //
 // The controller owns: root, the open path, its content, dirty, and saving.
 // The React component owns pure UI (file list, filter, raw/rich mode) and the

@@ -2,9 +2,9 @@
 // Dead-channel guard. Adding an IPC channel costs three edits (registry entry,
 // host handler, fixture stub) and the compiler enforces all three — so a
 // channel whose CALLER later disappears leaves a fully-implemented,
-// fully-typechecked, permanently unreachable surface behind. Nothing in the
-// gate noticed: knip sees the registry entry used by the handler map, and the
-// handler used by the registry.
+// fully-typechecked, permanently unreachable surface behind. Nothing else in
+// the gate notices: knip sees the registry entry used by the handler map, and
+// the handler used by the registry.
 //
 // "Supply" files are excluded from the search — the registry itself, the host
 // handler registrations, and the dev-harness fixture Bridge all mention every
@@ -25,7 +25,7 @@ import path from "node:path";
 
 import { IPC_METHODS } from "@repo/bridge/ipc-registry";
 
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 
 /** Files that mention every method by construction — supply, not demand. */
 const SUPPLY = new Set(

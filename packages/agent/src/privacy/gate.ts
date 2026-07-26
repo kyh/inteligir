@@ -50,8 +50,9 @@ export type GateEnv = {
    * maps a tool's raw `path` argument to the target pi's file tools will
    * ACTUALLY open — `@`-prefix strip, unicode-space mapping, `~` expansion,
    * and the on-disk filename-variant fallbacks. The gate must never resolve
-   * the raw string itself: gate-vs-tool resolution divergence was a confirmed
-   * private-content bypass (`@vault/…`, NBSP filenames). Wired to
+   * the raw string itself: any gate-vs-tool resolution divergence IS a
+   * private-content bypass — the gate classifies one file while pi opens
+   * another (`@vault/…`, NBSP filenames). Wired to
    * pi-path-parity.ts's resolvePiToolPath; injected so this module stays
    * fs-free and the decision matrix unit-testable. */
   normalizePath: (inputPath: string) => string;
@@ -81,12 +82,12 @@ const SCAN_TOOLS = new Set(["grep", "find", "ls"]);
 /** Curated knowledge tools: privacy is enforced at the KnowledgePort (private
  * hits dropped entirely + live re-probe), so the gate leaves them alone — a
  * path-shaped arg here is a lookup key, not a read. */
-const KNOWLEDGE_TOOLS = new Set(["search_vault", "get_backlinks", "related_notes"]);
+const KNOWLEDGE_TOOLS = new Set(["search_vault", "get_backlinks", "get_links", "related_notes"]);
 
 /** Gate one tool call. `input` is the already-validated tool arguments (pi
  * validates before the tool_call hook fires). Unknown tools pass — the
- * curated read surfaces (search_vault/get_backlinks/related_notes) filter
- * privately at the KnowledgePort instead. */
+ * curated read surfaces (search_vault/get_backlinks/get_links/related_notes)
+ * filter privately at the KnowledgePort instead. */
 export function decideToolCall(
   call: { toolName: string; input: Record<string, unknown> },
   env: GateEnv,
@@ -167,7 +168,7 @@ function isUnder(target: string, root: string): boolean {
 function classifyPath(inputPath: string, env: GateEnv): Target {
   // FIRST resolve through pi's OWN normalization so the gate classifies the
   // file pi's tool will open, not the literal string the model typed — the
-  // raw input was the `@`/unicode-space/`~` bypass class (see GateEnv).
+  // raw input is the `@`/unicode-space/`~` bypass class (see GateEnv).
   const resolved = path.resolve(env.cwd, env.normalizePath(inputPath));
   if (env.vaultRealRoot === null) {
     // FAIL CLOSED (mustFix): with no verified root, a path under the ./vault

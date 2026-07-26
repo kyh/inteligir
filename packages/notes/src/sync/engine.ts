@@ -49,7 +49,7 @@ export type SyncIo = {
   remove(path: VaultPath): void;
   /** Cheap change-detection key for a file (e.g. "mtimeMs:size:ino"), or null
    * when unavailable. OPTIONAL — platforms without cheap stat omit it and the
-   * engine re-hashes every file (previous behavior). A stale fingerprint must
+   * engine re-hashes every file instead. A stale fingerprint must
    * be impossible: the key must change whenever content can have changed. */
   fingerprint?(path: VaultPath): string | null;
 };
@@ -279,7 +279,7 @@ export class SyncEngine {
     try {
       const local = await this.buildLocalManifest();
       const base = this.loadBase();
-      // MASS-DELETION GUARD (#429): an empty local listing against a non-empty
+      // MASS-DELETION GUARD: an empty local listing against a non-empty
       // last-synced base is treated as a failed/truncated vault read (root
       // unmounted, a crawl error), NEVER as the user having deleted every
       // file — reconcile would read each base path as a local delete and fan
@@ -447,8 +447,8 @@ export class SyncEngine {
     let base: MergeBase = { kind: "absent" };
     if (baseHash !== null) {
       const bytes = this.blobs.get(baseHash);
-      // A base manifest entry whose bytes we no longer (or never — legacy)
-      // hold is UNAVAILABLE, not absent: rungs that would guess refuse it.
+      // A base manifest entry whose bytes we do not hold (never captured, or
+      // pruned) is UNAVAILABLE, not absent: rungs that would guess refuse it.
       base = bytes === null ? { kind: "unavailable" } : { kind: "bytes", bytes };
     }
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -577,8 +577,8 @@ export class SyncEngine {
       const bytes = this.io.read(path);
       const contentHash = await this.hash(bytes);
       files.push({ path, contentHash });
-      // Every read+hash is a capture moment — this is ALSO what backfills a
-      // legacy base (pre-blob-store) with bytes for every still-converged file.
+      // Every read+hash is a capture moment — this is ALSO what backfills base
+      // bytes for still-converged files whose blob is missing from the shadow.
       this.captureBlob(path, contentHash, bytes);
       // Only cache when we have a fingerprint to validate future reuse against.
       if (fp !== null) this.hashCache.set(path, { fp, contentHash });

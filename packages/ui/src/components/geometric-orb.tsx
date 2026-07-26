@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree, extend } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, extend, type ThreeElement } from "@react-three/fiber";
 
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
@@ -9,6 +9,26 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 
 export type DisplayStatus = "idle" | "busy" | "error" | "starting" | "listening" | "speaking";
+
+/* r3f's documented extension point for a non-built-in element, kept next to the
+   `extend()` call that registers it (the r3f v9 docs' own pattern; a
+   `declare global { namespace JSX }` shim is the v8 spelling and does not
+   apply). It has to live in a MODULE rather than
+   an ambient .d.ts: consumers pull this file into their programs through the
+   `@repo/ui/*` paths mapping, which brings the module they import but never an
+   unreferenced declaration file sitting beside it. */
+declare module "@react-three/fiber" {
+  interface ThreeElements {
+    line2: ThreeElement<typeof Line2>;
+  }
+
+  /* CanvasProps `extends React.HTMLAttributes<HTMLDivElement>`, but that clause
+     conflicts with r3f's RenderProps event handlers under TS6, so the inherited
+     DOM attributes get dropped. Re-add the one this file passes to <Canvas>. */
+  interface CanvasProps {
+    className?: string;
+  }
+}
 
 extend({ Line2, LineMaterial, LineGeometry });
 
@@ -599,13 +619,12 @@ function OrbLine({
   );
   return (
     <group ref={ref}>
-      {/* Line2 from three/examples/jsm — extended via extend() at runtime */}
-      {React.createElement(
-        "line2",
-        {},
-        React.createElement("primitive", { object: geometry, attach: "geometry" }),
-        React.createElement("primitive", { object: material, attach: "material" }),
-      )}
+      {/* Line2 from three/examples/jsm — registered by the extend() call above
+          and typed by the ThreeElements augmentation next to it. */}
+      <line2>
+        <primitive object={geometry} attach="geometry" />
+        <primitive object={material} attach="material" />
+      </line2>
     </group>
   );
 }

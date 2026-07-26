@@ -1,7 +1,5 @@
 // Learn more: https://docs.expo.dev/guides/monorepos/
-const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
-const { FileStore } = require("metro-cache");
 const { withNativewind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
@@ -23,11 +21,13 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     : context.resolveRequest(context, moduleName, platform);
 };
 
-config.cacheStores = [
-  new FileStore({
-    root: path.join(__dirname, "node_modules", ".cache", "metro"),
-  }),
-];
+// No `cacheStores` override: @expo/metro-config installs a default FileStore
+// (ExpoMetroConfig.js) under os.tmpdir(). The previous override required
+// `metro-cache`, which apps/mobile has never declared — under pnpm's isolated
+// node_modules it did not resolve, so loadConfig() threw MODULE_NOT_FOUND and
+// `expo start` could not boot at all. Do not reintroduce it without adding the
+// dependency; nothing in `pnpm verify` covers this file (apps/mobile declares
+// no build script, so turbo never touches it).
 
 /** @type {import('expo/metro-config').MetroConfig} */
 module.exports = withNativewind(config);

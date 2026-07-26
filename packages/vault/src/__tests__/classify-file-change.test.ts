@@ -22,8 +22,8 @@ describe("classifyFileChange", () => {
 });
 
 describe("SelfSaveRegistry", () => {
-  // Fingerprints are the full `mtimeMs:size:ino` stat triple (#436) — keying
-  // on mtime alone swallowed external edits that collided on mtime.
+  // Fingerprints are the full `mtimeMs:size:ino` stat triple — keying on
+  // mtime alone swallows an external edit that collides on the same mtime.
   it("matches a recorded write at the same fingerprint and rejects a different one", () => {
     const reg = new SelfSaveRegistry(() => 1000);
     reg.record("a.md", "500:10:7");

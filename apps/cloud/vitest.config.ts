@@ -30,8 +30,17 @@ const TEST_SCHEMA = execFileSync(
 // same DO + R2 + D1 bindings wrangler.jsonc declares — so the DO's SQLite
 // storage, R2 blob store, and the D1 auth database are exercised for real.
 //
-// BETTER_AUTH_SECRET is a runtime secret (not in wrangler.jsonc), so it's absent from
-// the test env — inject a deterministic dummy so Better Auth can sign/verify.
+// BETTER_AUTH_SECRET holds a VALUE only at runtime (`wrangler secret put` /
+// .dev.vars, never committed), so the test env has to supply a deterministic
+// dummy for Better Auth to sign/verify with.
+const TEST_BETTER_AUTH_SECRET = "test-better-auth-secret-000000000000";
+// wrangler.jsonc declares the secret as required, and its loader checks
+// .dev.vars/.env/process.env — not miniflare's bindings. There is no .dev.vars
+// here (it's gitignored), so without this the suite prints a "Missing required
+// secrets" warning per test file that is purely an artefact of where the value
+// comes from. Same value either way; `??=` leaves a real env alone.
+process.env.BETTER_AUTH_SECRET ??= TEST_BETTER_AUTH_SECRET;
+
 export default defineConfig({
   plugins: [
     cloudflareTest({
@@ -39,7 +48,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TEST_SCHEMA,
-          BETTER_AUTH_SECRET: "test-better-auth-secret-000000000000",
+          BETTER_AUTH_SECRET: TEST_BETTER_AUTH_SECRET,
           // Tests hit the in-process Worker from one IP; keep the auth limiter
           // off so multi-user suites don't 429. Rate limiting is covered in prod.
           RATE_LIMIT_DISABLED: "true",

@@ -1,14 +1,14 @@
-// #439 — machine-enforce the editor-kit import acyclicity that six files
-// currently assert in prose.
+// Machine-enforce the editor-kit import acyclicity that the kit files also
+// assert in prose.
 //
 // `base-kit.ts` composes the Plate kit files, so a kit that EAGERLY imports
 // back into the workspace (vault-context, the open-note store, transclusion)
 // closes a cycle around the kits. The failure mode is vicious: a kit export
 // evaluates to `undefined` at module-init time, so the editor breaks
-// intermittently, far from the import that caused it. Today the only thing
-// preventing it is a comment in each of `transclusion.tsx`, `wiki-chip.tsx`,
-// `block-list.tsx`, `wiki-link-kit.tsx` and `wiki-input-key.ts` — oxlint and
-// knip do not detect cycles, so nothing in CI would catch a regression.
+// intermittently, far from the import that caused it. The comments in
+// `transclusion.tsx`, `wiki-chip.tsx`, `block-list.tsx`, `wiki-link-kit.tsx`
+// and `wiki-input-key.ts` state the rule but cannot enforce it — oxlint and
+// knip do not detect cycles, so this test is the only thing in CI that does.
 //
 // The rule the code actually relies on is that those reach-backs are LAZY
 // (`React.lazy(() => import(...))`), which breaks the cycle at runtime. So this
@@ -23,7 +23,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const RENDERER = path.resolve(__dirname, "../renderer");
+const RENDERER = path.resolve(import.meta.dirname, "../renderer");
 const ENTRY = path.join(RENDERER, "editor/kits/base-kit.ts");
 
 /** Resolve a specifier to a file inside the renderer, or null if it leaves. */

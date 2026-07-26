@@ -46,8 +46,8 @@ export function setSyncEventSink(sink: SyncEventSink): void {
   emitHostEvent = sink;
 }
 
-// The live vault, INJECTED by the composition root (#465: sync never reaches
-// for the @repo/vault singleton itself — the package dep stays for the TYPE
+// The live vault, INJECTED by the composition root — sync never reaches for
+// the @repo/vault singleton itself (the package dep stays for the TYPE
 // only). An accessor rather than an instance because the vault singleton
 // rebuilds on a logout/login cycle. Uninstalled (bare test processes), it
 // throws — both listing call sites (seedConflicts/pruneConflicts) already

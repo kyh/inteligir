@@ -154,10 +154,11 @@ export function startWsHost(options: WsHostOptions): WsHost {
   // NOTHING outside resolveHandler() may read this map, and nothing outside
   // sendEvent() may push an event frame. Those two functions are the ONLY
   // places the remote-device allowlists are consulted, because scattering the
-  // check is how it gets forgotten: this transport shipped three separate
-  // ungated paths (the welcome hydration push, event broadcast, and binary
-  // frames) before they were found one at a time. no-ungated-dispatch.test.ts
-  // fails the build if a new caller reaches around either chokepoint.
+  // check is how it gets forgotten — and a forgotten check fails OPEN. Any
+  // path that re-implements "look up a handler" or "write to a socket" (the
+  // welcome hydration push, event broadcast, binary frames) is a hole.
+  // no-ungated-dispatch.test.ts fails the build if a new caller reaches around
+  // either chokepoint.
   const dispatch = new Map<string, (raw: unknown) => unknown>();
   for (const [method, handler] of Object.entries(options.host.handlers)) {
     if (handler !== undefined) dispatch.set(method, handler);

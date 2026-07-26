@@ -1,15 +1,8 @@
 import { useCallback } from "react";
 
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
-import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
-import {
-  DAILY_FOLDER_KEY,
-  DAILY_FORMAT_KEY,
-  DAILY_TEMPLATE_PATH,
-  DEFAULT_DAILY_FOLDER,
-  DEFAULT_DAILY_FORMAT,
-  applyTemplate,
-} from "@repo/bridge/daily-notes";
+import { formatIsoDate, periodicNotePath } from "@repo/notes/daily-path";
+import { CADENCES, applyTemplate, type Cadence } from "@repo/bridge/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { useDiskState } from "@renderer/lib/use-disk-state";
@@ -51,24 +44,41 @@ export function useCreateFromTemplate(): (templatePath: string, rawName: string)
 }
 
 /**
- * "Open today's note" — open-or-create `<folder>/<date>.md` (folder + filename
- * format from Settings → Notes). If `templates/daily.md` exists, the new note
- * is seeded from it with placeholders substituted; otherwise it starts empty.
+ * Open-or-create this period's note for `cadence` — `<folder>/<formatted>.md`,
+ * with folder + filename format from Settings → Notes. If the cadence's seed
+ * template exists (`templates/daily.md`, `templates/weekly.md`,
+ * `templates/monthly.md`) the new note starts from it with placeholders
+ * substituted; otherwise it starts empty. Re-running opens the existing note
+ * untouched — createFile is open-or-create.
+ *
+ * The three cadences differ ONLY in the config record this reads, which is why
+ * ⌘D, "Open this week's note" and "Open this month's note" are one hook.
+ * `{{date}}` stays TODAY's date for every cadence (the placeholder contract is
+ * fixed — there is deliberately no `{{week}}`); the title placeholder is the
+ * period's own filename, so a weekly template's `# {{title}}` reads `2026-W28`.
  */
-export function useOpenDailyNote(): () => void {
+export function useOpenPeriodicNote(cadence: Cadence): () => void {
   const { createFile } = useVaultActions();
-  const [folder] = useDiskState(DAILY_FOLDER_KEY, DEFAULT_DAILY_FOLDER, parseString);
-  const [format] = useDiskState(DAILY_FORMAT_KEY, DEFAULT_DAILY_FORMAT, parseString);
+  const config = CADENCES[cadence];
+  const [folder] = useDiskState(config.folderKey, config.defaultFolder, parseString);
+  const [format] = useDiskState(config.formatKey, config.defaultFormat, parseString);
   return useCallback(() => {
     void (async () => {
       const now = new Date();
-      const path = dailyNotePath(folder, format, now);
-      const template = await readTemplate(DAILY_TEMPLATE_PATH);
+      const path = periodicNotePath(folder, format, now);
+      const template = await readTemplate(config.templatePath);
       const content =
         template === null
           ? ""
           : applyTemplate(template, { title: titleFromPath(path), date: formatIsoDate(now) });
       await createFile(path, content);
     })();
-  }, [folder, format, createFile]);
+  }, [folder, format, config.templatePath, createFile]);
+}
+
+/** ⌘D / "Open today's note" — the daily cadence. Its own export because the
+ * hotkey (workspace-page) is daily-only by design: weekly and monthly are
+ * palette commands, not chords. */
+export function useOpenDailyNote(): () => void {
+  return useOpenPeriodicNote("daily");
 }

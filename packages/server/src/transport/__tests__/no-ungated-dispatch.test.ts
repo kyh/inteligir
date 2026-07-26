@@ -2,15 +2,15 @@
 // Structural guard on the ws host's remote-device gate.
 //
 // The allowlists themselves (REMOTE_ALLOWED_METHODS/_EVENTS) are only as good
-// as the number of places that remember to consult them, and this transport has
-// a track record: it shipped THREE separate ungated paths — the welcome
-// hydration push, event broadcast, and binary frames — each found and patched
-// individually, because every inbound/outbound path re-implemented "look up a
-// handler" or "write to a socket" on its own.
+// as the number of places that remember to consult them. Every inbound or
+// outbound path that re-implements "look up a handler" or "write to a socket"
+// — the welcome hydration push, event broadcast, binary frames — is a place
+// that can forget, and a forgotten check fails OPEN: a paired phone reaches a
+// method or event the allowlist never named.
 //
-// ws-host.ts now has exactly two chokepoints, resolveHandler() and sendEvent(),
+// ws-host.ts has exactly two chokepoints, resolveHandler() and sendEvent(),
 // and this test is what keeps it at two. Behavioural tests can only cover the
-// paths someone thought to write; this one fails when a FOURTH path appears,
+// paths someone thought to write; this one fails when an extra path appears,
 // which is the actual failure mode.
 //
 // If you are here because this test failed: do not add your call site to an
@@ -21,7 +21,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const WS_HOST = path.resolve(__dirname, "../ws-host.ts");
+const WS_HOST = path.resolve(import.meta.dirname, "../ws-host.ts");
 const source = fs.readFileSync(WS_HOST, "utf8");
 
 /** Source lines with comments and the string-literal noise stripped, so a
@@ -49,7 +49,7 @@ describe("ws-host gate chokepoints", () => {
 
   it("consults each allowlist in exactly one place", () => {
     // A second call site means a path decided to gate itself — which is the
-    // pattern that produced three holes. One call site each = one chokepoint.
+    // pattern that produces holes. One call site each = one chokepoint.
     expect(
       callSites("remoteMayInvoke").map((line) => line.trim()),
       "remoteMayInvoke() belongs to resolveHandler() alone",
