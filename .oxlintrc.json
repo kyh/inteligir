@@ -4,15 +4,22 @@
   // that 404s silently leaves every key in this file unvalidated in the
   // editor, so a misspelled option reads as "configured" and does nothing.
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  // These two are the gate's real strictness, so they belong to the config
-  // every consumer reads. Kept as CLI flags in the root `lint` script instead,
-  // they bind only in CI — `lint:fix` and the oxlint LSP then run a weaker
-  // rule set than the gate. CLI flags still win where both are set.
-  // `typeAware` is deliberately NOT enabled: it needs oxlint-tsgolint and
-  // surfaces ~138 findings, so turning it on here makes the gate unpassable.
+  // These are the gate's real strictness, so they belong to the config every
+  // consumer reads. Kept as CLI flags in the root `lint` script instead, they
+  // bind only in CI — `lint:fix` and the oxlint LSP then run a weaker rule set
+  // than the gate. CLI flags still win where both are set.
+  // `typeAware` runs the rules that need type information, by spawning the
+  // `oxlint-tsgolint` peer (a root devDependency — nothing extra to install,
+  // and every @repo/* exports TS source, so there is no build step to stage
+  // first). It costs seconds and about a gigabyte of resident memory where the
+  // type-blind pass costs neither, which is still small beside typecheck +
+  // test + build — so it rides in the one `lint` gate rather than a separate
+  // script every caller has to remember. WHICH type-aware rules run is staged
+  // in `rules` below.
   "options": {
     "denyWarnings": true,
-    "reportUnusedDisableDirectives": "error"
+    "reportUnusedDisableDirectives": "error",
+    "typeAware": true
   },
   "ignorePatterns": [
     "dist",
@@ -56,7 +63,41 @@
         "allowAsProps": true
       }
     ],
-    "unicorn/prefer-node-protocol": "error"
+    "unicorn/prefer-node-protocol": "error",
+
+    // Type-aware rules, staged. `options.typeAware` switches on EVERY
+    // type-aware rule the enabled categories carry, so the ones not wanted yet
+    // are written off by name rather than left implicit: this list is the
+    // ladder, and a rule graduates by flipping to "error" once its findings
+    // are cleared. The promise set is what runs today — a dropped promise, or
+    // one handed to a slot that expects a void return, is a real bug class no
+    // type-blind rule can see. `no-misused-promises` is not category-enabled,
+    // so it is opted in by name.
+    "typescript/await-thenable": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/consistent-return": "off",
+    "typescript/no-array-delete": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-duplicate-type-constituents": "off",
+    "typescript/no-for-in-array": "off",
+    "typescript/no-implied-eval": "off",
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-misused-spread": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-unnecessary-boolean-literal-compare": "off",
+    "typescript/no-unnecessary-template-expression": "off",
+    "typescript/no-unnecessary-type-arguments": "off",
+    "typescript/no-unnecessary-type-assertion": "off",
+    "typescript/no-unnecessary-type-conversion": "off",
+    "typescript/no-unnecessary-type-parameters": "off",
+    "typescript/no-unsafe-enum-comparison": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    "typescript/no-unsafe-unary-minus": "off",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/require-array-sort-compare": "off",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/unbound-method": "off"
   },
   "overrides": [
     {

@@ -269,8 +269,8 @@ export const PromptInput = ({
     [items, add, remove, clear, openFileDialog, matchesAccept],
   );
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
-    async (event) => {
+  const submitForm = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (submittingRef.current) return;
       submittingRef.current = true;
@@ -312,6 +312,18 @@ export const PromptInput = ({
       }
     },
     [items, onSubmit],
+  );
+
+  // The DOM handler slot is void-returning, so the async body is voided rather
+  // than handed over directly: an async function there returns a promise React
+  // never awaits, and a rejection escaping it is an unhandled rejection.
+  // submitForm swallows its own failures (both catch blocks above), so the
+  // void is a statement of intent, not a dropped error path.
+  const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
+    (event) => {
+      void submitForm(event);
+    },
+    [submitForm],
   );
 
   return (

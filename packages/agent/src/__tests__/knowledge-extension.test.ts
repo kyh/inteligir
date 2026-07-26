@@ -27,7 +27,7 @@ function capture(port: KnowledgePort): Map<string, RegisteredTool> {
     registerTool: (tool: RegisteredTool) => tools.set(tool.name, tool),
   } as unknown as ExtensionAPI;
   const ports = { knowledge: port } as unknown as AgentPorts;
-  knowledgeExtension.register({ binDir: "/fake/bin", ports })(pi);
+  void knowledgeExtension.register({ binDir: "/fake/bin", ports })(pi);
   return tools;
 }
 

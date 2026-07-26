@@ -36,7 +36,7 @@ import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 6;
+export const KNOWLEDGE_SCHEMA_VERSION = 7;
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 export type SqlValue = null | number | string;
@@ -159,7 +159,7 @@ CREATE TABLE tasks (
   PRIMARY KEY (path, ordinal)
 );
 CREATE VIRTUAL TABLE search_fts USING fts5(
-  title, headings, body, path UNINDEXED,
+  title, headings, body, path UNINDEXED, is_private UNINDEXED,
   tokenize='unicode61 tokenchars ''_'''
 );
 `;
@@ -177,17 +177,24 @@ ORDER BY rank, path
 LIMIT ?
 `;
 
-// The agent-facing variant: `private: true` docs are excluded INSIDE the query
-// (search_fts shares rowids with files), so the limit applies to public hits
-// and a private path/snippet can never even transit the result set. Column
-// default is 1 (private-until-parsed) — an unparsed row is excluded too.
+// The agent-facing variant: `private: true` docs are excluded INSIDE the query,
+// so the limit applies to public hits and a private path/snippet can never even
+// transit the result set.
+//
+// The flag is carried as an UNINDEXED FTS5 column rather than joined from
+// `files`, which is correctness-neutral and a large cost difference: an
+// `IN (SELECT rowid FROM files WHERE is_private = 0)` term against a MATCH
+// query is QUADRATIC in corpus size (SQLite re-drives the row list per matched
+// row) — at 4k docs a term appearing in every note took 1.1s, at 50k it took
+// 198s, against ~77ms for the same query unfiltered. As a stored column the
+// filter is a residual test on rows the cursor already produced, so the
+// agent-facing search costs what the renderer's does.
 const SEARCH_PUBLIC_SQL = `
 SELECT path, title,
   snippet(search_fts, 2, '', '', '…', 12) AS snip,
   bm25(search_fts, 10.0, 4.0, 1.0) AS rank
 FROM search_fts
-WHERE search_fts MATCH ?
-  AND rowid IN (SELECT rowid FROM files WHERE is_private = 0)
+WHERE search_fts MATCH ? AND is_private = 0
 ORDER BY rank, path
 LIMIT ?
 `;
@@ -610,13 +617,17 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
           // Aliases ride the headings column — a ranking boost only (the alias
           // bytes already match via the body, which includes the frontmatter),
           // mirroring the pure SearchIndex composition in knowledge-index.ts.
-          "INSERT INTO search_fts (rowid, title, headings, body, path) VALUES (?, ?, ?, ?, ?)",
+          // `is_private` is stored, not indexed: it is the agent-facing query's
+          // filter (see SEARCH_PUBLIC_SQL), never a search term.
+          `INSERT INTO search_fts (rowid, title, headings, body, path, is_private)
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [
             rowid,
             projection.title,
             [...projection.headings, ...projection.aliases].join("\n"),
             body,
             row.path,
+            projection.private ? 1 : 0,
           ],
         );
       });

@@ -76,7 +76,7 @@ describe("agent-store send", () => {
   it("appends the user message and nothing else on success", async () => {
     helpers.bridgeMock.sendAgentCommand.mockResolvedValue(undefined);
 
-    useAgentStore.getState().send("hello");
+    void useAgentStore.getState().send("hello");
     await flushMicrotasks();
 
     const messages = useAgentStore.getState().messages;
@@ -94,7 +94,7 @@ describe("agent-store send", () => {
   it("surfaces a rejected submission as an error bubble in the chat", async () => {
     helpers.bridgeMock.sendAgentCommand.mockRejectedValue(new Error("Agent unavailable"));
 
-    useAgentStore.getState().send("hello");
+    void useAgentStore.getState().send("hello");
     await flushMicrotasks();
 
     const messages = useAgentStore.getState().messages;
