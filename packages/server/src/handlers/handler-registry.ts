@@ -49,11 +49,12 @@ function parsePayload(method: IpcMethod, schema: TSchema, raw: unknown): unknown
   return raw;
 }
 
-// The `fn as ...` casts below are the classic correlated-union limitation
-// (microsoft/TypeScript#30581): narrowing `def.kind` cannot narrow the
-// generic `IpcHandler<K>`, so each branch widens `fn` to its runtime shape.
-// Soundness is carried by the registry: `def.kind` and `IpcHandler<K>` are
-// derived from the same entry, and payloads are schema-validated first.
+// The `invoke-void` branch below casts `fn` to its runtime shape: that is the
+// classic correlated-union limitation (microsoft/TypeScript#30581) — narrowing
+// `def.kind` cannot narrow the generic `IpcHandler<K>`, and the arity differs
+// from the payload-taking branches, which call `fn` directly. Soundness is
+// carried by the registry: `def.kind` and `IpcHandler<K>` are derived from the
+// same entry, and payloads are schema-validated first.
 
 /**
  * Run every handler group against a fresh registrar and return the complete,
@@ -71,12 +72,11 @@ export function collectHandlers(register: (handle: HandlerRegistrar) => void): H
       case "invoke":
         map.set(method, (raw) => {
           const payload = parsePayload(method, def.payload, raw);
-          // oxlint-disable-next-line typescript/consistent-type-assertions -- correlated union, see doc above
-          return (fn as (p: unknown) => unknown)(payload);
+          return fn(payload);
         });
         return;
       case "invoke-void":
-        // oxlint-disable-next-line typescript/consistent-type-assertions -- correlated union, see doc above
+        // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- correlated union, see doc above
         map.set(method, () => (fn as () => unknown)());
         return;
       case "send":
@@ -85,8 +85,7 @@ export function collectHandlers(register: (handle: HandlerRegistrar) => void): H
           // transport's event loop, so swallow + log.
           try {
             const payload = parsePayload(method, def.payload, raw);
-            // oxlint-disable-next-line typescript/consistent-type-assertions -- correlated union, see doc above
-            (fn as (p: unknown) => void)(payload);
+            fn(payload);
           } catch (err) {
             console.error(`[ipc] send handler "${method}" failed:`, err);
           }
@@ -103,6 +102,6 @@ export function collectHandlers(register: (handle: HandlerRegistrar) => void): H
   }
   const handlers: Partial<Record<HostMethod, WireHandler>> = {};
   for (const [method, handler] of map) handlers[method] = handler;
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- completeness proven by the missing-check above
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- completeness proven by the missing-check above
   return handlers as HostHandlers;
 }

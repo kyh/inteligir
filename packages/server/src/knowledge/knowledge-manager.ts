@@ -17,7 +17,7 @@
 // off the DB, not off the mirror. Numbers live in
 // __tests__/knowledge-hydration.test.ts, which reproduces them.
 //
-// Reconcile diffs the vault's stat snapshot against recorded
+// Reconcile diffs the vault's stat listing against recorded
 // fingerprints; a changed file is re-read and content-hashed, and only a
 // changed HASH re-projects and re-writes — a provider-wide mtime rewrite
 // updates fingerprints without any projection/FTS churn. Passes are
@@ -367,10 +367,17 @@ export class KnowledgeManager {
       if (this.generation !== generation || this.store !== store) return;
     }
 
+    // The vault's crawl + stat sweep is itself budgeted and yields, so this
+    // never stalls the host on one call however large the vault; the world can
+    // move on across those yields, so re-check before spending a diff on a pass
+    // whose store is gone.
+    const listing = await vault.listWithStats();
+    if (this.generation !== generation || this.store !== store) return;
+
     const seen = new Set<string>();
     const work: Array<{ path: string; fingerprint: StoredFingerprint }> = [];
     const newOthers: string[] = [];
-    for (const entry of vault.listWithStats()) {
+    for (const entry of listing) {
       seen.add(entry.path);
       if (entry.kind !== "doc") {
         if (!this.otherPaths.has(entry.path)) {

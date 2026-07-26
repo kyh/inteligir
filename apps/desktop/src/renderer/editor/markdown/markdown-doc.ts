@@ -214,7 +214,7 @@ export function parseMarkdown(
   if (!converted.ok) return { ok: false, reason: converted.reason };
   // mdast root children are flow nodes, so the converted value is TElement[]
   // in practice; Plate's own deserializeMd performs this exact widening.
-  // oxlint-disable-next-line typescript/consistent-type-assertions
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- mdast root children are flow nodes, see doc above
   return { ok: true, value: converted.value as Value };
 }
 

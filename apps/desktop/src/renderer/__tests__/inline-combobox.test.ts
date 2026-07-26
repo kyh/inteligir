@@ -178,7 +178,7 @@ describe("reconcileInsertionCaret (the #367 first-commit caret quirk)", () => {
     for (const word of ["deep", "tada"]) {
       let value = "";
       let caret = 0;
-      for (const [i, char] of [...word].entries()) {
+      for (const [i, char] of Array.from(word).entries()) {
         const next = value.slice(0, caret) + char + value.slice(caret);
         // The browser strands the caret on the first commit, then behaves.
         const reported = i === 0 ? caret : caret + 1;

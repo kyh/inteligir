@@ -37,7 +37,7 @@ describe("fixture bridge knowledge channels", () => {
     const targets = await bridge.listWikiTargets();
     expect(targets.map((t) => t.path)).toContain("review/probe.md");
 
-    const graph = await bridge.getLinkGraph();
+    const graph = await bridge.getLinkGraph({});
     expect(graph.nodes.map((n) => n.id)).toContain("review/probe.md");
   });
 

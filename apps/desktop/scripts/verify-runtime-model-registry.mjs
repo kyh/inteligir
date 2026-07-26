@@ -75,6 +75,9 @@ for (const { provider, modelId } of pairs) {
     console.error(`[verify] Model "${provider}/${modelId}" not found in pi-ai model registry.`);
     continue;
   }
+  // pi-ai types `Api` as `KnownApi | (string & {})`; the type-aware pass does
+  // not read that intersection as string-like, so the interpolation is fine.
+  // oxlint-disable-next-line typescript/restrict-template-expressions
   console.log(`[verify] OK: ${provider}/${modelId} -> ${model.name} (api=${model.api})`);
 }
 

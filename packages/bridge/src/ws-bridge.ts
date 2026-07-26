@@ -308,7 +308,7 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
     }
   });
 
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- runtime fold over the registry; shape proven by derivation above
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- runtime fold over the registry; shape proven by derivation above
   const bridge = Object.fromEntries(entries) as unknown as Bridge;
 
   function dispose(): void {

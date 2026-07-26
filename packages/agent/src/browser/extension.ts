@@ -201,7 +201,7 @@ function installBrowserRuntime(
 
     const child = execFile(binPath, ["install"], { timeout: 300_000 }, (err, stdout, stderr) => {
       if (err) {
-        reject(new Error(`browser runtime install failed: ${String(stdout)}${String(stderr)}`));
+        reject(new Error(`browser runtime install failed: ${stdout}${stderr}`));
         return;
       }
       resolve();

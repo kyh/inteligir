@@ -66,44 +66,76 @@
     "unicorn/prefer-node-protocol": "error",
 
     // Type-aware rules, staged. `options.typeAware` switches on EVERY
-    // type-aware rule the enabled categories carry, so the ones not wanted yet
-    // are written off by name rather than left implicit: this list is the
-    // ladder, and a rule graduates by flipping to "error" once its findings
-    // are cleared. The promise set is what runs today — a dropped promise, or
-    // one handed to a slot that expects a void return, is a real bug class no
+    // type-aware rule the enabled categories carry, so every one is named
+    // here rather than left implicit: this list is the ladder, and a rule
+    // graduates by flipping to "error" once its findings are cleared. A rule
+    // still "off" carries the reason it is blocked — a bare "off" makes the
+    // ladder invisible, which is how it stalls.
+    //
+    // The promise set is the load-bearing one: a dropped promise, or one
+    // handed to a slot that expects a void return, is a real bug class no
     // type-blind rule can see. `no-misused-promises` is not category-enabled,
-    // so it is opted in by name.
+    // so it is opted in by name. None of the three may be relaxed in the
+    // `__tests__` override — that would fail open on exactly the flake class
+    // they exist for.
     "typescript/await-thenable": "error",
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
-    "typescript/consistent-return": "off",
-    "typescript/no-array-delete": "off",
-    "typescript/no-base-to-string": "off",
-    "typescript/no-duplicate-type-constituents": "off",
-    "typescript/no-for-in-array": "off",
-    "typescript/no-implied-eval": "off",
-    "typescript/no-meaningless-void-operator": "off",
-    "typescript/no-misused-spread": "off",
-    "typescript/no-redundant-type-constituents": "off",
-    "typescript/no-unnecessary-boolean-literal-compare": "off",
-    "typescript/no-unnecessary-template-expression": "off",
-    "typescript/no-unnecessary-type-arguments": "off",
-    "typescript/no-unnecessary-type-assertion": "off",
-    "typescript/no-unnecessary-type-conversion": "off",
-    "typescript/no-unnecessary-type-parameters": "off",
-    "typescript/no-unsafe-enum-comparison": "off",
-    "typescript/no-unsafe-type-assertion": "off",
-    "typescript/no-unsafe-unary-minus": "off",
-    "typescript/no-useless-default-assignment": "off",
-    "typescript/require-array-sort-compare": "off",
-    "typescript/restrict-template-expressions": "off",
-    "typescript/unbound-method": "off"
+
+    // `no-unsafe-type-assertion` is the type-aware complement to the
+    // `consistent-type-assertions: never` above: it sees through the generic
+    // `as unknown as T` escapes the syntactic rule cannot. The handful of
+    // sanctioned escapes carry a narrow per-site disable naming both rules.
+    "typescript/no-array-delete": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/no-duplicate-type-constituents": "error",
+    "typescript/no-for-in-array": "error",
+    "typescript/no-implied-eval": "error",
+    "typescript/no-meaningless-void-operator": "error",
+    "typescript/no-misused-spread": "error",
+    "typescript/no-redundant-type-constituents": "error",
+    "typescript/no-unnecessary-boolean-literal-compare": "error",
+    "typescript/no-unnecessary-template-expression": "error",
+    "typescript/no-unnecessary-type-arguments": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-unnecessary-type-conversion": "error",
+    "typescript/no-unnecessary-type-parameters": "error",
+    "typescript/no-unsafe-enum-comparison": "error",
+    "typescript/no-unsafe-type-assertion": "error",
+    "typescript/no-unsafe-unary-minus": "error",
+    "typescript/no-useless-default-assignment": "error",
+    "typescript/require-array-sort-compare": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/unbound-method": "error",
+
+    // BLOCKED: 51 findings, and the two shapes behind them are both idioms
+    // this repo relies on.
+    //   1. An exhaustive `switch` over a discriminated union with no `default`
+    //      — the fall-off-the-end the rule objects to is what makes TS reject
+    //      the function when a new union member appears. Satisfying the rule
+    //      means a `default` or a widened return type, either of which DELETES
+    //      that exhaustiveness check. ~25 of the 51.
+    //   2. `useEffect(() => { if (x) return; …; return cleanup; })` — React's
+    //      own contract for a conditional cleanup. ~20 of the 51.
+    // Neither is a "sometimes returns a value" bug; graduating this rule buys
+    // nothing and costs a real invariant.
+    "typescript/consistent-return": "off"
   },
   "overrides": [
     {
       "files": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
-        "typescript/consistent-type-assertions": "off"
+        // A test builds the shapes production code receives from the wire, so
+        // it asserts where production parses. `no-unsafe-type-assertion` is
+        // the type-aware half of the same exemption — leaving it on here would
+        // contradict the line above it.
+        "typescript/consistent-type-assertions": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        // `expect(ops.someMethod).toHaveBeenCalledWith(…)` reads a fake port's
+        // member detached, which is the whole assertion. An unbound reference
+        // inside a mock cannot lose a `this` no production call ever makes.
+        // Scoped to tests only — production keeps the rule.
+        "typescript/unbound-method": "off"
       }
     },
     {

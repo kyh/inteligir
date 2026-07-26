@@ -47,8 +47,11 @@ export type HostConnection = {
   /** The live bridge, or null when stopped / unauthorized. Requests made
    * while merely disconnected queue inside the bridge until reconnect. */
   getBridge(): Bridge | null;
-  getSnapshot(): HostSnapshot;
-  subscribe(onChange: () => void): () => void;
+  // Declared as function PROPERTIES, not methods: React reads these detached
+  // (`useSyncExternalStore(connection.subscribe, connection.getSnapshot)`), so
+  // the type has to promise they carry no `this`.
+  getSnapshot: () => HostSnapshot;
+  subscribe: (onChange: () => void) => () => void;
   /** Tear down everything including the lifecycle subscription (tests). */
   dispose(): void;
 };

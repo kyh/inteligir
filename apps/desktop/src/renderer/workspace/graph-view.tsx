@@ -9,6 +9,12 @@
 // are sized by degree; phantoms draw dashed; the open note gets a
 // highlight ring. Data refreshes on onKnowledgeUpdated, preserving layout
 // positions by node id.
+//
+// The request is BOUNDED (see MAX_NODES/MAX_EDGES): the whole graph of a 50k
+// vault is ~42MB of JSON and 400k links into d3-force. A vault that fits under
+// the caps still gets every node and edge — the bound is the cap itself, not a
+// separate mode — and whenever it does engage the view says so, because a
+// silently truncated graph reads as "these notes are unconnected".
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
@@ -30,7 +36,7 @@ import { useViewStore } from "@renderer/stores/view-store";
 import { openDocPath } from "@renderer/workspace/open-doc";
 import { useOpenNote } from "@renderer/workspace/open-note-store";
 import { useVaultActions } from "@renderer/workspace/vault-context";
-import type { LinkGraph } from "@repo/notes/knowledge/link-graph-index";
+import type { BoundedLinkGraph } from "@repo/notes/knowledge/link-graph-index";
 
 type SimNode = SimulationNodeDatum & {
   id: string;
@@ -61,7 +67,36 @@ function nodeRadius(node: SimNode): number {
   return 4 + Math.min(10, Math.sqrt(node.degree) * 2);
 }
 
-function toGraphData(graph: LinkGraph, previous: GraphData | null): GraphData {
+/** What the view will draw, and what a d3-force tick can move, before either
+ * turns into a slideshow: ~1MB on the wire against a 50k-note vault (measured
+ * — 42MB unbounded) and ~10k canvas ops per frame. Both are caps, not targets:
+ * a vault under them transfers whole. */
+const MAX_NODES = 2000;
+const MAX_EDGES = 8000;
+
+/** The affordance's numbers, non-null exactly when something was dropped. */
+type Shortfall = {
+  nodes: number;
+  totalNodes: number;
+  edges: number;
+  totalEdges: number;
+  /** Whether the request named the open note, which decides what "dropped"
+   * means: the outermost notes, or the least-connected ones. */
+  focused: boolean;
+};
+
+function shortfallOf(graph: BoundedLinkGraph, focused: boolean): Shortfall | null {
+  if (graph.nodes.length >= graph.totalNodes && graph.edges.length >= graph.totalEdges) return null;
+  return {
+    nodes: graph.nodes.length,
+    totalNodes: graph.totalNodes,
+    edges: graph.edges.length,
+    totalEdges: graph.totalEdges,
+    focused,
+  };
+}
+
+function toGraphData(graph: BoundedLinkGraph, previous: GraphData | null): GraphData {
   const byId = new Map<string, SimNode>();
   const nodes = graph.nodes.map((node): SimNode => {
     const prior = previous?.byId.get(node.id);
@@ -113,6 +148,7 @@ export default function GraphView() {
   const setSurface = useViewStore((s) => s.setSurface);
   const { resolved: resolvedTheme } = useTheme();
   const [empty, setEmpty] = useState(false);
+  const [shortfall, setShortfall] = useState<Shortfall | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dataRef = useRef<GraphData | null>(null);
@@ -219,11 +255,12 @@ export default function GraphView() {
     const bridge = getBridge();
     let disposed = false;
 
-    const apply = (graph: LinkGraph) => {
+    const apply = (graph: BoundedLinkGraph, focused: boolean) => {
       if (disposed) return;
       const data = toGraphData(graph, dataRef.current);
       dataRef.current = data;
       setEmpty(data.nodes.length === 0);
+      setShortfall(shortfallOf(graph, focused));
       const links: SimulationLinkDatum<SimNode>[] = data.edges.map((edge) => ({
         source: edge.source,
         target: edge.target,
@@ -258,9 +295,16 @@ export default function GraphView() {
     };
 
     const refresh = () => {
+      // Read the open note at request time rather than closing over it: the
+      // effect runs once, and navigation leaves this surface anyway.
+      const focus = activePathRef.current;
       bridge
-        .getLinkGraph()
-        .then(apply)
+        .getLinkGraph({
+          maxNodes: MAX_NODES,
+          maxEdges: MAX_EDGES,
+          ...(focus !== null && { focus }),
+        })
+        .then((graph) => apply(graph, focus !== null))
         .catch(() => {});
     };
     refresh();
@@ -435,6 +479,23 @@ export default function GraphView() {
       {empty && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
           Nothing to graph yet — link notes with [[wiki links]].
+        </div>
+      )}
+      {shortfall !== null && (
+        <div
+          role="status"
+          className="pointer-events-none absolute top-3 left-3 rounded-md border border-border bg-background/85 px-2 py-1 text-xs text-muted-foreground"
+        >
+          <div>
+            {`Showing ${shortfall.nodes.toLocaleString()} of ${shortfall.totalNodes.toLocaleString()} notes`}
+            {" · "}
+            {`${shortfall.edges.toLocaleString()} of ${shortfall.totalEdges.toLocaleString()} links`}
+          </div>
+          <div className="text-muted-foreground/70">
+            {shortfall.focused
+              ? "Nearest the open note first — this vault is too large to draw whole."
+              : "Most-connected notes first — this vault is too large to draw whole."}
+          </div>
         </div>
       )}
       <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/70">
