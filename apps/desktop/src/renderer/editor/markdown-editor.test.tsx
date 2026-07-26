@@ -130,7 +130,7 @@ describe("MarkdownEditor lifecycle", () => {
     const view = render(<MarkdownEditor {...props({ onChange })} />);
 
     fireEvent.click(view.getByRole("button", { name: "change" }));
-    act(() => vi.advanceTimersByTime(DELAY_MS));
+    void act(() => vi.advanceTimersByTime(DELAY_MS));
 
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -143,7 +143,7 @@ describe("MarkdownEditor lifecycle", () => {
     fireEvent.click(view.getByRole("button", { name: "change" }));
 
     view.rerender(<MarkdownEditor {...props({ onChange: second })} />);
-    act(() => vi.advanceTimersByTime(DELAY_MS));
+    void act(() => vi.advanceTimersByTime(DELAY_MS));
 
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledOnce();
@@ -161,7 +161,7 @@ describe("MarkdownEditor lifecycle", () => {
     expect(onChange).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenCalledWith("edited");
     expect(mocks.currentMarkdown).toBe("external");
-    act(() => vi.advanceTimersByTime(DELAY_MS));
+    void act(() => vi.advanceTimersByTime(DELAY_MS));
     expect(onChange).toHaveBeenCalledOnce();
   });
 
@@ -183,7 +183,7 @@ describe("MarkdownEditor lifecycle", () => {
 
     expect(onChange).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenCalledWith("edited");
-    act(() => vi.advanceTimersByTime(DELAY_MS));
+    void act(() => vi.advanceTimersByTime(DELAY_MS));
     expect(onChange).toHaveBeenCalledOnce();
   });
 

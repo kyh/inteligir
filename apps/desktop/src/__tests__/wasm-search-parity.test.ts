@@ -69,6 +69,14 @@ describe("wasm vs node:sqlite search parity (harness ranks like desktop)", () =>
       for (const query of QUERIES) {
         const wasmHits = wasmStore.search(query, 20);
         const nodeHits = nodeStore.search(query, 20);
+        // The agent-facing private filter is a stored FTS5 column, so the two
+        // bindings must agree on it, not just on ranking. A divergence here
+        // means the harness and the app disagree about which notes an agent
+        // tool can see.
+        expect(
+          wasmStore.search(query, 20, { excludePrivate: true }).map((hit) => hit.path),
+          `query: ${query} (excludePrivate)`,
+        ).toEqual(nodeStore.search(query, 20, { excludePrivate: true }).map((hit) => hit.path));
         // Order + identity + snippet must match exactly…
         expect(
           wasmHits.map(({ path, title, snippet }) => ({ path, title, snippet })),

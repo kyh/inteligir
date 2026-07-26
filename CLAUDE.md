@@ -534,6 +534,33 @@ record for the decisions code comments cite.
   OFF by default, so exposure is one resident DO per online synced device, and
   a rewrite would cross `@repo/notes/sync/wire` — the pure seam BOTH platforms
   drive — for a rounding-error bill. Revisit if sync becomes default-on.
+- **The D1 auth schema ships via `drizzle-kit push`; there are no migration
+  files.** Push is a supported primary flow for serverless databases, and the
+  three things that make it dangerous are all absent here: one deployer (the
+  account owner), an additive schema, and nothing derived that can rot —
+  `apps/cloud/vitest.config.ts` builds the test DDL by running
+  `drizzle-kit export` over `src/db/schema.ts`, so the suite always runs the
+  schema the source declares. A second deployer or a destructive column change
+  is the trigger for adopting migrations. The Better Auth tables in that
+  schema are hand-written and diverge from `@better-auth/cli generate` in two
+  places on purpose: timestamps are `mode: "timestamp"` (epoch SECONDS) where the
+  generator emits `timestamp_ms`, and the generator's three secondary indexes
+  (`session.userId`, `account.userId`, `verification.identifier`) are absent —
+  cold paths over a handful of rows, while the hot path `session.token` is
+  unique and therefore already indexed. **Never flip the timestamp mode in
+  place.** Both modes read the same INTEGER column, so a redeploy without an
+  accompanying `UPDATE <table> SET <col> = <col> * 1000` reads every stored
+  date back as 1970 — which expires every live session and every pending
+  verification token.
+- **Better Auth's `baseURL` is derived per-request from the request origin**,
+  never configured or allowlisted. Two things hold it up. The Worker declares
+  no `routes` and no custom domain, so its workers.dev hostname is the only one
+  that reaches it and a spoofed `Host` never arrives — which is what makes
+  trusting the incoming origin safe. And the coordinator URL is per-install
+  configuration (Settings → Account; a self-hoster points at their own Worker),
+  so a fixed fallback would mint password-reset links back at the wrong
+  deployment. Adding a route or a custom domain is the trigger to revisit: once
+  more than one hostname reaches the Worker, the origin needs a gate.
 - **React Compiler is deliberately not adopted** (both Vite configs; ~148 memo
   call sites). react.dev recommends it for _new_ apps and says existing apps
   should "roll out at your own pace." If it is ever adopted, annotation mode
@@ -549,6 +576,26 @@ record for the decisions code comments cite.
   that fails when a SIXTH dispatch path appears is worth more than a coverage
   number. If coverage is ever added: `coverage.include` is MANDATORY in
   Vitest 4 (`coverage.all` was removed), and gate only `@repo/notes`.
+- **Renderer component tests drive the DOM with `fireEvent`, not
+  `@testing-library/user-event`** (which is not a dependency). user-event is a
+  fidelity upgrade — it replays the full pointer/keyboard sequence — not a
+  correctness fix, and these tests assert handler wiring rather than input
+  semantics. It also costs something real here: `markdown-editor.test.tsx`
+  runs on fake timers to drive the autosave debounce, and user-event hangs
+  under fake timers unless every call is wired to `advanceTimers`. Reach for
+  it only for a test that genuinely depends on the event sequence a real user
+  produces.
+- **Two generator defaults are deliberately inert.**
+  `packages/ui/components.json` declares `rsc: true` and there is no per-app
+  `components.json`: the shadcn CLI's monorepo add flow is not used — components
+  live in `packages/ui` behind the no-orphan-components test — and the
+  `"use client"` directives the flag produces are ignored by both consumers,
+  which are plain Vite/Rollup builds with no RSC bundler in the graph.
+  `apps/mobile/src/styles.css` opens with `@import "tailwindcss"` rather than
+  the per-layer sub-imports; that file IS the inlined concatenation of theme +
+  preflight + utilities, so there is no compiled-output delta, and the
+  sub-import form only buys anything on a web target — `react-native-web` is
+  not in the mobile dependency graph.
 - **The CSP grants bare `https:` to `frame-src` and `connect-src`**
   (`apps/desktop/src/renderer/index.html`). Three MDX vocabulary nodes render
   remote https iframes (`<file>`, `<video>`, `<media_embed>`) and the embed
@@ -558,3 +605,17 @@ record for the decisions code comments cite.
   `apps/desktop/dev/index.html` must carry the same resource directives: it is
   the only surface that can catch a CSP regression, since jsdom does not
   enforce CSP.
+- **The packaged renderer loads over `file://`, not a custom `app://` scheme.**
+  This is a real deviation from the Electron security checklist, held safe by
+  everything around it: `sandbox: true`, `contextIsolation: true`,
+  `nodeIntegration: false`, the CSP, the navigation guard pinning the window to
+  the loaded URL, and a window-open handler that denies every popup. Migrating
+  ripples wider than the one `loadFile` call: the CSP's `'self'` starts meaning
+  something different, `isSameOriginNavigation`'s file: branch (opaque origin,
+  so exact-URL match) collapses into a normal origin compare, Vite's asset base
+  changes, and `html-app-view.tsx`'s broker gains a meaningful `event.origin` —
+  today the window and its no-same-origin frame both report the opaque `null`,
+  so source identity plus the per-open token is the only discriminator
+  available. Do it when the renderer needs a capability `file://` cannot
+  grant — a service worker, an origin-scoped storage API, or a fetch that must
+  be same-origin.

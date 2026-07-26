@@ -124,8 +124,14 @@ export function WorkspacePage() {
   const workspaceError =
     appState.phase === "error" && appState.prev === "ready" ? appState.message : null;
 
+  // The dispatch rides the local WS and rejects if the socket is down. A
+  // rejection means the transition never reached the host, so the banner and
+  // this button stay put — pressing again IS the retry, and there is nothing
+  // further to report.
   const handleRetry = useCallback(() => {
-    getBridge().transition({ type: "RETRY" });
+    void getBridge()
+      .transition({ type: "RETRY" })
+      .catch(() => {});
   }, []);
 
   return (

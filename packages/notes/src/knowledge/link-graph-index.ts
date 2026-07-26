@@ -6,16 +6,26 @@
 // directly, so the subtle resolver semantics (link-resolve's basename buckets,
 // ambiguity, shadowing) exist exactly once and never fork into SQL.
 //
-// Update model: applyDoc / remove touch one doc's records. Link RESOLUTION is
-// global (adding `note.md` can resolve another doc's dangling `[[note]]`, or
-// make a basename ambiguous), so the resolved forward/back maps are rebuilt
-// lazily on the first query after any mutation — a cheap fold over stored
-// links, no re-parsing.
+// Update model: applyDoc / remove touch one doc's records, and the resolved
+// forward/back maps are rebuilt lazily on the first query afterwards — a fold
+// over stored links, no re-parsing.
+//
+// That rebuild is whole-corpus, so it is scoped by what actually invalidates
+// it. Resolution depends on exactly two things: the set of vault paths and the
+// docs' `aliases:` (link-resolve's five tiers read nothing else). Re-projecting
+// a KNOWN doc with an unchanged alias list therefore leaves every OTHER doc's
+// resolution — and the resolver itself — correct, so only that doc's own links
+// are re-resolved and re-filed. That is the steady state (a note being edited),
+// and it is the difference between a per-edit fold over the whole vault and a
+// fold over eight links. Anything that moves a path or an alias still forces
+// the full rebuild, because it can silently re-point links anywhere in the
+// vault (a new `note.md` resolves another doc's dangling `[[note]]`, or makes a
+// basename ambiguous).
 // ---------------------------------------------------------------------------
 
 import { isDocPath } from "./doc-file";
 import type { ExtractedTask, LinkKind } from "./link-extract";
-import { buildResolver } from "./link-resolve";
+import { buildResolver, type TargetResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex, type TagCount } from "./tag-index";
 import { basenamePath, extnamePath } from "./vault-path";
@@ -105,45 +115,81 @@ type DocRecord = {
   aliases: string[];
   private: boolean;
   tasks: ExtractedTask[];
+  /** Corpus position, assigned when the path first enters `docs` and kept
+   * across re-projections — `docs` is a Map, so re-setting a live key holds
+   * its slot. It IS the doc iteration order, which is what a from-scratch
+   * resolution files backlink occurrences in; carrying it on the occurrence
+   * lets an incremental re-file land in that same order. */
+  seq: number;
 };
 
 type ResolvedLink = { link: StoredLink; targetPath: string | null };
 
+/** One inbound link, ordered by its source's corpus position. */
+type Occurrence = { sourcePath: string; link: StoredLink; seq: number };
+
 type ResolvedState = {
+  /** Valid for exactly as long as the path/alias namespace is unchanged. */
+  resolver: TargetResolver;
   forward: Map<string, ResolvedLink[]>;
-  /** target path → [source path, link] occurrences. */
-  backlinks: Map<string, Array<{ sourcePath: string; link: StoredLink }>>;
+  /** target path → inbound occurrences, in corpus order. */
+  backlinks: Map<string, Occurrence[]>;
 };
+
+/** Above this many docs waiting to be re-resolved, rebuild from scratch
+ * instead. Re-filing one doc splices into each of its targets' occurrence
+ * lists, so the incremental cost is O(docs × out-degree × in-degree) — no bound
+ * in terms of the corpus, where the fold is a flat O(corpus). The cap sits at
+ * the crossover for the worst realistic shape, a hub every note links to: over
+ * 20k docs with a 20k-in-degree hub, re-filing 256 docs costs about what the
+ * fold does (227ms vs 202ms), and an ordinary corpus is two orders cheaper
+ * again. */
+const MAX_INCREMENTAL_DOCS = 256;
 
 export class LinkGraphIndex {
   private readonly docs = new Map<string, DocRecord>();
   private readonly others = new Set<string>();
   private readonly tagIndex = new TagIndex();
   private resolved: ResolvedState | null = null;
+  /** Docs re-projected under an unchanged namespace since `resolved` was
+   * built — only their own links need re-resolving. Meaningless (and cleared)
+   * whenever `resolved` is dropped. */
+  private readonly pendingDocs = new Set<string>();
+  /** Monotonic source of {@link DocRecord.seq}. */
+  private nextSeq = 0;
   /** Memoized privatePaths() result — the agent gate reads it per bash/execute
-   * tool call. Invalidated exactly where `resolved` is (any mutation). */
+   * tool call. Invalidated on any mutation. */
   private privatePathsCache: string[] | null = null;
 
   /** Index (or re-index) a markdown doc from its projection. */
   applyDoc(path: string, projection: DocProjection): void {
     this.others.delete(path);
+    const prior = this.docs.get(path);
     this.docs.set(path, {
       title: projection.title,
       links: projection.links,
       aliases: projection.aliases,
       private: projection.private,
       tasks: projection.tasks,
+      seq: prior?.seq ?? this.nextSeq++,
     });
     this.tagIndex.set(path, projection.tags);
-    this.resolved = null;
     this.privatePathsCache = null;
+    // A known doc keeping its aliases leaves the namespace — and so every
+    // other doc's resolution — intact; anything else can re-point links
+    // vault-wide (see the header).
+    if (prior !== undefined && sameStrings(prior.aliases, projection.aliases)) {
+      if (this.resolved !== null) this.pendingDocs.add(path);
+    } else {
+      this.dropResolution();
+    }
   }
 
   /** Register a non-doc vault file (image, pdf, …) for link resolution only. */
   setOther(path: string): void {
     if (this.docs.delete(path)) this.tagIndex.remove(path);
     this.others.add(path);
-    this.resolved = null;
+    this.dropResolution();
     this.privatePathsCache = null;
   }
 
@@ -153,7 +199,7 @@ export class LinkGraphIndex {
     if (wasDoc) this.tagIndex.remove(path);
     const wasOther = this.others.delete(path);
     if (wasDoc || wasOther) {
-      this.resolved = null;
+      this.dropResolution();
       this.privatePathsCache = null;
     }
   }
@@ -162,7 +208,7 @@ export class LinkGraphIndex {
     this.docs.clear();
     this.others.clear();
     this.tagIndex.clear();
-    this.resolved = null;
+    this.dropResolution();
     this.privatePathsCache = null;
   }
 
@@ -238,8 +284,16 @@ export class LinkGraphIndex {
     for (const [path, record] of this.docs) {
       nodes.set(path, { id: path, title: record.title, path, phantom: false, degree: 0 });
     }
-    const edgeMap = new Map<string, GraphEdge>();
+    const edges: GraphEdge[] = [];
+    // Parallel links collapse per SOURCE, and `forward` is already grouped by
+    // source, so the dedupe map is scoped to the current source and holds a
+    // handful of short keys. Keying one vault-wide map on a concatenated path
+    // PAIR is the same answer for ~50% more time at 400k links — the scoping is
+    // load-bearing, not tidiness.
+    const bySource = new Map<string, GraphEdge>();
     for (const [sourcePath, links] of forward) {
+      bySource.clear();
+      const sourceNode = nodes.get(sourcePath);
       for (const { link, targetPath } of links) {
         // The graph is a NOTES graph: asset references (md images, `![[x.png]]`
         // embeds, `[pdf](x.pdf)` links) are content inside a note, not
@@ -261,19 +315,25 @@ export class LinkGraphIndex {
             nodes.set(targetId, { id: targetId, title: link.target, phantom: true, degree: 0 });
           }
         }
-        const key = `${sourcePath}\u0000${targetId}\u0000${link.kind}`;
-        const edge = edgeMap.get(key);
-        if (edge) edge.count += 1;
-        else edgeMap.set(key, { source: sourcePath, target: targetId, kind: link.kind, count: 1 });
+        const key = `${link.kind}\u0000${targetId}`;
+        const seen = bySource.get(key);
+        if (seen !== undefined) {
+          seen.count += 1;
+          continue;
+        }
+        const edge: GraphEdge = { source: sourcePath, target: targetId, kind: link.kind, count: 1 };
+        bySource.set(key, edge);
+        edges.push(edge);
+        // Degree counts EDGES, not link occurrences — so it moves only here,
+        // where a new pair is created, and once for a self-edge.
+        if (sourceNode) sourceNode.degree += 1;
+        if (targetId !== sourcePath) {
+          const targetNode = nodes.get(targetId);
+          if (targetNode) targetNode.degree += 1;
+        }
       }
     }
-    for (const edge of edgeMap.values()) {
-      const source = nodes.get(edge.source);
-      const target = nodes.get(edge.target);
-      if (source) source.degree += 1;
-      if (target && edge.target !== edge.source) target.degree += 1;
-    }
-    return { nodes: [...nodes.values()], edges: [...edgeMap.values()] };
+    return { nodes: [...nodes.values()], edges };
   }
 
   /** Docs first (title-bearing), assets after — the picker renders them as
@@ -332,8 +392,14 @@ export class LinkGraphIndex {
 
   // ---- Internals --------------------------------------------------------------
 
+  private dropResolution(): void {
+    this.resolved = null;
+    this.pendingDocs.clear();
+  }
+
   private ensureResolved(): ResolvedState {
-    if (this.resolved) return this.resolved;
+    const current = this.resolved;
+    if (current !== null && this.applyPending(current)) return current;
     // Alias entries feed the resolver's below-path tiers, so `[[alias]]`
     // links resolve in backlinks/forward-links/graph exactly like the
     // renderer's local resolver (which pulls the same aliases via
@@ -346,25 +412,99 @@ export class LinkGraphIndex {
     const forward = new Map<string, ResolvedLink[]>();
     const backlinks: ResolvedState["backlinks"] = new Map();
     for (const [sourcePath, record] of this.docs) {
-      const resolvedLinks: ResolvedLink[] = record.links.map((link) => ({
-        link,
-        targetPath:
-          link.kind === "wiki"
-            ? resolver.resolveWiki(link.target)
-            : resolver.resolveMd(link.target, sourcePath),
-      }));
+      const resolvedLinks = this.resolveLinks(resolver, sourcePath, record);
       forward.set(sourcePath, resolvedLinks);
       for (const { link, targetPath } of resolvedLinks) {
         if (targetPath === null) continue;
         const list = backlinks.get(targetPath);
-        const occurrence = { sourcePath, link };
+        const occurrence: Occurrence = { sourcePath, link, seq: record.seq };
         if (list) list.push(occurrence);
         else backlinks.set(targetPath, [occurrence]);
       }
     }
-    this.resolved = { forward, backlinks };
+    this.resolved = { resolver, forward, backlinks };
+    this.pendingDocs.clear();
     return this.resolved;
   }
+
+  private resolveLinks(
+    resolver: TargetResolver,
+    sourcePath: string,
+    record: DocRecord,
+  ): ResolvedLink[] {
+    return record.links.map((link) => ({
+      link,
+      targetPath:
+        link.kind === "wiki"
+          ? resolver.resolveWiki(link.target)
+          : resolver.resolveMd(link.target, sourcePath),
+    }));
+  }
+
+  /** Fold the pending docs into an otherwise-valid `state`, producing exactly
+   * what a from-scratch resolution would. False means "give up and rebuild" —
+   * either too many docs are pending to be worth splicing, or a pending doc
+   * has no prior forward entry (it predates this state, so its position among
+   * the occurrences is not known). */
+  private applyPending(state: ResolvedState): boolean {
+    if (this.pendingDocs.size === 0) return true;
+    if (this.pendingDocs.size > MAX_INCREMENTAL_DOCS) return false;
+    for (const path of this.pendingDocs) {
+      const record = this.docs.get(path);
+      const stale = state.forward.get(path);
+      if (record === undefined || stale === undefined) return false;
+      // Retract every occurrence this doc contributed, target by target…
+      const touched = new Set<string>();
+      for (const { targetPath } of stale) {
+        if (targetPath !== null) touched.add(targetPath);
+      }
+      for (const target of touched) {
+        const kept = state.backlinks.get(target)?.filter((o) => o.sourcePath !== path);
+        if (kept === undefined) continue;
+        if (kept.length === 0) state.backlinks.delete(target);
+        else state.backlinks.set(target, kept);
+      }
+      // …then re-resolve and re-file at the doc's own corpus position. The
+      // Map keeps its slot, so `forward` iteration order is untouched.
+      const links = this.resolveLinks(state.resolver, path, record);
+      state.forward.set(path, links);
+      for (const { link, targetPath } of links) {
+        if (targetPath === null) continue;
+        fileOccurrence(state.backlinks, targetPath, { sourcePath: path, link, seq: record.seq });
+      }
+    }
+    this.pendingDocs.clear();
+    return true;
+  }
+}
+
+/** Insert `occurrence` keeping the target's list in corpus order. Equal seqs
+ * (the same doc's own links, re-filed in link order) append after each other,
+ * which is the order a from-scratch build emits them in. */
+function fileOccurrence(
+  backlinks: Map<string, Occurrence[]>,
+  target: string,
+  occurrence: Occurrence,
+): void {
+  const list = backlinks.get(target);
+  if (list === undefined) {
+    backlinks.set(target, [occurrence]);
+    return;
+  }
+  let low = 0;
+  let high = list.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    const at = list[mid];
+    if (at !== undefined && at.seq <= occurrence.seq) low = mid + 1;
+    else high = mid;
+  }
+  list.splice(low, 0, occurrence);
+}
+
+function sameStrings(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, i) => value === b[i]);
 }
 
 function byPath(a: WikiTarget, b: WikiTarget): number {

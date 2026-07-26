@@ -64,7 +64,7 @@ function teardown(): void {
   unsubscribeModelState?.();
   unsubscribeModelState = null;
   if (pipeline) {
-    trackTeardown(pipeline.disconnect());
+    void trackTeardown(pipeline.disconnect());
     pipeline = null;
   }
   machine.dispatch({ type: "reset" });
@@ -115,7 +115,7 @@ async function runConnect(): Promise<void> {
   if (gen !== machine.generation) {
     // Connect succeeded but state moved on — drop the now-orphaned mic on
     // the captured session, never the (possibly replaced) module-level ref.
-    trackTeardown(session.disconnect());
+    void trackTeardown(session.disconnect());
     return;
   }
   machine.dispatch({ type: "connect_ok" });
@@ -180,7 +180,7 @@ export const useVoiceStore = create<VoiceStore>()((set, _get) => ({
     if (!pipeline) return;
     const state = machine.state;
     if (state.kind === "listening") {
-      trackTeardown(pipeline.disconnect());
+      void trackTeardown(pipeline.disconnect());
       machine.dispatch({ type: "pipeline_disconnected" });
       return;
     }
@@ -199,7 +199,7 @@ export const useVoiceStore = create<VoiceStore>()((set, _get) => ({
     // disconnect) its captured session when connect settles; error holds no
     // session at all.
     if (state.kind === "listening" && pipeline) {
-      trackTeardown(pipeline.disconnect());
+      void trackTeardown(pipeline.disconnect());
     }
     machine.dispatch({ type: "reset" });
   },

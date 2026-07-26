@@ -71,8 +71,13 @@ export function OnboardingPage() {
     });
   }, []);
 
+  // Same shape as the SETUP dispatch above: a rejection means the transition
+  // never reached the host, the error text and this button stay put, and
+  // pressing again IS the retry.
   const handleRetry = useCallback(() => {
-    getBridge().transition({ type: "RETRY" });
+    void getBridge()
+      .transition({ type: "RETRY" })
+      .catch(() => {});
   }, []);
 
   // Prefer the granular model-download progress when the voice model step is
