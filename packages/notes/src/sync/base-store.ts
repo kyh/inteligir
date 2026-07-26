@@ -32,7 +32,7 @@ export class InMemoryBaseStore implements BaseStore {
 // ---------------------------------------------------------------------------
 // JsonFile-backed BaseStore — the platform-neutral implementation both desktop
 // and mobile wrap a tiny synchronous file port around. A base is a PURE CACHE
-// of the last sync — a missing/legacy/corrupt file just means "re-sync from
+// of the last sync — a missing/malformed/corrupt file just means "re-sync from
 // empty", never data loss — so `load` returns `null` on any unreadable or
 // malformed content and the engine starts from an empty base. The JSON parse +
 // boundary validation lives here (shared), so each platform only supplies

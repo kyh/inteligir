@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // The GOLDEN CORPUS freezing checkNoteName's reject-set. A verdict change here
-// is a deliberate breaking-change gate (renames/creates that used to pass may
-// start failing, or vice versa) — never an incidental refactor casualty.
+// is a deliberate breaking-change gate (renames/creates that pass today start
+// failing, or vice versa) — never an incidental refactor casualty.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -46,7 +46,7 @@ const CORPUS: Row[] = [
   { input: "   ", ok: false, reason: reject("empty") },
   { input: "\t\n", ok: false, reason: reject("empty") },
 
-  // ---- Separators (a `/` title used to silently create folders) -------------
+  // ---- Separators (an unchecked `/` title silently creates folders) ---------
   { input: "a/b.md", ok: false, reason: reject("separator") },
   { input: "a\\b.md", ok: false, reason: reject("separator") },
   { input: "/leading.md", ok: false, reason: reject("separator") },

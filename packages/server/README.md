@@ -1,6 +1,6 @@
 # @repo/server
 
-The node backend behind `createHost()` — the composition root that wires the extracted capability packages (`@repo/storage`, `@repo/vault`, `@repo/voice`, `@repo/connectors`, `@repo/sync`) and `@repo/agent` into one host the desktop shell serves.
+The node backend behind `createHost()` — the composition root that wires the capability packages (`@repo/storage`, `@repo/vault`, `@repo/voice`, `@repo/connectors`, `@repo/sync`) and `@repo/agent` into one host the desktop shell serves.
 
 ## Why it exists
 

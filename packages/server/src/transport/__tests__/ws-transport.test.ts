@@ -567,13 +567,13 @@ describe("remote-device allowlists", () => {
     const host = await startTestHost(
       {
         // Sentinels prove denial happens BEFORE dispatch. getRemoteAccessState
-        // can now be a sentinel too: hydration is gated per session, so the
-        // welcome push no longer invokes it for a paired device.
+        // is a sentinel too: hydration is gated per session, so the welcome
+        // push never invokes it for a paired device.
         getRemoteAccessState: sentinel("getRemoteAccessState"),
         setRemoteAccessConfig: sentinel("setRemoteAccessConfig"),
         createPairingToken: sentinel("createPairingToken"),
         revokeRemoteDevice: sentinel("revokeRemoteDevice"),
-        // The host-machine surface the old blocklist silently exposed.
+        // The host-machine surface — a blocklist would expose all of it.
         transition: sentinel("transition"),
         chooseVaultRoot: sentinel("chooseVaultRoot"),
         repairIntegrations: sentinel("repairIntegrations"),
@@ -590,7 +590,7 @@ describe("remote-device allowlists", () => {
     await expect(device.setRemoteAccessConfig({ enabled: true })).rejects.toThrow(denied);
     await expect(device.revokeRemoteDevice({ id: "other" })).rejects.toThrow(denied);
     await expect(device.mintHtmlAppToken()).rejects.toThrow(denied);
-    // RESET_APP_DATA wipes ~/.inteligir — reachable under the old blocklist.
+    // RESET_APP_DATA wipes ~/.inteligir — the worst thing a phone could reach.
     await expect(device.transition({ type: "RESET_APP_DATA" })).rejects.toThrow(denied);
     await expect(device.chooseVaultRoot()).rejects.toThrow(denied);
     await expect(device.repairIntegrations()).rejects.toThrow(denied);
@@ -717,8 +717,8 @@ describe("pre-auth bounds", () => {
     const responsive = new WsWebSocket(host.url);
     // `autoPong: false` is the whole simulation: the socket stays open and the
     // TCP connection is healthy, but the peer never answers a ping. That is a
-    // half-open connection — alive to the OS, gone to us — and is precisely what
-    // used to sit in the room forever.
+    // half-open connection — alive to the OS, gone to us — and without the ping
+    // sweep it sits in the room forever.
     const unreachable = new WsWebSocket(host.url, { autoPong: false });
     await Promise.all([
       new Promise((resolve) => responsive.on("open", resolve)),

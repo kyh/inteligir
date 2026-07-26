@@ -17,7 +17,7 @@ import "./styles/globals.css";
 type Phase = AppState["phase"];
 type ErrorPrev = Extract<AppState, { phase: "error" }>["prev"];
 
-// No login surface: the app boots as a guest (#459). Pre-ready phases show the
+// No login surface: the app boots as a guest. Pre-ready phases show the
 // onboarding/setup surface (a brief splash on warm boots, the seeding
 // progress on a first run); ready is the workspace. An error routes by its
 // prev so a setup OR reset failure surfaces on the setup screen (with Retry)

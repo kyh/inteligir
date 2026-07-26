@@ -1,7 +1,6 @@
-// Voice owns its secret (restructure step 2): the ElevenLabs key goes into
-// the SecretStore directly with only a `true` presence marker in ui-state —
-// the exact behavior that used to live as SECRET_KEYS routing inside the
-// generic UiStateManager.
+// Voice owns its secret: the ElevenLabs key goes into the SecretStore
+// directly, with only a `true` presence marker in ui-state. These pin that
+// split — plaintext must never reach the marker sink.
 
 import { describe, expect, it } from "vitest";
 

@@ -125,7 +125,7 @@ export function resetFauxResponses(): void {
   reg.setResponses([selfRefillingEcho(reg)]);
 }
 
-/** The setFauxAgentScript Bridge channel's application (#461 Phase 4b): map
+/** The setFauxAgentScript Bridge channel's application: map
  * wire steps onto pi-ai faux messages — text plus tool calls, with stopReason
  * "toolUse" when calls are present so the agent loop executes them and then
  * consumes the NEXT step for its follow-up turn. Empty steps = back to the

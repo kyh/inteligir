@@ -110,7 +110,7 @@ describe("SyncEngine over the RN adapters", () => {
 
   it("mirrors a local delete to the coordinator", async () => {
     // A sibling survives the delete: an empty local listing against a
-    // non-empty base is refused by the engine's mass-deletion guard (#429).
+    // non-empty base is refused by the engine's mass-deletion guard.
     vault.writeText("gone.md", "bye");
     vault.writeText("stays.md", "here");
     await newEngine().syncOnce();
@@ -132,7 +132,7 @@ describe("SyncEngine over the RN adapters", () => {
     expect(await remoteText("stays.md")).toBe("here");
   });
 
-  // #429 Layer 1, mobile: a missing vault root makes the `VaultFs` THROW
+  // A missing vault root makes the `VaultFs` THROW
   // (expo-vault-fs's listDir("") contract) rather than list an empty vault —
   // the pass fails cleanly instead of reconciling "everything was deleted".
   it("a root-missing vault fails the pass — zero deletes reach the coordinator (#429)", async () => {
@@ -223,8 +223,8 @@ describe("SyncEngine over the RN adapters", () => {
   });
 });
 
-// #434: the mobile SyncIo now feeds the engine's stat-keyed hash cache — an
-// unchanged fingerprint reuses the cached hash instead of re-reading + re-hashing
+// The mobile SyncIo feeds the engine's stat-keyed hash cache — an unchanged
+// fingerprint reuses the cached hash instead of re-reading + re-hashing
 // the whole vault every pass. These drive the REAL mobile adapter (createSyncIo
 // over a VaultFs) against the engine; the engine-side cache matrix lives in
 // @repo/notes's engine-hash-cache.test.ts.

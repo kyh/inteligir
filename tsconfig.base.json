@@ -1,17 +1,21 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022"],
+    // No `lib` here on purpose: every leaf sets its own (ES2023 + whatever DOM/
+    // WebWorker surface it actually has). `target` is the ES2023 floor those all
+    // share, so a leaf that forgets `lib` still lands on the same stdlib.
+    "target": "ES2023",
     "module": "Preserve",
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "isolatedModules": true,
+    // Strictly stronger than isolatedModules: a value-import of a type-only
+    // symbol fails typecheck instead of silently pulling runtime code into the
+    // renderer/RN bundle.
+    "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": true,
     "noEmit": true,
     "incremental": true,
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.json",
@@ -20,6 +24,8 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
+    // Not implied by `strict`; the switch-statement sibling above already is on.
+    "noImplicitReturns": true,
     "exactOptionalPropertyTypes": true
   },
   "exclude": ["node_modules", "build", "dist", ".output"]

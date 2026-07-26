@@ -45,11 +45,12 @@ Exports map = exactly these seven subpaths; no barrel.
 
 - **`~/.inteligir` is owner-only** (CLAUDE.md § Decisions): transcripts and
   snapshots carry note content. New writes are 0600 files / 0700 dirs by
-  construction (`realFs`); `hardenAppDir` re-asserts it every boot for history
-  and third parties — pi keeps creating transcripts 0644 mid-session. pi's
+  construction (`realFs`); `hardenAppDir` re-asserts it every boot for files
+  already on disk and for third parties — pi keeps creating transcripts 0644
+  mid-session. pi's
   auth.json stays pi-owned (plaintext-but-0600 by design; no cipher seam).
-- **Version drift is quarantine-only.** No migration registry exists —
-  deliberately removed until a real migration ships. Any version other than
+- **Version drift is quarantine-only.** There is deliberately no migration
+  registry until a real migration needs one. Any version other than
   `current` (newer, older, missing) sets the file aside (`.newer-v<N>-<ts>` /
   `.corrupt-<ts>`) and resets to defaults; the original bytes always survive
   at the backup path and a recovery event surfaces it.

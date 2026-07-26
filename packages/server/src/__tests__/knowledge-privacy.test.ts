@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
-// Outbound-payload guarantee for the agent knowledge tools (reflect's
-// stream-chat payload-assertion pattern, adapted to the tool level): run the
-// REAL search_vault / get_backlinks / related_notes execute() closures over the REAL
-// privacy-filtered port and a real core index, stringify every result the
-// model would receive, and assert the private note's path, title, and body
-// text never appear — including via backlinks-from-a-private-source and the
+// Outbound-payload guarantee for the agent knowledge tools — asserted on the
+// bytes the model would actually receive, not on the port's return values: run
+// the REAL search_vault / get_backlinks / get_links / related_notes execute()
+// closures over the REAL privacy-filtered port and a real core index,
+// stringify every result the model would receive, and assert the private
+// note's path, title, and body text never appear — including via
+// backlinks-from-a-private-source, links-TO-a-private-target, and the
 // index-lag TOCTOU case (public in the index, private on disk NOW).
 // ---------------------------------------------------------------------------
 
@@ -36,6 +37,14 @@ const VAULT: Record<string, string> = {
     "---\nprivate: true\ntags: [meta]\n---\n# Hidden Lab\n\nclassified centrifuge notes\n",
   // Public tagmate so related_notes(open-notes) has a legitimate survivor.
   "meta-index.md": "# Meta index\n\n#meta\n",
+  // The get_links subject, carrying all three outcomes at once: a resolved
+  // PUBLIC target, a resolved PRIVATE target (must vanish), and a dangling
+  // link (no file behind it, so nothing to hide — must survive as
+  // unresolved). Deliberately tag-free and lexically distinct from the notes
+  // above so it doesn't perturb the search / related_notes fixtures, and it
+  // links to hidden-lab rather than secret-plans so it shares no link target
+  // with open-notes (co-citation would drag it into related_notes results).
+  "link-hub.md": "# Link hub\n\nSee [[meta-index]], [[hidden-lab]] and [[nowhere]].\n",
 };
 
 function seededIndex(): KnowledgeIndex {
@@ -126,12 +135,15 @@ describe("agent knowledge tools — private notes never reach the model", () => 
     expect(payload).toContain("open-notes.md");
   });
 
-  it("get_backlinks on a private target answers 'No backlinks.' — a silent drop", async () => {
+  it("get_backlinks on a private target answers with an empty array — a silent drop", async () => {
     const tools = captureTools(buildPort());
     const payload = await outbound(tools, "get_backlinks", { path: PRIVATE_PATH });
-    // Structured refusal would confirm the path's existence/privacy; the
-    // silent sentinel is indistinguishable from a note with no backlinks.
-    expect(payload).toContain("No backlinks.");
+    // Structured refusal would confirm the path's existence/privacy; an empty
+    // result is indistinguishable from a note with no backlinks. The payload
+    // shape changed from the "No backlinks." sentinel to a JSON array when the
+    // read tools moved to delimiter-safe encoding — the CONTRACT (silent drop,
+    // no oracle) is what this test pins, not the wording.
+    expect(payload).toContain('"text":"[]"');
     expectNoLeak(payload);
   });
 
@@ -139,6 +151,50 @@ describe("agent knowledge tools — private notes never reach the model", () => 
     const tools = captureTools(buildPort());
     const payload = await outbound(tools, "get_backlinks", { path: "open-notes.md" });
     expectNoLeak(payload); // secret-plans.md links to open-notes — must not show
+  });
+
+  it("get_links drops a PRIVATE target; the public one and the dangling one survive", async () => {
+    // Non-vacuity pin: the UNFILTERED index really does resolve link-hub's
+    // middle link onto the private file. Without this, a fixture typo (a
+    // wiki-link that quietly stops resolving) would turn the leak assertions
+    // below into a test of nothing.
+    const unfiltered = seededIndex().forwardLinks("link-hub.md");
+    expect(unfiltered.map((entry) => entry.targetPath)).toEqual([
+      "meta-index.md",
+      "hidden-lab.md",
+      null,
+    ]);
+    const tools = captureTools(buildPort());
+    const payload = await outbound(tools, "get_links", { path: "link-hub.md" });
+    // What the tool adds over reading the note is RESOLUTION — the raw
+    // `[[hidden-lab]]` text is in the body either way, but confirming it
+    // lands on a real private file is the leak. So the row is dropped whole.
+    expectNoLeak(payload);
+    expect(payload).toContain("meta-index.md");
+    // A dangling link has no file behind it and so cannot be private: it must
+    // still be reported, explicitly unresolved rather than silently missing.
+    expect(payload).toContain("nowhere");
+    expect(payload).toContain("unresolved");
+  });
+
+  it("get_links on a private subject answers with an empty array — a silent drop", async () => {
+    const tools = captureTools(buildPort());
+    const payload = await outbound(tools, "get_links", { path: PRIVATE_PATH });
+    // Same no-oracle rule as get_backlinks: indistinguishable from a note
+    // that links nowhere. secret-plans.md does link to open-notes, so this
+    // empty result is the port's doing, not the fixture's.
+    expect(payload).toContain('"text":"[]"');
+    expectNoLeak(payload);
+  });
+
+  it("get_links TOCTOU: a target public in the index but private on disk NOW drops", async () => {
+    const tools = captureTools(
+      buildPort({ "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n" }),
+    );
+    const payload = await outbound(tools, "get_links", { path: "link-hub.md" });
+    expect(payload).not.toContain("meta-index.md");
+    expect(payload).toContain("nowhere"); // the rest of the note's links stay
+    expectNoLeak(payload);
   });
 
   it("TOCTOU: a note public in the index but private on disk NOW is dropped", async () => {
@@ -168,10 +224,10 @@ describe("agent knowledge tools — private notes never reach the model", () => 
     expect(payload).toContain("meta-index.md"); // the public tagmate survives
   });
 
-  it("related_notes on a private subject answers 'No related notes.' — a silent drop", async () => {
+  it("related_notes on a private subject answers with an empty array — a silent drop", async () => {
     const tools = captureTools(buildPort());
     const payload = await outbound(tools, "related_notes", { path: PRIVATE_PATH });
-    expect(payload).toContain("No related notes.");
+    expect(payload).toContain('"text":"[]"');
     expectNoLeak(payload);
   });
 

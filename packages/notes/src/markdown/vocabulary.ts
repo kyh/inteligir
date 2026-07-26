@@ -1,7 +1,7 @@
 // Post-parse vocabulary scan — mandatory before Rich mode. Unknown JSX
-// deserializes to escaped TEXT whose alphanumeric content equals the source
-// (probe1 "unknown JSX flow"), so the letters() heuristic alone would wave it
-// into Rich mode and the first edit would mangle `<Foo>` into `\<Foo>` prose.
+// deserializes to escaped TEXT whose alphanumeric content equals the source, so
+// the letters() heuristic alone would wave it into Rich mode and the first edit
+// would mangle `<Foo>` into `\<Foo>` prose.
 // The scan closes that hole: anything outside the fixed vocabulary → Raw.
 
 import type { Nodes, Root } from "mdast";

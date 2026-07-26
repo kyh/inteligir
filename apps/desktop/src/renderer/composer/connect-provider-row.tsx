@@ -7,7 +7,7 @@ import { useAiProviderStore } from "@renderer/stores/ai-provider-store";
 
 /**
  * The composer's guest-mode surface: shown in place of the chat input when no
- * AI provider is connected. AI is a FEATURE gate, never an app gate (#459) —
+ * AI provider is connected. AI is a FEATURE gate, never an app gate —
  * the workspace stays fully usable; this row just offers the way in. Connect
  * runs the existing `connectAiProvider` OAuth path for the SELECTED provider
  * (the same one Settings → AI drives) through the shared ai-provider-store,

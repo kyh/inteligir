@@ -1,8 +1,21 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // ES2023 is the repo-wide floor and the CEILING here: these components are
+    // bundled into apps/web and the desktop renderer, which ship at Vite's
+    // default `baseline-widely-available` target (Safari 16.4). Vite transforms
+    // syntax, never stdlib — an ES2024+ builtin (Object.groupBy,
+    // Set.intersection, Promise.withResolvers, iterator helpers) would typecheck
+    // and then throw in a supported browser. Same trap, worse, if @repo/ui ever
+    // becomes a mobile dep: Hermes.
     "lib": ["ES2023", "dom", "dom.iterable"],
-    "jsx": "preserve",
+    // react-jsx, not the init template's `preserve`: both consumers are
+    // react-jsx and both pull these sources into their own programs via the
+    // `@repo/ui/*` paths, so `preserve` checks the same files twice under two
+    // JSX resolution rules — and breaks @react-three/fiber's own
+    // `declare module "react"` intrinsics, forcing geometric-orb.tsx onto a
+    // hand-written global JSX shim.
+    "jsx": "react-jsx",
     // node: the orphan-component guard walks the repo from src/__tests__.
     "types": ["node"],
     "paths": {

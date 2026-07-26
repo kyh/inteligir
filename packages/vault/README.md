@@ -28,8 +28,8 @@ Sole export: `@repo/vault/vault`.
 
 ## Invariants
 
-- **Ephemeral listing, ONE watcher** (vault liveness — CLAUDE.md § Decisions,
-  PR #411). NO recursive filesystem watcher, ever. The listing is an
+- **Ephemeral listing, ONE watcher** (vault liveness — CLAUDE.md § Decisions).
+  NO recursive filesystem watcher, ever. The listing is an
   on-demand crawl cached for 1s (`SNAPSHOT_TTL_MS`) so a refresh burst —
   renderer listing + knowledge diff + sync fingerprints — shares one walk;
   triggers: app structural writes, window focus, "Refresh vault", delegation
@@ -42,7 +42,7 @@ Sole export: `@repo/vault/vault`.
   resulting watch event on the full `mtimeMs:size:ino` fingerprint so an
   mtime-colliding external edit still surfaces. Restore and sync-pull don't
   record — their writes reload the editor.
-- **Incomplete crawl ≠ deletions** (#429). `listAllPaths()` — the sync
+- **Incomplete crawl ≠ deletions.** `listAllPaths()` — the sync
   manifest source — THROWS `VaultListingIncompleteError` on a partial crawl
   (missing root, unreadable subtree): reconcile reads "in base, absent
   locally" as a local delete. `list()`/`listWithStats()` stay lenient;
@@ -85,7 +85,7 @@ pnpm --filter @repo/vault test
 ```
 
 `vault.test.ts` (30 tests) pins confinement (traversal + symlink escapes),
-snapshot TTL/invalidation, the #429 incomplete-listing refusal, rename
+snapshot TTL/invalidation, the incomplete-listing refusal, rename
 occupancy, trash-vs-delete, the write-suspension gate, and real open-note
 watch events against a temp dir; `classify-file-change.test.ts` enumerates
 the verdict function + `SelfSaveRegistry` TTL/fingerprint semantics.

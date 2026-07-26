@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // Composition-root smoke test. Every other server test exercises a manager in
-// isolation; nothing executed createHost() itself, so the wiring it owns — seam
-// installation ORDER, dependency-ordered singleton construction, handler
-// completeness, the lock/harden/vault/knowledge/sync boot sequence, and the
-// teardown that unwinds it — was covered only by launching the real app.
+// isolation; nothing else executes createHost() itself, so without this file
+// the wiring it owns — seam installation ORDER, dependency-ordered singleton
+// construction, handler completeness, the lock/harden/vault/knowledge/sync
+// boot sequence, and the teardown that unwinds it — is covered only by
+// launching the real app.
 //
 // It runs against a throwaway home directory. Both `~/.inteligir` (json-store,
 // agent paths) and the default vault root (~/Documents/Inteligir) are computed
@@ -15,9 +16,9 @@
 // The redirect MOCKS os.homedir rather than setting process.env.HOME. $HOME is
 // shared process state: vitest imports several test files into one worker
 // before running any of them, so a top-level env assignment here silently
-// repointed ~/.inteligir for every other file in the worker (it broke
-// delegation-manager.test.ts in CI while passing locally). vi.mock is
-// file-scoped and cannot leak.
+// repoints ~/.inteligir for every OTHER file in the worker — a cross-file
+// break that surfaces in CI while passing locally. vi.mock is file-scoped and
+// cannot leak.
 //
 // createHost() throws on a second call per process by design, so this file
 // boots exactly one host — keep it that way, and keep it in its own file so

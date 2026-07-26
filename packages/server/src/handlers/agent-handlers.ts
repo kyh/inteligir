@@ -19,7 +19,7 @@ export function registerAgentHandlers(handle: HandlerRegistrar): void {
   handle("readChatSession", ({ id }) => readChatSessionById(id));
   handle("reauthenticate", () => reauthenticate());
 
-  // Dev-only E2E scripting seam (#461 Phase 4b) — fails closed in production.
+  // Dev-only E2E scripting seam — fails closed in production.
   handle("setFauxAgentScript", (script) => {
     if (!isFauxAgentEnabled()) {
       throw new Error("setFauxAgentScript requires INTELIGIR_FAUX_AGENT=1");

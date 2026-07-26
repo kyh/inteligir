@@ -82,7 +82,7 @@ export function createAuth(env: Env, baseURL: string) {
     plugins: [bearer()],
     emailAndPassword: {
       enabled: true,
-      // Password reset (#463): Better Auth mints the token + URL and calls
+      // Password reset: Better Auth mints the token + URL and calls
       // this to deliver it (Cloudflare Email Sending; absorbs its own
       // failures — see reset-email.ts). The desktop requests with
       // `redirectTo: "/auth/reset"`, so the URL's GET leg redirects to the

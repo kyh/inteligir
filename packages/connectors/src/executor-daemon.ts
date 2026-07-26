@@ -48,11 +48,11 @@ const BINARY_PATH = path.join(BIN_DIR, BIN_NAME);
 // running `shasum -a 256 <file>`.
 // (The release also ships linux musl tarballs; executorArtifactName can't
 // select those — no musl detection — so they're deliberately unpinned.)
-// NOTE: upstream re-uploaded every v1.5.4 asset in place on 2026-06-11
-// (~8h after publish; the new zips add libsql.node), which invalidated the
-// original pins and broke every fresh install — exactly the fail-closed
-// behavior intended. Re-pinned from the re-uploaded assets after verifying
-// the darwin-arm64 binary runs and reports v1.5.4.
+// NOTE: upstream re-uploads release assets in place under the SAME tag. When
+// that happens every fresh install starts failing here — that is the intended
+// fail-closed behavior, not a bug in the pins. Re-pin only after downloading
+// the new assets, running the binary, and confirming it reports the version
+// this file claims.
 const EXECUTOR_SHA256: Record<string, string> = {
   "executor-darwin-arm64.zip": "e6b863a65d0ed9a30c36dcce6024d5bec4c3b8949fc51c2458e1ecdd81a8e9e1",
   "executor-darwin-x64.zip": "f58caf3f1f443819405a169e187c53b102d834e618d3880a0391528eaeb3d7f1",

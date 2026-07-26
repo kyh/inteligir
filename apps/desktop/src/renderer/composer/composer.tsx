@@ -144,7 +144,7 @@ export function Composer() {
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
 
-  // AI feature gate (#459): with no provider connected the whole input is
+  // AI feature gate: with no provider connected the whole input is
   // replaced by the connect affordance below — the app itself never blocks.
   const providerConnected = useAiProviderConnected();
   const initProviders = useAiProviderStore((s) => s.init);

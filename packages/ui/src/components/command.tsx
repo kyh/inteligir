@@ -49,15 +49,22 @@ function CommandDialog({
 }) {
   return (
     <Dialog {...props}>
-      <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
       <DialogContent
         className={cn("top-1/3 translate-y-0 overflow-hidden rounded-3xl! p-0", className)}
         showCloseButton={showCloseButton}
         initialFocus={initialFocus}
       >
+        {/* LOCAL DEVIATION from stock shadcn's CommandDialog (re-apply after a
+            registry re-pull; also listed in the README's Invariants): stock
+            renders this header as a SIBLING of DialogContent, which puts it
+            outside the portal and outside Dialog.Popup, and makes Dialog.Root
+            render it even while the palette is closed. Base UI's docs put
+            Title/Description inside the Popup. `sr-only` is absolutely
+            positioned, so it takes no row in the Popup's grid. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
         <Command {...(shouldFilter !== undefined && { shouldFilter })}>{children}</Command>
       </DialogContent>
     </Dialog>

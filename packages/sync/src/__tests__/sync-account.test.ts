@@ -141,7 +141,7 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
     expect(result).toEqual({ ok: true });
     expect(opened).toEqual(["https://github.com/login/oauth/authorize?x=1"]);
     // Initiation only: the session lands in the browser; this device stays
-    // signed out until Phase 4's deep-link callback captures it.
+    // signed out until the `session?code=…` deep link comes back.
     expect(account.getToken()).toBeNull();
   });
 
@@ -337,7 +337,7 @@ describe("SyncAccount completeSocialSignIn", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Teardown decouple (#459): account sign-out touches ONLY the session store.
+// Account sign-out touches ONLY the session store.
 // ---------------------------------------------------------------------------
 
 describe("SyncAccount sign-out isolation", () => {

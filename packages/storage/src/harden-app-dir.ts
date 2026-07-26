@@ -3,10 +3,11 @@
 //
 // New writes are already owner-only: json-store's realFs defaults data files
 // to 0o600, its mkdirs are 0o700, and restrictInteligirDir keeps the TOP dir
-// 0700 on every store write. What none of that can fix is history and third
-// parties: files created 0644 by older builds (sessions/*.jsonl transcripts
-// record every note the agent read; delegations.json; runtime-ui.json;
-// snapshot bytes are raw note content), subdirectories created 0755, and pi —
+// 0700 on every store write. What none of that can fix is what is ALREADY on
+// disk, and third parties: data files sitting at 0644 (sessions/*.jsonl
+// transcripts record every note the agent read; delegations.json;
+// runtime-ui.json; snapshot bytes are raw note content), subdirectories at
+// 0755, and pi —
 // which owns the session writers and keeps creating transcripts 0644
 // mid-session. A 0700 directory is the durable boundary for those; this sweep
 // normalizes the directories and heals the file-mode stragglers each launch.

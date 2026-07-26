@@ -6,15 +6,32 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 //
 //  1. The Better Auth core tables (`user`, `session`, `account`, `verification`)
 //     — the SQLite shape Better Auth's Drizzle adapter (`provider: "sqlite"`)
-//     expects. Hand-written to mirror `@better-auth/cli generate` output for the
-//     current plugin set (emailAndPassword + bearer add NO columns beyond the
-//     core set). The JS property keys are Better Auth's field names (camelCase);
-//     the DB column names (snake_case) are ours and travel with the generated
-//     migration, so schema + migration always agree. The `session.token` column
-//     is what the bearer plugin matches an `Authorization: Bearer …` token against.
-//     If you add a plugin that needs columns (organization, admin, apiKey, …),
-//     REGENERATE via `pnpx @better-auth/cli generate` rather than editing by hand,
-//     then `drizzle-kit generate` a new migration — hand-editing risks drift.
+//     expects. Hand-written: the COLUMN SET matches what `@better-auth/cli
+//     generate` emits for the current plugin set (emailAndPassword + bearer add
+//     no columns beyond the core set), but this is NOT byte-parity with the
+//     generator, and two divergences are deliberate:
+//
+//       • Timestamps are `mode: "timestamp"` (epoch SECONDS); the generator now
+//         emits `mode: "timestamp_ms"`. Do NOT flip this in place. Both modes
+//         read the same INTEGER column, so a redeploy without an accompanying
+//         `UPDATE <table> SET <col> = <col> * 1000` reads every stored date back
+//         as 1970 — which expires every live session and every pending
+//         verification token. Seconds are correct as long as they are what the
+//         rows already hold.
+//       • The generator's three secondary indexes (session.userId,
+//         account.userId, verification.identifier) are absent. Not needed at
+//         this scale: the hot path is `session.token`, which is unique and so
+//         already indexed; the rest are cold paths over a handful of rows.
+//
+//     The JS property keys are Better Auth's field names (camelCase); the DB
+//     column names (snake_case) are ours. There are no migration files — the
+//     schema here IS the source of truth, applied with `drizzle-kit push` and
+//     exported straight into the tests (see drizzle.config.ts for why).
+//     The `session.token` column is what the bearer plugin matches an
+//     `Authorization: Bearer …` token against. If you add a plugin that needs
+//     columns (organization, admin, apiKey, …), run `pnpx @better-auth/cli
+//     generate` and port the new columns rather than guessing at them — but
+//     keep the timestamp mode the existing rows are written in.
 //
 //  2. `vault_owner` — first-writer-wins vault ownership: the first authenticated
 //     user to touch a vaultId claims it; later requests from other users get 403.

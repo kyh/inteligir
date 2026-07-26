@@ -108,7 +108,7 @@ type VaultSnapshot = {
    * or any directory read failed — `entries` is then a best-effort partial.
    * The UI listing serves it anyway (lenient); `listAllPaths()` (the sync
    * manifest source) refuses it, because a truncated listing is
-   * indistinguishable from a mass deletion (#429). */
+   * indistinguishable from a mass deletion. */
   complete: boolean;
 };
 
@@ -116,7 +116,7 @@ type VaultSnapshot = {
  * (missing root, an unreadable subtree). Sync-facing on purpose: the 3-way
  * reconcile reads "in base, absent from local" as a LOCAL DELETE, so a
  * truncated listing must fail the sync pass rather than propagate a vault-wide
- * deletion to every device (#429). The UI-facing `list()`/`listWithStats()`
+ * deletion to every device. The UI-facing `list()`/`listWithStats()`
  * stay lenient and serve the partial instead. */
 export class VaultListingIncompleteError extends Error {
   constructor(root: string) {
@@ -236,11 +236,11 @@ export class VaultManager {
   // ---- File operations ------------------------------------------------------
 
   /** List every file under the vault (relative paths), respecting SKIP_DIRS and
-   * the root ignore files. Uncapped: the crawl is now on-demand (ephemeral
+   * the root ignore files. Uncapped: the crawl is on-demand (ephemeral
    * snapshot — vault liveness, CLAUDE.md § Decisions), not
-   * per-filesystem-event, so there is no scaling
-   * hazard to cap against. Drives the sidebar file tree. Served from the
-   * shared TTL snapshot so a refresh burst crawls once. */
+   * per-filesystem-event, so there is no scaling hazard to cap against.
+   * Drives the sidebar file tree. Served from the shared TTL snapshot so a
+   * refresh burst crawls once. */
   list(): VaultEntry[] {
     return this.getSnapshot().entries.map((e) => ({ path: e.path, name: e.name, kind: e.kind }));
   }
@@ -251,7 +251,7 @@ export class VaultManager {
    * remote, missing from local" as a local deletion and propagates it to the
    * coordinator and every peer. That is exactly why this — and ONLY this,
    * the sync-facing listing — THROWS on an incomplete crawl (missing root,
-   * unreadable subtree) instead of returning the partial (#429); the engine
+   * unreadable subtree) instead of returning the partial; the engine
    * surfaces the throw as a failed pass and retries later. Ignore rules
    * filter what sync tracks by design; SKIP_DIRS + ignore files are the only
    * exclusions, and they match list(). */
@@ -285,7 +285,7 @@ export class VaultManager {
     const byPath = new Map<string, VaultStatEntry>();
     // A missing root is an INCOMPLETE crawl, not an empty vault — it feeds the
     // completeness flag (listAllPaths throws; list serves the empty partial)
-    // rather than silently reading as "every file was deleted" (#429).
+    // rather than silently reading as "every file was deleted".
     let complete = false;
     if (fs.existsSync(root)) {
       const walked = this.walk(root);
@@ -300,7 +300,7 @@ export class VaultManager {
           // real vanish mid-crawl. Either way the file is dropped from this
           // listing, so mark the crawl incomplete (mirrors the readdir-failure
           // path): list() stays lenient on the partial, but listAllPaths()
-          // must refuse rather than let sync read the drop as a delete (#429).
+          // must refuse rather than let sync read the drop as a delete.
           complete = false;
           continue;
         }
@@ -336,7 +336,7 @@ export class VaultManager {
   // (unsorted — callers sort), plus whether every directory read succeeded:
   // a failed readdir still skips the subtree (list() stays lenient on the
   // partial) but is RECORDED as incompleteness instead of hidden, so
-  // listAllPaths() can refuse to present the truncation as deletions (#429).
+  // listAllPaths() can refuse to present the truncation as deletions.
   private walk(root: string): { files: { path: string; name: string }[]; complete: boolean } {
     const out: { path: string; name: string }[] = [];
     let complete = true;

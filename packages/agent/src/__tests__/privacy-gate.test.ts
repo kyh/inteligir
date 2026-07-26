@@ -277,6 +277,12 @@ describe("privacy gate — bash/execute/browser/peekaboo (best-effort ONLY)", ()
   it("leaves curated tools alone (search_vault filters at the KnowledgePort)", () => {
     expect(decide("search_vault", { query: "rocket" })).toEqual({ allow: true });
     expect(decide("get_backlinks", { path: "notes/secret.md" })).toEqual({ allow: true });
+    // get_links is curated for the same reason: its `path` is a lookup key
+    // the KnowledgePort privacy-filters (private subject → [], private
+    // resolved targets dropped), not a file the tool reads. Left OFF the
+    // curated set it would fall through to decideOpaqueInput, whose
+    // best-effort literal-path screen is not a boundary.
+    expect(decide("get_links", { path: "notes/secret.md" })).toEqual({ allow: true });
     expect(decide("resume", { executionId: "x", action: "accept" })).toEqual({ allow: true });
   });
 
@@ -339,9 +345,9 @@ describe("privacy extension handler (the piece pi invokes)", () => {
   it("resolves `@vault/…` through pi's real normalization (regression: the @-bypass)", () => {
     // The REAL wiring (resolvePiToolPath, no stub): "@vault/x.md" must strip
     // to "vault/x.md" and classify as vault-shaped. In this fail-closed world
-    // (vaultRealRoot null) that means BLOCK — before the fix the raw string
-    // resolved to "<cwd>/@vault/x.md", classified "outside", and was allowed
-    // straight through to pi's read, which stripped the @ and read the note.
+    // (vaultRealRoot null) that means BLOCK. Resolving the raw string instead
+    // yields "<cwd>/@vault/x.md", classifies it "outside", and lets it
+    // through to pi's read — which strips the @ and reads the note.
     const handler = buildToolCallHandler(port(), null);
     const result = handler({
       type: "tool_call",

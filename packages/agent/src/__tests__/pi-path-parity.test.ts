@@ -4,8 +4,9 @@
 // battery of adversarial inputs. The privacy gate classifies paths through
 // the replication; if a pi upgrade adds or changes a normalization (a new
 // prefix strip, another unicode mapping, one more fs-fallback variant), the
-// gate would silently diverge from what the tools actually open — the exact
-// root cause of the confirmed `@vault/…` private-content bypass. This test
+// gate would silently diverge from what the tools actually open — and any
+// such divergence is a private-content bypass (`@vault/…`, NBSP
+// filenames: the gate classifies one file, pi opens another). This test
 // imports pi's INSTALLED path-utils.js (not exported publicly — reached by
 // file path, test-only; prod code stays self-contained) so that drift fails
 // HERE, loudly, instead of shipping as a vulnerability.
@@ -25,7 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { expandPiPath, resolvePiToolPath } from "../privacy/pi-path-parity";
 
 // pi declares exports only for "." and "./hooks", so the internal module is
-// reached by file path. @repo/server declares the dependency, so pnpm links
+// reached by file path. @repo/agent declares the dependency, so pnpm links
 // it under this package's own node_modules — a stable location.
 const PI_PATH_UTILS = fileURLToPath(
   new URL(

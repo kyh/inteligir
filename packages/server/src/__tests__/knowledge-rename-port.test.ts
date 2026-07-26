@@ -51,6 +51,7 @@ beforeEach(() => {
     queries: () => ({
       search: () => [],
       backlinks: () => [],
+      forwardLinks: () => [],
       relatedNotes: () => [],
       notesWithTag: () => [],
     }),

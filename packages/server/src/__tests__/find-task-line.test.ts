@@ -76,8 +76,8 @@ describe("findTaskLine", () => {
   it("counts a 4-space-indented checkbox (no indented code in the canonical flavor)", () => {
     // The MDX vocabulary has no indented-code construct, so the editor renders
     // this line as a live task — scanTaskItems reads the same grammar and the
-    // ordinal counts it (previously plain remark-gfm read it as code and
-    // every later ordinal desynced from the renderer).
+    // ordinal counts it. A parser that treated the indent as a code block
+    // would skip the line and desync every later ordinal from the renderer.
     const md = ["Notes", "", "    - [ ] alpha", "", "- [ ] real"].join("\n");
     expect(findTaskLine(md, 0)?.text).toBe("alpha");
     expect(findTaskLine(md, 1)?.text).toBe("real");

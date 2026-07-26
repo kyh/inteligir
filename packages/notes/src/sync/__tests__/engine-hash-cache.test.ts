@@ -84,9 +84,9 @@ class FingerprintVault {
 }
 
 /** A plain Map-backed vault WITHOUT a fingerprint — an adapter without cheap
- * stat. (No shipping platform is in this bucket anymore — desktop fingerprints
- * via VaultManager.statFingerprint, mobile via its VaultFs stat (#434) — but
- * the port stays optional and the fallback must stay correct.) */
+ * stat. (No shipping platform is in this bucket — desktop fingerprints via
+ * VaultManager.statFingerprint, mobile via its VaultFs stat — but the port
+ * stays optional and the fallback must stay correct.) */
 class NoFingerprintVault {
   private readonly files = new Map<VaultPath, Uint8Array>();
 

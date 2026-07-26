@@ -2,7 +2,8 @@
  * Privacy extension — enforces `private: true` at the agent tool boundary
  * for BOTH agents (chat and delegation register the same EXTENSION_BUNDLES).
  *
- * Mechanism: pi's blockable `tool_call` event (re-verified on 0.80.10, #430).
+ * Mechanism: pi's blockable `tool_call` event (parity last verified against
+ * pi 0.80.10).
  * The handler fires before every tool executes; returning `{ block: true,
  * reason }` short-circuits the run and the model receives the reason as an
  * error tool result (pi-agent-core agent-loop.js prepareToolCall →

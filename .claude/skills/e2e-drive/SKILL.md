@@ -19,8 +19,14 @@ the app is byte-identical to production):
 
 ## Setup
 
+**Never truncate or delete `apps/desktop/.env`** — it also holds the Apple
+notarization credentials (`APPLE_API_KEY*`), `ELEVENLABS_API_KEY`, and the
+bundled Google OAuth client. Append the flags and remove only those two lines
+afterwards; `>` and `rm -f` destroy secrets that are not recoverable from the
+repo.
+
 ```bash
-printf 'INTELIGIR_FAUX_AGENT=1\nINTELIGIR_EMULATE_CONNECTORS=1\n' > apps/desktop/.env
+printf 'INTELIGIR_FAUX_AGENT=1\nINTELIGIR_EMULATE_CONNECTORS=1\n' >> apps/desktop/.env
 pnpm dev:desktop                       # real Electron (needed — NOT dev:harness), CDP :9222, daemon :47888
 agent-browser connect 9222
 npx -y emulate start --service google   # only for the connector flow → :4000
@@ -45,7 +51,7 @@ See `docs/e2e-driving.md` for the exact snippets.
   `createDelegation({sourceFile, ordinal:0})`, then poll `listDelegations` for
   `status:"done"`, then `readVaultDoc` to confirm the box is checked plus a result line.
 - **Connector**: Settings → Connectors → a Google connector's **Connect** →
-  poll `getPendingConnectorAuth` over the Bridge (#462; dev-only, throws
+  poll `getPendingConnectorAuth` over the Bridge (dev-only, throws
   without the emulate flag) → `{ authorizationUrl, state }` → POST emulate's
   `/o/oauth2/v2/auth/callback` with the authorize URL's own query string as
   the form body plus `email=testuser%40gmail.com` (state/PKCE ride in it — no
@@ -63,7 +69,7 @@ See `docs/e2e-driving.md` for the exact snippets.
 ```bash
 pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"
 pkill -f "emulate"
-rm -f apps/desktop/.env
+sed -i '' '/^INTELIGIR_FAUX_AGENT=1$/d;/^INTELIGIR_EMULATE_CONNECTORS=1$/d' apps/desktop/.env
 ```
 
 Also restore the faux echo (`setFauxAgentScript({steps:[]})`) and delete any

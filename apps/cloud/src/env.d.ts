@@ -1,12 +1,18 @@
-// Secrets + optional OAuth vars that live OUTSIDE wrangler.jsonc, so
-// `wrangler types` cannot see them (secrets are set with `wrangler secret put`,
-// never committed). Declaration-merged into the generated `Env` interface from
-// worker-configuration.d.ts. There is no `BETTER_AUTH_URL` — the auth baseURL is
-// derived per-request from the request origin, so it needs no env at all.
+// The OPTIONAL runtime vars — declaration-merged into the generated `Env` from
+// worker-configuration.d.ts. Values are set with `wrangler secret put` (prod) or
+// .dev.vars (local) and are never committed.
+//
+// The one REQUIRED secret, BETTER_AUTH_SECRET, is not here: wrangler.jsonc's
+// `secrets.required` names it, so `wrangler types` emits it onto `Env` itself
+// (non-optional) and warns in dev when it's missing. Everything below stays
+// hand-declared because it is genuinely optional — listing an optional key in
+// `secrets.required` would type it as always-present and turn a missing OAuth
+// pair into a dev warning, when absence is the documented default.
+//
+// There is no `BETTER_AUTH_URL` — the auth baseURL is derived per-request from
+// the request origin, so it needs no env at all.
 
 interface Env {
-  /** Dedicated Better Auth signing secret. `wrangler secret put BETTER_AUTH_SECRET`. */
-  readonly BETTER_AUTH_SECRET: string;
   /** Optional extra trusted origins, comma-separated (e.g. a desktop protocol). */
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string;
   /** Optional GitHub OAuth credentials — the provider is enabled only when both exist. */

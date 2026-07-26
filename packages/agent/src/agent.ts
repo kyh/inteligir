@@ -37,7 +37,7 @@ export type AgentOptions = {
    * lazily inside start(), and resolved to pi-ai's Model INSIDE the PiAgent
    * wrapper — so a bad selection surfaces through the async start() path like
    * every other construction error, and pi-ai's Model type never crosses
-   * this seam (#460). agent/ never chooses a provider itself. */
+   * this seam. agent/ never chooses a provider itself. */
   selectModel: () => ModelSelection;
   /** If true, start a fresh session instead of resuming the most recent one. */
   newSession?: boolean;

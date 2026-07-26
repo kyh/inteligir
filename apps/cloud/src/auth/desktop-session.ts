@@ -105,8 +105,14 @@ function interstitial(deepLink: string | null, message: string): Response {
  * desktop-minted state; mints the single-use code and hands the browser the
  * `inteligir://session` deep link. No session / no state = failure copy, no
  * code minted.
+ *
+ * `ctx` is here only to `waitUntil` the expired-code sweep — see below.
  */
-export async function handleDesktopCallback(request: Request, env: Env): Promise<Response> {
+export async function handleDesktopCallback(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
   if (state === null || !OPAQUE_PARAM.test(state)) {
@@ -128,8 +134,12 @@ export async function handleDesktopCallback(request: Request, env: Env): Promise
   const now = new Date();
   const db = createDb(env.DB);
   // Opportunistic GC — expired codes are dead weight either way (the exchange
-  // re-checks expiry), this just keeps the table from accumulating rows.
-  await db.delete(desktopAuthCode).where(lt(desktopAuthCode.expiresAt, now));
+  // re-checks expiry), this just keeps the table from accumulating rows. It is
+  // not needed for correctness, so it runs AFTER the response instead of adding
+  // a D1 round-trip to the user's sign-in latency. Racing the insert below is
+  // harmless: the predicate is `expiresAt < now` and the row we insert expires
+  // 90s from now, so the sweep can never take it.
+  ctx.waitUntil(db.delete(desktopAuthCode).where(lt(desktopAuthCode.expiresAt, now)).execute());
   await db.insert(desktopAuthCode).values({
     codeHash: await hashCode(code),
     token: session.session.token,

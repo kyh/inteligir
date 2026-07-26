@@ -9,6 +9,14 @@ on:
   push:
     branches: [main]
 
+# Deploying needs no repo write. The credential that matters is
+# CLOUDFLARE_API_TOKEN below; GITHUB_TOKEN's only consumer here is checkout,
+# which needs read. Pin it rather than inheriting the repo's write-scoped
+# default — this workflow runs on `push` to main, so it never gets the
+# read-only token a fork pull_request would.
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-${{ github.ref }}
 
@@ -18,13 +26,13 @@ jobs:
     outputs:
       web: ${{ steps.check.outputs.web }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -53,12 +61,26 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    # A named environment is the seam a deploy gate hangs off: required
+    # reviewers, a wait timer and a branch policy are configured against the
+    # environment in repo settings, not in this file. It also gives each run a
+    # deployment record pointing at what it published.
+    #
+    # It is NOT a CI gate. This workflow and CI both fire on the same `push`
+    # to main and start at the same instant, so a red `pnpm verify` still
+    # reaches inteligir.com. Closing that needs a required status check on
+    # `main` for CI's `check` job — a repo setting no workflow file can apply.
+    # Blast radius is bounded meanwhile: this deploys @repo/web (the marketing
+    # site) only; apps/cloud is manual and owner-only.
+    environment:
+      name: production
+      url: https://inteligir.com
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm

@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionFactory } from "@repo/agent/pi/pi-types";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
-import type { BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import type { BacklinkEntry, ForwardLinkEntry } from "@repo/notes/knowledge/link-graph-index";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 
 import { isRecord } from "@repo/bridge/wire-helpers";
@@ -29,18 +29,26 @@ import type { ExecutorExecuteResult } from "@repo/bridge/executor";
 // that can't be expressed as plain filesystem access need one.
 // ---------------------------------------------------------------------------
 
-/** Executor daemon access (@repo/connectors/*): install, lifecycle, code mode. */
+/** Executor daemon access (@repo/connectors/*): install, lifecycle, code mode.
+ *
+ * `signal` on execute/resume is OPTIONAL on purpose: it carries pi's per-tool
+ * abort so a user interrupt doesn't wait out the executor's 600s execution
+ * timeout, and an implementation that ignores it stays type-compatible. The
+ * host implementation composes it with the client's own timeout signal
+ * (AbortSignal.any) rather than replacing it — the timeout is a separate
+ * guarantee from the interrupt. */
 export type ExecutorPort = {
   /** Pinned CLI metadata for the integrations UI. */
   cli: ExtensionCliInfo;
   install(force?: boolean): Promise<void>;
   /** Ensure the daemon is up. Resolves false when it's unavailable. */
   start(): Promise<boolean>;
-  execute(code: string): Promise<ExecutorExecuteResult>;
+  execute(code: string, signal?: AbortSignal): Promise<ExecutorExecuteResult>;
   resume(
     executionId: string,
     action: "accept" | "decline" | "cancel",
     content?: unknown,
+    signal?: AbortSignal,
   ): Promise<ExecutorExecuteResult>;
 };
 
@@ -57,6 +65,15 @@ export type ExecutorPort = {
 export type KnowledgePort = {
   search(query: string, limit?: number): SearchResult[];
   backlinks(path: string): BacklinkEntry[];
+  /** The note's OUTGOING links, RESOLVED to vault paths. The agent's file
+   * tools see `[[link]]` as text; which file that text points at is a
+   * question only the index can answer (alias-aware, shadow-qualified,
+   * extension-less), so it needs a port. A dangling link keeps
+   * `targetPath: null` — an unresolved link is a real state, not an error.
+   * Same silent privacy rule as backlinks: a private subject reads as "no
+   * links", and an entry whose resolved target isn't public right now is
+   * dropped without annotation. */
+  forwardLinks(path: string): ForwardLinkEntry[];
   /** Ranked related notes (shared link targets, co-citation, shared tags,
    * lexical similarity) with human-readable `reasons` — NOT raw forward
    * links. Same silent privacy rule as backlinks: a private subject reads

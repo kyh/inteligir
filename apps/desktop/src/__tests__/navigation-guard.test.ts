@@ -93,7 +93,7 @@ describe("isSameOriginNavigation", () => {
     });
   });
 
-  // LATENT, unreachable in the app (pinned so a refactor notices — see #433):
+  // LATENT, unreachable in the app (pinned so a refactor notices):
   // the non-file branch compares WHATWG origins, and every opaque-origin
   // scheme serializes to "null", so two unrelated data:/custom-scheme URLs
   // would count as same-origin IF one were ever the loaded URL. index.ts only
@@ -156,7 +156,7 @@ describe("classifyWindowOpen", () => {
   });
 });
 
-// #467 — a `.pdf` sub-frame is the one frame the editor cannot sandbox
+// A `.pdf` sub-frame is the one frame the editor cannot sandbox
 // (Chromium blocks its PDF viewer inside any sandboxed frame), so a server
 // answering `text/html` to a `.pdf` URL would render attacker markup there.
 const pdfFrame = (contentType: string | undefined) => ({

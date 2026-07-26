@@ -117,8 +117,8 @@ describe("todoIndex ↔ scanTaskItems ordinal lockstep", () => {
   // sit at depth ≥ 2 in the Plate tree. `todoIndex` traverses the whole tree
   // in document pre-order (not top-level only), so a nested todo and the
   // top-level todo after it get distinct ordinals matching scanTaskItems (the
-  // disk authority) — Delegate targets the right checkbox. (This class was a
-  // real wrong-checkbox bug until todoIndex moved to pre-order traversal.)
+  // disk authority) — Delegate targets the right checkbox. A top-level-only
+  // traversal mis-numbers this whole class and delegates the wrong box.
 
   it("nested: a task inside a blockquote counts in document order", () => {
     assertLockstep(["> - [ ] quoted task", "", "- [ ] after"].join("\n"));
@@ -143,8 +143,8 @@ describe("todoIndex ↔ scanTaskItems ordinal lockstep", () => {
   // `codeIndented`), so a 4-space-indented `- [ ]` line parses as a live
   // task in the editor. scanTaskItems reads the same grammar (link-extract's
   // remarkNoIndentedCode), so the disk-side count agrees ordinal-for-ordinal.
-  // (This was a tracked parser-mismatch bug: plain remark-gfm read the line
-  // as code, skipped it, and every later renderer ordinal was off by one.)
+  // (The two grammars must not diverge: plain remark-gfm reads that line as
+  // code and skips it, throwing every later renderer ordinal off by one.)
   it("an indented (4-space) checkbox is a live task on both sides", () => {
     assertLockstep(["Notes", "", "    - [ ] indented-code lookalike", "", "- [ ] real"].join("\n"));
   });

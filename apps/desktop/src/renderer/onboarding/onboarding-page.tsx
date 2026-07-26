@@ -44,7 +44,7 @@ export function OnboardingPage() {
   // never linger in "starting" — a lingering "starting" means the workspace
   // has never been seeded, so this surface drives the setup and shows its
   // progress. Setup is a vault/workspace concern, not identity: the guest
-  // lands in the workspace either way (#459).
+  // lands in the workspace either way.
   //
   // Re-dispatched on an interval while the host still reports "starting": the
   // dispatch rides the local WS, so a one-shot fire-and-forget would wedge

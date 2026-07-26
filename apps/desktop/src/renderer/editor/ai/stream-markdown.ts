@@ -1,4 +1,4 @@
-// Incremental markdown parsing for the generate flow (#370): streamed deltas
+// Incremental markdown parsing for the generate flow: streamed deltas
 // accumulate as markdown TEXT, and each append re-parses the accumulated
 // stream through the owned pipeline (markdown-doc's parseMarkdown) and
 // reconciles the streamed block range in place — blocks whose parse didn't

@@ -72,7 +72,7 @@ export async function ensureGoogleOAuthClient(
   }
   if (!bundled) return { status: "unavailable" };
   // Resolved per call (not baked): real Google by default, the emulate/env
-  // override under the Phase 4b dev flag — see emulate-connectors.ts.
+  // override under the dev flag — see emulate-connectors.ts.
   const endpoints = resolveGoogleOAuthEndpoints();
   await ops.createOAuthClient({
     owner: "user",

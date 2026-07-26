@@ -6,9 +6,9 @@
 // by a plugin: mcp / openapi / graphql); a CONNECTION is the credential —
 // owner-scoped, bound to one integration, identified by (owner, integration,
 // name). Tools are addressed per connection:
-// `tools.<integration>.<owner>.<connection>.<tool>`. The v1 scope segment,
-// standalone secrets, and the google-discovery plugin are gone (Google is an
-// openapi `googleDiscoveryBundle` spec).
+// `tools.<integration>.<owner>.<connection>.<tool>`. There are no standalone
+// secrets (a credential is a connection) and no Google plugin (Google is an
+// openapi integration built from a `googleDiscoveryBundle` spec).
 //
 // Validation stance: request payloads we construct are exact
 // (additionalProperties: false); response schemas are tolerant of extra
@@ -50,8 +50,9 @@ export const ExecutorIntegrationSchema = Type.Object({
   slug: Type.String(),
   description: Type.String(),
   // Owning plugin: "mcp" | "openapi" | "graphql" | "built-in" — or an orphaned
-  // v1 kind (e.g. "googleDiscovery") left behind by the v1→v2 data migration
-  // when the plugin no longer exists. Orphans have no tools and no authMethods.
+  // kind (e.g. "googleDiscovery") naming a plugin the daemon does not ship;
+  // migrated daemon data still carries such rows. Hence a bare string, not a
+  // union: orphans have no tools and no authMethods.
   kind: Type.String(),
   canRemove: Type.Boolean(),
   canRefresh: Type.Boolean(),
@@ -154,9 +155,9 @@ export type AddGraphqlResult = Static<typeof AddGraphqlResultSchema>;
 
 // ---- add-integration request payloads (per plugin) --------------------------
 
-/** mcp.addServer's single-method `auth` shorthand — the only legacy-friendly
- * auth input that survived 1.5.4's placements rework. `header` expands to an
- * apikey method with template slug "header"; `oauth2` to template "oauth2". */
+/** mcp.addServer's single-method `auth` shorthand — the one auth input that
+ * needs no separate placement declaration. `header` expands to an apikey
+ * method with template slug "header"; `oauth2` to template "oauth2". */
 const McpAuthShorthandSchema = Type.Union([
   Type.Object({ kind: Type.Literal("none") }, { additionalProperties: false }),
   Type.Object(
@@ -179,8 +180,8 @@ const AddMcpRemoteInputSchema = Type.Object(
       Type.Union([Type.Literal("streamable-http"), Type.Literal("sse"), Type.Literal("auto")]),
     ),
     slug: Type.Optional(Type.String({ minLength: 1 })),
-    // Static request config — literal values only (v1 secret refs are gone;
-    // credentials belong on connections).
+    // Static request config — literal values only; credentials belong on
+    // connections, never inlined here.
     headers: Type.Optional(StringMapSchema),
     queryParams: Type.Optional(StringMapSchema),
     auth: Type.Optional(McpAuthShorthandSchema),
@@ -214,8 +215,8 @@ const OpenApiSpecInputSchema = Type.Union([
     { additionalProperties: false },
   ),
   // Google Workspace: one integration from one or more Google API Discovery
-  // docs. Replaces the retired v1 google-discovery plugin; the daemon derives
-  // a single `googleOAuth2` auth method with the union of per-API scopes.
+  // docs. The daemon derives a single `googleOAuth2` auth method with the
+  // union of per-API scopes.
   Type.Object(
     {
       kind: Type.Literal("googleDiscoveryBundle"),

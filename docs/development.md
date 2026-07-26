@@ -43,7 +43,7 @@ Claude, switchable in Settings → AI), handled by pi on-device; if this
 machine is logged in, chat/AI/delegation are fully live. Uses the
 last-opened vault from `~/.inteligir`.
 
-**Vault liveness is ephemeral, not watched (a deliberate decision — PR #411).** There is NO recursive
+**Vault liveness is ephemeral, not watched — a deliberate decision.** There is NO recursive
 filesystem watcher. The file listing is an on-demand snapshot: it refreshes on
 app-initiated structural writes (new file / delete / rename), on window focus
 (debounced), on the "Refresh vault" command, and on delegation completion. The
@@ -52,7 +52,8 @@ via `setWatchedNote`), so external edits to the file you're looking at still
 reload/conflict live; the app's own autosaves are filtered out and generate no
 `onVaultChanged` traffic. The trade (accepted): an external edit to a file that
 is NOT open appears when the window regains focus — which is when you look.
-`onVaultChanged` is still the renderer contract; only its SOURCES changed.
+`onVaultChanged` is the renderer's contract either way; the refreshes listed
+above are the only things that fire it.
 
 **The knowledge index persists** in `~/.inteligir/indexes/<hash>.sqlite`, one
 DB per vault root. It is a pure cache of projected markdown: deleting it (or
@@ -90,24 +91,25 @@ pnpm format:fix && pnpm verify
 six steps CI runs. It is check-only on purpose — `format:fix` is a separate
 first step, never folded in.
 
-Rules that have bitten before:
+Rules that are easy to get backwards:
 
 - **Format before gates, commit after gates.** A `format:fix` run after green
-  gates once corrupted test fixtures and shipped red (#362).
+  gates rewrites the byte-pinned fixtures the tests just validated: the gate
+  reads green and the commit ships red.
 - **Never hand-edit or format round-trip fixtures**
   (`apps/desktop/src/renderer/__tests__/fixtures/`): their bytes ARE the test contract
   (trailing spaces, indentation, line endings). oxfmt ignores the directory;
   editors must too. Generate fixture bytes through the pipeline itself
   (`roundTrip`) — see the fixture tests for the pattern.
 - CI runs every gate independently (each step runs even if an earlier one
-  fails), so a red format no longer hides test regressions.
+  fails), so a red format cannot hide test regressions behind it.
 
 ## Verifying UI changes
 
 Type-checks passing isn't feature-correct. Drive the running app:
 
 - **Browser harness**: `agent-browser` against `http://localhost:5173`
-  (the agent-browser skill), or raw CDP if the daemon misbehaves (it has).
+  (the agent-browser skill), or raw CDP if the daemon misbehaves.
 - **Electron**: `agent-browser connect 9222` attaches to the renderer.
 - Byte-level checks: toggle Raw mode in the editor, or read the vault file —
   the byte-stability invariant (`roundTrip(raw) === raw` for canonical files)
@@ -160,7 +162,7 @@ for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
 ## Releasing the desktop app
 
 Use the `release` skill (`.claude/skills/release/`) — bump, build, notarize,
-publish to GitHub Releases (electron-updater). Note: the electron-builder
-packaging path moved in the host split (extraResources now sources
-`packages/agent/resources/agent`) — `pnpm verify:release` +
-`pnpm verify:packaged` in `apps/desktop` are the guards.
+publish to GitHub Releases (electron-updater). The packaged app takes its
+bundled agent binary from `packages/agent/resources/agent` (electron-builder
+`extraResources`); `pnpm verify:release` + `pnpm verify:packaged` in
+`apps/desktop` are the guards on that path.

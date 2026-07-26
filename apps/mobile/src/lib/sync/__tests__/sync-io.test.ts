@@ -43,7 +43,7 @@ describe("createSyncIo", () => {
     expect(io.list()).toEqual([]);
   });
 
-  // The engine's hash-cache fingerprint (#434). THE INVARIANT: a content
+  // The engine's hash-cache fingerprint. THE INVARIANT: a content
   // change must move the fingerprint; any stat doubt must yield null (the
   // engine's re-hash fallback), never a guessed value that could license
   // reusing a stale hash.
@@ -83,7 +83,7 @@ describe("createSyncIo", () => {
     });
   });
 
-  // The VaultFs contract (#429): a missing ROOT throws (expo-vault-fs's
+  // The VaultFs contract: a missing ROOT throws (expo-vault-fs's
   // listDir("")), and list() must PROPAGATE it — never swallow it into an
   // empty listing, which the engine would reconcile as a mass deletion.
   it("propagates a root-missing throw instead of listing an empty vault (#429)", () => {
@@ -101,10 +101,10 @@ describe("createSyncIo", () => {
   });
 });
 
-// #466 — a vanished SUB-directory used to return `[]`, which is the same
-// mass-deletion hazard as a missing root but harder to see: siblings still
-// list, so the overall result is non-empty and the empty-vault guard never
-// fires. Desktop always refused a partial crawl; mobile now matches.
+// A vanished SUB-directory is the same mass-deletion hazard as a missing root
+// but harder to see: siblings still list, so the overall result is non-empty
+// and the empty-vault guard never fires. Returning `[]` for the subtree is
+// therefore forbidden — desktop refuses a partial crawl for the same reason.
 describe("incomplete subtree", () => {
   const withMissingSubdir: VaultFs = {
     listDir: (relDir) => {
@@ -124,8 +124,8 @@ describe("incomplete subtree", () => {
   };
 
   it("refuses the whole listing rather than reporting a partial vault", () => {
-    // Crucially NOT "returns [top.md]" — that is the shape that would have
-    // deleted everything under notes/ on every peer.
+    // Crucially NOT "returns [top.md]" — that is the shape that deletes
+    // everything under notes/ on every peer.
     expect(() => createSyncIo(withMissingSubdir).list()).toThrow(VaultListingIncompleteError);
   });
 });

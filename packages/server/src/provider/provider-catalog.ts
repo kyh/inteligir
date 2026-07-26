@@ -42,7 +42,14 @@ const OPENAI: CatalogEntry = {
 const CLAUDE: CatalogEntry = {
   id: "anthropic",
   label: "Claude",
-  defaultModelId: "claude-sonnet-4-6",
+  // Sonnet 5, the current Sonnet. Only NEW installs that pick Claude land
+  // here — provider-config persists the selection, so an existing install
+  // keeps whatever it chose. Sonnet 5 changes the request surface (manual
+  // budget_tokens removed, non-default sampling rejected, adaptive thinking
+  // on by default) but pi owns request construction, so nothing here builds
+  // one; the pairing is only asserted to resolve
+  // (__tests__/default-model-resolves.test.ts).
+  defaultModelId: "claude-sonnet-5",
   auth: "oauth",
 };
 const FAUX: CatalogEntry = {

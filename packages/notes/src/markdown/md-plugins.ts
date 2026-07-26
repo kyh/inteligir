@@ -2,9 +2,9 @@
 // (parse in parse.ts, serialize via @platejs/markdown's serializeMd) and BOTH
 // editors (headless mirror + live editor, through kits/markdown-kit.ts).
 //
-// Plugin order is probe-proven (scratchpad rt/probe4-6 lineage, pinned by the
-// fixture matrix): frontmatter must precede everything so `---` is claimed
-// before thematic-break; math before gfm/mdx; the agnostic MDX and wiki-link
+// Plugin order is load-bearing and pinned by the round-trip fixture matrix:
+// frontmatter must precede everything so `---` is claimed before
+// thematic-break; math before gfm/mdx; the agnostic MDX and wiki-link
 // extensions are ours.
 
 import type { ListItem } from "mdast";

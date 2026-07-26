@@ -31,7 +31,7 @@ import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-cont
 export function Header() {
   const { folderName } = useVaultListing();
   const { setMode, deleteEntry, showHtmlAsApp } = useVaultActions();
-  // Narrow selectors (#470): every value here is a primitive (or the gate
+  // Narrow selectors: every value here is a primitive (or the gate
   // reason, which changes only per saved-content re-analysis), so typing in
   // the note never re-renders the header — only privacy/surface/path flips do.
   const path = useOpenNote((s) => s.editor.path);

@@ -1,5 +1,5 @@
 // The one delegation status badge + Delegate affordance, shared by the
-// editor's checkbox control (todo-delegation) and the tasks-view rows (#451).
+// editor's checkbox control (todo-delegation) and the tasks-view rows.
 // The tasks surface never renders "done" — its type-level ActiveDelegation
 // pre-filter drops finished delegations because the checked box is the durable
 // done signal there; `compact` is the list-row sizing delta.

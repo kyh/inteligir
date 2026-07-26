@@ -248,8 +248,8 @@ export const MD_RULES: MdRules = {
   // `<column />`, the same bytes its parse produces. The default serializes
   // it as blank expanded content (`<column>\n\n  </column>`), which
   // re-parses to zero children and re-emits self-closed: a non-idempotent
-  // first pass that knocked the file to Raw whenever an autosave landed
-  // before every column had content.
+  // first pass, which knocks the file to Raw on any autosave that lands
+  // before every column has content.
   column: {
     serialize: (node: TElement, options: SerializeMdOptions) => {
       const { children } = node;
@@ -332,12 +332,13 @@ export const MD_RULES: MdRules = {
   //    mdast-util-gfm-table pads short rows only in the emitted string (after
   //    rules ran), so pass 1 writes truly-empty `|   |` cells while a re-parse
   //    of that output turns them into empty paragraphs that serialize as the
-  //    ZWSP placeholder — the document only reached its fixpoint on pass 3.
+  //    ZWSP placeholder — so the document reaches its fixpoint only on pass 3.
   //    Padding up front makes pass 1 emit the stable ZWSP-cell form directly.
   // 2. Column alignment survives. Plate's default rule drops mdast `align`,
-  //    so a `:-:` delimiter row was silently stripped by a rich-mode save;
-  //    the align array now rides on the Slate table node and is re-attached
-  //    at serialize (mdast-util-gfm-table emits the delimiters from it).
+  //    which would let a rich-mode save silently strip a `:-:` delimiter row;
+  //    the align array rides on the Slate table node instead and is
+  //    re-attached at serialize (mdast-util-gfm-table emits the delimiters
+  //    from it).
   table: {
     deserialize: (node, deco, options) => {
       const rows = node.children ?? [];

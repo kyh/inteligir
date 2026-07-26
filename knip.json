@@ -1,35 +1,45 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["gh", "pkill", "ps", "spctl", "tasklist", "xcrun"],
+  "ignoreBinaries": ["pkill", "spctl", "tasklist"],
   "ignore": [".design-sync/**"],
   "workspaces": {
     ".": {},
     "apps/cloud": {
       "entry": ["test/**/*.test.ts"],
       "project": ["src/**/*.ts"],
+      // NOT a stale suppression, and NOT an npm package: `cloudflare:workers`
+      // and `cloudflare:test` are workerd / vitest-pool-workers BUILT-IN module
+      // specifiers. knip reads the `cloudflare:` scheme prefix as a package
+      // name and reports 6 "unlisted dependencies". Removing this line turns
+      // the gate red; installing a `cloudflare` package would be worse.
       "ignoreDependencies": ["cloudflare"]
     },
     "apps/desktop": {
       "entry": [
-        "src/main/index.ts",
-        "src/preload/index.ts",
         "src/renderer/index.html",
-        "src/renderer/main.tsx",
         "src/__tests__/**/*.test.ts",
         "src/renderer/__tests__/**/*.test.ts",
         "scripts/**/*.mjs"
       ],
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["electron-builder", "sherpa-onnx-node"]
+      "ignoreDependencies": ["sherpa-onnx-node"]
     },
     "apps/mobile": {
       "entry": ["src/app/**/*.tsx", "src/lib/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
-      "ignoreDependencies": ["metro-cache", "expo-updates"]
+      "project": ["src/**/*.{ts,tsx,css}", "*.{ts,js}"]
+      // No `ignoreDependencies` here on purpose. knip's Expo plugin SYNTHESIZES
+      // an `expo-updates` dependency for any app config that doesn't say
+      // `updates: { enabled: false }` (knip/dist/plugins/expo/helpers.js), and
+      // apps/mobile neither declares nor references that package — without the
+      // opt-out, knip demands an ignore for a package nothing installs.
+      // app.config.js declares that opt-out, which is true (no OTA updates, not
+      // registered with EAS) and makes the suppression unnecessary. If knip
+      // reports expo-updates, the opt-out is missing from app.config.js — put
+      // it back there rather than adding an ignore here.
     },
     "apps/web": {
-      "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
-      "project": ["src/**/*.{ts,tsx}"],
+      "entry": ["src/routes/**/*.tsx"],
+      "project": ["src/**/*.{ts,tsx,css}"],
       "ignoreDependencies": ["tailwindcss"]
     },
     "packages/agent": {
@@ -74,7 +84,7 @@
     },
     "packages/ui": {
       "entry": [],
-      "project": ["src/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": false
     },
     "packages/vault": {

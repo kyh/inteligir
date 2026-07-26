@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// Main-process proxy for ElevenLabs streaming TTS. The renderer used to hold
-// the API key + open a direct WS to api.elevenlabs.io — both moved here so
-// the key never sits in renderer memory and the renderer surfaces only
-// "play this PCM chunk" / "stop". One singleton WS per session is reused
-// across sendText calls.
+// Main-process proxy for ElevenLabs streaming TTS. The key and the WS to
+// api.elevenlabs.io both live HERE, never in the renderer: the key must not
+// sit in renderer memory, so the renderer's whole surface is "play this PCM
+// chunk" / "stop". One singleton WS per session is reused across sendText
+// calls.
 //
 // Key resolution: the injected `getApiKey` source (the voice handler wires
 // voice-secret.ts's SecretStore read — ui-state is never involved) wins; the
@@ -109,8 +109,8 @@ function ensureConnection(): WebSocket | null {
         // `.slice(0)` copies it from offset 0 — every chunk emitted as
         // pool-sized garbage (64KB on Node 24) instead of its audio, taking
         // adjacent heap bytes across to the renderer with it. Same hazard the
-        // STT path guards (server/handlers/voice-handlers.ts); regression
-        // pinned in __tests__/tts-proxy.test.ts.
+        // STT path guards (server/handlers/voice-handlers.ts); pinned in
+        // __tests__/tts-proxy.test.ts.
         const chunk = Buffer.from(data.audio, "base64");
         emitAudio(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength));
       }

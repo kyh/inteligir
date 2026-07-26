@@ -25,6 +25,7 @@ import { ListKit } from "@renderer/editor/kits/list-kit";
 import { MarkdownKit } from "@renderer/editor/kits/markdown-kit";
 import { MathKit } from "@renderer/editor/kits/math-kit";
 import { TableKit } from "@renderer/editor/kits/table-kit";
+import { TagChipKit } from "@renderer/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@renderer/editor/kits/toggle-kit";
 import { WikiLinkKit } from "@renderer/editor/kits/wiki-link-kit";
 import { SlashKit } from "@renderer/editor/slash-menu";
@@ -47,6 +48,9 @@ export const EDITOR_KIT = [
   ...FrontmatterKit,
   ...WikiLinkKit,
   ...WikiAutocompleteKit,
+  // Render-only inline `#tag` chips. No BASE_KIT twin on purpose — a leaf
+  // decoration never reaches the value, so there is nothing to serialize.
+  ...TagChipKit,
   ...EmojiKit,
   ...SlashKit,
   ...DragKit,

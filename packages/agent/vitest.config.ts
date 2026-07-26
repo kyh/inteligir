@@ -12,8 +12,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // Sources use package-name self-imports (the old lint-fence style);
-      // resolve them straight to src so tests never depend on install state.
+      // Sources reach their own siblings by package name (`@repo/agent/…`);
+      // resolve that straight to src so tests never depend on install state.
       "@repo/agent": src,
     },
   },

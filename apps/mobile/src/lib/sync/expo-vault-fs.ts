@@ -47,7 +47,7 @@ export function createExpoVaultFs(): VaultFs {
   // ensureRootDir): a fresh install must find a root to walk, because
   // listDir("") below treats a MISSING root as an error, never as an empty
   // vault — an empty listing over a lost root would sync as a vault-wide
-  // deletion (#429).
+  // deletion.
   try {
     const root = dirFor("");
     if (!root.exists) root.create({ intermediates: true });
@@ -59,10 +59,10 @@ export function createExpoVaultFs(): VaultFs {
       const dir = dirFor(relDir);
       if (!dir.exists) {
         if (relDir === "") throw new VaultRootMissingError();
-        // NOT `[]` (#466): siblings would still list, so the overall result
-        // stays non-empty, the empty-vault guard never fires, and this
-        // subtree's files reconcile as deletions on every peer. Desktop has
-        // always refused a partial crawl; mobile now matches.
+        // NOT `[]`: siblings would still list, so the overall result stays
+        // non-empty, the empty-vault guard never fires, and this subtree's
+        // files reconcile as deletions on every peer. Desktop refuses a
+        // partial crawl for the same reason.
         throw new VaultListingIncompleteError(relDir);
       }
       return dir.list().map((entry) => ({

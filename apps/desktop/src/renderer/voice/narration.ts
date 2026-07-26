@@ -1,12 +1,12 @@
 // ---------------------------------------------------------------------------
 // The voice ↔ chat wiring, owned by VOICE.
 //
-// Both directions used to live inside stores/agent-store.ts, which meant the
-// core chat store imported the voice store and poked at it — so voice, an
-// optional capability, was load-bearing in the one store every chat surface
-// depends on. Now the chat store only broadcasts (`onAssistantStream`) and
-// exposes `send()`; this module is the sole place that knows both exist, and
-// deleting voice means deleting this file plus one call in app-root.
+// Deliberately NOT inside stores/agent-store.ts: wiring it there makes the
+// core chat store import the voice store and poke at it, which puts voice —
+// an optional capability — on the critical path of the one store every chat
+// surface depends on. The chat store only broadcasts (`onAssistantStream`)
+// and exposes `send()`; this module is the sole place that knows both exist,
+// so deleting voice means deleting this file plus one call in app-root.
 //
 // Two directions:
 //   out — a streamed assistant reply is narrated while the mic is listening.

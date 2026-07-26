@@ -18,7 +18,7 @@
   "dependencies": {
     "@repo/bridge": "workspace:*",
     "@repo/storage": "workspace:*",
-    "sherpa-onnx-node": "^1.13.4",
+    "sherpa-onnx-node": "catalog:",
     "tar": "^7.5.22",
     "unbzip2-stream": "^1.4.3"
   },

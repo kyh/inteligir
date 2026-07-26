@@ -1,20 +1,21 @@
 // ---------------------------------------------------------------------------
 // Host-side connector install/uninstall orchestration against the executor
-// daemon (v1.5 integrations + connections model). Moved out of the renderer
-// (#461 Phase 4a): the renderer sends ONE installConnector/uninstallConnector
-// request over the Bridge and this module owns the whole sequence — register
-// the integration → mint its credentialed connection → run browser OAuth
-// (start → open the system browser → poll the one-shot await) → roll back on
-// failure — instead of driving 5-8 per-step IPC round-trips.
+// daemon (v1.5 integrations + connections model). The renderer sends ONE
+// installConnector/uninstallConnector request over the Bridge and this module
+// owns the whole sequence — register the integration → mint its credentialed
+// connection → run browser OAuth (start → open the system browser → poll the
+// one-shot await) → roll back on failure. Keeping the sequence host-side
+// means a partial failure is rolled back in one place instead of leaving the
+// renderer to unwind 5-8 per-step IPC round-trips it may not survive.
 //
 // Ports-injected (ConnectorInstallOps), google-oauth-client style: the handler
 // binds the real executor-client + the platform browser-open; tests pass fakes
 // and assert the step sequence, rollback, and re-entrancy.
 //
 // A connector is only "connected" when a live connection (the credential)
-// exists for its integration — Google connectors run a real browser OAuth
-// consent at connect time (the v1 "consent happens lazily in code mode" path
-// was a lie: it never consented and every call dialed unauthenticated).
+// exists for its integration, so Google connectors run a real browser OAuth
+// consent at connect time. Do not defer consent to "lazily, in code mode":
+// nothing ever consents and every call dials unauthenticated.
 // ---------------------------------------------------------------------------
 
 import {
@@ -90,7 +91,7 @@ const OAUTH_TIMEOUT_MS = 5 * 60_000;
 // and double-register / re-run auth.
 const installing = new Set<string>();
 
-// DEV-ONLY (#462): the in-flight OAuth consent, exposed over the
+// DEV-ONLY: the in-flight OAuth consent, exposed over the
 // getPendingConnectorAuth channel so a headless E2E drive completes consent
 // against emulate instead of spelunking the daemon's SQLite. Only ever set
 // under the emulate flag; cleared when the flow settles either way.

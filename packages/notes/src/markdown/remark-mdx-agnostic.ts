@@ -1,8 +1,8 @@
 // Agnostic MDX (no acorn): JSX + balanced-brace expressions parse, but nothing
 // is validated as JavaScript and no ESM construct exists — `import X from 'x'`
 // stays a plain paragraph and `config { noServer: true }` parses as an
-// expression instead of crashing the file. This replaces Plate's `remarkMdx`
-// re-export (acorn-validated), removing a whole parse-error class plus the
+// expression instead of crashing the file. It stands in for Plate's `remarkMdx`
+// re-export, whose acorn validation costs a whole parse-error class plus the
 // acorn bundle weight. Expressions still parse — the vocabulary scan
 // (vocabulary.ts) routes them to Raw.
 

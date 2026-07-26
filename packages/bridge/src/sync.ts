@@ -49,14 +49,14 @@ export const SyncSignUpSchema = Type.Object(
 
 /** Social sign-in INITIATION: names the provider to start OAuth against (must
  * be one the coordinator reports via account capabilities). The round-trip
- * completes in the system browser; capturing the resulting session on the
- * desktop is Phase 4 (deep-link callback). */
+ * completes in the system browser; the desktop captures the resulting session
+ * through the `inteligir://session` deep link. */
 export const SyncSocialSignInSchema = Type.Object(
   { provider: Type.String({ minLength: 1 }) },
   { additionalProperties: false },
 );
 
-/** Password-reset REQUEST (#463): asks the coordinator to email a reset link.
+/** Password-reset REQUEST: asks the coordinator to email a reset link.
  * The outcome is deliberately existence-blind — see the registry entry. */
 export const SyncRequestPasswordResetSchema = Type.Object(
   { email: Type.String({ minLength: 1 }) },

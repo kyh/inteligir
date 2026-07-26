@@ -1,22 +1,22 @@
 // ---------------------------------------------------------------------------
 // The agent-facing KnowledgePort — the ONE choke point where index results
-// become model-visible text (search_vault / get_backlinks), plus the port's
-// single mutation, rename (rename_note — same rewrite pipeline as user
-// renames; see renameNote below). SECURITY-CRITICAL: a private note's PATH
-// and SNIPPET are both leaks, so non-public hits are dropped ENTIRELY, never
-// annotated.
+// become model-visible text (search_vault / get_backlinks / get_links), plus
+// the port's single mutation, rename (rename_note — same rewrite pipeline as
+// user renames; see renameNote below). SECURITY-CRITICAL: a private note's
+// PATH and SNIPPET are both leaks, so non-public hits are dropped ENTIRELY,
+// never annotated.
 //
 // Two layers, both required:
 //  (1) index prefilter — every query runs with { excludePrivate: true } (the
 //      SQL store filters inside the WHERE, pre-limit), so private text never
 //      even transits the result set;
 //  (2) LIVE re-probe — the index lags a just-saved `private: true` by the
-//      refresh debounce (~100ms+), reflect's TOCTOU exactly. Every surviving
+//      refresh debounce (~100ms+) — a plain TOCTOU window. Every surviving
 //      hit is probed against disk and kept ONLY when it reads "public" now.
 //
-// Refusal shape (the challenge's backlinks contradiction, resolved): the port
-// drops SILENTLY everywhere — get_backlinks on a private target returns [] and
-// the tool says "No backlinks.", indistinguishable from a note with none, so
+// Refusal shape: the port drops SILENTLY everywhere. get_backlinks on a
+// private target returns [] and
+// the tool returns an empty JSON array, indistinguishable from a note with none, so
 // the response never confirms a guessed path exists or is private. The
 // explicit "this note is private" refusal lives ONLY on the direct file-tool
 // gate (privacy/gate.ts). That gate IS a per-path existence/privacy oracle for
@@ -24,13 +24,13 @@
 // an ACCEPTED hole, documented in docs/privacy.md: paths only, near-inherent
 // to per-path gating, and already reachable via `bash ls`.
 //
-// Extracted from agent-wiring so the guarantee is testable without host
-// singletons — __tests__/knowledge-privacy.test.ts stringifies real tool
-// results and asserts the private note never appears.
+// This lives on its own, outside agent-wiring, so the guarantee is testable
+// without host singletons — __tests__/knowledge-privacy.test.ts stringifies
+// real tool results and asserts the private note never appears.
 // ---------------------------------------------------------------------------
 
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
-import type { BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import type { BacklinkEntry, ForwardLinkEntry } from "@repo/notes/knowledge/link-graph-index";
 import type { PrivacyOpts } from "@repo/notes/knowledge/link-graph-index";
 import type { RelatedNoteEntry, RelatedNotesOpts } from "@repo/notes/knowledge/related-notes";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -45,6 +45,13 @@ import type { VaultManager } from "@repo/vault/vault";
 export type KnowledgeQueries = {
   search(query: string, limit?: number, opts?: PrivacyOpts): SearchResult[];
   backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[];
+  /** NOTE the missing PrivacyOpts — unlike its siblings, forwardLinks has no
+   * index-level privacy filter, because its other caller is the renderer's
+   * Links panel, which is the USER looking at their own vault and must see
+   * every link. The whole privacy story for this query therefore lives in the
+   * port below; do not "fix" the asymmetry by teaching the index to filter
+   * without also checking what the renderer would lose. */
+  forwardLinks(path: string): ForwardLinkEntry[];
   relatedNotes(path: string, opts?: RelatedNotesOpts): RelatedNoteEntry[];
   notesWithTag(tag: string, opts?: PrivacyOpts): string[];
 };
@@ -79,6 +86,32 @@ export function buildAgentKnowledgePort(deps: {
         .queries()
         .backlinks(path, EXCLUDE)
         .filter((entry) => isPublicNow(entry.sourcePath));
+    },
+    forwardLinks: (path) => {
+      // A private/unreadable SUBJECT yields [] — silently, exactly like
+      // backlinks (see header).
+      const subject = deps.probe(path);
+      if (subject === "private" || subject === "indeterminate") return [];
+      // Layer (1) does not exist for this query — forwardLinks takes no
+      // PrivacyOpts (see KnowledgeQueries) — so the live probe below is the
+      // ONLY privacy layer here. It must stay.
+      //
+      // What the tool adds over reading the note is RESOLUTION: the raw
+      // `[[Secret Plans]]` text sits in the subject's own body either way, but
+      // WHICH FILE it lands on is index knowledge, and a private note's path
+      // is a leak. So a resolved target that isn't public right now is dropped
+      // entirely rather than annotated, per the header's rule.
+      //
+      // A DANGLING entry (targetPath null) passes through untouched: no file
+      // stands behind it, so there is nothing to be private, and the tool
+      // renders it as explicitly unresolved. "absent" fails isPublicNow too,
+      // so a target deleted since the last index pass drops exactly the way a
+      // private one does — that ambiguity is what keeps the omission from
+      // being a privacy oracle.
+      return deps
+        .queries()
+        .forwardLinks(path)
+        .filter((entry) => entry.targetPath === null || isPublicNow(entry.targetPath));
     },
     relatedNotes: (path) => {
       // A private/unreadable SUBJECT yields [] — silently, exactly like

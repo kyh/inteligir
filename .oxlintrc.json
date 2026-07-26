@@ -1,5 +1,19 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/oxc/json-schema-for-oxfmt/npm/oxlint/configuration_schema.json",
+  // The installed linter's own schema, matching .oxfmtrc.json. Keep this
+  // pointed at the local node_modules copy rather than a remote URL: a schema
+  // that 404s silently leaves every key in this file unvalidated in the
+  // editor, so a misspelled option reads as "configured" and does nothing.
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // These two are the gate's real strictness, so they belong to the config
+  // every consumer reads. Kept as CLI flags in the root `lint` script instead,
+  // they bind only in CI — `lint:fix` and the oxlint LSP then run a weaker
+  // rule set than the gate. CLI flags still win where both are set.
+  // `typeAware` is deliberately NOT enabled: it needs oxlint-tsgolint and
+  // surfaces ~138 findings, so turning it on here makes the gate unpassable.
+  "options": {
+    "denyWarnings": true,
+    "reportUnusedDisableDirectives": "error"
+  },
   "ignorePatterns": [
     "dist",
     "node_modules",

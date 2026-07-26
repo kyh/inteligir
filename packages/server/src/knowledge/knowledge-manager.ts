@@ -4,10 +4,20 @@
 // core's in-memory LinkGraphIndex, kept fresh from vault change notifications,
 // broadcasting onKnowledgeUpdated after every effective pass.
 //
-// Boot model: the first use HYDRATES synchronously from persisted projection
-// rows (one store read, zero parses) so queries answer instantly with
-// last-run data, then an async reconcile pass streams in whatever changed on
-// disk. Reconcile diffs the vault's stat snapshot against recorded
+// Boot model: the first use HYDRATES from persisted projection rows (SQL
+// reads, zero parses) so queries answer with last-run data, then an async
+// reconcile pass streams in whatever changed on disk. Hydration is PAGED and
+// budgeted: binding a root pulls pages synchronously for a few
+// milliseconds — enough that any ordinary vault is complete before the first
+// query — and a corpus too big for that budget finishes on the pass queue with
+// event-loop yields between pages. That trade is deliberate: on a synthetic
+// 50k-note vault an unbroken read is ONE 1.2s call, versus a 37ms first
+// query and ~850ms of yielded pages — a second of backlinks filling in beats
+// freezing the host process. Search is unaffected either way; FTS5 answers
+// off the DB, not off the mirror. Numbers live in
+// __tests__/knowledge-hydration.test.ts, which reproduces them.
+//
+// Reconcile diffs the vault's stat snapshot against recorded
 // fingerprints; a changed file is re-read and content-hashed, and only a
 // changed HASH re-projects and re-writes — a provider-wide mtime rewrite
 // updates fingerprints without any projection/FTS churn. Passes are
@@ -37,7 +47,8 @@ import {
   type RelatedNotesOpts,
 } from "@repo/notes/knowledge/related-notes";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
-import type { KnowledgeStore, StoredFingerprint } from "@repo/notes/knowledge/knowledge-store";
+import type { StoredFingerprint } from "@repo/notes/knowledge/knowledge-store";
+import type { HydrationCursor, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
 
 import { emitEvent } from "../events";
@@ -51,6 +62,17 @@ const BATCH_BUDGET_MS = 15;
 /** During a long pass, progress broadcasts are throttled to this interval so
  * a full rebuild doesn't hammer the renderer with per-batch re-queries. */
 const PROGRESS_EMIT_MS = 250;
+/** Docs per hydration page. Sized from measurement, not taste: on a synthetic
+ * 50k-note vault one 500-doc page (≈10k rows across the six tables) reads in
+ * ~20-30ms, so the worst single synchronous hydration call stays well inside
+ * a frame budget no matter how large the vault gets. */
+const HYDRATION_PAGE_DOCS = 500;
+/** How long `bindRoot` may keep pulling hydration pages inline. A vault that
+ * fits inside this is fully hydrated before the binding call returns — the
+ * guarantee that holds for the overwhelmingly common case. Anything
+ * larger continues on the pass queue. A page in flight when the budget
+ * expires still finishes, so the true worst case is budget + one page. */
+const SYNC_HYDRATION_BUDGET_MS = 25;
 
 type ParsedChange =
   | {
@@ -71,7 +93,12 @@ export class KnowledgeManager {
   /** Content hash per indexed doc — the write authority above fingerprints. */
   private readonly hashes = new Map<string, string>();
   private readonly otherPaths = new Set<string>();
-  private store: KnowledgeStore | null = null;
+  private store: SqlKnowledgeStore | null = null;
+  /** Non-null while the persisted projection is still streaming into the
+   * mirrors. Queries answer off a partially hydrated graph until it clears;
+   * the pass drains it before it diffs, so no reconcile ever sees half a
+   * fingerprint set. */
+  private hydration: HydrationCursor | null = null;
   private builtRoot: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   /** Bumped on root switch / recovery / dispose: an in-flight pass checks it
@@ -83,7 +110,7 @@ export class KnowledgeManager {
   constructor(
     private readonly getVault: () => VaultManager,
     private readonly onUpdated: () => void,
-    private readonly openStore: (root: string) => KnowledgeStore,
+    private readonly openStore: (root: string) => SqlKnowledgeStore,
   ) {}
 
   // ---- Queries (hydrate lazily on first use; reconcile streams in async) ------
@@ -188,6 +215,7 @@ export class KnowledgeManager {
       this.timer = null;
     }
     this.generation++;
+    this.hydration = null;
     this.store?.dispose();
     this.store = null;
     this.builtRoot = null;
@@ -197,37 +225,69 @@ export class KnowledgeManager {
 
   private ensureBuilt(): void {
     if (this.builtRoot !== null) return;
-    // Hydration is synchronous — queries answer instantly with last-run data;
-    // the queued reconcile streams in disk changes via onKnowledgeUpdated.
+    // Binding hydrates inline for a few ms — an ordinary vault is complete
+    // before this returns, so queries answer with last-run data exactly as
+    // they did before hydration was paged. The queued reconcile finishes any
+    // remainder and streams in disk changes via onKnowledgeUpdated.
     this.bindRoot(this.getVault().getRoot());
     void this.enqueuePass();
   }
 
-  /** Open (or reopen) the store for `root` and hydrate the in-memory mirrors
-   * from its persisted rows — one SQL read, zero parses. */
+  /** Open (or reopen) the store for `root` and start hydrating the in-memory
+   * mirrors from its persisted rows (SQL reads, zero parses), pulling pages
+   * inline while the sync budget lasts. */
   private bindRoot(root: string): void {
     this.generation++;
     this.store?.dispose();
     this.store = null;
+    this.hydration = null;
     this.clearMirrors();
     const store = this.openStore(root);
     this.store = store;
     this.builtRoot = root;
+    this.hydration = store.hydrate(HYDRATION_PAGE_DOCS);
     try {
-      const { docs, others } = store.loadAll();
-      for (const row of docs) {
-        this.linkGraph.applyDoc(row.path, row.projection);
-        this.fingerprints.set(row.path, row.fingerprint);
-        this.hashes.set(row.path, row.contentHash);
-      }
-      for (const other of others) {
-        this.linkGraph.setOther(other.path);
-        this.otherPaths.add(other.path);
-      }
+      this.drainHydration(SYNC_HYDRATION_BUDGET_MS);
     } catch (err) {
+      // Binding happens on a query path too, so a corrupt row must not escape
+      // as a thrown query — nuke and let the queued pass rebuild from disk.
       console.warn("[knowledge] hydration failed — rebuilding index db:", err);
       this.recover(store);
     }
+  }
+
+  /** Apply hydration pages into the mirrors for up to `budgetMs`, one page at
+   * a time (the page in flight when the budget expires still completes —
+   * there is no way to interrupt a synchronous SQL read, which is the whole
+   * reason pages are bounded). Clears `hydration` once the corpus is
+   * exhausted; returns whether any page was applied. Throws on a malformed
+   * row, leaving the caller to pick a recovery ladder. */
+  private drainHydration(budgetMs: number): boolean {
+    const cursor = this.hydration;
+    if (cursor === null) return false;
+    const deadline = Date.now() + budgetMs;
+    let applied = false;
+    do {
+      const page = cursor.next();
+      if (page.kind === "done") {
+        this.hydration = null;
+        return applied;
+      }
+      applied = true;
+      if (page.kind === "docs") {
+        for (const row of page.docs) {
+          this.linkGraph.applyDoc(row.path, row.projection);
+          this.fingerprints.set(row.path, row.fingerprint);
+          this.hashes.set(row.path, row.contentHash);
+        }
+      } else {
+        for (const other of page.others) {
+          this.linkGraph.setOther(other.path);
+          this.otherPaths.add(other.path);
+        }
+      }
+    } while (Date.now() < deadline);
+    return applied;
   }
 
   private clearMirrors(): void {
@@ -240,8 +300,10 @@ export class KnowledgeManager {
   /** Nuke the store and drop the mirrors — the next pass rebuilds everything
    * from the vault. Safe by the cache law; bumps the generation so any
    * in-flight pass aborts rather than writing stale batches. */
-  private recover(store: KnowledgeStore): void {
+  private recover(store: SqlKnowledgeStore): void {
     this.generation++;
+    // A cursor reads through the live DB; nuke() invalidates it outright.
+    this.hydration = null;
     this.clearMirrors();
     try {
       store.nuke();
@@ -270,9 +332,10 @@ export class KnowledgeManager {
     return this.queue;
   }
 
-  /** One reconcile pass: diff the vault stat snapshot against fingerprints,
-   * re-project changed docs in time-budgeted batches (one store transaction
-   * per batch), mirror removals, and broadcast when anything changed. */
+  /** One reconcile pass: finish hydration, diff the vault stat snapshot
+   * against fingerprints, re-project changed docs in time-budgeted batches
+   * (one store transaction per batch), mirror removals, and broadcast when
+   * anything changed. */
   private async runPass(): Promise<void> {
     const vault = this.getVault();
     const root = vault.getRoot();
@@ -284,6 +347,25 @@ export class KnowledgeManager {
     const store = this.store;
     if (store === null) return;
     const generation = this.generation;
+
+    // Whatever the sync budget left behind, in the same short slices the doc
+    // batches use. The diff below reads `fingerprints`/`hashes` as a complete
+    // picture of what is indexed, so it may not start until this finishes —
+    // a half-hydrated diff would re-project every doc it had not yet seen.
+    // A throw here is a corrupt row: it escapes to enqueuePass, which nukes
+    // and re-runs, exactly as it does for a failed write.
+    let lastHydrationEmit = Date.now();
+    while (this.hydration !== null) {
+      const applied = this.drainHydration(BATCH_BUDGET_MS);
+      if (applied) changed = true;
+      if (!applied || this.hydration === null) break;
+      if (Date.now() - lastHydrationEmit >= PROGRESS_EMIT_MS) {
+        lastHydrationEmit = Date.now();
+        this.onUpdated(); // the graph really did grow — let the UI re-query
+      }
+      await yieldToEventLoop();
+      if (this.generation !== generation || this.store !== store) return;
+    }
 
     const seen = new Set<string>();
     const work: Array<{ path: string; fingerprint: StoredFingerprint }> = [];

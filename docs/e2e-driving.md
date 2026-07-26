@@ -1,9 +1,9 @@
 # Driving the app E2E, login-free
 
 How a headless Claude session drives inteligir end-to-end with **zero human
-OAuth** — a chat turn, a delegation, and a Google connector connect. This is the
-durable capability from #461: verify agent/connector flows without ending every
-change "unverified, owner-only." `docs/development.md` is the general dev loop;
+OAuth** — a chat turn, a delegation, and a Google connector connect. The point
+is to verify agent/connector flows without ending every change "unverified,
+owner-only." `docs/development.md` is the general dev loop;
 this is the auth-free driving recipe.
 
 Two dev-only, flag-gated stubs remove the login wall:
@@ -32,10 +32,17 @@ Set the flags in `apps/desktop/.env` (the desktop main loads it in dev) — or
 export them in the launching shell:
 
 ```bash
-# apps/desktop/.env  (gitignored; remove when done)
+# apps/desktop/.env  (gitignored) — APPEND these two lines; delete them when done.
 INTELIGIR_FAUX_AGENT=1
 INTELIGIR_EMULATE_CONNECTORS=1
 ```
+
+**Never truncate or delete `apps/desktop/.env`.** The same file holds the Apple
+notarization creds, `ELEVENLABS_API_KEY`, and the bundled Google OAuth client
+(`apps/desktop/.env.example` documents all of them); the `release` skill's
+preflight stops the release when they are missing, and they are unrecoverable
+from the repo. Exporting the two flags in the launching shell instead avoids the
+question entirely.
 
 Launch + attach:
 
@@ -109,7 +116,7 @@ gate as `setFauxAgentScript`: it throws unless `INTELIGIR_FAUX_AGENT=1`.
 3. Assert the UI streamed it: poll until `document.body.textContent` contains
    `SCRIPTED_CHAT_REPLY_42`.
 
-Verified: the scripted text streams into the chat transcript with zero OAuth.
+Expected: the scripted text streams into the chat transcript with zero OAuth.
 
 ## Flow 2 — a delegation (faux)
 
@@ -161,7 +168,7 @@ await call("setFauxAgentScript", { steps: [] }); // restore the echo
 await call("deleteVaultEntry", { path: file }); // to the OS trash
 ```
 
-Verified: status flips to `done` with the tool-call summary; the file on disk
+Expected: status flips to `done` with the tool-call summary; the file on disk
 carries the byte-exact write-back — dispatch + write-back, login-free.
 
 ## Flow 3 — a Google connector connect (emulate)
@@ -191,7 +198,7 @@ one-click user-picker; the hidden form fields are all we need):
 1. In the UI (agent-browser): Settings → Connectors → the Google connector's
    **Connect** (e.g. Gmail). The daemon registers the integration + a pending
    OAuth session.
-2. Poll the in-flight consent over the Bridge (#462 — dev-only channel, throws
+2. Poll the in-flight consent over the Bridge (a dev-only channel: it throws
    without `INTELIGIR_EMULATE_CONNECTORS=1`):
    ```js
    await call("getPendingConnectorAuth"); // → { authorizationUrl, state } | null
@@ -221,7 +228,7 @@ one-click user-picker; the hidden form fields are all we need):
    and is useless in production).
 
 That round-trip — register → consent → callback → token exchange → connected —
-is the authenticated token-routing proof the issue accepts.
+is what this flow proves: authenticated token routing, end to end.
 
 ### Fidelity boundary (verified against emulate v0.9.0 + executor v1.5.4)
 
@@ -231,8 +238,8 @@ is the authenticated token-routing proof the issue accepts.
   JWKS (`/oauth2/v3/certs` → `{"keys":[]}`). Our executor daemon mints the
   connection from the **access_token** and does not RS256-verify the id_token
   against JWKS, so the connect succeeds regardless.
-- **No API discovery docs, and no client-side workaround.** Both probed paths
-  are dead ends (restructure step 2):
+- **No API discovery docs, and no client-side workaround.** Both candidate
+  paths are dead ends:
   - emulate has NO Google discovery route at all — `/discovery/v1/apis/
 <api>/<ver>/rest` and `$discovery/rest` 404, and its route table contains
     no Google discovery endpoint (only Microsoft's `/discovery/v2.0/keys`
@@ -241,10 +248,10 @@ is the authenticated token-routing proof the issue accepts.
     `*.googleapis.com`.
   - the daemon's add-openapi `baseUrl` is accepted but **ignored for
     `googleDiscoveryBundle`** — the rootUrl comes from the discovery doc
-    itself. Verified end-to-end against a scratch daemon: gmail registered
-    with `baseUrl: http://localhost:4000` + an emulate-minted connection, and
-    `gmail.users.messages.list` still dialed real `gmail.googleapis.com` →
-    real-Google 401 (`Invalid Credentials`). Meanwhile emulate itself DOES
+    itself. Register gmail with `baseUrl: http://localhost:4000` and an
+    emulate-minted connection and `gmail.users.messages.list` still dials
+    real `gmail.googleapis.com`, returning a real-Google 401 (`Invalid
+Credentials`). Meanwhile emulate itself DOES
     serve partial Gmail/Calendar/Drive REST at `:4000` (a bearer request to
     `/gmail/v1/users/me/messages` returns 200) — but nothing can point the
     pinned third-party daemon there.
@@ -262,5 +269,8 @@ Never leave a dev server, emulate, or the daemon running:
 ```bash
 pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"
 pkill -f "emulate"                          # or kill the npx emulate process
-rm -f apps/desktop/.env                     # drop the dev flags
+
+# Drop the two flag lines — do NOT delete the file (see above; it also carries
+# the notarization creds).
+sed -i '' '/^INTELIGIR_FAUX_AGENT=1$/d;/^INTELIGIR_EMULATE_CONNECTORS=1$/d' apps/desktop/.env
 ```

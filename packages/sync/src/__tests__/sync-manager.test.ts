@@ -62,12 +62,12 @@ describe("createJsonBaseStore", () => {
   });
 
   it("degrades to null (re-sync from empty) on an old enveloped base file — never throws", () => {
-    // Desktop base files predating this refactor carried a
-    // {version, vaultId, generation, files} envelope. The lifted store
-    // persists the bare manifest, so an old file either still parses (the
-    // extra `version`/`generation` keys are tolerated — parseVaultManifest
-    // ignores unknown keys) or fails validation and the store starts from
-    // empty. Either way it must not throw.
+    // Base files on disk from older desktop builds carry a
+    // {version, vaultId, generation, files} envelope. This store persists the
+    // bare manifest, so such a file either still parses (the extra
+    // `version`/`generation` keys are tolerated — parseVaultManifest ignores
+    // unknown keys) or fails validation and the store starts from empty.
+    // Either way it must not throw.
     const basePath = path.join(tmp, "old-envelope.json");
     fs.writeFileSync(
       basePath,
@@ -103,11 +103,11 @@ describe("createVaultSyncIo", () => {
   });
 
   it("lists every file uncapped — the data-loss regression pin", () => {
-    // Historically vault.list() capped its listing (2000 entries, long gone).
-    // Feeding any capped/truncated list into the sync engine reads the
+    // Feeding any capped or truncated listing into the sync engine reads the
     // missing tail as local deletions and propagates them to the coordinator
-    // and every peer. createVaultSyncIo must see EVERY non-ignored file
-    // (listAllPaths) — this pins that, cap or no cap.
+    // and every peer — silent, cross-device data loss. createVaultSyncIo must
+    // see EVERY non-ignored file (listAllPaths); this pins that against any
+    // cap a future vault listing might grow.
     const vault = new VaultManager({
       settingsPath: path.join(tmp, "settings.json"),
       defaultRoot: path.join(tmp, "vault"),

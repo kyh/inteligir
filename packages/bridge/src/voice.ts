@@ -1,7 +1,6 @@
 // ---------------------------------------------------------------------------
-// Voice constants shared between host <-> renderer. The chat-message wire
-// types that used to live beside them moved to ./chat-message when the voice
-// stack was cut; this file returned with TTS and holds only the voice half.
+// Voice constants shared between host <-> renderer. Voice-adjacent chat wire
+// types live in ./chat-message; this module holds only the voice half.
 // ---------------------------------------------------------------------------
 
 /**

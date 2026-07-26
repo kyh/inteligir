@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // App lifecycle state machine types.
 //
-// The machine models APP LIFECYCLE ONLY — provider login is NOT an app phase
-// (auth Phase 2, #459): the app boots as a guest straight toward the
-// workspace; AI-provider connection lives in the provider layer (Settings →
-// AI, `connectAiProvider`/`disconnectAiProvider`) and the optional account
+// The machine models APP LIFECYCLE ONLY — provider login is NOT an app phase:
+// the app boots as a guest straight toward the workspace; AI-provider
+// connection lives in the provider layer (Settings → AI,
+// `connectAiProvider`/`disconnectAiProvider`) and the optional account
 // (Better Auth) lives in the sync layer. Neither gates app entry.
 // ---------------------------------------------------------------------------
 

@@ -26,7 +26,7 @@ src/
   backoff.ts            # the ONE capped-exponential retry-delay policy (schedule injected)
   wire-helpers.ts       # isRecord (re-export from notes), toErrorMessage, isHttpUrl
   deep-link.ts          # inteligir:// pure parser + sanitizer — exactly six verbs
-  dev-flags.ts          # fail-closed gate for dev-only env switches (#465)
+  dev-flags.ts          # fail-closed gate for dev-only env switches
   agent-events.ts       # AppAgentEvent — the typed agent event vocabulary
   agent-event-parser.ts # raw pi events → AppAgentEvent at the IPC boundary (pure)
   chat-log.ts           # chat surface as a pure fold over agent events + history
@@ -61,7 +61,7 @@ src/
 - **dev-flags is fail-closed**: until `createHost` sets the bit from
   `!platform.isPackaged`, the dev-only env switches (faux agent, emulated
   connectors) are refused. It lives here because both consumers sit below
-  @repo/server and already depend on bridge (#465).
+  @repo/server and already depend on bridge.
 - The ws-bridge reconnect supervisor is the ONLY retry owner; `unauthorized`
   (close 4401) is terminal. `HYDRATED_EVENTS` re-pushes stateful event
   channels on reconnect — full event replay is deliberately not provided.

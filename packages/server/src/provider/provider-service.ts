@@ -4,7 +4,7 @@
 // pure normalization logic (provider-catalog) and pi's on-device credential
 // store (agent/auth). Every Agent construction site selects its model through
 // here (as a neutral {provider, modelId} pair — resolution to a pi Model
-// happens inside the PiAgent wrapper, #460), so switching providers in
+// happens inside the PiAgent wrapper), so switching providers in
 // Settings takes effect on the next session start — no restart-time const
 // anywhere.
 // ---------------------------------------------------------------------------
@@ -42,7 +42,7 @@ export function getSelectedProvider(): { provider: SupportedProviderId; modelId:
 /** Pair `modelId` with the SELECTED provider — the ghost-text session's
  * fast-model override rides through here so its override follows a provider
  * switch instead of pointing at a foreign registry. Resolution to a pi Model
- * happens inside the PiAgent wrapper at start() (#460). Faux runtime auth
+ * happens inside the PiAgent wrapper at start(). Faux runtime auth
  * (the in-memory key satisfying pi's prompt gate) is asserted inside the
  * wrapper at session start (pi/model.ts::prepareRuntimeForSelection), so a
  * faux selection needs no side effect here. */
@@ -53,8 +53,8 @@ export function providerModelSelection(modelId: string): ModelSelection {
 
 /** The selected provider+model pair every default Agent session runs on —
  * passed as the lazy `selectModel` thunk in AgentOptions and resolved to a
- * pi Model inside the PiAgent wrapper at start() (#460: pi-ai's Model type
- * stays inside @repo/agent/pi/*). */
+ * pi Model inside the PiAgent wrapper at start(), so pi-ai's Model type stays
+ * inside @repo/agent/pi/*. */
 export function agentModelSelection(): ModelSelection {
   return getSelectedProvider();
 }
@@ -76,7 +76,7 @@ export function isSelectedProviderConnected(): boolean {
 
 /** Run the selected provider's interactive OAuth flow (no-op for faux). The
  * Settings "Connect" and the reauthenticate path both land here. Provider
- * auth is a FEATURE-level concern — it never gates app entry (#459). */
+ * auth is a FEATURE-level concern — it never gates app entry. */
 export async function loginSelectedProvider(): Promise<void> {
   const { provider } = getSelectedProvider();
   if (!providerRequiresAuth(provider)) return;

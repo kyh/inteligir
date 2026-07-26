@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   CheckCircle2Icon,
   ClockIcon,
@@ -26,6 +26,13 @@ import { useDelegationStore } from "@renderer/stores/delegation-store";
 import { useVaultListing } from "@renderer/workspace/vault-context";
 import type { Delegation } from "@repo/bridge/delegation";
 
+/** The ids of every delegation currently queued or running. */
+function activeIds(delegations: readonly Delegation[]): string[] {
+  return delegations
+    .filter((d) => d.status === "queued" || d.status === "running")
+    .map((d) => d.id);
+}
+
 /**
  * A Messenger-style dock of delegation cards pinned bottom-right. Each card
  * shows a delegated checkbox's status and the background agent's response,
@@ -40,11 +47,27 @@ export function DelegationDock() {
   const cancel = useDelegationStore((s) => s.cancel);
   const restore = useDelegationStore((s) => s.restore);
   const { entries } = useVaultListing();
-  const [tracked, setTracked] = useState<ReadonlySet<string>>(new Set());
+  // Every delegation we've seen go active this session. Seeded from whatever is
+  // already active at mount, then grown by the render-time adjustment below.
+  const [tracked, setTracked] = useState<ReadonlySet<string>>(
+    () => new Set(activeIds(delegations)),
+  );
+  const [seenDelegations, setSeenDelegations] = useState(delegations);
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
   // The delegation awaiting restore confirmation (null = dialog closed).
   const [confirming, setConfirming] = useState<Delegation | null>(null);
   const [restoring, setRestoring] = useState(false);
+
+  // Grow `tracked` DURING render off a previous-value comparison (react.dev,
+  // "Adjusting some state when a prop changes") rather than from an Effect. The
+  // Effect this replaces both read and wrote `tracked` and listed it in its own
+  // deps, so every newly-active delegation cost an extra render pair. React
+  // re-runs this render immediately with the new state — no commit, no paint.
+  if (delegations !== seenDelegations) {
+    setSeenDelegations(delegations);
+    const newlyActive = activeIds(delegations).filter((id) => !tracked.has(id));
+    if (newlyActive.length > 0) setTracked((prev) => new Set([...prev, ...newlyActive]));
+  }
 
   const confirmRestore = async () => {
     if (!confirming) return;
@@ -54,21 +77,6 @@ export function DelegationDock() {
     setConfirming(null);
     if (!result.ok) toast.error(result.error ?? "Couldn't restore the snapshot.");
   };
-
-  // Track any delegation we've seen go active this session.
-  useEffect(() => {
-    const active = delegations
-      .filter((d) => d.status === "queued" || d.status === "running")
-      .map((d) => d.id)
-      .filter((id) => !tracked.has(id));
-    if (active.length > 0) {
-      setTracked((prev) => {
-        const next = new Set(prev);
-        for (const id of active) next.add(id);
-        return next;
-      });
-    }
-  }, [delegations, tracked]);
 
   const visible = delegations
     .filter((d) => tracked.has(d.id) && !dismissed.has(d.id))

@@ -315,7 +315,7 @@ export const PromptInput = ({
   );
 
   return (
-    <LocalAttachmentsContext.Provider value={attachmentsCtx}>
+    <LocalAttachmentsContext value={attachmentsCtx}>
       <input
         accept={accept}
         aria-label="Upload files"
@@ -331,7 +331,7 @@ export const PromptInput = ({
           {children}
         </InputGroup>
       </form>
-    </LocalAttachmentsContext.Provider>
+    </LocalAttachmentsContext>
   );
 };
 

@@ -15,8 +15,8 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-// Isolate-local memo (parity with the old `cacheLife("hours")`): one GitHub
-// API hit per worker isolate per hour, falling back to the releases page.
+// Isolate-local memo: one GitHub API hit per worker isolate per hour, falling
+// back to the releases page.
 let cached: { url: string; expires: number } | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -46,8 +46,8 @@ const getDownloadUrl = createServerFn().handler(async (): Promise<string> => {
     if (!res.ok) return FALLBACK_URL;
 
     // GitHub's response is untrusted input: PARSE it rather than annotate it.
-    // The old `const release: {...} = await res.json()` was an unchecked
-    // assertion — a shape change downstream became a TypeError caught by the
+    // Annotating `await res.json()` with the expected shape is an unchecked
+    // assertion — a shape change then surfaces as a TypeError swallowed by the
     // outer catch, which reads as "GitHub is down" instead of "we mis-parsed".
     const url = findDmgUrl(await res.json()) ?? FALLBACK_URL;
     cached = { url, expires: Date.now() + CACHE_TTL_MS };

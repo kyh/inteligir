@@ -29,16 +29,15 @@ export type PiAgentConfig = {
   cwd: string;
   /** Directory where pi keeps its agent-specific state (skills, AGENTS.md, etc). */
   agentDir: string;
-  /** ModelRuntime supplier for credential lookup + provider streaming (0.80's
-   * canonical model/auth handle — replaces 0.73's AuthStorage+ModelRegistry
-   * pair). A thunk resolved inside start() so runtime construction failures
-   * reject the async start() path, and so all sessions share the host's one
-   * cached runtime (agent/auth.ts::getModelRuntime). */
+  /** ModelRuntime supplier for credential lookup + provider streaming (pi's
+   * canonical model/auth handle). A thunk resolved inside start() so runtime
+   * construction failures reject the async start() path, and so all sessions
+   * share the host's one cached runtime (agent/auth.ts::getModelRuntime). */
   modelRuntime: () => Promise<ModelRuntime>;
   /** Default model for new sessions, as a NEUTRAL (provider, modelId) pair —
    * resolved to pi-ai's Model inside start() (resolveModelSelection), so a
    * bad selection rejects the async start() path instead of throwing from
-   * construction, and pi-ai's Model type stays inside server/pi/* (#460). */
+   * construction, and pi-ai's Model type stays inside pi/*. */
   model: ModelSelection;
   /** SessionManager strategy (e.g. continueRecent, open specific file, inMemory). */
   sessionManager: SessionManager;

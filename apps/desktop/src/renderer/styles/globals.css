@@ -1,4 +1,13 @@
 @import "@repo/ui/globals.css";
+/* The dev harness's vite root is `dev/`, so Tailwind v4's automatic source
+   detection scans apps/desktop/dev/** (plus @repo/ui's explicit @source) and
+   never sees src/renderer/**. Every renderer-only utility class was therefore
+   missing from the harness stylesheet — a probe div with `cursor-pointer
+   bg-primary/10 rounded-[12px]` computed to no styles at all, so the harness
+   silently under-rendered the real UI it exists to preview. Electron builds
+   were unaffected (their root IS src/renderer), which is exactly why this
+   went unnoticed. */
+@source "../../**/*.{ts,tsx}";
 /* Markdown-render styles for the AI chat surface (ai-elements/response). Lives
    here, not in @repo/ui's shared globals, since only the renderer renders it. */
 @import "streamdown/styles.css";

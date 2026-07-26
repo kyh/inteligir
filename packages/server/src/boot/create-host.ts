@@ -92,9 +92,9 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // reconcile so no state emission is dropped.
   setSyncEventSink(emitEvent);
 
-  // Sync reaches the vault only through this injected accessor (#465 — no
-  // extracted-pkg→extracted-pkg singleton coupling); the accessor keeps a
-  // logout/login vault rebuild transparent.
+  // Sync reaches the vault only through this injected accessor — no host
+  // package reaches another host package's singleton directly; the accessor
+  // also keeps a logout/login vault rebuild transparent.
   setSyncVaultAccessor(getVaultManager);
 
   // Social sign-in opens the coordinator-supplied authorization URL through
@@ -106,8 +106,8 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // through this seam (voice/ never imports the platform seam or the event
   // bus). Installed here at composition — not at handler registration — so a
   // boot-time "is voice available" probe resolves instead of hitting the
-  // not-configured guard (#465.3); pre-composition, isModelInstalled/
-  // downloadModel now answer with values (false / {ok:false}), never a throw.
+  // not-configured guard; pre-composition, isModelInstalled/downloadModel
+  // answer with values (false / {ok:false}), never a throw.
   configureVoiceModelHost({
     userDataDir: () => platform.userDataDir,
     emitState: (event) => emitEvent("onVoiceModelState", event),
@@ -124,7 +124,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
 
   // Force the ordered construction of the core singletons and install the
   // notifier composition (store-recovery is wired inside, before any store is
-  // read — it used to be an import-time side effect of notifications.ts).
+  // read — never as an import-time side effect of another module).
   // The returned vault-change notifier is wired in start() because the
   // watcher must not start until ensureReady() has run.
   const vaultChangeNotifier = constructHostSingletons();
@@ -160,7 +160,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       configurePaths();
 
       // Vault: ensure the folder + agent symlink exist, THEN wire the change
-      // notifier. There is no recursive watcher anymore (vault liveness —
+      // notifier. There is no recursive watcher (vault liveness —
       // CLAUDE.md § Decisions) — the notifier
       // fires from app-initiated writes, the open-note watcher, and on-demand
       // refresh (focus / "Refresh vault" / delegation completion). The notifier

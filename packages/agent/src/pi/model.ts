@@ -2,7 +2,7 @@ import { getModels, getProviders } from "@earendil-works/pi-ai/compat";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
-// faux-provider sits in server/provider/ because it is part of the provider
+// faux-provider sits in ../provider/ because it is part of the provider
 // MENU, but it is pi-shaped (it imports pi-ai directly — see the
 // pi-quarantine guard test) and its models exist only on its live
 // registration, so resolving it belongs here with the rest of model
@@ -16,10 +16,10 @@ import {
 type Provider = Parameters<typeof getModels>[0];
 
 /** Neutral (provider, modelId) pair — the shape the provider-config store
- * holds and the ONLY model vocabulary that crosses the agent/ seam (#460).
+ * holds and the ONLY model vocabulary that crosses the agent/ seam.
  * Hosts compose selections; resolution to pi-ai's Model happens inside the
  * PiAgent wrapper at start() (resolveModelSelection), so pi-ai's Model type
- * never leaks past server/pi/*. */
+ * never leaks past pi/*. */
 export type ModelSelection = { provider: string; modelId: string };
 
 /**
@@ -57,7 +57,7 @@ export function resolveModelSelection(selection: ModelSelection): Model<Api> {
 /**
  * Make sure the session's ModelRuntime can serve `selection`. Builtin
  * providers are already in the runtime's collection; faux (a live, dev-only
- * registration) must be registered on the runtime per session start — 0.80
+ * registration) must be registered on the runtime per session start — pi
  * sessions stream exclusively through the runtime's provider set, and its
  * prompt gate requires the provider to be registered AND authed.
  */

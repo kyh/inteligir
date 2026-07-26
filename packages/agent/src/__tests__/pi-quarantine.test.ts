@@ -1,7 +1,6 @@
 // ---------------------------------------------------------------------------
-// pi-quarantine guard (#460): `@earendil-works/pi*` (pi-coding-agent /
-// pi-ai / pi-agent-core — the maintained successor scope of the deprecated
-// predecessor, #430) may be imported ONLY inside the harness quarantine —
+// pi-quarantine guard: `@earendil-works/pi*` (pi-coding-agent / pi-ai /
+// pi-agent-core) may be imported ONLY inside the harness quarantine —
 // the packages/agent/src/pi/* wrappers, the faux stub, and two named tests.
 // Everything else (agent/*, handlers, delegation, the entire renderer) must
 // go through the wrappers, so a future harness swap is bounded to the
@@ -14,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 
 /** Source trees the guard sweeps (product code on every platform) — DERIVED
  * from the filesystem (every `packages/<p>/src` + `apps/<a>/src`, plus
@@ -35,9 +34,9 @@ const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".cache", ".output", ".e
 
 /** Any module reference into the pi packages (import/export/require/vi.mock —
  * the specifier is what matters, not the syntax around it). Scope-agnostic:
- * matches pi-coding-agent/pi-ai/pi-agent-core under ANY npm scope, so a
- * regression to the deprecated frozen scope (#430) — or a future scope move
- * — stays fenced without touching this regex. */
+ * matches pi-coding-agent/pi-ai/pi-agent-core under ANY npm scope, so an
+ * import of a frozen fork scope — or a future scope move upstream — stays
+ * fenced without touching this regex. */
 const PI_SPECIFIER = /["']@[a-z0-9-]+\/pi-(?:coding-agent|ai|agent-core)[^"']*["']/;
 
 /** The ONLY places allowed to import pi directly — all inside @repo/agent. */

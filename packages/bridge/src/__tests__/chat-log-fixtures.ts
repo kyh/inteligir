@@ -145,10 +145,10 @@ export const historyFixture: readonly ChatHistoryEntry[] = [
   { role: "assistant", text: "Anytime." },
 ];
 
-/** A persisted thread whose last assistant turn errored (isError). The two
- * platforms historically DIVERGED here: mobile preserved the error styling on
- * rehydrate, the desktop inline fold dropped it. The shared fold preserves it
- * (see the parity test's divergence pin). */
+/** A persisted thread whose last assistant turn errored (isError). This is the
+ * spot where desktop and mobile are easiest to drift apart on: a rehydrated
+ * error turn MUST keep its error styling on both, and the shared fold is what
+ * guarantees it (see the parity test's divergence pin). */
 export const historyWithErrorFixture: readonly ChatHistoryEntry[] = [
   { role: "user", text: "hello" },
   { role: "assistant", text: "upstream exploded", isError: true },

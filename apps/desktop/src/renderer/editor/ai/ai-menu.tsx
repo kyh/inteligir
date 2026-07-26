@@ -71,6 +71,13 @@ export function AiMenu() {
   const [page, setPage] = React.useState<"root" | "translate">("root");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const open = status !== "closed";
+  // ArrowDown/Up move `highlight` while DOM focus stays in the input, so the
+  // combobox / listbox / aria-activedescendant triple is the ONLY thing that
+  // makes a screen reader announce the moving item. Options are identified by
+  // index rather than by item.key because language keys carry spaces
+  // ("translate-Chinese (Simplified)") and an HTML id may not.
+  const listboxId = React.useId();
+  const optionId = (index: number) => `${listboxId}-opt-${index}`;
 
   const resetList = () => {
     setInput("");
@@ -160,7 +167,14 @@ export function AiMenu() {
   }, [status, input, editor, page, hasSelection]);
 
   const clampedHighlight = Math.min(highlight, Math.max(items.length - 1, 0));
+  const highlightedItem = items[clampedHighlight];
   const busyLabel = BUSY_LABEL[status];
+  const promptPlaceholder =
+    page === "translate"
+      ? "Translate to…"
+      : status === "review"
+        ? "Tell the AI what to change…"
+        : "Ask AI anything…";
 
   const submit = () => {
     const item = items[clampedHighlight];
@@ -275,13 +289,18 @@ export function AiMenu() {
                   setHighlight(0);
                   setNavigated(false);
                 }}
-                placeholder={
-                  page === "translate"
-                    ? "Translate to…"
-                    : status === "review"
-                      ? "Tell the AI what to change…"
-                      : "Ask AI anything…"
-                }
+                placeholder={promptPlaceholder}
+                // The APG combobox triple. Focus never leaves this input, so
+                // aria-activedescendant is what an assistive tech reads as the
+                // arrow keys move the highlight; without it, arrowing the list
+                // announces nothing at all. Controls/expanded are conditional
+                // because the listbox is only in the DOM when it has items.
+                role="combobox"
+                aria-autocomplete="list"
+                aria-label={promptPlaceholder}
+                aria-expanded={items.length > 0}
+                aria-controls={items.length > 0 ? listboxId : undefined}
+                aria-activedescendant={highlightedItem ? optionId(clampedHighlight) : undefined}
                 className="h-7 grow bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
               <Button
@@ -304,10 +323,19 @@ export function AiMenu() {
         </div>
 
         {items.length > 0 && (
-          <div className="max-h-[40vh] overflow-y-auto border-t border-border py-1">
+          // role="option" is only valid inside a listbox owner — without this
+          // the rows are orphaned options and the input above has nothing to
+          // point aria-activedescendant at.
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label="AI actions"
+            className="max-h-[40vh] overflow-y-auto border-t border-border py-1"
+          >
             {items.map((item, index) => (
               <div
                 key={item.key}
+                id={optionId(index)}
                 role="option"
                 aria-selected={index === clampedHighlight}
                 onMouseEnter={() => setHighlight(index)}

@@ -4,8 +4,7 @@
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./src/*"],
-      "@repo/ui/*": ["../../packages/ui/src/*"]
+      "@/*": ["./src/*"]
     },
     "types": ["vite/client"]
   },

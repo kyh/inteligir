@@ -62,7 +62,7 @@ the vault all work with zero provisioning.
 This repo ships **no seed script and no test account**. Notes live in the
 user's local vault, never in a server database, so there is nothing to seed
 beyond a user row. If you actually need an account (Settings → Account, vault
-sync, mobile sign-in), stand up the local Worker — verified end to end:
+sync, mobile sign-in), stand up the local Worker — four commands:
 
 ```sh
 cp apps/cloud/.dev.vars.example apps/cloud/.dev.vars   # set BETTER_AUTH_SECRET to anything
@@ -100,7 +100,8 @@ pnpm format:fix && pnpm verify
 ```
 
 `format:fix` runs **FIRST and never after the gates**: a post-gate format run
-once rewrote the byte-pinned round-trip fixtures and shipped red (#362).
+rewrites the byte-pinned round-trip fixtures after the tests that guard them
+have already passed, so the gate reads green and the commit ships red.
 `verify` is check-only for exactly that reason.
 
 Runtime — type-checks passing is not feature-correct. Drive the running app

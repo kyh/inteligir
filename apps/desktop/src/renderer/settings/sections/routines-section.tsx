@@ -277,7 +277,7 @@ export function RoutinesSection() {
           </div>
         ))}
 
-        {/* Stays MOUNTED while the form is open, hidden by class (#473): a
+        {/* Stays MOUNTED while the form is open, hidden by class: a
             button that unmounts itself on click detaches the press target
             before Base UI's outside-press check resolves, and the whole
             Settings dialog closes. */}

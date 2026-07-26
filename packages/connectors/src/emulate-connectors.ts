@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Emulate-connectors dev override (#461 Phase 4b): route the Google OAuth
+// Emulate-connectors dev override: route the Google OAuth
 // endpoints a Claude session's E2E drive registers in executor at localhost
 // (vercel-labs/emulate, `npx emulate --service google` on :4000) instead of
 // real Google, so a headless session completes consent with zero human login.

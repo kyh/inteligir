@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Password-reset email over Cloudflare Email Sending (issue #463). Better
+// Password-reset email over Cloudflare Email Sending. Better
 // Auth's `emailAndPassword.sendResetPassword` lands here with the reset URL it
 // minted (`/api/auth/reset-password/<token>?callbackURL=/auth/reset` — the GET
 // leg validates the token, then redirects to the reset PAGE with `?token=`).

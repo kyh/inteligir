@@ -1,8 +1,8 @@
 // The AI session's privacy/provider gate lives at the two request funnels
-// (startGenerate/startEdit), not stamped on every entry point (#451). This
-// pins the funnel through a path whose entry-point stamp was removed:
-// runTranslate on a `private: true` doc must issue no generateInlineAi call
-// and settle the session back on the prompt.
+// (startGenerate/startEdit), not stamped on every entry point. This pins the
+// funnel through an entry point that carries no gate of its own: runTranslate
+// on a `private: true` doc must issue no generateInlineAi call and settle the
+// session back on the prompt.
 
 import { describe, expect, it, vi } from "vitest";
 import { createPlateEditor } from "platejs/react";

@@ -34,7 +34,7 @@ import { createTTS, type TTSHandle } from "@renderer/voice/tts";
 const MAX_CHUNK_CHARS = 500;
 
 /** Reactive session flag for the palette's Read-aloud/Stop label. */
-export const useReadAloud = create<{ active: boolean }>(() => ({ active: false }));
+export const useReadAloud = create<{ active: boolean }>()(() => ({ active: false }));
 
 type Session = { tts: TTSHandle; unsubs: (() => void)[] };
 let session: Session | null = null;

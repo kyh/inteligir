@@ -29,19 +29,20 @@ src/
                         #   base64 PCM out (emitted via the injected sink); TtsHost seam
   voice-secret.ts       # The ElevenLabs key: plaintext into the SecretStore, only a
                         #   `true` presence marker into the caller-bound ui-state sink
-  __tests__/            # voice-secret.test.ts — marker/secret routing contract
+  __tests__/            # voice-secret.test.ts (marker/secret routing contract),
+                        #   tts-proxy.test.ts (base64→PCM decode + WS lifecycle)
 ```
 
 ## Invariants
 
 - **Checksum fail-closed.** The model archive must match the pinned
-  `MODEL_SHA256`; a mismatch aborts install — upstream re-uploads require an
-  audit + repin, never a silent accept.
+  `MODEL_SHA256`; a mismatch aborts the install. An upstream re-upload
+  requires an audit + repin, never a silent accept.
 - **Interrupted installs don't count.** `isModelInstalled` requires all four
   model files (encoder/decoder/joiner/tokens), not a single sentinel.
-- **Boot-timing guard (#465.3).** Before `configureVoiceModelHost` runs,
-  probes answer "not installed", `downloadModel` fails as a VALUE, and
-  progress events drop silently — nothing throws for racing composition.
+- **Boot-timing guard.** Before `configureVoiceModelHost` runs, probes answer
+  "not installed", `downloadModel` fails as a VALUE, and progress events drop
+  silently — nothing throws for racing composition.
 - **Model dir is the host's per-user data dir** (`userDataDir()/stt/…`), NOT
   `~/.inteligir` — logout wipes the latter and would force re-downloads.
 - **Native module loads lazily.** `sherpa-onnx-node` is imported only at
@@ -79,6 +80,7 @@ pnpm --filter @repo/voice test
 ```
 
 `voice-secret.test.ts` pins the secret/marker routing (trimmed key into the
-secret sink, `true`-only marker, clear-on-empty). STT and the TTS proxy's
-wire behavior are exercised through the server's voice handlers and
-transport tests.
+secret sink, `true`-only marker, clear-on-empty); `tts-proxy.test.ts` pins the
+base64→PCM decode (byteOffset/byteLength honored) and the connection
+lifecycle over the injected socket seam. STT is exercised through the server's
+voice handlers and transport tests.

@@ -1,12 +1,12 @@
 // Wiki-link syntax for the pipeline: `[[body]]`, `[[target|alias]]`,
-// `![[embed]]`. Own micromark text constructs + mdast handlers (probe4-proven
-// derivation; the npm wiki-link packages are years stale, two majors behind
-// mdast-util-to-markdown, and lack embeds — see design-serialization.md §3).
+// `![[embed]]`. Own micromark text constructs + mdast handlers rather than an
+// npm package: the published wiki-link packages are years stale, two majors
+// behind mdast-util-to-markdown, and lack embeds.
 //
 // Round-trip contract: `body` is the raw source between the brackets,
 // VERBATIM — `[[ padded ]]` and `[[a#b|c]]` re-emit byte-exact. Anchor/alias
-// splitting is display-time only (parseWikiBody, for the WP2 chip renderer +
-// Phase F resolution) and never round-trip-relevant.
+// splitting is display-time only (parseWikiBody, for the chip renderer and
+// target resolution) and never round-trip-relevant.
 //
 // Grammar: nok on EOF/EOL (no multi-line targets), nested `[`, and empty body.
 // A single `]` inside the body rejects the whole construct, which then falls

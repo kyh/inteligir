@@ -7,7 +7,7 @@
 // what keeps the feature gates reactive: connecting a provider in Settings
 // flips the composer back to the input in the same frame.
 //
-// AI is a FEATURE-level gate, never an app gate (#459): "no provider
+// AI is a FEATURE-level gate, never an app gate: "no provider
 // connected" degrades the AI surfaces in the workspace; it never blocks app
 // entry.
 // ---------------------------------------------------------------------------

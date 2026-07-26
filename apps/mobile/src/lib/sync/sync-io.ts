@@ -32,7 +32,7 @@ type VaultStat = {
  * directory walk a missing root is indistinguishable from "every file was
  * deleted", and the sync engine's 3-way reconcile would push that as a
  * vault-wide deletion to the coordinator and every peer — so the fs REFUSES
- * instead of returning `[]`, and the pass fails cleanly (#429). The UI listing
+ * instead of returning `[]`, and the pass fails cleanly. The UI listing
  * (vault-access) catches exactly this error and stays lenient.
  */
 export class VaultRootMissingError extends Error {
@@ -50,8 +50,8 @@ export class VaultRootMissingError extends Error {
  * missing root, one level down and harder to see: siblings still list, so the
  * overall result is non-empty and the empty-vault guard never fires — the
  * vanished subtree reconciles as a pile of deletions and propagates to every
- * peer. Desktop has always refused this (its crawl marks `complete:false` and
- * `listAllPaths()` throws); mobile returned `[]` and silently deleted (#466).
+ * peer. Desktop refuses the same way (its crawl marks `complete:false` and
+ * `listAllPaths()` throws); returning `[]` here deletes silently.
  *
  * A pass that cannot see the whole vault must not run at all.
  */
@@ -74,7 +74,7 @@ export type VaultFs = {
   /** Immediate children of a vault-relative dir. An unreadable directory must
    * THROW, never return `[]`: `VaultRootMissingError` for the root, and
    * `VaultListingIncompleteError` for a sub-dir. Either way an empty or partial
-   * listing would reconcile as deletions (#429, #466). */
+   * listing would reconcile as deletions. */
   listDir(relDir: string): readonly VaultEntry[];
   /** Raw bytes of a vault file. */
   readBytes(path: VaultPath): Uint8Array;

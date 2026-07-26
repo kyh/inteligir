@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The Worker-hosted password-reset page (issue #463) — `GET /auth/reset`.
+// The Worker-hosted password-reset page — `GET /auth/reset`.
 //
 // The email's link is Better Auth's GET leg
 // (`/api/auth/reset-password/<token>?callbackURL=/auth/reset`): it validates

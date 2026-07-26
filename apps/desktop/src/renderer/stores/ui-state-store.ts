@@ -34,7 +34,7 @@ function scheduleFlush(key: string, value: unknown): void {
 
 let initPromise: Promise<void> | null = null;
 
-export const useUiStateStore = create<UiStateStore>((set) => ({
+export const useUiStateStore = create<UiStateStore>()((set) => ({
   values: {},
   loaded: false,
 

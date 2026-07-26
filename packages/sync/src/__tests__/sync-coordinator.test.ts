@@ -232,7 +232,7 @@ describe("SyncCoordinator — debounced-pass conflicts (item 2)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Guest→account upgrade (#459): a guest's existing local vault is ADOPTED by
+// Guest→account upgrade: a guest's existing local vault is ADOPTED by
 // the first sync after signing in + enabling — pushed to the empty
 // coordinator, never wiped or replaced.
 // ---------------------------------------------------------------------------

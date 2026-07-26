@@ -172,7 +172,7 @@ describe("VaultManager", () => {
     expect(all).not.toContain(".dotfile");
   });
 
-  // ---- Crawl completeness (#429 — the sync mass-deletion guard's Layer 1) ----
+  // ---- Crawl completeness (the sync mass-deletion guard's Layer 1) ----------
   // A truncated/empty crawl must NEVER reach the sync manifest as if it were a
   // real state of the vault: reconcile reads "in base, absent from local" as a
   // local delete and fans it out to every device. The shared crawl records

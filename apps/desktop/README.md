@@ -2,8 +2,8 @@
 
 The desktop product: the Electron main/preload processes plus the whole
 renderer UI (the workspace — editor, sidebar, composer, settings, voice). The
-node backend is `@repo/server`; the shared contract is `@repo/server`; shared
-primitives are `@repo/ui`. Main owns what is Electron's to own: window/menu
+node backend is `@repo/server`; the shared wire contract is `@repo/bridge`;
+shared primitives are `@repo/ui`. Main owns what is Electron's to own: window/menu
 lifecycle, the IPC transport, the auto-updater, and native packaging (including
 the sherpa-onnx voice binaries).
 
@@ -18,10 +18,11 @@ src/
   preload/   bootstrap-only — sendSync's the ws endpoint + per-boot local token to the renderer
   renderer/  the product UI — main.tsx dials createWsBridge, installs the Bridge, renders App;
              editor/, workspace/, composer/, sidebar/, settings/, voice/, … (imported via @renderer)
-  __tests__/ Vitest — updater, agent-event parsing, vault-app protocol
+  __tests__/ Vitest — updater, navigation guard, vault-app protocol, editor import cycles,
+             wasm search parity (the renderer's own suites live in src/renderer/__tests__/)
 
 dev/         browser dev harness — in-memory fixture Bridge (`dev:harness`)
-resources/   icons + entitlements shipped in the .app (agent assets live in packages/server/resources/agent)
+resources/   icons + entitlements shipped in the .app (agent assets live in packages/agent/resources/agent)
 scripts/     build-time verifiers (packaged runtime deps, model registry)
 ```
 
@@ -62,6 +63,6 @@ Opens Electron with HMR (renderer). CDP exposed on port 9222 — inspect with
 ## Build & ship
 
 - `pnpm build` — `electron.vite.config.ts` bundles main/preload/renderer into `.output/app`.
-- `electron-builder.yml` packages the .app (dmg + zip) and configures auto-update; agent assets are copied from `packages/server/resources/agent` via `extraResources`.
+- `electron-builder.yml` packages the .app (dmg + zip) and configures auto-update; agent assets are copied from `packages/agent/resources/agent` via `extraResources`.
 - `scripts/verify-packaged-runtime-deps.mjs` walks the packed .app to catch missing native deps (sherpa-onnx) before release.
 - Releases ship via the `release` skill — see `.claude/skills/release/SKILL.md`.

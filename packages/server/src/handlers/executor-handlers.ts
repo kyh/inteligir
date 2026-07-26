@@ -50,7 +50,7 @@ const connectorOps: ConnectorInstallOps = {
 export function registerExecutorHandlers(handle: HandlerRegistrar): void {
   handle("installConnector", (req) => installConnector(connectorOps, req));
   handle("uninstallConnector", (req) => uninstallConnector(connectorOps, req));
-  // Dev-only (#462): the E2E drive polls this for the in-flight OAuth consent
+  // Dev-only: the E2E drive polls this for the in-flight OAuth consent
   // instead of reading the daemon's SQLite. Refused outright outside emulate
   // mode (and emulate itself is refused in packaged builds — dev-flags.ts).
   handle("getPendingConnectorAuth", () => {
@@ -64,7 +64,7 @@ export function registerExecutorHandlers(handle: HandlerRegistrar): void {
   handle("detectExecutorIntegration", executor.detectIntegration);
   handle("listExecutorConnections", executor.listConnections);
 
-  // applyGoogleEndpointOverride: a production no-op; under the Phase 4b
+  // applyGoogleEndpointOverride: a production no-op; under the
   // emulate/env dev override it swaps the baked real-Google endpoints the
   // renderer's GCP dialog passes for the resolved ones (emulate-connectors.ts).
   handle("createExecutorOAuthClient", (input) =>

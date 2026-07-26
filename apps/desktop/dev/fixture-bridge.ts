@@ -760,9 +760,9 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       id: "anthropic",
       label: "Claude",
       requiresAuth: true,
-      defaultModelId: "claude-sonnet-4-6",
+      defaultModelId: "claude-sonnet-5",
       models: [
-        { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+        { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
         { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
         { id: "claude-haiku-4-5", label: "Claude Haiku 4.5 (latest)" },
       ],
@@ -1214,7 +1214,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // exercisable. The brief "running" beat matters: the dock only tracks
     // delegations it saw go active this session.
     createDelegation: async ({ sourceFile, ordinal }) => {
-      // Mirror the host's provider feature gate (#459): a guest — selected
+      // Mirror the host's provider feature gate: a guest — selected
       // provider not connected — gets the same graceful refusal, never a
       // silently queued run.
       const selectedEntry = aiProviderCatalog.find((entry) => entry.id === aiSelection.provider);
@@ -1512,7 +1512,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       if (edited !== null) {
         return new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: edited }), 400));
       }
-      // Multi-block markdown so the incremental streaming parse (#370) is
+      // Multi-block markdown so the incremental streaming parse is
       // exercisable: heading, bold, list, fence, closing paragraph.
       const text = [
         "## Canned heading",
@@ -1578,7 +1578,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     uninstallConnector: async () => {
       throw unavailable("executor");
     },
-    // Dev-only emulate seam (#462) — no daemon, no OAuth flow in the harness.
+    // Dev-only emulate seam — no daemon, no OAuth flow in the harness.
     getPendingConnectorAuth: async () => {
       throw unavailable("executor");
     },

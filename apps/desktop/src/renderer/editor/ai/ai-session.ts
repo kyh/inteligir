@@ -14,7 +14,7 @@
 // Free-form prompts are classified host-side (generate on any failure);
 // canned actions carry a fixed intent.
 //
-// Two siblings hold what used to live inline here: prompt DATA + builders in
+// Two siblings hold the parts that are not state: prompt DATA + builders in
 // ai-prompts.ts, and the run/token lifecycle (supersession fencing, streaming
 // requestIds, host-side abort) in run-manager.ts. This file is the
 // editor-facing state machine that wires them together.
@@ -161,7 +161,7 @@ function refusePrivate(editor: PlateEditor): boolean {
   return true;
 }
 
-/** The AI feature gate (#459): hard-off when no provider is connected, same
+/** The AI feature gate: hard-off when no provider is connected, same
  * funnel treatment as the private gate above. Privacy is checked FIRST — a
  * private note must refuse with the privacy message even when a provider is
  * also missing. */
@@ -241,7 +241,7 @@ function unwindGenerate(editor: PlateEditor): void {
 /** Free-form prompt path: classify host-side, then route. Submitting from the
  * generate review discards the pending output first (a follow-up replaces). */
 export function submitAiPrompt(editor: PlateEditor, text: string): void {
-  // Privacy-only pre-check (#451): the funnel guards again after
+  // Privacy-only pre-check: the funnel guards again after
   // classification, but even the prompt TEXT typed into a private note must
   // not reach the classifier model.
   if (refusePrivate(editor)) return;
@@ -298,7 +298,7 @@ export function retryLastRun(editor: PlateEditor): void {
 // ---------------------------------------------------------------------------
 
 function startGenerate(editor: PlateEditor, action: CannedActionId | null, request: string): void {
-  // The funnel gate (#451): every request path ends here, so a note that
+  // The funnel gate: every request path ends here, so a note that
   // turned private (or a provider that vanished) after an entry point ran
   // still refuses. The status reset matters — refusal can fire while
   // "classifying", or after retryLastRun already unwound a pending review.
@@ -315,7 +315,7 @@ function startGenerate(editor: PlateEditor, action: CannedActionId | null, reque
 
   // Generations INSERT below the block holding the captured selection's end —
   // they never replace content (that's the edit flow's job). Deltas
-  // accumulate as markdown and land as incrementally parsed blocks (#370).
+  // accumulate as markdown and land as incrementally parsed blocks.
   editor.tf.select(sel);
   editor.tf.collapse({ edge: "end" });
   const caretBlock = editor.selection?.anchor.path[0];
@@ -404,7 +404,7 @@ function editTargetPaths(editor: PlateEditor): Path[] {
 }
 
 function startEdit(editor: PlateEditor, instruction: string): void {
-  // The funnel gate (#451) — see startGenerate.
+  // The funnel gate — see startGenerate.
   if (refuseAi(editor)) {
     setOptions(editor, { status: "input", error: null });
     return;

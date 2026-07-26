@@ -1,4 +1,4 @@
-// Deterministic teardown for a pending AI suggestion session (#374).
+// Deterministic teardown for a pending AI suggestion session.
 //
 // While suggestions are under review, the save buffer is frozen at the
 // pre-session bytes (transient.ts) — any typing the user interleaves rides

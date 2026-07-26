@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BotIcon,
   CalendarDaysIcon,
+  CalendarFoldIcon,
+  CalendarRangeIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
@@ -34,9 +36,16 @@ import {
   AGENT_INSTRUCTIONS_PATH,
   AGENT_INSTRUCTIONS_SKELETON,
 } from "@repo/bridge/agent-instructions";
-import { TEMPLATES_DIR, isTemplatePath } from "@repo/bridge/daily-notes";
+import {
+  CADENCE_ORDER,
+  CADENCES,
+  TEMPLATES_DIR,
+  isTemplatePath,
+  type Cadence,
+} from "@repo/bridge/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
+import { consumeTagRequest, refreshTags, useTags } from "@renderer/command/tags";
 import { getLiveEditor } from "@renderer/editor/live-editor";
 import { toggleEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useTheme } from "@renderer/lib/use-theme";
@@ -44,10 +53,9 @@ import { useViewStore } from "@renderer/stores/view-store";
 import { useVoiceStore } from "@renderer/stores/voice-store";
 import { startReadAloud, stopReadAloud, useReadAloud } from "@renderer/voice/read-aloud";
 import { openNoteState, useOpenNote } from "@renderer/workspace/open-note-store";
-import { useCreateFromTemplate, useOpenDailyNote } from "@renderer/workspace/use-note-templates";
+import { useCreateFromTemplate, useOpenPeriodicNote } from "@renderer/workspace/use-note-templates";
 import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
-import type { TagCount } from "@repo/notes/knowledge/tag-index";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 8;
@@ -87,6 +95,20 @@ function templateLabel(path: string): string {
   return path.startsWith(`${TEMPLATES_DIR}/`) ? path.slice(TEMPLATES_DIR.length + 1) : path;
 }
 
+/** Per-cadence palette presentation. The labels live in the shared cadence
+ * table (@repo/bridge/daily-notes — the host reads it too); the icon and the
+ * search keywords are palette-only copy, so they stay here rather than
+ * bloating an isomorphic module with renderer concerns. ⌘D is advertised on
+ * the daily row only — the hotkey is deliberately daily-only. */
+const CADENCE_COMMANDS: Readonly<Record<Cadence, { icon: React.ReactNode; keywords: string }>> = {
+  daily: { icon: <CalendarDaysIcon />, keywords: "open today daily note journal ⌘d" },
+  weekly: { icon: <CalendarRangeIcon />, keywords: "open this week weekly note journal periodic" },
+  monthly: {
+    icon: <CalendarFoldIcon />,
+    keywords: "open this month monthly note journal periodic",
+  },
+};
+
 /**
  * The ⌘K command palette: fuzzy-search notes by filename, full-text search
  * their contents (searchVault, debounced as-you-type), create a note from the
@@ -108,7 +130,7 @@ export function CommandPalette({
 }) {
   const { entries } = useVaultListing();
   const { openFile, createFile, changeFolder, refreshVault, editNote } = useVaultActions();
-  // Narrow subscriptions (#470): only the private-toggle action's PRESENCE and
+  // Narrow subscriptions: only the private-toggle action's PRESENCE and
   // LABEL are render inputs; the live content is read imperatively at action
   // time (togglePrivate below), so typing never re-renders the palette.
   const openIsMarkdown = useOpenNote((s) => s.openDoc.kind === "markdown");
@@ -120,14 +142,28 @@ export function CommandPalette({
   const readingAloud = useReadAloud((s) => s.active);
   const ttsConfigured = useVoiceStore((s) => s.ttsConfigured);
   const createFromTemplate = useCreateFromTemplate();
-  const openDailyNote = useOpenDailyNote();
+  // One hook per cadence: `useOpenPeriodicNote` reads that cadence's ui-state
+  // rows, so the calls are unrolled (hooks can't be mapped) into a lookup the
+  // command list indexes — the commands themselves stay table-driven.
+  const openDaily = useOpenPeriodicNote("daily");
+  const openWeekly = useOpenPeriodicNote("weekly");
+  const openMonthly = useOpenPeriodicNote("monthly");
+  const openPeriodic: Readonly<Record<Cadence, () => void>> = {
+    daily: openDaily,
+    monthly: openMonthly,
+    weekly: openWeekly,
+  };
   const setSurface = useViewStore((s) => s.setSurface);
   const setPastChatsOpen = useViewStore((s) => s.setPastChatsOpen);
   const { resolved, setTheme } = useTheme();
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "root" });
   const [hits, setHits] = useState<SearchResult[]>([]);
-  const [tags, setTags] = useState<TagCount[]>([]);
+  // Tags come from the shared store (command/tags.ts), not local state: the
+  // sidebar's Tags group and the editor's inline chips read the same list and
+  // steer this palette into its tag phases through it.
+  const tags = useTags((s) => s.tags);
+  const tagRequest = useTags((s) => s.request);
   const [tagNotes, setTagNotes] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -154,18 +190,30 @@ export function CommandPalette({
     onSeedConsumed?.();
   }, [open, seedQuery, onSeedConsumed]);
 
-  // Load the tag list once per open — the `#` flow filters it client-side, and
-  // it's a small, cheap index read that the tag counts depend on.
+  // Refresh the tag list once per open — the `#` flow filters it client-side,
+  // and it's a small, cheap index read that the tag counts depend on.
   useEffect(() => {
-    if (!open) return;
-    getBridge()
-      .listTags()
-      .then((result) => {
-        setTags(result);
-        return undefined;
-      })
-      .catch(() => {});
+    if (open) refreshTags();
   }, [open]);
+
+  // An outside surface (sidebar Tags row, inline `#tag` chip) asked for a tag
+  // view. Seed the phase FIRST, then open: both land in one React flush, so
+  // the dialog never flashes the root list on its way to the tag. The
+  // close-reset below only fires on open→false, so it can't undo this.
+  useEffect(() => {
+    if (tagRequest === null) return;
+    if (tagRequest.kind === "browse") {
+      setPhase({ kind: "browseTag", tag: tagRequest.tag });
+      setQuery("");
+    } else {
+      // The full list is the ROOT phase with a `#` query — one tag-list
+      // renderer, whether the user typed `#` or clicked "Show all tags".
+      setPhase({ kind: "root" });
+      setQuery("#");
+    }
+    onOpenChange(true);
+    consumeTagRequest();
+  }, [tagRequest, onOpenChange]);
 
   // Fetch a tag's notes when stepping into the browse phase.
   useEffect(() => {
@@ -217,7 +265,7 @@ export function CommandPalette({
   // we can't read, we never rewrite (the properties panel's rule).
   const togglePrivate = useCallback(() => {
     // LIVE store read at action time — never a subscription (the palette must
-    // not re-render per keystroke) and never a captured snapshot (#470).
+    // not re-render per keystroke) and never a captured snapshot.
     const { openDoc, editor } = openNoteState();
     if (openDoc.kind !== "markdown") return;
     if (openDoc.surface.mode === "rich") {
@@ -424,13 +472,13 @@ export function CommandPalette({
     onSelect: () => void;
     keepOpen?: boolean;
   }[] = [
-    {
-      value: "daily",
-      keywords: "open today daily note journal ⌘d",
-      icon: <CalendarDaysIcon />,
-      label: "Open today's note",
-      onSelect: () => openDailyNote(),
-    },
+    ...CADENCE_ORDER.map((cadence) => ({
+      value: cadence,
+      keywords: CADENCE_COMMANDS[cadence].keywords,
+      icon: CADENCE_COMMANDS[cadence].icon,
+      label: CADENCES[cadence].commandLabel,
+      onSelect: () => openPeriodic[cadence](),
+    })),
     ...(templates.length > 0
       ? [
           {

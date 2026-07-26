@@ -33,7 +33,7 @@ const REPO_DOCS: Record<string, string> = {
 // The expected-set. A change here must be a conscious decision, not a driveby.
 const EXPECTED: Record<string, Classification> = {
   // repo docs (real-world hand-written markdown)
-  "README.md": "formattable", // wrapped paragraphs → soft-break churn (predecessor behavior too)
+  "README.md": "formattable", // wrapped paragraphs → soft-break churn
   // dev fixture vault — pre-canonicalized: a first edit must produce a
   // minimal diff, not a wholesale reflow. legacy-web-clip.md stays the Raw
   // exemplar; README.md above keeps the formattable path covered.

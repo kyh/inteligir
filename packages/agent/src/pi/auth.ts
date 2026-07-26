@@ -8,10 +8,10 @@ export type LoginCallbacks = {
 
 /**
  * Construct pi's `ModelRuntime` with its credential store rooted at
- * `authPath` (the pi SDK persists OAuth credentials to that file — same
- * auth.json format as 0.73). `allowModelNetwork: false` keeps runtime
- * construction offline (0.80 would otherwise fetch a remote model catalog
- * at create; 0.73 had no such network path, so parity is offline).
+ * `authPath` (the pi SDK persists OAuth credentials to that file).
+ * `allowModelNetwork: false` keeps construction offline — otherwise the
+ * runtime fetches a remote model catalog at create, and nothing here needs
+ * one.
  */
 export function createModelRuntime(authPath: string): Promise<ModelRuntime> {
   return ModelRuntime.create({ authPath, allowModelNetwork: false });
@@ -38,7 +38,7 @@ export async function removeAuth(runtime: ModelRuntime, provider: string): Promi
  * OAuth path that provider-CLI tools expose. A prompt raced against pi's
  * callback server stays pending until pi aborts it (the callback won); a
  * prompt with no abort signal can never settle that way, so it rejects
- * immediately (0.73's behavior).
+ * immediately.
  */
 export async function loginWithProvider(
   runtime: ModelRuntime,

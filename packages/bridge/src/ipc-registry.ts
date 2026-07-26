@@ -7,7 +7,7 @@
 // rename here is a compile error everywhere it matters.
 // ---------------------------------------------------------------------------
 
-import { type Static, type TSchema, Type } from "@sinclair/typebox";
+import { type Static, type TSchema, type TString, type TUndefined, Type } from "@sinclair/typebox";
 
 import type { AppAgentEvent } from "./agent-events";
 import {
@@ -143,7 +143,7 @@ const NotificationsPatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
-// Dev-only faux-agent scripting (#461 Phase 4b): one step per assistant turn
+// Dev-only faux-agent scripting: one step per assistant turn
 // — optional text plus optional tool calls (e.g. pi's `edit` performing a
 // delegation's write-back), mapped host-side onto pi-ai's faux helpers. The
 // handler throws unless INTELIGIR_FAUX_AGENT=1, so the channel never does
@@ -174,7 +174,7 @@ const FauxAgentScriptSchema = Type.Object(
 );
 export type FauxAgentScript = Static<typeof FauxAgentScriptSchema>;
 
-/** Dev-only (#462): the in-flight connector OAuth consent — the authorize URL
+/** Dev-only: the in-flight connector OAuth consent — the authorize URL
  * (state/PKCE ride in its query string) a headless E2E drive completes
  * against emulate instead of spelunking the daemon's SQLite. Held host-side
  * (connector-install.ts) only under INTELIGIR_EMULATE_CONNECTORS=1; the
@@ -332,8 +332,16 @@ export type ToggleTaskResult =
   | { ok: false; reason: "line-missing" | "line-changed" | "not-a-checkbox"; error: string };
 
 // Float32Array / ArrayBuffer / ArrayBufferView don't have a TypeBox primitive;
-// approximate with Type.Any plus a runtime instanceof guard at the handler.
-const BinaryAudioSchema = Type.Any();
+// approximate with Type.Unknown plus a runtime narrow at the handler.
+// UNKNOWN, never Any: both emit the same `{}` schema (so the wire format and
+// Value.Check behaviour are identical), but Any would put a real `any` into
+// the derived Bridge type — silently exempting every caller and every handler
+// of this channel from the repo's no-explicit-any rule. `unknown` forces the
+// host to narrow, which is where the ArrayBuffer/view check actually belongs:
+// the binary transport hands the handler a standalone ArrayBuffer, but the
+// same registry entry is also reachable over a JSON `send` frame carrying
+// arbitrary JSON, so the shape must be proven rather than assumed.
+const BinaryAudioSchema = Type.Unknown();
 
 const TtsSendSchema = Type.Object({ text: Type.String() }, { additionalProperties: false });
 
@@ -445,11 +453,12 @@ export const IPC = {
    * what getUiState exposes to Settings) — plaintext never crosses back. */
   setVoiceApiKey: invoke<typeof VoiceApiKeySchema, void>(VoiceApiKeySchema),
   ttsSend: send<typeof TtsSendSchema>(TtsSendSchema),
-  ttsFlush: send<ReturnType<typeof Type.Undefined>>(Type.Undefined()),
-  ttsInterrupt: send<ReturnType<typeof Type.Undefined>>(Type.Undefined()),
+  ttsFlush: send<TUndefined>(Type.Undefined()),
+  ttsInterrupt: send<TUndefined>(Type.Undefined()),
   onTtsAudio: event<{ audio: ArrayBuffer }>(),
   startStt: invokeVoid<{ ok: true } | { ok: false; error: string }>(),
-  // ArrayBuffer / ArrayBufferView can't be expressed in TypeBox; pass through.
+  // ArrayBuffer / ArrayBufferView can't be expressed in TypeBox; the payload
+  // arrives `unknown` and the host narrows it (voice-handlers' toFloat32Samples).
   sendSttAudio: send<typeof BinaryAudioSchema>(BinaryAudioSchema),
   stopStt: invokeVoid<Array<{ text: string; isFinal: boolean }>>(),
   onSttTranscript: event<{ text: string; isFinal: boolean }>(),
@@ -554,16 +563,12 @@ export const IPC = {
     CreateDelegationParamsSchema,
   ),
   listDelegations: invokeVoid<ListDelegationsResult>(),
-  cancelDelegation: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
-    Type.String({ minLength: 1 }),
-  ),
+  cancelDelegation: invoke<TString, { ok: boolean }>(Type.String({ minLength: 1 })),
   /** Restore the target file's pre-run bytes (captured before the background
    * agent dispatched). Writes atomically through the vault, so the watcher's
    * standard onVaultChanged refreshes editors; no-op success when the file
    * already matches the snapshot. Records `restoredAt` on the delegation. */
-  restoreDelegationSnapshot: invoke<ReturnType<typeof Type.String>, RestoreSnapshotResult>(
-    Type.String({ minLength: 1 }),
-  ),
+  restoreDelegationSnapshot: invoke<TString, RestoreSnapshotResult>(Type.String({ minLength: 1 })),
   /** Fired on every delegation status change so the editor's inline badges
    * stay live. */
   onDelegationsUpdated: event<ListDelegationsResult>(),
@@ -579,19 +584,13 @@ export const IPC = {
   upsertRoutine: invoke<typeof UpsertRoutineParamsSchema, UpsertRoutineResult>(
     UpsertRoutineParamsSchema,
   ),
-  deleteRoutine: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
-    Type.String({ minLength: 1 }),
-  ),
+  deleteRoutine: invoke<TString, { ok: boolean }>(Type.String({ minLength: 1 })),
   /** Queue an immediate run (Settings "Run now" — works on disabled routines
    * too, as the test-your-config affordance). Serialized like any run. */
-  runRoutineNow: invoke<ReturnType<typeof Type.String>, RunRoutineNowResult>(
-    Type.String({ minLength: 1 }),
-  ),
+  runRoutineNow: invoke<TString, RunRoutineNowResult>(Type.String({ minLength: 1 })),
   /** Restore the target note's pre-run bytes from the routine's LAST run
    * snapshot (the append is undone; a run that created the note trashes it). */
-  restoreRoutineRun: invoke<ReturnType<typeof Type.String>, RestoreSnapshotResult>(
-    Type.String({ minLength: 1 }),
-  ),
+  restoreRoutineRun: invoke<TString, RestoreSnapshotResult>(Type.String({ minLength: 1 })),
   /** Fired on every routines change (config, run start/finish) so Settings →
    * Routines stays live. */
   onRoutinesUpdated: event<ListRoutinesResult>(),
@@ -650,17 +649,16 @@ export const IPC = {
   listGhostModels: invokeVoid<GhostModelsResult>(),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
-  // The v1 sources/secrets channels are gone — secrets are now connection
-  // credential values; Google goes through add-openapi (googleDiscoveryBundle).
-  // The per-step integration/connection/OAuth channels are gone too (#461
-  // Phase 4a): install/uninstall is host-orchestrated, so the renderer only
-  // needs status + the read lists + the Google-client dialogs' create/ensure.
+  // There are no sources/secrets channels — a secret is a connection
+  // credential value; Google goes through add-openapi (googleDiscoveryBundle).
+  // There are no per-step integration/connection/OAuth channels either:
+  // install/uninstall is host-orchestrated, so the renderer needs only
+  // status + the read lists + the Google-client dialogs' create/ensure.
   executorStatus: invokeVoid<ExecutorStatus>(),
   listExecutorIntegrations: invokeVoid<Static<typeof ExecutorIntegrationSchema>[]>(),
-  detectExecutorIntegration: invoke<
-    ReturnType<typeof Type.String>,
-    Static<typeof ExecutorDetectResultSchema>[]
-  >(Type.String()),
+  detectExecutorIntegration: invoke<TString, Static<typeof ExecutorDetectResultSchema>[]>(
+    Type.String(),
+  ),
   listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionSchema>[]>(),
   createExecutorOAuthClient: invoke<typeof CreateOAuthClientInputSchema, { client: string }>(
     CreateOAuthClientInputSchema,
@@ -677,7 +675,7 @@ export const IPC = {
     ConnectorUninstallRequestSchema,
   ),
   /** Dev-only (INTELIGIR_EMULATE_CONNECTORS=1; throws otherwise): the
-   * in-flight connector OAuth consent, or null when none is pending (#462). */
+   * in-flight connector OAuth consent, or null when none is pending. */
   getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(),
 
   // Vault sync — reconcile the local vault against the coordinator Worker.
@@ -688,7 +686,7 @@ export const IPC = {
   setSyncConfig: invoke<typeof SyncSetConfigSchema, SyncState>(SyncSetConfigSchema),
   /** Email+password sign-in against the configured coordinator. */
   syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>(SyncSignInSchema),
-  /** Ask the coordinator to email a password-reset link (#463). NEUTRAL by
+  /** Ask the coordinator to email a password-reset link. NEUTRAL by
    * contract: `ok` means "request accepted", NEVER "that email exists" — the
    * coordinator answers identically for known and unknown emails, and the
    * renderer shows the same "if that email has an account…" copy either way.
@@ -819,8 +817,8 @@ export const REMOTE_ALLOWED_EVENTS = [
 // A handful of channels carry raw PCM at streaming rates, where base64-in-JSON
 // would be wasteful. Those cross as `[1-byte tag][payload bytes]` binary frames
 // instead (ws-protocol.ts). This table is the ONLY place that mapping lives:
-// the transports (ws-bridge, ws-host) read it and no longer name a single voice
-// channel, so removing the voice capability is two entries here rather than
+// the transports (ws-bridge, ws-host) read it instead of naming any channel
+// themselves, so removing the voice capability is two entries here rather than
 // surgery on both endpoints.
 //
 // `field` distinguishes the two payload conventions: absent means the channel's

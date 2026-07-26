@@ -1,10 +1,10 @@
 // OpenDoc — the open document modeled as ONE discriminated union, derived per
-// render by the VaultProvider (deriveOpenDoc below). It replaces the six
-// correlated flat view fields the context used to expose (openPath /
-// openNoteIsPrivate / isMarkdownOpen / richAvailable / rawReason / mode), so
-// the illegal combinations those allowed — rich mode on a non-markdown file, a
-// gate reason without a markdown note, a private mark with nothing open — are
-// unrepresentable. Consumers switch on `openDoc.kind`.
+// render by the VaultProvider (deriveOpenDoc below). ONE union instead of six
+// correlated flat view fields (openPath / openNoteIsPrivate / isMarkdownOpen /
+// richAvailable / rawReason / mode), so the illegal combinations those would
+// allow — rich mode on a non-markdown file, a gate reason without a markdown
+// note, a private mark with nothing open — are unrepresentable. Consumers
+// switch on `openDoc.kind`.
 
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 

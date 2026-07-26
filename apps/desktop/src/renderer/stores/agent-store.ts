@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, type StoreApi } from "zustand";
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import { Value } from "@sinclair/typebox/value";
@@ -73,10 +73,12 @@ type SendOptions = {
 // Store
 // ---------------------------------------------------------------------------
 
-type SetFn = (
-  partial: Partial<AgentStore> | ((state: AgentStore) => Partial<AgentStore> | AgentStore),
-) => void;
-type GetFn = () => AgentStore;
+// The set/get the subscription helpers below take. Derived from zustand's own
+// StoreApi rather than hand-written: a hand-rolled pair drifts from it (losing
+// the `replace` overload and the whole-state partial), and that inference loss
+// is exactly what the curried `create<T>()(...)` form exists to prevent.
+type SetFn = StoreApi<AgentStore>["setState"];
+type GetFn = StoreApi<AgentStore>["getState"];
 
 type AgentStore = {
   /** The shared platform-neutral chat log — source of truth for the surface. */
@@ -254,7 +256,7 @@ async function noteIsPublicOnDisk(bridge: Bridge, path: string): Promise<boolean
 // Store factory
 // ---------------------------------------------------------------------------
 
-export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
+export const useAgentStore = create<AgentStore>()((set, get) => ({
   log: emptyChatLog,
   chatMeta: new Map(),
   messages: [],
@@ -343,8 +345,8 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   },
 
   interrupt: () => {
-    // Benign if it fails (nothing running to interrupt) — swallow the
-    // rejection now that main returns the real submission promise.
+    // Benign if it fails (nothing running to interrupt) — main returns the
+    // real submission promise, so swallow the rejection.
     void getBridge()
       .sendAgentCommand({ type: "interrupt" })
       .catch(() => {});
