@@ -34,7 +34,7 @@ import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/notes/knowledge/g
 import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
 import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
 import { scanTaskItems, titleFromPath } from "@repo/notes/knowledge/link-extract";
-import { LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
+import { boundGraph, LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
@@ -1183,7 +1183,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // store's FTS5 bm25 as the lexical port.
     getRelatedNotes: async ({ path }) =>
       relatedNotes(linkGraph, (query, limit) => knowledgeStore.search(query, limit), path),
-    getLinkGraph: async () => linkGraph.graph(),
+    // Bounded through the SAME pure pass the host handler uses, so the
+    // "showing N of M" affordance is exercisable in the harness (drop the
+    // caps low against the sample vault and it fires).
+    getLinkGraph: async (bounds) => boundGraph(linkGraph.graph(), bounds),
     searchVault: async ({ query, limit }) =>
       knowledgeStore.search(query, limit ?? SEARCH_DEFAULT_LIMIT),
     listWikiTargets: async () => linkGraph.wikiTargets(),

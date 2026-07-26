@@ -142,7 +142,7 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
               variant="ghost"
               size="sm"
               onClick={() => void handleSyncNow()}
-              disabled={busy || loading || !signedIn || state?.enabled !== true}
+              disabled={busy || loading || !signedIn || !state.enabled}
               className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
             >
               Sync now

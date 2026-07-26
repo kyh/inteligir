@@ -83,27 +83,41 @@ const IGNORE_FILES = [".gitignore", ".ignore"];
  * § Decisions). */
 export type VaultChangeKind = "refresh" | "save";
 
-/** A listed vault file with its stat identity — what one crawl+stat pass
- * yields, shared by the sidebar listing, knowledge reconcile, and sync. */
-export type VaultStatEntry = {
-  path: string;
-  name: string;
-  kind: VaultEntry["kind"];
-  mtimeMs: number;
-  size: number;
-  ino: number;
-};
+/** A listed vault file as the WALK sees it: identity and kind straight off the
+ * Dirent, no stat. This is everything the sidebar listing and the sync manifest
+ * need, which is why the crawl never pays a stat to produce them. */
+type VaultWalkEntry = { path: string; name: string; kind: VaultEntry["kind"] };
 
-/** How long a walk+stat snapshot may be reused. Bounds staleness for sync's
+/** The stat triple change-detection diffs on. Content can't change without
+ * moving at least one of these. */
+type StatIdentity = { mtimeMs: number; size: number; ino: number };
+
+/** A listed vault file with its stat identity — the knowledge reconcile's diff
+ * basis. */
+export type VaultStatEntry = VaultWalkEntry & StatIdentity;
+
+/** How long a walk snapshot may be reused. Bounds staleness for sync's
  * snapshot-served fingerprints; a refresh burst (window focus fans into
  * renderer listing + knowledge + sync) shares ONE crawl inside the window. */
 const SNAPSHOT_TTL_MS = 1000;
 
+/** How long the stat sweep behind `listWithStats()` may run before yielding to
+ * the event loop. Matches the knowledge pass's batch budget — short enough that
+ * no single synchronous step grows with the vault. */
+const STAT_SLICE_BUDGET_MS = 15;
+
 type VaultSnapshot = {
   at: number;
   root: string;
-  entries: VaultStatEntry[];
-  byPath: Map<string, VaultStatEntry>;
+  entries: VaultWalkEntry[];
+  /** Membership set over `entries`: tells `statFingerprint` whether a path came
+   * out of the crawl (already confined under the root) or has to go through the
+   * `resolve()` funnel. */
+  crawled: Set<string>;
+  /** Stat identities, filled LAZILY by `statOf` and memoized here — so a
+   * refresh burst pays each file's stat at most once no matter how many
+   * consumers ask, and files nobody asks about cost nothing. */
+  stats: Map<string, StatIdentity>;
   /** Did the crawl observe the WHOLE vault? `false` when the root was missing
    * or any directory read failed — `entries` is then a best-effort partial.
    * The UI listing serves it anyway (lenient); `listAllPaths()` (the sync
@@ -167,11 +181,11 @@ export class VaultManager {
   // baseline for deciding reload vs. no-op.
   private watchedFingerprint: string | null = null;
   private readonly selfSaves = new SelfSaveRegistry();
-  // TTL-cached walk+stat snapshot backing list()/listAllPaths()/listWithStats()
-  // and (when fresh) statFingerprint. Invalidated by every mutating method and
-  // by refresh(); external edits surface on the next refresh trigger — the
-  // ephemeral-liveness contract (CLAUDE.md § Decisions) unchanged, just
-  // deduplicated.
+  // TTL-cached walk snapshot backing list()/listAllPaths()/listWithStats() and
+  // (when fresh) statFingerprint, plus the lazily-filled stat memo those last
+  // two share. Invalidated by every mutating method and by refresh(); external
+  // edits surface on the next refresh trigger — the ephemeral-liveness contract
+  // (CLAUDE.md § Decisions) unchanged, just deduplicated.
   private snapshot: VaultSnapshot | null = null;
 
   constructor(opts: VaultManagerOptions = {}) {
@@ -254,35 +268,74 @@ export class VaultManager {
    * unreadable subtree) instead of returning the partial; the engine
    * surfaces the throw as a failed pass and retries later. Ignore rules
    * filter what sync tracks by design; SKIP_DIRS + ignore files are the only
-   * exclusions, and they match list(). */
+   * exclusions, and they match list(). Nothing here stats, so a per-file stat
+   * hiccup cannot silently thin this listing — only a failed readdir or a
+   * missing root can, and both are refused above. */
   listAllPaths(): string[] {
     const snapshot = this.getSnapshot();
     if (!snapshot.complete) throw new VaultListingIncompleteError(snapshot.root);
     return snapshot.entries.map((e) => e.path);
   }
 
-  /** The listing WITH stat identities — the knowledge reconcile's one-crawl
-   * diff basis. Freshness follows the snapshot TTL: external edits surface on
-   * the next refresh trigger, exactly the ephemeral-liveness contract.
-   * Lenient like list(): derived knowledge tolerates a partial crawl (it
-   * self-heals on the next refresh); only sync (listAllPaths) must refuse. */
-  listWithStats(): VaultStatEntry[] {
-    return [...this.getSnapshot().entries];
+  /** The listing WITH stat identities — the knowledge reconcile's diff basis.
+   * Freshness follows the snapshot TTL: external edits surface on the next
+   * refresh trigger, exactly the ephemeral-liveness contract.
+   *
+   * ASYNC because one stat per file is the crawl's dominant syscall cost, and
+   * a whole-vault sweep in one uninterruptible call is a multi-hundred-
+   * millisecond stall on the host's only thread at 50k notes. The sweep runs in
+   * `STAT_SLICE_BUDGET_MS` slices with event-loop yields between them
+   * (SqlKnowledgeStore.hydrate's idiom), so no single synchronous step grows
+   * with the vault. The result describes the vault as of the crawl this call
+   * started on — a snapshot dropped mid-sweep still yields a coherent listing,
+   * and the next refresh picks up whatever moved.
+   *
+   * Lenient like list(): a file that can't be stat'd is simply absent, because
+   * derived knowledge self-heals on the next refresh. Only sync
+   * (`listAllPaths`) must refuse a partial, and it never stats at all. */
+  async listWithStats(): Promise<VaultStatEntry[]> {
+    // The slice clock starts BEFORE the walk: a cold call pays for its own
+    // crawl, so charging that to the first slice makes the sweep yield right
+    // after it rather than stacking a full slice on top of it.
+    let sliceStart = Date.now();
+    const snapshot = this.getSnapshot();
+    const entries: VaultStatEntry[] = [];
+    for (const entry of snapshot.entries) {
+      const identity = this.statOf(snapshot, entry.path);
+      if (identity !== null) {
+        entries.push({ path: entry.path, name: entry.name, kind: entry.kind, ...identity });
+      }
+      if (Date.now() - sliceStart >= STAT_SLICE_BUDGET_MS) {
+        await yieldToEventLoop();
+        sliceStart = Date.now();
+      }
+    }
+    return entries;
   }
 
-  // The shared crawl behind list()/listAllPaths()/listWithStats(): one walk +
-  // one stat per file, cached for SNAPSHOT_TTL_MS and invalidated by every
-  // mutating method (and rebuilt, never reused, by an explicit refresh()) —
-  // so the window-focus fan-out (renderer listing, knowledge diff, sync
-  // manifest+fingerprints) shares a single crawl instead of three.
+  // The shared crawl behind list()/listAllPaths()/listWithStats(): ONE walk,
+  // cached for SNAPSHOT_TTL_MS and invalidated by every mutating method (and
+  // rebuilt, never reused, by an explicit refresh()) — so the window-focus
+  // fan-out (renderer listing, knowledge diff, sync manifest+fingerprints)
+  // shares a single crawl instead of three.
+  //
+  // The crawl NEVER stats. Identity and kind come off the Dirent, which is
+  // everything list()/listAllPaths() need, while a stat is a syscall per file —
+  // the single largest cost in a large vault. Stats are filled in lazily by
+  // statOf() for the two consumers that want them and memoized on the snapshot.
+  //
+  // A stat-free walk is what keeps the sync-facing listing honest, too: a file
+  // readdir saw but stat cannot read (a flaky network mount) stays LISTED, so
+  // it can never fall out of the manifest and be read as a deletion. Its
+  // fingerprint goes null instead, which makes the engine re-read the bytes and
+  // fail the pass loudly if those are unreadable too.
   private getSnapshot(): VaultSnapshot {
     const root = this.getRoot();
     const cached = this.snapshot;
     if (cached && cached.root === root && Date.now() - cached.at <= SNAPSHOT_TTL_MS) {
       return cached;
     }
-    const entries: VaultStatEntry[] = [];
-    const byPath = new Map<string, VaultStatEntry>();
+    let entries: VaultWalkEntry[] = [];
     // A missing root is an INCOMPLETE crawl, not an empty vault — it feeds the
     // completeness flag (listAllPaths throws; list serves the empty partial)
     // rather than silently reading as "every file was deleted".
@@ -290,34 +343,19 @@ export class VaultManager {
     if (fs.existsSync(root)) {
       const walked = this.walk(root);
       complete = walked.complete;
-      for (const file of walked.files) {
-        let stat: fs.Stats;
-        try {
-          stat = fs.statSync(path.join(root, file.path));
-        } catch {
-          // readdir SAW this file but stat failed — a transient hiccup (a flaky
-          // network mount) on a still-present file, indistinguishable from a
-          // real vanish mid-crawl. Either way the file is dropped from this
-          // listing, so mark the crawl incomplete (mirrors the readdir-failure
-          // path): list() stays lenient on the partial, but listAllPaths()
-          // must refuse rather than let sync read the drop as a delete.
-          complete = false;
-          continue;
-        }
-        const entry: VaultStatEntry = {
-          path: file.path,
-          name: file.name,
-          kind: classify(file.name),
-          mtimeMs: stat.mtimeMs,
-          size: stat.size,
-          ino: stat.ino,
-        };
-        entries.push(entry);
-        byPath.set(file.path, entry);
-      }
+      entries = walked.entries;
       entries.sort((a, b) => a.path.localeCompare(b.path));
     }
-    const snapshot: VaultSnapshot = { at: Date.now(), root, entries, byPath, complete };
+    const crawled = new Set<string>();
+    for (const entry of entries) crawled.add(entry.path);
+    const snapshot: VaultSnapshot = {
+      at: Date.now(),
+      root,
+      entries,
+      crawled,
+      stats: new Map(),
+      complete,
+    };
     // Only COMPLETE crawls are cached: leniency may serve an incomplete
     // partial once, but the next call re-crawls — so recovery is immediate
     // and a cached failure can never satisfy a listAllPaths() retry after
@@ -326,46 +364,75 @@ export class VaultManager {
     return snapshot;
   }
 
+  // The stat identity of a CRAWLED path, memoized onto its snapshot so every
+  // consumer inside one TTL window shares the syscall. `null` when the file
+  // can't be stat'd (vanished mid-crawl, a flaky mount) — the caller decides
+  // what that means.
+  //
+  // Confinement comes from the crawl itself rather than resolve(): the walk
+  // neither descends through nor emits a symlink (a Dirent reports a symlink as
+  // neither isFile nor isDirectory), so every path in `entries` names a real
+  // file under the real root.
+  private statOf(snapshot: VaultSnapshot, rel: string): StatIdentity | null {
+    const memo = snapshot.stats.get(rel);
+    if (memo !== undefined) return memo;
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(path.join(snapshot.root, rel));
+    } catch {
+      return null;
+    }
+    const identity: StatIdentity = { mtimeMs: stat.mtimeMs, size: stat.size, ino: stat.ino };
+    snapshot.stats.set(rel, identity);
+    return identity;
+  }
+
   private invalidateSnapshot(): void {
     this.snapshot = null;
   }
 
-  // Shared recursive walk backing both list() and listAllPaths(): skips
-  // dot-entries, SKIP_DIRS, ignore-matched paths, and the sibling *.tmp files
-  // atomicWrite creates mid-save. Returns entries in directory-read order
-  // (unsorted — callers sort), plus whether every directory read succeeded:
-  // a failed readdir still skips the subtree (list() stays lenient on the
-  // partial) but is RECORDED as incompleteness instead of hidden, so
-  // listAllPaths() can refuse to present the truncation as deletions.
-  private walk(root: string): { files: { path: string; name: string }[]; complete: boolean } {
-    const out: { path: string; name: string }[] = [];
+  // The recursive walk behind the snapshot: skips dot-entries, SKIP_DIRS,
+  // ignore-matched paths, and the sibling *.tmp files atomicWrite creates
+  // mid-save. Returns entries in directory-read order (unsorted — the caller
+  // sorts), plus whether every directory read succeeded: a failed readdir still
+  // skips the subtree (list() stays lenient on the partial) but is RECORDED as
+  // incompleteness instead of hidden, so listAllPaths() can refuse to present
+  // the truncation as deletions.
+  //
+  // Each entry's vault-relative path is carried DOWN as a prefix and extended
+  // by concatenation. Deriving it per entry with path.join + path.relative
+  // instead costs several times every readdir syscall in the crawl combined
+  // once a vault is large — the path math dominates this loop, not the
+  // filesystem.
+  private walk(root: string): { entries: VaultWalkEntry[]; complete: boolean } {
+    const out: VaultWalkEntry[] = [];
     let complete = true;
     const ig = this.loadIgnore(root);
-    const visit = (dir: string): void => {
-      let entries: fs.Dirent[];
+    const visit = (dir: string, prefix: string): void => {
+      let dirents: fs.Dirent[];
       try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
+        dirents = fs.readdirSync(dir, { withFileTypes: true });
       } catch {
         complete = false; // unreadable subtree — skip it, but never hide that
         return;
       }
-      for (const entry of entries) {
-        if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue;
-        if (entry.isFile() && entry.name.endsWith(".tmp")) continue;
-        const full = path.join(dir, entry.name);
-        const rel = path.relative(root, full).split(path.sep).join("/");
+      for (const dirent of dirents) {
+        const name = dirent.name;
+        if (name.startsWith(".") || SKIP_DIRS.has(name)) continue;
+        const rel = prefix + name;
         // `ignore` wants a trailing slash to match directory patterns.
-        if (entry.isDirectory()) {
+        if (dirent.isDirectory()) {
           if (ig !== null && ig.ignores(`${rel}/`)) continue;
-          visit(full);
-        } else if (entry.isFile()) {
+          visit(childPath(dir, name), `${rel}/`);
+        } else if (dirent.isFile()) {
+          if (name.endsWith(".tmp")) continue;
           if (ig !== null && ig.ignores(rel)) continue;
-          out.push({ path: rel, name: entry.name });
+          out.push({ path: rel, name, kind: classify(name) });
         }
       }
     };
-    visit(root);
-    return { files: out, complete };
+    visit(root, "");
+    return { entries: out, complete };
   }
 
   // Parse the root ignore files (.gitignore / .ignore) into a matcher, or null
@@ -443,15 +510,21 @@ export class VaultManager {
    * cache — `mtimeMs:size:ino`, or `null` on any error (missing file, etc.).
    * A change to content necessarily changes at least one of these, so a matching
    * fingerprint safely licenses reusing a cached hash instead of re-reading.
-   * Served from the shared snapshot when fresh (so a sync pass adds no second
-   * stat sweep, ≤SNAPSHOT_TTL_MS stale — own writes always invalidate); a path
-   * ABSENT from the snapshot (ignored files opened directly, non-listing
-   * spellings) falls through to a live stat, never to a false null. */
+   * Memoized on the shared snapshot when fresh (so a sync pass and a knowledge
+   * pass in the same window stat each file once between them, ≤SNAPSHOT_TTL_MS
+   * stale — own writes always invalidate); a path ABSENT from the crawl
+   * (ignored files opened directly, non-listing spellings) falls through to a
+   * resolve()-confined live stat, never to a false null. */
   statFingerprint(rel: string): string | null {
     const cached = this.snapshot;
-    if (cached && cached.root === this.getRoot() && Date.now() - cached.at <= SNAPSHOT_TTL_MS) {
-      const entry = cached.byPath.get(rel);
-      if (entry) return `${entry.mtimeMs}:${entry.size}:${entry.ino}`;
+    if (
+      cached &&
+      cached.root === this.getRoot() &&
+      Date.now() - cached.at <= SNAPSHOT_TTL_MS &&
+      cached.crawled.has(rel)
+    ) {
+      const identity = this.statOf(cached, rel);
+      return identity === null ? null : fingerprintOf(identity);
     }
     return this.liveStatFingerprint(rel);
   }
@@ -462,7 +535,7 @@ export class VaultManager {
   private liveStatFingerprint(rel: string): string | null {
     try {
       const stat = fs.statSync(this.resolve(rel));
-      return `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
+      return fingerprintOf(stat);
     } catch {
       return null;
     }
@@ -724,7 +797,7 @@ export class VaultManager {
       this.notify("refresh");
       return;
     }
-    const current = `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
+    const current = fingerprintOf(stat);
     // Our own autosave landing — never reload the editor onto what it just
     // wrote. Compared on the FULL fingerprint: an external edit that collides
     // on mtime alone still differs in size/ino and must surface below.
@@ -752,6 +825,29 @@ export class VaultManager {
       console.warn("[vault] change notification failed:", err);
     }
   }
+}
+
+/** The change-detection fingerprint: `mtimeMs:size:ino`. One spelling, so the
+ * open-note classifier, the sync hash cache and the snapshot memo can never
+ * disagree about what "unchanged" means. */
+function fingerprintOf(identity: StatIdentity): string {
+  return `${identity.mtimeMs}:${identity.size}:${identity.ino}`;
+}
+
+/** `dir` extended by a single directory-entry name. A dirent name never
+ * contains a separator, so plain concatenation is exactly path.join's result —
+ * and path.join is a measurable per-entry cost across a whole vault. The
+ * trailing-separator branch covers the one parent that can carry one: the
+ * filesystem root. */
+function childPath(dir: string, name: string): string {
+  return dir.endsWith(path.sep) ? dir + name : dir + path.sep + name;
+}
+
+/** Hand the event loop a turn between slices of a long sweep. */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
 }
 
 /** Canonical path with symlinks resolved. For a path that doesn't exist yet,

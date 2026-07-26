@@ -67,8 +67,10 @@ const ALERT_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
 // defaultRule returns `html` for bare autolinks) — MdRules just over-narrows
 // each rule's return type. The ONE sanctioned escape hatch bridging that
 // over-narrow third-party type; `T` is the rule signature's demanded return.
+// `T` living only in the return position IS the escape, not an oversight.
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
 function verbatimHtml<T>(value: string): T {
-  // oxlint-disable-next-line typescript/consistent-type-assertions
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- the sanctioned escape, see doc above
   return { type: "html", value } as unknown as T;
 }
 

@@ -178,7 +178,7 @@ describe("VaultManager", () => {
   // local delete and fans it out to every device. The shared crawl records
   // completeness; the sync-facing listAllPaths() refuses an incomplete one,
   // while the UI-facing list()/listWithStats() stay lenient on the partial.
-  it("listAllPaths() throws when the vault root is missing; list()/listWithStats() stay lenient", () => {
+  it("listAllPaths() throws when the vault root is missing; list()/listWithStats() stay lenient", async () => {
     const mgr = newManager(); // ensureReady() never called — the root does not exist
     expect(fs.existsSync(root)).toBe(false);
 
@@ -186,7 +186,7 @@ describe("VaultManager", () => {
     expect(() => mgr.listAllPaths()).toThrow(/refusing to treat unread files as deleted/);
     // The UI tolerates a momentarily-missing root — empty listing, no throw.
     expect(mgr.list()).toEqual([]);
-    expect(mgr.listWithStats()).toEqual([]);
+    await expect(mgr.listWithStats()).resolves.toEqual([]);
 
     // The root appearing is picked up IMMEDIATELY — an incomplete crawl is
     // never cached, so no TTL window can serve the stale failure.
@@ -198,7 +198,7 @@ describe("VaultManager", () => {
   // chmod-based EACCES needs a non-root uid (root bypasses permission checks).
   it.skipIf(typeof process.getuid === "function" && process.getuid() === 0)(
     "listAllPaths() throws when a subtree readdir fails; list() serves the partial (lenient)",
-    () => {
+    async () => {
       const mgr = newManager();
       mgr.writeText("keep.md", "x");
       mgr.writeText("locked/hidden.md", "x");
@@ -211,7 +211,8 @@ describe("VaultManager", () => {
         const paths = mgr.list().map((e) => e.path);
         expect(paths).toContain("keep.md");
         expect(paths).not.toContain("locked/hidden.md");
-        expect(mgr.listWithStats().map((e) => e.path)).toEqual(paths);
+        const withStats = await mgr.listWithStats();
+        expect(withStats.map((e) => e.path)).toEqual(paths);
       } finally {
         fs.chmodSync(lockedDir, 0o700);
       }
@@ -222,11 +223,13 @@ describe("VaultManager", () => {
   );
 
   // A per-FILE statSync hiccup (a flaky network mount) on a still-present file
-  // is the same "transient read → drop → sync reads it as a delete" class as a
-  // failed readdir: the file was LISTED but couldn't be stat'd, so it silently
-  // fell out of the crawl. It must mark the crawl incomplete too, not just the
-  // readdir-failure path.
-  it("listAllPaths() throws when a listed file's statSync fails; list() serves the partial", () => {
+  // must never reach sync as a deletion. The crawl doesn't stat, so the file
+  // stays LISTED whatever stat does — it cannot fall out of the manifest at all.
+  // Its fingerprint goes null instead, which makes the engine re-read the bytes
+  // rather than trust a cached hash (and fail the pass loudly if the read is
+  // broken too). Only listWithStats() — derived knowledge, lenient and
+  // self-healing — omits it until the next pass.
+  it("keeps an unstattable file in list()/listAllPaths(); listWithStats() omits it", async () => {
     const mgr = newManager();
     mgr.writeText("keep.md", "x");
     mgr.writeText("flaky.md", "x");
@@ -234,24 +237,23 @@ describe("VaultManager", () => {
     const realStatSync = fs.statSync.bind(fs);
     const flaky = path.join(root, "flaky.md");
     const statSpy = vi.spyOn(fs, "statSync").mockImplementation((target, options) => {
-      // readdir still lists flaky.md, but its stat throws (transient) — the file
-      // is present, yet dropped from this crawl.
+      // readdir still lists flaky.md, but its stat throws (transient).
       if (target === flaky) throw new Error("EIO: simulated transient stat failure");
       return realStatSync(target, options);
     });
     try {
-      // Sync-facing: the drop is refused, never presented as a deletion.
-      expect(() => mgr.listAllPaths()).toThrow(VaultListingIncompleteError);
-      // UI-facing: lenient — the stattable files still list, flaky.md dropped.
-      const paths = mgr.list().map((e) => e.path);
-      expect(paths).toContain("keep.md");
-      expect(paths).not.toContain("flaky.md");
-      expect(mgr.listWithStats().map((e) => e.path)).toEqual(paths);
+      // Sync-facing: the file is present, so nothing can read as a deletion.
+      expect(mgr.listAllPaths()).toEqual(["flaky.md", "keep.md"]);
+      expect(mgr.list().map((e) => e.path)).toEqual(["flaky.md", "keep.md"]);
+      // ...and it has no fingerprint, so no cached hash can be reused for it.
+      expect(mgr.statFingerprint("flaky.md")).toBeNull();
+      expect(mgr.statFingerprint("keep.md")).not.toBeNull();
+      // Knowledge-facing: lenient — the unstattable file is simply absent.
+      const withStats = await mgr.listWithStats();
+      expect(withStats.map((e) => e.path)).toEqual(["keep.md"]);
     } finally {
       statSpy.mockRestore();
     }
-    // Recovery is immediate (incomplete crawls are never cached): with stat
-    // succeeding again, sync sees the full listing.
     expect(mgr.listAllPaths()).toEqual(["flaky.md", "keep.md"]);
   });
 

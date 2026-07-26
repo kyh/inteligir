@@ -82,7 +82,7 @@ export function CheckboxField({
     <div className="flex h-7 items-center px-1.5">
       <Checkbox
         checked={prop.value}
-        onCheckedChange={(value) => onChange({ ...prop, value: value === true })}
+        onCheckedChange={(value) => onChange({ ...prop, value })}
         aria-label={prop.key}
       />
     </div>

@@ -49,6 +49,9 @@ beforeAll(() => {
     posted.push(msg as Posted);
   });
   // Evaluate the IIFE against the jsdom globals (window/document/setTimeout).
+  // Evaluating the SHIPPED source is the point of this suite — a hand-imported
+  // module copy would test something the browser never runs.
+  // oxlint-disable-next-line typescript/no-implied-eval
   new Function(runtimeSource)();
 });
 

@@ -69,7 +69,7 @@ export function runCli(
           return;
         }
         const code = typeof rawCode === "number" ? rawCode : err ? 1 : 0;
-        resolve({ stdout: String(stdout), stderr: String(stderr), code });
+        resolve({ stdout, stderr, code });
       },
     );
     if (opts.stdin !== undefined) {

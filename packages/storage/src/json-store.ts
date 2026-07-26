@@ -171,7 +171,7 @@ export class JsonStore<T> {
     // against `schema`, but `schema: TSchema` erases its Static type, so the
     // compiler can't connect it to T. Callers omitting `decode` assert
     // Static<schema> is T.
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- schema↔generic seam, see doc above
+    // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- schema↔generic seam, see doc above
     this.decode = options.decode ?? ((raw) => raw as T);
     this.encode = options.encode ?? ((value) => value);
     this.versioning = options.versioning;

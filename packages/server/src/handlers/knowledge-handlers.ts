@@ -1,4 +1,5 @@
 import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
+import { boundGraph } from "@repo/notes/knowledge/link-graph-index";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { ToggleTaskResult } from "@repo/bridge/ipc-registry";
 
@@ -23,7 +24,9 @@ export function registerKnowledgeHandlers(handle: HandlerRegistrar): void {
   handle("getBacklinks", ({ path }) => getKnowledgeManager().backlinks(path));
   handle("getForwardLinks", ({ path }) => getKnowledgeManager().forwardLinks(path));
   handle("getRelatedNotes", ({ path }) => getKnowledgeManager().relatedNotes(path));
-  handle("getLinkGraph", () => getKnowledgeManager().graph());
+  // Assembly is whole-vault (the index has no cheaper way to know the totals
+  // it reports); the BOUND is what keeps the reply off the wire.
+  handle("getLinkGraph", (bounds) => boundGraph(getKnowledgeManager().graph(), bounds));
   handle("searchVault", ({ query, limit }) => getKnowledgeManager().search(query, limit));
   handle("listWikiTargets", () => getKnowledgeManager().wikiTargets());
   handle("listTags", () => getKnowledgeManager().tags());

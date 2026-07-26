@@ -156,6 +156,11 @@ const MAX_ARGS_LEN = 120;
 function formatToolArgs(input: unknown): string | null {
   if (input === null || input === undefined) return null;
   if (typeof input === "string") return truncate(input, MAX_ARGS_LEN);
+  // isRecord absorbs every non-null object bar arrays, so what reaches here is
+  // a primitive, an array or a function — none of which stringify to
+  // `[object Object]`. `input` stays `unknown` because a type predicate can't
+  // narrow the negative branch.
+  // oxlint-disable-next-line typescript/no-base-to-string
   if (!isRecord(input)) return truncate(String(input), MAX_ARGS_LEN);
 
   // Prioritised keys that read well as a one-line subtitle.

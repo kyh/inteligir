@@ -51,8 +51,8 @@ import {
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import type {
   BacklinkEntry,
+  BoundedLinkGraph,
   ForwardLinkEntry,
-  LinkGraph,
   VaultTaskEntry,
   WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
@@ -311,6 +311,19 @@ const KnowledgeSearchSchema = Type.Object(
 
 const KnowledgeTagSchema = Type.Object({ tag: Type.String() }, { additionalProperties: false });
 
+// How much of the link graph to return — the wire face of @repo/notes'
+// GraphBounds. Every field optional: `{}` asks for the whole vault, which is
+// what a small one still answers.
+const LinkGraphBoundsSchema = Type.Object(
+  {
+    /** Vault path whose neighbourhood is expanded first (typically the open note). */
+    focus: Type.Optional(Type.String()),
+    maxNodes: Type.Optional(Type.Number({ minimum: 1 })),
+    maxEdges: Type.Optional(Type.Number({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+
 // Guarded task toggle — keyed by ORDINAL (delegation's anchor key; survives
 // line shifts and duplicate identical lines) plus the exact recorded line.
 const ToggleTaskSchema = Type.Object(
@@ -530,9 +543,13 @@ export const IPC = {
    * `reasons`. Direct link neighbors are excluded by design (the Links and
    * Backlinks panels already surface them). */
   getRelatedNotes: invoke<typeof VaultPathSchema, RelatedNoteEntry[]>(VaultPathSchema),
-  /** Whole-vault link graph, shaped for a force-graph renderer (unresolved
-   * targets appear as flagged phantom nodes). */
-  getLinkGraph: invokeVoid<LinkGraph>(),
+  /** Vault link graph, shaped for a force-graph renderer (unresolved targets
+   * appear as flagged phantom nodes). The caller's bounds are applied HOST-side,
+   * before serialization — the whole graph is ~42MB of JSON at 50k notes, so a
+   * renderer-side filter would save nothing that matters. The reply always
+   * carries the whole graph's counts, so a bounded view can say how much of the
+   * vault it is showing. */
+  getLinkGraph: invoke<typeof LinkGraphBoundsSchema, BoundedLinkGraph>(LinkGraphBoundsSchema),
   /** Ranked lexical full-text search (title > heading > body tiers). */
   searchVault: invoke<typeof KnowledgeSearchSchema, SearchResult[]>(KnowledgeSearchSchema),
   /** Every linkable target for the `[[`-autocomplete picker: notes first,
