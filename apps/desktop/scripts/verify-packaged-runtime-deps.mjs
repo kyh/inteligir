@@ -18,7 +18,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FuseState, FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
+import { FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
+
+// @electron/fuses is CommonJS and re-exports only FuseV1Options / FuseVersion /
+// flipFuses / getCurrentFuseWire from its root — its FuseState enum lives in an
+// unexported module, so the two wire values are named here. The wire stores each
+// fuse as the ASCII digit, not a boolean.
+const DISABLE = 0x30; // "0"
+const ENABLE = 0x31; // "1"
 
 // The fuse state electron-builder.yml's `electronFuses` block must produce, read
 // back off the SHIPPED BINARY rather than off the config — a config-only check
@@ -30,20 +37,20 @@ import { FuseState, FuseV1Options, getCurrentFuseWire } from "@electron/fuses";
 // renderer still loads over file://, so it must stay enabled. Assert nothing
 // about it here rather than pinning a value we intend to change.
 const EXPECTED_FUSES = [
-  [FuseV1Options.RunAsNode, FuseState.DISABLE, "runAsNode"],
+  [FuseV1Options.RunAsNode, DISABLE, "runAsNode"],
   [
     FuseV1Options.EnableNodeOptionsEnvironmentVariable,
-    FuseState.DISABLE,
+    DISABLE,
     "enableNodeOptionsEnvironmentVariable",
   ],
-  [FuseV1Options.EnableNodeCliInspectArguments, FuseState.DISABLE, "enableNodeCliInspectArguments"],
-  [FuseV1Options.EnableCookieEncryption, FuseState.ENABLE, "enableCookieEncryption"],
+  [FuseV1Options.EnableNodeCliInspectArguments, DISABLE, "enableNodeCliInspectArguments"],
+  [FuseV1Options.EnableCookieEncryption, ENABLE, "enableCookieEncryption"],
   [
     FuseV1Options.EnableEmbeddedAsarIntegrityValidation,
-    FuseState.ENABLE,
+    ENABLE,
     "enableEmbeddedAsarIntegrityValidation",
   ],
-  [FuseV1Options.OnlyLoadAppFromAsar, FuseState.ENABLE, "onlyLoadAppFromAsar"],
+  [FuseV1Options.OnlyLoadAppFromAsar, ENABLE, "onlyLoadAppFromAsar"],
 ];
 
 // Resolve paths relative to the desktop app root (this script's parent
@@ -168,21 +175,20 @@ if (process.env.INTELIGIR_SKIP_NOTARY_CHECK === "1") {
   }
 }
 
-// Electron fuses, read off the app's own Mach-O executable. A regression here
-// is invisible in dev (fuses only exist in a packaged binary) and silently
-// re-opens the code-execution surface the hardened runtime is supposed to shut.
-const appExecutable = join(
-  app,
-  "Contents",
-  "MacOS",
-  readdirSync(join(app, "Contents", "MacOS"))[0],
-);
-const wire = await getCurrentFuseWire(appExecutable);
+// Electron fuses, read off the shipped bundle. A regression here is invisible in
+// dev (fuses only exist in a packaged binary) and silently re-opens the
+// code-execution surface the hardened runtime is supposed to shut.
+//
+// getCurrentFuseWire takes the .app BUNDLE, not the executable inside it — on
+// macOS the wire lives in the embedded Electron Framework, which it resolves
+// itself. Handing it Contents/MacOS/<exe> makes it look for the framework under
+// that path and fail with ENOENT.
+const wire = await getCurrentFuseWire(app);
 const fuseFailures = [];
 for (const [fuse, expected, label] of EXPECTED_FUSES) {
   const actual = wire[fuse];
   if (actual !== expected) {
-    const want = expected === FuseState.ENABLE ? "enabled" : "disabled";
+    const want = expected === ENABLE ? "enabled" : "disabled";
     fuseFailures.push(`${label} should be ${want} (wire value ${String(actual)})`);
   }
 }
