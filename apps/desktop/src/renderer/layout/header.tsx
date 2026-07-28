@@ -135,10 +135,10 @@ export function Header() {
               ))}
             </div>
           )}
-          {/* Page details — the file-properties popover. Same gate the inline
-              panel used: only a markdown note open in Rich mode has a live
-              rich editor to write through. Keyed by path so switching notes
-              closes it. */}
+          {/* Page details — the file-properties + page-facts drawer. Only a
+              markdown note open in Rich mode has a live rich editor to write
+              properties through, which is what this gate expresses. Keyed by
+              path so switching notes closes it. */}
           {markdownPath !== null && surfaceMode === "rich" && (
             <PageDetails key={markdownPath} path={markdownPath} />
           )}

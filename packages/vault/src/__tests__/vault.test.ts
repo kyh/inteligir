@@ -317,6 +317,27 @@ describe("VaultManager", () => {
     expect(mgr.statFingerprint("../escape.md")).toBeNull();
   });
 
+  it("fileFacts reports byte size + mtime, and tracks a rewrite", () => {
+    const mgr = newManager();
+    mgr.writeText("note.md", "one");
+    const first = mgr.fileFacts("note.md");
+    expect(first).not.toBeNull();
+    // Size is BYTES, not characters — the UI renders it as such.
+    expect(first?.sizeBytes).toBe(Buffer.byteLength("one", "utf8"));
+    expect(first?.modifiedMs).toBeGreaterThan(0);
+
+    mgr.writeText("note.md", "one-longer");
+    expect(mgr.fileFacts("note.md")?.sizeBytes).toBe(Buffer.byteLength("one-longer", "utf8"));
+  });
+
+  it("fileFacts is null for a missing file and for a path escaping the vault", () => {
+    const mgr = newManager();
+    // Both read as null so a caller cannot distinguish "absent" from "refused"
+    // — the same shape statFingerprint returns, never a throw.
+    expect(mgr.fileFacts("does-not-exist.md")).toBeNull();
+    expect(mgr.fileFacts("../escape.md")).toBeNull();
+  });
+
   // ---- rename: occupancy + case-only (the two APFS/NTFS rename bugs) ---------
   it("refuses to overwrite an exact existing destination", () => {
     const mgr = newManager();

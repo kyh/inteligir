@@ -585,6 +585,17 @@ record for the decisions code comments cite.
   under fake timers unless every call is wired to `advanceTimers`. Reach for
   it only for a test that genuinely depends on the event sequence a real user
   produces.
+- **`vaul` is the one non-Base-UI component dependency, on purpose.**
+  `packages/ui/src/components/drawer.tsx` is the sole vaul-based component in a
+  package that is otherwise vendored stock shadcn on Base UI, and vaul pulls
+  `@radix-ui/react-dialog` transitively — the only Radix in the tree. It earns
+  that: vaul owns drag-to-dismiss physics (the surface tracks the pointer 1:1,
+  rubber-bands past its edge, releases on velocity rather than distance) and
+  Base UI's Dialog has no equivalent. `sheet.tsx` (Base UI, `side="right"`) is
+  the dependency-free alternative and was deliberately passed over — it slides,
+  it does not drag. Do not "consolidate" the outlier onto sheet; if the drag
+  physics ever stops being worth one transitive dep, that is the trigger to
+  revisit, and the swap is one component plus its call sites.
 - **Two generator defaults are deliberately inert.**
   `packages/ui/components.json` declares `rsc: true` and there is no per-app
   `components.json`: the shadcn CLI's monorepo add flow is not used — components

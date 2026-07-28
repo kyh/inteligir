@@ -1,5 +1,5 @@
 // The file-properties panel — typed controls over the open note's YAML
-// frontmatter, hosted in the shell header's "Page details" popover. The
+// frontmatter, hosted in the shell header's "Page details" drawer. The
 // markdown file is the ONLY property store (CLAUDE.md § Decisions): there is no
 // metadata DB. Edits flow through the frontmatter NODE (properties-node.ts)
 // and out the editor's normal serialize path, so a property edit and a body
@@ -193,7 +193,7 @@ function AddProperty({ onAdd }: { onAdd: (key: string, value: string) => void })
 
 export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
   // Hosted outside the Plate tree (no useEditorSelector subscription): the
-  // popover (re)mounts the panel on every open — a fresh read — and `commit`
+  // drawer (re)mounts the panel on every open — a fresh read — and `commit`
   // bumps the tick below so the panel re-renders over its own writes.
   const [, bumpRead] = useReducer((n: number) => n + 1, 0);
   const raw = readFrontmatterRaw(editor);

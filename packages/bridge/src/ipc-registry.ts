@@ -265,6 +265,13 @@ export type VaultEntry = {
   kind: "doc" | "other";
 };
 
+/** The on-disk facts about ONE vault file that the listing deliberately does
+ * not carry. `VaultEntry` is produced by a stat-free crawl (a stat per file is
+ * the largest cost in a large vault), so size and mtime are a separate,
+ * per-file question — asked about the note a user is looking at, never swept.
+ * `null` when the file can't be stat'd (missing, escaping the vault). */
+export type VaultFileFacts = { sizeBytes: number; modifiedMs: number };
+
 /** chooseVaultRoot's verdict — tagged so consumers switch instead of probing
  * properties. `canceled` is the user dismissing the picker, not a failure. */
 export type ChooseVaultResult =
@@ -492,6 +499,10 @@ export const IPC = {
   chooseVaultRoot: invokeVoid<ChooseVaultResult>(),
   listVault: invokeVoid<VaultEntry[]>(),
   readVaultDoc: invoke<typeof VaultPathSchema, string>(VaultPathSchema),
+  /** Size + last-modified for one vault file, or null when it can't be stat'd.
+   * Its own channel rather than a fatter `listVault`: the crawl behind the
+   * listing never stats (see VaultFileFacts). */
+  getVaultFileFacts: invoke<typeof VaultPathSchema, VaultFileFacts | null>(VaultPathSchema),
   writeVaultDoc: invoke<typeof VaultWriteDocSchema, void>(VaultWriteDocSchema),
   deleteVaultEntry: invoke<typeof VaultPathSchema, { removed: boolean }>(VaultPathSchema),
   /** Rename/move a file to a new vault-relative path (creating parent dirs).
