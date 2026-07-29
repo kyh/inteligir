@@ -838,10 +838,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   // Stat identity is fabricated (no filesystem behind the Map): a fresh
   // monotonic fingerprint per write — nothing in the harness diffs it.
   let fingerprintSeq = 0;
-  // When each path was last written into the Map — the harness's "disk" has no
-  // mtime, but indexEntry runs after every write (and once per seeded note at
-  // boot), so this is a REAL last-modified for the fixture vault, not a canned
-  // constant. Backs getVaultFileFacts alongside the content's byte length.
+  // A real last-modified for the fixture vault, not a canned constant.
   const writtenAtMs = new Map<string, number>();
   const indexEntry = (path: string): void => {
     const content = vault.get(path);
@@ -1080,8 +1077,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       if (content === undefined) throw new Error(`no such file: ${path}`);
       return content;
     },
-    // Real facts about the in-memory "disk": UTF-8 byte length of the stored
-    // content, and the moment that content was last written (writtenAtMs).
     // Absent path → null, matching the host's unstat'able verdict.
     getVaultFileFacts: async ({ path }) => {
       const content = vault.get(path);

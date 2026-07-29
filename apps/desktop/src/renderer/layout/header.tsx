@@ -48,6 +48,8 @@ export function Header() {
   );
   const canRich = useOpenNote((s) => richAvailable(s.openDoc));
   const markdownPath = useOpenNote((s) => (s.openDoc.kind === "markdown" ? s.openDoc.path : null));
+  // Only Rich mode has a live editor to write frontmatter through.
+  const pageDetailsPath = surfaceMode === "rich" ? markdownPath : null;
   const { state } = useSidebar();
   const segments = path ? path.split("/") : [];
 
@@ -135,13 +137,7 @@ export function Header() {
               ))}
             </div>
           )}
-          {/* Page details — the file-properties + page-facts drawer. Only a
-              markdown note open in Rich mode has a live rich editor to write
-              properties through, which is what this gate expresses. Keyed by
-              path so switching notes closes it. */}
-          {markdownPath !== null && surfaceMode === "rich" && (
-            <PageDetails key={markdownPath} path={markdownPath} />
-          )}
+          {pageDetailsPath !== null && <PageDetails key={pageDetailsPath} path={pageDetailsPath} />}
           <Button
             variant="ghost"
             size="sm"
