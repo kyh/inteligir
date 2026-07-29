@@ -1,5 +1,4 @@
 // The one seam that lets chrome OUTSIDE the Plate tree — the shell header's
-// "Page details" popover — reach the mounted rich editor's live instance.
 // Mirrors the transient-settle wire (ai/transient-settle.ts): the editor owns
 // the registration, this module is just the map. Keyed by path so a consumer
 // can never grab a stale editor serving some other note.

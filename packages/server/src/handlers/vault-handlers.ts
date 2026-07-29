@@ -77,6 +77,8 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
 
   handle("listVault", () => getVaultManager().list());
   handle("readVaultDoc", ({ path }) => getVaultManager().readText(path));
+  // Size + mtime for one file — the facts the stat-free listing crawl skips.
+  handle("getVaultFileFacts", ({ path }) => getVaultManager().fileFacts(path));
   handle("writeVaultDoc", ({ path, content }) => {
     const vault = getVaultManager();
     vault.writeText(path, content);

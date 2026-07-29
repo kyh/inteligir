@@ -37,7 +37,7 @@ import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-sto
 import { yieldToEventLoop } from "@repo/storage/yield-to-event-loop";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import type { VaultEntry } from "@repo/bridge/ipc-registry";
+import type { VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
 
 // ---------------------------------------------------------------------------
 // Settings store — records the vault location. Lives in ~/.inteligir so it is
@@ -547,13 +547,35 @@ export class VaultManager {
     return this.liveStatFingerprint(rel);
   }
 
-  // The uncached stat — confined through `resolve()` exactly like every other
-  // file op. The open-note watcher baselines through THIS (freshness matters
-  // for classify; it is one file, not a sweep).
+  /** The on-disk facts about ONE file that no listing carries — its byte size
+   * and last-modified time. Deliberately distinct from `VaultEntry` (path /
+   * name / kind), which the crawl produces without ever stat-ing: this is the
+   * per-file question a UI asks about a single note, not a shape the listing
+   * should grow. Served off the shared snapshot's memoized stat when the crawl
+   * is fresh and knows the path (statFingerprint's idiom, so a burst pays one
+   * syscall), else a resolve()-confined live stat. `null` when the file can't
+   * be stat'd — missing, escaping the vault, or a flaky mount. */
+  fileFacts(rel: string): VaultFileFacts | null {
+    const cached = this.freshSnapshot(this.getRoot());
+    const identity =
+      cached !== null && cached.entries.has(rel) ? this.statOf(cached, rel) : this.liveStat(rel);
+    return identity === null ? null : { sizeBytes: identity.size, modifiedMs: identity.mtimeMs };
+  }
+
+  // The fingerprint form of the uncached stat. The open-note watcher baselines
+  // through THIS (freshness matters for classify; it is one file, not a sweep).
   private liveStatFingerprint(rel: string): string | null {
+    const identity = this.liveStat(rel);
+    return identity === null ? null : fingerprintOf(identity);
+  }
+
+  // The uncached stat — confined through `resolve()` exactly like every other
+  // file op, so a path escaping the vault reads as `null` rather than reaching
+  // outside it.
+  private liveStat(rel: string): StatIdentity | null {
     try {
       const stat = fs.statSync(this.resolve(rel));
-      return fingerprintOf(stat);
+      return { mtimeMs: stat.mtimeMs, size: stat.size, ino: stat.ino };
     } catch {
       return null;
     }

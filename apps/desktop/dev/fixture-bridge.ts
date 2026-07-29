@@ -838,9 +838,12 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   // Stat identity is fabricated (no filesystem behind the Map): a fresh
   // monotonic fingerprint per write — nothing in the harness diffs it.
   let fingerprintSeq = 0;
+  // A real last-modified for the fixture vault, not a canned constant.
+  const writtenAtMs = new Map<string, number>();
   const indexEntry = (path: string): void => {
     const content = vault.get(path);
     if (content === undefined) return;
+    writtenAtMs.set(path, Date.now());
     if (isDocPath(path)) {
       const projection = projectDoc(path, content);
       linkGraph.applyDoc(path, projection);
@@ -860,6 +863,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     }
   };
   const removeEntry = (path: string): void => {
+    writtenAtMs.delete(path);
     linkGraph.remove(path);
     knowledgeStore.remove(path);
   };
@@ -1072,6 +1076,13 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       const content = vault.get(path);
       if (content === undefined) throw new Error(`no such file: ${path}`);
       return content;
+    },
+    // Absent path → null, matching the host's unstat'able verdict.
+    getVaultFileFacts: async ({ path }) => {
+      const content = vault.get(path);
+      const modifiedMs = writtenAtMs.get(path);
+      if (content === undefined || modifiedMs === undefined) return null;
+      return { sizeBytes: new TextEncoder().encode(content).length, modifiedMs };
     },
     writeVaultDoc: async ({ path, content }) => {
       vault.set(path, content);
