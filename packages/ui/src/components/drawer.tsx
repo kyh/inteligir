@@ -9,7 +9,11 @@
 // dependency drift — do not "consolidate" it onto sheet.tsx.
 //
 // vaul is Radix-backed, so its open/closed state lands on `data-state`, not the
-// `data-open` attribute the Base UI components in this package expose.
+// `data-open` attribute the Base UI components in this package expose — and it
+// pulls `@radix-ui/react-dialog` transitively, the only Radix in the tree.
+// `sheet.tsx` (Base UI, `side="right"`) is the dependency-free alternative: it
+// slides, it does not drag. If the physics ever stops being worth the dep, that
+// swap is one component plus its call sites.
 
 import * as React from "react";
 import { XIcon } from "lucide-react";
