@@ -22,6 +22,12 @@ export function shortPathKey(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex").slice(0, 16);
 }
 
+/** Prefix of the per-vault last-synced blob dirs. Declared here rather than
+ * beside the writer so the permission sweep and the writer cannot drift: the
+ * dirs hold raw note bytes but carry a per-vault suffix, which puts them out
+ * of reach of any exact-name list. */
+export const SYNC_BLOBS_DIR_PREFIX = "sync-blobs-";
+
 export type FsAdapter = {
   read: (filePath: string) => string | null;
   write: (filePath: string, content: string, mode?: number) => void;

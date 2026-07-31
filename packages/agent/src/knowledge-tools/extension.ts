@@ -24,6 +24,7 @@
 
 import { Type, type Static } from "@sinclair/typebox";
 
+import { NotePathSchema } from "@repo/bridge/ipc-registry";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 
 import type { PiExtensionBundle } from "../extension";
@@ -92,25 +93,6 @@ const SearchVaultSchema = Type.Object({
   ),
 });
 
-const GetBacklinksSchema = Type.Object({
-  path: Type.String({
-    description: "Vault-relative note path (e.g. 'notes/ideas.md') to find links pointing to it.",
-  }),
-});
-
-const GetLinksSchema = Type.Object({
-  path: Type.String({
-    description:
-      "Vault-relative note path (e.g. 'notes/ideas.md') whose outgoing links to resolve.",
-  }),
-});
-
-const RelatedNotesSchema = Type.Object({
-  path: Type.String({
-    description: "Vault-relative note path (e.g. 'notes/ideas.md') to find notes related to it.",
-  }),
-});
-
 const RenameNoteSchema = Type.Object({
   from: Type.String({
     description: "Current vault-relative path of the file to rename or move (e.g. 'notes/old.md').",
@@ -171,8 +153,8 @@ const knowledgeExtension: PiExtensionBundle = {
           "Notes that link TO the given vault-relative note path (wiki-links and markdown " +
           `links). ${RESULT_SHAPE_NOTE} Each element is \`{path}\`; at most ${BACKLINKS_MAX} ` +
           "are returned.",
-        parameters: GetBacklinksSchema,
-        execute: async (_toolCallId, params: Static<typeof GetBacklinksSchema>) => {
+        parameters: NotePathSchema,
+        execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const hits = ports.knowledge.backlinks(params.path);
           // De-dupe by source path — a note can link to the target on several
           // lines, but the agent only needs the set of linking notes.
@@ -194,8 +176,8 @@ const knowledgeExtension: PiExtensionBundle = {
           "is `{path}` for a resolved target, or `{target, unresolved: true}` for a link " +
           `whose note does not exist yet. Targets are de-duped; at most ${LINKS_MAX} are ` +
           "returned.",
-        parameters: GetLinksSchema,
-        execute: async (_toolCallId, params: Static<typeof GetLinksSchema>) => {
+        parameters: NotePathSchema,
+        execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const entries = ports.knowledge.forwardLinks(params.path);
           // De-dupe the way the renderer's Links panel groups: by resolved
           // target path, and by RAW TARGET TEXT when the link dangles, so
@@ -226,8 +208,8 @@ const knowledgeExtension: PiExtensionBundle = {
           `get_backlinks are the tools for those). Use this for 'what else touches this topic?'. ` +
           `${RESULT_SHAPE_NOTE} Each element is \`{path, reasons}\`, reasons being an ` +
           "array of strings.",
-        parameters: RelatedNotesSchema,
-        execute: async (_toolCallId, params: Static<typeof RelatedNotesSchema>) => {
+        parameters: NotePathSchema,
+        execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const hits = ports.knowledge.relatedNotes(params.path);
           // `reasons` stays an array rather than a "; "-joined string: the same
           // delimiter argument as the row separator, one level down.

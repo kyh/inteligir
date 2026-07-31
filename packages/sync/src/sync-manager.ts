@@ -23,7 +23,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { inteligirPath, realFs, shortPathKey, type FsAdapter } from "@repo/storage/json-store";
+import {
+  SYNC_BLOBS_DIR_PREFIX,
+  inteligirPath,
+  realFs,
+  shortPathKey,
+  type FsAdapter,
+} from "@repo/storage/json-store";
 import type { VaultManager } from "@repo/vault/vault";
 import type { SyncPort } from "@repo/notes/sync/sync-port";
 import {
@@ -141,7 +147,7 @@ export function createJsonBaseStore(
 
 /** Per-vault blob directory, keyed exactly like `baseStorePath`. */
 function blobStoreDir(vaultId: string): string {
-  return inteligirPath(`sync-blobs-${shortPathKey(vaultId)}`);
+  return inteligirPath(`${SYNC_BLOBS_DIR_PREFIX}${shortPathKey(vaultId)}`);
 }
 
 /**
@@ -171,8 +177,11 @@ export function createNodeBlobStore(
       const file = fileFor(hash);
       try {
         if (fs.existsSync(file)) return; // content-addressed — already stored
-        fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(file, bytes);
+        // Last-synced note BYTES: the same owner-only boundary json-store's
+        // writes hold, since this lands under ~/.inteligir alongside the
+        // transcripts and snapshots the 0700/0600 rule exists for.
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        fs.writeFileSync(file, bytes, { mode: 0o600 });
       } catch {
         // Capture is best-effort — a dropped blob degrades to a conflict copy.
       }

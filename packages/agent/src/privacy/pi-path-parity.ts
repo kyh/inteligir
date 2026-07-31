@@ -4,8 +4,8 @@
 // pi's file tools do NOT open the literal `path` argument. They first run
 // expandPath (dist/core/tools/path-utils.js → dist/utils/paths.js
 // normalizePath: map unicode spaces — NBSP/en/em/… — to ASCII space, strip a
-// leading `@`, expand `~`, and — since 0.80 — convert `file://` URLs to
-// filesystem paths), and `read` additionally retries filesystem-fallback
+// leading `@`, expand `~`, and convert `file://` URLs to filesystem paths),
+// and `read` additionally retries filesystem-fallback
 // variants (AM/PM narrow no-break space, NFD, curly quote) until one exists.
 // A gate that resolves the RAW string probes a DIFFERENT file than the tool
 // reads: `read({path:"@vault/secret.md"})` classified "outside the vault"
@@ -13,9 +13,10 @@
 // ./vault — a confirmed full-content bypass, with NBSP/`~`/NFD/`file://`
 // variants as siblings of the same root cause.
 //
-// pi does not export path-utils (package exports are "." and "./hooks" only),
-// so this module REPLICATES it line-for-line (0.80.x semantics: unicode
-// spaces → `@`-strip → `~` via join() → file:// URL → resolve()-normalized).
+// pi does not export path-utils (package exports are "." and "./rpc-entry"
+// only), so this module REPLICATES it line-for-line (pi 0.82 semantics:
+// unicode spaces → `@`-strip → `~` via join() → file:// URL →
+// resolve()-normalized).
 // The replication is pinned by __tests__/pi-path-parity.test.ts, which
 // imports pi's REAL path-utils.js from the installed package and asserts
 // both resolvers agree on a battery of adversarial inputs — a pi upgrade
@@ -92,7 +93,7 @@ function normalizePiBaseDir(dir: string): string {
   return dir;
 }
 
-/** pi's resolveReadPath: expand, resolve against cwd (0.80 runs BOTH the
+/** pi's resolveReadPath: expand, resolve against cwd (pi runs BOTH the
  * absolute and the relative branch through path.resolve, so `..`/`.`/double
  * separators normalize exactly as pi's do), then — when the literal doesn't
  * exist — retry the macOS AM/PM, NFD, curly-quote, and NFD+curly filename

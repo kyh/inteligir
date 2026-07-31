@@ -23,7 +23,10 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   fallbacks — `packages/agent/src/privacy/pi-path-parity.ts`), so an alias spelling of a
   private path probes the file pi will actually open; a drift-guard test
   pins our resolver against pi's installed one so a pi upgrade can't
-  silently reopen the gap.
+  silently reopen the gap. A second guard drives the refusal through pi's
+  own extension runner and agent loop, so an upgrade that stopped honouring
+  a block — or started swallowing the fail-closed throw — fails a test
+  rather than quietly turning the gate into a no-op.
 - **`search_vault` / `get_backlinks` / `get_links` / `related_notes` drop it entirely.**
   Private notes are excluded inside the index query and every surviving hit
   is re-probed against live disk — no path, no title, no snippet ever

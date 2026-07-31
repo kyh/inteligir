@@ -35,8 +35,12 @@ src/
                      joshpuckett/bloom), typeset presets, @source
     typeset.css      typeset-docs / typeset-chat document typography
   __tests__/
-    no-orphan-components.test.ts   see Testing
+    no-orphan-components.test.ts    see Testing
+    components-provenance.test.ts   see Testing
+scripts/
+  provenance.mjs     regenerates / drift-checks the provenance manifest
 components.json      shadcn config — style "base-rhea", base color zinc
+components.provenance.json          see Provenance
 ```
 
 Exports are path-based (`package.json` `exports`):
@@ -81,6 +85,44 @@ Exports are path-based (`package.json` `exports`):
   an ES2024+ builtin would typecheck and then throw in a supported browser.
   Reasoning is inline in `tsconfig.json`.
 
+## Provenance
+
+`components.provenance.json` records, per file under `src/components`, where it
+came from — a shadcn registry item (`origin: "registry"` + the upstream `item`
+name) or written here (`origin: "local"`, today `confirm-dialog` and
+`geometric-orb`) — plus a sha256 of the bytes last accepted for it. The
+registry block mirrors `components.json` (the config the CLI reads) and carries
+the preset id, which lives nowhere else.
+
+```bash
+pnpm --filter @repo/ui provenance          # regenerate (rewrites hashes)
+pnpm --filter @repo/ui provenance:check    # report drift, never fails
+```
+
+The recorded hash is the **last accepted** bytes, not pristine upstream —
+these files were patched to the repo's rules before any record existed. So
+drift means "changed since we last accepted it", which is the useful question
+around a re-pull:
+
+1. **Before** re-pulling, `provenance:check` should be clean. Anything it lists
+   is a local edit nobody recorded — regenerate first, so the re-pull's damage
+   is legible.
+2. **After** `pnpm dlx shadcn@latest add <component>`, the components it lists
+   are exactly the files the pull rewrote — i.e. the local extensions above
+   that need re-applying and the patches back to the repo's strict rules.
+3. Once those are back, regenerate and commit the manifest with the re-pull.
+
+Origin and `item` are hand-curated: nothing on disk distinguishes a registry
+copy from a file written here, so a regenerate carries them forward and only
+refreshes hashes. New files default to `origin: "registry"` and the script says
+so — set a hand-written one to `"local"`. Scope is `src/components` only:
+`globals.css` started from the registry's theme but is now mostly local, and a
+hash of it would report drift permanently.
+
+Drift is **never a gate**. Local edits to vendored files are sanctioned (see
+Invariants), so a failing drift check would fail on the intended state. What is
+enforced is coverage — see Testing.
+
 ## Seams
 
 `ThemeProvider` is **controlled**: it owns OS-preference resolution, the
@@ -92,13 +134,21 @@ no-flash script).
 
 ## Testing
 
-`pnpm --filter @repo/ui test` runs one suite, and it is load-bearing:
+`pnpm --filter @repo/ui test` runs two source-walk suites, both load-bearing.
+
 `src/__tests__/no-orphan-components.test.ts` walks the repo and fails when a
 file under `src/components` has no importer anywhere. It exists because knip
 structurally cannot check it — the `./components/*` exports wildcard makes
 every component a public entry point, so an orphan reads as intentional API.
 Without this suite nothing reports dead vendored components, and they pile up
 in the thousands of lines — each dragging its own pinned npm deps along.
+
+`src/__tests__/components-provenance.test.ts` fails when a component file has
+no entry in `components.provenance.json` (or an entry has no file), and when
+the manifest's registry block disagrees with `components.json`. Coverage only —
+a component that escapes the record has no source identity, so a re-pull cannot
+tell whether it is safe to overwrite. It asserts nothing about the hashes;
+`provenance:check` reports those.
 
 No component renders in-package: behavior is pinned by consumer tests (the
 desktop renderer's `confirm-dialog.test.tsx` and `settings-panel.test.tsx` run

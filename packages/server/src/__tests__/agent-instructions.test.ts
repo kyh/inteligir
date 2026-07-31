@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { AGENT_INSTRUCTIONS_SKELETON } from "@repo/bridge/agent-instructions";
 import {
+  boundInstructionsContent,
   loadInstructionsFrom,
   seedInstructionsInto,
   type InstructionsVault,
@@ -67,6 +68,45 @@ describe("loadInstructionsFrom", () => {
   it("treats unparseable frontmatter as private (fail-closed)", () => {
     const vault = fakeVault(new Map([["AGENTS.md", "---\n{ not yaml\n---\n\nBody.\n"]]));
     expect(loadInstructionsFrom(vault)).toBeNull();
+  });
+
+  it("bounds an over-budget file before it reaches the prompt", () => {
+    const oversized = `# Rules\n\nAlways answer in Spanish.\n${"- remembered fact\n".repeat(2_000)}`;
+    const entry = loadInstructionsFrom(fakeVault(new Map([["AGENTS.md", oversized]])));
+    expect(entry).not.toBeNull();
+    expect(entry?.content.length).toBeLessThan(oversized.length);
+    expect(entry?.content).toContain("Always answer in Spanish.");
+    expect(entry?.content).toContain("exceeded its instruction budget");
+  });
+});
+
+const over = (chars: number) => "x".repeat(chars);
+
+describe("boundInstructionsContent", () => {
+  it("passes a within-budget file through byte-identically", () => {
+    const content = "# Rules\n\nBe terse.\n";
+    expect(boundInstructionsContent(content)).toEqual({ content, droppedChars: 0 });
+  });
+
+  it("keeps the head — standing instructions survive, appended memory is shed", () => {
+    const content = `MUST: answer in Spanish.\n${"- fact\n".repeat(5_000)}`;
+    const { content: bounded, droppedChars } = boundInstructionsContent(content);
+    expect(bounded).toContain("MUST: answer in Spanish.");
+    expect(droppedChars).toBeGreaterThan(0);
+    expect(bounded.length).toBeLessThan(content.length);
+  });
+
+  it("cuts on a line boundary so no half-rule reaches the model", () => {
+    const line = `${over(100)}\n`;
+    const { content } = boundInstructionsContent(line.repeat(1_000));
+    const body = content.slice(0, content.indexOf("[vault/AGENTS.md"));
+    for (const l of body.split("\n").filter(Boolean)) expect(l).toHaveLength(100);
+  });
+
+  it("reports the dropped byte count", () => {
+    const content = over(20_000);
+    const { droppedChars } = boundInstructionsContent(content);
+    expect(droppedChars).toBe(content.length - 16_000);
   });
 });
 

@@ -26,7 +26,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { inteligirPath } from "./json-store";
+import { SYNC_BLOBS_DIR_PREFIX, inteligirPath } from "./json-store";
 
 /** Subdirectories holding note content, transcripts, or credentials — the
  * durable owner-only boundary for files third parties create inside them. */
@@ -46,6 +46,19 @@ function chmodQuiet(target: string, mode: number): void {
     fs.chmodSync(target, mode);
   } catch {
     // Best-effort — never block boot on a permission fix.
+  }
+}
+
+/** Directory names directly inside `dir` starting with `prefix`; [] when the
+ * dir doesn't exist. */
+function listDirs(dir: string, prefix: string): string[] {
+  try {
+    return fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix))
+      .map((entry) => entry.name);
+  } catch {
+    return [];
   }
 }
 
@@ -100,5 +113,14 @@ export function hardenAppDir(sessionDirs: readonly string[], root: string = inte
   const indexes = path.join(root, "indexes");
   for (const name of listFiles(indexes)) {
     chmodQuiet(path.join(indexes, name), 0o600);
+  }
+  // Last-synced note bytes, one dir per synced vault. The name carries a
+  // per-vault suffix, so PRIVATE_DIRS — an exact-name list — structurally
+  // cannot reach it; matching the prefix is the only way these get swept.
+  for (const dir of listDirs(root, SYNC_BLOBS_DIR_PREFIX)) {
+    chmodQuiet(path.join(root, dir), 0o700);
+    for (const name of listFiles(path.join(root, dir))) {
+      chmodQuiet(path.join(root, dir, name), 0o600);
+    }
   }
 }

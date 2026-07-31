@@ -22,7 +22,13 @@ import {
   type ExtensionSetupContext,
 } from "./extension";
 import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "./paths";
-import type { IntegrationInfo, SetupProgress, SkillInfo } from "@repo/bridge/ipc-registry";
+import { writeNewSkill, type NewSkill } from "./skill-authoring";
+import type {
+  IntegrationInfo,
+  SetupProgress,
+  SkillCreated,
+  SkillInfo,
+} from "@repo/bridge/ipc-registry";
 
 /** Where the app's bundled agent assets (skills/, AGENTS.md) live, resolved
  * by the shell (HostPlatform) and injected by boot/agent-wiring.ts.
@@ -131,13 +137,42 @@ export async function repairIntegrations(
 }
 
 // ---------------------------------------------------------------------------
-// Skills — read-only listing
+// Skills — listing + authoring
 // ---------------------------------------------------------------------------
+
+/** The folder a user's own skills live in — the same one seedResources()
+ * seeds bundled skills into, so a listing row's source is decided by name
+ * against the shipped set rather than by two competing paths. */
+function userSkillsDir(): string {
+  return path.join(AGENT_DIR, "skills");
+}
 
 /**
  * Skills available to the agent, read from disk via pi's own discovery so the
  * list is correct whether or not an agent session is currently running.
  */
-export function listSkills(): SkillInfo[] {
-  return listSkillsFromDisk({ cwd: WORKSPACE_DIR, agentDir: AGENT_DIR });
+export function listSkills(resources: BundledResources): SkillInfo[] {
+  return listSkillsFromDisk({
+    cwd: WORKSPACE_DIR,
+    agentDir: AGENT_DIR,
+    bundledSkillsDir: path.join(resources.dir, "skills"),
+  });
+}
+
+/**
+ * Write a new skill into `~/.inteligir/skills` and return it alongside the
+ * refreshed listing. A running agent session loaded its skills at start, so
+ * the new one reaches the model on the next start — which is what the Settings
+ * copy tells the user.
+ */
+export function createSkill(resources: BundledResources, skill: NewSkill): SkillCreated {
+  const dir = userSkillsDir();
+  fs.mkdirSync(dir, { recursive: true });
+  const { slug } = writeNewSkill(dir, skill);
+  const skills = listSkills(resources);
+  const created = skills.find((entry) => entry.name === slug);
+  if (created === undefined) {
+    throw new Error(`Skill "${slug}" was written but did not load — check its SKILL.md.`);
+  }
+  return { skill: created, skills };
 }

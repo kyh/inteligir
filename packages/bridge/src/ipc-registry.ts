@@ -125,18 +125,76 @@ export type IntegrationInfo = {
   installed: string | null;
 };
 
+/** Where pi discovered a skill. */
+export type SkillScope = "user" | "project" | "temporary";
+
+/** Where a skill came from, as far as the app can honestly tell. There is no
+ * publisher or author concept here: "bundled" means the app ships that skill
+ * and seeded it into `<agentDir>/skills` on first run, "added" means someone
+ * else put it there (the user, an agent, an installer). Seeding COPIES, so the
+ * copy's path cannot reveal its origin — the shipped folder names are the only
+ * honest signal, and anything outside `<agentDir>/skills` is "added" by
+ * definition. */
+export type SkillSource = "bundled" | "added";
+
+/** What the agent's system prompt actually received for a skill.
+ *
+ * The listing budget sheds description CHARACTERS before it sheds skills — a
+ * skill the model knows by name alone is still invocable, a skill missing from
+ * the listing is not — so `description-trimmed` is the routine outcome and
+ * `not-loaded` is the backstop for a pathological skills folder. */
+export type SkillBudgetState =
+  /** Whole description reached the prompt. */
+  | { kind: "loaded" }
+  /** Name reached the prompt; the description was clipped to `promptChars`. */
+  | { kind: "description-trimmed"; promptChars: number; originalChars: number }
+  /** Nothing reached the prompt — the agent cannot invoke this skill. */
+  | { kind: "not-loaded"; reason: "skill-count" };
+
 /** Plain projection of pi's `Skill` so callers can serialize it over IPC. */
 export type SkillInfo = {
   name: string;
+  /** The description as the prompt received it — already clamped by the
+   * budget. `budget` says whether that is all of what is on disk. */
   description: string;
-  /** "user" (<agentDir>/skills) or "project" (<cwd>/.pi/skills). */
-  scope: string;
+  scope: SkillScope;
   filePath: string;
+  source: SkillSource;
+  /** SKILL.md mtime as epoch MILLISECONDS, or null when it can't be stat'd.
+   * A number on purpose: formatting a date is the renderer's job and the wire
+   * stays locale-free. */
+  updatedAt: number | null;
+  budget: SkillBudgetState;
 };
 
 export type SkillsList = {
   skills: SkillInfo[];
 };
+
+/** Result of createSkill: the skill that was just written, plus the refreshed
+ * listing so the caller needs no follow-up round trip. */
+export type SkillCreated = {
+  skill: SkillInfo;
+  skills: SkillInfo[];
+};
+
+// `name` is a display name, not a path — the host slugifies it and refuses
+// anything that doesn't reduce to a `[a-z0-9-]` folder name, so no traversal
+// can cross this schema. `description` is capped at the Agent Skills
+// description limit, which is also @repo/agent's MAX_SKILL_DESCRIPTION_CHARS
+// (skill-budget.test.ts pins the two together — @repo/bridge cannot import
+// @repo/agent, and a description written over the cap would be clipped back
+// out on the very next listing).
+const CreateSkillSchema = Type.Object(
+  {
+    name: Type.String({ minLength: 1, maxLength: 64 }),
+    description: Type.String({ minLength: 1, maxLength: 1536 }),
+    /** SKILL.md body — the instructions themselves. Empty gets a placeholder
+     * body, so a caller can scaffold first and write later. */
+    instructions: Type.String({ maxLength: 100_000 }),
+  },
+  { additionalProperties: false },
+);
 
 const NotificationsPatchSchema = Type.Object(
   { enabled: Type.Optional(Type.Boolean()) },
@@ -243,7 +301,36 @@ export type RestoreAgentEditsResult = { ok: true } | { ok: false; error: string 
 // vault-relative; main confines them under the vault root.
 // ---------------------------------------------------------------------------
 
-const VaultPathSchema = Type.Object({ path: Type.String() }, { additionalProperties: false });
+/** A vault-relative path to ONE markdown note — the unit the knowledge queries
+ * and the privacy probe are asked about. Exported: the agent's knowledge tools
+ * take this exact argument and hand the schema to a model, so the prose that
+ * tells the model what a valid path looks like lives HERE, once, instead of
+ * being restated per tool (agent/knowledge-tools/extension.ts). */
+export const NotePathSchema = Type.Object(
+  {
+    path: Type.String({
+      description:
+        "Path to a markdown note, relative to the vault root — e.g. 'notes/ideas.md'. " +
+        "Never absolute, never escaping the vault.",
+    }),
+  },
+  { additionalProperties: false },
+);
+
+/** A vault-relative path to ONE file of any kind — a note, an image, an HTML
+ * app. Deliberately not `NotePathSchema`: these channels read/stat/trash
+ * whatever the path names, so promising a model (or a reader) "a note" would
+ * be a narrower contract than the handler behind it. */
+const VaultPathSchema = Type.Object(
+  {
+    path: Type.String({
+      description:
+        "Path to a single file — note or attachment — relative to the vault root, " +
+        "e.g. 'assets/diagram.png'. Names a file, never a folder.",
+    }),
+  },
+  { additionalProperties: false },
+);
 // The currently open note the host should watch for external edits (null clears
 // it). Only this ONE file is watched — the rest of the vault is an ephemeral
 // snapshot refreshed on demand (vault liveness — CLAUDE.md § Decisions).
@@ -532,7 +619,7 @@ export const IPC = {
    * path needs it: a sync pull or agent write can flip a note `private: true`
    * on disk before the open-note watcher refreshes the editor buffer, and a
    * private note's PATH must not reach the model either. */
-  probeNotePrivacy: invoke<typeof VaultPathSchema, NotePrivacyProbe>(VaultPathSchema),
+  probeNotePrivacy: invoke<typeof NotePathSchema, NotePrivacyProbe>(NotePathSchema),
   /** Tell the host which note is open so it watches that single file for
    * external edits (vault liveness — CLAUDE.md § Decisions). Pass
    * `{ path: null }` when no note is open. */
@@ -547,13 +634,13 @@ export const IPC = {
 
   // Knowledge — link + search indexes over the vault, kept fresh from vault
   // change events. Queries are cheap index reads.
-  getBacklinks: invoke<typeof VaultPathSchema, BacklinkEntry[]>(VaultPathSchema),
-  getForwardLinks: invoke<typeof VaultPathSchema, ForwardLinkEntry[]>(VaultPathSchema),
+  getBacklinks: invoke<typeof NotePathSchema, BacklinkEntry[]>(NotePathSchema),
+  getForwardLinks: invoke<typeof NotePathSchema, ForwardLinkEntry[]>(NotePathSchema),
   /** Ranked "related notes" for one note — shared link targets, co-citation,
    * shared tags, lexical similarity — each entry carrying human-readable
    * `reasons`. Direct link neighbors are excluded by design (the Links and
    * Backlinks panels already surface them). */
-  getRelatedNotes: invoke<typeof VaultPathSchema, RelatedNoteEntry[]>(VaultPathSchema),
+  getRelatedNotes: invoke<typeof NotePathSchema, RelatedNoteEntry[]>(NotePathSchema),
   /** Vault link graph, shaped for a force-graph renderer (unresolved targets
    * appear as flagged phantom nodes). The caller's bounds are applied HOST-side,
    * before serialization — the whole graph is ~42MB of JSON at 50k notes, so a
@@ -767,6 +854,11 @@ export const IPC = {
 
   // Skills
   listSkills: invokeVoid<SkillsList>(),
+  /** Scaffold a new skill: `<agentDir>/skills/<slug>/SKILL.md` with valid
+   * frontmatter, where <slug> is derived host-side from `name`. The agent
+   * picks it up on its next start. Rejects when the slug is empty or already
+   * taken — never overwrites an existing skill. */
+  createSkill: invoke<typeof CreateSkillSchema, SkillCreated>(CreateSkillSchema),
 
   // Integrations
   listIntegrations: invokeVoid<IntegrationInfo[]>(),
