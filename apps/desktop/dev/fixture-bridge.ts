@@ -18,7 +18,7 @@ import type { Delegation, ListDelegationsResult } from "@repo/bridge/delegation"
 import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/bridge/inline-ai";
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import type { ChatSessionSummary } from "@repo/bridge/chat-sessions";
-import type { Bridge, VaultEntry } from "@repo/bridge/ipc-registry";
+import type { Bridge, SkillInfo, VaultEntry } from "@repo/bridge/ipc-registry";
 import type { RemoteAccessState } from "@repo/bridge/remote-access";
 import type { ListRoutinesResult, Routine } from "@repo/bridge/routines";
 import {
@@ -739,6 +739,46 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       },
     ],
   };
+
+  // Skills — one bundled row and two added rows so the listing renders both
+  // sources and all three budget outcomes (a real vault would have to hold 50+
+  // skills to produce the `not-loaded` one, which is why it is seeded here
+  // rather than left to chance); createSkill appends here so the Add flow
+  // round-trips like the host's does.
+  const trimmedDescription = "Summarize the open note into a short digest (dev-harness fixture).";
+  const fixtureSkills: SkillInfo[] = [
+    {
+      name: "browser",
+      description: "Drive a browser: open pages, click, screenshot (dev-harness fixture).",
+      scope: "user",
+      filePath: "/fixture/.inteligir/skills/agent-browser/SKILL.md",
+      source: "bundled",
+      updatedAt: Date.parse("2026-07-24T10:00:00.000Z"),
+      budget: { kind: "loaded" },
+    },
+    {
+      name: "summarize-note",
+      description: trimmedDescription,
+      scope: "user",
+      filePath: "/fixture/.inteligir/skills/summarize-note/SKILL.md",
+      source: "added",
+      updatedAt: Date.parse("2026-07-27T16:45:00.000Z"),
+      budget: {
+        kind: "description-trimmed",
+        promptChars: trimmedDescription.length,
+        originalChars: 2400,
+      },
+    },
+    {
+      name: "weekly-review",
+      description: "Draft the weekly review from this week's daily notes (dev-harness fixture).",
+      scope: "project",
+      filePath: "/fixture/vault/.pi/skills/weekly-review/SKILL.md",
+      source: "added",
+      updatedAt: null,
+      budget: { kind: "not-loaded", reason: "skill-count" },
+    },
+  ];
 
   // AI provider — an in-memory mirror of the host's provider-service so the
   // Settings AI section is fully drivable: switch (defaults the model like
@@ -1722,20 +1762,49 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
     onRemoteAccessChanged: remoteAccessEvents.subscribe,
 
-    // Skills / integrations — one seeded row each so the Settings panels
-    // render their POPULATED state ("zero installed" is a legitimate state,
-    // but the harness should demo rows). Repair mutates real binaries on the
-    // host, so it rejects loudly instead of pretending to succeed.
-    listSkills: async () => ({
-      skills: [
-        {
-          name: "summarize-note",
-          description: "Summarize the open note into a short digest (dev-harness fixture).",
-          scope: "user",
-          filePath: "/fixture/.inteligir/skills/summarize-note/SKILL.md",
-        },
-      ],
-    }),
+    // Skills / integrations — seeded rows so the Settings panels render their
+    // POPULATED state ("zero installed" is a legitimate state, but the harness
+    // should demo rows). Repair mutates real binaries on the host, so it
+    // rejects loudly instead of pretending to succeed.
+    listSkills: async () => ({ skills: [...fixtureSkills] }),
+    createSkill: async ({ name, description }) => {
+      const slug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      if (slug.length === 0) throw new Error("A skill name needs letters or digits.");
+      if (fixtureSkills.some((skill) => skill.name === slug)) {
+        throw new Error(`A skill named "${slug}" already exists.`);
+      }
+      // The host clamps a description to the per-skill cap before it ever
+      // reaches a listing, so the fixture clamps too — a harness that echoed
+      // the raw input would hide the trimmed state the real table must render.
+      const cap = 1536;
+      const clamped = description.length <= cap ? description : `${description.slice(0, cap - 1)}…`;
+      const skill: SkillInfo = {
+        name: slug,
+        description: clamped,
+        scope: "user",
+        filePath: `/fixture/.inteligir/skills/${slug}/SKILL.md`,
+        source: "added",
+        updatedAt: Date.now(),
+        budget:
+          clamped === description
+            ? { kind: "loaded" }
+            : {
+                kind: "description-trimmed",
+                promptChars: clamped.length,
+                originalChars: description.length,
+              },
+      };
+      fixtureSkills.push(skill);
+      // The host returns a fresh listing, which is name-ordered — a fixture
+      // that appended would teach the UI an ordering the product never has.
+      fixtureSkills.sort(
+        (a, b) => a.name.localeCompare(b.name) || a.filePath.localeCompare(b.filePath),
+      );
+      return { skill, skills: [...fixtureSkills] };
+    },
     listIntegrations: async () => [{ name: "fixture-cli", expected: "1.2.3", installed: "1.2.3" }],
     repairIntegrations: async () => {
       throw unavailable("integrations repair");

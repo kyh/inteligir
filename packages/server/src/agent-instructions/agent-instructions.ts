@@ -5,7 +5,9 @@
 //   - loadUserAgentInstructions(): read vault/AGENTS.md at session start and
 //     hand it to the Agent as an extra context file (chat + delegation only —
 //     app-machine.ts / background-agent.ts inject it; the editor-AI and
-//     ghost-text sessions never get it). Absent file = null = no-op.
+//     ghost-text sessions never get it). Absent file = null = no-op. The bytes
+//     are budget-bounded on the way through: this is the only context file
+//     that both grows on its own and has no cap anywhere else in the path.
 //   - seedUserAgentInstructions(): write the friendly skeleton into a vault
 //     that has never had one, exactly once per vault root. A durable
 //     seeded-roots mark (versioned JsonStore, ~/.inteligir) makes deletion
@@ -31,6 +33,47 @@ import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { isEnoent } from "@repo/storage/fs-errors";
 import { JsonStore, inteligirPath } from "@repo/storage/json-store";
 import { getVaultManager } from "@repo/vault/vault";
+
+// ---- Budget ----------------------------------------------------------------
+
+/**
+ * Ceiling for vault/AGENTS.md — the one context file on this path that nothing
+ * else bounds. It is not merely user-authored: the bundled prompt tells the
+ * agent to append a bullet under `## Memory` whenever it learns something
+ * durable, so the file grows on its own, every session, unattended, and every
+ * byte is re-sent on every turn of chat and delegation. The ceiling matches
+ * the one the repo holds its own bundled instructions to (see
+ * agents-file-budget.test.ts) — same order of cost, one number to remember.
+ */
+const USER_INSTRUCTIONS_MAX_CHARS = 16_000;
+
+/**
+ * What the model sees in place of the bytes that did not fit. It names the
+ * file and asks for consolidation because the agent is the only party that
+ * can fix the cause — it wrote the overflow.
+ */
+const TRUNCATION_NOTICE =
+  "\n\n[vault/AGENTS.md exceeded its instruction budget and was cut here. " +
+  "Everything above is intact; anything below was dropped. Tell the user their " +
+  "AGENTS.md is too long and offer to consolidate its Memory section.]\n";
+
+/**
+ * Bound the instruction bytes, keeping the HEAD. The agent appends memory to
+ * the END of the file, so dropping the tail sheds machine-accumulated recall
+ * and preserves the user's standing instructions — losing "answer in Spanish"
+ * is a violation, losing last week's remembered fact is a degradation. Cuts
+ * land on a line boundary so the model never reads half a rule.
+ */
+export function boundInstructionsContent(content: string): {
+  content: string;
+  droppedChars: number;
+} {
+  if (content.length <= USER_INSTRUCTIONS_MAX_CHARS) return { content, droppedChars: 0 };
+  const head = content.slice(0, USER_INSTRUCTIONS_MAX_CHARS);
+  const lastBreak = head.lastIndexOf("\n");
+  const kept = lastBreak > 0 ? head.slice(0, lastBreak) : head;
+  return { content: kept + TRUNCATION_NOTICE, droppedChars: content.length - kept.length };
+}
 
 // ---- Loader ----------------------------------------------------------------
 
@@ -68,7 +111,14 @@ export function loadInstructionsFrom(vault: InstructionsVault): AgentsFileEntry 
     return null;
   }
   if (notePrivacy(content) !== "public") return null;
-  return { path: AGENT_INSTRUCTIONS_AGENT_PATH, content };
+  const bounded = boundInstructionsContent(content);
+  if (bounded.droppedChars > 0) {
+    console.warn(
+      `[agent-instructions] vault/AGENTS.md over budget — dropped ${bounded.droppedChars} chars ` +
+        `(${content.length} > ${USER_INSTRUCTIONS_MAX_CHARS})`,
+    );
+  }
+  return { path: AGENT_INSTRUCTIONS_AGENT_PATH, content: bounded.content };
 }
 
 /** Live-singleton binding used by app-machine.ts and background-agent.ts. */

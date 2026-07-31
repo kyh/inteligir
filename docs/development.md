@@ -120,24 +120,17 @@ Type-checks passing isn't feature-correct. Drive the running app:
   `packages/server/src/__tests__/knowledge-privacy.test.ts`
   (outbound-payload assertions).
 
-## Making changes — checklists
+## Making changes — the two cross-cutting recipes
 
-**Adding a Bridge channel** (the most common cross-cutting change):
+Both live as skills, so the steps sit next to the code they name rather than
+rotting in prose here:
 
-1. Registry entry in `packages/bridge/src/ipc-registry.ts` (TypeBox payload +
-   result/event type).
-2. Host handler in `packages/server/src/handlers/` (grouped by domain;
-   `collectHandlers` throws at boot on missing/duplicate).
-3. Fixture implementation in `apps/desktop/dev/fixture-bridge.ts` (typed
-   `: Bridge` — fails typecheck until covered).
-   The ws transport dispatches from the host handler map automatically.
-
-**Adding an editor node type**: Base + React halves in one
-`apps/desktop/src/renderer/editor/kits/*-kit.tsx`; add the Base half to `base-kit.ts`
-(kit-parity tests fail on drift); a markdown rule in
-`editor/markdown/md-rules.ts` if the node has bytes; vocabulary allowlist in
-`@repo/notes/markdown/vocabulary` (`packages/notes/src/markdown/vocabulary.ts`)
-for MDX nodes; round-trip fixtures proving canonical/idempotent behavior.
+- **Adding a Bridge channel** — `.claude/skills/add-bridge-channel/`. Registry
+  entry, host handler, dev-harness fixture stub, event emission + reconnect
+  hydration, and the remote-device allowlist decision.
+- **Adding an editor node type** — `.claude/skills/add-editor-node/`. The
+  Base + React kit pair, the `base-kit`/`editor-kit` composition, the Slate↔mdast
+  rule, the MDX vocabulary gate, and the byte-pinned round-trip fixtures.
 
 ## Tests
 

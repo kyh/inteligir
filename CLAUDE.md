@@ -77,16 +77,22 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
 
-Dep DAG (all edges): notes, installer, storage, ui are leaves; bridge→notes;
+Dep DAG (every edge between `packages/`, pinned against the manifests by
+`dep-dag.test.ts`): notes, installer, storage, ui are leaves; bridge→notes;
 vault→storage+notes+bridge; agent→bridge+installer+notes;
 voice→storage+bridge; connectors→installer+storage+bridge (agent never
 imports connectors: code-mode reaches the daemon through the injected
 ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source
 in @repo/bridge/dev-flags); sync→vault+storage+notes+bridge;
 server→agent+bridge+connectors+notes+storage+sync+vault+voice.
-The renderer and mobile depend on @repo/bridge (+notes/ui) ONLY — never
-@repo/server — so "no node in the UI's contract" is an unresolvable-import
-fact, not a lint opinion. The extracted host packages (storage, vault, voice,
+The renderer and mobile reach the backend through @repo/bridge (+notes/ui)
+ONLY — never @repo/server — but "no node in the UI's contract" is enforced
+differently per app. For mobile it is an unresolvable-import fact: @repo/mobile
+depends on bridge+notes and nothing else. Desktop cannot claim that — the app
+package DOES depend on @repo/server because main composes the host — so the
+renderer's freedom from it is `no-restricted-imports` over `renderer/**` +
+`dev/**`, plus `dep-dag.test.ts` for `renderer/__tests__/**`, where that lint
+override is switched off. The extracted host packages (storage, vault, voice,
 connectors, sync) sit BELOW server: they never import @repo/server (that
 would be a package cycle) or electron — upward needs cross module-scoped
 install seams the composition root fills (setSecretCipherProvider,
@@ -122,8 +128,9 @@ pnpm verify           # The whole gate, mirroring CI (see Quality Gates)
 
 **`docs/development.md` is the full dev guide**: the two run modes (fixture
 harness / Electron), ports + `~/.inteligir` shared state +
-`host.lock`, the fixture byte-pinning rule, verification patterns, and the
-add-a-Bridge-channel / add-a-node-type checklists.
+`host.lock`, the fixture byte-pinning rule, and verification patterns. The
+two change checklists are skills, not prose — `.claude/skills/add-bridge-channel`
+and `.claude/skills/add-editor-node` carry the worked recipes.
 
 ## Agent-driven development
 
@@ -418,6 +425,17 @@ tool. Chat is a single persistent thread; the open note is auto-attached as
 context (agent-side only). `Cmd+K` rolls a fresh thread. Two more no-tools pi
 sessions serve the editor: inline-AI/intent classification, and an ephemeral
 in-memory session for ghost-text on a fast model.
+`vault/AGENTS.md` is the user's standing instructions — seeded once per vault
+root, loaded into the chat + delegation sessions as an extra context file
+(`packages/server/src/agent-instructions/`), skipped when marked
+`private: true`, and the file the bundled prompt nudges the agent to append
+durable memory to. Instruction files reach the model VERBATIM in every turn's
+system prompt (nothing in pi truncates them —
+`packages/agent/src/__tests__/agents-file-budget.test.ts`), so their bytes are
+a recurring per-turn cost. Repo-authored instruction files are held to a
+budget by that test; `vault/AGENTS.md` is the one the host must bound at
+runtime instead, because the agent appends to it unattended — the loader keeps
+the head (standing instructions) and sheds the tail (accumulated memory).
 **Private notes** (`private: true` frontmatter, `docs/privacy.md` is the
 contract): excluded from every AI surface on this device, fail-closed — the
 agent's file tools refuse them (per-call live-disk probe in pi's `tool_call`

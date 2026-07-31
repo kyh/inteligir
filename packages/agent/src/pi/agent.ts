@@ -14,6 +14,7 @@ import type { Api, AssistantMessage, ImageContent, Model } from "@earendil-works
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import { prepareRuntimeForSelection, resolveModelSelection, type ModelSelection } from "./model";
+import { budgetSkillsOverride } from "./skills";
 
 export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
@@ -112,6 +113,10 @@ export class PiAgent {
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
       extensionFactories: factories,
+      // `<agentDir>/skills` is user-writable and every skill it holds costs
+      // prompt on every turn — bound it, and bound it through the same seam
+      // the Settings listing runs so the two cannot drift.
+      skillsOverride: budgetSkillsOverride,
       ...(extraAgentsFiles !== undefined
         ? {
             agentsFilesOverride: (base: { agentsFiles: AgentsFileEntry[] }) => ({

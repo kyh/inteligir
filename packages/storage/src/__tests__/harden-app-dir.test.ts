@@ -45,6 +45,10 @@ function buildLegacyInstall(): string {
   writeFile(path.join(root, "indexes", "deadbeef.sqlite-wal"), 0o644);
   writeFile(path.join(root, "indexes", "deadbeef.sqlite-shm"), 0o644);
   fs.chmodSync(path.join(root, "indexes"), 0o755);
+  // Last-synced note bytes. The per-vault suffix puts this dir out of reach of
+  // any exact-name list, which is exactly how it escaped the sweep.
+  writeFile(path.join(root, "sync-blobs-deadbeefcafe0001", "0a1b2c"), 0o644);
+  fs.chmodSync(path.join(root, "sync-blobs-deadbeefcafe0001"), 0o755);
   // Must be left alone: executables keep the owner exec bit, and non-store
   // top-level files (AGENTS.md) are not data files.
   writeFile(path.join(root, "bin", "some-tool"), 0o755);
@@ -74,6 +78,8 @@ describe("hardenAppDir", () => {
     expect(mode(path.join(root, "indexes", "deadbeef.sqlite"))).toBe(0o600);
     expect(mode(path.join(root, "indexes", "deadbeef.sqlite-wal"))).toBe(0o600);
     expect(mode(path.join(root, "indexes", "deadbeef.sqlite-shm"))).toBe(0o600);
+    expect(mode(path.join(root, "sync-blobs-deadbeefcafe0001"))).toBe(0o700);
+    expect(mode(path.join(root, "sync-blobs-deadbeefcafe0001", "0a1b2c"))).toBe(0o600);
 
     // Untouched: the exec bit survives, docs stay as they were.
     expect(mode(path.join(root, "bin", "some-tool"))).toBe(0o755);

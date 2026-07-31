@@ -27,12 +27,18 @@ import { IPC_METHODS } from "@repo/bridge/ipc-registry";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 
-/** Files that mention every method by construction — supply, not demand. */
+/** Files that mention every method by construction — supply, not demand.
+ * The blueprints are here because they quote real channels as WORKED EXAMPLES
+ * of the mechanism, never as callers: a channel named only by a blueprint is
+ * dead, and counting the mention as demand would prop it up forever. A new
+ * blueprint that quotes channel names belongs in this list too. */
 const SUPPLY = new Set(
   [
     "packages/bridge/src/ipc-registry.ts",
     "apps/desktop/dev/fixture-bridge.ts",
     "packages/server/src/__tests__/no-dead-channels.test.ts",
+    ".claude/skills/add-bridge-channel/SKILL.md",
+    ".claude/skills/add-editor-node/SKILL.md",
   ].map((rel) => path.join(REPO_ROOT, rel)),
 );
 

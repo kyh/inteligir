@@ -34,6 +34,7 @@ import { createFixtureBridge } from "../../../dev/fixture-bridge";
 import { createWasmSqlDriver, loadSqlite3 } from "../../../dev/wasm-sql-driver";
 import { installBridge } from "@renderer/lib/bridge";
 import { AccountSection } from "./sections/account-section";
+import { SkillsSection } from "./extensions/skills-section";
 import { RoutinesSection } from "./sections/routines-section";
 
 const sqlite3 = await loadSqlite3();
@@ -102,5 +103,17 @@ describe("routines section", () => {
     expect(add.isConnected).toBe(true);
     // The form it reveals is present.
     expect(screen.getByPlaceholderText("Morning briefing")).toBeTruthy();
+  });
+});
+
+describe("skills section", () => {
+  it("'Add skill…' hides rather than unmounting when the form opens", async () => {
+    renderSection(<SkillsSection />);
+    const add = await screen.findByRole("button", { name: "Add skill…" });
+
+    expectSurvivesOwnClick(add);
+    await waitFor(() => expect(add.className).toContain("hidden"));
+    expect(add.isConnected).toBe(true);
+    expect(screen.getByPlaceholderText("Weekly review")).toBeTruthy();
   });
 });

@@ -12,6 +12,8 @@
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "provenance": "node scripts/provenance.mjs",
+    "provenance:check": "node scripts/provenance.mjs --check",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
