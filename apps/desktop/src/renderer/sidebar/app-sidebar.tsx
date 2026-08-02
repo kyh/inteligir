@@ -31,7 +31,6 @@ import { cn } from "@repo/ui/lib/utils";
 import { confirmVaultDelete } from "@renderer/components/confirm-vault-delete";
 import { ThemeToggle } from "@renderer/components/theme-toggle";
 import { SettingsDialog } from "@renderer/settings/settings-dialog";
-import { TagsSection } from "@renderer/sidebar/tags-section";
 import { flattenTree, resolveTreeKey, type FlatRow } from "@renderer/sidebar/tree-navigation";
 import { useResizableSidebar } from "@renderer/sidebar/use-resizable-sidebar";
 import { buildVaultTree } from "@renderer/sidebar/vault-tree";
@@ -257,10 +256,6 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
             </SidebarMenu>
           )}
         </SidebarGroup>
-        {/* Tags sit UNDER the tree: the file tree is the primary navigation
-         * and must keep the top of the pane; tags are a secondary, collapsible
-         * browse path into the same notes. */}
-        <TagsSection />
       </SidebarContent>
 
       <SidebarFooter className="flex-row items-center justify-between border-t border-sidebar-border p-2">

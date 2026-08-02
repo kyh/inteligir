@@ -7,7 +7,6 @@ import {
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
-  HashIcon,
   HistoryIcon,
   LayoutTemplateIcon,
   ListTodoIcon,
@@ -45,7 +44,7 @@ import {
 } from "@repo/bridge/daily-notes";
 
 import { getBridge } from "@renderer/lib/bridge";
-import { consumeTagRequest, refreshTags, useTags } from "@renderer/command/tags";
+import { consumeSearchRequest, useSearchRequest } from "@renderer/command/search-request";
 import { getLiveEditor } from "@renderer/editor/live-editor";
 import { toggleEditorNotePrivate } from "@renderer/editor/note-privacy";
 import { useTheme } from "@renderer/lib/use-theme";
@@ -56,6 +55,7 @@ import { openNoteState, useOpenNote } from "@renderer/workspace/open-note-store"
 import { useCreateFromTemplate, useOpenPeriodicNote } from "@renderer/workspace/use-note-templates";
 import { useVaultActions, useVaultListing } from "@renderer/workspace/vault-context";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
+import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 8;
@@ -68,13 +68,11 @@ const ROOT_NAME_LIMIT = 50;
 
 /** Multi-step palette navigation. The root is search + commands; picking "New
  * note from template…" walks into template selection then note-naming, reusing
- * the same command input as the typed-name field. Typing `#` at the root lists
- * tags; selecting one walks into `browseTag` (that tag's notes). */
+ * the same command input as the typed-name field. */
 type Phase =
   | { kind: "root" }
   | { kind: "pickTemplate" }
-  | { kind: "nameTemplate"; template: string }
-  | { kind: "browseTag"; tag: string };
+  | { kind: "nameTemplate"; template: string };
 
 /** Every whitespace-separated term must appear somewhere in the haystack —
  * the filename filter (filtering is ours: cmdk's scorer can't see the
@@ -111,22 +109,17 @@ const CADENCE_COMMANDS: Readonly<Record<Cadence, { icon: React.ReactNode; keywor
 
 /**
  * The ⌘K command palette: fuzzy-search notes by filename, full-text search
- * their contents (searchVault, debounced as-you-type), create a note from the
- * typed name or a template, open today's note, and run a handful of workspace
- * commands. Opened by ⌘K (WorkspacePage) and the sidebar's "Quick actions" pill.
+ * their contents (searchVault, debounced as-you-type), narrow to a tag with a
+ * `tag:<name>` term in the same box, create a note from the typed name or a
+ * template, open today's note, and run a handful of workspace commands. Opened
+ * by ⌘K (WorkspacePage) and the sidebar's "Quick actions" pill.
  */
 export function CommandPalette({
   open,
   onOpenChange,
-  seedQuery,
-  onSeedConsumed,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** One-shot root-query prefill (deep-link search). Applied when the
-   * palette is open and a seed is set, then reported consumed. */
-  seedQuery?: string | null;
-  onSeedConsumed?: () => void;
 }) {
   const { entries } = useVaultListing();
   const { openFile, createFile, changeFolder, refreshVault, editNote } = useVaultActions();
@@ -159,12 +152,7 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "root" });
   const [hits, setHits] = useState<SearchResult[]>([]);
-  // Tags come from the shared store (command/tags.ts), not local state: the
-  // sidebar's Tags group and the editor's inline chips read the same list and
-  // steer this palette into its tag phases through it.
-  const tags = useTags((s) => s.tags);
-  const tagRequest = useTags((s) => s.request);
-  const [tagNotes, setTagNotes] = useState<string[]>([]);
+  const searchRequest = useSearchRequest((s) => s.query);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Clear the filter AND reset navigation on every close, no matter the path —
@@ -175,78 +163,37 @@ export function CommandPalette({
     if (!open) {
       setQuery("");
       setHits([]);
-      setTagNotes([]);
       setPhase({ kind: "root" });
     }
   }, [open]);
 
-  // Deep-link search prefill: while open with a pending seed, adopt it as the
-  // root query and consume it — the close-reset above still wins on the next
-  // dismiss, so a later ⌘K opens clean.
+  // An outside surface (deep-link search, inline `#tag` chip) asked for a
+  // query. Seed the phase and box FIRST, then open: all three land in one
+  // React flush, so the dialog never flashes the root list on its way to the
+  // results. The close-reset above only fires on open→false, so it can't
+  // undo this.
   useEffect(() => {
-    if (!open || typeof seedQuery !== "string") return;
+    if (searchRequest === null) return;
     setPhase({ kind: "root" });
-    setQuery(seedQuery);
-    onSeedConsumed?.();
-  }, [open, seedQuery, onSeedConsumed]);
-
-  // Refresh the tag list once per open — the `#` flow filters it client-side,
-  // and it's a small, cheap index read that the tag counts depend on.
-  useEffect(() => {
-    if (open) refreshTags();
-  }, [open]);
-
-  // An outside surface (sidebar Tags row, inline `#tag` chip) asked for a tag
-  // view. Seed the phase FIRST, then open: both land in one React flush, so
-  // the dialog never flashes the root list on its way to the tag. The
-  // close-reset below only fires on open→false, so it can't undo this.
-  useEffect(() => {
-    if (tagRequest === null) return;
-    if (tagRequest.kind === "browse") {
-      setPhase({ kind: "browseTag", tag: tagRequest.tag });
-      setQuery("");
-    } else {
-      // The full list is the ROOT phase with a `#` query — one tag-list
-      // renderer, whether the user typed `#` or clicked "Show all tags".
-      setPhase({ kind: "root" });
-      setQuery("#");
-    }
+    setQuery(searchRequest);
     onOpenChange(true);
-    consumeTagRequest();
-  }, [tagRequest, onOpenChange]);
+    consumeSearchRequest();
+  }, [searchRequest, onOpenChange]);
 
-  // Fetch a tag's notes when stepping into the browse phase.
-  useEffect(() => {
-    if (phase.kind !== "browseTag") return;
-    const tag = phase.tag;
-    let live = true;
-    getBridge()
-      .getNotesByTag({ tag })
-      .then((paths) => {
-        if (live) setTagNotes(paths);
-        return undefined;
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [phase]);
-
-  // Debounced full-text search; a stale response never lands over a newer
-  // query (sequence check). Only the root phase searches notes — the sub-phases
+  // Debounced search; a stale response never lands over a newer query
+  // (sequence check). Only the root phase searches notes — the sub-phases
   // reuse the query as a template filter / note name.
   const searchSeq = useRef(0);
   useEffect(() => {
-    const trimmedQuery = query.trim();
+    const { query: text, tag } = parseSearchQuery(query);
     const seq = ++searchSeq.current;
-    // The root's `#`-prefixed query is a tag filter, not a full-text search.
-    if (!open || phase.kind !== "root" || trimmedQuery === "" || trimmedQuery.startsWith("#")) {
+    if (!open || phase.kind !== "root" || (text === "" && tag === "")) {
       setHits([]);
       return;
     }
     const timer = setTimeout(() => {
       getBridge()
-        .searchVault({ query: trimmedQuery, limit: SEARCH_LIMIT })
+        .searchVault({ limit: SEARCH_LIMIT, query: text, tag })
         .then((results) => {
           if (seq === searchSeq.current) setHits(results);
           return undefined;
@@ -306,7 +253,7 @@ export function CommandPalette({
       if (event.key !== "Escape" || phase.kind === "root") return;
       event.preventDefault();
       event.stopPropagation();
-      // browseTag / pickTemplate back out to root; nameTemplate to pickTemplate.
+      // pickTemplate backs out to root; nameTemplate to pickTemplate.
       goto({ kind: phase.kind === "nameTemplate" ? "pickTemplate" : "root" });
     },
     [phase.kind, goto],
@@ -339,12 +286,9 @@ export function CommandPalette({
     </CommandDialog>
   );
 
+  // The template sub-phases read the box verbatim (it is a filter, then a
+  // filename); only the root parses it as a search.
   const trimmed = query.trim();
-  const lower = trimmed.toLowerCase();
-  const exists = entries.some(
-    (e) => e.path.toLowerCase() === lower || e.path.toLowerCase() === `${lower}.md`,
-  );
-
   const templates = entries.filter((e) => e.kind === "doc" && isTemplatePath(e.path));
 
   // ---- Template flow: pick a template --------------------------------------
@@ -402,65 +346,27 @@ export function CommandPalette({
     });
   }
 
-  // ---- Tag flow: browse a tag's notes --------------------------------------
-  if (phase.kind === "browseTag") {
-    const tag = phase.tag;
-    const matches =
-      trimmed === "" ? tagNotes : tagNotes.filter((path) => matchesQuery(path, trimmed));
-    return paletteShell({
-      placeholder: `Notes tagged #${tag}…  (Esc to go back)`,
-      onInputKeyDown: handleInputKeyDown,
-      children: (
-        <>
-          <CommandEmpty>No notes with this tag.</CommandEmpty>
-          <CommandGroup heading={`#${tag}`}>
-            {matches.map((path) => (
-              <CommandItem key={path} value={path} onSelect={() => run(() => openFile(path))}>
-                <FileTextIcon />
-                <span className="truncate">{path}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </>
-      ),
-    });
-  }
-
-  // ---- Tag flow: list tags (typed `#` at the root) -------------------------
-  if (trimmed.startsWith("#")) {
-    const filter = trimmed.slice(1).toLowerCase();
-    const matches = filter === "" ? tags : tags.filter((t) => t.tag.toLowerCase().includes(filter));
-    return paletteShell({
-      placeholder: "Filter tags…",
-      children: (
-        <>
-          <CommandEmpty>No tags.</CommandEmpty>
-          <CommandGroup heading="Tags">
-            {matches.map((t) => (
-              <CommandItem
-                key={t.tag}
-                value={`#${t.tag}`}
-                onSelect={() => goto({ kind: "browseTag", tag: t.tag })}
-              >
-                <HashIcon />
-                <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                  <span className="truncate">{t.tag}</span>
-                  <span className="text-xs text-muted-foreground">{t.count}</span>
-                </span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </>
-      ),
-    });
-  }
-
   // ---- Root: search + commands ---------------------------------------------
+  // One box. A `tag:<name>` term narrows to that tag host-side — the same
+  // composition the agent's search_vault runs — and the host's answer IS the
+  // whole result list: the local filename filter can't see tags, so it (and
+  // note creation, and the command list) steps aside rather than showing rows
+  // the filter doesn't apply to.
+  const { query: text, tag } = parseSearchQuery(query);
+  const tagged = tag !== "";
+  const lower = text.toLowerCase();
+  const exists = entries.some(
+    (e) => e.path.toLowerCase() === lower || e.path.toLowerCase() === `${lower}.md`,
+  );
+
   // Notes = filename matches, then full-text hits that the filename filter
   // missed (deduped by path, host ranking preserved).
-  const nameMatches = (
-    trimmed === "" ? entries : entries.filter((e) => matchesQuery(e.path, trimmed))
-  ).slice(0, ROOT_NAME_LIMIT);
+  const nameMatches = tagged
+    ? []
+    : (text === "" ? entries : entries.filter((e) => matchesQuery(e.path, text))).slice(
+        0,
+        ROOT_NAME_LIMIT,
+      );
   const namePaths = new Set(nameMatches.map((e) => e.path));
   const contentHits = hits.filter((hit) => !namePaths.has(hit.path));
 
@@ -580,17 +486,18 @@ export function CommandPalette({
       onSelect: () => void changeFolder(),
     },
   ].filter(
-    (action) => trimmed === "" || matchesQuery(`${action.label} ${action.keywords}`, trimmed),
+    (action) =>
+      !tagged && (text === "" || matchesQuery(`${action.label} ${action.keywords}`, text)),
   );
 
   return paletteShell({
-    placeholder: "Search notes or run a command…",
+    placeholder: "Search notes (tag:name to filter) or run a command…",
     children: (
       <>
         <CommandEmpty>No results.</CommandEmpty>
 
         {(nameMatches.length > 0 || contentHits.length > 0) && (
-          <CommandGroup heading="Notes">
+          <CommandGroup heading={tagged ? `#${tag}` : "Notes"}>
             {nameMatches.map((e) => (
               <CommandItem key={e.path} value={e.path} onSelect={() => run(() => openFile(e.path))}>
                 <FileTextIcon />
@@ -606,22 +513,24 @@ export function CommandPalette({
                 <FileTextIcon />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{hit.title}</span>
-                  <span className="truncate text-xs text-muted-foreground">{hit.snippet}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {hit.snippet === "" ? hit.path : hit.snippet}
+                  </span>
                 </span>
               </CommandItem>
             ))}
           </CommandGroup>
         )}
 
-        {trimmed.length > 0 && !exists && (
+        {!tagged && text.length > 0 && !exists && (
           <CommandGroup heading="Create">
             <CommandItem
-              value={`__create__ ${trimmed}`}
-              onSelect={() => run(() => void createFile(trimmed))}
+              value={`__create__ ${text}`}
+              onSelect={() => run(() => void createFile(text))}
             >
               <FilePlusIcon />
               <span>
-                Create <span className="font-medium text-foreground">{trimmed}</span>
+                Create <span className="font-medium text-foreground">{text}</span>
               </span>
             </CommandItem>
           </CommandGroup>

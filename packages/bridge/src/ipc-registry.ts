@@ -56,8 +56,6 @@ import type {
   VaultTaskEntry,
   WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
-import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
-import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { NotePrivacy } from "@repo/notes/markdown/frontmatter";
 import {
   RemoteAccessSetConfigSchema,
@@ -398,12 +396,13 @@ export type NotePrivacyProbe = NotePrivacy | "absent";
 const KnowledgeSearchSchema = Type.Object(
   {
     query: Type.String(),
+    /** Restrict to notes carrying this tag. Empty or absent means no filter,
+     * so an empty `query` with a `tag` lists that tag's notes. */
+    tag: Type.Optional(Type.String()),
     limit: Type.Optional(Type.Number({ minimum: 1, maximum: 200 })),
   },
   { additionalProperties: false },
 );
-
-const KnowledgeTagSchema = Type.Object({ tag: Type.String() }, { additionalProperties: false });
 
 // How much of the link graph to return — the wire face of @repo/notes'
 // GraphBounds. Every field optional: `{}` asks for the whole vault, which is
@@ -636,11 +635,6 @@ export const IPC = {
   // change events. Queries are cheap index reads.
   getBacklinks: invoke<typeof NotePathSchema, BacklinkEntry[]>(NotePathSchema),
   getForwardLinks: invoke<typeof NotePathSchema, ForwardLinkEntry[]>(NotePathSchema),
-  /** Ranked "related notes" for one note — shared link targets, co-citation,
-   * shared tags, lexical similarity — each entry carrying human-readable
-   * `reasons`. Direct link neighbors are excluded by design (the Links and
-   * Backlinks panels already surface them). */
-  getRelatedNotes: invoke<typeof NotePathSchema, RelatedNoteEntry[]>(NotePathSchema),
   /** Vault link graph, shaped for a force-graph renderer (unresolved targets
    * appear as flagged phantom nodes). The caller's bounds are applied HOST-side,
    * before serialization — the whole graph is ~42MB of JSON at 50k notes, so a
@@ -648,17 +642,15 @@ export const IPC = {
    * carries the whole graph's counts, so a bounded view can say how much of the
    * vault it is showing. */
   getLinkGraph: invoke<typeof LinkGraphBoundsSchema, BoundedLinkGraph>(LinkGraphBoundsSchema),
-  /** Ranked lexical full-text search (title > heading > body tiers). */
+  /** Ranked lexical full-text search (title > heading > body tiers), optionally
+   * narrowed to one tag — the palette's `tag:` filter and the agent's
+   * `search_vault` tag argument are the same composition. */
   searchVault: invoke<typeof KnowledgeSearchSchema, SearchResult[]>(KnowledgeSearchSchema),
   /** Every linkable target for the `[[`-autocomplete picker: notes first,
    * then attachments (flagged `type: "asset"` so the picker groups them and
    * inserts `![[embeds]]`). */
   listWikiTargets: invokeVoid<WikiTarget[]>(),
-  /** Every tag in the vault with its note count (inline `#tags` ∪ frontmatter
-   * `tags`, unified case-insensitively) — the palette's `#` tag list. */
-  listTags: invokeVoid<TagCount[]>(),
   /** Vault paths of the notes carrying a tag (case-insensitive). */
-  getNotesByTag: invoke<typeof KnowledgeTagSchema, string[]>(KnowledgeTagSchema),
   /** Every task in the vault (checked and not), path-then-ordinal — the Tasks
    * view's whole-vault query over the projection. */
   listVaultTasks: invokeVoid<VaultTaskEntry[]>(),

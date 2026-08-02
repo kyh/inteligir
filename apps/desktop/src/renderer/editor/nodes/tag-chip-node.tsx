@@ -9,12 +9,12 @@
 // A11y note: the chip is styled TEXT inside contenteditable, not a focusable
 // control — putting a tabbable element in the middle of a paragraph would
 // wreck caret navigation for everyone to serve a shortcut. The keyboard route
-// to the same destination is the palette (`#` → tag → notes), which the
-// sidebar's Tags group also opens.
+// to the same destination is typing `tag:<name>` into the palette, which is
+// exactly what a click seeds.
 
 import { PlateLeaf, type PlateLeafProps } from "platejs/react";
 
-import { browseTag } from "@renderer/command/tags";
+import { requestSearch } from "@renderer/command/search-request";
 
 /** True when the user is mid-selection: a drag that ends over a chip fires a
  * click, and popping the palette out from under a selection is never what they
@@ -43,9 +43,9 @@ export function TagChipLeaf(props: PlateLeafProps) {
       attributes={{
         ...props.attributes,
         onClick: () => {
-          if (tag !== "" && !hasRangeSelection()) browseTag(tag);
+          if (tag !== "" && !hasRangeSelection()) requestSearch(`tag:${tag}`);
         },
-        title: `Browse notes tagged #${tag}`,
+        title: `Search notes tagged #${tag}`,
       }}
     />
   );

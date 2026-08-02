@@ -47,10 +47,11 @@ export type KnowledgeQueries = {
   backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[];
   /** NOTE the missing PrivacyOpts — unlike its siblings, forwardLinks has no
    * index-level privacy filter, because its other caller is the renderer's
-   * Links panel, which is the USER looking at their own vault and must see
-   * every link. The whole privacy story for this query therefore lives in the
-   * port below; do not "fix" the asymmetry by teaching the index to filter
-   * without also checking what the renderer would lose. */
+   * Page details sheet, which counts a note's outgoing and unresolved links.
+   * That is the USER reading their own file, and the count has to match the
+   * bytes on disk or it silently lies. The whole privacy story for this query
+   * therefore lives in the port below; do not "fix" the asymmetry by teaching
+   * the index to filter without also checking what the renderer would lose. */
   forwardLinks(path: string): ForwardLinkEntry[];
   relatedNotes(path: string, opts?: RelatedNotesOpts): RelatedNoteEntry[];
   notesWithTag(tag: string, opts?: PrivacyOpts): string[];

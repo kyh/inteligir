@@ -209,11 +209,6 @@ describe("KnowledgeManager", () => {
     vault.writeText("a.md", "---\ntags: [meta, demo]\n---\n\n# A\n");
     vault.writeText("b.md", "# B\n\nInline #meta and #project here.\n");
     await manager.refresh();
-    expect(manager.tags()).toEqual([
-      { tag: "meta", count: 2 },
-      { tag: "demo", count: 1 },
-      { tag: "project", count: 1 },
-    ]);
     expect(manager.notesWithTag("META")).toEqual(["a.md", "b.md"]);
     expect(manager.notesWithTag("project")).toEqual(["b.md"]);
   });
