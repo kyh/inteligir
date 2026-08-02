@@ -10,6 +10,7 @@
 // real vault files are listed — no derived/app state lives under the vault root.
 // ---------------------------------------------------------------------------
 
+import { isExcludedFileName, isPrunedName } from "@repo/notes/sync/crawl-exclusions";
 import type { SyncIo } from "@repo/notes/sync/engine";
 import type { VaultPath } from "@repo/notes/sync/vault-file";
 
@@ -89,10 +90,16 @@ export type VaultFs = {
   stat(path: VaultPath): VaultStat | null;
 };
 
-/** Depth-first collect every FILE under `relDir` as sorted vault-relative paths. */
+/** Depth-first collect every FILE under `relDir` as sorted vault-relative paths.
+ *
+ * The exclusions come from @repo/notes so this walk and the desktop crawl
+ * answer from ONE set: a name only one of them lists is pushed by that platform
+ * and then read by the other as "in base, absent from local" — a permanent
+ * deletion from R2 and from every peer. */
 function walk(fs: VaultFs, relDir: string): VaultPath[] {
   const out: VaultPath[] = [];
   for (const entry of fs.listDir(relDir)) {
+    if (entry.isDirectory ? isPrunedName(entry.name) : isExcludedFileName(entry.name)) continue;
     const child = relDir === "" ? entry.name : `${relDir}/${entry.name}`;
     if (entry.isDirectory) out.push(...walk(fs, child));
     else out.push(child);

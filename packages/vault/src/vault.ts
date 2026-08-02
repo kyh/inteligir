@@ -37,6 +37,11 @@ import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-sto
 import { yieldToEventLoop } from "@repo/storage/yield-to-event-loop";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import {
+  cloudPlaceholderTarget,
+  isExcludedFileName,
+  isPrunedName,
+} from "@repo/notes/sync/crawl-exclusions";
 import type { VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
 
 // ---------------------------------------------------------------------------
@@ -68,9 +73,11 @@ function classify(fileName: string): VaultEntry["kind"] {
   return isDocPath(fileName) ? "doc" : "other";
 }
 
-// Hard-pruned directories — never walked, never listed, regardless of ignore
-// files. Cheap protection against the classic repo-shaped-vault blowups.
-const SKIP_DIRS = new Set([".git", "node_modules", ".obsidian", ".trash"]);
+// What the crawl excludes from the MANIFEST (hard-pruned trees, in-flight
+// `*.tmp` siblings, OS metadata) lives in @repo/notes/sync/crawl-exclusions —
+// one fact both this walk and mobile's answer from, because a name only one
+// platform excludes reconciles as a deletion on the other.
+//
 // Root-level ignore files parsed (v1) to filter the VIEW — not access, and not
 // the sync manifest. Matched files are still crawled; they are withheld from
 // the listings the user sees, and a file explicitly opened still reads/writes
@@ -124,21 +131,36 @@ type VaultSnapshot = {
    * (already confined under the root) or has to go through the `resolve()`
    * funnel. */
   entries: Map<string, VaultWalkEntry>;
-  /** The subset of `entries` the root ignore files match, directly or through
-   * an ignored ancestor directory. Ignoring is a VIEW choice — it declutters
-   * the sidebar — so these are withheld from every UI-facing listing but stay
-   * in `entries`: sync reads a path's absence from the manifest as a local
-   * DELETE, and a file that is still on disk must never say that. */
-  ignored: ReadonlySet<string>;
+  /** The subset of `entries` withheld from the UI: matched by the root ignore
+   * files, or dot-prefixed — either directly or through an ancestor directory
+   * that is. Both are VIEW choices, they declutter the sidebar, so they share
+   * one set and neither leaves `entries`: sync reads a path's absence from the
+   * manifest as a local DELETE, and a file that is still on disk must never
+   * say that. */
+  hidden: ReadonlySet<string>;
+  /** Entries the crawl saw but cannot represent as vault files — symlinks
+   * (which a Dirent reports as neither file nor directory) and special files.
+   * Not reading them is the confinement rule `statOf` relies on; RECORDING
+   * them is what stops "skipped for confinement" from reading as "absent from
+   * disk" when a regular file becomes a symlink. */
+  skipped: ReadonlySet<string>;
+  /** The REAL paths behind the cloud placeholders the crawl saw
+   * (`.note.md.icloud` → `note.md`), never the stubs themselves. Each names a
+   * file that is real on every other device, so a manifest built over this
+   * crawl would report it deleted — but only if it was ever synced, which this
+   * crawl has no way to know. */
+  placeholders: ReadonlySet<string>;
   /** Stat identities, filled LAZILY by `statOf` and memoized here — so a
    * refresh burst pays each file's stat at most once no matter how many
    * consumers ask, and files nobody asks about cost nothing. */
   stats: Map<string, StatIdentity>;
-  /** Did the crawl observe the WHOLE vault? `false` when the root was missing
-   * or any directory read failed — `entries` is then a best-effort partial.
-   * The UI listing serves it anyway (lenient); `listAllPaths()` (the sync
-   * manifest source) refuses it, because a truncated listing is
-   * indistinguishable from a mass deletion. */
+  /** Did every directory READ succeed? `false` when the root was missing or a
+   * readdir failed — `entries` is then a best-effort partial. The UI listing
+   * serves it anyway (lenient); `listAllPaths()` (the sync manifest source)
+   * refuses it, because a truncated listing is indistinguishable from a mass
+   * deletion. Deliberately narrower than "saw every file": `skipped` and
+   * `placeholders` name individual files this crawl could not read, which is a
+   * question only the engine (which holds the last-synced base) can answer. */
   complete: boolean;
   /** The first directory the crawl could not read, vault-relative ("." for the
    * root), or null when the crawl was complete. Carried so a wedged sync names
@@ -146,18 +168,23 @@ type VaultSnapshot = {
   unreadable: string | null;
 };
 
-/** Thrown by `listAllPaths()` when the crawl could not observe the whole vault
- * (missing root, an unreadable subtree). Sync-facing on purpose: the 3-way
- * reconcile reads "in base, absent from local" as a LOCAL DELETE, so a
- * truncated listing must fail the sync pass rather than propagate a vault-wide
- * deletion to every device. The UI-facing `list()`/`listWithStats()`
- * stay lenient and serve the partial instead. */
+/** Thrown by `listAllPaths()` when the crawl could not READ the vault — a
+ * missing root or an unreadable subtree. Sync-facing on purpose: the 3-way
+ * reconcile reads "in base, absent from local" as a LOCAL DELETE, and a
+ * truncated crawl is indistinguishable from a mass deletion, so it must fail
+ * the pass rather than propagate one. The UI-facing `list()`/`listWithStats()`
+ * stay lenient and serve the partial instead.
+ *
+ * Individual files the crawl saw but could not read (a symlink, a cloud
+ * placeholder) are NOT this: the listing is whole, one path in it is not a
+ * file, and whether that can delete anything depends on the last-synced base
+ * this class knows nothing about. Those come back from `unaccountedPaths()`
+ * and the engine decides. */
 export class VaultListingIncompleteError extends Error {
-  constructor(root: string, unreadable: string | null) {
+  constructor(root: string, reason: string) {
     super(
-      `Vault listing incomplete — could not fully read ${root}` +
-        (unreadable === null ? "" : ` (first unreadable subtree: "${unreadable}")`) +
-        "; refusing to treat unread files as deleted. Check that the folder " +
+      `Vault listing incomplete — could not fully account for ${root} (${reason}); ` +
+        "refusing to treat unread files as deleted. Check that the folder " +
         "is present and readable, then retry.",
     );
     this.name = "VaultListingIncompleteError";
@@ -280,38 +307,72 @@ export class VaultManager {
     const snapshot = this.getSnapshot();
     const entries: VaultEntry[] = [];
     for (const e of snapshot.entries.values()) {
-      if (snapshot.ignored.has(e.path)) continue;
+      if (snapshot.hidden.has(e.path)) continue;
       entries.push({ path: e.path, name: e.name, kind: e.kind });
     }
     return entries;
   }
 
   /** Every file path ON DISK under the vault (same crawl as list(), minus the
-   * entry shaping) — including the ignore-matched ones list() withholds. A
-   * truncated manifest reads as deletions: the 3-way reconcile treats "was in
-   * base and remote, missing from local" as a local deletion and propagates it
-   * to the coordinator and every peer. That is exactly why this — and ONLY
-   * this, the sync-facing listing — THROWS on an incomplete crawl (missing
-   * root, unreadable subtree) instead of returning the partial; the engine
-   * surfaces the throw as a failed pass and retries later. It is also why the
-   * ignore files cannot filter here: adding `archive/` to .gitignore is a
-   * decluttered SIDEBAR, and must never be a vault-wide deletion. SKIP_DIRS,
-   * dot-entries and in-flight `*.tmp` siblings are the only exclusions.
+   * entry shaping) — including the hidden ones list() withholds. A truncated
+   * manifest reads as deletions: the 3-way reconcile treats "was in base and
+   * remote, missing from local" as a local deletion and propagates it to the
+   * coordinator and every peer. That is exactly why this — and ONLY this, the
+   * sync-facing listing — THROWS on a crawl that could not be READ instead of
+   * returning the partial; the engine surfaces the throw as a failed pass and
+   * retries later. It is also why neither the ignore files nor the dot-prefix
+   * rule can filter here: decluttering a SIDEBAR (or dragging a folder into
+   * `.archive/`) must never be a vault-wide deletion. The exclusions are
+   * exactly the shared manifest set (@repo/notes/sync/crawl-exclusions), which
+   * both platforms apply on every pass.
    * Nothing here stats, so a per-file stat hiccup cannot silently thin this
    * listing — only a failed readdir or a missing root can, and both are
-   * refused above. */
+   * refused above. Files the crawl saw but could not read are reported by
+   * `unaccountedPaths()` rather than refused here. */
   listAllPaths(): string[] {
     const snapshot = this.getSnapshot();
-    if (!snapshot.complete)
-      throw new VaultListingIncompleteError(snapshot.root, snapshot.unreadable);
+    if (!snapshot.complete) {
+      // The order is diagnostic: naming the subtree beats naming only the root,
+      // since an unreadable folder deep in the vault is the least guessable.
+      throw new VaultListingIncompleteError(
+        snapshot.root,
+        snapshot.unreadable === null
+          ? "the vault folder is missing"
+          : `first unreadable subtree: "${snapshot.unreadable}"`,
+      );
+    }
     return Array.from(snapshot.entries.keys());
+  }
+
+  /** The paths this crawl SAW but could not present as vault files: entries it
+   * refuses to read (a symlink reports as neither file nor directory) and the
+   * real names behind cloud placeholders (`.note.md.icloud` → `note.md`).
+   * Sorted, and served off the same TTL snapshot as `listAllPaths()`, so a sync
+   * pass asking both crawls once.
+   *
+   * Each is a file that may still exist on every other device, so leaving it
+   * out of the manifest can read as a local delete — but ONLY if it was ever
+   * synced, and this class does not know the last-synced base. So it reports
+   * instead of refusing: the engine intersects these with its base and fails
+   * the pass on a hit. A symlink that was never a note is a no-op, which is the
+   * common case — one link anywhere under the vault must not wedge sync
+   * forever. */
+  unaccountedPaths(): readonly string[] {
+    const snapshot = this.getSnapshot();
+    // A path the crawl DID account for is readable, whatever else sits beside
+    // it: a stale `.note.md.icloud` stub can outlive the download that cleared
+    // it, and reporting `note.md` then wedges every future pass with advice
+    // ("open it to download it") the user has already followed.
+    return [...snapshot.skipped, ...snapshot.placeholders]
+      .filter((path) => !snapshot.entries.has(path))
+      .toSorted();
   }
 
   /** The listing WITH stat identities on the DOCS — the knowledge reconcile's
    * diff basis. Freshness follows the snapshot TTL: external edits surface on
    * the next refresh trigger, exactly the ephemeral-liveness contract.
-   * Ignore-matched files are withheld exactly as in list(): derived knowledge
-   * indexes what the user chose to see, and only sync must track disk.
+   * Hidden files are withheld exactly as in list(): derived knowledge indexes
+   * what the user chose to see, and only sync must track disk.
    *
    * ASYNC because one stat per doc is the crawl's dominant syscall cost, and a
    * whole-vault sweep in one uninterruptible call is a multi-hundred-
@@ -335,7 +396,7 @@ export class VaultManager {
     const snapshot = this.getSnapshot();
     const entries: VaultListingEntry[] = [];
     for (const entry of snapshot.entries.values()) {
-      if (snapshot.ignored.has(entry.path)) continue;
+      if (snapshot.hidden.has(entry.path)) continue;
       if (entry.kind === "doc") {
         const identity = this.statOf(snapshot, entry.path);
         if (identity !== null) entries.push({ ...entry, kind: "doc", ...identity });
@@ -375,12 +436,16 @@ export class VaultManager {
     // completeness flag (listAllPaths throws; list serves the empty partial)
     // rather than silently reading as "every file was deleted".
     let complete = false;
-    let ignored: ReadonlySet<string> = new Set();
+    let hidden: ReadonlySet<string> = new Set();
+    let skipped: ReadonlySet<string> = new Set();
+    let placeholders: ReadonlySet<string> = new Set();
     let unreadable: string | null = null;
     if (fs.existsSync(root)) {
       const walked = this.walk(root);
       complete = walked.complete;
-      ignored = walked.ignored;
+      hidden = walked.hidden;
+      skipped = walked.skipped;
+      placeholders = walked.placeholders;
       unreadable = walked.unreadable;
       // Keyed AFTER the sort, so iteration order is the sorted order every
       // listing serves.
@@ -391,15 +456,20 @@ export class VaultManager {
       at: Date.now(),
       root,
       entries,
-      ignored,
+      hidden,
+      skipped,
+      placeholders,
       stats: new Map(),
       complete,
       unreadable,
     };
-    // Only COMPLETE crawls are cached: leniency may serve an incomplete
-    // partial once, but the next call re-crawls — so recovery is immediate
-    // and a cached failure can never satisfy a listAllPaths() retry after
-    // the transient error has cleared.
+    // Only crawls that READ everything are cached: leniency may serve an
+    // incomplete partial once, but the next call re-crawls — so recovery is
+    // immediate and a cached failure can never satisfy a listAllPaths() retry
+    // after the transient error has cleared. A crawl that read every directory
+    // and found a symlink or a cloud placeholder is cached normally: it saw the
+    // whole vault, and those entries are stable rather than transient — they
+    // are REPORTED (unaccountedPaths) rather than treated as a read failure.
     this.snapshot = complete ? snapshot : null;
     return snapshot;
   }
@@ -441,14 +511,17 @@ export class VaultManager {
     this.snapshot = null;
   }
 
-  // The recursive walk behind the snapshot: skips dot-entries, SKIP_DIRS and
-  // the sibling *.tmp files atomicWrite creates mid-save, and RECORDS (rather
-  // than skips) the ignore-matched paths so each consumer decides for itself.
-  // Returns entries in directory-read order (unsorted — the caller sorts),
-  // plus whether every directory read succeeded: a failed readdir still
-  // skips the subtree (list() stays lenient on the partial) but is RECORDED as
-  // incompleteness instead of hidden, so listAllPaths() can refuse to present
-  // the truncation as deletions.
+  // The recursive walk behind the snapshot: excludes only the shared manifest
+  // set (@repo/notes/sync/crawl-exclusions) and RECORDS everything else it
+  // cannot present as a plain readable file — the hidden paths (dot-prefixed or
+  // ignore-matched, a VIEW choice each consumer decides for itself), the
+  // entries it refuses to read (symlinks), and the cloud placeholders standing
+  // in for evicted files. Returns entries in directory-read order (unsorted —
+  // the caller sorts), plus whether every directory read succeeded: a failed
+  // readdir still skips the subtree (list() stays lenient on the partial) but
+  // is RECORDED as incompleteness instead of hidden, so listAllPaths() can
+  // refuse to present the truncation as deletions. The per-file cases are
+  // reported, not refused — see unaccountedPaths().
   //
   // Each entry's vault-relative path is carried DOWN as a prefix and extended
   // by concatenation. Deriving it per entry with path.join + path.relative
@@ -457,18 +530,23 @@ export class VaultManager {
   // filesystem.
   private walk(root: string): {
     entries: VaultWalkEntry[];
-    ignored: ReadonlySet<string>;
+    hidden: ReadonlySet<string>;
+    skipped: ReadonlySet<string>;
+    placeholders: ReadonlySet<string>;
     complete: boolean;
     unreadable: string | null;
   } {
     const out: VaultWalkEntry[] = [];
-    const ignored = new Set<string>();
+    const hidden = new Set<string>();
+    const skipped = new Set<string>();
+    const placeholders = new Set<string>();
     let complete = true;
     let unreadable: string | null = null;
     const ig = this.loadIgnore(root);
-    // `inherited` carries an ignored ancestor down: gitignore semantics make
+    // `inherited` carries a hidden ancestor down: gitignore semantics make
     // everything under an ignored directory ignored, and a re-include pattern
-    // cannot resurrect it.
+    // cannot resurrect it — and everything under a dot directory is equally
+    // out of the sidebar.
     const visit = (dir: string, prefix: string, inherited: boolean): void => {
       let dirents: fs.Dirent[];
       try {
@@ -484,28 +562,42 @@ export class VaultManager {
       }
       for (const dirent of dirents) {
         const name = dirent.name;
-        if (name.startsWith(".") || SKIP_DIRS.has(name)) continue;
+        if (isPrunedName(name)) continue;
         const rel = prefix + name;
         // `ignore` wants a trailing slash to match directory patterns.
         if (dirent.isDirectory()) {
-          // An ignored directory is DESCENDED anyway — the readdirs it costs
+          // A hidden directory is DESCENDED anyway — the readdirs it costs
           // buy the one thing the sync manifest cannot do without: its files
           // are on disk, so leaving them unwalked would present them to
           // reconcile as local deletions to fan out to every device.
           visit(
             childPath(dir, name),
             `${rel}/`,
-            inherited || (ig !== null && ig.ignores(`${rel}/`)),
+            inherited || name.startsWith(".") || (ig !== null && ig.ignores(`${rel}/`)),
           );
         } else if (dirent.isFile()) {
-          if (name.endsWith(".tmp")) continue;
-          if (inherited || (ig !== null && ig.ignores(rel))) ignored.add(rel);
+          // A placeholder stub is not a file to sync — it is the crawl saying
+          // the file it NAMES has been evicted from this disk. Record the real
+          // path (isExcludedFileName then keeps the stub out of the manifest,
+          // where it would otherwise upload as an empty file to every device).
+          const evicted = cloudPlaceholderTarget(name);
+          if (evicted !== null) placeholders.add(prefix + evicted);
+          if (isExcludedFileName(name)) continue;
+          if (inherited || name.startsWith(".") || (ig !== null && ig.ignores(rel)))
+            hidden.add(rel);
           out.push({ path: rel, name, kind: classify(name) });
+        } else {
+          // Neither file nor directory: a symlink (or a socket/fifo). The crawl
+          // deliberately never reads one — that is the confinement statOf
+          // relies on — but a regular file that BECOMES one has not left the
+          // disk, so it is recorded rather than dropped and reported through
+          // unaccountedPaths() instead of vanishing from the listing silently.
+          skipped.add(rel);
         }
       }
     };
     visit(root, "", false);
-    return { entries: out, ignored, complete, unreadable };
+    return { entries: out, hidden, skipped, placeholders, complete, unreadable };
   }
 
   // Parse the root ignore files (.gitignore / .ignore) into a matcher, or null
@@ -588,8 +680,8 @@ export class VaultManager {
    * stale — own writes always invalidate); a path ABSENT from the crawl
    * (a non-listing spelling, a file created since) falls through to a
    * resolve()-confined live stat, never to a false null. Crawl membership is
-   * `entries`, which holds the ignore-matched files too — so the paths sync
-   * lists are exactly the paths it can fingerprint off the memo. */
+   * `entries`, which holds the hidden files too — so the paths sync lists are
+   * exactly the paths it can fingerprint off the memo. */
   statFingerprint(rel: string): string | null {
     const cached = this.freshSnapshot(this.getRoot());
     if (cached !== null && cached.entries.has(rel)) {
