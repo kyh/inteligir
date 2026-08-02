@@ -4,6 +4,11 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  CRAWL_FIXTURE_FILES,
+  CRAWL_FIXTURE_MANIFEST,
+} from "@repo/notes/sync/testing/crawl-fixture";
+
+import {
   VaultListingIncompleteError,
   VaultManager,
   resumeVaultWrites,
@@ -160,7 +165,6 @@ describe("VaultManager", () => {
     fs.mkdirSync(path.join(root, ".git"), { recursive: true });
     fs.writeFileSync(path.join(root, ".git", "x"), "x");
     fs.writeFileSync(path.join(root, "foo.tmp"), "x");
-    fs.writeFileSync(path.join(root, ".dotfile"), "x");
 
     expect(mgr.list().length).toBe(TOTAL);
     expect(mgr.listAllPaths().length).toBe(TOTAL);
@@ -169,7 +173,6 @@ describe("VaultManager", () => {
     const all = mgr.listAllPaths();
     expect(all).not.toContain(".git/x");
     expect(all).not.toContain("foo.tmp");
-    expect(all).not.toContain(".dotfile");
   });
 
   // ---- Crawl completeness (the sync mass-deletion guard's Layer 1) ----------
@@ -275,14 +278,17 @@ describe("VaultManager", () => {
 
     const visible = mgr.list().map((e) => e.path);
     expect(visible).toEqual(["keep.md"]);
-    // The ignore files themselves are dot-prefixed, so already excluded.
+    // The ignore files themselves are dot-prefixed, so hidden from the view.
     expect(visible).not.toContain(".gitignore");
     // Derived knowledge indexes what the user sees, so it agrees with list().
     expect((await mgr.listWithStats()).map((e) => e.path)).toEqual(visible);
 
     // Sync sees every file that is actually on disk, still sorted — including
-    // the ones nested under an ignored DIRECTORY, which the crawl must descend.
-    expect(mgr.listAllPaths()).toEqual([
+    // the ones nested under an ignored DIRECTORY, which the crawl must descend,
+    // and the dot-prefixed ignore files themselves.
+    expect(mgr.listAllPaths().toSorted()).toEqual([
+      ".gitignore",
+      ".ignore",
       "build/nested/deep.md",
       "build/out.md",
       "keep.md",
@@ -306,7 +312,7 @@ describe("VaultManager", () => {
     fs.writeFileSync(path.join(root, ".gitignore"), "build/\n");
 
     expect(mgr.list().map((e) => e.path)).toEqual(["keep.md"]);
-    expect(mgr.listAllPaths()).toEqual(["keep.md"]);
+    expect(mgr.listAllPaths().toSorted()).toEqual([".gitignore", "keep.md"]);
   });
 
   // Completeness is unchanged by the ignore rules: an unreadable subtree is
@@ -327,9 +333,139 @@ describe("VaultManager", () => {
       } finally {
         fs.chmodSync(ignoredDir, 0o700);
       }
-      expect(mgr.listAllPaths()).toEqual(["build/out.md", "keep.md"]);
+      expect(mgr.listAllPaths().toSorted()).toEqual([".gitignore", "build/out.md", "keep.md"]);
     },
   );
+
+  // Dot-entries are a VIEW choice exactly like the ignore files. The file is
+  // still on disk, so dragging a folder into `.archive/` has to reconcile as a
+  // MOVE; pruning the subtree from the crawl fanned it out as permanent
+  // deletions to every device instead.
+  it("withholds dot-entries from list() but keeps them in listAllPaths()", async () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    mgr.writeText("keep.md", "x");
+    fs.writeFileSync(path.join(root, ".hidden.md"), "x");
+    fs.mkdirSync(path.join(root, ".archive", "nested"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".archive", "moved.md"), "x");
+    fs.writeFileSync(path.join(root, ".archive", "nested", "deep.md"), "x");
+
+    expect(mgr.list().map((e) => e.path)).toEqual(["keep.md"]);
+    expect((await mgr.listWithStats()).map((e) => e.path)).toEqual(["keep.md"]);
+    expect(mgr.listAllPaths().toSorted()).toEqual([
+      ".archive/moved.md",
+      ".archive/nested/deep.md",
+      ".hidden.md",
+      "keep.md",
+    ]);
+    // ...and every one of them can still be fingerprinted off the same crawl.
+    for (const rel of mgr.listAllPaths()) expect(mgr.statFingerprint(rel)).not.toBeNull();
+  });
+
+  // The deliberate exception to "hidden ≠ absent": the tool-owned trees are
+  // never the user's notes, and BOTH platforms exclude them on every pass — so
+  // nothing they contain can ever have entered the manifest to be deleted from
+  // it. OS metadata is excluded on the same terms (it rewrites itself on every
+  // browse, and nothing reads it back).
+  it("hard-prunes the shared skip set from both listings", () => {
+    const mgr = newManager();
+    mgr.writeText("keep.md", "x");
+    for (const rel of [
+      ".git/config",
+      "node_modules/pkg/index.js",
+      ".obsidian/workspace.json",
+      ".trash/old.md",
+      // A vault in or beside a dev repo: regenerable, machine-local, and big.
+      ".venv/lib/site.py",
+      ".next/cache/bundle.pack",
+      ".turbo/daemon/log",
+      ".vscode/settings.json",
+      // Volume metadata, on any external drive or share the vault might sit on.
+      ".Spotlight-V100/store.db",
+      ".fseventsd/000000000001",
+    ]) {
+      const target = path.join(root, rel);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, "x");
+    }
+    for (const name of [".DS_Store", "Thumbs.db", "desktop.ini", "._keep.md"]) {
+      fs.writeFileSync(path.join(root, name), "x");
+    }
+
+    expect(mgr.list().map((e) => e.path)).toEqual(["keep.md"]);
+    expect(mgr.listAllPaths()).toEqual(["keep.md"]);
+  });
+
+  // A cloud placeholder is not a new file: it is the crawl reporting that the
+  // real one has been evicted from THIS disk while still existing on every
+  // other device. The stub itself must never sync (it would land as an empty
+  // note everywhere), and the name it stands in for is reported so the engine
+  // — the only layer that knows the last-synced base — can decide whether the
+  // eviction hides something a pass would delete.
+  it("keeps a cloud placeholder out of the manifest and reports the file it hides", () => {
+    const mgr = newManager();
+    mgr.writeText("keep.md", "x");
+    fs.writeFileSync(path.join(root, ".evicted.md.icloud"), "");
+    fs.mkdirSync(path.join(root, "sub"), { recursive: true });
+    fs.writeFileSync(path.join(root, "sub", ".gone.md.icloud"), "");
+
+    // The crawl read every directory, so the listing is served, not refused.
+    expect(mgr.listAllPaths()).toEqual(["keep.md"]);
+    expect(mgr.unaccountedPaths()).toEqual(["evicted.md", "sub/gone.md"]);
+    // UI-facing: the stub is hidden like any other dot-entry.
+    expect(mgr.list().map((e) => e.path)).toEqual(["keep.md"]);
+
+    // Downloading the files accounts for the whole vault again.
+    fs.rmSync(path.join(root, ".evicted.md.icloud"));
+    fs.rmSync(path.join(root, "sub", ".gone.md.icloud"));
+    fs.writeFileSync(path.join(root, "evicted.md"), "x");
+    fs.writeFileSync(path.join(root, "sub", "gone.md"), "x");
+    mgr.refresh();
+    expect(mgr.listAllPaths()).toEqual(["evicted.md", "keep.md", "sub/gone.md"]);
+    expect(mgr.unaccountedPaths()).toEqual([]);
+  });
+
+  // A Dirent for a symlink reports neither isFile nor isDirectory, so the walk
+  // adds nothing for it — and NOT reading it is the confinement rule statOf
+  // relies on. What must not follow is treating it as absent from disk: a note
+  // that becomes a symlink (a git checkout, a selective-sync stub) is still
+  // there. It is REPORTED rather than refused, because a link that was never a
+  // synced note is harmless and refusing on it would wedge sync permanently.
+  it("reports a symlinked entry as unaccounted for, without ever reading it", () => {
+    const mgr = newManager();
+    mgr.writeText("keep.md", "x");
+    const real = fs.realpathSync(root);
+    fs.symlinkSync(path.join(real, "keep.md"), path.join(real, "linked.md"));
+
+    expect(mgr.listAllPaths()).toEqual(["keep.md"]);
+    expect(mgr.unaccountedPaths()).toEqual(["linked.md"]);
+    // The link is never listed, and the readable part of the vault still is.
+    expect(mgr.list().map((e) => e.path)).toEqual(["keep.md"]);
+
+    fs.unlinkSync(path.join(real, "linked.md"));
+    mgr.refresh();
+    expect(mgr.listAllPaths()).toEqual(["keep.md"]);
+    expect(mgr.unaccountedPaths()).toEqual([]);
+  });
+
+  // Desktop and mobile crawl the same vault, so a name only one of them lists
+  // is a deletion the other fans out on its next pass. Both walks answer from
+  // ONE exclusion set (@repo/notes/sync/crawl-exclusions) and both pin
+  // themselves against the SAME fixture — apps/mobile's sync-io test is the
+  // other half of this assertion.
+  it("classifies the shared crawl fixture exactly as mobile does", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    for (const rel of CRAWL_FIXTURE_FILES) {
+      const target = path.join(root, rel);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, "x");
+    }
+    expect(mgr.listAllPaths().toSorted()).toEqual(CRAWL_FIXTURE_MANIFEST);
+    // The fixture's placeholder stub is excluded like any other non-note, and
+    // the file it hides is reported for the engine to judge against its base.
+    expect(mgr.unaccountedPaths()).toEqual(["evicted.md"]);
+  });
 
   it("repoints the root and persists it across instances", () => {
     const mgr = newManager();
@@ -480,6 +616,16 @@ describe("VaultManager", () => {
     expect(afterExternal).toBeGreaterThan(afterSelfSave);
 
     mgr.stopWatching();
+  });
+  it("drops a stale placeholder when the real file is readable", () => {
+    const mgr = newManager();
+    mgr.writeText("note.md", "NOTE");
+    fs.writeFileSync(path.join(mgr.getRoot(), ".note.md.icloud"), "");
+
+    // The stub outlived the download that cleared it — reporting `note.md`
+    // unaccounted for would wedge every pass with advice already followed.
+    expect(mgr.listAllPaths()).toContain("note.md");
+    expect(mgr.unaccountedPaths()).not.toContain("note.md");
   });
 });
 

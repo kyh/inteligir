@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { VaultManifest } from "../manifest";
-import { createJsonFileBaseStore, type JsonFile } from "../base-store";
+import { createJsonFileBaseStore, type JsonFile, type StoredBase } from "../base-store";
 
 const HASH = "a".repeat(64);
-const MANIFEST: VaultManifest = {
+const MANIFEST: StoredBase = {
   vaultId: "vault-1",
+  vaultRoot: "/vaults/notes",
   files: [
     { path: "a.md", contentHash: HASH, version: 2, size: 5 },
     { path: "notes/b.md", contentHash: "b".repeat(64), version: 1, size: 9 },
@@ -55,6 +55,22 @@ describe("createJsonFileBaseStore", () => {
       }),
     );
     expect(createJsonFileBaseStore(backing.file).load()).toBeNull();
+  });
+
+  it("reads an anchor with no recorded root as vaultRoot null (the engine adopts rather than deletes)", () => {
+    const backing = fakeJsonFile();
+    backing.file.write(JSON.stringify({ vaultId: "vault-1", files: [] }));
+    expect(createJsonFileBaseStore(backing.file).load()).toEqual({
+      vaultId: "vault-1",
+      vaultRoot: null,
+      files: [],
+    });
+  });
+
+  it("reads a non-string vaultRoot as null rather than trusting it", () => {
+    const backing = fakeJsonFile();
+    backing.file.write(JSON.stringify({ vaultId: "vault-1", vaultRoot: 7, files: [] }));
+    expect(createJsonFileBaseStore(backing.file).load()?.vaultRoot).toBeNull();
   });
 
   it("returns null when required fields are missing", () => {

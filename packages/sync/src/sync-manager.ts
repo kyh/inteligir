@@ -72,17 +72,55 @@ export function nodeStamp(now: () => Date = () => new Date()): Clock {
 // node/electron directly and is unit-testable against a temp-dir vault.
 // ---------------------------------------------------------------------------
 
+/** The inode a vault-relative path currently resolves to, or null when it can't
+ * be stat'd. A zero inode counts as UNKNOWN: Windows filesystems that expose no
+ * file index report 0 for every file, and an all-zero identity would make every
+ * path look like every other one. */
+function inodeOf(root: string, rel: string): number | null {
+  try {
+    const ino = fs.statSync(path.join(root, rel)).ino;
+    return ino === 0 ? null : ino;
+  } catch {
+    return null;
+  }
+}
+
 /** Adapt the live `VaultManager` to the engine's `SyncIo` port. */
 export function createVaultSyncIo(vault: VaultManager): SyncIo {
+  // Inode → the vault path this port wrote it at. Two vault paths that differ
+  // only in case are ONE file on APFS/NTFS, so a delete can resolve to a file a
+  // pull just landed and destroy it — an absence the next pass would report as
+  // a deletion to every device. The engine's phase order is what prevents that;
+  // this is the second lock. Entries outlive the files that filled them (an
+  // inode gets reused), so a hit is only believed after re-stat'ing the path it
+  // names: refuse on a LIVE alias, never on a remembered one.
+  const writtenByInode = new Map<number, string>();
   return {
     list: () => vault.listAllPaths(),
+    // The crawl reports what it could not read as a file; the ENGINE decides
+    // whether that can delete anything, because only it holds the base anchor.
+    unaccounted: () => vault.unaccountedPaths(),
+    root: () => vault.getRoot(),
     read: (path) => vault.readBytes(path),
-    write: (path, content) => vault.writeBytes(path, content),
+    write: (path, content) => {
+      vault.writeBytes(path, content);
+      const ino = inodeOf(vault.getRoot(), path);
+      if (ino !== null) writtenByInode.set(ino, path);
+    },
     // Deliberately the PERMANENT delete, not trash(): a sync-applied remote
     // delete was user-initiated (and OS-trashed) on the originating device,
     // and this port is synchronous by the engine's contract. Conflicting
     // local edits are already preserved as sibling copies by reconcile.
     remove: (path) => {
+      const root = vault.getRoot();
+      const target = inodeOf(root, path);
+      const alias = target === null ? undefined : writtenByInode.get(target);
+      if (alias !== undefined && alias !== path && inodeOf(root, alias) === target) {
+        throw new Error(
+          `sync: refusing to delete ${path} — this filesystem resolves it to ${alias}, ` +
+            "which this sync wrote; deleting it would report the file as gone to every device",
+        );
+      }
       vault.delete(path);
     },
     // Stat-keyed change detection so a pass skips re-hashing unchanged files.

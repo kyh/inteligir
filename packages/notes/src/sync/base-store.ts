@@ -1,5 +1,6 @@
 import type { VaultManifest } from "./manifest";
 import { parseVaultManifest } from "./manifest";
+import { isRecord } from "./guards";
 
 // ---------------------------------------------------------------------------
 // BaseStore — persistence for the last-synced BASE manifest, the 3-way anchor
@@ -9,23 +10,35 @@ import { parseVaultManifest } from "./manifest";
 // engine treats that as an empty base.
 // ---------------------------------------------------------------------------
 
+/**
+ * The persisted anchor: a coordinator manifest snapshot PLUS the local vault
+ * root it was taken against. The root is part of the anchor's identity — point
+ * the app at a different folder and every path the old folder held is absent
+ * from the new one, which `reconcile` would read as a pile of local deletes and
+ * fan out to every device. `vaultRoot` is `null` when the anchor names no root:
+ * a platform whose vault cannot move (mobile), or a stored value the parser
+ * could not read — which an engine that DOES have a root must treat as a
+ * mismatch, never as a match.
+ */
+export type StoredBase = VaultManifest & { readonly vaultRoot: string | null };
+
 export interface BaseStore {
   /** The last-synced anchor, or `null` on first sync (no anchor yet). */
-  load(): VaultManifest | null;
+  load(): StoredBase | null;
   /** Persist the new anchor after a converged pass. */
-  save(manifest: VaultManifest): void;
+  save(base: StoredBase): void;
 }
 
 /** A process-memory `BaseStore` — the reference implementation + test double. */
 export class InMemoryBaseStore implements BaseStore {
-  private current: VaultManifest | null = null;
+  private current: StoredBase | null = null;
 
-  load(): VaultManifest | null {
+  load(): StoredBase | null {
     return this.current;
   }
 
-  save(manifest: VaultManifest): void {
-    this.current = manifest;
+  save(base: StoredBase): void {
+    this.current = base;
   }
 }
 
@@ -57,10 +70,20 @@ export function createJsonFileBaseStore(file: JsonFile): BaseStore {
       } catch {
         return null; // corrupt cache → re-sync from empty
       }
-      return parseVaultManifest(raw); // boundary validation, never throws
+      return parseStoredBase(raw); // boundary validation, never throws
     },
-    save: (manifest) => {
-      file.write(JSON.stringify(manifest));
+    save: (base) => {
+      file.write(JSON.stringify(base));
     },
   };
+}
+
+/** Decode a `StoredBase` from untrusted data, or null if the manifest part is
+ * malformed. A missing or non-string `vaultRoot` reads as `null` — "no root
+ * recorded", which the engine refuses to match against a live root. */
+function parseStoredBase(raw: unknown): StoredBase | null {
+  const manifest = parseVaultManifest(raw);
+  if (manifest === null) return null;
+  const vaultRoot = isRecord(raw) ? raw.vaultRoot : null;
+  return { ...manifest, vaultRoot: typeof vaultRoot === "string" ? vaultRoot : null };
 }

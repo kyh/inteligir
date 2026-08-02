@@ -25,7 +25,7 @@ import type { SyncOp } from "./plan";
 import type { SyncPort, Unsubscribe } from "./sync-port";
 import { ABSENT_VERSION, type Hash, type VaultFile, type VaultPath } from "./vault-file";
 import { conflictCopyName, reconcile } from "./reconcile";
-import type { BaseStore } from "./base-store";
+import type { BaseStore, StoredBase } from "./base-store";
 import type { BaseBlobStore } from "./blob-store";
 import { mergeLadder, type MergeBase } from "./merge/ladder";
 
@@ -41,6 +41,11 @@ import { mergeLadder, type MergeBase } from "./merge/ladder";
 export type SyncIo = {
   /** Vault-relative POSIX paths of every file (all kinds — assets sync too). */
   list(): readonly VaultPath[];
+  /** WHERE the local vault lives, as a stable resolved identity (the desktop's
+   * vault root path). Read fresh every pass, because the user can repoint the
+   * vault while an engine is live. OPTIONAL — a platform whose vault root
+   * cannot move omits it and the base anchor records no root. */
+  root?(): string;
   /** Raw bytes of a vault file. */
   read(path: VaultPath): Uint8Array;
   /** Atomically write raw bytes to a vault file (creating parent dirs). */
@@ -52,6 +57,15 @@ export type SyncIo = {
    * engine re-hashes every file instead. A stale fingerprint must
    * be impossible: the key must change whenever content can have changed. */
   fingerprint?(path: VaultPath): string | null;
+  /** Paths the local crawl SAW but could not present as files — a symlink
+   * where a note used to be, or a cloud placeholder standing in for evicted
+   * bytes (reported under the REAL name it stands in for, not the stub's).
+   * They are absent from `list()`, which reconcile would read as a local
+   * delete, yet the bytes are alive on every other device. The engine is the
+   * only layer that can tell the difference, because only it holds the
+   * last-synced base. OPTIONAL — a platform with no such concept omits it and
+   * every path it lists is a file it read. */
+  unaccounted?(): readonly VaultPath[];
 };
 
 /**
@@ -77,6 +91,50 @@ function isMarkdownPath(path: VaultPath): boolean {
 /** Per-side size cap for a ladder attempt — a pathological note falls back to
  * the conflict copy rather than stalling a pass on line-diffing megabytes. */
 const MAX_MERGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * The order a pass applies its ops in — `reconcile` sorts by path, which says
+ * nothing about safety. Stable within a phase, so path order still decides ties.
+ *
+ * LOCAL DELETES FIRST. A case-only rename on a peer (`note.md` → `Note.md`)
+ * arrives as a delete of the old spelling plus a pull of the new one, and on a
+ * case-insensitive filesystem those two paths are ONE file: run the delete
+ * second and it removes the bytes the pull just landed, leaving nothing — which
+ * the next pass reports to every device as a deletion. Path order cannot save
+ * it (which spelling sorts first is decided by the letters) and the mirror-image
+ * rename breaks the opposite phase, so the delete has to precede every write.
+ *
+ * REMOTE DELETES LAST, for the crash window rather than the filesystem: the
+ * push that carries the renamed file's bytes must land on the coordinator
+ * before the old path is dropped, or a pass that dies in between leaves the
+ * content on this device only, with every peer told to delete its copy.
+ */
+function applyPhase(op: SyncOp): number {
+  if (op.kind !== "delete") return 1;
+  return op.side === "local" ? 0 : 2;
+}
+
+/** How many offending paths an unaccounted-for refusal names before it counts
+ * the rest — enough to act on, short enough to read in a toast. */
+const MAX_NAMED_PATHS = 5;
+
+/** Why a pass refused, in terms the user can act on. The port answers with
+ * PATHS, not causes, so the message names the remedy for each shape a platform
+ * can report rather than guessing which one applies to a given path. */
+function unaccountedMessage(paths: readonly VaultPath[]): string {
+  const named = paths
+    .slice(0, MAX_NAMED_PATHS)
+    .map((path) => `"${path}"`)
+    .join(", ");
+  const rest = paths.length - MAX_NAMED_PATHS;
+  return (
+    `sync: ${paths.length} file(s) the last sync recorded are no longer readable as files here — ` +
+    `${rest > 0 ? `${named} and ${rest} more` : named}. If a file lives in the cloud but is not ` +
+    "on this device, open it to download it (or turn off Optimize Storage for that folder); if " +
+    "it is now a link, sync cannot represent one — put the real file back in its place. Pausing " +
+    "instead of reporting them deleted on every device."
+  );
+}
 
 /** Change-stream reconnect backoff: 1s, 2s, 4s … capped at 30s. */
 const RECONNECT_BASE_MS = 1_000;
@@ -277,8 +335,9 @@ export class SyncEngine {
 
   private async runOnce(): Promise<SyncOutcome> {
     try {
+      const vaultRoot = this.currentRoot();
       const local = await this.buildLocalManifest();
-      const base = this.loadBase();
+      const base = this.loadBase(vaultRoot);
       // MASS-DELETION GUARD: an empty local listing against a non-empty
       // last-synced base is treated as a failed/truncated vault read (root
       // unmounted, a crawl error), NEVER as the user having deleted every
@@ -304,6 +363,17 @@ export class SyncEngine {
             "file, add any file to the vault (or delete the files from another device) to resume.",
         };
       }
+      // UNACCOUNTED-FOR FILES: something stands where a file used to be that
+      // the crawl could not read as one. It is missing from `local`, which
+      // reconcile reads as a local delete — so refuse the pass for exactly the
+      // paths the LAST SYNC recorded, and only those. One the base never held
+      // was never pushed anywhere, so leaving it out of a manifest deletes
+      // nothing; refusing on it would let a single stray symlink under the
+      // vault wedge sync permanently, with no in-app remedy.
+      const unaccounted = this.unaccountedInBase(base);
+      if (unaccounted.length > 0) {
+        return { status: "error", message: unaccountedMessage(unaccounted) };
+      }
       const remote = await this.port.listManifest();
       if (remote.vaultId !== this.vaultId) {
         return {
@@ -323,12 +393,13 @@ export class SyncEngine {
 
       const counts = { pushed: 0, pulled: 0, deleted: 0, conflicts: 0, merged: 0 };
       const conflictPaths: VaultPath[] = [];
-      for (const op of plan.ops) {
+      for (const op of plan.ops.toSorted((a, b) => applyPhase(a) - applyPhase(b))) {
         await this.applyOp(op, converged, counts, conflictPaths);
       }
 
       this.saveBase({
         vaultId: this.vaultId,
+        vaultRoot,
         files: [...converged.values()].toSorted((a, b) => a.path.localeCompare(b.path)),
       });
       // Blob GC: the new base is the ONLY thing base bytes serve — drop every
@@ -590,17 +661,66 @@ export class SyncEngine {
     return { vaultId: this.vaultId, files };
   }
 
-  private loadBase(): VaultManifest {
+  /** The last-synced paths this pass's crawl could not account for — the
+   * intersection of the platform's unaccounted-for set with the base anchor.
+   * Empty on a platform that reports none. */
+  private unaccountedInBase(base: VaultManifest): VaultPath[] {
+    const unaccounted = this.io.unaccounted?.();
+    if (unaccounted === undefined || unaccounted.length === 0) return [];
+    const unreadable = new Set(unaccounted);
+    // Ancestor-aware: a crawl reports an unreadable DIRECTORY as one path, so a
+    // synced subtree replaced by a symlink to it ("notes" moved out and linked
+    // back) reports `notes` while the base holds `notes/a.md`. Exact membership
+    // sees no overlap and reconcile deletes the whole subtree — the failure this
+    // guard exists to stop. Walking prefixes costs O(depth) per file, and an
+    // unreadable FILE still only ever matches itself.
+    return base.files
+      .filter((file) => {
+        if (unreadable.has(file.path)) return true;
+        let cut = file.path.lastIndexOf("/");
+        while (cut > 0) {
+          if (unreadable.has(file.path.slice(0, cut))) return true;
+          cut = file.path.lastIndexOf("/", cut - 1);
+        }
+        return false;
+      })
+      .map((file) => file.path);
+  }
+
+  /** Where the local vault lives right now, or null on a platform whose vault
+   * cannot move. Read per pass — the user can repoint the vault under a live
+   * engine. */
+  private currentRoot(): string | null {
+    return this.io.root?.() ?? null;
+  }
+
+  private loadBase(vaultRoot: string | null): VaultManifest {
     const stored = this.base.load();
     // The per-vault base store already isolates anchors, but guard the id too so
     // a reused store can never seed a foreign vault's base. `null` (first sync)
     // and a mismatch both start from empty.
     if (stored === null || stored.vaultId !== this.vaultId) return this.emptyManifest();
+    // Same guard one field wider: an anchor describes the FOLDER it was taken
+    // against. Repoint the vault and the new folder holds none of the old
+    // folder's paths — against the old anchor that reads as a deletion of every
+    // one of them, fanned out to the coordinator and every device. An empty base
+    // instead ADOPTS the new folder (everything pushes, nothing deletes), the
+    // same semantics a first sign-in gets.
+    //
+    // Only a root that is RECORDED and DIFFERS is a repoint. An anchor written
+    // before this field existed has none, and it is already scoped by vaultId to
+    // a per-vaultId file this install wrote — reading that as a mismatch would
+    // discard the anchor on the first pass after upgrade for every existing
+    // install, which is the whole-vault re-push this guard exists to prevent.
+    // The live root is stamped on the next save.
+    if (vaultRoot !== null && stored.vaultRoot !== null && stored.vaultRoot !== vaultRoot) {
+      return this.emptyManifest();
+    }
     return stored;
   }
 
-  private saveBase(manifest: VaultManifest): void {
-    this.base.save(manifest);
+  private saveBase(base: StoredBase): void {
+    this.base.save(base);
   }
 
   private emptyManifest(): VaultManifest {

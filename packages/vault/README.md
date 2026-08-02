@@ -42,11 +42,20 @@ Sole export: `@repo/vault/vault`.
   resulting watch event on the full `mtimeMs:size:ino` fingerprint so an
   mtime-colliding external edit still surfaces. Restore and sync-pull don't
   record — their writes reload the editor.
-- **Incomplete crawl ≠ deletions.** `listAllPaths()` — the sync
-  manifest source — THROWS `VaultListingIncompleteError` on a partial crawl
-  (missing root, unreadable subtree): reconcile reads "in base, absent
-  locally" as a local delete. `list()`/`listWithStats()` stay lenient;
-  incomplete snapshots are never cached, so recovery is immediate.
+- **A crawl that could not be READ ≠ deletions.** `listAllPaths()` — the sync
+  manifest source — THROWS `VaultListingIncompleteError` on a missing root or
+  an unreadable subtree: reconcile reads "in base, absent locally" as a local
+  delete, and a truncated crawl is indistinguishable from a mass deletion.
+  `list()`/`listWithStats()` stay lenient; failed-read snapshots are never
+  cached, so recovery is immediate.
+- **Unreadable single files are REPORTED, not refused.** An entry the crawl may
+  not read (a symlink reports as neither file nor directory) and a cloud
+  placeholder (`.note.md.icloud`, reported as the `note.md` it hides) come back
+  from `unaccountedPaths()`, sorted, off the same snapshot. Whether one can
+  delete anything depends on the last-synced base, which this package does not
+  hold: the engine intersects them with its base and fails the pass only on a
+  hit. Refusing here instead would let one symlink anywhere under the vault
+  wedge sync forever, with no in-app remedy.
 - **Delete = OS trash** (CLAUDE.md § Decisions). User deletes go through
   `trash()` (injected `HostPlatform.trashItem`; permanent fallback where the
   OS has none); `delete()` is permanent, SYNC-only — origin already trashed.
@@ -59,16 +68,22 @@ Sole export: `@repo/vault/vault`.
   `~/.inteligir` — wiped on logout. Between logout and re-login, writes throw
   (`suspendVaultWrites`) so a dirty autosave can't rebuild a default-root
   vault; reads stay allowed.
-- **Discovery ≠ access.** `SKIP_DIRS` (.git, node_modules, .obsidian, .trash)
-  and dot-entries prune the crawl outright — they are absent from every
-  listing, the manifest included.
-- **Ignore files filter the VIEW, not the manifest.** Files matched by the
-  root `.gitignore`/`.ignore` are withheld from `list()`/`listWithStats()`,
-  but the crawl descends ignored directories and `listAllPaths()` returns
-  every file on disk; an ignored file the user explicitly opens still
+- **The manifest exclusions are ONE shared fact.** The tool- and OS-owned trees
+  (version control, `node_modules` and the build/dependency caches, editor
+  state, volume metadata), atomicWrite's in-flight `*.tmp` siblings, `.DS_Store`
+  and friends, and iCloud placeholder stubs live in
+  `@repo/notes/sync/crawl-exclusions`, which both this crawl and mobile's walk
+  answer from. A name only one platform lists is pushed by that platform and
+  read by the other as a local delete, so this set may only hold names NEITHER
+  platform can produce as a note, excluded on EVERY pass — and adding to it is
+  a permanent deletion for any platform that did not already exclude the name.
+- **Hiding filters the VIEW, not the manifest.** Files matched by the root
+  `.gitignore`/`.ignore` AND dot-prefixed files/directories are withheld from
+  `list()`/`listWithStats()`, but the crawl descends both and `listAllPaths()`
+  returns every file on disk; a hidden file the user explicitly opens still
   reads/writes fine. Absence from the manifest is a DELETE to reconcile, so
-  decluttering the sidebar must never fan a permanent deletion out to every
-  device.
+  neither decluttering the sidebar nor dragging a folder into `.archive/` may
+  fan a permanent deletion out to every device.
 - **Rename is clobber-proof and case-aware.** Occupancy is case/NFC-
   insensitive over the real dir listing, decided by inode so a case-only
   self-rename passes through to one atomic `renameSync`.
@@ -91,8 +106,11 @@ All bound by the composition root, `packages/server/src/boot/create-host.ts`:
 pnpm --filter @repo/vault test
 ```
 
-`vault.test.ts` (30 tests) pins confinement (traversal + symlink escapes),
-snapshot TTL/invalidation, the incomplete-listing refusal, rename
-occupancy, trash-vs-delete, the write-suspension gate, and real open-note
-watch events against a temp dir; `classify-file-change.test.ts` enumerates
-the verdict function + `SelfSaveRegistry` TTL/fingerprint semantics.
+`vault.test.ts` pins confinement (traversal + symlink escapes), snapshot
+TTL/invalidation, the listing refusals (missing root, unreadable subtree), the
+unaccounted-for reports (symlink, cloud placeholder) that replace a refusal,
+the view/manifest split for hidden and ignore-matched paths, the shared crawl
+fixture both platforms classify identically, rename occupancy, trash-vs-delete,
+the write-suspension gate, and real open-note watch events against a temp dir;
+`classify-file-change.test.ts` enumerates the verdict function +
+`SelfSaveRegistry` TTL/fingerprint semantics.

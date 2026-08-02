@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CRAWL_FIXTURE_FILES,
+  CRAWL_FIXTURE_MANIFEST,
+} from "@repo/notes/sync/testing/crawl-fixture";
+
+import {
   createSyncIo,
   VaultListingIncompleteError,
   VaultRootMissingError,
@@ -24,6 +29,18 @@ describe("createSyncIo", () => {
 
   it("returns an empty list for an empty vault", () => {
     expect(createSyncIo(memVaultFs().fs).list()).toEqual([]);
+  });
+
+  // Desktop and mobile crawl the same vault, so a name only one of them lists
+  // is a deletion the other fans out on its next pass: it arrives, lands in
+  // base, then reads as "in base, absent from local". Both walks answer from
+  // ONE exclusion set (@repo/notes/sync/crawl-exclusions) and both pin
+  // themselves against the SAME fixture — packages/vault's crawl test is the
+  // other half of this assertion.
+  it("classifies the shared crawl fixture exactly as desktop does", () => {
+    const vault = memVaultFs();
+    for (const rel of CRAWL_FIXTURE_FILES) vault.writeText(rel, "x");
+    expect(createSyncIo(vault.fs).list().toSorted()).toEqual(CRAWL_FIXTURE_MANIFEST);
   });
 
   it("reads and writes bytes through the port", () => {
