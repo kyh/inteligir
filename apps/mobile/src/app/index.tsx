@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -19,10 +20,11 @@ import { authClient, clearBearerToken } from "@/lib/auth";
 import { appendCapture } from "@/lib/capture/daily-capture";
 import { createVaultCaptureIo } from "@/lib/capture/capture-io";
 import { useHostStatus } from "@/lib/host/connection";
-import { hostStatusDotClass } from "@/lib/host/status-display";
+import { hostStatusDotColor } from "@/lib/host/status-display";
 import { scheduleSync, syncOnce, useSyncStatus } from "@/lib/sync/manager";
 import { useRealtimeSync } from "@/lib/sync/realtime-manager";
 import { listVaultFiles } from "@/lib/sync/vault-access";
+import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
 // ---------------------------------------------------------------------------
 // The home surface. Gates on the Better Auth session: signed out → email/password
@@ -30,11 +32,12 @@ import { listVaultFiles } from "@/lib/sync/vault-access";
 // ---------------------------------------------------------------------------
 
 export default function Index() {
+  const theme = useTheme();
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) {
     return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-background">
+      <SafeAreaView style={[styles.centeredScreen, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ title: "inteligir" }} />
         <ActivityIndicator />
       </SafeAreaView>
@@ -52,6 +55,7 @@ function nameFromEmail(email: string): string {
 }
 
 function SignInScreen() {
+  const theme = useTheme();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,27 +76,30 @@ function SignInScreen() {
   const disabled = submitting || email === "" || password === "";
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ title: "inteligir" }} />
       <KeyboardAvoidingView
-        className="flex-1"
+        style={styles.screen}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View className="flex-1 justify-center gap-5 px-6">
-          <View className="gap-1">
-            <Text className="text-3xl font-bold text-foreground">inteligir</Text>
-            <Text className="text-base text-muted-foreground">
+        <View style={styles.signInBody}>
+          <View style={styles.signInHeader}>
+            <Text style={[styles.title, { color: theme.foreground }]}>inteligir</Text>
+            <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>
               {mode === "signup"
                 ? "Create an account to sync your vault."
                 : "Sign in to sync your vault."}
             </Text>
           </View>
 
-          <View className="gap-3">
+          <View style={styles.fields}>
             <TextInput
-              className="rounded-lg border border-input bg-card px-4 py-3 text-base text-foreground"
+              style={[
+                styles.input,
+                { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+              ]}
               placeholder="Email"
-              placeholderTextColor="#737373"
+              placeholderTextColor={theme.mutedForeground}
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
@@ -100,9 +107,12 @@ function SignInScreen() {
               onChangeText={setEmail}
             />
             <TextInput
-              className="rounded-lg border border-input bg-card px-4 py-3 text-base text-foreground"
+              style={[
+                styles.input,
+                { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+              ]}
               placeholder="Password"
-              placeholderTextColor="#737373"
+              placeholderTextColor={theme.mutedForeground}
               autoCapitalize="none"
               secureTextEntry
               value={password}
@@ -110,30 +120,37 @@ function SignInScreen() {
             />
           </View>
 
-          {error !== null ? <Text className="text-sm text-destructive">{error}</Text> : null}
+          {error !== null ? (
+            <Text style={[styles.smallText, { color: theme.destructive }]}>{error}</Text>
+          ) : null}
 
           <Pressable
-            className="items-center rounded-lg bg-primary py-3 active:opacity-80 disabled:opacity-50"
+            style={({ pressed }) => [
+              styles.submitButton,
+              { backgroundColor: theme.primary },
+              pressed && styles.pressed80,
+              disabled && styles.disabled,
+            ]}
             disabled={disabled}
             onPress={() => void submit()}
           >
             {submitting ? (
-              <ActivityIndicator color="#fafafa" />
+              <ActivityIndicator color={theme.primaryForeground} />
             ) : (
-              <Text className="text-base font-semibold text-primary-foreground">
+              <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>
                 {mode === "signup" ? "Create account" : "Sign in"}
               </Text>
             )}
           </Pressable>
 
           <Pressable
-            className="items-center py-1"
+            style={styles.textButton}
             onPress={() => {
               setError(null);
               setMode(mode === "signup" ? "signin" : "signup");
             }}
           >
-            <Text className="text-sm text-muted-foreground">
+            <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
               {mode === "signup" ? "Have an account? Sign in" : "No account? Sign up"}
             </Text>
           </Pressable>
@@ -151,12 +168,12 @@ function HostNavRow() {
   const router = useRouter();
   const { status } = useHostStatus();
   return (
-    <View className="flex-row gap-2 px-4 pt-3">
+    <View style={styles.navRow}>
       <NavPill label="Chat" onPress={() => router.push("/chat")} />
       <NavPill label="Delegations" onPress={() => router.push("/delegations")} />
       <NavPill
         label="Connect"
-        dotClass={hostStatusDotClass(status)}
+        dotColor={hostStatusDotColor(status)}
         onPress={() => router.push("/connect")}
       />
     </View>
@@ -165,20 +182,27 @@ function HostNavRow() {
 
 function NavPill({
   label,
-  dotClass,
+  dotColor,
   onPress,
 }: {
   label: string;
-  dotClass?: string;
+  dotColor?: string;
   onPress: () => void;
 }) {
+  const theme = useTheme();
   return (
     <Pressable
-      className="flex-row items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 active:opacity-70"
+      style={({ pressed }) => [
+        styles.navPill,
+        { borderColor: theme.border, backgroundColor: theme.card },
+        pressed && styles.pressed70,
+      ]}
       onPress={onPress}
     >
-      {dotClass !== undefined ? <View className={`h-2 w-2 rounded-full ${dotClass}`} /> : null}
-      <Text className="text-sm font-medium text-card-foreground">{label}</Text>
+      {dotColor !== undefined ? (
+        <View style={[styles.statusDot, { backgroundColor: dotColor }]} />
+      ) : null}
+      <Text style={[styles.navPillLabel, { color: theme.cardForeground }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -192,6 +216,7 @@ function NavPill({
 // concurrent desktop appends to the same journal merge via the engine's
 // append-union rung.
 function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
+  const theme = useTheme();
   const [text, setText] = useState("");
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -221,35 +246,51 @@ function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
   const disabled = text.trim() === "";
 
   return (
-    <View className="gap-2 px-4 pt-3">
+    <View style={styles.captureBox}>
       <TextInput
-        className="rounded-lg border border-input bg-card px-4 py-3 text-base text-foreground"
+        style={[
+          styles.input,
+          { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+        ]}
         placeholder="Capture to today’s note…"
-        placeholderTextColor="#737373"
+        placeholderTextColor={theme.mutedForeground}
         value={text}
         onChangeText={setText}
         returnKeyType="done"
         submitBehavior="blurAndSubmit"
         onSubmitEditing={() => capture("append")}
       />
-      <View className="flex-row items-center gap-2">
+      <View style={styles.captureActions}>
         <Pressable
-          className="flex-1 items-center rounded-lg bg-primary py-2.5 active:opacity-80 disabled:opacity-50"
+          style={({ pressed }) => [
+            styles.captureButton,
+            { backgroundColor: theme.primary },
+            pressed && styles.pressed80,
+            disabled && styles.disabled,
+          ]}
           disabled={disabled}
           onPress={() => capture("append")}
         >
-          <Text className="text-sm font-semibold text-primary-foreground">Note it</Text>
+          <Text style={[styles.captureButtonLabel, { color: theme.primaryForeground }]}>
+            Note it
+          </Text>
         </Pressable>
         <Pressable
-          className="flex-1 items-center rounded-lg border border-border bg-card py-2.5 active:opacity-70 disabled:opacity-50"
+          style={({ pressed }) => [
+            styles.captureButton,
+            styles.outlineButton,
+            { borderColor: theme.border, backgroundColor: theme.card },
+            pressed && styles.pressed70,
+            disabled && styles.disabled,
+          ]}
           disabled={disabled}
           onPress={() => capture("task")}
         >
-          <Text className="text-sm font-semibold text-card-foreground">Task it</Text>
+          <Text style={[styles.captureButtonLabel, { color: theme.cardForeground }]}>Task it</Text>
         </Pressable>
       </View>
       {confirmation !== null ? (
-        <Text className="text-xs text-muted-foreground">{confirmation}</Text>
+        <Text style={[styles.captionText, { color: theme.mutedForeground }]}>{confirmation}</Text>
       ) : null}
     </View>
   );
@@ -271,6 +312,7 @@ function describeStatus(status: SyncStatus): string {
 }
 
 function VaultScreen() {
+  const theme = useTheme();
   const router = useRouter();
   const status = useSyncStatus();
   const [files, setFiles] = useState(listVaultFiles);
@@ -304,41 +346,58 @@ function VaultScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top", "left", "right"]}>
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: theme.background }]}
+      edges={["top", "left", "right"]}
+    >
       <Stack.Screen options={{ title: "Vault" }} />
       <HostNavRow />
       <CaptureBox onCaptured={reload} />
-      <View className="flex-row items-center justify-between px-4 py-3">
-        <Text className="flex-1 pr-3 text-sm text-muted-foreground">{describeStatus(status)}</Text>
+      <View style={styles.syncRow}>
+        <Text style={[styles.syncStatus, { color: theme.mutedForeground }]}>
+          {describeStatus(status)}
+        </Text>
         <Pressable
-          className="rounded-lg bg-primary px-4 py-2 active:opacity-80"
+          style={({ pressed }) => [
+            styles.syncButton,
+            { backgroundColor: theme.primary },
+            pressed && styles.pressed80,
+          ]}
           disabled={refreshing}
           onPress={() => void runSync()}
         >
-          <Text className="text-sm font-semibold text-primary-foreground">
+          <Text style={[styles.captureButtonLabel, { color: theme.primaryForeground }]}>
             {refreshing ? "Syncing…" : "Sync"}
           </Text>
         </Pressable>
       </View>
 
       <ScrollView
-        className="flex-1"
-        contentContainerClassName="px-4 pb-8"
+        style={styles.screen}
+        contentContainerStyle={styles.fileList}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void runSync()} />}
       >
         {files.length === 0 ? (
-          <View className="items-center gap-2 py-24">
-            <Text className="text-base text-muted-foreground">No notes on this device yet.</Text>
-            <Text className="text-sm text-muted-foreground">Pull to refresh or tap Sync.</Text>
+          <View style={styles.emptyState}>
+            <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>
+              No notes on this device yet.
+            </Text>
+            <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
+              Pull to refresh or tap Sync.
+            </Text>
           </View>
         ) : (
           files.map((path) => (
             <Pressable
               key={path}
-              className="mb-2 rounded-lg border border-border bg-card px-4 py-3 active:opacity-70"
+              style={({ pressed }) => [
+                styles.fileRow,
+                { borderColor: theme.border, backgroundColor: theme.card },
+                pressed && styles.pressed70,
+              ]}
               onPress={() => router.push({ pathname: "/note/[path]", params: { path } })}
             >
-              <Text className="text-base text-card-foreground" numberOfLines={1}>
+              <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
                 {path}
               </Text>
             </Pressable>
@@ -346,11 +405,106 @@ function VaultScreen() {
         )}
       </ScrollView>
 
-      <View className="border-t border-border px-4 py-3">
-        <Pressable className="items-center py-1" onPress={() => void signOut()}>
-          <Text className="text-sm text-muted-foreground">Sign out</Text>
+      <View style={[styles.footer, { borderTopColor: theme.border }]}>
+        <Pressable style={styles.textButton} onPress={() => void signOut()}>
+          <Text style={[styles.smallText, { color: theme.mutedForeground }]}>Sign out</Text>
         </Pressable>
       </View>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  centeredScreen: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  signInBody: {
+    flex: 1,
+    justifyContent: "center",
+    gap: SPACE.xl,
+    paddingHorizontal: SPACE.xxl,
+  },
+  signInHeader: { gap: SPACE.xs },
+  fields: { gap: SPACE.md },
+  input: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+    fontSize: 16,
+  },
+  submitButton: {
+    alignItems: "center",
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACE.md,
+  },
+  textButton: { alignItems: "center", paddingVertical: SPACE.xs },
+
+  navRow: {
+    flexDirection: "row",
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.lg,
+    paddingTop: SPACE.md,
+  },
+  navPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: 6,
+  },
+  navPillLabel: { fontSize: 14, fontWeight: "500" },
+  statusDot: { height: 8, width: 8, borderRadius: RADIUS.full },
+
+  captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
+  captureActions: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
+  captureButton: {
+    flex: 1,
+    alignItems: "center",
+    borderRadius: RADIUS.md,
+    paddingVertical: 10,
+  },
+  outlineButton: { borderWidth: 1 },
+  captureButtonLabel: { fontSize: 14, fontWeight: "600" },
+
+  syncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  syncStatus: { flex: 1, paddingRight: SPACE.md, fontSize: 14 },
+  syncButton: {
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.sm,
+  },
+
+  fileList: { paddingHorizontal: SPACE.lg, paddingBottom: 32 },
+  emptyState: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
+  fileRow: {
+    marginBottom: SPACE.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  footer: {
+    borderTopWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+
+  title: { fontSize: 30, fontWeight: "700" },
+  bodyText: { fontSize: 16 },
+  smallText: { fontSize: 14 },
+  captionText: { fontSize: 12 },
+  buttonLabel: { fontSize: 16, fontWeight: "600" },
+
+  pressed70: { opacity: 0.7 },
+  pressed80: { opacity: 0.8 },
+  disabled: { opacity: 0.5 },
+});

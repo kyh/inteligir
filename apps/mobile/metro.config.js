@@ -1,6 +1,5 @@
 // Learn more: https://docs.expo.dev/guides/monorepos/
 const { getDefaultConfig } = require("expo/metro-config");
-const { withNativewind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
@@ -30,4 +29,4 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 // no build script, so turbo never touches it).
 
 /** @type {import('expo/metro-config').MetroConfig} */
-module.exports = withNativewind(config);
+module.exports = config;

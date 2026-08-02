@@ -1,12 +1,13 @@
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { Delegation, ListDelegationsResult } from "@repo/bridge/delegation";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
 import { DOT_BUSY, DOT_ERROR, DOT_IDLE, DOT_OK, hostStatusLabel } from "@/lib/host/status-display";
 import { useHostChannel } from "@/lib/host/use-host-channel";
+import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
 // ---------------------------------------------------------------------------
 // The desktop's delegation queue, live over the ws bridge: list on mount /
@@ -17,6 +18,7 @@ import { useHostChannel } from "@/lib/host/use-host-channel";
 
 export default function DelegationsScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const { status } = useHostStatus();
   const [delegations, setDelegations] = useState<readonly Delegation[] | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -74,35 +76,44 @@ export default function DelegationsScreen() {
   const connected = status === "connected";
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: theme.background }]}
+      edges={["left", "right", "bottom"]}
+    >
       <Stack.Screen options={{ title: "Delegations" }} />
 
       {!connected ? (
-        <View className="flex-1 items-center justify-center gap-3 px-6">
-          <Text className="text-center text-base text-muted-foreground">
+        <View style={styles.disconnected}>
+          <Text style={[styles.disconnectedText, { color: theme.mutedForeground }]}>
             {status === "none"
               ? "Pair with your desktop to see its delegations."
               : `${hostStatusLabel(status)} — delegations live on the paired desktop.`}
           </Text>
           <Pressable
-            className="rounded-lg border border-border bg-card px-4 py-2 active:opacity-70"
+            style={({ pressed }) => [
+              styles.connectButton,
+              { borderColor: theme.border, backgroundColor: theme.card },
+              pressed && { opacity: 0.7 },
+            ]}
             onPress={() => router.push("/connect")}
           >
-            <Text className="text-sm font-semibold text-foreground">Open Connect</Text>
+            <Text style={[styles.buttonLabel, { color: theme.foreground }]}>Open Connect</Text>
           </Pressable>
         </View>
       ) : (
-        <ScrollView className="flex-1" contentContainerClassName="px-4 py-4">
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
           {actionError !== null ? (
-            <Text className="mb-3 text-sm text-destructive">{actionError}</Text>
+            <Text style={[styles.actionError, { color: theme.destructive }]}>{actionError}</Text>
           ) : null}
 
           {delegations === null ? (
-            <Text className="py-24 text-center text-sm text-muted-foreground">Loading…</Text>
+            <Text style={[styles.placeholder, { color: theme.mutedForeground }]}>Loading…</Text>
           ) : delegations.length === 0 ? (
-            <View className="items-center gap-2 py-24">
-              <Text className="text-base text-muted-foreground">No delegations yet.</Text>
-              <Text className="px-6 text-center text-sm text-muted-foreground">
+            <View style={styles.empty}>
+              <Text style={[styles.emptyTitle, { color: theme.mutedForeground }]}>
+                No delegations yet.
+              </Text>
+              <Text style={[styles.emptyHint, { color: theme.mutedForeground }]}>
                 Highlight a checkbox on your desktop and choose Delegate.
               </Text>
             </View>
@@ -137,50 +148,59 @@ function DelegationCard({
   onCancel: (id: string) => Promise<void>;
   onRestore: (delegation: Delegation) => void;
 }) {
+  const theme = useTheme();
   const task = delegation.anchor.text !== "" ? delegation.anchor.text : delegation.lineText;
   return (
-    <View className="mb-2 rounded-lg border border-border bg-card px-4 py-3">
-      <View className="flex-row items-start justify-between gap-3">
-        <Text className="flex-1 text-base text-card-foreground" numberOfLines={2}>
+    <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }]}>
+      <View style={styles.cardHeader}>
+        <Text style={[styles.task, { color: theme.cardForeground }]} numberOfLines={2}>
           {task}
         </Text>
         <StatusBadge status={delegation.status} />
       </View>
 
-      <Text className="mt-1 text-xs text-muted-foreground" numberOfLines={1}>
+      <Text style={[styles.meta, { color: theme.mutedForeground }]} numberOfLines={1}>
         {delegation.sourceFile} · {relativeTime(delegation.createdAt)}
       </Text>
 
       {delegation.status === "done" && delegation.resultSummary !== null ? (
-        <Text className="mt-2 text-sm text-muted-foreground" numberOfLines={3}>
+        <Text style={[styles.detail, { color: theme.mutedForeground }]} numberOfLines={3}>
           {delegation.resultSummary}
         </Text>
       ) : null}
       {delegation.status === "failed" && delegation.error !== null ? (
-        <Text className="mt-2 text-sm text-destructive" numberOfLines={3}>
+        <Text style={[styles.detail, { color: theme.destructive }]} numberOfLines={3}>
           {delegation.error}
         </Text>
       ) : null}
       {delegation.restoredAt !== null ? (
-        <Text className="mt-2 text-xs text-muted-foreground">
+        <Text style={[styles.restored, { color: theme.mutedForeground }]}>
           Original restored {relativeTime(delegation.restoredAt)}
         </Text>
       ) : null}
 
       {delegation.status === "running" ? (
         <Pressable
-          className="mt-3 self-start rounded-lg border border-border px-3 py-1.5 active:opacity-70"
+          style={({ pressed }) => [
+            styles.cardButton,
+            { borderColor: theme.border },
+            pressed && { opacity: 0.7 },
+          ]}
           onPress={() => void onCancel(delegation.id)}
         >
-          <Text className="text-sm font-semibold text-foreground">Cancel</Text>
+          <Text style={[styles.buttonLabel, { color: theme.foreground }]}>Cancel</Text>
         </Pressable>
       ) : null}
       {delegation.status === "done" && delegation.hasSnapshot ? (
         <Pressable
-          className="mt-3 self-start rounded-lg border border-border px-3 py-1.5 active:opacity-70"
+          style={({ pressed }) => [
+            styles.cardButton,
+            { borderColor: theme.border },
+            pressed && { opacity: 0.7 },
+          ]}
           onPress={() => onRestore(delegation)}
         >
-          <Text className="text-sm font-semibold text-foreground">Restore original</Text>
+          <Text style={[styles.buttonLabel, { color: theme.foreground }]}>Restore original</Text>
         </Pressable>
       ) : null}
     </View>
@@ -195,11 +215,12 @@ const BADGES: Record<Delegation["status"], { label: string; dot: string }> = {
 };
 
 function StatusBadge({ status }: { status: Delegation["status"] }) {
+  const theme = useTheme();
   const badge = BADGES[status];
   return (
-    <View className="flex-row items-center gap-1.5 rounded-full bg-muted px-2.5 py-1">
-      <View className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
-      <Text className="text-xs font-medium text-muted-foreground">{badge.label}</Text>
+    <View style={[styles.badge, { backgroundColor: theme.muted }]}>
+      <View style={[styles.badgeDot, { backgroundColor: badge.dot }]} />
+      <Text style={[styles.badgeLabel, { color: theme.mutedForeground }]}>{badge.label}</Text>
     </View>
   );
 }
@@ -213,3 +234,64 @@ function relativeTime(timestamp: number): string {
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  disconnected: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACE.md,
+    paddingHorizontal: SPACE.xxl,
+  },
+  disconnectedText: { fontSize: 16, textAlign: "center" },
+  connectButton: {
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.sm,
+  },
+  buttonLabel: { fontSize: 14, fontWeight: "600" },
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.lg },
+  actionError: { marginBottom: SPACE.md, fontSize: 14 },
+  placeholder: { paddingVertical: 96, fontSize: 14, textAlign: "center" },
+  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
+  emptyTitle: { fontSize: 16 },
+  emptyHint: { paddingHorizontal: SPACE.xxl, fontSize: 14, textAlign: "center" },
+  card: {
+    marginBottom: SPACE.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: SPACE.md,
+  },
+  task: { flex: 1, fontSize: 16 },
+  meta: { marginTop: SPACE.xs, fontSize: 12 },
+  detail: { marginTop: SPACE.sm, fontSize: 14 },
+  restored: { marginTop: SPACE.sm, fontSize: 12 },
+  cardButton: {
+    marginTop: SPACE.md,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: 6,
+  },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: SPACE.xs,
+  },
+  badgeDot: { height: 6, width: 6, borderRadius: RADIUS.full },
+  badgeLabel: { fontSize: 12, fontWeight: "500" },
+});
