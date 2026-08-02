@@ -60,8 +60,15 @@ Sole export: `@repo/vault/vault`.
   (`suspendVaultWrites`) so a dirty autosave can't rebuild a default-root
   vault; reads stay allowed.
 - **Discovery ≠ access.** `SKIP_DIRS` (.git, node_modules, .obsidian, .trash)
-  - root `.gitignore`/`.ignore` prune the crawl only; an ignored file the
-    user explicitly opens still reads/writes fine.
+  and dot-entries prune the crawl outright — they are absent from every
+  listing, the manifest included.
+- **Ignore files filter the VIEW, not the manifest.** Files matched by the
+  root `.gitignore`/`.ignore` are withheld from `list()`/`listWithStats()`,
+  but the crawl descends ignored directories and `listAllPaths()` returns
+  every file on disk; an ignored file the user explicitly opens still
+  reads/writes fine. Absence from the manifest is a DELETE to reconcile, so
+  decluttering the sidebar must never fan a permanent deletion out to every
+  device.
 - **Rename is clobber-proof and case-aware.** Occupancy is case/NFC-
   insensitive over the real dir listing, decided by inode so a case-only
   self-rename passes through to one atomic `renameSync`.

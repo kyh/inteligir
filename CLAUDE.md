@@ -200,7 +200,9 @@ capabilities and hands the agent an injected `AgentPorts`
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
 listing** (§ Decisions): NO recursive watcher — the listing is a one-shot crawl
-(respects `.gitignore`, uncapped) refreshed on window focus, app writes,
+(uncapped; `.gitignore` filters the VIEW at read time, never the crawl or the
+sync manifest — absence from the manifest is a DELETE) refreshed on window
+focus, app writes,
 delegation completion, and a "Refresh vault" palette command; only the OPEN
 note gets a (non-recursive) watcher, driven by a pure change classifier with
 self-save filtering, so autosaves generate zero vault-changed traffic. It also

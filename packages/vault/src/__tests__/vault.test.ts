@@ -257,29 +257,79 @@ describe("VaultManager", () => {
     expect(mgr.listAllPaths()).toEqual(["flaky.md", "keep.md"]);
   });
 
-  it("respects root .gitignore / .ignore in both list() and listAllPaths()", () => {
+  // Ignoring is a VIEW choice — it declutters the sidebar. Sync reads a path's
+  // absence from the manifest as a local DELETE, so an ignore rule must never
+  // reach it: writing `archive/` into .gitignore would otherwise propagate a
+  // permanent deletion of every file under it to every device (a PARTIAL ignore
+  // slips straight past the engine's empty-listing mass-deletion guard).
+  it("withholds ignored files from list() but keeps them in listAllPaths()", async () => {
     const mgr = newManager();
     mgr.ensureReady();
     mgr.writeText("keep.md", "x");
     mgr.writeText("build/out.md", "x");
+    mgr.writeText("build/nested/deep.md", "x");
     mgr.writeText("logs/today.md", "x");
     mgr.writeText("secret.md", "x");
     fs.writeFileSync(path.join(root, ".gitignore"), "build/\nsecret.md\n");
     fs.writeFileSync(path.join(root, ".ignore"), "logs/\n");
 
-    const paths = mgr.list().map((e) => e.path);
-    expect(paths).toContain("keep.md");
-    expect(paths).not.toContain("build/out.md");
-    expect(paths).not.toContain("logs/today.md");
-    expect(paths).not.toContain("secret.md");
+    const visible = mgr.list().map((e) => e.path);
+    expect(visible).toEqual(["keep.md"]);
     // The ignore files themselves are dot-prefixed, so already excluded.
-    expect(paths).not.toContain(".gitignore");
-    // Ignore filters DISCOVERY, not access: an explicitly-opened ignored file
-    // still reads fine.
+    expect(visible).not.toContain(".gitignore");
+    // Derived knowledge indexes what the user sees, so it agrees with list().
+    expect((await mgr.listWithStats()).map((e) => e.path)).toEqual(visible);
+
+    // Sync sees every file that is actually on disk, still sorted — including
+    // the ones nested under an ignored DIRECTORY, which the crawl must descend.
+    expect(mgr.listAllPaths()).toEqual([
+      "build/nested/deep.md",
+      "build/out.md",
+      "keep.md",
+      "logs/today.md",
+      "secret.md",
+    ]);
+    // ...and can fingerprint each of them off the same crawl.
+    for (const rel of mgr.listAllPaths()) expect(mgr.statFingerprint(rel)).not.toBeNull();
+
+    // Ignore filters the view, not access: an ignored file still reads fine.
     expect(mgr.readText("secret.md")).toBe("x");
-    // Sync sees the same filtered set.
-    expect(mgr.listAllPaths()).toEqual(paths.toSorted((a, b) => a.localeCompare(b)));
   });
+
+  it("keeps .tmp files out of BOTH listings, ignored or not", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    mgr.writeText("keep.md", "x");
+    fs.writeFileSync(path.join(root, "keep.md.tmp"), "in-flight");
+    fs.mkdirSync(path.join(root, "build"), { recursive: true });
+    fs.writeFileSync(path.join(root, "build", "out.md.tmp"), "in-flight");
+    fs.writeFileSync(path.join(root, ".gitignore"), "build/\n");
+
+    expect(mgr.list().map((e) => e.path)).toEqual(["keep.md"]);
+    expect(mgr.listAllPaths()).toEqual(["keep.md"]);
+  });
+
+  // Completeness is unchanged by the ignore rules: an unreadable subtree is
+  // still a truncated crawl, and sync must still refuse it.
+  it.skipIf(typeof process.getuid === "function" && process.getuid() === 0)(
+    "listAllPaths() still throws when an IGNORED subtree is unreadable",
+    () => {
+      const mgr = newManager();
+      mgr.writeText("keep.md", "x");
+      mgr.writeText("build/out.md", "x");
+      fs.writeFileSync(path.join(root, ".gitignore"), "build/\n");
+      const ignoredDir = path.join(root, "build");
+      fs.chmodSync(ignoredDir, 0o000);
+      try {
+        expect(() => mgr.listAllPaths()).toThrow(VaultListingIncompleteError);
+        // UI-facing: lenient, and the ignored subtree was never shown anyway.
+        expect(mgr.list().map((e) => e.path)).toEqual(["keep.md"]);
+      } finally {
+        fs.chmodSync(ignoredDir, 0o700);
+      }
+      expect(mgr.listAllPaths()).toEqual(["build/out.md", "keep.md"]);
+    },
+  );
 
   it("repoints the root and persists it across instances", () => {
     const mgr = newManager();

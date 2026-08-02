@@ -71,8 +71,10 @@ function classify(fileName: string): VaultEntry["kind"] {
 // Hard-pruned directories — never walked, never listed, regardless of ignore
 // files. Cheap protection against the classic repo-shaped-vault blowups.
 const SKIP_DIRS = new Set([".git", "node_modules", ".obsidian", ".trash"]);
-// Root-level ignore files parsed (v1) to filter DISCOVERY (not access). A file
-// the user explicitly opens outside the snapshot still reads/writes fine.
+// Root-level ignore files parsed (v1) to filter the VIEW — not access, and not
+// the sync manifest. Matched files are still crawled; they are withheld from
+// the listings the user sees, and a file explicitly opened still reads/writes
+// fine.
 const IGNORE_FILES = [".gitignore", ".ignore"];
 
 /** How a vault change should propagate. `refresh` runs the full pipeline
@@ -122,6 +124,12 @@ type VaultSnapshot = {
    * (already confined under the root) or has to go through the `resolve()`
    * funnel. */
   entries: Map<string, VaultWalkEntry>;
+  /** The subset of `entries` the root ignore files match, directly or through
+   * an ignored ancestor directory. Ignoring is a VIEW choice — it declutters
+   * the sidebar — so these are withheld from every UI-facing listing but stay
+   * in `entries`: sync reads a path's absence from the manifest as a local
+   * DELETE, and a file that is still on disk must never say that. */
+  ignored: ReadonlySet<string>;
   /** Stat identities, filled LAZILY by `statOf` and memoized here — so a
    * refresh burst pays each file's stat at most once no matter how many
    * consumers ask, and files nobody asks about cost nothing. */
@@ -132,6 +140,10 @@ type VaultSnapshot = {
    * manifest source) refuses it, because a truncated listing is
    * indistinguishable from a mass deletion. */
   complete: boolean;
+  /** The first directory the crawl could not read, vault-relative ("." for the
+   * root), or null when the crawl was complete. Carried so a wedged sync names
+   * the offending folder instead of only the vault root. */
+  unreadable: string | null;
 };
 
 /** Thrown by `listAllPaths()` when the crawl could not observe the whole vault
@@ -141,10 +153,11 @@ type VaultSnapshot = {
  * deletion to every device. The UI-facing `list()`/`listWithStats()`
  * stay lenient and serve the partial instead. */
 export class VaultListingIncompleteError extends Error {
-  constructor(root: string) {
+  constructor(root: string, unreadable: string | null) {
     super(
-      `Vault listing incomplete — could not fully read ${root}; ` +
-        "refusing to treat unread files as deleted. Check that the vault folder " +
+      `Vault listing incomplete — could not fully read ${root}` +
+        (unreadable === null ? "" : ` (first unreadable subtree: "${unreadable}")`) +
+        "; refusing to treat unread files as deleted. Check that the folder " +
         "is present and readable, then retry.",
     );
     this.name = "VaultListingIncompleteError";
@@ -264,34 +277,41 @@ export class VaultManager {
    * Drives the sidebar file tree. Served from the shared TTL snapshot so a
    * refresh burst crawls once. */
   list(): VaultEntry[] {
-    return Array.from(this.getSnapshot().entries.values(), (e) => ({
-      path: e.path,
-      name: e.name,
-      kind: e.kind,
-    }));
+    const snapshot = this.getSnapshot();
+    const entries: VaultEntry[] = [];
+    for (const e of snapshot.entries.values()) {
+      if (snapshot.ignored.has(e.path)) continue;
+      entries.push({ path: e.path, name: e.name, kind: e.kind });
+    }
+    return entries;
   }
 
-  /** Every file path under the vault (same crawl as list(), minus the entry
-   * shaping). Sync must see every NON-ignored file — a truncated manifest reads
-   * as deletions: the 3-way reconcile treats "was in base and
-   * remote, missing from local" as a local deletion and propagates it to the
-   * coordinator and every peer. That is exactly why this — and ONLY this,
-   * the sync-facing listing — THROWS on an incomplete crawl (missing root,
-   * unreadable subtree) instead of returning the partial; the engine
-   * surfaces the throw as a failed pass and retries later. Ignore rules
-   * filter what sync tracks by design; SKIP_DIRS + ignore files are the only
-   * exclusions, and they match list(). Nothing here stats, so a per-file stat
-   * hiccup cannot silently thin this listing — only a failed readdir or a
-   * missing root can, and both are refused above. */
+  /** Every file path ON DISK under the vault (same crawl as list(), minus the
+   * entry shaping) — including the ignore-matched ones list() withholds. A
+   * truncated manifest reads as deletions: the 3-way reconcile treats "was in
+   * base and remote, missing from local" as a local deletion and propagates it
+   * to the coordinator and every peer. That is exactly why this — and ONLY
+   * this, the sync-facing listing — THROWS on an incomplete crawl (missing
+   * root, unreadable subtree) instead of returning the partial; the engine
+   * surfaces the throw as a failed pass and retries later. It is also why the
+   * ignore files cannot filter here: adding `archive/` to .gitignore is a
+   * decluttered SIDEBAR, and must never be a vault-wide deletion. SKIP_DIRS,
+   * dot-entries and in-flight `*.tmp` siblings are the only exclusions.
+   * Nothing here stats, so a per-file stat hiccup cannot silently thin this
+   * listing — only a failed readdir or a missing root can, and both are
+   * refused above. */
   listAllPaths(): string[] {
     const snapshot = this.getSnapshot();
-    if (!snapshot.complete) throw new VaultListingIncompleteError(snapshot.root);
+    if (!snapshot.complete)
+      throw new VaultListingIncompleteError(snapshot.root, snapshot.unreadable);
     return Array.from(snapshot.entries.keys());
   }
 
   /** The listing WITH stat identities on the DOCS — the knowledge reconcile's
    * diff basis. Freshness follows the snapshot TTL: external edits surface on
    * the next refresh trigger, exactly the ephemeral-liveness contract.
+   * Ignore-matched files are withheld exactly as in list(): derived knowledge
+   * indexes what the user chose to see, and only sync must track disk.
    *
    * ASYNC because one stat per doc is the crawl's dominant syscall cost, and a
    * whole-vault sweep in one uninterruptible call is a multi-hundred-
@@ -315,6 +335,7 @@ export class VaultManager {
     const snapshot = this.getSnapshot();
     const entries: VaultListingEntry[] = [];
     for (const entry of snapshot.entries.values()) {
+      if (snapshot.ignored.has(entry.path)) continue;
       if (entry.kind === "doc") {
         const identity = this.statOf(snapshot, entry.path);
         if (identity !== null) entries.push({ ...entry, kind: "doc", ...identity });
@@ -354,9 +375,13 @@ export class VaultManager {
     // completeness flag (listAllPaths throws; list serves the empty partial)
     // rather than silently reading as "every file was deleted".
     let complete = false;
+    let ignored: ReadonlySet<string> = new Set();
+    let unreadable: string | null = null;
     if (fs.existsSync(root)) {
       const walked = this.walk(root);
       complete = walked.complete;
+      ignored = walked.ignored;
+      unreadable = walked.unreadable;
       // Keyed AFTER the sort, so iteration order is the sorted order every
       // listing serves.
       walked.entries.sort((a, b) => a.path.localeCompare(b.path));
@@ -366,8 +391,10 @@ export class VaultManager {
       at: Date.now(),
       root,
       entries,
+      ignored,
       stats: new Map(),
       complete,
+      unreadable,
     };
     // Only COMPLETE crawls are cached: leniency may serve an incomplete
     // partial once, but the next call re-crawls — so recovery is immediate
@@ -414,10 +441,11 @@ export class VaultManager {
     this.snapshot = null;
   }
 
-  // The recursive walk behind the snapshot: skips dot-entries, SKIP_DIRS,
-  // ignore-matched paths, and the sibling *.tmp files atomicWrite creates
-  // mid-save. Returns entries in directory-read order (unsorted — the caller
-  // sorts), plus whether every directory read succeeded: a failed readdir still
+  // The recursive walk behind the snapshot: skips dot-entries, SKIP_DIRS and
+  // the sibling *.tmp files atomicWrite creates mid-save, and RECORDS (rather
+  // than skips) the ignore-matched paths so each consumer decides for itself.
+  // Returns entries in directory-read order (unsorted — the caller sorts),
+  // plus whether every directory read succeeded: a failed readdir still
   // skips the subtree (list() stays lenient on the partial) but is RECORDED as
   // incompleteness instead of hidden, so listAllPaths() can refuse to present
   // the truncation as deletions.
@@ -427,16 +455,31 @@ export class VaultManager {
   // instead costs several times every readdir syscall in the crawl combined
   // once a vault is large — the path math dominates this loop, not the
   // filesystem.
-  private walk(root: string): { entries: VaultWalkEntry[]; complete: boolean } {
+  private walk(root: string): {
+    entries: VaultWalkEntry[];
+    ignored: ReadonlySet<string>;
+    complete: boolean;
+    unreadable: string | null;
+  } {
     const out: VaultWalkEntry[] = [];
+    const ignored = new Set<string>();
     let complete = true;
+    let unreadable: string | null = null;
     const ig = this.loadIgnore(root);
-    const visit = (dir: string, prefix: string): void => {
+    // `inherited` carries an ignored ancestor down: gitignore semantics make
+    // everything under an ignored directory ignored, and a re-include pattern
+    // cannot resurrect it.
+    const visit = (dir: string, prefix: string, inherited: boolean): void => {
       let dirents: fs.Dirent[];
       try {
         dirents = fs.readdirSync(dir, { withFileTypes: true });
       } catch {
         complete = false; // unreadable subtree — skip it, but never hide that
+        // Named so a wedged sync is diagnosable: an ignored directory is now
+        // descended, so a chmod-000 or disconnected mount the user thought
+        // they had excluded fails every pass, and the root alone doesn't say
+        // which one. Mirrors mobile's sibling error.
+        unreadable ??= prefix === "" ? "." : prefix;
         return;
       }
       for (const dirent of dirents) {
@@ -445,17 +488,24 @@ export class VaultManager {
         const rel = prefix + name;
         // `ignore` wants a trailing slash to match directory patterns.
         if (dirent.isDirectory()) {
-          if (ig !== null && ig.ignores(`${rel}/`)) continue;
-          visit(childPath(dir, name), `${rel}/`);
+          // An ignored directory is DESCENDED anyway — the readdirs it costs
+          // buy the one thing the sync manifest cannot do without: its files
+          // are on disk, so leaving them unwalked would present them to
+          // reconcile as local deletions to fan out to every device.
+          visit(
+            childPath(dir, name),
+            `${rel}/`,
+            inherited || (ig !== null && ig.ignores(`${rel}/`)),
+          );
         } else if (dirent.isFile()) {
           if (name.endsWith(".tmp")) continue;
-          if (ig !== null && ig.ignores(rel)) continue;
+          if (inherited || (ig !== null && ig.ignores(rel))) ignored.add(rel);
           out.push({ path: rel, name, kind: classify(name) });
         }
       }
     };
-    visit(root, "");
-    return { entries: out, complete };
+    visit(root, "", false);
+    return { entries: out, ignored, complete, unreadable };
   }
 
   // Parse the root ignore files (.gitignore / .ignore) into a matcher, or null
@@ -536,8 +586,10 @@ export class VaultManager {
    * Memoized on the shared snapshot when fresh (so a sync pass and a knowledge
    * pass in the same window stat each file once between them, ≤SNAPSHOT_TTL_MS
    * stale — own writes always invalidate); a path ABSENT from the crawl
-   * (ignored files opened directly, non-listing spellings) falls through to a
-   * resolve()-confined live stat, never to a false null. */
+   * (a non-listing spelling, a file created since) falls through to a
+   * resolve()-confined live stat, never to a false null. Crawl membership is
+   * `entries`, which holds the ignore-matched files too — so the paths sync
+   * lists are exactly the paths it can fingerprint off the memo. */
   statFingerprint(rel: string): string | null {
     const cached = this.freshSnapshot(this.getRoot());
     if (cached !== null && cached.entries.has(rel)) {
