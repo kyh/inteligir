@@ -16,6 +16,7 @@ import Markdown from "react-native-markdown-display";
 import { markdownStylesFor } from "@/lib/markdown-styles";
 import { syncOnce } from "@/lib/sync/manager";
 import { readVaultText, writeVaultText } from "@/lib/sync/vault-access";
+import { SPACE, themeFor } from "@/lib/theme";
 
 // ---------------------------------------------------------------------------
 // A single note: READ mode renders common markdown; EDIT mode is a raw textarea
@@ -38,6 +39,7 @@ export default function NoteScreen() {
   const title = path === "" ? "Note" : (path.split("/").pop() ?? path);
 
   const dark = useColorScheme() === "dark";
+  const theme = themeFor(dark);
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
@@ -68,7 +70,10 @@ export default function NoteScreen() {
   }, [path, draft]);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: theme.background }]}
+      edges={["left", "right", "bottom"]}
+    >
       <Stack.Screen
         options={{
           title,
@@ -81,7 +86,7 @@ export default function NoteScreen() {
                 }}
                 disabled={saving}
               >
-                <Text className="text-base font-semibold text-foreground">
+                <Text style={[styles.headerAction, { color: theme.foreground }]}>
                   {editing ? (saving ? "Saving…" : "Save") : "Edit"}
                 </Text>
               </Pressable>
@@ -90,19 +95,18 @@ export default function NoteScreen() {
       />
 
       {load.kind === "loading" ? (
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-sm text-muted-foreground">Loading…</Text>
+        <View style={styles.center}>
+          <Text style={[styles.status, { color: theme.mutedForeground }]}>Loading…</Text>
         </View>
       ) : load.kind === "missing" ? (
-        <View className="flex-1 items-center justify-center px-6">
-          <Text className="text-center text-sm text-muted-foreground">
+        <View style={[styles.center, styles.centerPadded]}>
+          <Text style={[styles.status, styles.centerText, { color: theme.mutedForeground }]}>
             This note isn’t on this device yet. Sync from the vault screen first.
           </Text>
         </View>
       ) : editing ? (
         <TextInput
-          className="flex-1 px-4 py-3 text-base text-foreground"
-          style={styles.mono}
+          style={[styles.editor, styles.mono, { color: theme.foreground }]}
           value={draft}
           onChangeText={setDraft}
           multiline
@@ -111,7 +115,7 @@ export default function NoteScreen() {
           textAlignVertical="top"
         />
       ) : (
-        <ScrollView className="flex-1" contentContainerClassName="px-4 py-3">
+        <ScrollView style={styles.reader} contentContainerStyle={styles.readerContent}>
           <Markdown style={markdownStylesFor(dark)}>{load.text}</Markdown>
         </ScrollView>
       )}
@@ -120,8 +124,17 @@ export default function NoteScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  headerAction: { fontSize: 16, fontWeight: "600" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  centerPadded: { paddingHorizontal: SPACE.xxl },
+  centerText: { textAlign: "center" },
+  status: { fontSize: 14 },
+  editor: { flex: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md, fontSize: 16 },
   // A monospace face for the raw editor, using platform defaults (no bundled font).
   mono: {
     fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
   },
+  reader: { flex: 1 },
+  readerContent: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
 });

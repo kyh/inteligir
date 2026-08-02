@@ -29,11 +29,9 @@
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
     "expo-web-browser": "catalog:",
-    "nativewind": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
-    "react-native-css": "catalog:",
     "react-native-gesture-handler": "catalog:",
     "react-native-markdown-display": "catalog:",
     "react-native-reanimated": "catalog:",
@@ -42,10 +40,8 @@
     "react-native-worklets": "catalog:"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
-    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

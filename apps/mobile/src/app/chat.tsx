@@ -5,6 +5,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -25,9 +26,10 @@ import {
 } from "@repo/bridge/chat-log";
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
-import { hostStatusDotClass, hostStatusLabel, type HostStatus } from "@/lib/host/status-display";
+import { hostStatusDotColor, hostStatusLabel, type HostStatus } from "@/lib/host/status-display";
 import { useHostChannel } from "@/lib/host/use-host-channel";
 import { markdownStylesFor } from "@/lib/markdown-styles";
+import { RADIUS, SPACE, themeFor, useTheme } from "@/lib/theme";
 
 // ---------------------------------------------------------------------------
 // Chat with the DESKTOP agent over the ws bridge: the agent (and the vault it
@@ -45,6 +47,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const { status } = useHostStatus();
   const dark = useColorScheme() === "dark";
+  const theme = themeFor(dark);
   const insets = useSafeAreaInsets();
   const [log, setLog] = useState<ChatLog>(emptyChatLog);
   const [input, setInput] = useState("");
@@ -95,18 +98,21 @@ export default function ChatScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: theme.background }]}
+      edges={["left", "right", "bottom"]}
+    >
       <Stack.Screen options={screenOptions} />
       <KeyboardAvoidingView
-        className="flex-1"
+        style={styles.fill}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         // Approximate native-stack header height so padding clears it on iOS.
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
       >
         <ScrollView
           ref={scrollRef}
-          className="flex-1"
-          contentContainerClassName="px-4 py-4"
+          style={styles.fill}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           onScroll={(event) => {
             const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -123,11 +129,11 @@ export default function ChatScreen() {
           }}
         >
           {log.items.length === 0 ? (
-            <View className="items-center gap-2 py-24">
-              <Text className="text-base text-muted-foreground">
+            <View style={styles.empty}>
+              <Text style={[styles.emptyTitle, { color: theme.mutedForeground }]}>
                 {connected ? "Chat with your desktop agent." : "Not connected to a desktop."}
               </Text>
-              <Text className="px-6 text-center text-sm text-muted-foreground">
+              <Text style={[styles.emptyHint, { color: theme.mutedForeground }]}>
                 Messages run on the paired computer and edit the vault there.
               </Text>
             </View>
@@ -135,42 +141,58 @@ export default function ChatScreen() {
             log.items.map((item) => <ChatRow key={item.id} item={item} dark={dark} />)
           )}
           {log.busy && log.streamingId === null ? (
-            <Text className="mb-3 text-sm text-muted-foreground">Working…</Text>
+            <Text style={[styles.pending, { color: theme.mutedForeground }]}>Working…</Text>
           ) : null}
         </ScrollView>
 
-        <View className="border-t border-border px-4 py-3">
+        <View style={[styles.composer, { borderTopColor: theme.border }]}>
           {connected ? (
-            <View className="flex-row items-end gap-2">
+            <View style={styles.composerRow}>
               <TextInput
-                className="max-h-32 flex-1 rounded-2xl border border-input bg-card px-4 py-2.5 text-base text-foreground"
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.input,
+                    color: theme.foreground,
+                  },
+                ]}
                 placeholder="Message the desktop agent"
-                placeholderTextColor="#737373"
+                placeholderTextColor={theme.mutedForeground}
                 multiline
                 value={input}
                 onChangeText={setInput}
               />
               {log.busy ? (
                 <Pressable
-                  className="rounded-full border border-border px-4 py-2.5 active:opacity-70"
+                  style={({ pressed }) => [
+                    styles.stopButton,
+                    { borderColor: theme.border },
+                    pressed && { opacity: 0.7 },
+                  ]}
                   onPress={interrupt}
                 >
-                  <Text className="text-sm font-semibold text-foreground">Stop</Text>
+                  <Text style={[styles.buttonLabel, { color: theme.foreground }]}>Stop</Text>
                 </Pressable>
               ) : null}
               <Pressable
-                className="rounded-full bg-primary px-4 py-2.5 active:opacity-80 disabled:opacity-50"
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  { backgroundColor: theme.primary },
+                  pressed && { opacity: 0.8 },
+                  !canSend && { opacity: 0.5 },
+                ]}
                 disabled={!canSend}
                 onPress={send}
               >
-                <Text className="text-sm font-semibold text-primary-foreground">Send</Text>
+                <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>Send</Text>
               </Pressable>
             </View>
           ) : (
-            <Pressable className="items-center py-2" onPress={() => router.push("/connect")}>
-              <Text className="text-center text-sm text-muted-foreground">
+            <Pressable style={styles.hintButton} onPress={() => router.push("/connect")}>
+              <Text style={[styles.hint, { color: theme.mutedForeground }]}>
                 {composerHint(status)}{" "}
-                <Text className="font-semibold text-foreground">Open Connect</Text>
+                <Text style={[styles.hintAction, { color: theme.foreground }]}>Open Connect</Text>
               </Text>
             </Pressable>
           )}
@@ -181,10 +203,13 @@ export default function ChatScreen() {
 }
 
 function HeaderStatus({ status }: { status: HostStatus }) {
+  const theme = useTheme();
   return (
-    <View className="flex-row items-center gap-1.5">
-      <View className={`h-2 w-2 rounded-full ${hostStatusDotClass(status)}`} />
-      <Text className="text-xs text-muted-foreground">{hostStatusLabel(status)}</Text>
+    <View style={styles.headerStatus}>
+      <View style={[styles.headerDot, { backgroundColor: hostStatusDotColor(status) }]} />
+      <Text style={[styles.headerLabel, { color: theme.mutedForeground }]}>
+        {hostStatusLabel(status)}
+      </Text>
     </View>
   );
 }
@@ -208,11 +233,13 @@ function composerHint(status: HostStatus): string {
 // Memoized: the chat-log fold keeps untouched item references stable, so a
 // streaming delta re-renders ONE row, not the whole transcript.
 const ChatRow = memo(function ChatRow({ item, dark }: { item: ChatItem; dark: boolean }) {
+  const theme = themeFor(dark);
+
   if (item.kind === "user") {
     return (
-      <View className="mb-3 flex-row justify-end">
-        <View className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5">
-          <Text className="text-base text-primary-foreground">{item.text}</Text>
+      <View style={styles.userRow}>
+        <View style={[styles.userBubble, { backgroundColor: theme.primary }]}>
+          <Text style={[styles.userText, { color: theme.primaryForeground }]}>{item.text}</Text>
         </View>
       </View>
     );
@@ -227,7 +254,10 @@ const ChatRow = memo(function ChatRow({ item, dark }: { item: ChatItem; dark: bo
           : item.toolName;
     return (
       <Text
-        className={`mb-2 text-xs ${item.state === "error" ? "text-destructive" : "text-muted-foreground"}`}
+        style={[
+          styles.tool,
+          { color: item.state === "error" ? theme.destructive : theme.mutedForeground },
+        ]}
         numberOfLines={1}
       >
         {label}
@@ -237,19 +267,81 @@ const ChatRow = memo(function ChatRow({ item, dark }: { item: ChatItem; dark: bo
 
   if (item.isError) {
     return (
-      <View className="mb-3 rounded-lg border border-destructive px-3 py-2">
-        <Text className="text-sm text-destructive">{item.text}</Text>
+      <View style={[styles.errorCard, { borderColor: theme.destructive }]}>
+        <Text style={[styles.errorText, { color: theme.destructive }]}>{item.text}</Text>
       </View>
     );
   }
 
   if (item.streaming && item.text === "") {
-    return <Text className="mb-3 text-sm text-muted-foreground">Thinking…</Text>;
+    return <Text style={[styles.pending, { color: theme.mutedForeground }]}>Thinking…</Text>;
   }
 
   return (
-    <View className="mb-3">
+    <View style={styles.markdownRow}>
       <Markdown style={markdownStylesFor(dark)}>{item.text}</Markdown>
     </View>
   );
+});
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  fill: { flex: 1 },
+  scrollContent: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.lg },
+  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
+  emptyTitle: { fontSize: 16 },
+  emptyHint: { paddingHorizontal: SPACE.xxl, textAlign: "center", fontSize: 14 },
+  pending: { marginBottom: SPACE.md, fontSize: 14 },
+  composer: {
+    borderTopWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  composerRow: { flexDirection: "row", alignItems: "flex-end", gap: SPACE.sm },
+  input: {
+    flex: 1,
+    maxHeight: 128,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  stopButton: {
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: 10,
+  },
+  sendButton: {
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: 10,
+  },
+  buttonLabel: { fontSize: 14, fontWeight: "600" },
+  hintButton: { alignItems: "center", paddingVertical: SPACE.sm },
+  hint: { textAlign: "center", fontSize: 14 },
+  hintAction: { fontWeight: "600" },
+  headerStatus: { flexDirection: "row", alignItems: "center", gap: 6 },
+  headerDot: { height: 8, width: 8, borderRadius: RADIUS.full },
+  headerLabel: { fontSize: 12 },
+  userRow: { marginBottom: SPACE.md, flexDirection: "row", justifyContent: "flex-end" },
+  userBubble: {
+    maxWidth: "85%",
+    borderRadius: 16,
+    borderBottomRightRadius: RADIUS.md,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: 10,
+  },
+  userText: { fontSize: 16 },
+  tool: { marginBottom: SPACE.sm, fontSize: 12 },
+  errorCard: {
+    marginBottom: SPACE.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: SPACE.sm,
+  },
+  errorText: { fontSize: 14 },
+  markdownRow: { marginBottom: SPACE.md },
 });

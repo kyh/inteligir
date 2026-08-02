@@ -26,7 +26,7 @@
     },
     "apps/mobile": {
       "entry": ["src/app/**/*.tsx", "src/lib/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,css}", "*.{ts,js}"]
+      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"]
       // No `ignoreDependencies` here on purpose. knip's Expo plugin SYNTHESIZES
       // an `expo-updates` dependency for any app config that doesn't say
       // `updates: { enabled: false }` (knip/dist/plugins/expo/helpers.js), and

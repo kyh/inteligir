@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -17,7 +18,8 @@ import { startHostConnection, stopHostConnection, useHostStatus } from "@/lib/ho
 import type { KnownEnvironment } from "@/lib/host/environment-store";
 import { hostEnvironmentStore } from "@/lib/host/expo-environment-store";
 import { pairWithHost, parsePairingInput } from "@/lib/host/pairing";
-import { hostStatusDotClass, hostStatusLabel } from "@/lib/host/status-display";
+import { hostStatusDotColor, hostStatusLabel } from "@/lib/host/status-display";
+import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
 // ---------------------------------------------------------------------------
 // Pair-with-desktop: redeem the one-time code shown in the desktop's
@@ -34,6 +36,7 @@ const DEFAULT_DEVICE_NAME = Platform.select({
 });
 
 export default function ConnectScreen() {
+  const theme = useTheme();
   const { status } = useHostStatus();
   const [env, setEnv] = useState<KnownEnvironment | null>(() => hostEnvironmentStore.get());
   const [formOpen, setFormOpen] = useState(env === null);
@@ -65,57 +68,76 @@ export default function ConnectScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["left", "right", "bottom"]}>
+    <SafeAreaView
+      style={[styles.flex, { backgroundColor: theme.background }]}
+      edges={["left", "right", "bottom"]}
+    >
       <Stack.Screen options={{ title: "Connect" }} />
       <KeyboardAvoidingView
-        className="flex-1"
+        style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          className="flex-1"
-          contentContainerClassName="gap-6 px-4 py-4"
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           {env !== null ? (
-            <View className="rounded-lg border border-border bg-card px-4 py-3">
-              <View className="flex-row items-center justify-between gap-3">
-                <View className="flex-1">
-                  <Text className="text-base font-semibold text-card-foreground" numberOfLines={1}>
+            <View style={[styles.card, { borderColor: theme.border, backgroundColor: theme.card }]}>
+              <View style={styles.cardHeader}>
+                <View style={styles.flex}>
+                  <Text style={[styles.envName, { color: theme.cardForeground }]} numberOfLines={1}>
                     {env.name}
                   </Text>
-                  <Text className="text-sm text-muted-foreground" numberOfLines={1}>
+                  <Text style={[styles.bodySm, { color: theme.mutedForeground }]} numberOfLines={1}>
                     {env.wsUrl}
                   </Text>
                 </View>
-                <View className="flex-row items-center gap-1.5">
-                  <View className={`h-2 w-2 rounded-full ${hostStatusDotClass(status)}`} />
-                  <Text className="text-sm text-muted-foreground">{hostStatusLabel(status)}</Text>
+                <View style={styles.statusRow}>
+                  <View
+                    style={[styles.statusDot, { backgroundColor: hostStatusDotColor(status) }]}
+                  />
+                  <Text style={[styles.bodySm, { color: theme.mutedForeground }]}>
+                    {hostStatusLabel(status)}
+                  </Text>
                 </View>
               </View>
 
               {status === "unauthorized" ? (
-                <View className="mt-3 gap-2.5 rounded-lg bg-muted px-3 py-2.5">
-                  <Text className="text-sm text-foreground">
+                <View style={[styles.explainer, { backgroundColor: theme.muted }]}>
+                  <Text style={[styles.bodySm, { color: theme.foreground }]}>
                     The desktop no longer authorizes this device — remote access may be turned off,
                     or the pairing was revoked there. Try again, or pair with a fresh code.
                   </Text>
                   <Pressable
-                    className="self-start rounded-lg border border-border bg-card px-3 py-1.5 active:opacity-70"
+                    style={({ pressed }) => [
+                      styles.retryButton,
+                      { borderColor: theme.border, backgroundColor: theme.card },
+                      pressed && { opacity: 0.7 },
+                    ]}
                     onPress={() => startHostConnection(env)}
                   >
-                    <Text className="text-sm font-semibold text-foreground">Try again</Text>
+                    <Text style={[styles.actionLabel, { color: theme.foreground }]}>Try again</Text>
                   </Pressable>
                 </View>
               ) : null}
 
-              <View className="mt-3 flex-row gap-5">
+              <View style={styles.actions}>
                 {!formOpen ? (
-                  <Pressable className="py-1 active:opacity-70" onPress={() => setFormOpen(true)}>
-                    <Text className="text-sm font-semibold text-foreground">Pair again</Text>
+                  <Pressable
+                    style={({ pressed }) => [styles.actionHit, pressed && { opacity: 0.7 }]}
+                    onPress={() => setFormOpen(true)}
+                  >
+                    <Text style={[styles.actionLabel, { color: theme.foreground }]}>
+                      Pair again
+                    </Text>
                   </Pressable>
                 ) : null}
-                <Pressable className="py-1 active:opacity-70" onPress={forget}>
-                  <Text className="text-sm font-semibold text-destructive">
+                <Pressable
+                  style={({ pressed }) => [styles.actionHit, pressed && { opacity: 0.7 }]}
+                  onPress={forget}
+                >
+                  <Text style={[styles.actionLabel, { color: theme.destructive }]}>
                     Forget this desktop
                   </Text>
                 </Pressable>
@@ -133,6 +155,7 @@ export default function ConnectScreen() {
 // ---- pairing form -----------------------------------------------------------
 
 function PairForm({ onPaired }: { onPaired: (env: KnownEnvironment) => void }) {
+  const theme = useTheme();
   const [address, setAddress] = useState("");
   const [code, setCode] = useState("");
   const [deviceName, setDeviceName] = useState(DEFAULT_DEVICE_NAME);
@@ -182,22 +205,25 @@ function PairForm({ onPaired }: { onPaired: (env: KnownEnvironment) => void }) {
   const disabled = busy || address.trim() === "" || code.trim() === "";
 
   return (
-    <View className="gap-4">
-      <View className="gap-1">
-        <Text className="text-lg font-semibold text-foreground">Pair with your desktop</Text>
-        <Text className="text-sm leading-5 text-muted-foreground">
+    <View style={styles.form}>
+      <View style={styles.formIntro}>
+        <Text style={[styles.formTitle, { color: theme.foreground }]}>Pair with your desktop</Text>
+        <Text style={[styles.formBlurb, { color: theme.mutedForeground }]}>
           On your desktop, open Settings → Remote access, allow other devices, and choose Pair a
           device. Paste the address and one-time code below — either field takes the whole thing.
         </Text>
       </View>
 
-      <View className="gap-3">
-        <View className="gap-1.5">
-          <Text className="text-sm text-muted-foreground">Desktop address</Text>
+      <View style={styles.fields}>
+        <View style={styles.field}>
+          <Text style={[styles.bodySm, { color: theme.mutedForeground }]}>Desktop address</Text>
           <TextInput
-            className="rounded-lg border border-input bg-card px-4 py-3 text-base text-foreground"
+            style={[
+              styles.input,
+              { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+            ]}
             placeholder="ws://192.168.1.20:47890"
-            placeholderTextColor="#737373"
+            placeholderTextColor={theme.mutedForeground}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -205,43 +231,117 @@ function PairForm({ onPaired }: { onPaired: (env: KnownEnvironment) => void }) {
             onChangeText={changeAddress}
           />
         </View>
-        <View className="gap-1.5">
-          <Text className="text-sm text-muted-foreground">Pairing code</Text>
+        <View style={styles.field}>
+          <Text style={[styles.bodySm, { color: theme.mutedForeground }]}>Pairing code</Text>
           <TextInput
-            className="rounded-lg border border-input bg-card px-4 py-3 text-base text-foreground"
+            style={[
+              styles.input,
+              { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+            ]}
             placeholder="Paste the one-time code"
-            placeholderTextColor="#737373"
+            placeholderTextColor={theme.mutedForeground}
             autoCapitalize="none"
             autoCorrect={false}
             value={code}
             onChangeText={changeCode}
           />
         </View>
-        <View className="gap-1.5">
-          <Text className="text-sm text-muted-foreground">This device's name</Text>
+        <View style={styles.field}>
+          <Text style={[styles.bodySm, { color: theme.mutedForeground }]}>This device's name</Text>
           <TextInput
-            className="rounded-lg border border-input bg-card px-4 py-3 text-base text-foreground"
+            style={[
+              styles.input,
+              { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+            ]}
             placeholder={DEFAULT_DEVICE_NAME}
-            placeholderTextColor="#737373"
+            placeholderTextColor={theme.mutedForeground}
             value={deviceName}
             onChangeText={setDeviceName}
           />
         </View>
       </View>
 
-      {error !== null ? <Text className="text-sm text-destructive">{error}</Text> : null}
+      {error !== null ? (
+        <Text style={[styles.bodySm, { color: theme.destructive }]}>{error}</Text>
+      ) : null}
 
       <Pressable
-        className="items-center rounded-lg bg-primary py-3 active:opacity-80 disabled:opacity-50"
+        style={({ pressed }) => [
+          styles.submit,
+          { backgroundColor: theme.primary },
+          disabled && { opacity: 0.5 },
+          pressed && { opacity: 0.8 },
+        ]}
         disabled={disabled}
         onPress={() => void submit()}
       >
         {busy ? (
-          <ActivityIndicator color="#fafafa" />
+          <ActivityIndicator color={theme.primaryForeground} />
         ) : (
-          <Text className="text-base font-semibold text-primary-foreground">Pair</Text>
+          <Text style={[styles.submitLabel, { color: theme.primaryForeground }]}>Pair</Text>
         )}
       </Pressable>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  scrollContent: {
+    gap: SPACE.xxl,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.lg,
+  },
+  card: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: SPACE.md,
+  },
+  envName: { fontSize: 16, fontWeight: "600" },
+  bodySm: { fontSize: 14 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  statusDot: { height: 8, width: 8, borderRadius: RADIUS.full },
+  explainer: {
+    marginTop: SPACE.md,
+    gap: 10,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: 10,
+  },
+  retryButton: {
+    alignSelf: "flex-start",
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.md,
+    paddingVertical: 6,
+  },
+  actions: { marginTop: SPACE.md, flexDirection: "row", gap: SPACE.xl },
+  actionHit: { paddingVertical: SPACE.xs },
+  actionLabel: { fontSize: 14, fontWeight: "600" },
+  form: { gap: SPACE.lg },
+  formIntro: { gap: SPACE.xs },
+  formTitle: { fontSize: 18, fontWeight: "600" },
+  formBlurb: { fontSize: 14, lineHeight: 20 },
+  fields: { gap: SPACE.md },
+  field: { gap: 6 },
+  input: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+    fontSize: 16,
+  },
+  submit: {
+    alignItems: "center",
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACE.md,
+  },
+  submitLabel: { fontSize: 16, fontWeight: "600" },
+});
