@@ -10,7 +10,6 @@ import type { EffectTag } from "./app-reducer";
 
 export type EffectDeps = {
   seedResources: (onProgress: (p: SetupProgress) => void) => Promise<void>;
-  downloadVoiceModel: () => Promise<void>;
   startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   /** The full ~/.inteligir wipe (RESET only). Suspends vault writes. */
@@ -31,12 +30,6 @@ export type EffectDeps = {
 /** Seed + start — the shared body of SETUP and the re-setup half of RESET.
  * Must not throw past the caller's try (both wrap it). */
 async function runSetup(deps: EffectDeps): Promise<void> {
-  // Fire the speech-model download off the critical path. It's
-  // best-effort (the mic toggle retries) and the renderer subscribes to
-  // onVoiceModelState directly, so awaiting it only delays the agent.
-  void deps.downloadVoiceModel().catch((err: unknown) => {
-    console.warn("[setup] voice model download failed (non-fatal):", err);
-  });
   deps.reportSetupProgress({ step: "Preparing workspace", percent: null });
   await deps.seedResources(deps.reportSetupProgress);
   deps.reportSetupProgress({ step: "Starting agent", percent: null });

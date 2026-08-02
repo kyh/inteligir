@@ -32,7 +32,6 @@ import { startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import { getRoutinesManager } from "../routines/routines-manager";
 import { getNotifications } from "../notifications";
-import { downloadModel } from "@repo/voice/model-download";
 import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import type { AppState, MachineEvent } from "@repo/bridge/app-state";
@@ -384,16 +383,8 @@ function broadcastAppState(state: AppState): void {
   emitEvent("onAppState", state);
 }
 
-async function downloadVoiceModel(): Promise<void> {
-  const result = await downloadModel();
-  if (!result.ok) {
-    throw new Error(result.error);
-  }
-}
-
 const realDeps: EffectDeps = {
   seedResources: seedAgentResources,
-  downloadVoiceModel,
   startAgent,
   stopAgent,
   teardownResources: teardownAgentResources,

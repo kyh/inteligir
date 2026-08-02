@@ -15,6 +15,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 
 import { toast } from "@repo/ui/components/sonner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 import {
   Attachment,
@@ -625,9 +626,11 @@ function VoiceChatButton({
   return (
     <PromptInputButton
       tooltip={
-        ttsConfigured === false ? "Add an ElevenLabs API key in Settings → Voice" : "Voice chat"
+        ttsConfigured === false
+          ? "Add an ElevenLabs API key in Settings → Voice"
+          : "Talk with the agent"
       }
-      aria-label="Start voice chat"
+      aria-label="Talk with the agent"
       aria-disabled={disabled || undefined}
       onClick={disabled ? undefined : onToggle}
       className={cn(
@@ -657,8 +660,8 @@ function AttachButton() {
 function MicButton({ onStart }: { onStart: () => void }) {
   return (
     <PromptInputButton
-      tooltip="Voice input"
-      aria-label="Start voice input"
+      tooltip="Dictate a message"
+      aria-label="Dictate a message"
       onClick={onStart}
       className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
     >
@@ -734,23 +737,27 @@ function CollapsedPill({
         <SparklesIcon className="size-4 shrink-0 text-muted-foreground/70" />
         <span className="text-sm whitespace-nowrap text-muted-foreground">Ask the agent…</span>
       </button>
-      <button
-        type="button"
-        aria-label="Start voice input"
-        onClick={onStartVoice}
-        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <MicIcon className="size-4" />
-      </button>
-      {onStartVoiceChat && (
-        <button
-          type="button"
-          aria-label="Start voice chat"
-          onClick={onStartVoiceChat}
+      <Tooltip>
+        <TooltipTrigger
+          aria-label="Dictate a message"
+          onClick={onStartVoice}
           className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <AudioLinesIcon className="size-4" />
-        </button>
+          <MicIcon className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>Dictate a message</TooltipContent>
+      </Tooltip>
+      {onStartVoiceChat && (
+        <Tooltip>
+          <TooltipTrigger
+            aria-label="Talk with the agent"
+            onClick={onStartVoiceChat}
+            className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <AudioLinesIcon className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Talk with the agent</TooltipContent>
+        </Tooltip>
       )}
     </div>
   );

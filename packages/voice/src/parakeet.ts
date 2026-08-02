@@ -13,11 +13,11 @@
 
 import { join } from "node:path";
 
-import { getModelDir, isModelInstalled } from "./model-download";
+import { downloadModel, getModelDir, isModelInstalled } from "./model-download";
 import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 
-// sherpa-onnx-node is loaded lazily so the app still boots when the model
-// isn't downloaded yet (the renderer just sees STT unavailable).
+// sherpa-onnx-node is loaded lazily so the app still boots before the model
+// exists — it is fetched on first use, not at setup.
 type OnlineRecognizerCtor = new (config: unknown) => {
   createStream: () => unknown;
   isReady: (stream: unknown) => boolean;
@@ -73,8 +73,14 @@ export async function initParakeet(): Promise<InitResult> {
 }
 
 async function doInit(): Promise<InitResult> {
+  // Fetched on FIRST USE, not at setup: the model is ~457 MB and most sessions
+  // never touch voice, so downloading it during boot spends a user's bandwidth
+  // before they have typed anything. downloadModel() no-ops when installed and
+  // shares one in-flight download across concurrent callers, and its progress
+  // already streams to the renderer over onVoiceModelState.
   if (!isModelInstalled()) {
-    return { ok: false, reason: "Parakeet model not installed." };
+    const download = await downloadModel();
+    if (!download.ok) return { ok: false, reason: download.error };
   }
 
   const modelDir = getModelDir();
