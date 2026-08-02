@@ -11,14 +11,14 @@ import { createPlateEditor, Plate, PlateContent } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { useTags } from "@renderer/command/tags";
+import { useSearchRequest } from "@renderer/command/search-request";
 import { EDITOR_KIT } from "@renderer/editor/kits/editor-kit";
 import { TagChipKit } from "@renderer/editor/kits/tag-chip-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
 import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
 
 afterEach(cleanup);
-beforeEach(() => useTags.setState({ request: null }));
+beforeEach(() => useSearchRequest.setState({ query: null }));
 
 /** Mount a value through the real TagChipKit registration. The other kits are
  * irrelevant here — unregistered element types still resolve to their default
@@ -38,7 +38,7 @@ function paragraph(children: Descendant[]): TElement {
 }
 
 function chips(container: HTMLElement): string[] {
-  return [...container.querySelectorAll("[title^='Browse notes tagged']")].map(
+  return [...container.querySelectorAll("[title^='Search notes tagged']")].map(
     (node) => node.textContent ?? "",
   );
 }
@@ -75,13 +75,13 @@ describe("tag chip rendering", () => {
     expect(container.textContent).toBe("todo #alpha and #beta");
   });
 
-  it("clicking a chip asks the palette to browse that tag", () => {
+  it("clicking a chip seeds the search box with that tag's filter", () => {
     const { container } = renderValue([paragraph([{ text: "todo #alpha" }])]);
-    const chip = container.querySelector("[title^='Browse notes tagged']");
+    const chip = container.querySelector("[title^='Search notes tagged']");
     expect(chip).not.toBeNull();
     if (chip === null) return;
     fireEvent.click(chip);
-    expect(useTags.getState().request).toEqual({ kind: "browse", tag: "alpha" });
+    expect(useSearchRequest.getState().query).toBe("tag:alpha");
   });
 
   it("skips inline code, code blocks and link labels (index parity)", () => {

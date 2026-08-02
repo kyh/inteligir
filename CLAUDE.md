@@ -267,9 +267,11 @@ and full-text search live in the command palette.
   `openPath` persisted in ui-state under `workspace.openNote`) so a
   keystroke re-renders only the editor. The note's live machinery
   (controller + autosave debounce + vanish watcher) is the extracted,
-  unit-tested `workspace/note-runtime.ts`. Links + Backlinks + Related
-  panels (`workspace/links-panel.tsx`)
-  collapse under the editor column. The sidebar file tree is VS Code-style
+  unit-tested `workspace/note-runtime.ts`. ONE Connections panel
+  (`workspace/connections-panel.tsx`) — the notes that link INTO this one —
+  collapses under the editor column; outgoing links are already on screen in
+  the document (unresolved ones dashed, with a create affordance) and counted
+  in Page details, so they are not restated below it. The sidebar file tree is VS Code-style
   (full-width rows, depth as in-row padding, roving-tabindex keyboard nav —
   `sidebar/tree-navigation.ts`).
 - The markdown parse pipeline (remark-gfm + math + MDX vocabulary +
@@ -298,9 +300,12 @@ and full-text search live in the command palette.
   byte-exactly). The page-title <h1> above the doc IS the filename — editing
   it renames the file. Pasting/dropping an image writes bytes to `assets/`
   via `writeVaultAsset` and inserts bare `![](assets/…)`.
-- **Palette extras**: `#` lists tags (inline `#tags` + frontmatter tags,
-  case-unified in the core tag index) → notes with that tag; "New note from
-  template…" applies `templates/*.md` with `{{date}}`/`{{title}}`
+- **Palette extras**: ONE search box — a `tag:<name>` term narrows the search
+  to that tag (inline `#tags` + frontmatter tags, case-unified in the core tag
+  index); clicking an inline `#tag` chip seeds it. The text ∧ tag composition
+  is `@repo/notes/knowledge/vault-search`, shared verbatim with the agent's
+  `search_vault`, so there is no separate tag browser to drift from it.
+  "New note from template…" applies `templates/*.md` with `{{date}}`/`{{title}}`
   substitution; ⌘D opens/creates today's `journal/YYYY-MM-DD.md` (Settings →
   Notes configures folder/format); "Read page aloud"/"Stop reading" speaks
   the open note over the ElevenLabs TTS path (`renderer/voice/read-aloud.ts`
@@ -444,11 +449,11 @@ agent's file tools refuse them (per-call live-disk probe in pi's `tool_call`
 hook, `packages/agent/src/privacy/`, path-normalization parity with pi's own tools),
 `search_vault`/`get_backlinks`/`get_links`/`related_notes` drop them entirely
 (`get_links` is the one with no index-level prefilter — forwardLinks also
-serves the renderer's Links panel, where the user must see every link, so
-its whole privacy story is the port's live-disk probe), editor AI + ghost text +
-read-aloud go hard-off, the chat context hint withholds even the path, and delegation
-refuses. Unparseable frontmatter counts as private. A leak-prevention
-boundary for AI features, NOT a security boundary.
+serves Page details' outgoing/unresolved counts, which must match the file's
+real bytes, so its whole privacy story is the port's live-disk probe), editor
+AI + ghost text + read-aloud go hard-off, the chat context hint withholds even
+the path, and delegation refuses. Unparseable frontmatter counts as private. A
+leak-prevention boundary for AI features, NOT a security boundary.
 
 ### IPC / Bridge
 

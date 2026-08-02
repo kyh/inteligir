@@ -6,6 +6,7 @@ import { Spinner } from "@repo/ui/components/spinner";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { CommandPalette } from "@renderer/command/command-palette";
+import { requestSearch } from "@renderer/command/search-request";
 import { DelegationDock } from "@renderer/delegation/delegation-dock";
 import { BottomComposer } from "@renderer/composer/bottom-composer";
 import { PastChatsDialog } from "@renderer/composer/past-chats-dialog";
@@ -51,9 +52,9 @@ function MainSurface({ surface }: { surface: WorkspaceSurface }) {
 }
 
 /** inteligir:// nav verbs (today / note / search). Lives inside VaultProvider
- * so it can open notes; search opens the palette prefilled; renders nothing. */
-function DeepLinkNav({ onSearch }: { onSearch: (query: string) => void }) {
-  useDeepLinkNav(onSearch);
+ * so it can open notes; search seeds the palette's box; renders nothing. */
+function DeepLinkNav() {
+  useDeepLinkNav(requestSearch);
   return null;
 }
 
@@ -97,14 +98,6 @@ export function WorkspacePage() {
   useEffect(() => initDelegations(), [initDelegations]);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
-  // Deep-link search prefill: the seed rides into the palette once per
-  // delivery, then clears (consumed) so a later ⌘K opens clean.
-  const [paletteSeed, setPaletteSeed] = useState<string | null>(null);
-  const openSearch = useCallback((query: string) => {
-    setPaletteSeed(query);
-    setPaletteOpen(true);
-  }, []);
-  const consumeSeed = useCallback(() => setPaletteSeed(null), []);
   const surface = useViewStore((s) => s.surface);
 
   useEffect(() => {
@@ -137,7 +130,7 @@ export function WorkspacePage() {
   return (
     <VaultProvider>
       <DailyNoteHotkey />
-      <DeepLinkNav onSearch={openSearch} />
+      <DeepLinkNav />
       <AgentEditUndo />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
@@ -168,12 +161,7 @@ export function WorkspacePage() {
           <SaveIndicator />
         </div>
       </SidebarProvider>
-      <CommandPalette
-        open={paletteOpen}
-        onOpenChange={setPaletteOpen}
-        seedQuery={paletteSeed}
-        onSeedConsumed={consumeSeed}
-      />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <PastChatsDialog />
     </VaultProvider>
   );

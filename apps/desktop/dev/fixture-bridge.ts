@@ -38,7 +38,7 @@ import { boundGraph, LinkGraphIndex } from "@repo/notes/knowledge/link-graph-ind
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
-import { relatedNotes } from "@repo/notes/knowledge/related-notes";
+import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { addFrontmatterAlias, notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
 import { conflictCopyName, fsSafeStamp } from "@repo/notes/sync/reconcile";
@@ -1230,19 +1230,21 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // Knowledge — live queries: link graph in memory, search through FTS5.
     getBacklinks: async ({ path }) => linkGraph.backlinks(path),
     getForwardLinks: async ({ path }) => linkGraph.forwardLinks(path),
-    // The REAL scorer in the host's exact composition: pure graph + the SQL
-    // store's FTS5 bm25 as the lexical port.
-    getRelatedNotes: async ({ path }) =>
-      relatedNotes(linkGraph, (query, limit) => knowledgeStore.search(query, limit), path),
     // Bounded through the SAME pure pass the host handler uses, so the
     // "showing N of M" affordance is exercisable in the harness (drop the
     // caps low against the sample vault and it fires).
     getLinkGraph: async (bounds) => boundGraph(linkGraph.graph(), bounds),
-    searchVault: async ({ query, limit }) =>
-      knowledgeStore.search(query, limit ?? SEARCH_DEFAULT_LIMIT),
+    // The REAL text ∧ tag composition the host runs, over FTS5 + the in-memory
+    // tag index — so `tag:` typed in the harness palette behaves as it ships.
+    searchVault: async ({ query, limit, tag }) =>
+      searchVaultNotes(
+        {
+          notesWithTag: (name) => linkGraph.notesWithTag(name),
+          search: (text, max) => knowledgeStore.search(text, max),
+        },
+        { limit: limit ?? SEARCH_DEFAULT_LIMIT, query, tag },
+      ),
     listWikiTargets: async () => linkGraph.wikiTargets(),
-    listTags: async () => linkGraph.tags(),
-    getNotesByTag: async ({ tag }) => linkGraph.notesWithTag(tag),
     listVaultTasks: async () => linkGraph.tasks(),
     // The REAL guarded toggle over the in-memory vault — same ordinal +
     // raw-equality contract as the host handler; refusals are values.

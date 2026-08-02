@@ -38,7 +38,6 @@ export type BrokerBridge = Pick<
   | "deleteVaultEntry"
   | "searchVault"
   | "getBacklinks"
-  | "getNotesByTag"
 >;
 
 export type BrokerDeps = {
@@ -134,21 +133,25 @@ export async function handleBrokerRequest(
       // Compute the CAPPED hit set first — we never read more docs than `limit`.
       let hits: { path: string; name: string; snippet?: string }[];
       if (opts.tag !== undefined) {
-        // Tag filter FIRST; a query then narrows WITHIN the tagged set.
-        const tagged = await bridge.getNotesByTag({ tag: opts.tag });
-        if (opts.query !== undefined) {
-          const taggedSet = new Set(tagged);
-          const results = await bridge.searchVault({ query: opts.query, limit });
-          hits = results
-            .filter((result) => taggedSet.has(result.path))
-            .map((result) => ({
-              path: result.path,
-              name: basenamePath(result.path),
-              snippet: result.snippet,
-            }));
-        } else {
-          hits = tagged.slice(0, limit).map((path) => ({ path, name: basenamePath(path) }));
-        }
+        // One call, because the channel composes tag ∧ query host-side. Filtering
+        // a capped result set here instead would starve: a narrow tag inside a
+        // broad query returns nothing once the tagged notes fall outside the
+        // first `limit` ranked hits.
+        const results = await bridge.searchVault({
+          query: opts.query ?? "",
+          tag: opts.tag,
+          limit,
+        });
+        hits = results.map((result) => {
+          const hit: { path: string; name: string; snippet?: string } = {
+            path: result.path,
+            name: basenamePath(result.path),
+          };
+          // A tag listing has no ranked snippet; omit the key rather than
+          // handing an app an empty string to special-case.
+          if (result.snippet !== "") hit.snippet = result.snippet;
+          return hit;
+        });
       } else if (opts.query !== undefined) {
         // Ranked lexical search; carry each hit's snippet through to the app.
         const results = await bridge.searchVault({ query: opts.query, limit });

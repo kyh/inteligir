@@ -5,11 +5,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@renderer/editor/editor-chrome";
 import { MarkdownEditor } from "@renderer/editor/markdown-editor";
-import {
-  BacklinksPanel,
-  ForwardLinksPanel,
-  RelatedNotesPanel,
-} from "@renderer/workspace/links-panel";
+import { ConnectionsPanel } from "@renderer/workspace/connections-panel";
 import { openDocPath } from "@renderer/workspace/open-doc";
 import { useOpenNote } from "@renderer/workspace/open-note-store";
 import { useVaultActions } from "@renderer/workspace/vault-context";
@@ -17,7 +13,7 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
 /**
- * The editor body: the open note's page title + document (+ backlinks). One
+ * The editor body: the open note's page title + document (+ connections). One
  * mounted editor — opening another note replaces it (fresh undo history and
  * scroll, potion-style). The per-file controls (raw/rich, delete, status)
  * live in the shell header; this is just the scrolling document. Bottom
@@ -212,9 +208,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       )}
       {/* Linked mentions live in the same centered column, below the doc. */}
       <div className={EDITOR_COLUMN_PX}>
-        <ForwardLinksPanel path={path} />
-        <BacklinksPanel path={path} />
-        <RelatedNotesPanel path={path} />
+        <ConnectionsPanel path={path} />
       </div>
     </div>
   );

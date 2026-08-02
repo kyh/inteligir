@@ -35,6 +35,7 @@
     "./knowledge/sql-knowledge-store": "./src/knowledge/sql-knowledge-store.ts",
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",
     "./knowledge/related-notes": "./src/knowledge/related-notes.ts",
+    "./knowledge/vault-search": "./src/knowledge/vault-search.ts",
     "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts",
     "./markdown/parse": "./src/markdown/parse.ts",
     "./markdown/vocabulary": "./src/markdown/vocabulary.ts",

@@ -17,19 +17,29 @@ function makeBridge(
   kinds: Map<string, VaultEntry["kind"]>;
   searchVault: ReturnType<typeof vi.fn>;
   getBacklinks: ReturnType<typeof vi.fn>;
-  getNotesByTag: ReturnType<typeof vi.fn>;
 } {
   const store = new Map<string, string>(Object.entries(seed));
   const kinds = new Map<string, VaultEntry["kind"]>();
   for (const path of store.keys()) kinds.set(path, path.endsWith(".md") ? "doc" : "other");
-  const searchVault = vi.fn(async ({ query, limit }: { query: string; limit?: number }) => {
-    const matches = [...store.keys()]
-      .filter((path) => (kinds.get(path) ?? "doc") === "doc" && path.includes(query))
-      .map((path) => ({ path, title: path, snippet: `hit:${query}`, score: 1 }));
-    return typeof limit === "number" ? matches.slice(0, limit) : matches;
-  });
+  const searchVault = vi.fn(
+    async ({ query, tag, limit }: { query: string; tag?: string; limit?: number }) => {
+      const tagged = tag === undefined ? null : new Set(opts.tags?.[tag] ?? []);
+      const matches = [...store.keys()]
+        .filter((path) => (kinds.get(path) ?? "doc") === "doc")
+        .filter((path) => tagged === null || tagged.has(path))
+        .filter((path) => query === "" || path.includes(query))
+        // A tag listing carries no ranked snippet — the same empty-snippet shape
+        // the real search returns for one.
+        .map((path) => ({
+          path,
+          title: path,
+          snippet: query === "" ? "" : `hit:${query}`,
+          score: query === "" ? 0 : 1,
+        }));
+      return typeof limit === "number" ? matches.slice(0, limit) : matches;
+    },
+  );
   const getBacklinks = vi.fn(async ({ path }: { path: string }) => opts.backlinks?.[path] ?? []);
-  const getNotesByTag = vi.fn(async ({ tag }: { tag: string }) => opts.tags?.[tag] ?? []);
   const bridge: BrokerBridge = {
     listVault: async () =>
       [...store.keys()].map((path) => ({
@@ -48,9 +58,8 @@ function makeBridge(
     deleteVaultEntry: async ({ path }) => ({ removed: store.delete(path) }),
     searchVault,
     getBacklinks,
-    getNotesByTag,
   };
-  return { bridge, store, kinds, searchVault, getBacklinks, getNotesByTag };
+  return { bridge, store, kinds, searchVault, getBacklinks };
 }
 
 function makeDeps(bridge: BrokerBridge, over: Partial<BrokerDeps> = {}): BrokerDeps {
@@ -113,14 +122,15 @@ describe("handleBrokerRequest", () => {
     ]);
   });
 
-  it("list with a tag routes through getNotesByTag as {path,name}", async () => {
-    const { bridge, getNotesByTag, searchVault } = makeBridge(
+  it("list with a tag composes tag and query in ONE search call", async () => {
+    const { bridge, searchVault } = makeBridge(
       { "a.md": "x", "b.md": "y", "c.md": "z" },
       { tags: { meta: ["a.md", "b.md"] } },
     );
     const result = await handleBrokerRequest("list", [{ tag: "meta" }], makeDeps(bridge));
-    expect(getNotesByTag).toHaveBeenCalledWith({ tag: "meta" });
-    expect(searchVault).not.toHaveBeenCalled();
+    // Filtering a capped result set here instead would starve a narrow tag
+    // inside a broad query.
+    expect(searchVault).toHaveBeenCalledWith({ query: "", tag: "meta", limit: 50 });
     expect(result).toEqual([
       { path: "a.md", name: "a.md" },
       { path: "b.md", name: "b.md" },

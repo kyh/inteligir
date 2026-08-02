@@ -46,7 +46,6 @@ import {
   type RelatedNoteEntry,
   type RelatedNotesOpts,
 } from "@repo/notes/knowledge/related-notes";
-import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { StoredFingerprint } from "@repo/notes/knowledge/knowledge-store";
 import type { HydrationCursor, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
@@ -148,11 +147,6 @@ export class KnowledgeManager {
   wikiTargets(): WikiTarget[] {
     this.ensureBuilt();
     return this.linkGraph.wikiTargets();
-  }
-
-  tags(): TagCount[] {
-    this.ensureBuilt();
-    return this.linkGraph.tags();
   }
 
   tasks(): VaultTaskEntry[] {
