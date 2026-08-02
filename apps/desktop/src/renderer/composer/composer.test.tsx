@@ -165,7 +165,7 @@ describe("Composer (controlled draft)", () => {
     render(<Composer />);
     expandComposer();
 
-    const button = screen.getByRole("button", { name: "Start voice chat" });
+    const button = screen.getByRole("button", { name: "Talk with the agent" });
     expect(button.getAttribute("aria-disabled")).toBe("true");
     fireEvent.click(button);
     expect(toggleVoice).not.toHaveBeenCalled();
@@ -178,7 +178,7 @@ describe("Composer (controlled draft)", () => {
 
     // Collapsed: the pill offers the launcher directly (it hides while TTS is
     // unconfigured — the expanded toolbar's inert button carries the pointer).
-    const button = screen.getByRole("button", { name: "Start voice chat" });
+    const button = screen.getByRole("button", { name: "Talk with the agent" });
     expect(button.hasAttribute("aria-disabled")).toBe(false);
     fireEvent.click(button);
     expect(toggleVoice).toHaveBeenCalledTimes(1);

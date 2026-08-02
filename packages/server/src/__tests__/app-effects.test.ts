@@ -4,7 +4,6 @@ import { runEffect, type EffectDeps } from "../app/app-effects";
 function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     seedResources: vi.fn<EffectDeps["seedResources"]>().mockResolvedValue(undefined),
-    downloadVoiceModel: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
