@@ -40,10 +40,9 @@ function setMembership(
 
 type ConnectorsSectionProps = SectionProps & {
   /**
-   * Show the developer-only escape hatch (the "Add custom connector" button +
-   * dialog). The installed custom-integrations list stays visible regardless —
-   * users must always be able to see and remove what's connected, including
-   * anything the agent installed.
+   * Show the developer-only affordance — overriding the bundled Google OAuth
+   * client with your own. Adding a server is NOT behind this: connecting an
+   * arbitrary MCP server is the product, not an escape hatch.
    */
   showAdvanced: boolean;
 };
@@ -364,35 +363,33 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
         </div>
       )}
 
-      {showAdvanced && (
-        <>
-          <div className="flex flex-wrap gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCustomOpen(true)}
-              className="h-7 text-[10px]"
-            >
-              <PlusIcon className="size-3" />
-              Add custom connector
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void openGoogleOverride()}
-              className="h-7 text-[10px]"
-            >
-              Use your own Google OAuth client
-            </Button>
-          </div>
+      <div className="flex flex-wrap gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCustomOpen(true)}
+          className="h-7 text-[10px]"
+        >
+          <PlusIcon className="size-3" />
+          Add a server
+        </Button>
+        {showAdvanced && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void openGoogleOverride()}
+            className="h-7 text-[10px]"
+          >
+            Use your own Google OAuth client
+          </Button>
+        )}
+      </div>
 
-          <AddCustomConnectorDialog
-            open={customOpen}
-            onOpenChange={setCustomOpen}
-            onAdded={refreshAll}
-          />
-        </>
-      )}
+      <AddCustomConnectorDialog
+        open={customOpen}
+        onOpenChange={setCustomOpen}
+        onAdded={refreshAll}
+      />
       <SecretPromptDialog
         connector={apiKeyTarget}
         label={apiKeyLabel}
