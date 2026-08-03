@@ -19,7 +19,8 @@
  * inactive grep/find/ls) are soundly gated, via a live frontmatter probe per
  * call. bash, execute, browser, and peekaboo get a best-effort literal-path
  * screen ONLY — `cat` with a glob, a pipe, or a screenshot of a private note
- * on screen all bypass it. Without a sandbox those tools can still leak
+ * on screen all bypass it. With no sandbox (declined by design) those tools
+ * can still leak
  * private content; AGENTS.md instructs the model not to, it does not prevent
  * it. docs/privacy.md is the honest statement of scope.
  */
