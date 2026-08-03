@@ -722,6 +722,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     status: { phase: "idle" },
     conflicts: [],
   };
+  let syncPasses = 0;
+  let syncDeletionsConfirmed = false;
   // Remote access — no ws server runs in a browser tab, so enabling simulates
   // the listening state and a LAN URL; one pre-paired device makes the device
   // list + Revoke exercisable out of the box.
@@ -1687,14 +1689,40 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     getAccountCapabilities: async () => ({ socialProviders: ["github", "google"] }),
     syncSignOut: async () => {
       syncState = { ...syncState, signedIn: false, email: null, status: { phase: "idle" } };
+      // Signing back in is the harness's way of restarting the sync story, so
+      // the hold has to come back with it — otherwise it is drivable once per
+      // page load.
+      syncPasses = 0;
+      syncDeletionsConfirmed = false;
       emitSync();
     },
-    syncNow: async () => {
+    syncNow: async ({ confirmDeletions }) => {
       if (!syncState.enabled || !syncState.signedIn) {
         const message = "Enable sync and sign in first.";
         syncState = { ...syncState, status: { phase: "error", message } };
         emitSync();
         return { status: "error", message };
+      }
+      // The deletion gate, over the real fixture vault: the FIRST pass syncs
+      // plainly (the conflict flow below is the harness's common path and must
+      // not be gated behind a scary confirmation), the second stands where a
+      // phantom mass deletion would. The sample names files that actually
+      // exist here, so confirming and dismissing are both drivable; confirming
+      // clears it for the session, exactly as a confirmed pass converges the
+      // real engine's anchor.
+      syncPasses += 1;
+      if (confirmDeletions !== undefined) syncDeletionsConfirmed = true;
+      if (syncPasses > 1 && !syncDeletionsConfirmed) {
+        const paths = [...vault.keys()].toSorted((a, b) => a.localeCompare(b));
+        const outcome = {
+          status: "held",
+          deletions: paths.length,
+          baseCount: paths.length,
+          sample: paths.slice(0, 5),
+        } as const;
+        syncState = { ...syncState, status: { ...outcome, phase: "held" } };
+        emitSync();
+        return outcome;
       }
       // Simulate a pass that hit two conflicts: write real conflict-copy files
       // into the fixture vault (host naming) so the Settings conflict list's

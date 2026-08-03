@@ -12,5 +12,5 @@ export function registerSyncHandlers(handle: HandlerRegistrar): void {
   );
   handle("getAccountCapabilities", () => getSyncCoordinator().getCapabilities());
   handle("syncSignOut", () => getSyncCoordinator().signOut());
-  handle("syncNow", () => getSyncCoordinator().syncNow());
+  handle("syncNow", (opts) => getSyncCoordinator().syncNow(opts));
 }

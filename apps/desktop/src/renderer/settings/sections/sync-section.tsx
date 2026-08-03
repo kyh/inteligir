@@ -7,7 +7,7 @@ import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
 import { useVaultActions } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
-import type { SyncStatus } from "@repo/notes/sync/status";
+import type { HeldSyncStatus, SyncStatus } from "@repo/notes/sync/status";
 import type { SyncState } from "@repo/bridge/sync";
 
 // Human-readable summary of the last reconcile pass for the status line.
@@ -17,6 +17,8 @@ function formatSyncStatus(status: SyncStatus): string {
       return "Not synced yet.";
     case "syncing":
       return "Syncing…";
+    case "held":
+      return `Paused — ${status.deletions} of ${status.baseCount} synced file${status.baseCount === 1 ? "" : "s"} would be deleted.`;
     case "error":
       return `Error: ${status.message}`;
     case "ok": {
@@ -43,6 +45,7 @@ function formatSyncStatus(status: SyncStatus): string {
 export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) | undefined }) {
   const [state, setSyncView] = useState<SyncState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dismissedHold, setDismissedHold] = useState<HeldSyncStatus | null>(null);
   const { openFile, deleteEntry } = useVaultActions();
 
   useEffect(() => {
@@ -68,7 +71,29 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
     const bridge = getBridge();
     setBusy(true);
     try {
-      await bridge.syncNow();
+      await bridge.syncNow({});
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  // Releasing a held pass is the one irreversible act this section offers: the
+  // deletions land on every device. The panel already names what would go, so
+  // the dialog exists to make the count impossible to click past. The approved
+  // COUNT is what crosses the Bridge — the confirmed pass reconciles afresh, so
+  // a plan that grew in the meantime holds again rather than riding this
+  // waiver.
+  const handleConfirmDeletions = useCallback(async (deletions: number) => {
+    const confirmed = await confirm({
+      title: `Delete ${deletions} file${deletions === 1 ? "" : "s"}?`,
+      body: "Sync paused because this pass would delete an unusual number of files. Continue only if you deleted them on purpose. Syncing removes them from this device and from every other device that still has them, permanently — sync deletes are not moved to the trash.",
+      confirmLabel: "Delete and sync",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await getBridge().syncNow({ confirmDeletions: deletions });
     } finally {
       setBusy(false);
     }
@@ -109,6 +134,11 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
   const loading = state === null;
   const signedIn = state?.signedIn === true;
   const conflicts = state?.conflicts ?? [];
+  const held = state !== null && state.status.phase === "held" ? state.status : null;
+  // Dismissal covers the REPORT, not the condition: any later state emission —
+  // the periodic pass included, not just a sync the user ran — produces a fresh
+  // status object and brings the panel, and the only confirm affordance, back.
+  const showHold = held !== null && held !== dismissedHold;
 
   return (
     <div className="flex flex-col gap-2">
@@ -148,6 +178,51 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
               Sync now
             </Button>
           </div>
+
+          {showHold && (
+            <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+              <span className="text-[10px] text-muted-foreground">
+                Sync is paused: this pass would delete {held.deletions} of the {held.baseCount}{" "}
+                files the last sync recorded, on every device. Nothing has been deleted or uploaded.
+                If you meant to remove them, confirm below; otherwise check that your vault folder
+                is intact and sync again.
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                Files that would be deleted:
+              </span>
+              <ul className="flex flex-col gap-0.5 rounded-[8px] bg-card px-2.5 py-1.5">
+                {held.sample.map((path) => (
+                  <li key={path} className="truncate text-[10px] text-muted-foreground">
+                    {path}
+                  </li>
+                ))}
+                {held.deletions > held.sample.length && (
+                  <li className="text-[10px] text-muted-foreground">
+                    …and {held.deletions - held.sample.length} more
+                  </li>
+                )}
+              </ul>
+              <span className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleConfirmDeletions(held.deletions)}
+                  disabled={busy}
+                  className="h-auto px-2 py-0.5 text-[10px] text-destructive"
+                >
+                  Delete and sync
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDismissedHold(held)}
+                  className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+                >
+                  Not now
+                </Button>
+              </span>
+            </div>
+          )}
 
           {conflicts.length > 0 && (
             <div className="flex flex-col gap-1.5 border-t border-border pt-2">

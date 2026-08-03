@@ -71,6 +71,7 @@ import {
 } from "./routines";
 import type { SyncOutcome } from "@repo/notes/sync/engine";
 import {
+  SyncNowSchema,
   SyncRequestPasswordResetSchema,
   SyncSetConfigSchema,
   SyncSignInSchema,
@@ -821,8 +822,14 @@ export const IPC = {
   getAccountCapabilities: invokeVoid<AccountCapabilities>(),
   /** Clear the local session (best-effort remote revoke). */
   syncSignOut: invokeVoid<void>(),
-  /** Force one reconcile pass now; returns the outcome. */
-  syncNow: invokeVoid<SyncOutcome>(),
+  /** Force one reconcile pass now; returns the outcome. `confirmDeletions` is
+   * the deletion count the user approved, releasing a pass the engine's
+   * deletion gate held — that pass only, and only up to that count.
+   * Absent from REMOTE_ALLOWED_METHODS: a paired phone drives the DESKTOP's
+   * vault, where its user can see none of the files a hold names. The phone
+   * confirms its OWN vault's holds through the mobile sync manager, which is a
+   * different engine on a different device and never crosses this channel. */
+  syncNow: invoke<typeof SyncNowSchema, SyncOutcome>(SyncNowSchema),
   /** Fired on every config / auth / status change so the settings Sync UI is
    * reactive. Same shape as getSyncState. */
   onSyncStateChanged: event<SyncState>(),

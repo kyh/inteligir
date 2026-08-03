@@ -19,6 +19,11 @@ type ViewStore = {
   /** The read-only past-chat browser dialog (palette: "Browse past chats"). */
   pastChatsOpen: boolean;
   setPastChatsOpen: (open: boolean) => void;
+  /** The settings dialog. Held here, not in the gear button, so a notice
+   * raised anywhere in the app can send the user to the section that explains
+   * it — today the sync-hold toast. */
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
 };
 
 export const useViewStore = create<ViewStore>()((set) => ({
@@ -29,4 +34,6 @@ export const useViewStore = create<ViewStore>()((set) => ({
   setSurface: (surface) => set({ surface }),
   pastChatsOpen: false,
   setPastChatsOpen: (pastChatsOpen) => set({ pastChatsOpen }),
+  settingsOpen: false,
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
 }));

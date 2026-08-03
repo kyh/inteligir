@@ -175,7 +175,7 @@ describe("VaultManager", () => {
     expect(all).not.toContain("foo.tmp");
   });
 
-  // ---- Crawl completeness (the sync mass-deletion guard's Layer 1) ----------
+  // ---- Crawl completeness (the sync empty-listing guard's Layer 1) ----------
   // A truncated/empty crawl must NEVER reach the sync manifest as if it were a
   // real state of the vault: reconcile reads "in base, absent from local" as a
   // local delete and fans it out to every device. The shared crawl records
@@ -264,7 +264,7 @@ describe("VaultManager", () => {
   // absence from the manifest as a local DELETE, so an ignore rule must never
   // reach it: writing `archive/` into .gitignore would otherwise propagate a
   // permanent deletion of every file under it to every device (a PARTIAL ignore
-  // slips straight past the engine's empty-listing mass-deletion guard).
+  // slips straight past the engine's empty-listing guard).
   it("withholds ignored files from list() but keeps them in listAllPaths()", async () => {
     const mgr = newManager();
     mgr.ensureReady();

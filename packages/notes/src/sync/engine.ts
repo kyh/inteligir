@@ -21,7 +21,7 @@
 // ---------------------------------------------------------------------------
 
 import type { LocalFile, LocalManifest, VaultManifest } from "./manifest";
-import type { SyncOp } from "./plan";
+import type { SyncOp, SyncPlan } from "./plan";
 import type { SyncPort, Unsubscribe } from "./sync-port";
 import { ABSENT_VERSION, type Hash, type VaultFile, type VaultPath } from "./vault-file";
 import { conflictCopyName, reconcile } from "./reconcile";
@@ -114,9 +114,58 @@ function applyPhase(op: SyncOp): number {
   return op.side === "local" ? 0 : 2;
 }
 
-/** How many offending paths an unaccounted-for refusal names before it counts
- * the rest — enough to act on, short enough to read in a toast. */
+/** How many offending paths a refusal names before it counts the rest — enough
+ * to act on, short enough to read in a toast. */
 const MAX_NAMED_PATHS = 5;
+
+// ---------------------------------------------------------------------------
+// Deletion gate — the layer that BOUNDS what a leaked listing invariant costs.
+//
+// Every mass-deletion bug this vault has shipped had one shape: the local
+// manifest shrank while nothing left the disk, and the 3-way reconcile read
+// "in base, absent from local" as a permanent delete on every device. Each
+// individual cause (a .gitignore edit, a vault repoint, a case-only rename, a
+// symlink, a pruned dot-entry, a platform exclusion mismatch) was closed by a
+// listing rule — which only holds until the next listing rule leaks. This gate
+// asks a different question, one no crawl can answer wrongly: is the SIZE of
+// this deletion consistent with a human having asked for it?
+//
+// What it is NOT, and must never be described as: a detector. It reads a
+// COUNT, never a cause, so a leak that sheds ONE path — a single case-only
+// rename, one symlink where a note used to be — sits far below the floor and
+// passes straight through, losing that file on every device exactly as it
+// would have without the gate. Catching those is the listing rules' job. This
+// layer caps the blast radius of the ones they miss, and nothing more.
+//
+// Two shapes must both hold. A small vault must not stall on an ordinary
+// cleanup, which is what the absolute floor buys: below it, no plan is ever
+// held, so clearing out a season of daily notes syncs silently. The floor is
+// deliberately high — a confirmation the user meets while tidying is one they
+// learn to click through, and a trained click-through costs more on the one
+// pass that matters than the dialog ever bought. A large vault must not lose
+// hundreds of files to a bug no human would ever confirm, which is what the
+// proportion buys — 5% of a 5,000-note vault is 250 files, so a 400-file
+// phantom deletion holds while a deliberate 100-file purge does not. The floor
+// dominates until 500 files, the proportion after; both are policy, tuned to
+// stay quiet on the deletes users actually make.
+// ---------------------------------------------------------------------------
+const MIN_HELD_DELETIONS = 25;
+const HELD_DELETION_SHARE = 0.05;
+
+/** Vault paths this plan would remove, from EITHER side — a pull that
+ * overwrites local bytes is not a deletion, and a remote delete costs every
+ * other device its copy exactly as a local one does. */
+function plannedDeletions(plan: SyncPlan): VaultPath[] {
+  const paths: VaultPath[] = [];
+  for (const op of plan.ops) {
+    if (op.kind === "delete") paths.push(op.path);
+  }
+  return paths;
+}
+
+function exceedsDeletionGate(deletions: number, baseCount: number): boolean {
+  return deletions > Math.max(MIN_HELD_DELETIONS, HELD_DELETION_SHARE * baseCount);
+}
 
 /** Why a pass refused, in terms the user can act on. The port answers with
  * PATHS, not causes, so the message names the remedy for each shape a platform
@@ -159,7 +208,35 @@ export type SyncOutcome =
        * loser vanished before it could be copied). */
       readonly conflictPaths: readonly VaultPath[];
     }
+  | {
+      /** The plan would have deleted more files than the gate allows without a
+       * human saying so. NOTHING was applied — not the deletes, not the pushes
+       * or pulls beside them — and the base anchor is untouched, so a confirmed
+       * retry reconciles from exactly the same state. */
+      readonly status: "held";
+      readonly deletions: number;
+      /** Files the last sync recorded, for "N of M" phrasing. */
+      readonly baseCount: number;
+      /** A few of the paths that would go, for the confirmation UI. */
+      readonly sample: readonly VaultPath[];
+    }
   | { readonly status: "error"; readonly message: string };
+
+/** Per-pass options. Deliberately not engine state: `confirmDeletions` applies
+ * to ONE pass and is never remembered, so a confirmation can never authorize a
+ * deletion the user never saw. */
+export type SyncPassOptions = {
+  /** Waive the deletion gate for this pass, for AT MOST this many deletions —
+   * the count the user was shown when they approved. A confirmed pass re-crawls
+   * and re-reconciles from scratch, so the plan it produces need not be the
+   * plan that was held: a bigger one is a DIFFERENT deletion the user never
+   * saw, and holds again with the new number rather than riding a waiver
+   * written for a smaller one. ONLY an explicit human action may set it — a
+   * debounced, periodic or realtime-triggered pass that confirmed its own
+   * deletions would be worse than no gate at all, because it would look like
+   * protection. */
+  readonly confirmDeletions?: number | undefined;
+};
 
 export type SyncEngineOptions = {
   /** The remote vault this client syncs. Scopes the SyncPort + the base store. */
@@ -296,7 +373,8 @@ export class SyncEngine {
     this.scheduleSync();
   }
 
-  /** Coalesce a burst of triggers into one sync pass. */
+  /** Coalesce a burst of triggers into one sync pass. Never confirms deletions:
+   * nobody is watching a debounced pass, so it can only ever report a hold. */
   scheduleSync(): void {
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
@@ -310,12 +388,16 @@ export class SyncEngine {
   /** Run one reconcile+execute pass. Serialized against other in-flight passes.
    * Never throws — a transport failure comes back as `{ status: "error" }` and
    * leaves the base manifest untouched, so the next pass retries from the last
-   * clean anchor. `onOutcome` fires here — the single exit point for every
-   * pass, explicit or debounced — rather than inside `runOnce()`, so a future
-   * exit path there can't accidentally skip the notification. */
-  syncOnce(): Promise<SyncOutcome> {
+   * clean anchor; a `{ status: "held" }` outcome is the deletion gate refusing
+   * the whole plan on the same terms, and `opts.confirmDeletions` (an explicit
+   * human confirmation of a specific count, never an automatic trigger) waives
+   * it for this pass up to that count.
+   * `onOutcome` fires here — the single exit point for every pass, explicit or
+   * debounced — rather than inside `runOnce()`, so a future exit path there
+   * can't accidentally skip the notification. */
+  syncOnce(opts?: SyncPassOptions): Promise<SyncOutcome> {
     const run = this.queue
-      .then(() => this.runOnce())
+      .then(() => this.runOnce(opts?.confirmDeletions))
       .then((outcome) => {
         try {
           this.onOutcome?.(outcome);
@@ -333,12 +415,12 @@ export class SyncEngine {
     return run;
   }
 
-  private async runOnce(): Promise<SyncOutcome> {
+  private async runOnce(confirmDeletions: number | undefined): Promise<SyncOutcome> {
     try {
       const vaultRoot = this.currentRoot();
       const local = await this.buildLocalManifest();
       const base = this.loadBase(vaultRoot);
-      // MASS-DELETION GUARD: an empty local listing against a non-empty
+      // EMPTY-LISTING GUARD: an empty local listing against a non-empty
       // last-synced base is treated as a failed/truncated vault read (root
       // unmounted, a crawl error), NEVER as the user having deleted every
       // file — reconcile would read each base path as a local delete and fan
@@ -383,6 +465,31 @@ export class SyncEngine {
       }
 
       const plan = reconcile(base, local, remote);
+
+      // DELETION GATE: a plan is a whole; hold it entirely rather than applying
+      // the writes and skipping the deletes, because a half-applied plan
+      // advances nothing the user can reason about. Counted from the reconciled
+      // plan BEFORE any op runs, so no WRITE ever reaches the coordinator — the
+      // manifest listing above has already happened and is the pass's only
+      // remote cost, paid again on every retry until a human decides. A
+      // confirmation covers only the count it was given: this pass re-crawled
+      // and re-reconciled, so a plan that grew since the hold holds again with
+      // the new number for the user to approve on sight.
+      // Independent of the two guards above ON PURPOSE — they recognize
+      // specific broken listings, this one recognizes an implausible RESULT and
+      // needs no listing invariant to be true. It caps what a leaked invariant
+      // costs; it does not find one (a leak shedding a single path is under the
+      // floor and passes straight through).
+      const deletions = plannedDeletions(plan);
+      const waived = confirmDeletions !== undefined && deletions.length <= confirmDeletions;
+      if (!waived && exceedsDeletionGate(deletions.length, base.files.length)) {
+        return {
+          status: "held",
+          deletions: deletions.length,
+          baseCount: base.files.length,
+          sample: deletions.slice(0, MAX_NAMED_PATHS),
+        };
+      }
 
       // The converged coordinator view we advance BASE to: start from the remote
       // snapshot (covers converged + remote-only files) and mutate per applied
