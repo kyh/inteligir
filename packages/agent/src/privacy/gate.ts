@@ -22,7 +22,8 @@
 //    vault-relative path — nothing more. Command parsing can never be sound:
 //    `cat ./vault/*.md`, pipes, $(...), cd, encodings, and a peekaboo
 //    screenshot of a private note on screen ALL bypass this heuristic. The
-//    honest statement: without a sandbox these tools can still read private
+//    honest statement: with no sandbox (declined by design — the agent's real
+//    machine access is the product) these tools can still read private
 //    notes; the AGENTS.md rule instructs the model not to, it does not
 //    prevent it. Do NOT present this heuristic as a security boundary.
 //  - vaultRealRoot unresolvable (null): FAIL CLOSED — anything lexically

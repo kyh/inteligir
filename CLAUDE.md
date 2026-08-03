@@ -486,6 +486,19 @@ before following it.
 Plan files and ADR docs are not tracked in this repo; this section is the
 record for the decisions code comments cite.
 
+- **The agent is NOT sandboxed, and never will be.** `bash`, `execute`,
+  `browser` and `peekaboo` have real machine access by design — that access is
+  the product, the same bargain Claude Desktop makes. A filesystem sandbox was
+  considered as the "real" `private: true` boundary and DECLINED. The
+  consequence is stated rather than hidden: `private: true` is a
+  leak-prevention feature for AI surfaces, NOT a security boundary
+  (`docs/privacy.md` is the contract), and the per-tool gate is instruction
+  plus a best-effort literal-path screen. It follows that the agent grant's
+  "never granted" tier and its inline confirmations are POLICY, not
+  enforcement — they govern what the agent does deliberately, and a model with
+  a shell can reach around both. Describe them that way; do not sell them as a
+  boundary.
+
 - **Vault liveness: ephemeral listing + one open-note watcher.**
   NO recursive filesystem watcher, ever. The vault LISTING is an on-demand
   crawl (TTL-shared snapshot) refreshed on window focus, app structural

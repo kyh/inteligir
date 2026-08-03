@@ -62,10 +62,11 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   We block a command that literally names a private note's path, and
   AGENTS.md instructs the model never to work around a privacy refusal — but
   `cat ./vault/*.md`, pipes, and subshells are not (and cannot soundly be)
-  parsed. Real closure needs a sandbox; until then this is instruction, not
-  enforcement. The same applies to `execute` (sandboxed TypeScript with fs
-  access via the executor), `browser`, and `peekaboo` — and peekaboo can
-  screenshot a private note that is open on your screen.
+  parsed. This is instruction, not enforcement, and it stays that way: a
+  filesystem sandbox was considered and DECLINED, because the agent's real
+  machine access is the product. The same applies to `execute` (TypeScript
+  with fs access via the executor), `browser`, and `peekaboo` — and peekaboo
+  can screenshot a private note that is open on your screen.
 - **Filenames still leak to the shell.** `bash ls vault/` shows private
   notes' names; only the knowledge tools hide paths.
 - **Sync uploads it unencrypted.** Vault sync (off by default) mirrors
