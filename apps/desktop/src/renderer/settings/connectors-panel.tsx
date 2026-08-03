@@ -1,6 +1,6 @@
 // Built-in Extensions panel. Connectors lead — they're the only place to
-// connect Google etc., so they're always visible and first. Skills follow. The
-// developer surface (custom add-connector escape hatch, bundled CLI binaries)
+// connect a server, so they're always visible and first. Skills follow. The
+// developer surface (bundled CLI binaries, overriding the Google OAuth client)
 // lives behind a "Developer tools" toggle persisted in ui-state.
 
 import { useState } from "react";
