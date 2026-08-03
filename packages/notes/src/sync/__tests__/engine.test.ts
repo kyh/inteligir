@@ -163,7 +163,7 @@ describe("SyncEngine.syncOnce", () => {
 
   it("mirrors a local delete to the coordinator", async () => {
     // A sibling survives the delete: an empty local listing against a
-    // non-empty base is refused by the mass-deletion guard (#429, below).
+    // non-empty base is refused by the empty-listing guard below.
     vault.writeText("gone.md", "bye");
     vault.writeText("stays.md", "here");
     await newEngine().syncOnce();
@@ -203,7 +203,7 @@ describe("SyncEngine.syncOnce", () => {
 // the empty listing and assert ZERO ops reach the port and the base anchor is
 // untouched, then pin the guard's edges (a genuinely empty first sync and a
 // legitimate partial delete must NOT trip it).
-describe("SyncEngine mass-deletion guard (#429)", () => {
+describe("SyncEngine empty-listing guard", () => {
   it("empty local listing + non-empty base → error, ZERO deletes reach the port, base untouched", async () => {
     // Converge two files so the base anchor records them.
     vault.writeText("a.md", "AAA");

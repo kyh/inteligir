@@ -56,6 +56,15 @@ export const SyncSocialSignInSchema = Type.Object(
   { additionalProperties: false },
 );
 
+/** Force one reconcile pass. `confirmDeletions` carries the deletion COUNT the
+ * user approved and waives the engine's deletion gate up to it, for THAT PASS
+ * ONLY — never stored, so a renderer can only ever release the hold it is
+ * currently showing, at the size it is showing. */
+export const SyncNowSchema = Type.Object(
+  { confirmDeletions: Type.Optional(Type.Integer({ minimum: 0 })) },
+  { additionalProperties: false },
+);
+
 /** Password-reset REQUEST: asks the coordinator to email a reset link.
  * The outcome is deliberately existence-blind — see the registry entry. */
 export const SyncRequestPasswordResetSchema = Type.Object(

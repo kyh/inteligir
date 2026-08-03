@@ -16,7 +16,7 @@
 import { useSyncExternalStore } from "react";
 
 import { createJsonFileBaseStore } from "@repo/notes/sync/base-store";
-import { SyncEngine, type SyncOutcome } from "@repo/notes/sync/engine";
+import { SyncEngine, type SyncOutcome, type SyncPassOptions } from "@repo/notes/sync/engine";
 import { createHttpSyncPort } from "@repo/notes/sync/http-sync-port";
 import { statusFromOutcome, type SyncStatus } from "@repo/notes/sync/status";
 
@@ -39,9 +39,9 @@ const statusStore = createExternalStore<SyncStatus>({ phase: "idle" });
  * realtime-triggered passes surface exactly like explicit ones; `onOutcome`
  * (below) lands the result status either way. */
 class StatusReportingSyncEngine extends SyncEngine {
-  override syncOnce(): Promise<SyncOutcome> {
+  override syncOnce(opts?: SyncPassOptions): Promise<SyncOutcome> {
     statusStore.set({ phase: "syncing" });
-    return super.syncOnce();
+    return super.syncOnce(opts);
   }
 }
 
@@ -81,15 +81,21 @@ function currentToken(): string | null {
  * Run one reconcile+execute pass against the coordinator. Never throws — a
  * transport/auth failure lands in the status (and the returned outcome) as
  * `{ phase: "error" }`, leaving the base manifest untouched for the next retry.
+ *
+ * `opts.confirmDeletions` releases a held pass and belongs to the vault
+ * screen's confirmation alone. Every AUTOMATIC caller here — the realtime
+ * manager's foreground kick and SSE trigger, pull-to-refresh, the after-save
+ * pass — passes nothing, because a hold nobody is watching may only ever be
+ * reported.
  */
-export async function syncOnce(): Promise<SyncOutcome> {
+export async function syncOnce(opts?: SyncPassOptions): Promise<SyncOutcome> {
   const token = currentToken();
   if (token === null) {
     const message = "not signed in";
     statusStore.set({ phase: "error", message });
     return { status: "error", message };
   }
-  return engineFor(token).syncOnce();
+  return engineFor(token).syncOnce(opts);
 }
 
 /** Kick one engine-debounced pass (the realtime stream's change trigger).

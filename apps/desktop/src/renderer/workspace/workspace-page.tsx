@@ -18,6 +18,7 @@ import { HtmlAppView } from "@renderer/workspace/html-app-view";
 import { useAgentEditUndo } from "@renderer/workspace/use-agent-edit-undo";
 import { useDeepLinkNav } from "@renderer/workspace/use-deep-link";
 import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
+import { useSyncHoldToast } from "@renderer/workspace/use-sync-hold-toast";
 import { useOpenNote } from "@renderer/workspace/open-note-store";
 import { VaultProvider } from "@renderer/workspace/vault-context";
 import { useAgentStore } from "@renderer/stores/agent-store";
@@ -63,6 +64,13 @@ function DeepLinkNav() {
  * renders nothing. */
 function AgentEditUndo() {
   useAgentEditUndo();
+  return null;
+}
+
+/** The one global report of a sync pass the deletion gate held — Settings →
+ * Sync only exists while its dialog is open. Renders nothing. */
+function SyncHoldToast() {
+  useSyncHoldToast();
   return null;
 }
 
@@ -132,6 +140,7 @@ export function WorkspacePage() {
       <DailyNoteHotkey />
       <DeepLinkNav />
       <AgentEditUndo />
+      <SyncHoldToast />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
         {/* Flush Attio-style editor pane: a full-height column butted against

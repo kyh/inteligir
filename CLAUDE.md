@@ -513,6 +513,26 @@ record for the decisions code comments cite.
   the originating device already trashed, core's `SyncIo.remove` is
   synchronous by contract, and reconcile preserves conflicting local edits as
   sibling copies.
+- **Sync has THREE independent deletion guards; never merge them.** The
+  empty-listing refusal and the unaccounted-in-base refusal recognize a
+  specific broken LISTING; the deletion gate (`packages/notes/src/sync/engine.ts`)
+  recognizes an implausible RESULT — a plan deleting more than
+  `max(25, 5% of the base manifest)` is held whole, applying nothing and
+  leaving the anchor clean, until a human confirms it. That third layer exists
+  because every listing rule has eventually leaked, and it is the only one that
+  needs no listing invariant to hold. It **bounds the blast radius of a leak;
+  it does not detect one** — it reads a count, never a cause, so a leak that
+  sheds a single path (one case-only rename, one symlink) sits far below the
+  floor and passes straight through. Only an explicit human action may pass
+  `confirmDeletions`, which carries the approved COUNT and waives the gate only
+  up to it, for one pass, never persisted: the confirmed pass re-reconciles, so
+  a plan that grew since the hold holds again with the new number. The
+  debounced, periodic and realtime passes must always be able to do nothing but
+  report the hold. The gate is **per device against that device's own anchor**,
+  so a confirmation on one device CAUSES the hold on every other — desktop
+  (Settings → Sync, plus a global toast on the transition into held) and mobile
+  (the vault screen's status row) each carry their own confirm affordance, and
+  neither may tell the user to go and confirm on the other.
 - **No tag rename/delete UI, ever.** Tags are projections over note bodies
   (inline `#tags` + frontmatter `tags:`); a "rename/delete tag" affordance is
   a bulk content mutation disguised as a filter-chip action. Edit the notes

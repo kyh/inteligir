@@ -110,7 +110,7 @@ describe("SyncEngine over the RN adapters", () => {
 
   it("mirrors a local delete to the coordinator", async () => {
     // A sibling survives the delete: an empty local listing against a
-    // non-empty base is refused by the engine's mass-deletion guard.
+    // non-empty base is refused by the engine's empty-listing guard.
     vault.writeText("gone.md", "bye");
     vault.writeText("stays.md", "here");
     await newEngine().syncOnce();
@@ -135,7 +135,7 @@ describe("SyncEngine over the RN adapters", () => {
   // A missing vault root makes the `VaultFs` THROW
   // (expo-vault-fs's listDir("") contract) rather than list an empty vault —
   // the pass fails cleanly instead of reconciling "everything was deleted".
-  it("a root-missing vault fails the pass — zero deletes reach the coordinator (#429)", async () => {
+  it("a root-missing vault fails the pass — zero deletes reach the coordinator", async () => {
     vault.writeText("a.md", "AAA");
     vault.writeText("notes/b.md", "BBB");
     await newEngine().syncOnce();

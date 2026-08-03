@@ -103,7 +103,7 @@ describe("createSyncIo", () => {
   // The VaultFs contract: a missing ROOT throws (expo-vault-fs's
   // listDir("")), and list() must PROPAGATE it — never swallow it into an
   // empty listing, which the engine would reconcile as a mass deletion.
-  it("propagates a root-missing throw instead of listing an empty vault (#429)", () => {
+  it("propagates a root-missing throw instead of listing an empty vault", () => {
     const vault = memVaultFs();
     vault.writeText("a.md", "A");
     const rootMissing: VaultFs = {

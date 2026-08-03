@@ -19,7 +19,7 @@ import { createNodeHasher, createSyncManager, createVaultSyncIo } from "./sync-m
 import { createHttpSyncPort } from "@repo/notes/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/notes/sync/reconcile";
 import { statusFromOutcome, type SyncStatus } from "@repo/notes/sync/status";
-import type { SyncEngine, SyncOutcome } from "@repo/notes/sync/engine";
+import type { SyncEngine, SyncOutcome, SyncPassOptions } from "@repo/notes/sync/engine";
 import type {
   AccountCapabilities,
   SyncConflict,
@@ -210,8 +210,12 @@ export class SyncCoordinator {
   /** Kick an explicit pass. Its outcome lands through the SAME `onOutcome`
    * path a debounced pass uses (wired in `rebuild()`) — by the time this
    * `await` resolves, `handleOutcome` has already updated status/conflicts
-   * and emitted, so there is nothing left to do here but return the value. */
-  async syncNow(): Promise<SyncOutcome> {
+   * and emitted, so there is nothing left to do here but return the value.
+   *
+   * The ONLY path that may carry `confirmDeletions`: every other caller of the
+   * engine here (`onVaultChanged`, the periodic timer, the initial kick) is
+   * automatic, and an automatic confirmation would defeat the gate. */
+  async syncNow(opts?: SyncPassOptions): Promise<SyncOutcome> {
     const engine = this.engine;
     if (!engine) {
       const outcome: SyncOutcome = { status: "error", message: DISABLED_REASON };
@@ -221,7 +225,7 @@ export class SyncCoordinator {
     }
     this.status = { phase: "syncing" };
     this.emit();
-    return engine.syncOnce();
+    return engine.syncOnce(opts);
   }
 
   /** Stop the engine (shutdown). Leaves persisted config/session intact. */

@@ -2,6 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,7 +15,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import type { SyncStatus } from "@repo/notes/sync/status";
+import type { SyncPassOptions } from "@repo/notes/sync/engine";
+import type { HeldSyncStatus, SyncStatus } from "@repo/notes/sync/status";
 
 import { authClient, clearBearerToken } from "@/lib/auth";
 import { appendCapture } from "@/lib/capture/daily-capture";
@@ -306,6 +308,13 @@ function describeStatus(status: SyncStatus): string {
       return "Syncing…";
     case "ok":
       return `Synced — ↑${status.pushed} ↓${status.pulled} ✕${status.deleted} ⚠${status.conflicts}`;
+    // The confirmation has to live HERE. The gate runs per device against that
+    // device's own anchor, so a desktop confirmation does not clear this
+    // phone's hold — it is what causes it, once those deletes reach the
+    // coordinator. And a hold is held WHOLE: notes captured on this phone stop
+    // leaving it too, until someone releases the pass on this screen.
+    case "held":
+      return `Sync paused — ${status.deletions} of ${status.baseCount} files would be deleted. Nothing was changed. Tap to review.`;
     case "error":
       return `Sync failed: ${status.message}`;
   }
@@ -315,6 +324,7 @@ function VaultScreen() {
   const theme = useTheme();
   const router = useRouter();
   const status = useSyncStatus();
+  const held = status.phase === "held" ? status : null;
   const [files, setFiles] = useState(listVaultFiles);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -333,12 +343,39 @@ function VaultScreen() {
     if (status.phase === "ok") reload();
   }, [status, reload]);
 
-  const runSync = useCallback(async () => {
-    setRefreshing(true);
-    await syncOnce();
-    reload();
-    setRefreshing(false);
-  }, [reload]);
+  const runSync = useCallback(
+    async (opts?: SyncPassOptions) => {
+      setRefreshing(true);
+      await syncOnce(opts);
+      reload();
+      setRefreshing(false);
+    },
+    [reload],
+  );
+
+  // The only place a `confirmDeletions` may originate on this device: the user
+  // read the count and the sample and pressed the destructive action. The
+  // approved COUNT rides along, so a plan that grew since this alert was drawn
+  // holds again instead of being waived by it.
+  const reviewHold = useCallback(
+    (hold: HeldSyncStatus) => {
+      const more = hold.deletions - hold.sample.length;
+      const listing = hold.sample.join("\n") + (more > 0 ? `\n…and ${more} more` : "");
+      Alert.alert(
+        `Delete ${hold.deletions} file${hold.deletions === 1 ? "" : "s"}?`,
+        `This pass would delete ${hold.deletions} of the ${hold.baseCount} files the last sync recorded. Syncing removes them from this device and from every other device that still has them, permanently — sync deletes do not go to the trash.\n\n${listing}`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete and sync",
+            style: "destructive",
+            onPress: () => void runSync({ confirmDeletions: hold.deletions }),
+          },
+        ],
+      );
+    },
+    [runSync],
+  );
 
   const signOut = useCallback(async () => {
     await authClient.signOut();
@@ -354,9 +391,25 @@ function VaultScreen() {
       <HostNavRow />
       <CaptureBox onCaptured={reload} />
       <View style={styles.syncRow}>
-        <Text style={[styles.syncStatus, { color: theme.mutedForeground }]}>
-          {describeStatus(status)}
-        </Text>
+        <Pressable
+          style={({ pressed }) => [
+            styles.syncStatusSlot,
+            pressed && held !== null && styles.pressed70,
+          ]}
+          disabled={held === null}
+          onPress={() => {
+            if (held !== null) reviewHold(held);
+          }}
+        >
+          <Text
+            style={[
+              styles.syncStatus,
+              { color: held !== null ? theme.destructive : theme.mutedForeground },
+            ]}
+          >
+            {describeStatus(status)}
+          </Text>
+        </Pressable>
         <Pressable
           style={({ pressed }) => [
             styles.syncButton,
@@ -476,7 +529,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.lg,
     paddingVertical: SPACE.md,
   },
-  syncStatus: { flex: 1, paddingRight: SPACE.md, fontSize: 14 },
+  syncStatusSlot: { flex: 1, paddingRight: SPACE.md },
+  syncStatus: { fontSize: 14 },
   syncButton: {
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACE.lg,

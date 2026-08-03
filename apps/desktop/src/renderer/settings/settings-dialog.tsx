@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { SettingsIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
@@ -13,15 +12,18 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@repo/ui/components/ta
 
 import { ConnectorsPanel } from "@renderer/settings/connectors-panel";
 import { SettingsPanel } from "@renderer/settings/settings-panel";
+import { useViewStore } from "@renderer/stores/view-store";
 
 /**
  * Settings + Connectors, reachable from the workspace gear. Replaces the old
  * settings/extensions widget panels — same content, now a dialog instead of a
  * grid tile. Controlled so panel actions that navigate the workspace (e.g.
- * opening a conflicted note from Settings → Sync) can close it first.
+ * opening a conflicted note from Settings → Sync) can close it first, and so
+ * a notice raised elsewhere in the app can open it (the sync-hold toast).
  */
 export function SettingsDialog() {
-  const [open, setOpen] = useState(false);
+  const open = useViewStore((s) => s.settingsOpen);
+  const setOpen = useViewStore((s) => s.setSettingsOpen);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
