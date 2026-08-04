@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createWsBridge } from "@repo/bridge/ws-bridge";
 import { encodeFrame, parseClientFrame } from "@repo/bridge/ws-protocol";
-import { createHostConnection, type HostSnapshot } from "../connection-core";
+import {
+  createHostConnection,
+  shouldReuseSocket,
+  SOCKET_REUSE_WINDOW_MS,
+  type HostSnapshot,
+} from "../connection-core";
 import type { KnownEnvironment } from "../environment-store";
 import { fakeWebSocketImpl, lastSocket, type FakeSocket } from "./fakes";
 
@@ -31,23 +36,58 @@ function fakeLifecycle() {
 }
 
 // The owner under test drives the REAL createWsBridge over fake sockets, so
-// the statuses it publishes are the bridge's actual transitions.
+// the statuses it publishes are the bridge's actual transitions. The clock is
+// a plain variable the tests advance alongside vitest's fake timers.
 function setup() {
   const { impl, sockets } = fakeWebSocketImpl();
   const lifecycle = fakeLifecycle();
+  const clock = { now: 1_000 };
   const connection = createHostConnection({
     createBridge: (options) => createWsBridge({ ...options, webSocketImpl: impl }),
     lifecycle: lifecycle.port,
+    now: () => clock.now,
+    schedule: (fn, ms) => {
+      const timer = setTimeout(fn, ms);
+      return () => clearTimeout(timer);
+    },
   });
   const statuses: HostSnapshot[] = [];
   connection.subscribe(() => statuses.push(connection.getSnapshot()));
-  return { connection, sockets, lifecycle, statuses };
+  /** Move the injected clock AND the timers together. */
+  const advance = (ms: number) => {
+    clock.now += ms;
+    vi.advanceTimersByTime(ms);
+  };
+  return { connection, sockets, lifecycle, statuses, advance };
 }
 
 function welcome(socket: FakeSocket): void {
   socket.fireOpen();
   socket.fireMessage(encodeFrame({ t: "welcome" }));
 }
+
+describe("shouldReuseSocket", () => {
+  const base = { backgroundedAt: 1_000, windowMs: 10_000 } as const;
+
+  it("keeps a still-connected socket backgrounded inside the window", () => {
+    expect(shouldReuseSocket({ ...base, now: 6_000, status: "connected" })).toBe(true);
+    expect(shouldReuseSocket({ ...base, now: 11_000, status: "connected" })).toBe(true);
+  });
+
+  it("rebuilds once the gap passes the window", () => {
+    expect(shouldReuseSocket({ ...base, now: 11_001, status: "connected" })).toBe(false);
+  });
+
+  it("rebuilds when the socket did not survive the background", () => {
+    expect(shouldReuseSocket({ ...base, now: 2_000, status: "disconnected" })).toBe(false);
+    expect(shouldReuseSocket({ ...base, now: 2_000, status: "connecting" })).toBe(false);
+    expect(shouldReuseSocket({ ...base, now: 2_000, status: "unauthorized" })).toBe(false);
+  });
+
+  it("rebuilds when the clock moved backwards (the gap proves nothing)", () => {
+    expect(shouldReuseSocket({ ...base, now: 500, status: "connected" })).toBe(false);
+  });
+});
 
 describe("createHostConnection", () => {
   beforeEach(() => {
@@ -111,13 +151,14 @@ describe("createHostConnection", () => {
     connection.dispose();
   });
 
-  it("backgrounding disposes the bridge; foregrounding recreates it", () => {
-    const { connection, sockets, lifecycle } = setup();
+  it("a long background disposes the bridge; foregrounding recreates it", () => {
+    const { connection, sockets, lifecycle, advance } = setup();
     connection.start(ENV);
     welcome(lastSocket(sockets));
     expect(connection.getSnapshot().status).toBe("connected");
 
     lifecycle.setState("background");
+    advance(SOCKET_REUSE_WINDOW_MS + 1);
     expect(connection.getSnapshot()).toEqual({ status: "disconnected", envName: "192.168.1.5" });
     expect(connection.getBridge()).toBeNull();
     expect(lastSocket(sockets).closedWith?.code).toBe(1000);
@@ -127,6 +168,64 @@ describe("createHostConnection", () => {
     expect(connection.getSnapshot().status).toBe("connecting");
     welcome(lastSocket(sockets));
     expect(connection.getSnapshot().status).toBe("connected");
+    connection.dispose();
+  });
+
+  it("a brief background keeps the live socket, so nothing in flight is dropped", () => {
+    const { connection, sockets, lifecycle, advance } = setup();
+    connection.start(ENV);
+    welcome(lastSocket(sockets));
+    const bridge = connection.getBridge();
+
+    lifecycle.setState("background");
+    advance(1_000);
+    expect(lastSocket(sockets).closedWith).toBeNull();
+
+    lifecycle.setState("active");
+    advance(SOCKET_REUSE_WINDOW_MS * 2);
+    expect(sockets).toHaveLength(1);
+    expect(connection.getBridge()).toBe(bridge);
+    expect(connection.getSnapshot().status).toBe("connected");
+    connection.dispose();
+  });
+
+  it("a background that outlived the window is not resurrected by a late resume", () => {
+    const { connection, sockets, lifecycle, advance } = setup();
+    connection.start(ENV);
+    welcome(lastSocket(sockets));
+
+    lifecycle.setState("background");
+    advance(SOCKET_REUSE_WINDOW_MS + 1);
+    lifecycle.setState("active");
+    expect(sockets).toHaveLength(2);
+    connection.dispose();
+  });
+
+  it("backgrounding while unauthorized never arms a close that clears it", () => {
+    const { connection, sockets, lifecycle, advance } = setup();
+    connection.start(ENV);
+    lastSocket(sockets).fireClose(4401);
+
+    lifecycle.setState("background");
+    advance(SOCKET_REUSE_WINDOW_MS * 2);
+    expect(connection.getSnapshot().status).toBe("unauthorized");
+
+    lifecycle.setState("active");
+    expect(connection.getSnapshot().status).toBe("unauthorized");
+    expect(sockets).toHaveLength(1);
+    connection.dispose();
+  });
+
+  it("stop() during a background cancels the deferred close", () => {
+    const { connection, sockets, lifecycle, advance } = setup();
+    connection.start(ENV);
+    welcome(lastSocket(sockets));
+    lifecycle.setState("background");
+    connection.stop();
+
+    advance(SOCKET_REUSE_WINDOW_MS * 2);
+    expect(connection.getSnapshot()).toEqual({ status: "none", envName: null });
+    expect(sockets).toHaveLength(1);
     connection.dispose();
   });
 

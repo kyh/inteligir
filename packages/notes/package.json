@@ -9,6 +9,7 @@
     "./sync/manifest": "./src/sync/manifest.ts",
     "./sync/sync-port": "./src/sync/sync-port.ts",
     "./sync/reconcile": "./src/sync/reconcile.ts",
+    "./sync/merge/ladder": "./src/sync/merge/ladder.ts",
     "./sync/wire": "./src/sync/wire.ts",
     "./sync/crawl-exclusions": "./src/sync/crawl-exclusions.ts",
     "./sync/testing/in-memory-sync-port": "./src/sync/__tests__/in-memory-sync-port.ts",

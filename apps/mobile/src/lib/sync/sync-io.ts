@@ -77,6 +77,10 @@ export type VaultFs = {
    * `VaultListingIncompleteError` for a sub-dir. Either way an empty or partial
    * listing would reconcile as deletions. */
   listDir(relDir: string): readonly VaultEntry[];
+  /** Whether a file is on disk at all, whatever its bytes. Distinct from a
+   * successful `readBytes`: an unreadable file still exists, and treating the
+   * two the same lets a caller overwrite content it never saw. */
+  exists(path: VaultPath): boolean;
   /** Raw bytes of a vault file. */
   readBytes(path: VaultPath): Uint8Array;
   /** Write raw bytes, creating any missing parent directories. */

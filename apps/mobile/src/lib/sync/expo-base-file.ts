@@ -1,29 +1,28 @@
 // ---------------------------------------------------------------------------
 // The Expo File-API backing for the BaseStore's `JsonFile` port — a single JSON
 // file at `${Paths.document}/sync-base.json` holding the last-synced base
-// manifest. Uses the synchronous File API; a fresh instance per call so `exists`
-// reflects current state.
+// manifest.
+//
+// The anchor is a pure CACHE of the last sync, so an unreadable file reads the
+// same as an absent one: `null`, and the next pass rebuilds from empty. Only a
+// store holding the user's own words (the chat outbox) needs the two apart.
 // ---------------------------------------------------------------------------
 
-import { File, Paths } from "expo-file-system";
-
 import type { JsonFile } from "@repo/notes/sync/base-store";
+
+import { createExpoJsonFile } from "../expo-json-file";
 
 /** The base-manifest filename under the app's document directory. */
 const BASE_FILE = "sync-base.json";
 
 /** A `JsonFile` backed by Expo's synchronous File API. */
 export function createExpoBaseFile(): JsonFile {
-  const make = () => new File(Paths.document, BASE_FILE);
+  const file = createExpoJsonFile(BASE_FILE);
   return {
     read: () => {
-      const file = make();
-      return file.exists ? file.textSync() : null;
+      const result = file.read();
+      return result.kind === "text" ? result.text : null;
     },
-    write: (text) => {
-      const file = make();
-      file.create({ intermediates: true, overwrite: true });
-      file.write(text);
-    },
+    write: file.write,
   };
 }

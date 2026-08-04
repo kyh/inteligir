@@ -70,6 +70,7 @@ export function createExpoVaultFs(): VaultFs {
         isDirectory: entry instanceof Directory,
       }));
     },
+    exists: (path) => fileFor(path).exists,
     readBytes: (path) => fileFor(path).bytesSync(),
     writeBytes: (path, bytes) => {
       const file = fileFor(path);

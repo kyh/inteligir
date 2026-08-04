@@ -4,6 +4,10 @@ import { useEffect } from "react";
 import { useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+// Side-effect import: loading the module restores the chat queue from disk and
+// arms its drain, so a message queued before the app was killed leaves on the
+// next connection whether or not the chat screen is ever opened.
+import "@/lib/chat/outbox";
 import { startHostConnection } from "@/lib/host/connection";
 import { hostEnvironmentStore } from "@/lib/host/expo-environment-store";
 import { themeFor } from "@/lib/theme";
