@@ -9,7 +9,8 @@ import type { VaultPath } from "@repo/notes/sync/vault-file";
 import { createExpoVaultFs } from "./expo-vault-fs";
 import { createSyncIo, VaultListingIncompleteError, VaultRootMissingError } from "./sync-io";
 
-const io = createSyncIo(createExpoVaultFs());
+const fs = createExpoVaultFs();
+const io = createSyncIo(fs);
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -31,9 +32,26 @@ export function listVaultFiles(): VaultPath[] {
   }
 }
 
-/** Read a vault file as UTF-8 text. */
-export function readVaultText(path: VaultPath): string {
-  return decoder.decode(io.read(path));
+/** Read a vault file as UTF-8 text, or null when it is missing or unreadable.
+ * Absence is a normal state for every caller here — quick capture seeds from a
+ * template, the note editor treats it as "not on this device yet" — so the
+ * missing case is a value, not a throw. Pair with `vaultFileExists` where the
+ * two failures mean different things. */
+export function readVaultTextOrNull(path: VaultPath): string | null {
+  try {
+    return decoder.decode(io.read(path));
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a vault file is on disk, whatever its bytes. */
+export function vaultFileExists(path: VaultPath): boolean {
+  try {
+    return fs.exists(path);
+  } catch {
+    return false;
+  }
 }
 
 /** Write UTF-8 text to a vault file, creating parent directories as needed. */

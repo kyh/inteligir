@@ -917,6 +917,8 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     knowledgeEvents.emit({});
   };
 
+  const deliveredClientIds = new Set<string>();
+
   const cannedReply = (text: string) => {
     history.push({ role: "user", text });
     setAppState({ phase: "ready", agent: "busy" });
@@ -982,6 +984,13 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         agentEvents.emit({ type: "agent_end" });
         setAppState({ phase: "ready", agent: "idle" });
         return;
+      }
+      // Mirrors the host's retry gate: a resent command carries the clientId of
+      // the one it repeats, and running it twice would be the duplicate turn
+      // the id exists to prevent.
+      if (command.clientId !== undefined) {
+        if (deliveredClientIds.has(command.clientId)) return;
+        deliveredClientIds.add(command.clientId);
       }
       cannedReply(command.text);
     },

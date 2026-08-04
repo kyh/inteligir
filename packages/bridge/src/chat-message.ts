@@ -18,6 +18,11 @@ export type ImageAttachment = Static<typeof ImageAttachmentSchema>;
 const TextWithImagesObject = {
   text: Type.String(),
   images: Type.Optional(Type.Array(ImageAttachmentSchema)),
+  // A sender that may retry (the mobile outbox: a phone backgrounds mid-request
+  // and cannot know whether the host ran the turn) mints this before the first
+  // attempt and reuses it, so the host can drop the repeat instead of running
+  // the message twice. Senders that never retry omit it.
+  clientId: Type.Optional(Type.String({ minLength: 1 })),
 };
 
 /** Messages sent between renderer and agent over the Bridge. */

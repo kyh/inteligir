@@ -58,6 +58,7 @@ export function memVaultFs(): MemVault {
       for (const [name, isDirectory] of children) entries.push({ name, isDirectory });
       return entries;
     },
+    exists: (path) => files.has(path),
     readBytes: (path) => {
       const bytes = files.get(path);
       if (bytes === undefined) throw new Error(`memVaultFs: read of absent ${path}`);

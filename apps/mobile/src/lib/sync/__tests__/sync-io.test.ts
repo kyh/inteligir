@@ -134,6 +134,7 @@ describe("incomplete subtree", () => {
       if (relDir === "notes") throw new VaultListingIncompleteError("notes");
       return [];
     },
+    exists: () => false,
     readBytes: () => new Uint8Array(),
     writeBytes: () => {},
     remove: () => {},

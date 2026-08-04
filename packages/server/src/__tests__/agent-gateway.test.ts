@@ -75,6 +75,43 @@ describe("agent-gateway", () => {
     );
   });
 
+  it("runs a repeated clientId only once", async () => {
+    const agent = makeAgent();
+    getAgent.mockReturnValue(agent);
+
+    await gw.dispatchAgentCommand({ type: "user_message", text: "hi", clientId: "m1" });
+    await gw.dispatchAgentCommand({ type: "user_message", text: "hi", clientId: "m1" });
+    await gw.dispatchAgentCommand({ type: "user_message", text: "hi", clientId: "m2" });
+
+    expect(agent.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a command retryable when the dispatch itself failed", async () => {
+    const agent = makeAgent();
+    agent.sendMessage.mockRejectedValueOnce(new Error("boom"));
+    getAgent.mockReturnValue(agent);
+
+    await expect(
+      gw.dispatchAgentCommand({ type: "user_message", text: "hi", clientId: "m1" }),
+    ).rejects.toThrow("boom");
+    await gw.dispatchAgentCommand({ type: "user_message", text: "hi", clientId: "m1" });
+
+    expect(agent.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("forgets the oldest ids rather than remembering every id forever", async () => {
+    const agent = makeAgent();
+    getAgent.mockReturnValue(agent);
+
+    // One past the window, so the first id has been evicted by the last.
+    for (let i = 0; i <= 256; i++) {
+      await gw.dispatchAgentCommand({ type: "user_message", text: "x", clientId: `m${i}` });
+    }
+    await gw.dispatchAgentCommand({ type: "user_message", text: "x", clientId: "m0" });
+
+    expect(agent.sendMessage).toHaveBeenCalledTimes(258);
+  });
+
   it("rejects outside ready even while the old agent is still published (RESET teardown window)", async () => {
     // During RESET the machine flips to setting_up BEFORE the effect stops the
     // agent, so getAgent() still returns the doomed instance — the phase gate

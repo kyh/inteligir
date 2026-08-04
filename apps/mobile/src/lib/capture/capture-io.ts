@@ -6,20 +6,14 @@
 // pure module never drags expo-file-system into the node test environment.
 // ---------------------------------------------------------------------------
 
-import { readVaultText, writeVaultText } from "../sync/vault-access";
+import { readVaultTextOrNull, writeVaultText } from "../sync/vault-access";
 import type { CaptureIo } from "./daily-capture";
 
-/** A `CaptureIo` over the local expo vault. `read` maps a missing file to
- * null (vault-access throws) — the seed-from-template path. */
+/** A `CaptureIo` over the local expo vault. A missing file reads as null —
+ * the seed-from-template path. */
 export function createVaultCaptureIo(): CaptureIo {
   return {
-    read: (path) => {
-      try {
-        return readVaultText(path);
-      } catch {
-        return null; // missing (or unreadable) — appendCapture seeds it
-      }
-    },
+    read: (path) => readVaultTextOrNull(path),
     write: (path, text) => {
       writeVaultText(path, text);
     },

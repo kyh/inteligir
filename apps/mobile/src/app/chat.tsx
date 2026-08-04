@@ -1,5 +1,5 @@
 import { Stack, useRouter } from "expo-router";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,7 +16,6 @@ import Markdown from "react-native-markdown-display";
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import {
-  appendNotice,
   appendUser,
   applyAgentEvent,
   emptyChatLog,
@@ -25,6 +24,13 @@ import {
   type ChatLog,
 } from "@repo/bridge/chat-log";
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
+import type { OutboxEntry } from "@/lib/chat/chat-outbox";
+import {
+  dismissUnreadableNotice,
+  enqueueChatMessage,
+  subscribeDelivered,
+  useOutbox,
+} from "@/lib/chat/outbox";
 import { getHostBridge, useHostStatus } from "@/lib/host/connection";
 import { hostStatusDotColor, hostStatusLabel, type HostStatus } from "@/lib/host/status-display";
 import { useHostChannel } from "@/lib/host/use-host-channel";
@@ -38,6 +44,18 @@ import { RADIUS, SPACE, themeFor, useTheme } from "@/lib/theme";
 // mount and on every reconnect; live turns stream through the pure chat-log
 // fold. The composer routes a mid-turn submission as a follow_up, exactly
 // like the desktop.
+//
+// Sending goes through the durable outbox (../lib/chat/outbox.ts), never
+// straight at the bridge: a phone backgrounds mid-request constantly, and the
+// queue is what turns that from a silently lost message into one that
+// delivers on reconnect. That also lets the composer accept a message while
+// the desktop is unreachable.
+//
+// So a submission is NOT a log entry. The transcript is the host's history
+// plus the outbox's own rows, and a message crosses from one to the other only
+// when the host acknowledges it — otherwise a queued message would appear in
+// the log and then vanish at the next reconnect, when the host's history
+// replaces it wholesale.
 // ---------------------------------------------------------------------------
 
 // How close to the end (px) still counts as "at the bottom" for auto-scroll.
@@ -56,16 +74,42 @@ export default function ChatScreen() {
   // reread must not be yanked back down by streaming deltas.
   const nearBottomRef = useRef(true);
 
-  // Live agent events + a history reload on every (re)connect.
+  // Messages acked SINCE the in-flight history request was issued. The host
+  // serves history off the session file, but a dispatch only fires the turn —
+  // pi appends the user entry several awaits later, so a history served right
+  // after an ack legitimately predates it. Both land on one reconnect and the
+  // order is a coin flip; folding these on top stops the reload erasing the
+  // user's own message. Anything acked BEFORE the request was issued is
+  // already on disk, so nothing renders twice.
+  const ackedSinceLoad = useRef<string[]>([]);
+
   useHostChannel<AppAgentEvent, ChatHistoryEntry[]>({
     subscribe: (bridge, onEvent) => bridge.onAgentEvent(onEvent),
-    load: (bridge) => bridge.getAgentHistory(),
+    load: (bridge) => {
+      ackedSinceLoad.current = [];
+      return bridge.getAgentHistory();
+    },
     onEvent: (event) => setLog((current) => applyAgentEvent(current, event)),
-    onLoad: (history) => setLog(logFromHistory(history)),
+    onLoad: (history) => setLog(ackedSinceLoad.current.reduce(appendUser, logFromHistory(history))),
   });
 
+  // An acknowledged message leaves the queue; that is the moment it becomes
+  // part of the conversation, and the next history reload confirms it.
+  useEffect(
+    () =>
+      subscribeDelivered((text) => {
+        ackedSinceLoad.current.push(text);
+        setLog((current) => appendUser(current, text));
+      }),
+    [],
+  );
+
+  const outbox = useOutbox();
   const connected = status === "connected";
-  const canSend = connected && input.trim() !== "";
+  // A started, still-authorized environment accepts messages even while the
+  // socket is down — the outbox holds them.
+  const composing = status !== "none" && status !== "unauthorized";
+  const canSend = composing && input.trim() !== "";
   const streaming = log.streamingId !== null;
 
   // Recreated only when the status changes — not per keystroke/delta render.
@@ -78,17 +122,11 @@ export default function ChatScreen() {
   );
 
   const send = useCallback(() => {
-    const bridge = getHostBridge();
     const text = input.trim();
-    if (bridge === null || text === "") return;
+    if (text === "") return;
     setInput("");
-    setLog((current) => appendUser(current, text));
-    void bridge
-      .sendAgentCommand({ type: log.busy ? "follow_up" : "user_message", text })
-      .catch(() => {
-        setLog((current) => appendNotice(current, "Your message wasn't delivered."));
-      });
-  }, [input, log.busy]);
+    enqueueChatMessage(text);
+  }, [input]);
 
   const interrupt = useCallback(() => {
     // Benign if nothing is running to interrupt — swallow the rejection.
@@ -128,7 +166,7 @@ export default function ChatScreen() {
             scrollRef.current?.scrollToEnd({ animated: !streaming });
           }}
         >
-          {log.items.length === 0 ? (
+          {log.items.length === 0 && outbox.entries.length === 0 ? (
             <View style={styles.empty}>
               <Text style={[styles.emptyTitle, { color: theme.mutedForeground }]}>
                 {connected ? "Chat with your desktop agent." : "Not connected to a desktop."}
@@ -143,10 +181,25 @@ export default function ChatScreen() {
           {log.busy && log.streamingId === null ? (
             <Text style={[styles.pending, { color: theme.mutedForeground }]}>Working…</Text>
           ) : null}
+          {outbox.entries.map((entry) => (
+            <QueuedRow key={entry.id} entry={entry} dark={dark} />
+          ))}
         </ScrollView>
 
+        {outbox.unreadable ? (
+          <Pressable
+            style={[styles.unreadable, { borderTopColor: theme.border }]}
+            onPress={dismissUnreadableNotice}
+          >
+            <Text style={[styles.unreadableText, { color: theme.destructive }]}>
+              Some messages waiting to send couldn’t be read and were set aside. Anything missing
+              will need sending again.
+            </Text>
+          </Pressable>
+        ) : null}
+
         <View style={[styles.composer, { borderTopColor: theme.border }]}>
-          {connected ? (
+          {composing ? (
             <View style={styles.composerRow}>
               <TextInput
                 style={[
@@ -214,21 +267,33 @@ function HeaderStatus({ status }: { status: HostStatus }) {
   );
 }
 
+/** Only reached for the two states the composer refuses outright; every other
+ * status accepts a message and lets the outbox hold it. */
 function composerHint(status: HostStatus): string {
-  switch (status) {
-    case "none":
-      return "Pair with your desktop to chat.";
-    case "unauthorized":
-      return "This device is no longer authorized.";
-    case "connecting":
-    case "disconnected":
-      return "Connecting to your desktop…";
-    case "connected":
-      return "";
-  }
+  return status === "unauthorized"
+    ? "This device is no longer authorized."
+    : "Pair with your desktop to chat.";
 }
 
 // ---- rows -------------------------------------------------------------------
+
+/** A message the desktop has not acknowledged yet: the user's own bubble, held
+ * apart from the conversation until it is really in it. */
+function QueuedRow({ entry, dark }: { entry: OutboxEntry; dark: boolean }) {
+  const theme = themeFor(dark);
+  return (
+    <View style={styles.userRow}>
+      <View style={styles.queued}>
+        <View style={[styles.userBubble, styles.queuedBubble, { backgroundColor: theme.primary }]}>
+          <Text style={[styles.userText, { color: theme.primaryForeground }]}>{entry.text}</Text>
+        </View>
+        <Text style={[styles.queuedLabel, { color: theme.mutedForeground }]}>
+          {entry.state.kind === "sending" ? "Sending…" : "Waiting to send"}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 // Memoized: the chat-log fold keeps untouched item references stable, so a
 // streaming delta re-renders ONE row, not the whole transcript.
@@ -297,6 +362,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.lg,
     paddingVertical: SPACE.md,
   },
+  unreadable: {
+    borderTopWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.sm,
+  },
+  unreadableText: { fontSize: 12, lineHeight: 16 },
   composerRow: { flexDirection: "row", alignItems: "flex-end", gap: SPACE.sm },
   input: {
     flex: 1,
@@ -334,6 +405,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   userText: { fontSize: 16 },
+  queued: { maxWidth: "85%", alignItems: "flex-end", gap: 2 },
+  queuedBubble: { maxWidth: "100%", opacity: 0.55 },
+  queuedLabel: { fontSize: 11 },
   tool: { marginBottom: SPACE.sm, fontSize: 12 },
   errorCard: {
     marginBottom: SPACE.md,

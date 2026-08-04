@@ -6,6 +6,12 @@
 // the IPC handler never reaches into app-machine directly, and a second writer
 // (mobile relay, widget prompt, external chat) gets one obvious place to
 // reintroduce serialization instead of racing the session.
+//
+// It is also where a RETRY is made safe. A remote sender whose socket dies
+// mid-request cannot know whether the turn ran, so it re-sends under the same
+// `clientId`; delivering it twice would run the message twice. Ids are
+// remembered only once the command actually reached the agent — a rejected
+// dispatch never happened, and must stay retryable.
 // ---------------------------------------------------------------------------
 
 import { getAgent, getAppState } from "./app-machine";
@@ -15,6 +21,21 @@ import type { ImageAttachment, TextChatMessage } from "@repo/bridge/chat-message
 /** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
 export function toImageContent(images: ImageAttachment[] | undefined): ImageContent[] | undefined {
   return images?.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
+}
+
+/** How many delivered client ids stay remembered. A retry follows its original
+ * by seconds, so this only has to outlive a reconnect — it is a bounded
+ * window, deliberately not a set that grows for the process lifetime. */
+const DELIVERED_ID_WINDOW = 256;
+
+/** Insertion-ordered, so the oldest id is the one evicted when it overflows. */
+const deliveredIds = new Set<string>();
+
+function rememberDelivered(clientId: string): void {
+  deliveredIds.add(clientId);
+  if (deliveredIds.size <= DELIVERED_ID_WINDOW) return;
+  const oldest = deliveredIds.values().next();
+  if (!oldest.done) deliveredIds.delete(oldest.value);
 }
 
 /** Apply an interactive command to the live agent. The returned promise settles
@@ -33,6 +54,9 @@ export async function dispatchAgentCommand(command: TextChatMessage): Promise<vo
   // briefly null (e.g. mid newSession/stopAgent) didn't reach it, so awaiters
   // must not treat it as submitted.
   if (!agent) throw new Error("Agent unavailable");
+  // An interrupt carries no id: it is idempotent, so a repeat costs nothing.
+  const clientId = command.type === "interrupt" ? undefined : command.clientId;
+  if (clientId !== undefined && deliveredIds.has(clientId)) return;
   switch (command.type) {
     case "user_message":
       await agent.sendMessage(command.text, toImageContent(command.images));
@@ -47,4 +71,5 @@ export async function dispatchAgentCommand(command: TextChatMessage): Promise<vo
       await agent.interrupt();
       break;
   }
+  if (clientId !== undefined) rememberDelivered(clientId);
 }
