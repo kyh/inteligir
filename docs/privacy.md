@@ -82,6 +82,12 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   model typed plus the refusal string in `~/.inteligir/sessions/*.jsonl` —
   never the note's content. Content a `bash` bypass obtained WOULD land in
   the transcript (the hole above).
+- **Whole-vault COUNTS are not partitioned (accepted).** Sync's manifest
+  covers every file, private ones included, so the number of files it tracks
+  differenced against a count taken over the public notes alone yields how
+  many private notes exist. A count, never a name or a byte — and the
+  alternative, a manifest that hides private files, is silent data loss on
+  your other devices.
 - **A refusal is an existence oracle (accepted).** The block reason tells
   the model that the path it named exists and is private, so an agent could
   guess filenames and learn which exist-and-are-private — paths only, never

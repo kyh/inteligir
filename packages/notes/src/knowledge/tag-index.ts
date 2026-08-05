@@ -12,7 +12,13 @@
 /** A tag with the number of DISTINCT notes carrying it. `tag` is display case. */
 export type TagCount = { tag: string; count: number };
 
-type TagEntry = { display: string; paths: Set<string> };
+type TagEntry = {
+  /** Display case of the first occurrence among the currently-indexed docs. */
+  display: string;
+  /** path → the display case THAT doc wrote it in, so a scoped view can render
+   * the tag the way a surviving note writes it rather than an excluded one. */
+  paths: Map<string, string>;
+};
 
 export class TagIndex {
   /** lowercased tag → { display case, notes carrying it }. */
@@ -36,10 +42,10 @@ export class TagIndex {
       keys.push(key);
       let entry = this.tags.get(key);
       if (!entry) {
-        entry = { display, paths: new Set() };
+        entry = { display, paths: new Map() };
         this.tags.set(key, entry);
       }
-      entry.paths.add(path);
+      entry.paths.set(path, display);
     }
     if (keys.length > 0) this.docTags.set(path, keys);
   }
@@ -63,13 +69,32 @@ export class TagIndex {
   }
 
   /** Every tag with its note count, most-used first (ties broken alphabetically,
-   * case-insensitively) — the palette's tag list ordering. */
-  all(): TagCount[] {
-    return [...this.tags.values()]
-      .map((entry): TagCount => ({ tag: entry.display, count: entry.paths.size }))
-      .toSorted(
-        (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),
-      );
+   * case-insensitively) — the palette's tag list ordering.
+   *
+   * `includes` scopes the whole answer to the notes it accepts: the count is
+   * RECOMPUTED over them and a tag no accepted note carries disappears. A caller
+   * cannot get this by filtering the result — the tag list is keyed by tag, so
+   * every surviving count would still be totalling the excluded notes, and the
+   * display case would still be whichever of them was indexed first. */
+  all(includes?: (path: string) => boolean): TagCount[] {
+    const counts: TagCount[] = [];
+    for (const entry of this.tags.values()) {
+      if (includes === undefined) {
+        counts.push({ tag: entry.display, count: entry.paths.size });
+        continue;
+      }
+      let count = 0;
+      let display = "";
+      for (const [path, written] of entry.paths) {
+        if (!includes(path)) continue;
+        if (count === 0) display = written;
+        count += 1;
+      }
+      if (count > 0) counts.push({ tag: display, count });
+    }
+    return counts.toSorted(
+      (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),
+    );
   }
 
   /** One doc's tags in display case, extraction order (empty when unknown) —
@@ -82,6 +107,6 @@ export class TagIndex {
   /** The notes carrying `tag` (case-insensitive), by path. Empty when unknown. */
   notesWithTag(tag: string): string[] {
     const entry = this.tags.get(tag.trim().toLowerCase());
-    return entry ? [...entry.paths].toSorted() : [];
+    return entry ? [...entry.paths.keys()].toSorted() : [];
   }
 }

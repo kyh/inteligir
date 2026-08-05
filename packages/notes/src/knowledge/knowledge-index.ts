@@ -87,12 +87,12 @@ export class KnowledgeIndex {
     return this.linkGraph.forwardLinks(path);
   }
 
-  graph(): LinkGraph {
-    return this.linkGraph.graph();
+  graph(opts?: PrivacyOpts): LinkGraph {
+    return this.linkGraph.graph(opts);
   }
 
-  wikiTargets(): WikiTarget[] {
-    return this.linkGraph.wikiTargets();
+  wikiTargets(opts?: PrivacyOpts): WikiTarget[] {
+    return this.linkGraph.wikiTargets(opts);
   }
 
   search(query: string, limit: number = SEARCH_DEFAULT_LIMIT, opts?: PrivacyOpts): SearchResult[] {
@@ -111,12 +111,12 @@ export class KnowledgeIndex {
     }));
   }
 
-  tags(): TagCount[] {
-    return this.linkGraph.tags();
+  tags(opts?: PrivacyOpts): TagCount[] {
+    return this.linkGraph.tags(opts);
   }
 
-  tasks(): VaultTaskEntry[] {
-    return this.linkGraph.tasks();
+  tasks(opts?: PrivacyOpts): VaultTaskEntry[] {
+    return this.linkGraph.tasks(opts);
   }
 
   notesWithTag(tag: string, opts?: PrivacyOpts): string[] {

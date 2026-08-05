@@ -303,10 +303,19 @@ export class LinkGraphIndex {
     });
   }
 
-  graph(): LinkGraph {
+  /** Under `excludePrivate` a private doc contributes NOTHING: no node (its path
+   * and title), no outgoing edges (a phantom node is its raw `[[link]]` text,
+   * which is body content), and no inbound ones (an edge naming it is its path
+   * again). `degree` then counts over the public graph, so it keeps meaning
+   * "edges touching this node in the graph you were handed". */
+  graph(opts?: PrivacyOpts): LinkGraph {
+    const excludePrivate = opts?.excludePrivate === true;
+    const visible = (path: string): boolean =>
+      !excludePrivate || this.docs.get(path)?.private !== true;
     const { forward } = this.ensureResolved();
     const nodes = new Map<string, GraphNode>();
     for (const [path, record] of this.docs) {
+      if (excludePrivate && record.private) continue;
       nodes.set(path, { id: path, title: record.title, path, phantom: false, degree: 0 });
     }
     const edges: GraphEdge[] = [];
@@ -317,6 +326,7 @@ export class LinkGraphIndex {
     // load-bearing, not tidiness.
     const bySource = new Map<string, GraphEdge>();
     for (const [sourcePath, links] of forward) {
+      if (!visible(sourcePath)) continue;
       bySource.clear();
       const sourceNode = nodes.get(sourcePath);
       for (const { link, targetPath } of links) {
@@ -329,6 +339,7 @@ export class LinkGraphIndex {
         let targetId: string;
         if (targetPath !== null) {
           if (!this.docs.has(targetPath)) continue; // resolved asset target
+          if (!visible(targetPath)) continue;
           targetId = targetPath;
         } else {
           // A dangling target written with a non-doc extension is an asset
@@ -362,13 +373,19 @@ export class LinkGraphIndex {
   }
 
   /** Docs first (title-bearing), assets after — the picker renders them as
-   * two groups in this order. */
-  wikiTargets(): WikiTarget[] {
-    const docs = [...this.docs.entries()].map(([path, record]): WikiTarget => {
+   * two groups in this order. Under `excludePrivate` a private doc is absent
+   * entirely: this is a vault LISTING, so its path, title and aliases are all
+   * the leak. Assets are unfiltered — a non-doc carries no frontmatter, so
+   * nothing can mark one private. */
+  wikiTargets(opts?: PrivacyOpts): WikiTarget[] {
+    const excludePrivate = opts?.excludePrivate === true;
+    const docs: WikiTarget[] = [];
+    for (const [path, record] of this.docs) {
+      if (excludePrivate && record.private) continue;
       const target: WikiTarget = { path, title: record.title, type: "doc" };
       if (record.aliases.length > 0) target.aliases = record.aliases;
-      return target;
-    });
+      docs.push(target);
+    }
     const assets = [...this.others].map(
       (path): WikiTarget => ({ path, title: basenamePath(path), type: "asset" }),
     );
@@ -376,17 +393,29 @@ export class LinkGraphIndex {
   }
 
   /** Every tag in the vault with its note count (most-used first). Fed by both
-   * inline `#tags` and the frontmatter `tags` property, unified case-insensitively. */
-  tags(): TagCount[] {
-    return this.tagIndex.all();
+   * inline `#tags` and the frontmatter `tags` property, unified case-insensitively.
+   *
+   * Under `excludePrivate` the counts are RECOMPUTED over the public notes, so a
+   * tag only private notes carry vanishes (its NAME is the leak) and a shared
+   * one's number describes the public notes alone. */
+  tags(opts?: PrivacyOpts): TagCount[] {
+    if (opts?.excludePrivate !== true) return this.tagIndex.all();
+    return this.tagIndex.all((path) => this.docs.get(path)?.private !== true);
   }
 
   /** Every task in the vault, sorted by path then ordinal — the Tasks view's
    * whole-vault query. A flatten over stored projections, no resolution pass
-   * (tasks don't participate in ensureResolved). */
-  tasks(): VaultTaskEntry[] {
+   * (tasks don't participate in ensureResolved).
+   *
+   * Under `excludePrivate` a private doc contributes no rows at all. This is the
+   * sharpest of the whole-vault reads: every row carries `raw`, the task's
+   * VERBATIM source line, so an ungated answer hands out private note CONTENT
+   * rather than merely paths. */
+  tasks(opts?: PrivacyOpts): VaultTaskEntry[] {
+    const excludePrivate = opts?.excludePrivate === true;
     const out: VaultTaskEntry[] = [];
     for (const [path, record] of [...this.docs.entries()].toSorted(byKey)) {
+      if (excludePrivate && record.private) continue;
       for (const task of record.tasks) {
         out.push({
           path,
