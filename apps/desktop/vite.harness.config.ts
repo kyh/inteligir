@@ -6,7 +6,7 @@ import { defineConfig } from "vite";
 
 // Browser dev harness — the fastest UI loop, no Electron and no backend.
 // `dev/main.tsx` installs an in-memory fixture Bridge so the whole renderer UI
-// runs in a plain browser. The renderer is source-imported via `@renderer`.
+// runs in a plain browser. The UI is source-imported from @repo/workspace.
 const configDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
@@ -17,11 +17,12 @@ export default defineConfig({
   plugins: [tailwindcss(), react()],
   resolve: {
     alias: {
-      "@renderer": resolve(configDir, "src/renderer"),
       // `@` → src, matching electron.vite/vitest — the HTML-App view imports the
       // shared runtime-injection module (`@/html-app-inject`) for its blob
       // fallback.
       "@": resolve(configDir, "src"),
+      "@repo/workspace": resolve(configDir, "../../packages/workspace/src"),
+      "@repo/editor": resolve(configDir, "../../packages/editor/src"),
     },
   },
 });

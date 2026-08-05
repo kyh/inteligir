@@ -5,8 +5,7 @@
     "jsx": "react-jsx",
     "types": ["electron-vite/node"],
     "paths": {
-      "@/*": ["./src/*"],
-      "@renderer/*": ["./src/renderer/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

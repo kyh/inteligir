@@ -75,6 +75,13 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  # delegation, capture, restore (AI-edit undo), HostPlatform. Exports
                  # are NARROW: only the entrypoints desktop main composes.
   ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
+  editor/        # The note editor (@repo/editor) — the Plate tree, kits/nodes,
+                 # the markdown round-trip + byte-pinned fixture matrix, editor
+                 # AI, and the open-note runtime. Host-agnostic: everything the
+                 # shell owns arrives through the injected EditorHost (host.tsx)
+  workspace/     # The app shell (@repo/workspace) — sidebar, palette, composer,
+                 # settings, voice, graph/tasks views, vault-context (which
+                 # IMPLEMENTS EditorHost), plus the dev fixture Bridge
 ```
 
 Dep DAG (every edge between `packages/`, pinned against the manifests by
@@ -84,15 +91,14 @@ voice→storage+bridge; connectors→installer+storage+bridge (agent never
 imports connectors: code-mode reaches the daemon through the injected
 ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source
 in @repo/bridge/dev-flags); sync→vault+storage+notes+bridge;
-server→agent+bridge+connectors+notes+storage+sync+vault+voice.
-The renderer and mobile reach the backend through @repo/bridge (+notes/ui)
-ONLY — never @repo/server — but "no node in the UI's contract" is enforced
-differently per app. For mobile it is an unresolvable-import fact: @repo/mobile
-depends on bridge+notes and nothing else. Desktop cannot claim that — the app
-package DOES depend on @repo/server because main composes the host — so the
-renderer's freedom from it is `no-restricted-imports` over `renderer/**` +
-`dev/**`, plus `dep-dag.test.ts` for `renderer/__tests__/**`, where that lint
-override is switched off. The extracted host packages (storage, vault, voice,
+server→agent+bridge+connectors+notes+storage+sync+vault+voice;
+editor→bridge+notes+ui; workspace→bridge+editor+notes+ui.
+The UI packages and mobile reach the backend through @repo/bridge (+notes/ui)
+ONLY — never @repo/server — and for all three that is now an
+unresolvable-import fact rather than a lint opinion: @repo/mobile,
+@repo/editor and @repo/workspace each declare no dependency on the host.
+`dep-dag.test.ts` walks their sources anyway, because a package can still
+reach sideways through a relative path. The extracted host packages (storage, vault, voice,
 connectors, sync) sit BELOW server: they never import @repo/server (that
 would be a package cycle) or electron — upward needs cross module-scoped
 install seams the composition root fills (setSecretCipherProvider,
@@ -105,7 +111,8 @@ per call).
 clock) — see `notes/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
 engine and knowledge/markdown code through thin adapters.
 
-The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
+The product's UI lives in `@repo/workspace` (over `@repo/editor`); the desktop
+renderer is a ~35-line entry that dials the host and mounts it.
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
 `@repo/server` host, communicating over a local WebSocket
 transport (one server, loopback by default). For UI work there is also a

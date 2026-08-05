@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // ES2023 floor-and-ceiling, as in @repo/ui and @repo/editor: bundled into
+    // apps/web at Vite's `baseline-widely-available` target, which transforms
+    // syntax but never stdlib.
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "paths": {
+      "@repo/workspace/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "vitest.config.ts"]
+}

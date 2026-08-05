@@ -15,12 +15,7 @@
       "ignoreDependencies": ["cloudflare"]
     },
     "apps/desktop": {
-      "entry": [
-        "src/renderer/index.html",
-        "src/__tests__/**/*.test.ts",
-        "src/renderer/__tests__/**/*.test.ts",
-        "scripts/**/*.mjs"
-      ],
+      "entry": ["src/renderer/index.html", "src/__tests__/**/*.test.ts", "scripts/**/*.mjs"],
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
       "ignoreDependencies": ["sherpa-onnx-node"]
     },
@@ -57,6 +52,11 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
+    "packages/editor": {
+      "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "includeEntryExports": false
+    },
     "packages/installer": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
@@ -90,6 +90,11 @@
     "packages/vault": {
       "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
+    "packages/workspace": {
+      "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
+      "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": false
     },
     "packages/voice": {

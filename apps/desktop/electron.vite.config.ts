@@ -72,9 +72,8 @@ export default defineConfig(() => ({
     resolve: {
       alias: {
         "@": resolve(configDir, "src"),
-        // The renderer UI (the whole workspace) lives under src/renderer;
-        // `@renderer` is its internal import root.
-        "@renderer": resolve(configDir, "src/renderer"),
+        "@repo/workspace": resolve(configDir, "../../packages/workspace/src"),
+        "@repo/editor": resolve(configDir, "../../packages/editor/src"),
       },
     },
     build: {

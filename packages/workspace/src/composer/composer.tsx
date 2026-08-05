@@ -1,0 +1,863 @@
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  ArrowUpIcon,
+  AudioLinesIcon,
+  CheckIcon,
+  ImageIcon,
+  ListPlusIcon,
+  MicIcon,
+  PaperclipIcon,
+  SparklesIcon,
+  SquareIcon,
+  XIcon,
+  ZapIcon,
+} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+
+import { toast } from "@repo/ui/components/sonner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
+import { cn } from "@repo/ui/lib/utils";
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentGroup,
+  AttachmentMedia,
+} from "@repo/ui/components/attachment";
+import {
+  PromptInput,
+  PromptInputButton,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  usePromptInputAttachments,
+  type PromptInputMessage,
+} from "@repo/workspace/ai-elements/prompt-input";
+import {
+  Queue,
+  QueueItem,
+  QueueItemContent,
+  QueueItemIndicator,
+  QueueList,
+} from "@repo/workspace/ai-elements/queue";
+
+import type { ImageAttachment } from "@repo/bridge/chat-message";
+import {
+  CAPSULE_CONTENT_HIDDEN,
+  CAPSULE_CONTENT_VISIBLE,
+  CAPSULE_RADIUS,
+  CAPSULE_SURFACE,
+  ListeningGlow,
+  ListeningOrb,
+  useCapsuleSpring,
+} from "@repo/workspace/composer/capsule-motion";
+import { ConnectProviderRow } from "@repo/workspace/composer/connect-provider-row";
+import { useAgentStore } from "@repo/workspace/stores/agent-store";
+import { useAiProviderConnected, useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
+import { useVoiceStore } from "@repo/workspace/stores/voice-store";
+import { useVoiceCapture } from "@repo/workspace/voice/use-voice-capture";
+import type { VoiceState } from "@repo/workspace/voice/voice-machine";
+
+const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
+const MAX_ATTACHMENT_COUNT = 8;
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MiB per image
+
+// Extract the base64 payload from a `data:<mime>;base64,<payload>` URL. Returns
+// null for any other shape so the agent never receives a non-base64 `data`.
+function dataUrlToImageAttachment(url: string, mimeType: string): ImageAttachment | null {
+  if (!url.startsWith("data:")) return null;
+  const marker = ";base64,";
+  const markerIdx = url.indexOf(marker);
+  if (markerIdx < 0) return null;
+  const data = url.slice(markerIdx + marker.length);
+  if (!data) return null;
+  return { data, mimeType: mimeType || "image/png" };
+}
+
+type PromptInputFile = PromptInputMessage["files"][number];
+type ImagePromptInputFile = PromptInputFile & { mediaType: string; url: string };
+
+function isImagePromptInputFile(file: PromptInputFile): file is ImagePromptInputFile {
+  return (
+    typeof file.url === "string" &&
+    file.url.length > 0 &&
+    typeof file.mediaType === "string" &&
+    file.mediaType.startsWith("image/")
+  );
+}
+
+type QueuedMessage = { key: string; text: string };
+function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
+  const seen = new Map<string, number>();
+  return messages.map((text) => {
+    const count = seen.get(text) ?? 0;
+    seen.set(text, count + 1);
+    return { key: `${prefix}-${count}-${text}`, text };
+  });
+}
+
+// One queued message row — steering and follow-up differ only by the leading icon.
+function QueuedRow({ msg, icon }: { msg: QueuedMessage; icon: ReactNode }) {
+  return (
+    <QueueItem className="rounded-md px-2 py-1 hover:bg-muted" title={msg.text}>
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        {icon}
+        <QueueItemContent>{msg.text}</QueueItemContent>
+      </div>
+    </QueueItem>
+  );
+}
+
+/**
+ * The AI composer — a spring-morphing capsule pinned at the bottom of the
+ * workspace. It rests as a compact centered pill and springs open to the full
+ * input on click/focus, collapsing back when the draft empties and focus
+ * leaves. Talks to the agent via agent-store (routing user/follow-up/steer
+ * by live busy state) and auto-attaches the open note as context. Tapping the
+ * mic morphs the capsule into a listening surface driven by local STT; the
+ * confirmed transcript lands in the draft for review, never auto-sent. The
+ * audio-lines button beside it starts hands-free voice chat instead
+ * (voice-store): finalized transcripts auto-send and the reply is spoken.
+ */
+export function Composer() {
+  // The draft is controlled state owned here: the textarea renders it and
+  // every mutation — typing, voice transcripts, submit/Escape clears — goes
+  // through setDraft. "Has input" is derived, never synced from the DOM.
+  const [draft, setDraft] = useState("");
+  const hasInput = draft.trim().length > 0;
+  // Attachment presence, lifted out of PromptInput (its onFilesChange prop) so
+  // the collapse logic below can hold the capsule open while files are staged
+  // even though the tray lives inside the form.
+  const [hasAttachments, setHasAttachments] = useState(false);
+  // User-engagement latch: set by pill click / textarea focus, cleared when
+  // focus leaves the composer (the wrapper's blur handler below).
+  const [engaged, setEngaged] = useState(false);
+  const engage = useCallback(() => setEngaged(true), []);
+  const pendingSteerRef = useRef(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  // Focus management only — the draft VALUE never travels through the DOM.
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const appState = useAgentStore((s) => s.appState);
+  const send = useAgentStore((s) => s.send);
+  const interrupt = useAgentStore((s) => s.interrupt);
+  const queuedFollowUp = useAgentStore((s) => s.queuedFollowUp);
+  const queuedSteering = useAgentStore((s) => s.queuedSteering);
+
+  const busy = appState.phase === "ready" && appState.agent === "busy";
+
+  // AI feature gate: with no provider connected the whole input is
+  // replaced by the connect affordance below — the app itself never blocks.
+  const providerConnected = useAiProviderConnected();
+  const initProviders = useAiProviderStore((s) => s.init);
+  useEffect(() => {
+    void initProviders();
+  }, [initProviders]);
+
+  useEffect(() => {
+    if (!busy) pendingSteerRef.current = false;
+  }, [busy]);
+
+  // --- Voice capture ---------------------------------------------------------
+
+  const voice = useVoiceCapture();
+  const voiceActive = voice.phase !== "idle";
+
+  // --- Voice conversation ----------------------------------------------------
+  // Hands-free mode (voice-store): STT → agent turn → spoken reply, looping
+  // until ended. Distinct from the one-shot dictation mic above — dictation
+  // lands a transcript in the draft; conversation auto-sends turns and the
+  // agent talks back. The two are mutually exclusive by construction: each
+  // surface replaces the toolbar (and the pill) that launches the other.
+
+  const voiceConv = useVoiceStore((s) => s.state);
+  const ttsConfigured = useVoiceStore((s) => s.ttsConfigured);
+  const toggleVoiceConversation = useVoiceStore((s) => s.toggleVoice);
+  const stopVoiceConversation = useVoiceStore((s) => s.stopVoice);
+  const voiceConvActive = voiceConv.kind !== "idle" && voiceConv.kind !== "error";
+  // While the reply streams the TTS is speaking it (agent-store narrates
+  // deltas only in voice mode) — that drives the orb's "speaking" mood.
+  const replyStreaming = useAgentStore((s) => s.log.streamingId !== null);
+
+  // A conversation error (mic denied, model still missing, recognizer fault)
+  // surfaces as a toast and exits voice mode — the same toast idiom the
+  // dictation mic uses, so the capsule never parks on an error surface.
+  useEffect(() => {
+    if (voiceConv.kind !== "error") return;
+    toast.error(`Voice chat unavailable: ${voiceConv.message}`);
+    stopVoiceConversation();
+  }, [voiceConv, stopVoiceConversation]);
+
+  // Escape ends the conversation (the textarea's own Escape handler is inert
+  // while the input surface is hidden) — mirrors the dictation handler below.
+  useEffect(() => {
+    if (!voiceConvActive) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      stopVoiceConversation();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [voiceConvActive, stopVoiceConversation]);
+
+  // Either voice surface (dictation listening row / conversation row) owns the
+  // capsule: the input blurs out of flow and must not eat the engagement latch.
+  const voiceSurface = voiceActive || voiceConvActive;
+
+  // The capsule is expanded (full input) or resting (compact pill). `engaged`
+  // is pure user intent; everything that must hold the surface open — a
+  // running turn, a voice surface, drafted text, staged attachments —
+  // is OR'd on top so a collapse can never eat state. When busy ends with the
+  // draft empty and focus elsewhere, this falls back to the pill on its own.
+  const expanded = engaged || busy || voiceSurface || hasInput || hasAttachments;
+
+  /** Confirm listening: the final transcript is appended to the draft for
+   * review — never auto-sent. Committing a new value collapses the caret to
+   * the end, and the return-from-listening focus effect below then focuses the
+   * textarea — so the cursor lands after the appended transcript. */
+  const { confirm: confirmVoice } = voice;
+  const confirmListening = useCallback(async () => {
+    const text = await confirmVoice();
+    if (!text) return;
+    setDraft((prev) => {
+      const existing = prev.replace(/\s+$/, "");
+      return existing ? `${existing} ${text}` : text;
+    });
+  }, [confirmVoice]);
+
+  // Escape cancels listening (the textarea's own Escape handler is inert
+  // while the input surface is hidden).
+  const { cancel: cancelVoice } = voice;
+  useEffect(() => {
+    if (!voiceActive) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      cancelVoice();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [voiceActive, cancelVoice]);
+
+  // --- Collapse / expand -----------------------------------------------------
+
+  // Collapse when focus truly LEAVES the composer (focusout bubbles here from
+  // every descendant): moving between the textarea and toolbar buttons stays
+  // inside the wrapper and must not fold the capsule. The `expanded` OR-chain
+  // still holds it open if a draft, attachments, or a running turn remain.
+  // A live voice surface vetoes — the input goes inert and blurs itself as
+  // that surface takes over, and that must not eat the engagement latch.
+  const handleWrapperBlur = useCallback(
+    (e: React.FocusEvent<HTMLDivElement>) => {
+      if (voiceSurface) return;
+      const next = e.relatedTarget;
+      if (next instanceof Node && wrapperRef.current?.contains(next)) return;
+      setEngaged(false);
+    },
+    [voiceSurface],
+  );
+
+  // Focus the textarea whenever the input becomes the active surface: on
+  // expand (pill click mounts it) and on return from a voice surface (so a
+  // dictated transcript is immediately reviewable). A cancelled pill-mic
+  // session collapses back to the pill — expanded is false, nothing to focus.
+  const prevSurfaceRef = useRef({ expanded, voiceSurface });
+  useEffect(() => {
+    const prev = prevSurfaceRef.current;
+    prevSurfaceRef.current = { expanded, voiceSurface };
+    if (expanded && !voiceSurface && (!prev.expanded || prev.voiceSurface)) {
+      textareaRef.current?.focus();
+    }
+  }, [expanded, voiceSurface]);
+
+  // --- Submission ------------------------------------------------------------
+
+  const handleSubmit = useCallback(
+    async (message: PromptInputMessage) => {
+      const wantsSteer = pendingSteerRef.current;
+      pendingSteerRef.current = false;
+      // The controlled draft is the payload (message.text mirrors it — the
+      // form reads the same textarea — but state is the authority). Clear it
+      // immediately: submit empties the input whether or not the send lands; a
+      // failed send warns via toast rather than restoring the draft. Anything
+      // typed while the send is in flight flows into a fresh draft as normal.
+      const text = draft.trim();
+      setDraft("");
+      const fileImages = message.files.filter(isImagePromptInputFile);
+      if (!text && fileImages.length === 0) return;
+      const converted = fileImages.map((f) => dataUrlToImageAttachment(f.url, f.mediaType));
+      const images = converted.filter((img): img is ImageAttachment => img !== null);
+      if (!text && images.length === 0) {
+        throw new Error("composer: nothing to submit after attachment conversion");
+      }
+      // send() persists the open note and tags the turn with it; it returns
+      // whether the save landed so we can warn (a failed flush means the agent
+      // won't see the latest edits) — but the message still goes out.
+      const { flushed } = await send(
+        text,
+        images.length > 0 ? images : undefined,
+        wantsSteer ? { intent: "steer" } : undefined,
+      );
+      if (!flushed) {
+        toast.warning("Couldn't save your latest edits — the agent won't see them this turn.");
+      }
+    },
+    [send, draft],
+  );
+
+  const onAttachError = useCallback((err: { code: string; message: string }) => {
+    console.warn(`[composer] attachment error: ${err.code} - ${err.message}`);
+  }, []);
+
+  const steeringQueue = keyedMessages("steer", queuedSteering);
+  const followUpQueue = keyedMessages("follow", queuedFollowUp);
+  const requestSteer = useCallback(() => {
+    pendingSteerRef.current = true;
+  }, []);
+
+  const handleFilesChange = useCallback((files: PromptInputMessage["files"]) => {
+    setHasAttachments(files.length > 0);
+  }, []);
+
+  const { capsule: capsuleSpring, content: contentSpring, reduceMotion } = useCapsuleSpring();
+
+  // Guest mode with no provider: the capsule becomes the connect affordance.
+  // Placed after every hook so the hook order is stable across the flip.
+  if (!providerConnected) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <div style={{ borderRadius: CAPSULE_RADIUS }} className={cn(CAPSULE_SURFACE, "w-full")}>
+          <ConnectProviderRow />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={wrapperRef} onBlur={handleWrapperBlur} className="flex flex-col gap-1.5">
+      <AnimatePresence initial={false}>
+        {steeringQueue.length + followUpQueue.length > 0 && (
+          <motion.div
+            key="queue"
+            initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: 6, filter: "blur(4px)" }}
+            transition={capsuleSpring}
+          >
+            <Queue className="rounded-2xl border-transparent bg-popover px-1.5 py-1 text-popover-foreground shadow-sm ring-1 ring-border">
+              <QueueList className="mt-0 -mb-1">
+                {steeringQueue.map((msg) => (
+                  <QueuedRow
+                    key={msg.key}
+                    msg={msg}
+                    icon={<ZapIcon className="size-3 shrink-0 text-primary" />}
+                  />
+                ))}
+                {followUpQueue.map((msg) => (
+                  <QueuedRow
+                    key={msg.key}
+                    msg={msg}
+                    icon={<QueueItemIndicator className="size-1.5" />}
+                  />
+                ))}
+              </QueueList>
+            </Queue>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="relative">
+        <AnimatePresence>{voiceSurface && <ListeningGlow key="glow" />}</AnimatePresence>
+        <motion.div
+          layout={!reduceMotion}
+          transition={capsuleSpring}
+          style={{ borderRadius: CAPSULE_RADIUS }}
+          className={cn(CAPSULE_SURFACE, expanded ? "w-full" : "w-fit mx-auto")}
+        >
+          <AnimatePresence initial={false} mode="popLayout">
+            {voiceActive && (
+              <motion.div
+                key="listening"
+                initial={CAPSULE_CONTENT_HIDDEN}
+                animate={CAPSULE_CONTENT_VISIBLE}
+                exit={CAPSULE_CONTENT_HIDDEN}
+                transition={contentSpring}
+              >
+                <ListeningRow
+                  transcript={voice.transcript}
+                  stopping={voice.phase === "stopping"}
+                  onCancel={cancelVoice}
+                  onConfirm={() => void confirmListening()}
+                />
+              </motion.div>
+            )}
+            {voiceConvActive && (
+              <motion.div
+                key="voice-conversation"
+                initial={CAPSULE_CONTENT_HIDDEN}
+                animate={CAPSULE_CONTENT_VISIBLE}
+                exit={CAPSULE_CONTENT_HIDDEN}
+                transition={contentSpring}
+              >
+                <VoiceConversationRow
+                  state={voiceConv}
+                  busy={busy}
+                  replyStreaming={replyStreaming}
+                  onEnd={stopVoiceConversation}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Resting, the capsule is a compact pill; engaging (click/focus/type/
+           * attach/voice/busy) springs it open to the full input. The input
+           * surface unmounts when collapsed — the controlled draft lives in
+           * composer state, so nothing is lost (and it's empty by definition
+           * there anyway). While a voice surface is live the input stays
+           * mounted but blurs out of flow so the capsule can spring down to
+           * the listening/conversation row. */}
+          <AnimatePresence initial={false} mode="popLayout">
+            {expanded ? (
+              <motion.div
+                key="input"
+                initial={CAPSULE_CONTENT_HIDDEN}
+                animate={voiceSurface ? CAPSULE_CONTENT_HIDDEN : CAPSULE_CONTENT_VISIBLE}
+                exit={CAPSULE_CONTENT_HIDDEN}
+                transition={voiceSurface ? { duration: 0.15 } : contentSpring}
+                inert={voiceSurface}
+                className={cn(voiceSurface && "pointer-events-none absolute inset-x-0 top-0")}
+              >
+                <PromptInput
+                  accept={ACCEPTED_IMAGE_MIME}
+                  multiple
+                  maxFiles={MAX_ATTACHMENT_COUNT}
+                  maxFileSize={MAX_ATTACHMENT_BYTES}
+                  onError={onAttachError}
+                  onFilesChange={handleFilesChange}
+                  onSubmit={handleSubmit}
+                  className="bg-transparent [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-0 [&_[data-slot=input-group]]:rounded-3xl [&_[data-slot=input-group]]:border-transparent [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0 [&_[data-slot=input-group]]:shadow-none"
+                >
+                  <ComposerAttachments />
+                  {/* Two-row layout (the InputGroup block-end pattern): the textarea owns
+                   * the top row full-width, a toolbar sits beneath with attach + mic
+                   * pinned left and steer/send pinned right — so the controls stay
+                   * aligned regardless of how tall the textarea grows. */}
+                  <ComposerTextarea
+                    ref={textareaRef}
+                    busy={busy}
+                    value={draft}
+                    onDraftChange={setDraft}
+                    onInterrupt={interrupt}
+                    onEngage={engage}
+                  />
+                  <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
+                    <div className="flex items-center gap-1">
+                      <AttachButton />
+                      <MicButton onStart={() => void voice.start()} />
+                      <VoiceChatButton
+                        ttsConfigured={ttsConfigured}
+                        onToggle={toggleVoiceConversation}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
+                      <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
+                    </div>
+                  </div>
+                </PromptInput>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="pill"
+                initial={CAPSULE_CONTENT_HIDDEN}
+                animate={CAPSULE_CONTENT_VISIBLE}
+                exit={CAPSULE_CONTENT_HIDDEN}
+                transition={contentSpring}
+              >
+                <CollapsedPill
+                  onExpand={engage}
+                  onStartVoice={() => void voice.start()}
+                  onStartVoiceChat={ttsConfigured === true ? toggleVoiceConversation : null}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** The listening surface: cancel | orb + live transcript (or a timer until
+ * words arrive) | confirm. Height-locked to one row so the capsule reads as
+ * the input collapsing into a voice pill. */
+function ListeningRow({
+  transcript,
+  stopping,
+  onCancel,
+  onConfirm,
+}: {
+  transcript: string;
+  stopping: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  // mm:ss readout until the first words arrive. Owned here (not the composer)
+  // so the 1 Hz tick re-renders only this row — and stops entirely once a
+  // transcript is showing (the readout is hidden then anyway). Mount-scoped
+  // per session: AnimatePresence remounts the row for each listening session.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (transcript) return;
+    const interval = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [transcript]);
+
+  return (
+    <div className="flex h-14 items-center gap-2 px-2">
+      <button
+        type="button"
+        aria-label="Cancel voice input"
+        onClick={onCancel}
+        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <XIcon className="size-4" />
+      </button>
+      {/* The orb is the focal voice animation; the live transcript (or a mm:ss
+       * timer until words arrive) rides beside it, truncated so the tail stays
+       * readable. */}
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+        <ListeningOrb />
+        {transcript ? (
+          <span className="max-w-[55%] truncate text-xs text-muted-foreground">{transcript}</span>
+        ) : (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {formatElapsed(elapsed)}
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        aria-label="Confirm voice input"
+        onClick={onConfirm}
+        disabled={stopping}
+        className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
+      >
+        <CheckIcon className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/** The hands-free conversation surface: end | orb + status. ONE indicator (the
+ * shared orb) carries the whole loop — listening (mood + the live partial
+ * transcript), thinking (agent busy, nothing streamed yet), speaking (the
+ * reply is streaming, so the TTS is voicing it). Height-locked to one row,
+ * mirroring the dictation ListeningRow's geometry. */
+function VoiceConversationRow({
+  state,
+  busy,
+  replyStreaming,
+  onEnd,
+}: {
+  state: VoiceState;
+  busy: boolean;
+  replyStreaming: boolean;
+  onEnd: () => void;
+}) {
+  let orbStatus: "starting" | "listening" | "busy" | "speaking" = "starting";
+  let caption = "Starting…";
+  if (state.kind === "listening") {
+    if (state.currentTranscript) {
+      orbStatus = "listening";
+      caption = state.currentTranscript;
+    } else if (replyStreaming) {
+      orbStatus = "speaking";
+      caption = "Speaking…";
+    } else if (busy) {
+      orbStatus = "busy";
+      caption = "Thinking…";
+    } else {
+      orbStatus = "listening";
+      caption = "Listening…";
+    }
+  }
+  return (
+    <div className="flex h-14 items-center gap-2 px-2">
+      <button
+        type="button"
+        aria-label="End voice chat"
+        onClick={onEnd}
+        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <XIcon className="size-4" />
+      </button>
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+        <ListeningOrb status={orbStatus} />
+        <span className="max-w-[55%] truncate text-xs text-muted-foreground">{caption}</span>
+      </div>
+      {/* Spacer mirroring the end button so the orb stays optically centered
+       * (the dictation row's confirm button occupies this slot). */}
+      <div aria-hidden className="size-8 shrink-0" />
+    </div>
+  );
+}
+
+/** Entry point for hands-free voice chat (STT → agent turn → spoken reply) —
+ * the conversation-mode sibling of the one-shot dictation mic. Unconfigured
+ * TTS renders it inert-but-hoverable (aria-disabled, not `disabled`: a native
+ * disabled button swallows the hover, and the tooltip IS the pointer at
+ * Settings). A missing STT model surfaces on attempt via the machine's error
+ * state, exactly like the dictation mic's on-attempt toast. */
+function VoiceChatButton({
+  ttsConfigured,
+  onToggle,
+}: {
+  ttsConfigured: boolean | null;
+  onToggle: () => void;
+}) {
+  const disabled = ttsConfigured !== true;
+  return (
+    <PromptInputButton
+      tooltip={
+        ttsConfigured === false
+          ? "Add an ElevenLabs API key in Settings → Voice"
+          : "Talk with the agent"
+      }
+      aria-label="Talk with the agent"
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onToggle}
+      className={cn(
+        "size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground",
+        disabled && "opacity-50 hover:bg-transparent hover:text-muted-foreground",
+      )}
+    >
+      <AudioLinesIcon className="size-4" />
+    </PromptInputButton>
+  );
+}
+
+function AttachButton() {
+  const { openFileDialog } = usePromptInputAttachments();
+  return (
+    <PromptInputButton
+      tooltip="Attach image"
+      aria-label="Attach image"
+      onClick={openFileDialog}
+      className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <PaperclipIcon className="size-4" />
+    </PromptInputButton>
+  );
+}
+
+function MicButton({ onStart }: { onStart: () => void }) {
+  return (
+    <PromptInputButton
+      tooltip="Dictate a message"
+      aria-label="Dictate a message"
+      onClick={onStart}
+      className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <MicIcon className="size-4" />
+    </PromptInputButton>
+  );
+}
+
+function ComposerTextarea({
+  ref,
+  busy,
+  value,
+  onDraftChange,
+  onInterrupt,
+  onEngage,
+}: {
+  ref: React.Ref<HTMLTextAreaElement>;
+  busy: boolean;
+  value: string;
+  onDraftChange: (draft: string) => void;
+  onInterrupt: () => void;
+  onEngage: () => void;
+}) {
+  const { files, clear } = usePromptInputAttachments();
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      if (busy) {
+        onInterrupt();
+        return;
+      }
+      if (value.length > 0) onDraftChange("");
+      if (files.length > 0) clear();
+    },
+    [busy, onInterrupt, value, onDraftChange, files.length, clear],
+  );
+  return (
+    <PromptInputTextarea
+      ref={ref}
+      value={value}
+      className="max-h-[160px] min-h-9 w-full bg-transparent px-3 pt-3 pb-1 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
+      placeholder={busy ? "Queue a message…" : "Ask the agent to edit your notes…"}
+      onChange={(e) => onDraftChange(e.currentTarget.value)}
+      onKeyDown={handleKeyDown}
+      onFocus={onEngage}
+    />
+  );
+}
+
+/** The resting pill — a compact capsule that springs open to the full input on
+ * click (or when the mic starts a voice session). Kept narrow (`whitespace-
+ * nowrap` + a short prompt) so the capsule's `w-fit` reads as a small pill.
+ * The voice-chat launcher only joins the pill once TTS is configured
+ * (`onStartVoiceChat` null hides it) — the resting pill stays minimal; the
+ * expanded toolbar's disabled button carries discoverability. */
+function CollapsedPill({
+  onExpand,
+  onStartVoice,
+  onStartVoiceChat,
+}: {
+  onExpand: () => void;
+  onStartVoice: () => void;
+  onStartVoiceChat: (() => void) | null;
+}) {
+  return (
+    <div className="flex h-12 items-center gap-1 pr-1.5 pl-3">
+      <button
+        type="button"
+        onClick={onExpand}
+        className="flex h-full flex-1 items-center gap-2 text-left"
+      >
+        <SparklesIcon className="size-4 shrink-0 text-muted-foreground/70" />
+        <span className="text-sm whitespace-nowrap text-muted-foreground">Ask the agent…</span>
+      </button>
+      <Tooltip>
+        <TooltipTrigger
+          aria-label="Dictate a message"
+          onClick={onStartVoice}
+          className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <MicIcon className="size-4" />
+        </TooltipTrigger>
+        <TooltipContent>Dictate a message</TooltipContent>
+      </Tooltip>
+      {onStartVoiceChat && (
+        <Tooltip>
+          <TooltipTrigger
+            aria-label="Talk with the agent"
+            onClick={onStartVoiceChat}
+            className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <AudioLinesIcon className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Talk with the agent</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  );
+}
+
+function useHasContent(hasInput: boolean): boolean {
+  const { files } = usePromptInputAttachments();
+  return hasInput || files.length > 0;
+}
+
+function SteerButton({
+  busy,
+  hasInput,
+  onSteer,
+}: {
+  busy: boolean;
+  hasInput: boolean;
+  onSteer: () => void;
+}) {
+  const hasContent = useHasContent(hasInput);
+  if (!busy || !hasContent) return null;
+  return (
+    <PromptInputButton
+      type="button"
+      tooltip="Send now (steer the agent)"
+      aria-label="Send now (steer the agent)"
+      onClick={(e) => {
+        onSteer();
+        e.currentTarget.form?.requestSubmit();
+      }}
+      className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <ZapIcon className="size-4" />
+    </PromptInputButton>
+  );
+}
+
+function SubmitOrStop({
+  busy,
+  hasInput,
+  onInterrupt,
+}: {
+  busy: boolean;
+  hasInput: boolean;
+  onInterrupt: () => void;
+}) {
+  const hasContent = useHasContent(hasInput);
+  if (busy && !hasContent) {
+    return (
+      <PromptInputButton
+        tooltip="Stop"
+        aria-label="Stop"
+        onClick={onInterrupt}
+        className="size-8 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+      >
+        <SquareIcon className="size-4" />
+      </PromptInputButton>
+    );
+  }
+  return (
+    <PromptInputSubmit
+      disabled={!hasContent}
+      aria-label={busy ? "Queue for next turn" : "Send"}
+      className="size-8 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
+    >
+      {busy ? <ListPlusIcon className="size-4" /> : <ArrowUpIcon className="size-4" />}
+    </PromptInputSubmit>
+  );
+}
+
+function ComposerAttachments() {
+  const { files, remove } = usePromptInputAttachments();
+  if (files.length === 0) return null;
+  return (
+    <AttachmentGroup className="ml-auto w-fit gap-2 px-2 pt-2 pb-1">
+      {files.map((file) => (
+        <Attachment
+          key={file.id}
+          size="xs"
+          orientation="vertical"
+          className="size-9 rounded-lg border-border"
+        >
+          <AttachmentMedia variant="image" className="size-full rounded-lg">
+            {file.type === "file" && file.url ? (
+              <img alt={file.filename || "Image"} src={file.url} />
+            ) : (
+              <ImageIcon className="size-4 text-muted-foreground" />
+            )}
+          </AttachmentMedia>
+          <AttachmentActions className="top-0 right-0 gap-0">
+            <AttachmentAction
+              aria-label="Remove"
+              onClick={() => remove(file.id)}
+              className="size-4 rounded-none rounded-bl bg-foreground/60 text-background opacity-0 group-hover/attachment:opacity-100 hover:bg-foreground/80 hover:text-background [&>svg]:size-2.5"
+            >
+              <XIcon />
+            </AttachmentAction>
+          </AttachmentActions>
+        </Attachment>
+      ))}
+    </AttachmentGroup>
+  );
+}

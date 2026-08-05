@@ -5,6 +5,7 @@
   "description": "The isomorphic wire contract between UIs and the backend: the Bridge/IPC registry (TypeBox channel schemas → the transport-agnostic Bridge type), the ws client + protocol, and the shared domain schemas (chat log, delegation, deep links, sync state…). Loads in the desktop renderer, React Native, and node — no node/electron/react imports, ever; that boundary is now a package fact (this package's deps are @repo/notes + typebox only).",
   "type": "module",
   "exports": {
+    "./__tests__/chat-log-fixtures": "./src/__tests__/chat-log-fixtures.ts",
     "./agent-event-parser": "./src/agent-event-parser.ts",
     "./agent-events": "./src/agent-events.ts",
     "./agent-grants": "./src/agent-grants.ts",
@@ -15,6 +16,7 @@
     "./chat-log": "./src/chat-log.ts",
     "./chat-message": "./src/chat-message.ts",
     "./chat-sessions": "./src/chat-sessions.ts",
+    "./client": "./src/client.ts",
     "./daily-notes": "./src/daily-notes.ts",
     "./deep-link": "./src/deep-link.ts",
     "./delegation": "./src/delegation.ts",
@@ -31,8 +33,7 @@
     "./voice": "./src/voice.ts",
     "./wire-helpers": "./src/wire-helpers.ts",
     "./ws-bridge": "./src/ws-bridge.ts",
-    "./ws-protocol": "./src/ws-protocol.ts",
-    "./__tests__/chat-log-fixtures": "./src/__tests__/chat-log-fixtures.ts"
+    "./ws-protocol": "./src/ws-protocol.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

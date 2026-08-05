@@ -29,6 +29,8 @@ function scannedDirs(): string[] {
     }
   }
   dirs.push("apps/desktop/dev");
+  dirs.push("packages/workspace/src");
+  dirs.push("packages/editor/src");
   return dirs;
 }
 
@@ -50,10 +52,10 @@ const ALLOWED = [
   "packages/bridge/src/ipc-registry.ts",
   "packages/server/src/handlers/sync-handlers.ts",
   // The two settings surfaces: Account owns the session, Sync consumes it.
-  "apps/desktop/src/renderer/settings/sections/account-section.tsx",
-  "apps/desktop/src/renderer/settings/sections/sync-section.tsx",
+  "packages/workspace/src/settings/sections/account-section.tsx",
+  "packages/workspace/src/settings/sections/sync-section.tsx",
   // The dev-harness Bridge must implement every channel by contract.
-  "apps/desktop/dev/fixture-bridge.ts",
+  "packages/workspace/src/dev/fixture-bridge.ts",
   // The agent grant table names the account channels only to DECLARE them
   // never-granted, and its declaration is exhaustive over the registry by
   // construction. A denial is the opposite of a consumer.

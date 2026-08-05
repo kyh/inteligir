@@ -189,9 +189,11 @@ describe("dep DAG", () => {
     ).toBe(false);
 
     // Desktop cannot make the same claim: apps/desktop DOES depend on
-    // @repo/server for main. Lint holds the renderer to the Bridge, and is
-    // switched off under renderer/__tests__ — hence this walk.
+    // @repo/server for main. The UI packages hold themselves to the Bridge by
+    // manifest, and lint is switched off under their tests — hence this walk.
     const rendererFiles: string[] = [];
+    sourceFiles(path.join(REPO_ROOT, "packages/workspace/src"), rendererFiles);
+    sourceFiles(path.join(REPO_ROOT, "packages/editor/src"), rendererFiles);
     sourceFiles(path.join(REPO_ROOT, "apps/desktop/src/renderer"), rendererFiles);
     sourceFiles(path.join(REPO_ROOT, "apps/desktop/dev"), rendererFiles);
     expect(rendererFiles.length).toBeGreaterThan(50);

@@ -2,8 +2,11 @@ import { createRoot } from "react-dom/client";
 
 import { createWsBridge } from "@repo/bridge/ws-bridge";
 
-import { App } from "@renderer/app-root";
-import { installBridge } from "@renderer/lib/bridge";
+import { App } from "@repo/workspace/app-root";
+import { setHtmlAppRuntime } from "@repo/workspace/workspace/html-app-host";
+import { installBridge } from "@repo/bridge/client";
+
+import { injectHtmlAppRuntime } from "@/html-app-inject";
 
 // The preload script exposes the ws bootstrap (endpoint + per-boot token) on
 // window before this module runs. Missing means preload failed to load —
@@ -29,6 +32,13 @@ if (root) {
       },
     });
     installBridge(bridge);
+    // Electron serves vault apps over the confined protocol; the blob
+    // fallback's injector is still needed for a protocol-less reload path.
+    setHtmlAppRuntime({
+      protocolUrl: (path, token) =>
+        `vault-app://app/${path.split("/").map(encodeURIComponent).join("/")}?token=${token}`,
+      injectRuntime: injectHtmlAppRuntime,
+    });
     reactRoot.render(<App />);
   } else {
     root.textContent =

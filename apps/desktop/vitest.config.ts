@@ -4,7 +4,8 @@ import { defineConfig } from "vitest/config";
 
 const alias = {
   "@": resolve(import.meta.dirname, "src"),
-  "@renderer": resolve(import.meta.dirname, "src/renderer"),
+  "@repo/workspace": resolve(import.meta.dirname, "../../packages/workspace/src"),
+  "@repo/editor": resolve(import.meta.dirname, "../../packages/editor/src"),
 };
 
 // @platejs/math imports katex's css at module top; inlining routes the package
@@ -37,13 +38,13 @@ export default defineConfig({
         },
       },
       {
-        // jsdom project for renderer component/hook tests (.test.tsx).
+        // jsdom: the vendored HTML-app runtime is evaluated into a window.
         plugins,
         resolve: { alias },
         test: {
-          name: "renderer",
+          name: "desktop-dom",
           environment: "jsdom",
-          include: ["src/renderer/**/*.test.tsx"],
+          include: ["src/**/*.test.tsx"],
           server: { deps: { inline: inlineDeps } },
         },
       },

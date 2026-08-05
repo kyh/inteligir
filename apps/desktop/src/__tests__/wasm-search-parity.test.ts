@@ -15,8 +15,8 @@ import { projectDoc } from "@repo/notes/knowledge/projection";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { createSqliteKnowledgeStore } from "@repo/server/knowledge/sqlite-knowledge-store";
 
-import { SAMPLE_NOTES } from "../../dev/fixture-bridge";
-import { createWasmSqlDriver, loadSqlite3 } from "../../dev/wasm-sql-driver";
+import { SAMPLE_NOTES } from "@repo/editor/__tests__/sample-notes";
+import { createWasmSqlDriver, loadSqlite3 } from "@repo/workspace/dev/wasm-sql-driver";
 
 const ROOT = "/parity-vault";
 

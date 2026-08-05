@@ -58,7 +58,7 @@ const SKIP_DIR_NAMES = new Set([
 /** The byte-pinned round-trip corpus. Those files are editor INPUT, not
  * documentation — their links are content under test (deliberately dangling
  * `assets/*.png` among them) and their bytes may never be touched. */
-const SKIP_PREFIX = "apps/desktop/src/renderer/__tests__/fixtures/";
+const SKIP_PREFIX = "packages/editor/src/__tests__/fixtures/";
 
 function walk(dir: string, out: string[]): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
