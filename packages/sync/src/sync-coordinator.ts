@@ -13,22 +13,48 @@
 // event bus, keeping the settings UI reactive without polling.
 // ---------------------------------------------------------------------------
 
+import crypto from "node:crypto";
+
 import type { VaultManager } from "@repo/vault/vault";
 import { getSyncAccount, resetSyncAccount, SyncAccount } from "./sync-account";
+import { DeviceIdentity } from "./device-identity";
+import { fetchDeviceRoster, postEnrollOffer, postRevoke, type DeviceApi } from "./device-client";
 import { createNodeHasher, createSyncManager, createVaultSyncIo } from "./sync-manager";
 import { createHttpSyncPort } from "@repo/notes/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/notes/sync/reconcile";
 import { statusFromOutcome, type SyncStatus } from "@repo/notes/sync/status";
+import {
+  base64UrlEncode,
+  DEVICE_ASSERTION_VERSION,
+  formatPairingBlob,
+  MIN_ENROLL_SECRET_BYTES,
+} from "@repo/notes/sync/wire";
 import type { SyncEngine, SyncOutcome, SyncPassOptions } from "@repo/notes/sync/engine";
 import type {
   AccountCapabilities,
   SyncConflict,
+  SyncDeviceListResult,
+  SyncPairingOfferResult,
+  SyncReconnectResult,
+  SyncRevokeDeviceResult,
   SyncSignInResult,
   SyncState,
 } from "@repo/bridge/sync";
 import type { EventMethod, IpcEvent } from "@repo/bridge/ipc-registry";
 
 const DISABLED_REASON = "Enable sync and sign in first.";
+
+const NO_COORDINATOR_REASON = "Set a server URL first.";
+
+/** No device key means the device ROUTES are unreachable: the coordinator
+ * admits only device credentials there, by design, so neither identity model
+ * reaches into the other. */
+const NO_DEVICE_REASON = "This vault is not connected to a device key.";
+
+/** How long a pairing offer stays redeemable. The coordinator clamps to its own
+ * maximum and reports what it granted, which is what the UI shows. Short
+ * because the blob is a live capability sitting in a clipboard. */
+const PAIRING_OFFER_TTL_SECONDS = 10 * 60;
 
 /** Registry-typed event emission, injected by the composing host (sync/ sits
  * below the server, so it never imports the host event bus). */
@@ -78,7 +104,10 @@ const SYNC_INTERVAL_MS = 5 * 60_000;
 export type SyncEngineFactory = (opts: {
   vaultId: string;
   coordinatorUrl: string;
-  token: string;
+  /** Minted PER REQUEST: a device assertion expires in minutes, while the port
+   * outlives every pass and the whole SSE stream. The account path answers with
+   * its stored bearer. */
+  getToken: () => Promise<string>;
   onOutcome: (outcome: SyncOutcome) => void;
 }) => SyncEngine;
 
@@ -88,7 +117,7 @@ const defaultEngineFactory: SyncEngineFactory = (opts) =>
     port: createHttpSyncPort({
       baseUrl: opts.coordinatorUrl,
       vaultId: opts.vaultId,
-      getToken: () => Promise.resolve(opts.token),
+      getToken: opts.getToken,
       hasher: createNodeHasher(),
     }),
     vault: createVaultSyncIo(vaultAccessor()),
@@ -114,6 +143,9 @@ export class SyncCoordinator {
     /** Builds the live engine — injected so tests can drive a debounced pass
      * against an in-memory port instead of a real network transport. */
     private readonly buildEngine: SyncEngineFactory = defaultEngineFactory,
+    /** This install's device key. Injected in tests so no suite reads (or
+     * mints into) the real ~/.inteligir. */
+    private readonly device: DeviceIdentity = new DeviceIdentity(),
   ) {}
 
   /** Build + start the engine if enabled and authed. Call after the vault is
@@ -141,6 +173,7 @@ export class SyncCoordinator {
       coordinatorUrl: config.coordinatorUrl,
       status: this.status,
       conflicts: [...this.conflicts],
+      device: this.device.current(),
     };
   }
 
@@ -228,19 +261,167 @@ export class SyncCoordinator {
     return engine.syncOnce(opts);
   }
 
+  // ---- device identity ------------------------------------------------------
+
+  /** The coordinator's roster for this device's vault. */
+  async listDevices(): Promise<SyncDeviceListResult> {
+    const api = this.deviceApi();
+    if (api === null) return { ok: false, error: this.deviceGateReason() };
+    const result = await this.callDeviceApi(() => fetchDeviceRoster(api));
+    return result.ok ? { ok: true, devices: result.value } : { ok: false, error: result.error };
+  }
+
+  /**
+   * Mint a pairing offer: CSPRNG bytes, of which the coordinator receives only
+   * `sha256hex(...)`, wrapped with the coordinator URL and vaultId into the one
+   * blob the joining device pastes. The secret exists here and in that blob and
+   * nowhere else — it is deliberately not persisted, so a closed dialog is a
+   * cancelled invitation.
+   */
+  async createPairingOffer(): Promise<SyncPairingOfferResult> {
+    const api = this.deviceApi();
+    if (api === null) return { ok: false, error: this.deviceGateReason() };
+    const secret = crypto.randomBytes(MIN_ENROLL_SECRET_BYTES);
+    const enrollId = crypto.createHash("sha256").update(secret).digest("hex");
+    const notAfter = Math.floor(Date.now() / 1000) + PAIRING_OFFER_TTL_SECONDS;
+    const result = await this.callDeviceApi(() => postEnrollOffer(api, { enrollId, notAfter }));
+    if (!result.ok) return { ok: false, error: result.error };
+    const blob = formatPairingBlob({
+      v: DEVICE_ASSERTION_VERSION,
+      url: api.baseUrl,
+      vid: api.vaultId,
+      s: base64UrlEncode(new Uint8Array(secret)),
+    });
+    if (blob === null) {
+      return { ok: false, error: "Could not build a pairing code for this server URL." };
+    }
+    return { ok: true, offer: { blob, expiresAt: result.value * 1000 } };
+  }
+
+  /** Tombstone ANOTHER device's key. This device leaves through
+   * `disconnectVault` instead — the coordinator refuses a last-device revoke,
+   * and "I am leaving" is not a thing it can be told. */
+  async revokeDevice(publicKey: string): Promise<SyncRevokeDeviceResult> {
+    const api = this.deviceApi();
+    if (api === null) return { ok: false, reason: "failed", error: this.deviceGateReason() };
+    const result = await this.callDeviceApi(() => postRevoke(api, publicKey));
+    if (!result.ok) return { ok: false, reason: "failed", error: result.error };
+    if (result.value.ok) return { ok: true };
+    return result.value.reason === "last-device"
+      ? {
+          ok: false,
+          reason: "last-device",
+          error:
+            "This is the vault's last live device. Removing it would leave the copy on the " +
+            "server unreachable forever — disconnect this vault instead.",
+        }
+      : { ok: false, reason: "not-found", error: "That device is no longer on the roster." };
+  }
+
+  /**
+   * Found a device-owned vault and point sync at it. The remote is FRESH: the
+   * first pass sees an empty manifest and plans pushes only, so the whole vault
+   * uploads and nothing is deleted anywhere. The account session and its
+   * vaultId are left untouched underneath, which is what makes this reversible
+   * — `disconnectVault` puts the install back on them.
+   */
+  reconnectVault(): SyncReconnectResult {
+    if (this.account.getConfig().coordinatorUrl.trim() === "") {
+      return { ok: false, error: NO_COORDINATOR_REASON };
+    }
+    const existing = this.device.current();
+    if (existing !== null) return { ok: true, device: existing };
+    let device: ReturnType<DeviceIdentity["found"]>;
+    try {
+      device = this.device.found();
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Could not create a key." };
+    }
+    this.account.setConfig({ enabled: true });
+    this.rebuild({ kickInitial: true });
+    this.emit();
+    return { ok: true, device };
+  }
+
+  /**
+   * Stop syncing this vault from this device: forget the key, turn sync off.
+   * Purely local by design — see `DeviceIdentity.forget`. Vault files are not
+   * touched, here or on the server.
+   */
+  disconnectVault(): SyncState {
+    this.device.forget();
+    this.account.setConfig({ enabled: false });
+    this.rebuild({ kickInitial: false });
+    this.status = { phase: "idle" };
+    this.emit();
+    return this.getState();
+  }
+
   /** Stop the engine (shutdown). Leaves persisted config/session intact. */
   dispose(): void {
     this.teardownEngine();
+    this.device.close();
   }
 
   // ---- internals ------------------------------------------------------------
 
+  /** Why the device routes are unreachable — the two states differ in remedy. */
+  private deviceGateReason(): string {
+    return this.device.current() === null ? NO_DEVICE_REASON : NO_COORDINATOR_REASON;
+  }
+
+  /** Run a device-route call, turning a minting failure (an unreadable key)
+   * into the same `{ok:false}` shape a transport failure takes: both are
+   * "this device cannot talk to its vault right now", and only the message
+   * differs. */
+  private async callDeviceApi<T>(
+    call: () => Promise<{ ok: true; value: T } | { ok: false; error: string }>,
+  ): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+    try {
+      return await call();
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "The request failed." };
+    }
+  }
+
+  /**
+   * Which vault this device syncs and how it proves itself. The device key
+   * WINS when one exists: reconnecting is the deliberate act that moves this
+   * install onto the device model, and the account credential is left in place
+   * underneath it so disconnecting restores exactly what was there before.
+   */
+  private credential(): { vaultId: string; getToken: () => Promise<string> } | null {
+    const device = this.device.current();
+    if (device !== null) {
+      return {
+        vaultId: device.vaultId,
+        getToken: () => Promise.resolve(this.device.mintAssertion(device.vaultId)),
+      };
+    }
+    const token = this.account.getToken();
+    if (token === null) return null;
+    return { vaultId: this.account.getVaultId(), getToken: () => Promise.resolve(token) };
+  }
+
+  /** The device-route client for this vault, or null when this install has no
+   * device key (the account credential is not admitted on those routes). */
+  private deviceApi(): DeviceApi | null {
+    const device = this.device.current();
+    const { coordinatorUrl } = this.account.getConfig();
+    if (device === null || coordinatorUrl.trim() === "") return null;
+    return {
+      baseUrl: coordinatorUrl.trim(),
+      vaultId: device.vaultId,
+      getToken: () => Promise.resolve(this.device.mintAssertion(device.vaultId)),
+    };
+  }
+
   private rebuild(opts: { kickInitial: boolean }): void {
     this.teardownEngine();
     const config = this.account.getConfig();
-    const token = this.account.getToken();
-    if (!config.enabled || token === null || config.coordinatorUrl.trim() === "") return;
-    const vaultId = this.account.getVaultId();
+    const credential = this.credential();
+    if (!config.enabled || credential === null || config.coordinatorUrl.trim() === "") return;
+    const { vaultId } = credential;
     // `onOutcome` fires for EVERY pass this engine runs — explicit (syncNow,
     // the initial kick below) AND debounced (onVaultChanged, the remote
     // subscription, the periodic timer) — so a background pass's conflicts
@@ -250,7 +431,7 @@ export class SyncCoordinator {
     const engine = this.buildEngine({
       vaultId,
       coordinatorUrl: config.coordinatorUrl,
-      token,
+      getToken: credential.getToken,
       onOutcome: (outcome) => {
         if (this.engine !== engine) return;
         this.handleOutcome(outcome);

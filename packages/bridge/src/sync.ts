@@ -15,6 +15,7 @@
 import { Type } from "@sinclair/typebox";
 
 import type { SyncStatus } from "@repo/notes/sync/status";
+import type { DeviceRecord } from "@repo/notes/sync/wire";
 
 // ---------------------------------------------------------------------------
 // Payload schemas (renderer → host) — validated at the handler boundary.
@@ -72,6 +73,14 @@ export const SyncRequestPasswordResetSchema = Type.Object(
   { additionalProperties: false },
 );
 
+/** Tombstone one enrolled device, named by its base64url public key (the
+ * roster's primary key). Revoking THIS device is deliberately not expressible
+ * here — see `SyncDeviceInfo`. */
+export const SyncRevokeDeviceSchema = Type.Object(
+  { publicKey: Type.String({ minLength: 1 }) },
+  { additionalProperties: false },
+);
+
 // ---------------------------------------------------------------------------
 // Result / event shapes (host → renderer).
 // ---------------------------------------------------------------------------
@@ -82,6 +91,25 @@ export const SyncRequestPasswordResetSchema = Type.Object(
 export type SyncConflict = {
   /** Vault-relative path of the conflict COPY file (not the canonical note). */
   readonly path: string;
+};
+
+/**
+ * This install's sync device key, and the vault its public key FOUNDS. Present
+ * only once the user has explicitly reconnected the vault to a device-owned
+ * remote; absent means sync runs on the account credential instead.
+ *
+ * There is no "revoke this device" in the client vocabulary and there must not
+ * be one: the coordinator refuses the revoke that would leave a vault with no
+ * live key, because it cannot tell "I am leaving" from "strand this vault".
+ * Leaving is `disconnectSyncVault` — local, and never a server call.
+ */
+export type SyncDeviceInfo = {
+  /** base64url of the raw Ed25519 public key — this device's roster id. */
+  readonly publicKey: string;
+  /** `v1` + base32(sha256(publicKey)) — the vault this key founds. */
+  readonly vaultId: string;
+  /** Epoch ms the key was generated. */
+  readonly foundedAt: number;
 };
 
 /** The reactive sync state surfaced to the renderer — the payload of both
@@ -95,7 +123,51 @@ export type SyncState = {
   readonly status: SyncStatus;
   /** Unresolved conflict copies still present in the vault, oldest first. */
   readonly conflicts: readonly SyncConflict[];
+  /** This install's device key, or null when sync runs on the account. */
+  readonly device: SyncDeviceInfo | null;
 };
+
+/** `getSyncDevices` — the coordinator's roster. A failure is a value: the
+ * roster is a network read the settings panel renders inline, not a throw. */
+export type SyncDeviceListResult =
+  | { readonly ok: true; readonly devices: readonly DeviceRecord[] }
+  | { readonly ok: false; readonly error: string };
+
+/** A minted pairing offer: the blob to paste into the joining device, and when
+ * it stops being redeemable. The blob is a LIVE CAPABILITY until then — show
+ * it, don't store it. */
+export type SyncPairingOffer = {
+  /** The pasteable token (`@repo/notes/sync/wire`'s pairing blob). */
+  readonly blob: string;
+  /** Epoch ms the coordinator will stop honoring it. */
+  readonly expiresAt: number;
+};
+
+export type SyncPairingOfferResult =
+  | { readonly ok: true; readonly offer: SyncPairingOffer }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * `revokeSyncDevice`'s verdict. `last-device` is a REFUSAL the coordinator
+ * makes, not a transport failure: a vault whose last key is tombstoned can
+ * neither authenticate nor enroll again, so the client offers "disconnect this
+ * vault" instead — the local path.
+ */
+export type SyncRevokeDeviceResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly reason: "not-found" | "last-device" | "failed";
+      readonly error: string;
+    };
+
+/** `reconnectSyncVault`'s verdict — founding a device vault and re-pointing
+ * sync at it. `ok` means the key exists and sync is live against the new
+ * vaultId; the first pass (a full upload) reports through `onSyncStateChanged`
+ * like any other. */
+export type SyncReconnectResult =
+  | { readonly ok: true; readonly device: SyncDeviceInfo }
+  | { readonly ok: false; readonly error: string };
 
 export type SyncSignInResult = { ok: true } | { ok: false; error: string };
 

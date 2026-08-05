@@ -5,6 +5,7 @@ import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
+import { SyncDevices } from "@renderer/settings/sections/sync-devices";
 import { useVaultActions } from "@renderer/workspace/vault-context";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import type { HeldSyncStatus, SyncStatus } from "@repo/notes/sync/status";
@@ -36,12 +37,13 @@ function formatSyncStatus(status: SyncStatus): string {
 }
 
 // Vault sync — reconcile the local vault against the coordinator Worker. Sync
-// CONSUMES the account the Account section establishes: the sign-in
-// form, server URL, and session live there — this section is only the enable
-// toggle, the status line, and the conflict list. Signed out, it defers to
-// the Account section instead of duplicating a login. The whole surface
-// reaches the backend through the injected Bridge only; onSyncStateChanged
-// keeps it reactive across config/auth/status changes.
+// CONSUMES a credential rather than establishing one: the sign-in form, server
+// URL, and session live in the Account section, and the device key lives in the
+// Devices panel below — this section is only the enable toggle, the status
+// line, the conflict list, and the hold's confirmation. With neither
+// credential it defers to those two instead of duplicating a login. The whole
+// surface reaches the backend through the injected Bridge only;
+// onSyncStateChanged keeps it reactive across config/auth/status changes.
 export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) | undefined }) {
   const [state, setSyncView] = useState<SyncState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -132,7 +134,9 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
   );
 
   const loading = state === null;
-  const signedIn = state?.signedIn === true;
+  // Either credential runs the engine: a device key when this vault has been
+  // reconnected, the account session otherwise.
+  const credentialed = state !== null && (state.signedIn || state.device !== null);
   const conflicts = state?.conflicts ?? [];
   const held = state !== null && state.status.phase === "held" ? state.status : null;
   // Dismissal covers the REPORT, not the condition: any later state emission —
@@ -157,10 +161,10 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
             AI features on this device but still sync to the server unencrypted.
           </p>
 
-          {!signedIn && (
+          {!credentialed && (
             <p className="rounded-[8px] bg-card px-2.5 py-1.5 text-[10px] text-muted-foreground">
-              Cloud saves need an account — sign in under Account above. Everything else already
-              works without one.
+              Cloud saves need an account — sign in under Account above, or give this computer its
+              own key below. Everything else already works without either.
             </p>
           )}
 
@@ -172,12 +176,16 @@ export function SyncSection({ onRequestClose }: { onRequestClose?: (() => void) 
               variant="ghost"
               size="sm"
               onClick={() => void handleSyncNow()}
-              disabled={busy || loading || !signedIn || !state.enabled}
+              disabled={busy || loading || !credentialed || !state.enabled}
               className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
             >
               Sync now
             </Button>
           </div>
+
+          {state !== null && (
+            <SyncDevices device={state.device} coordinatorUrl={state.coordinatorUrl} />
+          )}
 
           {showHold && (
             <div className="flex flex-col gap-1.5 border-t border-border pt-2">

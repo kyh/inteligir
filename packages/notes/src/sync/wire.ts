@@ -441,6 +441,52 @@ export type RevokeResponse =
   | { readonly ok: true; readonly revokedAt: number }
   | { readonly ok: false; readonly reason: "not-found" | "last-device" };
 
+// ---- pairing blob ---------------------------------------------------------
+//
+// The one string that crosses from the offering device to the joining one, by
+// hand (pasted, not scanned — QR is a later, separate change). It carries the
+// three things the joiner cannot derive: which coordinator, which vault, and
+// the offer secret that authorizes the enrollment.
+//
+// It is a LIVE CAPABILITY for the offer's lifetime, which is why it travels in
+// a POST body from there on and never in a URL. Encoded as one opaque token
+// rather than readable fields so it survives a paste intact and reads as a
+// secret rather than as configuration worth keeping.
+
+/** The claims a pairing blob carries. `s` matches `EnrollRequest.s` — the
+ * joining device forwards it verbatim. */
+export type PairingBlob = {
+  readonly v: typeof DEVICE_ASSERTION_VERSION;
+  /** Coordinator origin the joining device will call, e.g. `https://…workers.dev`. */
+  readonly url: string;
+  readonly vid: string;
+  /** base64url of the offer secret — at least `MIN_ENROLL_SECRET_BYTES`. */
+  readonly s: string;
+};
+
+/** base64url the blob's JSON, or `null` when it isn't well-formed (the same
+ * predicate the parse side applies, so this cannot emit an unparseable blob). */
+export function formatPairingBlob(blob: PairingBlob): string | null {
+  if (parsePairingClaims(blob) === null) return null;
+  return base64UrlEncode(asciiBytes(JSON.stringify(blob)));
+}
+
+/** Decode a pasted blob, or `null` for anything malformed. Surrounding
+ * whitespace is tolerated: this arrives through a clipboard. */
+export function parsePairingBlob(text: string): PairingBlob | null {
+  const bytes = base64UrlDecode(text.trim());
+  if (bytes === null) return null;
+  const json = asciiText(bytes);
+  if (json === null) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  return parsePairingClaims(raw);
+}
+
 // ---- base32 ---------------------------------------------------------------
 
 const BASE32_LOWER_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
@@ -536,6 +582,25 @@ function parseDeviceAssertionClaims(raw: unknown): DeviceAssertionPayload | null
   if (publicKey === null || publicKey.length !== ED25519_PUBLIC_KEY_BYTES) return null;
   if (!isEpochSeconds(iat) || !isEpochSeconds(exp) || exp <= iat) return null;
   return { v: DEVICE_ASSERTION_VERSION, vid, dev, iat, exp };
+}
+
+/**
+ * Validate untrusted claims into a `PairingBlob`. The url is held to printable
+ * ASCII under an http(s) scheme: a joining device turns it straight into a
+ * request, and the JSON has to stay ASCII for the codec above. The secret's
+ * LENGTH is checked here as well as at the coordinator — a blob short enough to
+ * be searched against a live offer is malformed, not merely unlucky.
+ */
+function parsePairingClaims(raw: unknown): PairingBlob | null {
+  if (!isRecord(raw)) return null;
+  const { v, url, vid, s } = raw;
+  if (v !== DEVICE_ASSERTION_VERSION) return null;
+  if (typeof url !== "string" || !/^https?:\/\/[\x21-\x7e]+$/.test(url)) return null;
+  if (typeof vid !== "string" || !isValidVaultId(vid)) return null;
+  if (typeof s !== "string") return null;
+  const secret = base64UrlDecode(s);
+  if (secret === null || secret.length < MIN_ENROLL_SECRET_BYTES) return null;
+  return { v: DEVICE_ASSERTION_VERSION, url, vid, s };
 }
 
 function isEpochSeconds(value: unknown): value is number {

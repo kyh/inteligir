@@ -33,7 +33,7 @@ import {
   DEFAULT_DAILY_FORMAT,
 } from "@repo/bridge/daily-notes";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
-import type { SyncSignInResult, SyncState } from "@repo/bridge/sync";
+import type { SyncDeviceInfo, SyncSignInResult, SyncState } from "@repo/bridge/sync";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
@@ -47,6 +47,15 @@ import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { addFrontmatterAlias, notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
 import { conflictCopyName, fsSafeStamp } from "@repo/notes/sync/reconcile";
+import {
+  base32LowerEncode,
+  base64UrlEncode,
+  DEVICE_ASSERTION_VERSION,
+  formatPairingBlob,
+  MIN_ENROLL_SECRET_BYTES,
+  VAULT_ID_PREFIX,
+  type DeviceRecord,
+} from "@repo/notes/sync/wire";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
 // note IS the canonical kitchen-sink fixture.
@@ -631,6 +640,21 @@ function fnv1a(text: string): string {
   return (hash >>> 0).toString(16);
 }
 
+function randomBytes(length: number): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(length));
+}
+
+/** A harness-side stand-in for `v1` + base32(sha256(publicKey)): the shape is
+ * exact, the derivation is not — hashing in the browser is async and nothing
+ * here verifies the fingerprint. */
+function foundFixtureDevice(): SyncDeviceInfo {
+  return {
+    publicKey: base64UrlEncode(randomBytes(32)),
+    vaultId: `${VAULT_ID_PREFIX}${base32LowerEncode(randomBytes(32))}`,
+    foundedAt: Date.now(),
+  };
+}
+
 /** `openKnowledgeStore` injects the persistent search store (the harness
  * bootstrap passes core's SQL store over the wasm driver), mirroring how the
  * desktop shell injects the node:sqlite store into KnowledgeManager. */
@@ -726,9 +750,15 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     coordinatorUrl: "",
     status: { phase: "idle" },
     conflicts: [],
+    device: null,
   };
   let syncPasses = 0;
   let syncDeletionsConfirmed = false;
+  // Device identity — the roster lives here rather than on a server, but the
+  // shapes are the real ones: reconnecting founds a key whose fingerprint IS
+  // the vaultId, pairing mints a real blob, and the last live device refuses
+  // to be revoked exactly as the coordinator does.
+  let syncDevices: DeviceRecord[] = [];
   // Remote access — no ws server runs in a browser tab, so enabling simulates
   // the listening state; one endpoint of each reachability makes the bind
   // picker (and its encrypted/cleartext copy) exercisable, and one pre-paired
@@ -1023,7 +1053,9 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
             coordinatorUrl: "",
             status: { phase: "idle" },
             conflicts: [],
+            device: null,
           };
+          syncDevices = [];
           emitSync();
           for (const id of aiConnected.keys()) aiConnected.set(id, false);
           setAppState({ phase: "setting_up" });
@@ -1837,6 +1869,85 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
     onSyncStateChanged: syncEvents.subscribe,
     onSocialSignInResult: socialResultEvents.subscribe,
+
+    // Device identity — an in-memory roster standing in for the coordinator's
+    // Durable Object, refusing what it refuses.
+    getSyncDevices: async () =>
+      syncState.device === null
+        ? { ok: false, error: "This vault is not connected to a device key." }
+        : { ok: true, devices: [...syncDevices] },
+    createSyncPairingOffer: async () => {
+      if (syncState.device === null) {
+        return { ok: false, error: "This vault is not connected to a device key." };
+      }
+      // A REAL blob: the joining device parses this with the same codec, so a
+      // paste-and-enroll screen is drivable against the harness.
+      const blob = formatPairingBlob({
+        v: DEVICE_ASSERTION_VERSION,
+        url:
+          syncState.coordinatorUrl.trim() === ""
+            ? "https://sync.example"
+            : syncState.coordinatorUrl,
+        vid: syncState.device.vaultId,
+        s: base64UrlEncode(randomBytes(MIN_ENROLL_SECRET_BYTES)),
+      });
+      return blob === null
+        ? { ok: false, error: "Could not build a pairing code for this server URL." }
+        : { ok: true, offer: { blob, expiresAt: Date.now() + 10 * 60_000 } };
+    },
+    revokeSyncDevice: async ({ publicKey }) => {
+      const target = syncDevices.find((device) => device.publicKey === publicKey);
+      if (target === undefined || target.revokedAt !== null) {
+        return { ok: false, reason: "not-found", error: "That device is no longer on the roster." };
+      }
+      if (syncDevices.filter((device) => device.revokedAt === null).length <= 1) {
+        return {
+          ok: false,
+          reason: "last-device",
+          error:
+            "This is the vault's last live device. Removing it would leave the copy on the " +
+            "server unreachable forever — disconnect this vault instead.",
+        };
+      }
+      // A tombstone, never a removal — the roster row survives the revoke.
+      syncDevices = syncDevices.with(syncDevices.indexOf(target), {
+        ...target,
+        revokedAt: Date.now(),
+      });
+      return { ok: true };
+    },
+    reconnectSyncVault: async () => {
+      if (syncState.coordinatorUrl.trim() === "") {
+        return { ok: false, error: "Set a server URL first." };
+      }
+      if (syncState.device !== null) return { ok: true, device: syncState.device };
+      const device = foundFixtureDevice();
+      // The founder's roster name is server-assigned; a second row makes the
+      // Revoke path drivable without pairing a real phone first.
+      syncDevices = [
+        {
+          publicKey: device.publicKey,
+          name: "Founding device",
+          enrolledAt: Date.now(),
+          revokedAt: null,
+        },
+        {
+          publicKey: base64UrlEncode(randomBytes(32)),
+          name: "Phone",
+          enrolledAt: Date.now(),
+          revokedAt: null,
+        },
+      ];
+      syncState = { ...syncState, device, enabled: true };
+      emitSync();
+      return { ok: true, device };
+    },
+    disconnectSyncVault: async () => {
+      syncDevices = [];
+      syncState = { ...syncState, device: null, enabled: false, status: { phase: "idle" } };
+      emitSync();
+      return syncState;
+    },
 
     // Remote access — simulated ws-server state so the settings section is
     // drivable: toggling flips listening, the bind selection round-trips

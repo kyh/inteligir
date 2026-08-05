@@ -21,12 +21,10 @@ import { createHttpSyncPort, type FetchFn } from "@repo/notes/sync/http-sync-por
 import { timeoutSchedule } from "@repo/bridge/backoff";
 
 import { subscribeAppForeground } from "../app-lifecycle";
-import { getBearerToken } from "../auth";
-import { getCoordinatorUrl } from "../base-url";
+import { currentCredential } from "./credential";
 import { createExpoHasher } from "./expo-hasher";
 import { scheduleSync, syncOnce } from "./manager";
 import { createRealtimeSync, type StreamHandlers } from "./realtime";
-import { getOrCreateVaultId } from "./vault-id";
 
 /** `expo/fetch` narrowed to the `FetchFn` surface HttpSyncPort calls (a URL
  * string + method/headers/signal init) — no `Request` inputs ever reach it. */
@@ -40,22 +38,23 @@ const streamingFetch: FetchFn = (input, init) => {
   return expoFetch(url, request);
 };
 
-/** Open one SSE change stream carrying the CURRENT bearer token (a fresh port
- * per open, like ./manager's engine-per-token, so reconnects never reuse a
- * stale token). */
+/** Open one SSE change stream on the CURRENT credential (a fresh port per open,
+ * like ./manager's engine-per-credential, so a reconnect never streams from the
+ * vault this device has since left). */
 function openStream(handlers: StreamHandlers): () => void {
-  const token = getBearerToken();
-  if (token === null || token === "") {
-    // Signed out under us — report an end asynchronously so the supervisor's
-    // backoff owns the retry cadence (the screen unmount stops us for real).
+  const credential = currentCredential();
+  if (credential === null) {
+    // Signed out / disconnected under us — report an end asynchronously so the
+    // supervisor's backoff owns the retry cadence (the screen unmount stops us
+    // for real).
     const handle = setTimeout(handlers.onEnd, 0);
     return () => clearTimeout(handle);
   }
-  const vaultId = getOrCreateVaultId();
+  const { vaultId } = credential;
   const port = createHttpSyncPort({
-    baseUrl: getCoordinatorUrl(),
+    baseUrl: credential.baseUrl,
     vaultId,
-    getToken: () => Promise.resolve(token),
+    getToken: credential.getToken,
     fetchImpl: streamingFetch,
     // Subscribe-only port — no getFile ever runs here, but the hasher is a
     // required part of the contract (getFile verifies bytes against headers).
@@ -71,9 +70,10 @@ const supervisor = createRealtimeSync({
 });
 
 /**
- * Keep sync live while the app is foregrounded. Mount from the signed-in vault
- * screen only — mounting implies a session, unmounting (sign-out) closes the
- * stream. Manual triggers (button, pull-to-refresh, after-save) are untouched.
+ * Keep sync live while the app is foregrounded. Mount from the vault screen
+ * only — mounting implies a credential (an enrolled device or a session), and
+ * unmounting (disconnect / sign-out) closes the stream. Manual triggers
+ * (button, pull-to-refresh, after-save) are untouched.
  */
 export function useRealtimeSync(): void {
   useEffect(() => {

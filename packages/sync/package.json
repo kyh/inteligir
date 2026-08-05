@@ -2,7 +2,7 @@
   "name": "@repo/sync",
   "version": "0.1.0",
   "private": true,
-  "description": "Desktop vault-sync adapters over @repo/notes' pure engine: the node SyncManager (vault IO + hashing + base/blob stores under ~/.inteligir), the SyncAccount (Better Auth client, bearer token + config JsonStores, social sign-in state nonce), and the SyncCoordinator lifecycle (runtime gate, engine rebuild/teardown, conflict tracking). Host event emission is injected (setSyncEventSink) — this package never imports server/electron code.",
+  "description": "Desktop vault-sync adapters over @repo/notes' pure engine: the node SyncManager (vault IO + hashing + base/blob stores under ~/.inteligir), the SyncAccount (Better Auth client, bearer token + config JsonStores, social sign-in state nonce), the DeviceIdentity + device-route client (this install's Ed25519 key, the vault its fingerprint founds, pairing offers and revocation), and the SyncCoordinator lifecycle (runtime gate, credential selection, engine rebuild/teardown, conflict tracking). Host event emission is injected (setSyncEventSink) — this package never imports server/electron code.",
   "type": "module",
   "exports": {
     "./sync-account": "./src/sync-account.ts",

@@ -13,6 +13,8 @@
   "dependencies": {
     "@better-auth/expo": "catalog:",
     "@expo/metro-runtime": "catalog:",
+    "@noble/ed25519": "catalog:",
+    "@noble/hashes": "catalog:",
     "@repo/bridge": "workspace:*",
     "@repo/notes": "workspace:*",
     "better-auth": "catalog:",
