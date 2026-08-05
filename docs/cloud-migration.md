@@ -159,7 +159,7 @@ validated before the point of no return (flipping storage primacy).
 Prove the five unknowns in §5. Exit criteria are written per-spike. ~Small,
 timeboxed; everything later assumes their answers.
 
-### Phase 1 — The web app exists (read-mostly), cloud host skeleton
+### Phase 1 — The web app exists (read-only), cloud host skeleton
 - New `apps/app` (Workers static assets) serving the current renderer
   bundle; `installBridge(createWsBridge(wss://…))` with Better Auth.
 - `UserHost` DO with the Bridge handler map; implement the read channels
@@ -167,7 +167,8 @@ timeboxed; everything later assumes their answers.
   the DO-SQLite index built from R2).
 - Auth origin gating (the custom-domain trigger).
 - Desktop unchanged and primary. The web app is "your synced vault,
-  readable + editable in a browser" — sync users get value immediately.
+  readable in a browser" — sync users get value immediately; editing
+  arrives with the write paths in Phase 2.
 
 ### Phase 2 — Cloud vault becomes source of truth
 - `CloudVaultManager`; all write paths (editor autosave, rename byte-surgery,
