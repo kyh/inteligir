@@ -55,7 +55,7 @@ function openStream(handlers: StreamHandlers): () => void {
   const port = createHttpSyncPort({
     baseUrl: getCoordinatorUrl(),
     vaultId,
-    token,
+    getToken: () => Promise.resolve(token),
     fetchImpl: streamingFetch,
     // Subscribe-only port — no getFile ever runs here, but the hasher is a
     // required part of the contract (getFile verifies bytes against headers).

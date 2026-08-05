@@ -88,7 +88,7 @@ const defaultEngineFactory: SyncEngineFactory = (opts) =>
     port: createHttpSyncPort({
       baseUrl: opts.coordinatorUrl,
       vaultId: opts.vaultId,
-      token: opts.token,
+      getToken: () => Promise.resolve(opts.token),
       hasher: createNodeHasher(),
     }),
     vault: createVaultSyncIo(vaultAccessor()),
