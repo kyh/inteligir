@@ -1,4 +1,5 @@
 import type { VaultChange } from "./sync-port";
+import { isRecord } from "./guards";
 import { isValidVaultPath, type VaultPath } from "./vault-file";
 
 // ---------------------------------------------------------------------------
@@ -163,4 +164,214 @@ export const SSE_CHANGE_EVENT = "change";
  */
 export function formatChangeFrame(change: VaultChange): string {
   return `event: ${SSE_CHANGE_EVENT}\ndata: ${JSON.stringify(change)}\n\n`;
+}
+
+// ---- device assertions ----------------------------------------------------
+//
+// The bearer credential is a SELF-ISSUED, short-lived device assertion: a
+// device proves it holds an Ed25519 private key rather than presenting a token
+// some server minted for it.
+//
+//   encodedPayload = base64url(JSON DeviceAssertionPayload)     (ASCII)
+//   assertion      = encodedPayload + "." + base64url(signature)
+//   signature      = Ed25519 over `deviceAssertionSignedBytes(encodedPayload)`
+//
+// Only the ENCODING lives here. Signing and verifying are platform-injected —
+// node crypto, @noble/ed25519, WebCrypto — exactly the seam `Hasher` already
+// uses for content hashing, which is what keeps this package crypto-free.
+//
+// The codecs below are hand-rolled for the same reason `URL` is avoided above:
+// the module carries no global beyond the ES2023 stdlib, so it behaves
+// identically on Hermes, workerd and node. There is nothing to polyfill.
+
+/** The only `v` a payload may carry. Bump alongside `DEVICE_ASSERTION_DOMAIN`. */
+export const DEVICE_ASSERTION_VERSION = 1;
+
+/**
+ * Domain-separation prefix over the signed bytes. A device key signs more than
+ * assertions (an enrollment offer, say), and this prefix is what stops one
+ * signature ever being replayable as another.
+ */
+export const DEVICE_ASSERTION_DOMAIN = "inteligir-device-v1:";
+
+/** Raw Ed25519 public key length — a `dev` decoding to anything else isn't one. */
+export const ED25519_PUBLIC_KEY_BYTES = 32;
+
+/** Raw Ed25519 signature length. */
+export const ED25519_SIGNATURE_BYTES = 64;
+
+/** The claims a device asserts about itself. Timestamps are epoch SECONDS. */
+export type DeviceAssertionPayload = {
+  readonly v: typeof DEVICE_ASSERTION_VERSION;
+  /** The vault this assertion is bound to — a verifier matches it to the route. */
+  readonly vid: string;
+  /** base64url of the raw Ed25519 public key whose signature this carries. */
+  readonly dev: string;
+  readonly iat: number;
+  readonly exp: number;
+};
+
+/** A parsed assertion: the claims, plus every byte string a verifier needs. */
+export type DeviceAssertion = {
+  readonly payload: DeviceAssertionPayload;
+  /** Exactly the bytes the signature covers. */
+  readonly signedBytes: Uint8Array;
+  readonly signature: Uint8Array;
+  /** Raw public key bytes — the decoded `payload.dev`, so verifiers need no second decode. */
+  readonly devicePublicKey: Uint8Array;
+};
+
+/**
+ * base64url the payload's JSON, or `null` when the payload isn't well-formed
+ * (the same predicate the parse side applies, so this can never emit a string
+ * `parseDeviceAssertionPayload` would reject).
+ */
+export function encodeDeviceAssertionPayload(payload: DeviceAssertionPayload): string | null {
+  if (parseDeviceAssertionClaims(payload) === null) return null;
+  return base64UrlEncode(asciiBytes(JSON.stringify(payload)));
+}
+
+/** Decode an encoded payload back into claims, or `null` if anything is off. */
+export function parseDeviceAssertionPayload(encoded: string): DeviceAssertionPayload | null {
+  const bytes = base64UrlDecode(encoded);
+  if (bytes === null) return null;
+  const json = asciiText(bytes);
+  if (json === null) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  return parseDeviceAssertionClaims(raw);
+}
+
+/**
+ * The bytes a signer signs and a verifier verifies. Returned as bytes rather
+ * than a string so no crypto call site has to decide on an encoding.
+ */
+export function deviceAssertionSignedBytes(encodedPayload: string): Uint8Array {
+  return asciiBytes(DEVICE_ASSERTION_DOMAIN + encodedPayload);
+}
+
+/** Join an encoded payload and its raw signature into the bearer string. */
+export function formatDeviceAssertion(encodedPayload: string, signature: Uint8Array): string {
+  return `${encodedPayload}.${base64UrlEncode(signature)}`;
+}
+
+/**
+ * Parse a bearer string into a `DeviceAssertion`, or `null` for anything
+ * malformed. It proves SHAPE only — the signature is unchecked here, and so are
+ * expiry and vault binding, all of which belong to the verifier's policy.
+ */
+export function parseDeviceAssertion(raw: string): DeviceAssertion | null {
+  const dot = raw.indexOf(".");
+  if (dot === -1 || raw.indexOf(".", dot + 1) !== -1) return null;
+  const encodedPayload = raw.slice(0, dot);
+  const payload = parseDeviceAssertionPayload(encodedPayload);
+  if (payload === null) return null;
+  const signature = base64UrlDecode(raw.slice(dot + 1));
+  if (signature === null || signature.length !== ED25519_SIGNATURE_BYTES) return null;
+  const devicePublicKey = base64UrlDecode(payload.dev);
+  if (devicePublicKey === null) return null;
+  return {
+    payload,
+    signedBytes: deviceAssertionSignedBytes(encodedPayload),
+    signature,
+    devicePublicKey,
+  };
+}
+
+// ---- base64url ------------------------------------------------------------
+
+const BASE64URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+// Both codecs shift into a 32-bit `acc` that overflows on any input longer than
+// a few bytes. Only its low 13 bits are ever read back — one group plus the
+// carry — so the high bits JS discards were never going to be looked at.
+
+/** Encode bytes as unpadded base64url (RFC 4648 §5). */
+export function base64UrlEncode(bytes: Uint8Array): string {
+  let out = "";
+  let acc = 0;
+  let bits = 0;
+  for (const byte of bytes) {
+    acc = (acc << 8) | byte;
+    bits += 8;
+    while (bits >= 6) {
+      bits -= 6;
+      out += BASE64URL_ALPHABET.charAt((acc >> bits) & 0b111111);
+    }
+  }
+  if (bits > 0) out += BASE64URL_ALPHABET.charAt((acc << (6 - bits)) & 0b111111);
+  return out;
+}
+
+/**
+ * Decode unpadded base64url, or `null` for a foreign character, an impossible
+ * length, or non-zero trailing bits. That last check is what makes the encoding
+ * canonical: one byte string has exactly one spelling, so nobody can mutate an
+ * assertion's text without changing what it decodes to.
+ */
+export function base64UrlDecode(text: string): Uint8Array | null {
+  if (text.length % 4 === 1) return null;
+  const bytes = new Uint8Array((text.length * 3) >> 2);
+  let acc = 0;
+  let bits = 0;
+  let out = 0;
+  for (const char of text) {
+    const value = BASE64URL_ALPHABET.indexOf(char);
+    if (value === -1) return null;
+    acc = (acc << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes[out] = (acc >> bits) & 0xff;
+      out += 1;
+    }
+  }
+  if ((acc & ((1 << bits) - 1)) !== 0) return null;
+  return bytes;
+}
+
+// ---- internals ------------------------------------------------------------
+
+/**
+ * Validate untrusted claims into a `DeviceAssertionPayload`. `vid` is held to a
+ * conservative opaque-id alphabet rather than any particular vault-id shape —
+ * that binding is the verifier's job — but it must be ASCII, because that plus
+ * the numeric and base64url fields is what makes the serialized JSON ASCII.
+ */
+function parseDeviceAssertionClaims(raw: unknown): DeviceAssertionPayload | null {
+  if (!isRecord(raw)) return null;
+  const { v, vid, dev, iat, exp } = raw;
+  if (v !== DEVICE_ASSERTION_VERSION) return null;
+  if (typeof vid !== "string" || !/^[A-Za-z0-9_-]+$/.test(vid)) return null;
+  if (typeof dev !== "string") return null;
+  const publicKey = base64UrlDecode(dev);
+  if (publicKey === null || publicKey.length !== ED25519_PUBLIC_KEY_BYTES) return null;
+  if (!isEpochSeconds(iat) || !isEpochSeconds(exp) || exp <= iat) return null;
+  return { v: DEVICE_ASSERTION_VERSION, vid, dev, iat, exp };
+}
+
+function isEpochSeconds(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+/** ASCII text → bytes. Every caller feeds it validated-ASCII text (see
+ * `parseDeviceAssertionClaims`), which is what spares this module a UTF-8 codec. */
+function asciiBytes(text: string): Uint8Array {
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+  return bytes;
+}
+
+/** Bytes → ASCII text, or `null` if any byte is outside ASCII. */
+function asciiText(bytes: Uint8Array): string | null {
+  let text = "";
+  for (const byte of bytes) {
+    if (byte > 0x7f) return null;
+    text += String.fromCharCode(byte);
+  }
+  return text;
 }

@@ -98,7 +98,7 @@ function engineFor(vaultId: string, token: string, io: SyncIo): SyncEngine {
     port: createHttpSyncPort({
       baseUrl: ORIGIN,
       vaultId,
-      token,
+      getToken: () => Promise.resolve(token),
       fetchImpl: fetchSelf,
       hasher: sha256Hex,
     }),

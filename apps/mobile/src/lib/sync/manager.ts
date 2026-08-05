@@ -58,7 +58,7 @@ function engineFor(token: string): SyncEngine {
     port: createHttpSyncPort({
       baseUrl: getCoordinatorUrl(),
       vaultId,
-      token,
+      getToken: () => Promise.resolve(token),
       hasher: createExpoHasher(),
     }),
     io: createSyncIo(createExpoVaultFs()),

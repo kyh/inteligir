@@ -49,8 +49,13 @@ export type HttpSyncPortOptions = {
   baseUrl: string;
   /** The vault this client syncs — scopes every route. */
   vaultId: string;
-  /** Bearer token sent as `Authorization: Bearer <token>` on every request. */
-  token: string;
+  /**
+   * Mints the credential sent as `Authorization: Bearer <token>`. Asked PER
+   * REQUEST rather than captured once, because a port outlives its credential:
+   * the engine holds one across every pass and for the whole SSE stream, while
+   * the credential is a short-lived device assertion (`wire.ts`).
+   */
+  getToken: () => Promise<string>;
   /** Injected `fetch` (tests). Defaults to the global `fetch`. */
   fetchImpl?: FetchFn;
   /**
@@ -66,7 +71,7 @@ export type HttpSyncPortOptions = {
 export class HttpSyncPort implements SyncPort {
   private readonly baseUrl: string;
   private readonly vaultId: string;
-  private readonly token: string;
+  private readonly getToken: () => Promise<string>;
   private readonly fetchImpl: FetchFn;
   private readonly hasher: Hasher;
 
@@ -74,7 +79,7 @@ export class HttpSyncPort implements SyncPort {
     // Trim a trailing slash so `baseUrl + "/v1/..."` never doubles up.
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.vaultId = opts.vaultId;
-    this.token = opts.token;
+    this.getToken = opts.getToken;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.hasher = opts.hasher;
   }
@@ -82,7 +87,7 @@ export class HttpSyncPort implements SyncPort {
   async listManifest(): Promise<VaultManifest> {
     const res = await this.fetchImpl(this.url(manifestPath(this.vaultId)), {
       method: "GET",
-      headers: this.headers(),
+      headers: await this.headers(),
     });
     if (!res.ok) throw transportError("manifest", res.status);
     const raw: unknown = await res.json();
@@ -94,7 +99,7 @@ export class HttpSyncPort implements SyncPort {
   async getFile(path: VaultPath): Promise<GetResult> {
     const res = await this.fetchImpl(this.url(filePath(this.vaultId, path)), {
       method: "GET",
-      headers: this.headers(),
+      headers: await this.headers(),
     });
     if (res.status === 404) return { ok: false, reason: "not-found" };
     if (!res.ok) throw transportError("getFile", res.status);
@@ -122,7 +127,7 @@ export class HttpSyncPort implements SyncPort {
   ): Promise<PutResult> {
     const res = await this.fetchImpl(this.url(filePath(this.vaultId, path)), {
       method: "PUT",
-      headers: this.headers({
+      headers: await this.headers({
         [HEADER_BASE_VERSION]: formatVersionHeader(expectedBaseVersion),
         "content-type": CONTENT_TYPE_OCTET_STREAM,
       }),
@@ -144,7 +149,9 @@ export class HttpSyncPort implements SyncPort {
   async deleteFile(path: VaultPath, expectedBaseVersion: number): Promise<DeleteResult> {
     const res = await this.fetchImpl(this.url(filePath(this.vaultId, path)), {
       method: "DELETE",
-      headers: this.headers({ [HEADER_BASE_VERSION]: formatVersionHeader(expectedBaseVersion) }),
+      headers: await this.headers({
+        [HEADER_BASE_VERSION]: formatVersionHeader(expectedBaseVersion),
+      }),
     });
     if (!res.ok) throw transportError("deleteFile", res.status);
     const raw: unknown = await res.json();
@@ -175,8 +182,8 @@ export class HttpSyncPort implements SyncPort {
     return `${this.baseUrl}${routePath}`;
   }
 
-  private headers(extra: Record<string, string> = {}): Record<string, string> {
-    return { [HEADER_AUTHORIZATION]: formatBearer(this.token), ...extra };
+  private async headers(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+    return { [HEADER_AUTHORIZATION]: formatBearer(await this.getToken()), ...extra };
   }
 
   /** Read the SSE `changes` stream frame-by-frame, decoding each `VaultChange`.
@@ -189,7 +196,7 @@ export class HttpSyncPort implements SyncPort {
     try {
       const res = await this.fetchImpl(this.url(changesPath(this.vaultId)), {
         method: "GET",
-        headers: this.headers({ accept: CONTENT_TYPE_SSE }),
+        headers: await this.headers({ accept: CONTENT_TYPE_SSE }),
         signal,
       });
       if (!res.ok || res.body === null) return;

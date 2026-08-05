@@ -63,7 +63,7 @@ function newPort(fetchImpl: FetchFn): HttpSyncPort {
   return createHttpSyncPort({
     baseUrl: BASE_URL,
     vaultId: VAULT_ID,
-    token: TOKEN,
+    getToken: () => Promise.resolve(TOKEN),
     fetchImpl,
     hasher: fakeHasher,
   });
@@ -82,6 +82,27 @@ describe("HttpSyncPort", () => {
     expect(result).toEqual(manifest);
     expect(calls[0]?.url).toBe(`${BASE_URL}/v1/vault/${VAULT_ID}/manifest`);
     expect(calls[0]?.headers.get("authorization")).toBe(formatBearer(TOKEN));
+  });
+
+  it("mints a fresh credential per request rather than capturing one", async () => {
+    const { fetchImpl, calls } = fakeFetch(() => Response.json({ ok: true }));
+    let minted = 0;
+    const port = createHttpSyncPort({
+      baseUrl: BASE_URL,
+      vaultId: VAULT_ID,
+      getToken: () => {
+        minted += 1;
+        return Promise.resolve(`${TOKEN}-${minted}`);
+      },
+      fetchImpl,
+      hasher: fakeHasher,
+    });
+
+    await port.deleteFile("a.md", 1);
+    await port.deleteFile("b.md", 1);
+
+    expect(calls[0]?.headers.get("authorization")).toBe(formatBearer(`${TOKEN}-1`));
+    expect(calls[1]?.headers.get("authorization")).toBe(formatBearer(`${TOKEN}-2`));
   });
 
   it("throws on a non-OK manifest response", async () => {
