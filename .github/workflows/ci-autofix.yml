@@ -1,0 +1,71 @@
+# Push-based CI recovery for agent-authored PRs. A red CI run on a `claude/*`
+# branch wakes Claude to diagnose and push the fix, instead of the failure
+# sitting until a human types `@claude` on the PR. Scoped tight on purpose:
+# same-repo branches under the agent prefix only — human branches keep the
+# opt-in `@claude` flow in claude.yml.
+name: CI Autofix
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+# One live fix per branch; a newer failure supersedes an in-flight attempt
+# (its push would race the fresh diagnosis anyway).
+concurrency:
+  group: ci-autofix-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  autofix:
+    if: |
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      startsWith(github.event.workflow_run.head_branch, 'claude/') &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the fix to the PR branch
+      pull-requests: write # comment when it declines to push (see prompt)
+      issues: read
+      id-token: write
+      actions: read # read the failed run's logs
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          # Enough history for the two-strikes check in the prompt below.
+          fetch-depth: 25
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            CI failed on branch `${{ github.event.workflow_run.head_branch }}`
+            (run: ${{ github.event.workflow_run.html_url }}).
+
+            You are checked out on that branch. Diagnose and fix:
+
+            1. Read the failure: `gh run view ${{ github.event.workflow_run.id }} --log-failed`.
+            2. TWO-STRIKES GUARD, before writing anything: if the two most
+               recent commits on this branch BOTH have a subject starting with
+               `fix(ci):`, do NOT push another attempt — comment on the PR
+               summarizing what is failing and why automated fixes are not
+               converging, then stop.
+            3. Reproduce locally where cheap: `pnpm install --frozen-lockfile`,
+               then the failing gate step (`pnpm typecheck`, `pnpm lint`,
+               `pnpm knip`, `pnpm format`, `pnpm test`, or `pnpm build`).
+            4. Fix the actual cause. Never weaken a gate to get past it (no
+               skipped tests, no lint suppressions, no knip ignores) unless the
+               gate itself is what the failure proves wrong.
+            5. Run `pnpm format:fix` BEFORE the gates, never after, then re-run
+               the step that failed to confirm it is green.
+            6. Commit with a subject starting `fix(ci):` and push to this
+               branch.
+
+            If the failure is unrelated to this branch's diff (also red on
+            main), comment on the PR saying so instead of pushing.
+          claude_args: "--max-turns 50"
