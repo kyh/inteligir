@@ -20,13 +20,16 @@ import {
   formatBearer,
   formatChangeFrame,
   formatDeviceAssertion,
+  formatPairingBlob,
   formatVersionHeader,
   isValidVaultId,
   manifestPath,
+  MIN_ENROLL_SECRET_BYTES,
   parseBearer,
   parseDeviceAssertion,
   parseDeviceAssertionPayload,
   parseFilePathParam,
+  parsePairingBlob,
   parseVersionHeader,
   revokePath,
   SSE_CHANGE_EVENT,
@@ -34,6 +37,7 @@ import {
   vaultPath,
   VAULT_ID_PREFIX,
   type DeviceAssertionPayload,
+  type PairingBlob,
 } from "../wire";
 
 describe("route builders", () => {
@@ -311,5 +315,45 @@ describe("vault ids", () => {
     expect(isValidVaultId(`${VAULT_ID_PREFIX}${"a".repeat(53)}`)).toBe(false);
     expect(isValidVaultId(`${VAULT_ID_PREFIX}${"A".repeat(52)}`)).toBe(false); // uppercase
     expect(isValidVaultId(`${VAULT_ID_PREFIX}${"1".repeat(52)}`)).toBe(false); // 0/1/8/9 aren't base32
+  });
+});
+
+describe("pairing blob", () => {
+  const vaultId = vaultIdFromKeyDigest(digest(0x11)) ?? "";
+  const secret = base64UrlEncode(new Uint8Array(MIN_ENROLL_SECRET_BYTES).fill(7));
+  const blob: PairingBlob = {
+    v: DEVICE_ASSERTION_VERSION,
+    url: "https://sync.example",
+    vid: vaultId,
+    s: secret,
+  };
+
+  it("round-trips through one opaque token", () => {
+    const encoded = formatPairingBlob(blob);
+    expect(encoded).not.toBeNull();
+    if (encoded === null) throw new Error("unreachable");
+    expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(parsePairingBlob(encoded)).toEqual(blob);
+  });
+
+  it("tolerates the whitespace a clipboard adds", () => {
+    const encoded = formatPairingBlob(blob) ?? "";
+    expect(parsePairingBlob(`\n  ${encoded}\t`)).toEqual(blob);
+  });
+
+  it("refuses a secret short enough to search against a live offer", () => {
+    const short = base64UrlEncode(new Uint8Array(MIN_ENROLL_SECRET_BYTES - 1));
+    expect(formatPairingBlob({ ...blob, s: short })).toBeNull();
+  });
+
+  it("refuses a vault id that is not self-certifying, and a non-http coordinator", () => {
+    expect(formatPairingBlob({ ...blob, vid: "6f1a2b3c-0000-4000-8000-000000000000" })).toBeNull();
+    expect(formatPairingBlob({ ...blob, url: "file:///etc/passwd" })).toBeNull();
+  });
+
+  it("refuses anything that is not a blob", () => {
+    expect(parsePairingBlob("")).toBeNull();
+    expect(parsePairingBlob("not base64url!!")).toBeNull();
+    expect(parsePairingBlob(base64UrlEncode(ascii("{}")))).toBeNull();
   });
 });

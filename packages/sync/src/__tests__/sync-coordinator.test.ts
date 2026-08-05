@@ -9,7 +9,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { createHash, createPublicKey, verify, type KeyObject } from "node:crypto";
+
+import { SecretStore } from "@repo/storage/secrets";
+import { isRecord } from "@repo/notes/sync/guards";
+import {
+  base64UrlDecode,
+  enrollOfferPath,
+  isValidVaultId,
+  parseBearer,
+  parseDeviceAssertion,
+  parsePairingBlob,
+} from "@repo/notes/sync/wire";
+
 import { SyncAccount } from "../sync-account";
+import { DeviceIdentity } from "../device-identity";
 import { createSyncManager } from "../sync-manager";
 import { SyncCoordinator, setSyncEventSink, type SyncEngineFactory } from "../sync-coordinator";
 import { InMemorySyncPort } from "@repo/notes/sync/testing/in-memory-sync-port";
@@ -22,6 +36,30 @@ let tmp: string;
 // capture is transport-shaped; assertions compare whole values.
 let emitted: unknown[];
 
+/** A SecretStore over the temp dir with no platform cipher — entries land as
+ * plaintext, which is the documented fallback and all a test needs. */
+function secretsAt(dir: string): SecretStore {
+  return new SecretStore({
+    storePath: path.join(dir, "secrets.json"),
+    cipher: {
+      kind: "safe-storage",
+      isAvailable: () => false,
+      encrypt: (plaintext) => plaintext,
+      decrypt: (data) => data,
+    },
+  });
+}
+
+/** The device identity is always injected over the temp dir: the default reads
+ * (and would mint into) the real ~/.inteligir. */
+function deviceAt(dir: string): DeviceIdentity {
+  const secrets = secretsAt(dir);
+  return new DeviceIdentity({
+    storePath: path.join(dir, "sync-device.json"),
+    secrets: () => secrets,
+  });
+}
+
 function coordinatorAt(dir: string, listVaultPaths?: () => readonly string[]): SyncCoordinator {
   const account = new SyncAccount({
     configPath: path.join(dir, "sync-config.json"),
@@ -29,8 +67,8 @@ function coordinatorAt(dir: string, listVaultPaths?: () => readonly string[]): S
     vaultIdPath: path.join(dir, "sync-vault-id.json"),
   });
   return listVaultPaths === undefined
-    ? new SyncCoordinator(account)
-    : new SyncCoordinator(account, listVaultPaths);
+    ? new SyncCoordinator(account, undefined, undefined, deviceAt(dir))
+    : new SyncCoordinator(account, listVaultPaths, undefined, deviceAt(dir));
 }
 
 beforeEach(() => {
@@ -55,6 +93,7 @@ describe("SyncCoordinator", () => {
       coordinatorUrl: "",
       status: { phase: "idle" },
       conflicts: [],
+      device: null,
     });
   });
 
@@ -105,6 +144,151 @@ describe("SyncCoordinator", () => {
     expect(() => coordinator.onVaultChanged()).not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// The device-key path. It is ADDITIVE: an install with no device key behaves
+// exactly as before, and reconnecting is the one act that moves it over.
+// ---------------------------------------------------------------------------
+
+describe("SyncCoordinator — device identity", () => {
+  /** Reconnecting turns sync ON, so a live engine gets built. It is bound to
+   * an in-memory port + vault here: this suite is about the credential and the
+   * roster calls, not about reconciling. */
+  function deviceCoordinatorAt(dir: string): SyncCoordinator {
+    const account = new SyncAccount({
+      configPath: path.join(dir, "sync-config.json"),
+      authPath: path.join(dir, "sync-auth.json"),
+      vaultIdPath: path.join(dir, "sync-vault-id.json"),
+    });
+    const vault = new MemoryVault();
+    const buildEngine: SyncEngineFactory = (opts) =>
+      createSyncManager({
+        vaultId: opts.vaultId,
+        port: new InMemorySyncPort(opts.vaultId),
+        vault: vault.io,
+        basePath: path.join(dir, "sync-base.json"),
+        blobsDir: path.join(dir, "sync-blobs"),
+        debounceMs: 0,
+        onOutcome: opts.onOutcome,
+      });
+    return new SyncCoordinator(account, () => vault.io.list(), buildEngine, deviceAt(dir));
+  }
+
+  it("refuses to reconnect without a server URL, and mints nothing", () => {
+    const coordinator = deviceCoordinatorAt(tmp);
+    expect(coordinator.reconnectVault()).toEqual({
+      ok: false,
+      error: "Set a server URL first.",
+    });
+    expect(coordinator.getState().device).toBeNull();
+  });
+
+  it("founds a self-certifying vault, turns sync on, and is idempotent", () => {
+    const coordinator = deviceCoordinatorAt(tmp);
+    coordinator.setConfig({ coordinatorUrl: "https://sync.example" });
+    const result = coordinator.reconnectVault();
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(isValidVaultId(result.device.vaultId)).toBe(true);
+    const state = coordinator.getState();
+    expect(state.enabled).toBe(true);
+    expect(state.device).toEqual(result.device);
+    // Reconnecting again returns the SAME device: replacing a live key would
+    // silently orphan the vault it founded.
+    expect(coordinator.reconnectVault()).toEqual(result);
+  });
+
+  it("disconnecting is local: the key is forgotten, sync is off, the account survives", () => {
+    const coordinator = deviceCoordinatorAt(tmp);
+    coordinator.setConfig({ coordinatorUrl: "https://sync.example" });
+    coordinator.reconnectVault();
+    const state = coordinator.disconnectVault();
+    expect(state.device).toBeNull();
+    expect(state.enabled).toBe(false);
+    expect(state.coordinatorUrl).toBe("https://sync.example");
+  });
+
+  it("reports which gate closed the device routes, without a network call", async () => {
+    const coordinator = deviceCoordinatorAt(tmp);
+    // No device key: the account credential is not admitted on those routes.
+    expect(await coordinator.listDevices()).toEqual({
+      ok: false,
+      error: "This vault is not connected to a device key.",
+    });
+    expect(await coordinator.createPairingOffer()).toEqual({
+      ok: false,
+      error: "This vault is not connected to a device key.",
+    });
+  });
+
+  it("drives the coordinator's device routes with a real signed assertion", async () => {
+    const coordinator = deviceCoordinatorAt(tmp);
+    coordinator.setConfig({ coordinatorUrl: "https://sync.example" });
+    const founded = coordinator.reconnectVault();
+    if (!founded.ok) throw new Error("unreachable");
+
+    const seen: { url: string; authorization: string; body: string | null }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init: RequestInit) => {
+        const headers = init.headers;
+        seen.push({
+          url,
+          authorization: isRecord(headers) ? String(headers.authorization) : "",
+          body: typeof init.body === "string" ? init.body : null,
+        });
+        return Promise.resolve(Response.json({ notAfter: 1_800_000_000 }));
+      }),
+    );
+    const offer = await coordinator.createPairingOffer();
+    vi.unstubAllGlobals();
+
+    expect(offer.ok).toBe(true);
+    if (!offer.ok) throw new Error("unreachable");
+    // The blob carries what the joining device cannot derive: the coordinator,
+    // the vault, and the secret the server only ever saw the hash of.
+    const blob = parsePairingBlob(offer.offer.blob);
+    expect(blob).toEqual({
+      v: 1,
+      url: "https://sync.example",
+      vid: founded.device.vaultId,
+      s: expect.any(String),
+    });
+    const call = seen[0];
+    if (call === undefined || blob === null) throw new Error("unreachable");
+    expect(call.url).toBe(`https://sync.example${enrollOfferPath(founded.device.vaultId)}`);
+    expect(JSON.parse(call.body ?? "null")).toEqual({
+      enrollId: createHash("sha256")
+        .update(base64UrlDecode(blob.s) ?? new Uint8Array())
+        .digest("hex"),
+      notAfter: expect.any(Number),
+    });
+    // The credential is a self-issued assertion bound to this vault, not a
+    // token the server minted.
+    const assertion = parseDeviceAssertion(parseBearer(call.authorization) ?? "");
+    if (assertion === null) throw new Error("unreachable");
+    expect(assertion.payload.vid).toBe(founded.device.vaultId);
+    expect(assertion.payload.dev).toBe(founded.device.publicKey);
+    expect(
+      verify(
+        null,
+        assertion.signedBytes,
+        publicKeyOf(founded.device.publicKey),
+        assertion.signature,
+      ),
+    ).toBe(true);
+  });
+});
+
+/** A node public KeyObject from the roster's base64url spelling — the same
+ * import the Worker does with WebCrypto. */
+function publicKeyOf(publicKey: string): KeyObject {
+  const raw = base64UrlDecode(publicKey);
+  if (raw === null) throw new Error("not a public key");
+  // SPKI wrapper for a raw Ed25519 key: node imports no bare 32 bytes.
+  const spki = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(raw)]);
+  return createPublicKey({ key: spki, format: "der", type: "spki" });
+}
 
 // ---------------------------------------------------------------------------
 // A live engine over an in-memory port/vault (no network), wired through the
@@ -184,7 +368,12 @@ describe("SyncCoordinator — debounced-pass conflicts (item 2)", () => {
     // default reads the real VaultManager, which would never see the conflict
     // copy the engine writes into `vault.io`, and pruneConflicts() would drop
     // the row instantly on the next getState().
-    const coordinator = new SyncCoordinator(account, () => vault.io.list(), buildEngine);
+    const coordinator = new SyncCoordinator(
+      account,
+      () => vault.io.list(),
+      buildEngine,
+      deviceAt(tmp),
+    );
 
     // 1. Establish a shared base at version 1. Poll on the REMOTE landing the
     // push (rather than the coordinator's status) — the fake port's synchronous
@@ -270,7 +459,12 @@ describe("SyncCoordinator — guest→account upgrade", () => {
         debounceMs: 0,
         onOutcome: opts.onOutcome,
       });
-    const coordinator = new SyncCoordinator(account, () => vault.io.list(), buildEngine);
+    const coordinator = new SyncCoordinator(
+      account,
+      () => vault.io.list(),
+      buildEngine,
+      deviceAt(tmp),
+    );
     coordinator.start();
     expect(coordinator.getState().signedIn).toBe(false);
     // No engine while guest — syncNow refuses, files untouched.

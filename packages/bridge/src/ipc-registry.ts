@@ -73,11 +73,16 @@ import type { SyncOutcome } from "@repo/notes/sync/engine";
 import {
   SyncNowSchema,
   SyncRequestPasswordResetSchema,
+  SyncRevokeDeviceSchema,
   SyncSetConfigSchema,
   SyncSignInSchema,
   SyncSignUpSchema,
   SyncSocialSignInSchema,
   type AccountCapabilities,
+  type SyncDeviceListResult,
+  type SyncPairingOfferResult,
+  type SyncReconnectResult,
+  type SyncRevokeDeviceResult,
   type SyncSignInResult,
   type SyncState,
 } from "./sync";
@@ -821,8 +826,9 @@ export const IPC = {
   getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(),
 
   // Vault sync — reconcile the local vault against the coordinator Worker.
-  // OFF by default; gated at runtime by the sync-config store + a bearer token.
-  /** Current sync state (enabled/signed-in/coordinator/last-status). */
+  // OFF by default; gated at runtime by the sync-config store + a credential
+  // (an account session, or this install's device key).
+  /** Current sync state (enabled/signed-in/coordinator/last-status/device). */
   getSyncState: invokeVoid<SyncState>(),
   /** Patch the sync config (enable toggle + coordinator URL). */
   setSyncConfig: invoke<typeof SyncSetConfigSchema, SyncState>(SyncSetConfigSchema),
@@ -867,6 +873,38 @@ export const IPC = {
   /** Fired on every config / auth / status change so the settings Sync UI is
    * reactive. Same shape as getSyncState. */
   onSyncStateChanged: event<SyncState>(),
+
+  // Vault device identity — the account-free credential model (apps/cloud's
+  // README § Device keys). ADDITIVE: an install with no device key syncs on
+  // the account exactly as before, and `reconnectSyncVault` is the only thing
+  // that changes that.
+  /** The coordinator's device roster for THIS vault, tombstones included. A
+   * network read, so a failure is a value the panel renders inline. Refuses
+   * without a device key: the account credential is not admitted on the
+   * device routes. */
+  getSyncDevices: invokeVoid<SyncDeviceListResult>(),
+  /** Mint a one-time pairing offer and return the blob to paste into the
+   * joining device. The coordinator receives only `sha256(secret)`, so the
+   * blob — coordinator URL + vaultId + secret — is the ONLY copy of the
+   * capability, live until it expires. Never persisted host-side. */
+  createSyncPairingOffer: invokeVoid<SyncPairingOfferResult>(),
+  /** Tombstone another device's key. Effective on its very next request; a
+   * tombstone is permanent (a replayed offer must not resurrect a key). The
+   * coordinator REFUSES the last live device — that comes back as
+   * `reason:"last-device"`, and the answer to it is disconnectSyncVault. */
+  revokeSyncDevice: invoke<typeof SyncRevokeDeviceSchema, SyncRevokeDeviceResult>(
+    SyncRevokeDeviceSchema,
+  ),
+  /** Found a device-owned vault from a freshly generated key and point sync at
+   * it. The new remote starts EMPTY, so the first pass plans pushes only and
+   * uploads the whole vault; nothing local is deleted and the previous
+   * configuration is left intact underneath (disconnecting restores it). */
+  reconnectSyncVault: invokeVoid<SyncReconnectResult>(),
+  /** Stop syncing this vault from this device: forget the device key and turn
+   * sync off. Purely LOCAL — no coordinator call — because the server cannot
+   * tell "I am leaving" from "strand this vault". The roster row stays until
+   * another device revokes it. Returns the resulting state. */
+  disconnectSyncVault: invokeVoid<SyncState>(),
 
   // Remote access — the WS transport's device-pairing surface: an enable
   // toggle, the classified endpoints and the one the server binds, paired
