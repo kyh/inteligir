@@ -13,8 +13,10 @@ transport (chat + the delegation dock); the rich editor stays desktop-only.
 src/
   app/
     _layout.tsx      Expo Router stack shell
-    index.tsx        Home — auth gate: signed out → email/password form;
-                     signed in → vault file list + manual Sync + pull-to-refresh
+    index.tsx        Home — credential gate: no device key and no session →
+                     email/password form (+ "pair with your desktop"); either →
+                     vault file list + manual Sync + pull-to-refresh
+    pair.tsx         Paste the desktop's pairing block to join its vault
     note/[path].tsx  Single note — READ renders GFM markdown; EDIT is a raw
                      textarea over the bytes; save writes locally, then syncs
     chat.tsx         Remote chat with a PAIRED desktop host's agent
@@ -25,7 +27,8 @@ src/
                      captures the bearer token from `set-auth-token`
     base-url.ts      Coordinator origin resolution (see below)
     sync/            Expo bindings for @repo/notes/sync — expo-crypto hasher,
-                     expo-file-system vault IO + base store, syncOnce manager
+                     expo-file-system vault IO + base store, syncOnce manager,
+                     and the device identity (key, store, enroll, credential)
       __tests__/     Vitest over the pure modules (no native runtime)
 ```
 
@@ -50,7 +53,31 @@ sync client can send `Authorization: Bearer <token>` on `/v1/vault/*`. The
 vault lives under the app's documents directory; `syncOnce` runs the core
 engine's 3-way reconcile (conflicts preserved as sibling copies).
 
-The coordinator origin resolves in order (`lib/base-url.ts`):
+### Vault device keys — the account-free path
+
+The second identity model (`apps/cloud/README.md` § Device keys), running
+alongside the one above and winning when this device has enrolled. `pair.tsx`
+takes the block the desktop's Settings → Sync → Devices produces: this device
+generates an Ed25519 key (`lib/sync/device-key.ts`, @noble over expo-crypto's
+CSPRNG — never the ambient one), redeems the one-time secret on the
+unauthenticated `…/enroll` route, and keeps `{url, vaultId, publicKey}` plus the
+secret key in the keychain. From then on every request carries a self-minted
+5-minute assertion; `lib/sync/credential.ts` is the one seam the engine and the
+SSE stream both read it through.
+
+**Mobile never FOUNDS a vault** — it only ever enrolls into a desktop-founded
+one. A phone-founded vault is a second vaultId that never converges with the
+desktop's. And **"Disconnect this vault" is purely local** (forget the key, stop
+syncing): the coordinator cannot tell "I am leaving" from "strand this vault",
+and refuses the last-device revoke that would do the latter. Removing this
+phone's key from the roster is the desktop's job.
+
+Switching between the two models needs no local cleanup: the stored base
+manifest is scoped by vaultId, so the first pass against a newly enrolled vault
+reads no anchor and plans pushes only.
+
+The coordinator origin (account path — the device path uses the URL its pairing
+block carried) resolves in order (`lib/base-url.ts`):
 
 1. `EXPO_PUBLIC_COORDINATOR_URL`
 2. `app.config.js` → `extra.coordinatorUrl`

@@ -23,19 +23,30 @@ import { appendCapture } from "@/lib/capture/daily-capture";
 import { createVaultCaptureIo } from "@/lib/capture/capture-io";
 import { useHostStatus } from "@/lib/host/connection";
 import { hostStatusDotColor } from "@/lib/host/status-display";
-import { scheduleSync, syncOnce, useSyncStatus } from "@/lib/sync/manager";
+import { disconnectDevice, useDevice } from "@/lib/sync/device";
+import type { EnrolledDevice } from "@/lib/sync/device-store";
+import { scheduleSync, stopSync, syncOnce, useSyncStatus } from "@/lib/sync/manager";
 import { useRealtimeSync } from "@/lib/sync/realtime-manager";
 import { listVaultFiles } from "@/lib/sync/vault-access";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
 // ---------------------------------------------------------------------------
-// The home surface. Gates on the Better Auth session: signed out → email/password
-// form; signed in → the vault screen (local file list + manual sync + sign-out).
+// The home surface. Gates on either credential this device can hold: an
+// enrolled device key (paired with a desktop vault) or a Better Auth session.
+// Neither → the sign-in form, which also offers pairing. Either → the vault
+// screen (local file list + manual sync + the matching way back out).
+//
+// The device key is checked FIRST and short-circuits the session: pairing is
+// the deliberate act that moves this install onto the device model, and the
+// account is left underneath it so disconnecting restores what was there.
 // ---------------------------------------------------------------------------
 
 export default function Index() {
   const theme = useTheme();
+  const device = useDevice();
   const { data: session, isPending } = authClient.useSession();
+
+  if (device !== null) return <VaultScreen device={device} />;
 
   if (isPending) {
     return (
@@ -46,7 +57,7 @@ export default function Index() {
     );
   }
 
-  return session ? <VaultScreen /> : <SignInScreen />;
+  return session ? <VaultScreen device={null} /> : <SignInScreen />;
 }
 
 // ---- sign in / sign up ----------------------------------------------------
@@ -58,6 +69,7 @@ function nameFromEmail(email: string): string {
 
 function SignInScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -154,6 +166,12 @@ function SignInScreen() {
           >
             <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
               {mode === "signup" ? "Have an account? Sign in" : "No account? Sign up"}
+            </Text>
+          </Pressable>
+
+          <Pressable style={styles.textButton} onPress={() => router.push("/pair")}>
+            <Text style={[styles.smallText, { color: theme.foreground }]}>
+              Pair with your desktop instead
             </Text>
           </Pressable>
         </View>
@@ -320,7 +338,7 @@ function describeStatus(status: SyncStatus): string {
   }
 }
 
-function VaultScreen() {
+function VaultScreen({ device }: { device: EnrolledDevice | null }) {
   const theme = useTheme();
   const router = useRouter();
   const status = useSyncStatus();
@@ -378,8 +396,30 @@ function VaultScreen() {
   );
 
   const signOut = useCallback(async () => {
+    stopSync();
     await authClient.signOut();
     clearBearerToken();
+  }, []);
+
+  // The only way off a paired vault, and it is purely local: the coordinator
+  // cannot tell "I am leaving" from "strand this vault", so it is never asked.
+  // The desktop's device list is where this phone's key gets revoked.
+  const disconnect = useCallback(() => {
+    Alert.alert(
+      "Disconnect this vault?",
+      "This phone stops syncing and forgets its key. Notes already on the device stay; nothing is removed from the vault. Pair again with a new code from the desktop, and remove this device there when you're done with it.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: () => {
+            stopSync();
+            disconnectDevice();
+          },
+        },
+      ],
+    );
   }, []);
 
   return (
@@ -459,9 +499,24 @@ function VaultScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
-        <Pressable style={styles.textButton} onPress={() => void signOut()}>
-          <Text style={[styles.smallText, { color: theme.mutedForeground }]}>Sign out</Text>
-        </Pressable>
+        {device !== null ? (
+          <View style={styles.footerRow}>
+            <Text
+              style={[styles.captionText, { color: theme.mutedForeground }]}
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
+              {`Vault ${device.vaultId}`}
+            </Text>
+            <Pressable style={styles.textButton} onPress={disconnect}>
+              <Text style={[styles.smallText, { color: theme.destructive }]}>Disconnect</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable style={styles.textButton} onPress={() => void signOut()}>
+            <Text style={[styles.smallText, { color: theme.mutedForeground }]}>Sign out</Text>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -550,6 +605,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: SPACE.lg,
     paddingVertical: SPACE.md,
+  },
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: SPACE.md,
   },
 
   title: { fontSize: 30, fontWeight: "700" },
