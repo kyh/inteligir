@@ -255,3 +255,110 @@ describe("KnowledgeIndex — privacy (excludePrivate)", () => {
     expect(index.notesWithTag("meta", { excludePrivate: true })).toEqual(["public.md"]);
   });
 });
+
+// The whole-vault reads — tasks, tags, wiki targets, graph. Unlike backlinks
+// and search these take no subject path, so an ungated call is a full dump of
+// the vault, and `tasks` dumps verbatim source lines with it.
+function wholeVaultSeeded(): KnowledgeIndex {
+  const index = new KnowledgeIndex();
+  index.setDoc(
+    "secret-plans.md",
+    [
+      "---",
+      "private: true",
+      "tags: [meta, covert]",
+      "---",
+      "# Secret plans",
+      "",
+      "- [ ] Book the Reykjavik room",
+      "",
+      "See [[public]] and [[unwritten codename]].",
+      "",
+    ].join("\n"),
+  );
+  index.setDoc("public.md", "# Public\n\nOrdinary text. #meta\n\n- [ ] Buy milk\n");
+  index.setDoc("broken.md", "---\n[not: valid: yaml\n---\n\n- [ ] Unreadable frontmatter task\n");
+  return index;
+}
+
+describe("KnowledgeIndex — privacy on the whole-vault reads", () => {
+  it("tasks omit private (and unreadable-frontmatter) docs, source line included", () => {
+    const index = wholeVaultSeeded();
+    expect(index.tasks().map((task) => task.path)).toEqual([
+      "broken.md",
+      "public.md",
+      "secret-plans.md",
+    ]);
+
+    const filtered = index.tasks({ excludePrivate: true });
+    expect(filtered.map((task) => task.path)).toEqual(["public.md"]);
+    // The row carries `raw`, so the assertion is on the BYTES, not the path.
+    expect(JSON.stringify(filtered)).not.toContain("Reykjavik");
+    expect(JSON.stringify(filtered)).not.toContain("Unreadable");
+  });
+
+  it("tags drop private-only names and RECOMPUTE the shared counts", () => {
+    const index = wholeVaultSeeded();
+    expect(index.tags()).toEqual([
+      { tag: "meta", count: 2 },
+      { tag: "covert", count: 1 },
+    ]);
+    expect(index.tags({ excludePrivate: true })).toEqual([{ tag: "meta", count: 1 }]);
+  });
+
+  it("a shared tag renders in a PUBLIC note's case under excludePrivate", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("secret.md", "---\nprivate: true\ntags: [Reykjavik]\n---\n# Secret\n");
+    index.setDoc("open.md", "# Open\n\nText. #reykjavik\n");
+    expect(index.tags()).toEqual([{ tag: "Reykjavik", count: 2 }]);
+    expect(index.tags({ excludePrivate: true })).toEqual([{ tag: "reykjavik", count: 1 }]);
+  });
+
+  it("wiki targets omit private docs entirely", () => {
+    const index = wholeVaultSeeded();
+    index.setOther("diagram.png");
+    expect(index.wikiTargets().map((target) => target.path)).toEqual([
+      "broken.md",
+      "public.md",
+      "secret-plans.md",
+      "diagram.png",
+    ]);
+    expect(index.wikiTargets({ excludePrivate: true }).map((target) => target.path)).toEqual([
+      "public.md",
+      "diagram.png",
+    ]);
+  });
+
+  it("the graph drops private nodes, their edges, and their phantom targets", () => {
+    const index = wholeVaultSeeded();
+    const full = index.graph();
+    expect(full.nodes.map((node) => node.id).toSorted()).toEqual([
+      "broken.md",
+      "phantom:unwritten codename",
+      "public.md",
+      "secret-plans.md",
+    ]);
+    expect(full.edges).toHaveLength(2);
+
+    const filtered = index.graph({ excludePrivate: true });
+    expect(filtered.nodes).toEqual([
+      { id: "public.md", title: "Public", path: "public.md", phantom: false, degree: 0 },
+    ]);
+    expect(filtered.edges).toEqual([]);
+    // The phantom node's id IS the private note's raw link text.
+    expect(JSON.stringify(filtered)).not.toContain("unwritten codename");
+  });
+
+  it("the graph drops an inbound edge from a public note to a private one", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("secret.md", "---\nprivate: true\n---\n# Secret\n");
+    index.setDoc("open.md", "# Open\n\nSee [[secret]].\n");
+    expect(index.graph().edges).toEqual([
+      { source: "open.md", target: "secret.md", kind: "wiki", count: 1 },
+    ]);
+
+    const filtered = index.graph({ excludePrivate: true });
+    expect(filtered.edges).toEqual([]);
+    expect(filtered.nodes.map((node) => node.degree)).toEqual([0]);
+  });
+});

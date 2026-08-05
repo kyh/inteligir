@@ -46,6 +46,7 @@ import {
   type RelatedNoteEntry,
   type RelatedNotesOpts,
 } from "@repo/notes/knowledge/related-notes";
+import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { StoredFingerprint } from "@repo/notes/knowledge/knowledge-store";
 import type { HydrationCursor, SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
@@ -125,9 +126,9 @@ export class KnowledgeManager {
     return this.linkGraph.forwardLinks(vaultPath);
   }
 
-  graph(): LinkGraph {
+  graph(opts?: PrivacyOpts): LinkGraph {
     this.ensureBuilt();
-    return this.linkGraph.graph();
+    return this.linkGraph.graph(opts);
   }
 
   search(query: string, limit?: number, opts?: PrivacyOpts): SearchResult[] {
@@ -144,14 +145,23 @@ export class KnowledgeManager {
     }
   }
 
-  wikiTargets(): WikiTarget[] {
+  wikiTargets(opts?: PrivacyOpts): WikiTarget[] {
     this.ensureBuilt();
-    return this.linkGraph.wikiTargets();
+    return this.linkGraph.wikiTargets(opts);
   }
 
-  tasks(): VaultTaskEntry[] {
+  tasks(opts?: PrivacyOpts): VaultTaskEntry[] {
     this.ensureBuilt();
-    return this.linkGraph.tasks();
+    return this.linkGraph.tasks(opts);
+  }
+
+  /** Every tag with its note count. No renderer surface reads this — the
+   * palette composes text ∧ tag through `search` instead — but the agent vault
+   * port's listTags projection needs the whole-vault list, and the manager is
+   * the only place production can get it from. */
+  tags(opts?: PrivacyOpts): TagCount[] {
+    this.ensureBuilt();
+    return this.linkGraph.tags(opts);
   }
 
   notesWithTag(tag: string, opts?: PrivacyOpts): string[] {

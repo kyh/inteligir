@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { LocalFile, LocalManifest, VaultManifest } from "../manifest";
-import { conflictCopyName, fsSafeStamp, isConflictCopyPath, reconcile } from "../reconcile";
+import {
+  conflictCopyName,
+  conflictOriginPath,
+  fsSafeStamp,
+  isConflictCopyPath,
+  reconcile,
+} from "../reconcile";
 import type { VaultFile } from "../vault-file";
 
 const VAULT = "vault-1";
@@ -233,5 +239,28 @@ describe("isConflictCopyPath", () => {
 
   it("only inspects the basename — directories cannot fake a match", () => {
     expect(isConflictCopyPath(`dir (conflict ${stamp})/todo.md`)).toBe(false);
+  });
+});
+
+describe("conflictOriginPath", () => {
+  const stamp = fsSafeStamp(new Date("2026-07-05T12:34:56.000Z"));
+
+  it("recovers the exact path every shape forked from", () => {
+    for (const path of ["notes/todo.md", "todo.md", "dir/README", ".gitignore", "a.tar.gz"]) {
+      expect(conflictOriginPath(conflictCopyName(path, stamp))).toBe(path);
+    }
+  });
+
+  it("answers null for anything that is not a copy of this engine's making", () => {
+    expect(conflictOriginPath("notes/todo.md")).toBeNull();
+    expect(conflictOriginPath("todo (conflict).md")).toBeNull();
+    expect(conflictOriginPath(`dir (conflict ${stamp})/todo.md`)).toBeNull();
+  });
+
+  it("peels ONE level, so a copy of a copy still answers a copy", () => {
+    const once = conflictCopyName("todo.md", stamp);
+    const twice = conflictCopyName(once, stamp);
+    expect(conflictOriginPath(twice)).toBe(once);
+    expect(conflictOriginPath(once)).toBe("todo.md");
   });
 });

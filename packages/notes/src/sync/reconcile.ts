@@ -169,22 +169,36 @@ export function conflictCopyName(path: VaultPath, isoTimestamp: string): VaultPa
 const CONFLICT_STAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
 
 /**
- * The reverse of `conflictCopyName`: does `path` name a conflict copy this
- * engine could have produced? Core owns the naming BOTH ways so UIs (listing
- * unresolved conflicts) and the naming scheme can never drift apart. Matches
- * exactly the `conflictCopyName(path, fsSafeStamp(date))` shape — a
- * ` (conflict <fs-safe stamp>)` suffix on the stem — and nothing looser.
+ * The inverse of `conflictCopyName`: the path a conflict copy forked FROM, or
+ * `null` when `path` does not name a copy this engine could have produced —
+ * `"notes/todo (conflict 2026-07-05T12-34-56-000Z).md"` → `"notes/todo.md"`.
+ * Core owns the naming BOTH ways so UIs (listing unresolved conflicts, hiding a
+ * copy whose origin is private) and the naming scheme can never drift apart.
+ * Matches exactly the `conflictCopyName(path, fsSafeStamp(date))` shape — a
+ * ` (conflict <fs-safe stamp>)` suffix on the stem — and nothing looser, so a
+ * user file that merely reads that way is left alone.
+ *
+ * One inversion per call: a copy OF a copy inverts to a copy, and a caller that
+ * cares about the whole ancestry re-applies this until it answers null.
  */
-export function isConflictCopyPath(path: string): boolean {
+export function conflictOriginPath(path: string): string | null {
   const slash = path.lastIndexOf("/");
+  const dir = slash === -1 ? "" : path.slice(0, slash + 1);
   const name = slash === -1 ? path : path.slice(slash + 1);
   const dot = name.lastIndexOf(".");
   const hasExt = dot > 0; // mirror conflictCopyName: a leading dot is a dotfile
   const stem = hasExt ? name.slice(0, dot) : name;
+  const ext = hasExt ? name.slice(dot) : "";
   const marker = stem.lastIndexOf(" (conflict ");
-  if (marker === -1 || !stem.endsWith(")")) return false;
+  if (marker === -1 || !stem.endsWith(")")) return null;
   const stamp = stem.slice(marker + " (conflict ".length, -1);
-  return CONFLICT_STAMP_RE.test(stamp);
+  if (!CONFLICT_STAMP_RE.test(stamp)) return null;
+  return `${dir}${stem.slice(0, marker)}${ext}`;
+}
+
+/** Does `path` name a conflict copy this engine could have produced? */
+export function isConflictCopyPath(path: string): boolean {
+  return conflictOriginPath(path) !== null;
 }
 
 // ---- internals ------------------------------------------------------------
