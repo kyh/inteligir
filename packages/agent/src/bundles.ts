@@ -9,6 +9,7 @@ import codeMode from "./code-mode/extension";
 import knowledgeTools from "./knowledge-tools/extension";
 import peekaboo from "./peekaboo/extension";
 import privacy from "./privacy/extension";
+import vaultTools from "./vault-tools/extension";
 import type { PiExtensionBundle } from "./extension";
 
 export const EXTENSION_BUNDLES: PiExtensionBundle[] = [
@@ -17,4 +18,5 @@ export const EXTENSION_BUNDLES: PiExtensionBundle[] = [
   knowledgeTools,
   peekaboo,
   privacy,
+  vaultTools,
 ].toSorted((a, b) => a.name.localeCompare(b.name));

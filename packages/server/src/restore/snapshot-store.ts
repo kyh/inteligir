@@ -230,6 +230,19 @@ export class SnapshotStore {
     return { ok: true, origin: entry.origin, path: entry.path, kind: entry.kind, content };
   }
 
+  /** The newest snapshot id for one origin + path, or null when that origin
+   * never captured the file (or its bytes have been pruned). The agent's undo
+   * capability keys on a PATH — a model has no capture ids, and handing it a
+   * list of them would make an internal identifier part of the tool surface. */
+  latestId(origin: SnapshotOrigin, path: string): string | null {
+    let newest: SnapshotEntry | null = null;
+    for (const entry of this.index.read()) {
+      if (entry.origin !== origin || entry.path !== path) continue;
+      if (newest === null || entry.capturedAt > newest.capturedAt) newest = entry;
+    }
+    return newest?.id ?? null;
+  }
+
   /** A vault file/folder was renamed/moved — repoint entry paths so a chat
    * restore targets the moved file (delegation restore targets the delegation
    * record's sourceFile, remapped by the manager; its entry path is remapped

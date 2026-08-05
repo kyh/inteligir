@@ -15,7 +15,12 @@ import { resetAuthStorage } from "@repo/agent/auth";
 import { loginSelectedProvider } from "../provider/provider-service";
 import { resetProviderConfig } from "../provider/provider-config";
 import type { AgentPorts, PrivacyProbe } from "@repo/agent/extension";
-import { buildAgentKnowledgePort } from "./agent-knowledge-port";
+import { buildAgentKnowledgePort, buildAgentVaultPort } from "./agent-knowledge-port";
+import { buildAgentActionPort } from "./agent-action-port";
+import {
+  getConfirmationBroker,
+  resetConfirmationBroker,
+} from "../agent-confirm/confirmation-broker";
 import { isEnoent } from "@repo/storage/fs-errors";
 import { AGENT_DIR } from "@repo/agent/paths";
 import { seedResources, type BundledResources } from "@repo/agent/setup";
@@ -24,7 +29,7 @@ import { reassertHostLock } from "@repo/storage/host-lock";
 import { resetAgentInstructionsSeedMarks } from "../agent-instructions/agent-instructions";
 import { resetCaptureManager } from "../capture/capture-manager";
 import { getRestoreManager, resetRestoreManager } from "../restore/restore-manager";
-import { resetDelegationManager } from "../delegation/delegation-manager";
+import { getDelegationManager, resetDelegationManager } from "../delegation/delegation-manager";
 import { resetRoutinesManager } from "../routines/routines-manager";
 import { resetSnapshotStore } from "../restore/snapshot-store";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
@@ -37,7 +42,7 @@ import {
 } from "@repo/connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
 import { resetSecretStore } from "@repo/storage/secrets";
-import { resetSyncCoordinator } from "@repo/sync/sync-coordinator";
+import { getSyncCoordinator, resetSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { resetRemoteAccessManager } from "../transport/remote-access-manager";
 import { resetUiState } from "../ui-state";
 import {
@@ -81,6 +86,34 @@ export function getAgentPorts(): AgentPorts {
       probe: probeVaultPrivacy,
       vault: getVaultManager,
       afterRename: remapNoteMetadata,
+    }),
+    // The whole-vault + host-state reads, same projection contract as
+    // `knowledge` above (index prefilter, live-disk re-probe of every
+    // survivor, silent drops). Named after the bridge methods they project so
+    // the grant table (@repo/bridge/agent-grants) reads one row ↔ one
+    // projection — but they are NOT those handlers, which are privacy-blind by
+    // design.
+    vault: buildAgentVaultPort({
+      queries: () => getKnowledgeManager(),
+      probe: probeVaultPrivacy,
+      vault: getVaultManager,
+      sync: () => getSyncCoordinator().getState(),
+      delegations: () => getDelegationManager().getDelegations(),
+    }),
+    // The mutating tiers (boot/agent-action-port.ts): live-disk privacy on
+    // every target, capture-before-write on the one write, and a human
+    // confirmation raised host-side for the destructive pair.
+    actions: buildAgentActionPort({
+      probe: probeVaultPrivacy,
+      vault: getVaultManager,
+      delegations: getDelegationManager,
+      restores: getRestoreManager,
+      capture: (path) =>
+        getRestoreManager().capture({ origin: "chat", target: { rel: path, tool: "edit" } }),
+      confirm: (proposal) => getConfirmationBroker().ask(proposal),
+      onStaleProjection: () => {
+        void getKnowledgeManager().refresh();
+      },
     }),
     // Vault-privacy capability for the tool gate (agent/privacy). probe reads
     // LIVE disk through VaultManager (resolve() confinement included): a path
@@ -188,6 +221,8 @@ export function teardownAgentResources(): void {
   resetNotifications();
   resetCaptureManager();
   resetRestoreManager();
+  // Declines every proposal still waiting on a human — a wipe is not consent.
+  resetConfirmationBroker();
   resetDelegationManager();
   resetRoutinesManager();
   resetSnapshotStore();

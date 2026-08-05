@@ -10,11 +10,24 @@
 
 import type { ExtensionAPI, ExtensionFactory } from "@repo/agent/pi/pi-types";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
-import type { BacklinkEntry, ForwardLinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import type {
+  BacklinkEntry,
+  ForwardLinkEntry,
+  VaultTaskEntry,
+  WikiTarget,
+} from "@repo/notes/knowledge/link-graph-index";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
+import type { TagCount } from "@repo/notes/knowledge/tag-index";
+import type { SyncStatus } from "@repo/notes/sync/status";
 
 import { isRecord } from "@repo/bridge/wire-helpers";
-import type { NotePrivacyProbe, SetupProgress } from "@repo/bridge/ipc-registry";
+import type { Delegation } from "@repo/bridge/delegation";
+import type {
+  NotePrivacyProbe,
+  SetupProgress,
+  VaultEntry,
+  VaultFileFacts,
+} from "@repo/bridge/ipc-registry";
 import type { ExecutorExecuteResult } from "@repo/bridge/executor";
 
 // ---------------------------------------------------------------------------
@@ -139,9 +152,136 @@ export type AgentCheckpointPort = {
   capture(target: VaultDocWrite): void;
 };
 
+// ---------------------------------------------------------------------------
+// AgentVaultPort — the WHOLE-VAULT and host-state reads (the read-projected
+// tier of @repo/bridge/agent-grants). Method names mirror the bridge methods
+// they project, so a grant row reads as one method ↔ one projection and a
+// method with no projection is visibly ungranted.
+//
+// The type lives here and the implementation host-side
+// (server boot/agent-knowledge-port.ts) for KnowledgePort's reason: agent/
+// never imports the host. Same privacy contract as KnowledgePort — index
+// prefilter plus a live-disk re-probe of every survivor, dropping silently.
+// ---------------------------------------------------------------------------
+
+/** One bounded page. `limit` is clamped host-side: the privacy re-probe is a
+ * file read per row, so an unbounded page would read the whole vault. */
+export type AgentPageOpts = { limit?: number | undefined };
+
+/** A `listVault` page request. `folder` is a vault-relative prefix ("" or
+ * absent = the whole vault). */
+export type AgentListingOpts = AgentPageOpts & { folder?: string | undefined };
+
+/** A well-connected note. `degree` counts note-to-note edges over the graph
+ * the caller was handed, so it means "connections you can see". */
+export type AgentGraphHub = { path: string; title: string; degree: number };
+
+/** One connected component. `size` is its true size; `members` is a capped
+ * sample of it, so `size > members.length` is ordinary. */
+export type AgentGraphCluster = { size: number; members: string[] };
+
+/** The DERIVED graph answer — never the raw node/edge blob, which is tens of
+ * megabytes of JSON on a large vault and unreadable to a model anyway. */
+export type AgentLinkGraph = {
+  totalNotes: number;
+  /** Connections between two visible notes; self-links excluded. */
+  totalLinks: number;
+  /** Notes with no resolved link to another note, either direction (sample). */
+  orphans: string[];
+  hubs: AgentGraphHub[];
+  clusters: AgentGraphCluster[];
+};
+
+/** Sync status minus the free-form failure message: a host error string
+ * routinely embeds the coordinator URL or a vault path, there is no way to
+ * sanitize an arbitrary message, and a model can act on a network error
+ * either way. So it reports THAT the last pass failed, not why. */
+export type AgentSyncStatus =
+  | Extract<SyncStatus, { phase: "idle" | "syncing" | "ok" }>
+  | { phase: "held"; deletions: number; baseCount: number; sample: string[] }
+  | { phase: "error" };
+
+export type AgentSyncState = {
+  enabled: boolean;
+  status: AgentSyncStatus;
+  /** Vault paths of unresolved conflict COPIES, privacy-filtered. */
+  conflicts: string[];
+};
+
+/** One delegation as the model may see it — built field by field host-side,
+ * never the Bridge's `Delegation` whole, so a field that record grows next
+ * cannot reach the model with no code change and no failing type. */
+export type AgentDelegation = {
+  id: string;
+  sourceFile: string;
+  /** The delegated `- [ ] …` line, from a note that reads public NOW. */
+  lineText: string;
+  status: Delegation["status"];
+  createdAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+  resultSummary: string | null;
+  error: string | null;
+};
+
+export type AgentVaultPort = {
+  listVault(opts?: AgentListingOpts): VaultEntry[];
+  readVaultDoc(path: string): string | null;
+  getVaultFileFacts(path: string): VaultFileFacts | null;
+  listVaultTasks(opts?: AgentPageOpts): VaultTaskEntry[];
+  listTags(): TagCount[];
+  listWikiTargets(opts?: AgentPageOpts): WikiTarget[];
+  getLinkGraph(): AgentLinkGraph;
+  getSyncState(): AgentSyncState;
+  listDelegations(): AgentDelegation[];
+};
+
+// ---------------------------------------------------------------------------
+// AgentActionPort — the three MUTATING tiers (write-checkpointed, delegate,
+// destructive-confirmed). Every method answers with a VALUE: a refusal is a
+// result the model reads and relays, never a throw, so a private note or a
+// declined confirmation reads the same way a stale line does.
+//
+// The confirmation for the destructive pair is raised INSIDE the host
+// implementation rather than by the calling tool — same shape as the HTML-app
+// broker's `confirmRemove` hook, one level down, so no tool can forget to ask.
+// ---------------------------------------------------------------------------
+
+/** A refused action. `reason` is one model-safe sentence to relay verbatim. */
+export type AgentActionRefusal = { ok: false; reason: string };
+
+export type AgentToggleTaskResult = { ok: true; checked: boolean } | AgentActionRefusal;
+export type AgentDelegateResult = { ok: true; id: string; lineText: string } | AgentActionRefusal;
+export type AgentDeleteResult = { ok: true; trashed: boolean } | AgentActionRefusal;
+export type AgentActionOk = { ok: true } | AgentActionRefusal;
+
+export type AgentActionPort = {
+  /** Tick/untick one checkbox, keyed by ordinal AND the exact recorded line.
+   * Captures a restore point before writing (fail-closed: no capture, no
+   * write) and refuses a note that is private on live disk. */
+  toggleTask(path: string, ordinal: number, expectedRaw: string): AgentToggleTaskResult;
+  /** Hand one checkbox to the background agent. */
+  delegateTask(path: string, ordinal: number): AgentDelegateResult;
+  cancelDelegation(id: string): AgentActionOk;
+  /** Restore a finished delegation's pre-run bytes. */
+  restoreDelegation(id: string): Promise<AgentActionOk>;
+  /** Propose trashing a file. Asks the user; a decline is a refusal value. */
+  deleteNote(path: string): Promise<AgentDeleteResult>;
+  /** Propose undoing the agent's most recent captured edit to one note. */
+  undoMyEdit(path: string): Promise<AgentActionOk>;
+};
+
 export type AgentPorts = {
   executor: ExecutorPort;
   knowledge: KnowledgePort;
+  vault: AgentVaultPort;
+  /** null on sessions nobody is watching — the background delegation/routine
+   * agent. Two of the three mutating tiers make no sense unattended: a
+   * destructive proposal has no human in the conversation to answer it (it
+   * would expire as a decline), and an agent that can delegate its own work
+   * to itself has no stopping condition. The reads stay; the tools that need
+   * this port simply do not register. */
+  actions: AgentActionPort | null;
   privacy: PrivacyPort;
   /** null on sessions whose writes must not feed the chat undo surface: the
    * background delegation agent (its target-file undo is the pre-run

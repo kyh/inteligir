@@ -19,8 +19,13 @@ import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import knowledgeExtension from "@repo/agent/knowledge-tools/extension";
 import { buildAgentKnowledgePort, buildAgentVaultPort } from "../boot/agent-knowledge-port";
-import type { AgentVaultPort, VaultReads } from "../boot/agent-knowledge-port";
-import type { AgentPorts, KnowledgePort, PrivacyProbe } from "@repo/agent/extension";
+import type { VaultReads } from "../boot/agent-knowledge-port";
+import type {
+  AgentPorts,
+  AgentVaultPort,
+  KnowledgePort,
+  PrivacyProbe,
+} from "@repo/agent/extension";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
 import type { ExtensionAPI } from "@repo/agent/pi/pi-types";
 import type { SyncSummary } from "../boot/agent-knowledge-port";

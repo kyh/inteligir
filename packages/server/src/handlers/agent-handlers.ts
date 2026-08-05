@@ -1,4 +1,5 @@
 import { dispatchAgentCommand } from "../app/agent-gateway";
+import { getConfirmationBroker } from "../agent-confirm/confirmation-broker";
 import { getAgent, reauthenticate } from "../app/app-machine";
 import { listChatSessions, readChatSessionById, readSessionHistory } from "../app/session-history";
 import type { HandlerRegistrar } from "./handler-registry";
@@ -25,6 +26,13 @@ export function registerAgentHandlers(handle: HandlerRegistrar): void {
       throw new Error("setFauxAgentScript requires INTELIGIR_FAUX_AGENT=1");
     }
     applyFauxAgentScript(script);
+  });
+
+  // The human's answer to a destructive proposal the agent raised. The broker
+  // owns expiry, so an unknown or already-settled id is ignored rather than
+  // rejected — a late click must not resurrect a proposal that timed out.
+  handle("resolveAgentConfirmation", ({ id, confirmed }) => {
+    getConfirmationBroker().resolve(id, confirmed);
   });
 
   // Dev-only E2E assertion seam — fails closed in production like the above.

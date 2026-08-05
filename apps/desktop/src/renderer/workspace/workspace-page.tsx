@@ -15,6 +15,7 @@ import { EditorPane } from "@renderer/editor/editor-pane";
 import { Header } from "@renderer/layout/header";
 import { AppSidebar } from "@renderer/sidebar/app-sidebar";
 import { HtmlAppView } from "@renderer/workspace/html-app-view";
+import { useAgentConfirm } from "@renderer/workspace/use-agent-confirm";
 import { useAgentEditUndo } from "@renderer/workspace/use-agent-edit-undo";
 import { useDeepLinkNav } from "@renderer/workspace/use-deep-link";
 import { useOpenDailyNote } from "@renderer/workspace/use-note-templates";
@@ -64,6 +65,13 @@ function DeepLinkNav() {
  * renders nothing. */
 function AgentEditUndo() {
   useAgentEditUndo();
+  return null;
+}
+
+/** The human answer to a destructive action the agent proposed. Renders
+ * nothing — the shared confirm dialog is hosted at the app root. */
+function AgentConfirm() {
+  useAgentConfirm();
   return null;
 }
 
@@ -140,6 +148,7 @@ export function WorkspacePage() {
       <DailyNoteHotkey />
       <DeepLinkNav />
       <AgentEditUndo />
+      <AgentConfirm />
       <SyncHoldToast />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
