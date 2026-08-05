@@ -22,6 +22,10 @@ import { isValidVaultPath, type VaultPath } from "./vault-file";
 //   putFile     PUT    /v1/vault/:vaultId/file?path=…   (body = raw bytes)
 //   deleteFile  DELETE /v1/vault/:vaultId/file?path=…
 //   changes     GET    /v1/vault/:vaultId/changes       (SSE stream)
+//   enrollOffer POST   /v1/vault/:vaultId/enroll-offer  (an enrolled device offers a join)
+//   enroll      POST   /v1/vault/:vaultId/enroll        (the joining device redeems it)
+//   devices     GET    /v1/vault/:vaultId/devices       (the roster)
+//   revoke      POST   /v1/vault/:vaultId/revoke        (tombstone one device)
 //
 // TRANSPORT SHAPE
 //   File bodies are RAW BYTES (`Content-Type: application/octet-stream`): the
@@ -44,7 +48,14 @@ export const API_VERSION = "v1";
 // ---- routes ---------------------------------------------------------------
 
 /** The vault-scoped sub-resources, i.e. the last path segment of a route. */
-export type VaultSubResource = "manifest" | "file" | "changes";
+export type VaultSubResource =
+  | "manifest"
+  | "file"
+  | "changes"
+  | "enroll-offer"
+  | "enroll"
+  | "devices"
+  | "revoke";
 
 /** The query-string key the file routes carry the vault path in (`?path=…`). */
 export const FILE_PATH_PARAM = "path";
@@ -75,6 +86,26 @@ export function filePath(vaultId: string, path: VaultPath): string {
 /** `GET /v1/vault/:vaultId/changes` — the SSE change stream. */
 export function changesPath(vaultId: string): string {
   return vaultPath(vaultId, "changes");
+}
+
+/** `POST /v1/vault/:vaultId/enroll-offer` — an enrolled device offers a join. */
+export function enrollOfferPath(vaultId: string): string {
+  return vaultPath(vaultId, "enroll-offer");
+}
+
+/** `POST /v1/vault/:vaultId/enroll` — the joining device redeems the offer. */
+export function enrollPath(vaultId: string): string {
+  return vaultPath(vaultId, "enroll");
+}
+
+/** `GET /v1/vault/:vaultId/devices` — the enrolled roster, tombstones included. */
+export function devicesPath(vaultId: string): string {
+  return vaultPath(vaultId, "devices");
+}
+
+/** `POST /v1/vault/:vaultId/revoke` — tombstone one device. */
+export function revokePath(vaultId: string): string {
+  return vaultPath(vaultId, "revoke");
 }
 
 /**
@@ -142,6 +173,27 @@ export function parseVersionHeader(raw: string | null): number | null {
 /** Format a bearer authorization header value: `formatBearer(t)` → `"Bearer <t>"`. */
 export function formatBearer(token: string): string {
   return `Bearer ${token}`;
+}
+
+/**
+ * Pull the token out of an `Authorization` header value, or `null` when the
+ * header is absent or isn't a non-empty bearer. The scheme match is
+ * case-insensitive (RFC 7235 says it is).
+ *
+ * This exists so that every verifier reads the SAME raw header. The device
+ * credential is checked twice — once statelessly in the Worker, once against
+ * the roster in the Durable Object — and the tempting shortcut of having the
+ * first stamp its conclusion into a header the second trusts turns one forged
+ * request header into full vault access. Neither side takes a forwarded
+ * verdict; both call this.
+ */
+export function parseBearer(headerValue: string | null): string | null {
+  if (headerValue === null) return null;
+  const scheme = "bearer ";
+  if (headerValue.length <= scheme.length) return null;
+  if (headerValue.slice(0, scheme.length).toLowerCase() !== scheme) return null;
+  const token = headerValue.slice(scheme.length).trim();
+  return token === "" ? null : token;
 }
 
 // ---- content types --------------------------------------------------------
@@ -280,6 +332,123 @@ export function parseDeviceAssertion(raw: string): DeviceAssertion | null {
     signature,
     devicePublicKey,
   };
+}
+
+// ---- vault ids ------------------------------------------------------------
+//
+// A vaultId is SELF-CERTIFYING: it is the fingerprint of the founding device's
+// public key, so "which vault is this" and "whose vault is this" are one
+// question answered by one SHA-256. Claiming someone else's id is a preimage
+// problem, not a race to be first.
+//
+// The digest is injected rather than computed here — @repo/notes carries no
+// crypto, exactly as `Hasher` already establishes for content hashing.
+
+/** Every vaultId minted under the device-key model starts with this. */
+export const VAULT_ID_PREFIX = "v1";
+
+/** `v1` + base32 of a 32-byte digest: 2 + ceil(256/5) = 54 characters. */
+const VAULT_ID_SHAPE = /^v1[a-z2-7]{52}$/;
+
+const SHA256_DIGEST_BYTES = 32;
+
+/**
+ * True for an id of the self-certifying shape. Load-bearing on the Worker's
+ * unauthenticated enroll route: without it a caller instantiates Durable
+ * Objects by naming arbitrary strings.
+ */
+export function isValidVaultId(id: string): boolean {
+  return VAULT_ID_SHAPE.test(id);
+}
+
+/**
+ * Derive the vaultId a device's key founds, from the SHA-256 of that device's
+ * RAW public key bytes. `null` when the digest isn't 32 bytes — the caller
+ * handed us something that is not a SHA-256.
+ */
+export function vaultIdFromKeyDigest(digest: Uint8Array): string | null {
+  if (digest.length !== SHA256_DIGEST_BYTES) return null;
+  return VAULT_ID_PREFIX + base32LowerEncode(digest);
+}
+
+// ---- device enrollment bodies ---------------------------------------------
+//
+// Growth is by signature, never by server grant: only an already-enrolled
+// device can offer a join, and the offer's SECRET never reaches the server —
+// only `sha256hex(secret)`. Redeeming is therefore unauthenticated by design,
+// because the secret IS the auth.
+
+/** One row of the roster. `revokedAt` non-null is a tombstone, never a delete. */
+export type DeviceRecord = {
+  /** base64url of the raw Ed25519 public key — the roster's primary key. */
+  readonly publicKey: string;
+  readonly name: string;
+  readonly enrolledAt: number;
+  readonly revokedAt: number | null;
+};
+
+/** `GET …/devices` — every enrolled key, revoked ones included. */
+export type DeviceListResponse = { readonly devices: readonly DeviceRecord[] };
+
+/** `POST …/enroll-offer` body. `enrollId` is `sha256hex(secret)`, lowercase. */
+export type EnrollOfferRequest = {
+  readonly enrollId: string;
+  /** Epoch seconds. The coordinator clamps it to its own maximum TTL. */
+  readonly notAfter: number;
+};
+
+/** `POST …/enroll-offer` result — the offer's effective (clamped) expiry. */
+export type EnrollOfferResponse = { readonly notAfter: number };
+
+/**
+ * `POST …/enroll` body. `s` is base64url of the offer secret, named to match
+ * the pairing blob field the joining device forwards verbatim.
+ */
+export type EnrollRequest = {
+  readonly s: string;
+  /** base64url of the joining device's raw Ed25519 public key. */
+  readonly publicKey: string;
+  readonly deviceName: string;
+};
+
+/**
+ * `POST …/enroll` result. Deliberately carries NO reason: wrong secret, expired
+ * offer and already-consumed offer answer identically, so the route is not an
+ * offer-existence oracle.
+ */
+export type EnrollResponse = { readonly ok: boolean };
+
+/** `POST …/revoke` body. Any enrolled device may revoke any device, itself included. */
+export type RevokeRequest = { readonly publicKey: string };
+
+/** `POST …/revoke` result. */
+export type RevokeResponse =
+  | { readonly ok: true; readonly revokedAt: number }
+  | { readonly ok: false; readonly reason: "not-found" };
+
+// ---- base32 ---------------------------------------------------------------
+
+const BASE32_LOWER_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
+
+/**
+ * Encode bytes as unpadded lowercase base32 (RFC 4648 §6). Lowercase and
+ * digit-restricted so a vaultId survives a case-insensitive filesystem, a URL
+ * path segment and a hand transcription without changing meaning.
+ */
+export function base32LowerEncode(bytes: Uint8Array): string {
+  let out = "";
+  let acc = 0;
+  let bits = 0;
+  for (const byte of bytes) {
+    acc = (acc << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      out += BASE32_LOWER_ALPHABET.charAt((acc >> bits) & 0b11111);
+    }
+  }
+  if (bits > 0) out += BASE32_LOWER_ALPHABET.charAt((acc << (5 - bits)) & 0b11111);
+  return out;
 }
 
 // ---- base64url ------------------------------------------------------------

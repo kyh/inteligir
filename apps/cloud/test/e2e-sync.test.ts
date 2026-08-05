@@ -7,11 +7,15 @@ import { createHttpSyncPort } from "@repo/notes/sync/http-sync-port";
 import { isConflictCopyPath } from "@repo/notes/sync/reconcile";
 import { ABSENT_VERSION } from "@repo/notes/sync/vault-file";
 import {
+  enrollOfferPath,
+  enrollPath,
   filePath,
   formatBearer,
   formatVersionHeader,
   HEADER_BASE_VERSION,
+  type EnrollResponse,
 } from "@repo/notes/sync/wire";
+import { createDevice, createEnrollOffer, nowSeconds, type TestDevice } from "./device-helpers";
 
 // ---------------------------------------------------------------------------
 // END-TO-END sync test. Unlike sync.test.ts (which pokes the Worker's routes
@@ -50,6 +54,30 @@ async function signIn(email: string): Promise<string> {
   const token = inRes.headers.get("set-auth-token");
   if (token === null || token === "") throw new Error("no bearer token in set-auth-token header");
   return token;
+}
+
+/**
+ * Enroll `joiner` into `host`'s vault the way the pairing flow will: the host
+ * deposits only `sha256(secret)`, the joiner presents the secret on a route
+ * that takes no credential at all.
+ */
+async function enrollDevice(host: TestDevice, joiner: TestDevice, name: string): Promise<void> {
+  const pairing = await createEnrollOffer();
+  const offered = await SELF.fetch(`${ORIGIN}${enrollOfferPath(host.vaultId)}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(await host.auth(host.vaultId)) },
+    body: JSON.stringify({ enrollId: pairing.enrollId, notAfter: nowSeconds() + 600 }),
+  });
+  if (offered.status !== 200) {
+    throw new Error(`enroll-offer ${offered.status}: ${await offered.text()}`);
+  }
+  const redeemed = await SELF.fetch(`${ORIGIN}${enrollPath(host.vaultId)}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ s: pairing.s, publicKey: joiner.publicKey, deviceName: name }),
+  });
+  const result = (await redeemed.json()) as EnrollResponse;
+  if (!result.ok) throw new Error("enrollment refused");
 }
 
 /** sha-256 hex over Web Crypto (workerd) — the hasher the engine content-addresses with. */
@@ -92,13 +120,26 @@ function bytes(text: string): Uint8Array {
 }
 
 function engineFor(vaultId: string, token: string, io: SyncIo): SyncEngine {
+  return engineWith(vaultId, () => Promise.resolve(token), io);
+}
+
+/**
+ * The device-path engine. `getToken` mints a FRESH assertion per request, which
+ * is the whole reason the port asks for its credential instead of holding one:
+ * an assertion outlives neither the engine nor the SSE stream.
+ */
+function deviceEngineFor(device: TestDevice, vaultId: string, io: SyncIo): SyncEngine {
+  return engineWith(vaultId, () => device.assert(vaultId), io);
+}
+
+function engineWith(vaultId: string, getToken: () => Promise<string>, io: SyncIo): SyncEngine {
   return new SyncEngine({
     vaultId,
     io,
     port: createHttpSyncPort({
       baseUrl: ORIGIN,
       vaultId,
-      getToken: () => Promise.resolve(token),
+      getToken,
       fetchImpl: fetchSelf,
       hasher: sha256Hex,
     }),
@@ -227,6 +268,60 @@ describe("end-to-end sync", () => {
     // Carol's file is NOT pulled onto Mallory's device.
     expect(outM.status).toBe("error");
     expect(m.has("secret.md")).toBe(false);
+  });
+
+  describe("device keys", () => {
+    it("a founding device and an enrolled one converge, with no account at all", async () => {
+      const desktop = await createDevice();
+      const phone = await createDevice();
+
+      // The desktop founds the vault its own key names, and pushes.
+      const d = deviceVault();
+      d.io.write("notes/hello.md", bytes("# Hello\n"));
+      const pushed = await deviceEngineFor(desktop, desktop.vaultId, d.io).syncOnce();
+      expect(pushed.status).toBe("ok");
+      expect(pushed).toMatchObject({ pushed: 1, pulled: 0, conflicts: 0 });
+
+      await enrollDevice(desktop, phone, "Phone");
+
+      const p = deviceVault();
+      const pulled = await deviceEngineFor(phone, desktop.vaultId, p.io).syncOnce();
+      expect(pulled.status).toBe("ok");
+      expect(pulled).toMatchObject({ pushed: 0, pulled: 1 });
+      expect(p.text("notes/hello.md")).toBe("# Hello\n");
+    });
+
+    it("a device enrolled elsewhere cannot touch this vault (403 -> error, no leak)", async () => {
+      const owner = await createDevice();
+      const o = deviceVault();
+      o.io.write("secret.md", bytes("owner only\n"));
+      expect((await deviceEngineFor(owner, owner.vaultId, o.io).syncOnce()).status).toBe("ok");
+
+      // Mallory founds a vault of her own, so her key IS enrolled — just not here.
+      const mallory = await createDevice();
+      const mine = deviceVault();
+      expect((await deviceEngineFor(mallory, mallory.vaultId, mine.io).syncOnce()).status).toBe(
+        "ok",
+      );
+
+      const m = deviceVault();
+      const outM = await deviceEngineFor(mallory, owner.vaultId, m.io).syncOnce();
+      expect(outM.status).toBe("error");
+      expect(m.has("secret.md")).toBe(false);
+    });
+
+    it("an account session cannot reach a device-founded vault", async () => {
+      const desktop = await createDevice();
+      const d = deviceVault();
+      d.io.write("secret.md", bytes("device only\n"));
+      expect((await deviceEngineFor(desktop, desktop.vaultId, d.io).syncOnce()).status).toBe("ok");
+
+      const mallory = await signIn("mallory-account@example.com");
+      const m = deviceVault();
+      const outM = await engineFor(desktop.vaultId, mallory, m.io).syncOnce();
+      expect(outM.status).toBe("error");
+      expect(m.has("secret.md")).toBe(false);
+    });
   });
 
   // The coordinator's PUT size cap (32 MiB — mirrors the literal in

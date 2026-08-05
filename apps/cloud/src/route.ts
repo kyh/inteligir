@@ -13,6 +13,10 @@ import type { VaultPath } from "@repo/notes/sync/vault-file";
 //   PUT    /v1/vault/:vaultId/file?path=…      -> putFile
 //   DELETE /v1/vault/:vaultId/file?path=…      -> deleteFile
 //   GET    /v1/vault/:vaultId/changes          -> changes
+//   POST   /v1/vault/:vaultId/enroll-offer     -> enrollOffer
+//   POST   /v1/vault/:vaultId/enroll           -> enroll
+//   GET    /v1/vault/:vaultId/devices          -> devices
+//   POST   /v1/vault/:vaultId/revoke           -> revoke
 // ---------------------------------------------------------------------------
 
 /** A parsed request against the sync contract. `bad-file-path` = a file route
@@ -24,8 +28,30 @@ export type RouteMatch =
   | { readonly kind: "putFile"; readonly vaultId: string; readonly path: VaultPath }
   | { readonly kind: "deleteFile"; readonly vaultId: string; readonly path: VaultPath }
   | { readonly kind: "changes"; readonly vaultId: string }
+  | { readonly kind: "enrollOffer"; readonly vaultId: string }
+  | { readonly kind: "enroll"; readonly vaultId: string }
+  | { readonly kind: "devices"; readonly vaultId: string }
+  | { readonly kind: "revoke"; readonly vaultId: string }
   | { readonly kind: "bad-file-path"; readonly vaultId: string }
   | { readonly kind: "unmatched" };
+
+/** A match that names a vault — everything but `unmatched`. */
+export type VaultRouteMatch = Exclude<RouteMatch, { readonly kind: "unmatched" }>;
+
+/**
+ * The device-identity routes, as opposed to the five sync routes. They are
+ * reachable ONLY with a device credential (`enroll` with an offer secret, the
+ * rest with an assertion) — a Better Auth session authorizes sync and nothing
+ * else, so the two identity models never reach into each other.
+ */
+export function isDeviceRoute(match: RouteMatch): boolean {
+  return (
+    match.kind === "enrollOffer" ||
+    match.kind === "enroll" ||
+    match.kind === "devices" ||
+    match.kind === "revoke"
+  );
+}
 
 const UNMATCHED: RouteMatch = { kind: "unmatched" };
 
@@ -52,6 +78,18 @@ export function matchRoute(method: string, pathname: string, search: string): Ro
   }
   if (sub === "changes") {
     return method === "GET" ? { kind: "changes", vaultId } : UNMATCHED;
+  }
+  if (sub === "enroll-offer") {
+    return method === "POST" ? { kind: "enrollOffer", vaultId } : UNMATCHED;
+  }
+  if (sub === "enroll") {
+    return method === "POST" ? { kind: "enroll", vaultId } : UNMATCHED;
+  }
+  if (sub === "devices") {
+    return method === "GET" ? { kind: "devices", vaultId } : UNMATCHED;
+  }
+  if (sub === "revoke") {
+    return method === "POST" ? { kind: "revoke", vaultId } : UNMATCHED;
   }
   if (sub === "file") {
     const path = parseFilePathParam(search);

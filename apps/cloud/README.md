@@ -12,9 +12,11 @@ apps/cloud/
   drizzle.config.ts       # drizzle-kit push -> REMOTE D1 (d1-http); *.local.ts -> local miniflare D1
   src/
     index.ts              # Worker entry: /api/auth/* (Better Auth) + /v1/vault/* (sync) + CORS
-    vault-coordinator.ts  # Durable Object: owns the manifest + versions + SSE + R2 writes
+    vault-coordinator.ts  # Durable Object: owns the manifest + versions + SSE + R2 writes + the device roster
     route.ts              # matchRoute(): parse the @repo/notes/sync/wire routes into an ADT
-    hash.ts               # sha256Hex() — server-authoritative content hashing
+    device-assertion.ts   # parse + verify a device assertion — the ONE module the Worker and DO share
+    device-body.ts        # boundary parsers for the enroll/revoke request bodies
+    hash.ts               # sha256Hex()/sha256Bytes() — server-authoritative content hashing
     log.ts                # logUnhandled() — the structured error line both fetch entries emit
     env.d.ts              # types the OPTIONAL runtime vars onto Env (the required one is generated)
     auth/auth.ts          # createAuth(env, baseURL): per-request Better Auth (Drizzle+D1, bearer)
@@ -27,6 +29,8 @@ apps/cloud/
   test/
     sync.test.ts          # miniflare DO + R2 + D1 in-process (@cloudflare/vitest-pool-workers)
     e2e-sync.test.ts      # the real @repo/notes engine against the real Worker, in-process
+    device-identity.test.ts # founding, enrollment, replay, revocation, clock skew, forged headers
+    device-helpers.ts     # a test-side Ed25519 device that mints REAL assertions
     desktop-session.test.ts # the code mint/exchange path (state check, single use, TTL)
     password-reset.test.ts  # request → token → reset over real Better Auth, with a mock EMAIL binding
     apply-schema.ts       # applies the exported schema DDL to each test file's D1
@@ -67,6 +71,47 @@ push` — no migration files (`pnpm db:push:local` / `db:push`).
 - **Ownership** (`vault_owner` table): the first authenticated user to touch a
   `vaultId` claims it. A sync request for a claimed vault by a different user → 403;
   no/invalid bearer token → 401.
+
+### Device keys (`/v1/vault/:vaultId/{enroll-offer,enroll,devices,revoke}`)
+
+The second, account-free identity model, running **alongside** the one above.
+A bearer that parses as a device assertion is judged as one; anything else goes
+to Better Auth. The device routes accept only device credentials, so neither
+model reaches into the other.
+
+- **A vaultId is the fingerprint of its founding key** —
+  `"v1" + base32lower(sha256(rawEd25519PublicKey))`, `^v1[a-z2-7]{52}$`. Claiming
+  someone else's vault is a preimage problem, not a race to be first.
+- **The credential is a self-issued 5-minute assertion**, not a minted token:
+  `base64url({v,vid,dev,iat,exp}) + "." + base64url(Ed25519 signature)` over a
+  domain-separated prefix (`@repo/notes/sync/wire`). It is `Authorization:
+Bearer <string>` like everything else, which is why `HttpSyncPort` needed
+  nothing but `getToken` per request.
+- **Verification is split and neither half trusts the other's word.** The
+  Worker checks shape, signature, the time window and `vid` — statelessly, before
+  `getByName`, which is what stops an unauthenticated caller instantiating DOs by
+  naming strings. The DO re-parses the same raw header and adds the one question
+  only it can answer: is this key on my `devices` roster? There is deliberately
+  no `x-device`-style forwarded verdict to forge.
+- **This is why the DO now authenticates at all.** It holds the ownership record,
+  so it is the only component that can answer membership without an extra hop —
+  a membership question about its own state, not a second credential check.
+- **Founding is arithmetic**: an empty roster admits exactly the key whose
+  digest reproduces the DO's own name. An empty roster also still admits a
+  Better Auth session (that is every vault today); the first device to found
+  takes that door away.
+- **Growth is by signature.** An enrolled device POSTs `enroll-offer` with
+  `sha256hex(secret)` — the server never holds the secret. The joining device
+  POSTs `enroll` with the secret itself, **unauthenticated by design**. Wrong,
+  expired, already-consumed and over-the-attempt-budget all answer an identical
+  `{ok:false}`, so the route is not an offer-existence oracle.
+- **Revocation is a tombstone**, never a `DELETE` — a replayed offer must not
+  resurrect a key — and it **closes every open SSE subscriber**, because the DO
+  cannot tell which stream belongs to the revoked device. Honest ones reconnect
+  and re-authenticate.
+- **Clock skew is a liveness dependency.** A 401's body carries the reason
+  (`assertion-expired`, `assertion-not-yet-valid`, …) so a client can say "check
+  this device's clock" rather than "sign in again" — there is no sign-in to offer.
 
 ### CORS
 

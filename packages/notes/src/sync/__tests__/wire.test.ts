@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { VaultChange } from "../sync-port";
 import {
   API_VERSION,
+  base32LowerEncode,
   base64UrlDecode,
   base64UrlEncode,
   changesPath,
+  devicesPath,
+  enrollOfferPath,
+  enrollPath,
   DEVICE_ASSERTION_DOMAIN,
   DEVICE_ASSERTION_VERSION,
   deviceAssertionSignedBytes,
@@ -17,13 +21,18 @@ import {
   formatChangeFrame,
   formatDeviceAssertion,
   formatVersionHeader,
+  isValidVaultId,
   manifestPath,
+  parseBearer,
   parseDeviceAssertion,
   parseDeviceAssertionPayload,
   parseFilePathParam,
   parseVersionHeader,
+  revokePath,
   SSE_CHANGE_EVENT,
+  vaultIdFromKeyDigest,
   vaultPath,
+  VAULT_ID_PREFIX,
   type DeviceAssertionPayload,
 } from "../wire";
 
@@ -96,6 +105,21 @@ describe("version header", () => {
 describe("bearer auth", () => {
   it("formats a bearer authorization header value", () => {
     expect(formatBearer("tok123")).toBe("Bearer tok123");
+  });
+
+  it("round-trips through parseBearer, scheme case notwithstanding", () => {
+    expect(parseBearer(formatBearer("tok123"))).toBe("tok123");
+    expect(parseBearer("bearer tok123")).toBe("tok123");
+    expect(parseBearer("BEARER  tok123 ")).toBe("tok123");
+  });
+
+  it("rejects a missing, empty or foreign-scheme header", () => {
+    expect(parseBearer(null)).toBeNull();
+    expect(parseBearer("")).toBeNull();
+    expect(parseBearer("Bearer ")).toBeNull();
+    expect(parseBearer("Bearer   ")).toBeNull();
+    expect(parseBearer("Basic dXNlcjpwYXNz")).toBeNull();
+    expect(parseBearer("tok123")).toBeNull();
   });
 });
 
@@ -222,3 +246,70 @@ function asciiBytes(text: string): Uint8Array {
   for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
   return bytes;
 }
+
+describe("device route builders", () => {
+  it("each device sub-resource gets its own path", () => {
+    expect(enrollOfferPath("vid")).toBe(`/${API_VERSION}/vault/vid/enroll-offer`);
+    expect(enrollPath("vid")).toBe(`/${API_VERSION}/vault/vid/enroll`);
+    expect(devicesPath("vid")).toBe(`/${API_VERSION}/vault/vid/devices`);
+    expect(revokePath("vid")).toBe(`/${API_VERSION}/vault/vid/revoke`);
+  });
+});
+
+function ascii(text: string): Uint8Array {
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+  return bytes;
+}
+
+function digest(fill: number): Uint8Array {
+  return new Uint8Array(32).fill(fill);
+}
+
+describe("base32LowerEncode", () => {
+  it("matches the RFC 4648 test vectors, lowercased and unpadded", () => {
+    expect(base32LowerEncode(ascii(""))).toBe("");
+    expect(base32LowerEncode(ascii("f"))).toBe("my");
+    expect(base32LowerEncode(ascii("fo"))).toBe("mzxq");
+    expect(base32LowerEncode(ascii("foo"))).toBe("mzxw6");
+    expect(base32LowerEncode(ascii("foob"))).toBe("mzxw6yq");
+    expect(base32LowerEncode(ascii("fooba"))).toBe("mzxw6ytb");
+    expect(base32LowerEncode(ascii("foobar"))).toBe("mzxw6ytboi");
+  });
+
+  it("stays inside the alphabet for arbitrary bytes", () => {
+    const every = new Uint8Array(256);
+    for (let i = 0; i < 256; i += 1) every[i] = i;
+    expect(base32LowerEncode(every)).toMatch(/^[a-z2-7]+$/);
+  });
+});
+
+describe("vault ids", () => {
+  it("derives a 54-character self-certifying id from a 32-byte digest", () => {
+    const id = vaultIdFromKeyDigest(digest(0xab));
+    expect(id).not.toBeNull();
+    if (id === null) throw new Error("unreachable");
+    expect(id).toHaveLength(54);
+    expect(id.startsWith(VAULT_ID_PREFIX)).toBe(true);
+    expect(isValidVaultId(id)).toBe(true);
+  });
+
+  it("different digests derive different ids", () => {
+    expect(vaultIdFromKeyDigest(digest(1))).not.toBe(vaultIdFromKeyDigest(digest(2)));
+  });
+
+  it("refuses anything that is not a sha-256 digest", () => {
+    expect(vaultIdFromKeyDigest(new Uint8Array(31))).toBeNull();
+    expect(vaultIdFromKeyDigest(new Uint8Array(33))).toBeNull();
+  });
+
+  it("rejects ids of the wrong shape — the gate on the unauthenticated enroll route", () => {
+    expect(isValidVaultId("")).toBe(false);
+    expect(isValidVaultId("v1")).toBe(false);
+    expect(isValidVaultId("6f1a2b3c-0000-4000-8000-000000000000")).toBe(false); // today's UUIDs
+    expect(isValidVaultId(`${VAULT_ID_PREFIX}${"a".repeat(51)}`)).toBe(false);
+    expect(isValidVaultId(`${VAULT_ID_PREFIX}${"a".repeat(53)}`)).toBe(false);
+    expect(isValidVaultId(`${VAULT_ID_PREFIX}${"A".repeat(52)}`)).toBe(false); // uppercase
+    expect(isValidVaultId(`${VAULT_ID_PREFIX}${"1".repeat(52)}`)).toBe(false); // 0/1/8/9 aren't base32
+  });
+});
