@@ -55,6 +55,49 @@ export function seedContent(dest: string, content: string): boolean {
 }
 
 /**
+ * Keep a GENERATED region of a file current without touching the rest of it.
+ *
+ * The counterpart to `seedContent` for a file that is part ours and part the
+ * user's: their prose is never rewritten, but a section we generate would
+ * otherwise be frozen at whatever the first launch wrote — so an install that
+ * predates the section never gets it, and one that has it never sees a change.
+ *
+ * Absent file: the caller's `fallback` is written whole. Markers present: only
+ * the span between them is replaced. Markers absent from an existing file: the
+ * section is appended, so a hand-edited file adopts it rather than being
+ * rebuilt.
+ */
+export function syncManagedSection(
+  dest: string,
+  marker: string,
+  section: string,
+  fallback: string,
+): void {
+  const open = `<!-- ${marker}:start -->`;
+  const close = `<!-- ${marker}:end -->`;
+  const block = `${open}\n${section.trim()}\n${close}`;
+
+  let existing: string;
+  try {
+    existing = fs.readFileSync(dest, "utf8");
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
+      seedContent(dest, fallback);
+      return;
+    }
+    throw err;
+  }
+
+  const from = existing.indexOf(open);
+  const to = existing.indexOf(close);
+  const next =
+    from !== -1 && to > from
+      ? existing.slice(0, from) + block + existing.slice(to + close.length)
+      : `${existing.trimEnd()}\n\n${block}\n`;
+  if (next !== existing) fs.writeFileSync(dest, next);
+}
+
+/**
  * Prepend `entry` to the calling process's PATH if it is not already on it.
  * Idempotent. Used so subprocesses spawned by the agent's bash tool can find
  * binaries we install under `~/.inteligir/bin`.

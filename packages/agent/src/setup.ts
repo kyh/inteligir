@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { listSkills as listSkillsFromDisk } from "@repo/agent/pi/skills";
-import { prependPath, seedContent, seedDirectory } from "@repo/installer/seed";
+import { prependPath, seedDirectory, syncManagedSection } from "@repo/installer/seed";
 import { readCliVersion } from "@repo/installer/install";
 import { renderNeverGrantedSection } from "@repo/bridge/agent-grants";
 
@@ -71,8 +71,15 @@ export function buildRegisterContext(ports: AgentPorts): ExtensionRegisterContex
  * resource file's: what costs context is what gets seeded.
  */
 export function composeAgentInstructions(bundled: string): string {
-  return `${bundled.trimEnd()}\n\n${renderNeverGrantedSection()}`;
+  return `${bundled.trimEnd()}\n\n${POLICY_OPEN}\n${renderNeverGrantedSection().trim()}\n${POLICY_CLOSE}\n`;
 }
+
+/** Marks the generated policy region so a later launch can refresh it without
+ * touching the standing instructions around it — which the user edits and the
+ * agent appends memory to. */
+export const POLICY_MARKER = "inteligir:capability-policy";
+const POLICY_OPEN = `<!-- ${POLICY_MARKER}:start -->`;
+const POLICY_CLOSE = `<!-- ${POLICY_MARKER}:end -->`;
 
 // ---------------------------------------------------------------------------
 // Lifecycle: setup
@@ -112,7 +119,15 @@ export async function seedResources(
     const bundledInstructions = path.join(ctx.bundledResourcesDir, "AGENTS.md");
     if (fs.existsSync(bundledInstructions)) {
       const bundled = fs.readFileSync(bundledInstructions, "utf8");
-      seedContent(path.join(AGENT_DIR, "AGENTS.md"), composeAgentInstructions(bundled));
+      // The policy region tracks the grant table on EVERY launch: an install
+      // predating it would otherwise never learn why a capability is refused,
+      // which is the silence declaring them was meant to end.
+      syncManagedSection(
+        path.join(AGENT_DIR, "AGENTS.md"),
+        POLICY_MARKER,
+        renderNeverGrantedSection(),
+        composeAgentInstructions(bundled),
+      );
     }
   }
 

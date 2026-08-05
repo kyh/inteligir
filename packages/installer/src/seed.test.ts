@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { prependPath, seedDirectory, seedFile } from "./seed";
+import { prependPath, seedDirectory, seedFile, syncManagedSection } from "./seed";
 
 let tmpDirs: string[] = [];
 
@@ -130,5 +130,41 @@ describe("prependPath", () => {
     prependPath("/home/me/.inteligir/bin");
 
     expect(process.env["PATH"]).toBe("/home/me/.inteligir/bin");
+  });
+});
+
+describe("syncManagedSection", () => {
+  it("writes the fallback whole when the file is absent", () => {
+    const dest = path.join(tmpDir(), "absent.md");
+    syncManagedSection(dest, "m", "GEN", "WHOLE FILE");
+    expect(fs.readFileSync(dest, "utf8")).toBe("WHOLE FILE");
+  });
+
+  it("refreshes the marked region and leaves the prose either side", () => {
+    const dest = path.join(tmpDir(), "marked.md");
+    fs.writeFileSync(dest, "mine\n\n<!-- m:start -->\nOLD\n<!-- m:end -->\n\ntail\n");
+    syncManagedSection(dest, "m", "NEW", "unused");
+    const out = fs.readFileSync(dest, "utf8");
+    expect(out).toContain("NEW");
+    expect(out).not.toContain("OLD");
+    expect(out.startsWith("mine")).toBe(true);
+    expect(out.endsWith("tail\n")).toBe(true);
+  });
+
+  it("appends the region to a file that predates it", () => {
+    const dest = path.join(tmpDir(), "legacy.md");
+    fs.writeFileSync(dest, "user prose only\n");
+    syncManagedSection(dest, "m", "GEN", "unused");
+    const out = fs.readFileSync(dest, "utf8");
+    expect(out.startsWith("user prose only")).toBe(true);
+    expect(out).toContain("<!-- m:start -->\nGEN\n<!-- m:end -->");
+  });
+
+  it("leaves the file untouched when the region already matches", () => {
+    const dest = path.join(tmpDir(), "stable.md");
+    syncManagedSection(dest, "m", "GEN", "seed\n\n<!-- m:start -->\nGEN\n<!-- m:end -->\n");
+    const first = fs.statSync(dest).mtimeMs;
+    syncManagedSection(dest, "m", "GEN", "unused");
+    expect(fs.statSync(dest).mtimeMs).toBe(first);
   });
 });
