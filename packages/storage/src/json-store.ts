@@ -8,7 +8,11 @@ import { Value } from "@sinclair/typebox/value";
 import { atomicWrite } from "./atomic-write";
 import { isRecord, toErrorMessage } from "./fs-errors";
 
-const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
+// INTELIGIR_HOME lets a linked worktree run its own app state beside the
+// primary checkout's — every worktree otherwise shares this dir and the host
+// lock refuses the second one. scripts/worktree-env.mjs sets it; unset (the
+// normal case, and every packaged build) is the plain default.
+const INTELIGIR_DIR = process.env["INTELIGIR_HOME"] ?? path.join(os.homedir(), ".inteligir");
 
 export function inteligirPath(...segments: string[]): string {
   return path.join(INTELIGIR_DIR, ...segments);

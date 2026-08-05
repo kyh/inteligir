@@ -31,7 +31,7 @@ import {
 
 const CONFIG_VERSION = 2;
 
-export const DEFAULT_REMOTE_ACCESS_PORT = 47890;
+export const DEFAULT_REMOTE_ACCESS_PORT = Number(process.env["INTELIGIR_WS_PORT"] ?? 47890);
 
 const RemoteAccessConfigSchema = Type.Object(
   {

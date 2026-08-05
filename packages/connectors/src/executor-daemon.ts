@@ -72,7 +72,7 @@ const STOP_GRACE_MS = 5_000;
 // must be whitelisted verbatim in the user's Google Cloud OAuth app, so it has
 // to survive restarts. Deliberately NOT executor's default 4788, to avoid
 // colliding with a standalone executor install.
-const PINNED_PORT = 47888;
+const PINNED_PORT = Number(process.env["INTELIGIR_EXECUTOR_PORT"] ?? 47888);
 // Banner the daemon prints once the HTTP server is bound. The 1.5.4 binary
 // prints "localhost" even when spawned with --hostname 127.0.0.1, e.g.
 //   "Daemon ready on http://localhost:47888"
