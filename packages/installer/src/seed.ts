@@ -38,6 +38,23 @@ export function seedFile(src: string, dest: string): boolean {
 }
 
 /**
+ * Write `content` to `dest` if `dest` does not yet exist — seedFile for a file
+ * the caller COMPOSES rather than copies. Same never-overwrite guarantee, from
+ * the same atomic primitive (`wx` is O_EXCL), so a concurrent launch cannot
+ * double-write and a file the user has edited is never clobbered.
+ */
+export function seedContent(dest: string, content: string): boolean {
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  try {
+    fs.writeFileSync(dest, content, { flag: "wx" });
+    return true;
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "EEXIST") return false;
+    throw err;
+  }
+}
+
+/**
  * Prepend `entry` to the calling process's PATH if it is not already on it.
  * Idempotent. Used so subprocesses spawned by the agent's bash tool can find
  * binaries we install under `~/.inteligir/bin`.

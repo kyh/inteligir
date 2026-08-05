@@ -1617,6 +1617,16 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       );
     },
 
+    // Agent confirmations — the harness agent has no tools, so it can never
+    // propose a destructive action; a reply arriving anyway is a wiring bug
+    // worth hearing.
+    onAgentConfirmationRequested: () => () => {},
+    resolveAgentConfirmation: async ({ id }) => {
+      throw new Error(
+        `fixture bridge: resolveAgentConfirmation(${id}) — the harness agent proposes nothing`,
+      );
+    },
+
     // Deep-link capture — no URL scheme reaches a browser tab, so the apply
     // event never fires; an ack arriving anyway is a wiring bug worth hearing.
     onCaptureApply: () => () => {},

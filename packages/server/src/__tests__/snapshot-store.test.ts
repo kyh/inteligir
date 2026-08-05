@@ -191,6 +191,29 @@ describe("SnapshotStore", () => {
     expect(store.read("d1")).toMatchObject({ ok: true, content: "second" });
   });
 
+  it("latest returns the newest entry for one origin + path, and only its own origin", () => {
+    const { store } = makeStore();
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    store.capture(meta("c1", "a.md", { origin: "chat" }), "older");
+    vi.spyOn(Date, "now").mockReturnValue(2_000);
+    store.capture(meta("c2", "a.md", { origin: "chat" }), "newer");
+    store.capture(meta("d1", "a.md"), "a delegation's, not the chat's");
+    expect(store.latest("chat", "a.md", 0)).toEqual({ id: "c2", capturedAt: 2_000 });
+    expect(store.latest("chat", "b.md", 0)).toBeNull();
+  });
+
+  it("latest ignores anything captured before the floor", () => {
+    const { store } = makeStore();
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    store.capture(meta("c1", "a.md", { origin: "chat" }), "a previous conversation's bytes");
+    // Retention is a COUNT swept at host start, so an entry outlives the
+    // thread that made it — without the floor this would answer c1 forever.
+    expect(store.latest("chat", "a.md", 1_500)).toBeNull();
+    vi.spyOn(Date, "now").mockReturnValue(2_000);
+    store.capture(meta("c2", "a.md", { origin: "chat" }), "this conversation's bytes");
+    expect(store.latest("chat", "a.md", 1_500)).toEqual({ id: "c2", capturedAt: 2_000 });
+  });
+
   it("renamePath repoints exact-file and under-folder entries only", () => {
     const { store } = makeStore();
     store.capture(meta("c1", "notes/a.md", { origin: "chat" }), "one");

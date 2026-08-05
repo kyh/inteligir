@@ -17,7 +17,8 @@
     "./pi/skills": "./src/pi/skills.ts",
     "./provider/faux-provider": "./src/provider/faux-provider.ts",
     "./setup": "./src/setup.ts",
-    "./text-turn": "./src/text-turn.ts"
+    "./text-turn": "./src/text-turn.ts",
+    "./vault-tools/extension": "./src/vault-tools/extension.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

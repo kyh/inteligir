@@ -474,10 +474,39 @@ is one folder + one line. `code-mode/` is the MCP/connectors capability
 `get_links` (resolved forward links; a dangling one surfaces as
 `{target, unresolved: true}`, never dropped), `related_notes` (ranked
 indirect connections with reasons), and the link-rewriting `rename_note`
-over the knowledge engine. The four read tools return a JSON array, not
-newline-joined rows — a note body can contain both the row and field
+over the knowledge engine. `vault-tools/` exposes the rest of the granted
+surface: the whole-vault + host-state reads (listing, note read, file facts,
+tasks, tags, wiki targets, link graph, sync state, delegations), the guarded
+`toggle_task`, delegation (`delegate_task`, `cancel_delegation`), and the
+three destructive proposals (`delete_note`, `undo_my_edits`,
+`restore_delegation` — the last two are ONE primitive, a whole-file rewind to
+captured bytes, so they share a tier). Result rows are a JSON array, never
+newline-joined prose — a note body can contain both the row and field
 delimiters, so prose encoding let a note forge hits pointing at paths it
-does not own.
+does not own (`jsonResult` in `extension-helpers.ts` is the one encoder).
+**What the agent may do is DECLARED, not inferred**:
+`@repo/bridge/agent-grants` is the grant table — policy rows
+(`capability`, `agentName`, `tier`, `description`-for-a-model) across four
+granted tiers plus the never-granted set grouped by reason. It is not an
+allowlist of bridge methods like `REMOTE_ALLOWED_METHODS`, because a remote
+device reaches the identical handler and the agent must not: every row is
+implemented over a privacy-projecting port
+(`packages/server/src/boot/agent-knowledge-port.ts`,
+`agent-action-port.ts`), never a window handler. The mutating tiers capture a
+restore point before writing (fail-closed) and the destructive tier raises a
+human confirmation host-side, inside the port, so no tool can skip it
+(`agent-confirm/confirmation-broker.ts` → `onAgentConfirmationRequested`;
+unanswered expires as a decline); `delegate_task` is additionally capped per
+turn, being the one capability that manufactures agent turns. The
+never-granted groups' `why` is rendered into the seeded bundled AGENTS.md
+(`renderNeverGrantedSection` → `composeAgentInstructions`), so a denial is
+stated to the model rather than met with silence. The mutating tiers are absent from the
+UNATTENDED background session (`AgentPorts.actions` is null there, like
+`checkpoints`): a proposal has no conversation to be confirmed in, and a
+background agent that could delegate would queue its own successors. Both are
+POLICY, not enforcement — there is no agent sandbox, so `bash` reaches around
+either. Each tool's model-facing sentence comes FROM the table
+(`grantedDescription`), so a tool with no policy row throws at registration.
 `validateToolParametersSchema` rejects tool schemas that aren't a top-level
 `Type.Object` (OpenAI silently rejects `anyOf`-rooted schemas). The chat agent
 edits notes with pi's native file tools pointed at `./vault` — no custom edit
@@ -631,7 +660,17 @@ record for the decisions code comments cite.
 - **Palette commands and settings sections stay hardcoded lists.** No command
   registry, no section registry, at ~11 commands and ~10 sections: a registry
   buys indirection and an ordering problem in exchange for a `.push()`.
-  Revisit if a THIRD surface needs to contribute commands it does not own.
+  The trigger this entry named — a THIRD surface contributing commands it does
+  not own — has since ARRIVED, and the answer is still no registry. That
+  surface is the AGENT: the grant table (`@repo/bridge/agent-grants`) hands it
+  a set of capabilities the palette also offers. What the two share is the
+  OPERATION underneath — `VaultManager.trash`, the guarded line edit, the
+  delegation manager — never the command list and never the window handler,
+  which is privacy-blind by design. The palette stays a hardcoded array of
+  renderer commands; the agent reaches the same operations through its own
+  privacy-projecting ports (`packages/server/src/boot/agent-*-port.ts`).
+  Revisit only if a surface needs to contribute a COMMAND ROW to the palette
+  it does not own.
 - **`KnowledgeIndex` is not dead code — do not delete it.** It never runs in
   production (the SQL `KnowledgeStore`'s FTS5 does), which makes it look
   deletable. `@repo/notes` carries no sqlite dependency deliberately — it is

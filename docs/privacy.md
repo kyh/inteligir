@@ -33,6 +33,17 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   reaches the model. A private note's backlinks come back as an empty JSON
   array, indistinguishable from a note that has none; a private subject's
   related notes come back the same way.
+- **Every other vault tool drops it too.** The whole-vault reads the agent
+  gets (`list_vault`, `read_note`, `get_note_facts`, `list_tasks`,
+  `list_tags`, `list_wiki_targets`, `get_link_graph`, `get_sync_state`,
+  `list_delegations`) run through the same projection: excluded at the index,
+  every survivor re-probed against live disk, dropped silently rather than
+  annotated. Counts are recomputed over the notes that survive, so no number
+  disagrees with the list beside it. The mutating ones (`toggle_task`,
+  `delete_note`, `undo_my_edits`, and the two keyed by a delegation id —
+  `cancel_delegation`, `restore_delegation`, which resolve the task's source
+  note and probe that) refuse a private target outright, the way delegation
+  already does.
 - **Editor AI is hard-off.** Ghost-text stops and the ⌘J menu (prompts,
   canned actions, translate) refuses with a toast, derived live from the
   document — the instant you type `private: true`, before any save. This

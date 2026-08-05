@@ -230,6 +230,31 @@ export class SnapshotStore {
     return { ok: true, origin: entry.origin, path: entry.path, kind: entry.kind, content };
   }
 
+  /** The newest snapshot for one origin + path captured no earlier than
+   * `notBefore`, or null when there is none. The agent's undo capability keys
+   * on a PATH — a model has no capture ids, and handing it a list of them would
+   * make an internal identifier part of the tool surface.
+   *
+   * `notBefore` is what makes "from this conversation" TRUE rather than a
+   * claim: retention here is a count swept at host start, so entries outlive
+   * both a rolled thread and an app restart, and an unfloored lookup would
+   * happily rewind a note to bytes from days ago. `capturedAt` rides along
+   * because the caller has to say how old the bytes are before anyone agrees
+   * to lose what came after them. */
+  latest(
+    origin: SnapshotOrigin,
+    path: string,
+    notBefore: number,
+  ): { id: string; capturedAt: number } | null {
+    let newest: SnapshotEntry | null = null;
+    for (const entry of this.index.read()) {
+      if (entry.origin !== origin || entry.path !== path) continue;
+      if (entry.capturedAt < notBefore) continue;
+      if (newest === null || entry.capturedAt > newest.capturedAt) newest = entry;
+    }
+    return newest === null ? null : { id: newest.id, capturedAt: newest.capturedAt };
+  }
+
   /** A vault file/folder was renamed/moved — repoint entry paths so a chat
    * restore targets the moved file (delegation restore targets the delegation
    * record's sourceFile, remapped by the manager; its entry path is remapped

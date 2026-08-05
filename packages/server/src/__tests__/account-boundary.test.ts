@@ -54,6 +54,10 @@ const ALLOWED = [
   "apps/desktop/src/renderer/settings/sections/sync-section.tsx",
   // The dev-harness Bridge must implement every channel by contract.
   "apps/desktop/dev/fixture-bridge.ts",
+  // The agent grant table names the account channels only to DECLARE them
+  // never-granted, and its declaration is exhaustive over the registry by
+  // construction. A denial is the opposite of a consumer.
+  "packages/bridge/src/agent-grants.ts",
   // This guard names the tokens it hunts.
   "packages/server/src/__tests__/account-boundary.test.ts",
 ];

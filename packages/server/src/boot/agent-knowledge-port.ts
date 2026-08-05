@@ -45,7 +45,9 @@
 // and a number computed over a truncated window would disagree with the list
 // beside it — which is itself a private-note oracle. Both pay the full sweep,
 // both say so at their definitions, and both belong on a tool a model calls
-// once, never in a loop.
+// once, never in a loop. Since neither can be paginated, both REFUSE above a
+// corpus ceiling (MAX_SWEEP_NOTES) rather than block the host thread on a vault
+// large enough to make one call take seconds.
 // ---------------------------------------------------------------------------
 
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
@@ -67,7 +69,17 @@ import { conflictOriginPath } from "@repo/notes/sync/reconcile";
 import type { SyncStatus } from "@repo/notes/sync/status";
 
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
-import type { KnowledgePort, PrivacyProbe, RenameNoteResult } from "@repo/agent/extension";
+import type {
+  AgentDelegation,
+  AgentGraphCluster,
+  AgentGraphHub,
+  AgentLinkGraph,
+  AgentSyncStatus,
+  AgentVaultPort,
+  KnowledgePort,
+  PrivacyProbe,
+  RenameNoteResult,
+} from "@repo/agent/extension";
 import type { Delegation } from "@repo/bridge/delegation";
 import type { SyncConflict } from "@repo/bridge/sync";
 import type { VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
@@ -319,6 +331,26 @@ function pageLimit(limit: number | undefined): number {
   return Math.min(Math.max(limit ?? MAX_PAGE_ENTRIES, 1), MAX_PAGE_ENTRIES);
 }
 
+/** Corpus ceiling for the two sweeps no page can bound (`listTags`,
+ * `getLinkGraph`). Both are synchronous and O(vault) — a full probe per note on
+ * the host thread, with the renderer's own IPC behind it — so past some size
+ * the honest answer is that this question is too expensive to ask, not a UI
+ * frozen mid-turn. Deliberately generous: a vault this large is far past where
+ * "read everything" was ever the right tool. */
+const MAX_SWEEP_NOTES = 2_000;
+
+/** The refusal both sweeps relay verbatim: what happened, the number, and the
+ * tool that answers the same question within a page. */
+function sweepRefusal(question: string, notes: number): { ok: false; reason: string } {
+  return {
+    ok: false,
+    reason:
+      `This vault has ${notes} notes, past the ${MAX_SWEEP_NOTES} this can read in one pass, ` +
+      `so ${question} is not available here. Use search_vault, or list_vault with a folder, ` +
+      `and answer from a part of the vault instead.`,
+  };
+}
+
 /** The largest doc `readVaultDoc` will hand back. Everything the port returns
  * lands verbatim in the session transcript and is re-sent with every subsequent
  * turn, so one oversized note is a recurring cost for the whole session. Over
@@ -336,53 +368,15 @@ const MAX_HUBS = 20;
 const MAX_CLUSTERS = 10;
 const MAX_CLUSTER_MEMBERS = 20;
 
-// The result/param shapes below stay module-private: `AgentVaultPort` is the
-// whole surface a consumer needs today, and nothing outside this file names one
-// yet. Export them when the tool layer has to.
-
-/** One bounded page. `limit` is clamped to MAX_PAGE_ENTRIES. */
-type AgentPageOpts = { limit?: number | undefined };
-
-/** A `listVault` page request. `folder` is a vault-relative prefix ("" / absent
- * = the whole vault). */
-type AgentListingOpts = AgentPageOpts & { folder?: string | undefined };
-
-/** A well-connected note. `degree` counts note-to-note edges over the PUBLIC
- * graph, so it means "connections in the graph you were handed". */
-type AgentGraphHub = { path: string; title: string; degree: number };
-
-/** One connected component. `size` is its true size over the public graph;
- * `members` is a capped sample of it, so `size > members.length` is ordinary. */
-type AgentGraphCluster = { size: number; members: string[] };
-
-/** The DERIVED graph answer — never the raw node/edge blob, which is ~42MB of
- * JSON on a large vault and unreadable to a model anyway. Every number here is
- * computed over the same public node set the paths come from. */
-type AgentLinkGraph = {
-  totalNotes: number;
-  /** Connections BETWEEN two public notes — the same edges `degree` and the
-   * clusters count, self-links excluded from all three. */
-  totalLinks: number;
-  /** Notes with no resolved link to ANOTHER note, in either direction (capped
-   * sample) — a self-link leaves a note here, since it connects it to nothing. */
-  orphans: string[];
-  hubs: AgentGraphHub[];
-  clusters: AgentGraphCluster[];
-};
-
-/** Sync status minus the free-form failure message: a host-generated error
- * string routinely embeds the coordinator URL or a vault path, and there is no
- * way to sanitize an arbitrary message, so the projection reports THAT the last
- * pass failed and not why. A model cannot act on a network error regardless.
- *
- * The pass-through phases stay `Extract`ed from the shared `SyncStatus` on
- * purpose: `projectSyncStatus` builds every variant field by field, so a field
- * the Bridge adds to `ok` lands here as a typecheck failure at the construction
- * site rather than as a silent new disclosure. */
-type AgentSyncStatus =
-  | Extract<SyncStatus, { phase: "idle" | "syncing" | "ok" }>
-  | { phase: "held"; deletions: number; baseCount: number; sample: string[] }
-  | { phase: "error" };
+// The port's TYPE (and the shapes it returns) lives in @repo/agent/extension —
+// the tool layer names them, and agent/ may never import the host. The
+// projection ITSELF stays here: the vocabulary is the model's, the disk reads
+// and the privacy re-probe are the host's.
+//
+// `AgentSyncStatus`'s pass-through phases are `Extract`ed from the shared
+// `SyncStatus` on purpose: `projectSyncStatus` builds every variant field by
+// field, so a field the Bridge adds to `ok` lands as a typecheck failure at the
+// construction site rather than a silent new disclosure.
 
 /** The sync state the projection may SEE — deliberately narrower than the
  * Bridge's `SyncState`, which production hands it structurally.
@@ -397,45 +391,6 @@ export type SyncSummary = {
   enabled: boolean;
   status: SyncStatus;
   conflicts: readonly SyncConflict[];
-};
-
-type AgentSyncState = {
-  enabled: boolean;
-  status: AgentSyncStatus;
-  /** Vault paths of unresolved conflict COPIES, privacy-filtered. */
-  conflicts: string[];
-};
-
-/** One delegation as the model may see it — built field by field, never the
- * Bridge's `Delegation` whole. That record is the persisted dock state, and
- * anything it grows next (an agent's raw output, a transcript excerpt, a
- * workspace path) would otherwise reach the model with no code change here and
- * no failing test. The host-side bookkeeping it already carries — the anchor
- * locator, whose `text` is a second copy of a note's line, plus the snapshot
- * flags — is dropped: a model can act on none of it. */
-type AgentDelegation = {
-  id: string;
-  sourceFile: string;
-  /** The delegated `- [ ] …` line, verbatim from a note that reads public NOW. */
-  lineText: string;
-  status: Delegation["status"];
-  createdAt: number;
-  startedAt: number | null;
-  finishedAt: number | null;
-  resultSummary: string | null;
-  error: string | null;
-};
-
-export type AgentVaultPort = {
-  listVault(opts?: AgentListingOpts): VaultEntry[];
-  readVaultDoc(path: string): string | null;
-  getVaultFileFacts(path: string): VaultFileFacts | null;
-  listVaultTasks(opts?: AgentPageOpts): VaultTaskEntry[];
-  listTags(): TagCount[];
-  listWikiTargets(opts?: AgentPageOpts): WikiTarget[];
-  getLinkGraph(): AgentLinkGraph;
-  getSyncState(): AgentSyncState;
-  listDelegations(): AgentDelegation[];
 };
 
 export function buildAgentVaultPort(deps: {
@@ -519,9 +474,11 @@ export function buildAgentVaultPort(deps: {
     // live probe overrules the index.
     listVaultTasks: (opts) => {
       const live = openProbe(deps.probe);
+      const prefix = normalizeFolder(opts?.folder);
       return deps
         .queries()
         .tasks(EXCLUDE)
+        .filter((task) => task.path.startsWith(prefix))
         .slice(0, pageLimit(opts?.limit))
         .filter((task) => live.emittable(task.path));
     },
@@ -547,6 +504,8 @@ export function buildAgentVaultPort(deps: {
     // turned private in the last ~100ms, the surviving entry renders its
     // capitalization — letter case only, never a path or a count.
     listTags: () => {
+      const notes = docCount(deps.vault());
+      if (notes > MAX_SWEEP_NOTES) return sweepRefusal("the tag list", notes);
       const queries = deps.queries();
       const live = openProbe(deps.probe);
       const counted: TagCount[] = [];
@@ -558,9 +517,12 @@ export function buildAgentVaultPort(deps: {
       }
       // Mirrors the tag index's own ordering (most-used first, ties
       // alphabetical case-insensitively) — recomputing counts reorders it.
-      return counted.toSorted(
-        (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),
-      );
+      return {
+        ok: true,
+        tags: counted.toSorted(
+          (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),
+        ),
+      };
     },
 
     // A vault LISTING: a doc's path, title and aliases are all the leak, so a
@@ -569,9 +531,11 @@ export function buildAgentVaultPort(deps: {
     // before probing — the same window rule as listVaultTasks.
     listWikiTargets: (opts) => {
       const live = openProbe(deps.probe);
+      const prefix = normalizeFolder(opts?.folder);
       return deps
         .queries()
         .wikiTargets(EXCLUDE)
+        .filter((target) => target.path.startsWith(prefix))
         .slice(0, pageLimit(opts?.limit))
         .filter((target) => target.type !== "doc" || live.emittable(target.path));
     },
@@ -583,8 +547,10 @@ export function buildAgentVaultPort(deps: {
     // O(notes) disk reads per call — expensive on purpose, and the reason this
     // belongs on a tool a model calls once, never in a loop.
     getLinkGraph: () => {
+      const notes = docCount(deps.vault());
+      if (notes > MAX_SWEEP_NOTES) return sweepRefusal("the link-graph summary", notes);
       const live = openProbe(deps.probe);
-      return summarizeGraph(deps.queries().graph(EXCLUDE), live.emittable);
+      return { ok: true, graph: summarizeGraph(deps.queries().graph(EXCLUDE), live.emittable) };
     },
 
     getSyncState: () => {
@@ -627,6 +593,14 @@ export function buildAgentVaultPort(deps: {
         );
     },
   };
+}
+
+/** Notes in the vault, from the listing crawl the host already keeps warm — the
+ * gate on the two unbounded sweeps. It counts every doc including private ones:
+ * a size check that varied with what the caller may see would report the shape
+ * of the private set. */
+function docCount(vault: VaultReads): number {
+  return vault.list().filter((entry) => entry.kind === "doc").length;
 }
 
 /** Normalize a caller's folder argument to a vault-relative prefix ending in

@@ -50,6 +50,28 @@ function fakePorts(): AgentPorts {
       notesWithTag: () => [],
       rename: () => ({ ok: false, reason: "not wired in this test" }),
     },
+    vault: {
+      listVault: () => [],
+      readVaultDoc: () => null,
+      getVaultFileFacts: () => null,
+      listVaultTasks: () => [],
+      listTags: () => ({ ok: true, tags: [] }),
+      listWikiTargets: () => [],
+      getLinkGraph: () => ({
+        ok: true,
+        graph: { totalNotes: 0, totalLinks: 0, orphans: [], hubs: [], clusters: [] },
+      }),
+      getSyncState: () => ({ enabled: false, status: { phase: "idle" }, conflicts: [] }),
+      listDelegations: () => [],
+    },
+    actions: {
+      toggleTask: () => ({ ok: false, reason: "not wired in this test" }),
+      delegateTask: () => ({ ok: false, reason: "not wired in this test" }),
+      cancelDelegation: () => ({ ok: false, reason: "not wired in this test" }),
+      restoreDelegation: async () => ({ ok: false, reason: "not wired in this test" }),
+      deleteNote: async () => ({ ok: false, reason: "not wired in this test" }),
+      undoMyEdit: async () => ({ ok: false, reason: "not wired in this test" }),
+    },
     privacy: {
       probe: () => "indeterminate",
       vaultRealRoot: () => null,

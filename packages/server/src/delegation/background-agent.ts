@@ -40,7 +40,11 @@ export async function startBackgroundAgent(): Promise<void> {
     // would surface nowhere and could only mislabel the chat undo toast. Its
     // off-target edits (files other than the delegated note) remain
     // uncovered, exactly as before the checkpoint seam existed.
-    ports: { ...getAgentPorts(), checkpoints: null },
+    // The mutating capabilities go with it, for a different reason: nobody is
+    // watching this run, so a destructive proposal has no conversation to be
+    // confirmed in, and a background agent that can delegate would queue its
+    // own successors. The read projections stay.
+    ports: { ...getAgentPorts(), checkpoints: null, actions: null },
   });
   await next.start();
   bgAgent = next;

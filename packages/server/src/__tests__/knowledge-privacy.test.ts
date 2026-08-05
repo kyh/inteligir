@@ -2,14 +2,16 @@
 // Outbound-payload guarantee for the agent-facing projections — asserted on the
 // bytes the model would actually receive, not on the port's return values.
 //
-// Two halves, one rule. The KNOWLEDGE half runs the REAL search_vault /
-// get_backlinks / get_links / related_notes execute() closures over the REAL
-// privacy-filtered port and a real core index. The VAULT half has no tools yet
-// (that is the next stage), so it stringifies the projections themselves. Both
-// assert the same thing: the private note's path, title, tasks and body text
-// never appear — including via backlinks-from-a-private-source,
-// links-TO-a-private-target, a conflict copy that spells a private note's name,
-// and the index-lag TOCTOU case (public in the index, private on disk NOW).
+// Both bundles' REAL execute() closures run here, registered against one fake
+// pi over the REAL privacy-filtered ports and a real core index — the knowledge
+// tools (search_vault / get_backlinks / get_links / related_notes) and the vault
+// tools (the nine whole-vault and host-state reads). The vault PROJECTIONS are
+// additionally asserted directly, where the claim is about a shape the tool
+// layer only forwards. Every one asserts the same thing: the private note's
+// path, title, tasks and body text never appear — including via
+// backlinks-from-a-private-source, links-TO-a-private-target, a conflict copy
+// that spells a private note's name, and the index-lag TOCTOU case (public in
+// the index, private on disk NOW).
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -18,9 +20,19 @@ import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
 import knowledgeExtension from "@repo/agent/knowledge-tools/extension";
+import vaultTools from "@repo/agent/vault-tools/extension";
 import { buildAgentKnowledgePort, buildAgentVaultPort } from "../boot/agent-knowledge-port";
-import type { AgentVaultPort, VaultReads } from "../boot/agent-knowledge-port";
-import type { AgentPorts, KnowledgePort, PrivacyProbe } from "@repo/agent/extension";
+import type { VaultReads } from "../boot/agent-knowledge-port";
+import type {
+  AgentLinkGraph,
+  AgentLinkGraphResult,
+  AgentPorts,
+  AgentTagsResult,
+  AgentVaultPort,
+  KnowledgePort,
+  PrivacyProbe,
+} from "@repo/agent/extension";
+import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
 import type { ExtensionAPI } from "@repo/agent/pi/pi-types";
 import type { SyncSummary } from "../boot/agent-knowledge-port";
@@ -136,13 +148,46 @@ type RegisteredTool = {
   ) => Promise<{ content: { type: string; text?: string }[] }>;
 };
 
-function captureTools(port: KnowledgePort): Map<string, RegisteredTool> {
+const unusedPort = (): never => {
+  throw new Error("port not exercised by the privacy suite");
+};
+
+/** The ports both bundles are handed: the REAL privacy-filtered knowledge and
+ * vault projections over the same corpus and the same disk overrides. `actions`
+ * is null — the mutating tiers write, and what this file asserts is what comes
+ * BACK. */
+function privacyPorts(overrides: Record<string, string>): AgentPorts {
+  return {
+    executor: {
+      cli: { name: "executor", version: "0.0.0", binPath: "/fake/bin/executor" },
+      install: async () => {},
+      start: async () => false,
+      execute: unusedPort,
+      resume: unusedPort,
+    },
+    knowledge: buildPort(overrides),
+    vault: buildVaultPort({ overrides }),
+    actions: null,
+    privacy: {
+      probe: diskProbe(overrides),
+      vaultRealRoot: () => null,
+      vaultLexicalRoot: () => null,
+      privateIndexPaths: () => [],
+    },
+    checkpoints: null,
+  };
+}
+
+/** Both grant-governed bundles on ONE fake pi, so every tool the model can call
+ * is exercised by the assertions below rather than a chosen subset. */
+function captureTools(overrides: Record<string, string> = {}): Map<string, RegisteredTool> {
   const tools = new Map<string, RegisteredTool>();
   const pi = {
     registerTool: (tool: RegisteredTool) => tools.set(tool.name, tool),
   } as unknown as ExtensionAPI;
-  const ports = { knowledge: port } as unknown as AgentPorts;
+  const ports = privacyPorts(overrides);
   void knowledgeExtension.register({ binDir: "/fake/bin", ports })(pi);
+  void vaultTools.register({ binDir: "/fake/bin", ports })(pi);
   return tools;
 }
 
@@ -174,7 +219,7 @@ function expectNoLeak(payload: string): void {
 
 describe("agent knowledge tools — private notes never reach the model", () => {
   it("search_vault drops the private hit entirely; public hits survive", async () => {
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "search_vault", { query: "umbrella" });
     expectNoLeak(payload);
     expect(payload).toContain("open-notes.md");
@@ -182,14 +227,14 @@ describe("agent knowledge tools — private notes never reach the model", () => 
   });
 
   it("search_vault by tag drops the private tagged note", async () => {
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "search_vault", { tag: "meta" });
     expectNoLeak(payload);
     expect(payload).toContain("open-notes.md");
   });
 
   it("get_backlinks on a private target answers with an empty array — a silent drop", async () => {
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "get_backlinks", { path: PRIVATE_PATH });
     // Structured refusal would confirm the path's existence/privacy; an empty
     // result is indistinguishable from a note with no backlinks. The payload
@@ -201,7 +246,7 @@ describe("agent knowledge tools — private notes never reach the model", () => 
   });
 
   it("get_backlinks drops backlinks whose SOURCE is private", async () => {
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "get_backlinks", { path: "open-notes.md" });
     expectNoLeak(payload); // secret-plans.md links to open-notes — must not show
   });
@@ -217,7 +262,7 @@ describe("agent knowledge tools — private notes never reach the model", () => 
       "hidden-lab.md",
       null,
     ]);
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "get_links", { path: "link-hub.md" });
     // What the tool adds over reading the note is RESOLUTION — the raw
     // `[[hidden-lab]]` text is in the body either way, but confirming it
@@ -231,7 +276,7 @@ describe("agent knowledge tools — private notes never reach the model", () => 
   });
 
   it("get_links on a private subject answers with an empty array — a silent drop", async () => {
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "get_links", { path: PRIVATE_PATH });
     // Same no-oracle rule as get_backlinks: indistinguishable from a note
     // that links nowhere. secret-plans.md does link to open-notes, so this
@@ -241,9 +286,9 @@ describe("agent knowledge tools — private notes never reach the model", () => 
   });
 
   it("get_links TOCTOU: a target public in the index but private on disk NOW drops", async () => {
-    const tools = captureTools(
-      buildPort({ "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n" }),
-    );
+    const tools = captureTools({
+      "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n",
+    });
     const payload = await outbound(tools, "get_links", { path: "link-hub.md" });
     expect(payload).not.toContain("meta-index.md");
     expect(payload).toContain("nowhere"); // the rest of the note's links stay
@@ -253,9 +298,9 @@ describe("agent knowledge tools — private notes never reach the model", () => 
   it("TOCTOU: a note public in the index but private on disk NOW is dropped", async () => {
     // The index still holds other.md as public (it was at build time); the
     // live probe sees the just-saved `private: true`. The re-probe wins.
-    const tools = captureTools(
-      buildPort({ "other.md": "---\nprivate: true\n---\n# Other\n\numbrella stand\n" }),
-    );
+    const tools = captureTools({
+      "other.md": "---\nprivate: true\n---\n# Other\n\numbrella stand\n",
+    });
     const payload = await outbound(tools, "search_vault", { query: "umbrella" });
     expect(payload).not.toContain("other.md");
     expect(payload).toContain("open-notes.md");
@@ -263,22 +308,20 @@ describe("agent knowledge tools — private notes never reach the model", () => 
   });
 
   it("fail-closed: a hit whose disk copy turned unreadable (indeterminate) is dropped", async () => {
-    const tools = captureTools(
-      buildPort({ "other.md": "---\n[not: valid: yaml\n---\numbrella stand\n" }),
-    );
+    const tools = captureTools({ "other.md": "---\n[not: valid: yaml\n---\numbrella stand\n" });
     const payload = await outbound(tools, "search_vault", { query: "umbrella" });
     expect(payload).not.toContain("other.md");
   });
 
   it("related_notes drops a private candidate (related via tag + text, no direct link)", async () => {
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "related_notes", { path: "open-notes.md" });
     expectNoLeak(payload); // hidden-lab shares #meta and text — must not show
     expect(payload).toContain("meta-index.md"); // the public tagmate survives
   });
 
   it("related_notes on a private subject answers with an empty array — a silent drop", async () => {
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "related_notes", { path: PRIVATE_PATH });
     expect(payload).toContain('"text":"[]"');
     expectNoLeak(payload);
@@ -290,16 +333,16 @@ describe("agent knowledge tools — private notes never reach the model", () => 
     expect(seededIndex().notesWithTag("logistics", { excludePrivate: true })).toContain(
       PRIVATE_CONFLICT_COPY,
     );
-    const tools = captureTools(buildPort());
+    const tools = captureTools();
     const payload = await outbound(tools, "search_vault", { tag: "logistics" });
     expectNoLeak(payload);
     expect(payload).toContain("chores.md");
   });
 
   it("related_notes TOCTOU: a candidate public in the index but private on disk NOW drops", async () => {
-    const tools = captureTools(
-      buildPort({ "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n" }),
-    );
+    const tools = captureTools({
+      "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n",
+    });
     const payload = await outbound(tools, "related_notes", { path: "open-notes.md" });
     expect(payload).not.toContain("meta-index.md");
     expectNoLeak(payload);
@@ -386,6 +429,19 @@ function diskVault(overrides: Record<string, string> = {}): VaultReads {
       return content === undefined ? null : { sizeBytes: content.length, modifiedMs: 1 };
     },
   };
+}
+
+/** Unwrap a sweep result, failing loudly on the refusal — these fixtures are a
+ * dozen notes, so a refusal here means the corpus ceiling moved, not that the
+ * assertion below is inapplicable. */
+function expectTags(result: AgentTagsResult): TagCount[] {
+  if (!result.ok) throw new Error(`listTags refused unexpectedly: ${result.reason}`);
+  return result.tags;
+}
+
+function expectGraph(result: AgentLinkGraphResult): AgentLinkGraph {
+  if (!result.ok) throw new Error(`getLinkGraph refused unexpectedly: ${result.reason}`);
+  return result.graph;
 }
 
 function buildVaultPort(
@@ -518,7 +574,7 @@ describe("agent vault port — private notes never reach the model", () => {
   it("listTags recomputes counts and loses a private-only tag entirely", () => {
     // Unfiltered, #meta has four carriers, two of them private.
     expect(seededIndex().tags()).toContainEqual({ tag: "meta", count: 4 });
-    const tags = buildVaultPort().listTags();
+    const tags = expectTags(buildVaultPort().listTags());
     expectNoLeak(JSON.stringify(tags));
     // The tag NAME is the leak, so a tag no public note carries disappears
     // rather than surviving with a smaller number.
@@ -528,9 +584,11 @@ describe("agent vault port — private notes never reach the model", () => {
   });
 
   it("listTags TOCTOU: a carrier public in the index but private on disk NOW is uncounted", () => {
-    const tags = buildVaultPort({
-      overrides: { "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n" },
-    }).listTags();
+    const tags = expectTags(
+      buildVaultPort({
+        overrides: { "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n" },
+      }).listTags(),
+    );
     expect(tags).toContainEqual({ tag: "meta", count: 1 });
   });
 
@@ -545,7 +603,7 @@ describe("agent vault port — private notes never reach the model", () => {
   it("getLinkGraph answers derived, over the public graph only", () => {
     // Non-vacuity: the raw graph really does carry the private notes as nodes.
     expect(JSON.stringify(seededIndex().graph())).toContain(PRIVATE_PATH);
-    const summary = buildVaultPort().getLinkGraph();
+    const summary = expectGraph(buildVaultPort().getLinkGraph());
     expectNoLeak(JSON.stringify(summary));
     // open-notes, other, chores, journal/01, journal/02, meta-index, link-hub
     // and the public conflict copy — the three private notes and the conflict
@@ -569,7 +627,7 @@ describe("agent vault port — private notes never reach the model", () => {
       kind: "wiki",
       count: 1,
     });
-    const summary = buildVaultPort().getLinkGraph();
+    const summary = expectGraph(buildVaultPort().getLinkGraph());
     // A note linked to itself is connected to nothing, so counting the edge in
     // the total but not in the degree would render it an orphan with a link.
     expect(summary.totalLinks).toBe(1);
@@ -673,5 +731,82 @@ describe("agent vault port — private notes never reach the model", () => {
     ]);
     // The stored record's host-side bookkeeping stays host-side.
     expect(JSON.stringify(records)).not.toContain(HOST_ONLY_DELEGATION_FIELD);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The vault TOOLS — the same rule one layer up, on the bytes the model receives.
+// The projections above are asserted directly because some of their claims are
+// about shapes (a rebuilt record, an enumerated status); this block asserts that
+// nothing between a projection and the tool result re-introduces what the
+// projection dropped. Every read tool the bundle registers is driven, derived
+// from the registration itself so a tenth one cannot be added un-asserted.
+// ---------------------------------------------------------------------------
+
+describe("agent vault tools — private notes never reach the model", () => {
+  /** One safe call per read tool: the private note is named where a path is
+   * required, so a tool that answers about it at all fails here. */
+  const CALLS: Record<string, unknown> = {
+    list_vault: {},
+    read_note: { path: PRIVATE_PATH },
+    get_note_facts: { path: PRIVATE_PATH },
+    list_tasks: {},
+    list_tags: {},
+    list_wiki_targets: {},
+    get_link_graph: {},
+    get_sync_state: {},
+    list_delegations: {},
+  };
+
+  it("covers every read tool the bundle registers", () => {
+    // DERIVED from the registration, not filtered by CALLS: filtering the
+    // registered set by the expected one makes an unlisted tool invisible,
+    // which is the shape this assertion exists to catch. `privacyPorts` passes
+    // `actions: null`, so vault-tools alone registers exactly the reads.
+    const reads = new Map<string, RegisteredTool>();
+    const pi = {
+      registerTool: (tool: RegisteredTool) => reads.set(tool.name, tool),
+    } as unknown as ExtensionAPI;
+    void vaultTools.register({ binDir: "/fake/bin", ports: privacyPorts({}) })(pi);
+    expect([...reads.keys()].toSorted()).toEqual(Object.keys(CALLS).toSorted());
+  });
+
+  // read_note is asserted separately and more strictly: its one refusal
+  // sentence echoes the path the MODEL supplied, which expectNoLeak would read
+  // as a leak. What matters there is that the sentence is the same one a
+  // missing file produces.
+  const SILENT_TOOLS = Object.keys(CALLS).filter((name) => name !== "read_note");
+
+  it.each(SILENT_TOOLS)("%s leaks nothing about a private note", async (name) => {
+    const tools = captureTools();
+    expectNoLeak(await outbound(tools, name, CALLS[name]));
+  });
+
+  it("read_note answers a private note exactly as it answers a missing one", async () => {
+    const tools = captureTools();
+    const refused = await outbound(tools, "read_note", { path: PRIVATE_PATH });
+    const missing = await outbound(tools, "read_note", { path: "no-such-note.md" });
+    // Substituting the echoed path makes the two answers identical — a refusal
+    // that confirms nothing — and leaves a payload the leak rule can judge.
+    const withoutEcho = refused.replaceAll(PRIVATE_PATH, "no-such-note.md");
+    expect(withoutEcho).toBe(missing);
+    expectNoLeak(withoutEcho);
+  });
+
+  it("list_tasks narrows to a folder without surfacing the private note in it", async () => {
+    const tools = captureTools();
+    const payload = await outbound(tools, "list_tasks", { folder: "journal" });
+    expectNoLeak(payload);
+    expect(payload).not.toContain("fold the laundry");
+  });
+
+  it("TOCTOU: a note public in the index but private on disk NOW drops from the listing", async () => {
+    const tools = captureTools({
+      "other.md": "---\nprivate: true\n---\n# Other\n\numbrella stand\n",
+    });
+    const payload = await outbound(tools, "list_vault", {});
+    expect(payload).not.toContain("other.md");
+    expect(payload).toContain("chores.md");
+    expectNoLeak(payload);
   });
 });

@@ -295,6 +295,24 @@ const RestoreAgentEditsSchema = Type.Object(
  * whatever could be restored was. */
 export type RestoreAgentEditsResult = { ok: true } | { ok: false; error: string };
 
+/** A destructive action the agent has proposed, awaiting a human answer. The
+ * host composes every field from its own state — a proposal never carries
+ * model-authored prose, so a note's contents cannot write the dialog the user
+ * is about to agree to. */
+export type AgentConfirmationRequest = {
+  id: string;
+  /** The action and its target, as one question. */
+  title: string;
+  /** What confirming does, in the app's own words. */
+  detail: string;
+  confirmLabel: string;
+};
+
+const AgentConfirmationReplySchema = Type.Object(
+  { id: Type.String({ minLength: 1 }), confirmed: Type.Boolean() },
+  { additionalProperties: false },
+);
+
 // ---------------------------------------------------------------------------
 // Vault — the user's local knowledge folder (markdown). Paths are
 // vault-relative; main confines them under the vault root.
@@ -717,6 +735,22 @@ export const IPC = {
     RestoreAgentEditsSchema,
   ),
 
+  // Agent confirmations — the destructive-confirmed tier of the grant table
+  // (agent-grants.ts). The host raises the request from inside the action
+  // port, so a tool cannot skip it; the answer travels back on the reply
+  // channel and the port resolves to a plain declined VALUE on "no".
+  /** The agent proposes a destructive action and is waiting on the user.
+   * Exactly one reply per `id` is expected; a request the UI never answers
+   * expires host-side as a decline (fail-closed), so a dropped event or a
+   * closed window can never leave the action pending forever. */
+  onAgentConfirmationRequested: event<AgentConfirmationRequest>(),
+  /** The user's answer. Unknown or already-answered ids are ignored — the
+   * host owns expiry, and a late reply must not resurrect a settled
+   * proposal. */
+  resolveAgentConfirmation: invoke<typeof AgentConfirmationReplySchema, void>(
+    AgentConfirmationReplySchema,
+  ),
+
   // Deep-link capture — inteligir://append|task. The host enqueues to a
   // durable inbox and offers the line to the renderer; only the OPEN note is
   // ever applied through the live buffer (the no-clobber path) — everything
@@ -909,6 +943,12 @@ export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
 // the same dispatch map and would otherwise hand a remote device the state of a
 // getter it is forbidden to call).
 // ---------------------------------------------------------------------------
+
+// The LOCAL agent's capability policy is NOT here: it is agent-grants.ts, a
+// table of rows rather than a list of names. A remote device reaches these
+// handlers unmodified, so naming them is a complete policy; the agent reaches
+// privacy-projecting ports instead, so a name says nothing about what it can
+// see. Never grant the agent a capability by adding a method here.
 
 /** The ONLY methods a paired remote device may invoke. Everything else — the
  * whole vault/knowledge/settings/provider/sync/remote-access surface and the
