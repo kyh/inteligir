@@ -25,12 +25,7 @@ import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 
 import type { PiExtensionBundle } from "../extension";
-import {
-  grantedDescription,
-  jsonResult,
-  RESULT_SHAPE_NOTE,
-  textResult,
-} from "../extension-helpers";
+import { grantedDescription, jsonResult, textResult } from "../extension-helpers";
 
 // Keep result payloads bounded — the search index can match a lot of notes and
 // each hit costs tokens. 20 is a useful-by-default window; 50 is the ceiling a
@@ -70,13 +65,13 @@ const SearchVaultSchema = Type.Object({
   query: Type.Optional(
     Type.String({
       description:
-        "Search terms to match against note titles and body text. Optional when `tag` is set (then it lists every note with that tag).",
+        "Terms to match against note titles and body text. Optional when `tag` is set, which then lists every note carrying it.",
     }),
   ),
   tag: Type.Optional(
     Type.String({
       description:
-        "Restrict results to notes carrying this tag (case-insensitive; matches inline `#tag` and frontmatter `tags`). Combine with `query` to search within the tag.",
+        "Restrict to notes carrying this tag (case-insensitive; inline `#tag` or frontmatter `tags`). Combine with `query` to search within it.",
     }),
   ),
   limit: Type.Optional(
@@ -92,8 +87,8 @@ const RenameNoteSchema = Type.Object({
   }),
   to: Type.String({
     description:
-      "New vault-relative path (e.g. 'notes/new.md', or 'archive/old.md' to move it). " +
-      "The destination file name must be a valid note name.",
+      "New vault-relative path (e.g. 'notes/new.md', or 'archive/old.md' to move it). The " +
+      "destination file name must be a valid note name.",
   }),
 });
 
@@ -106,8 +101,8 @@ const knowledgeExtension: PiExtensionBundle = {
         name: "search_vault",
         label: "search_vault",
         description:
-          `${grantedDescription("search_vault")} ${RESULT_SHAPE_NOTE} Each element is ` +
-          "`{path, snippet}` (`snippet` is omitted when listing a tag with no query).",
+          `${grantedDescription("search_vault")} Each element is \`{path, snippet}\` ` +
+          "(`snippet` is omitted when listing a tag with no query).",
         parameters: SearchVaultSchema,
         execute: async (_toolCallId, params: Static<typeof SearchVaultSchema>) => {
           const query = params.query ?? "";
@@ -130,8 +125,8 @@ const knowledgeExtension: PiExtensionBundle = {
         name: "get_backlinks",
         label: "get_backlinks",
         description:
-          `${grantedDescription("get_backlinks")} ${RESULT_SHAPE_NOTE} Each element is ` +
-          `\`{path}\`; at most ${BACKLINKS_MAX} are returned.`,
+          `${grantedDescription("get_backlinks")} Each element is \`{path}\`; at most ` +
+          `${BACKLINKS_MAX} are returned.`,
         parameters: NotePathSchema,
         execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const hits = ports.knowledge.backlinks(params.path);
@@ -146,11 +141,9 @@ const knowledgeExtension: PiExtensionBundle = {
         name: "get_links",
         label: "get_links",
         description:
-          `${grantedDescription("get_links")} Traverse outward with it, e.g. "summarize ` +
-          `everything this note references". ${RESULT_SHAPE_NOTE} Each element is ` +
-          "`{path}` for a resolved target, or `{target, unresolved: true}` for a link " +
-          `whose note does not exist yet. Targets are de-duped; at most ${LINKS_MAX} are ` +
-          "returned.",
+          `${grantedDescription("get_links")} Traverse outward with it. Each element is ` +
+          "`{path}` for a resolved target, or `{target, unresolved: true}` for a link whose " +
+          `note does not exist yet. De-duped; at most ${LINKS_MAX} are returned.`,
         parameters: NotePathSchema,
         execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const entries = ports.knowledge.forwardLinks(params.path);
@@ -178,8 +171,7 @@ const knowledgeExtension: PiExtensionBundle = {
         label: "related_notes",
         description:
           `${grantedDescription("related_notes")} Use it for "what else touches this ` +
-          `topic?". ${RESULT_SHAPE_NOTE} Each element is \`{path, reasons}\`, reasons ` +
-          "being an array of strings.",
+          'topic?". Each element is `{path, reasons}`, reasons being an array of strings.',
         parameters: NotePathSchema,
         execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const hits = ports.knowledge.relatedNotes(params.path);

@@ -35,6 +35,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { AGENT_INSTRUCTIONS_SKELETON } from "@repo/bridge/agent-instructions";
 
+import { composeAgentInstructions } from "../setup";
+
 // ---- Budgets ---------------------------------------------------------------
 
 /**
@@ -71,12 +73,16 @@ const BUNDLED_RESOURCES_DIR = fileURLToPath(new URL("../../resources/agent", imp
  * ignores the rest. */
 const PI_CONTEXT_FILE_CANDIDATES = new Set(["AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"]);
 
+/** What setup.ts SEEDS, not what the repo ships: the shipped prose plus the
+ * never-granted section rendered from the grant table. The generated half costs
+ * per-turn context exactly like the written half, so measuring the file alone
+ * would leave a budget one `.push()` could walk out of. */
 function bundledInstructions(): string {
   const file = path.join(BUNDLED_RESOURCES_DIR, "AGENTS.md");
   if (!fs.existsSync(file)) {
     throw new Error(`bundled agent instructions missing at ${file} — setup.ts seeds this file`);
   }
-  return fs.readFileSync(file, "utf8");
+  return composeAgentInstructions(fs.readFileSync(file, "utf8"));
 }
 
 // ---- pi's real prompt builder ----------------------------------------------
@@ -168,11 +174,11 @@ describe("pi injects context files whole", () => {
 // ---- The budget ------------------------------------------------------------
 
 describe("repo-authored context bytes", () => {
-  it("keeps the bundled agent instructions within budget", () => {
+  it("keeps the seeded agent instructions within budget", () => {
     const chars = bundledInstructions().length;
     expect(
       chars,
-      `packages/agent/resources/agent/AGENTS.md is ${chars} chars — it is re-sent on every ` +
+      `the seeded agent instructions are ${chars} chars — they are re-sent on every ` +
         `turn of every session, including ghost text. Cut something, or raise ` +
         `BUNDLED_INSTRUCTIONS_MAX_CHARS with a reason.`,
     ).toBeLessThanOrEqual(BUNDLED_INSTRUCTIONS_MAX_CHARS);

@@ -172,18 +172,17 @@ export class RestoreManager {
     return failures.length === 0 ? { ok: true } : { ok: false, error: failures.join(" ") };
   }
 
-  /** Undo the NEWEST chat capture for one note — the agent's own undo
-   * capability (@repo/bridge/agent-grants, destructive-confirmed). Keyed by
-   * path rather than id: a model has no capture ids, and the renderer's
-   * per-turn grouping (first capture per path) is a UI notion the agent has no
-   * turn boundary for. Newest, so "undo your last edit to this note" means
-   * exactly that; an older state is the user's own undo toast to reach. */
-  async restoreLatestChatEdit(path: string): Promise<RestoreAgentEditsResult> {
-    const id = this.snapshots.latestId("chat", path);
-    if (id === null) {
-      return { ok: false, error: `No saved copy of ${path} from this conversation.` };
-    }
-    return this.restoreChatEdits([id]);
+  /** The NEWEST chat capture for one note taken since `notBefore` — the lookup
+   * behind the agent's own undo capability (@repo/bridge/agent-grants,
+   * destructive-confirmed). Keyed by path rather than id: a model has no
+   * capture ids, and the renderer's per-turn grouping (first capture per path)
+   * is a UI notion the agent has no turn boundary for. Newest, so "undo your
+   * last edit to this note" means exactly that; an older state is the user's
+   * own undo toast to reach. The floor is the caller's — the port passes the
+   * chat session's start, which is what keeps that tool's scope claim honest
+   * across a rolled thread and an app restart. */
+  latestChatEdit(path: string, notBefore: number): { id: string; capturedAt: number } | null {
+    return this.snapshots.latest("chat", path, notBefore);
   }
 
   /** The byte-restore shared by both undo surfaces: a `create` snapshot undoes

@@ -22,7 +22,8 @@
 // The never-granted rows are DECLARED rather than merely absent, grouped by
 // reason. "The agent can't do that" arriving as silence — an invented tool
 // name, a model insisting it has no way to help — is exactly the confusion this
-// table exists to end.
+// table exists to end, which is why each group's `why` is rendered into the
+// bundled instructions (renderNeverGrantedSection) rather than only read here.
 //
 // POLICY, NOT ENFORCEMENT. There is no agent filesystem sandbox and there never
 // will be (CLAUDE.md § Decisions): `bash`, `execute`, `browser` and `peekaboo`
@@ -55,10 +56,13 @@ export type AgentCapability = IpcMethod | (typeof KNOWLEDGE_ONLY_CAPABILITIES)[n
  *   before touching disk, fail-closed: no undo point, no write.
  * - `delegate` — handing work to the background agent, and un-handing it.
  *   Creates no vault bytes itself; the run it queues is checkpointed by the
- *   delegation manager's own pre-run snapshot.
+ *   delegation manager's own pre-run snapshot. The one tier that manufactures
+ *   agent TURNS, so the port caps how many one turn may queue.
  * - `destructive-confirmed` — the model PROPOSES and a human answers in the
  *   conversation. The confirmation is raised host-side inside the port, so a
- *   tool cannot forget to ask; a decline comes back as an ordinary value.
+ *   tool cannot forget to ask; a decline comes back as an ordinary value. Undo
+ *   lives here, not in `delegate`: rewinding a note to captured bytes discards
+ *   everything written since, whoever wrote it, whichever id keys it.
  */
 export type AgentGrantTier =
   | "read-projected"
@@ -117,9 +121,9 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
     agentName: "list_vault",
     tier: "read-projected",
     description:
-      "One bounded, alphabetical page of the vault's files, optionally under one folder. " +
-      "A page can come back shorter than you asked for; that is normal and means nothing " +
-      "about what else exists. Prefer search_vault when you know what you are looking for.",
+      "The FIRST N files of the vault in alphabetical order, optionally under one folder. No " +
+      "cursor: to see past N, narrow by folder — or use search_vault when you know what you " +
+      "want. A short page is normal and says nothing about what else exists.",
   },
   {
     capability: "readVaultDoc",
@@ -143,9 +147,10 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
     agentName: "list_tasks",
     tier: "read-projected",
     description:
-      "One bounded page of the vault's `- [ ]` checkboxes, each with the note it lives in, " +
-      "its exact source line, and the ordinal that toggle_task and delegate_task key on. " +
-      "Carry both values through unchanged — retyping the line makes the write refuse.",
+      "The FIRST N `- [ ]` checkboxes in path order, optionally under one folder; no cursor " +
+      "past N. Each row carries its note, its exact source line, and the ordinal toggle_task " +
+      "and delegate_task key on — pass both through unchanged, since retyping the line makes " +
+      "the write refuse.",
   },
   {
     capability: "listTags",
@@ -153,17 +158,17 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
     tier: "read-projected",
     description:
       "Every tag in the vault with how many notes carry it, most-used first. Counts describe " +
-      "the notes you can see. EXPENSIVE: it reads the whole vault. Call it once to orient " +
-      "yourself, never in a loop.",
+      "the notes you can see. EXPENSIVE: it reads the whole vault, and refuses outright on a " +
+      "vault too large to sweep at once. Call it to orient yourself, never in a loop.",
   },
   {
     capability: "listWikiTargets",
     agentName: "list_wiki_targets",
     tier: "read-projected",
     description:
-      "One bounded page of the names `[[wiki-links]]` can resolve to — note titles, their " +
-      "aliases, and attachments. Check a name here before writing a link, so you link to a " +
-      "note that exists instead of creating a dangling one.",
+      "The FIRST N names `[[wiki-links]]` can resolve to — note titles, aliases, attachments " +
+      "— optionally under one folder, no cursor past N. Check a name here before writing a " +
+      "link, so you link to a note that exists instead of dangling one.",
   },
   {
     capability: "getLinkGraph",
@@ -171,8 +176,8 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
     tier: "read-projected",
     description:
       "A summary of the vault's link structure: totals, the notes nothing links to or from, " +
-      "the most-connected notes, and the connected clusters. The lists are samples, not " +
-      "complete enumerations. EXPENSIVE: it reads the whole vault. Call it once, never in a loop.",
+      "the hubs, the clusters. The lists are samples, not complete enumerations. EXPENSIVE: " +
+      "it reads the whole vault, and refuses outright on one too large to sweep at once.",
   },
   {
     capability: "getSyncState",
@@ -221,8 +226,9 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
     tier: "delegate",
     description:
       "Hand one checkbox to the background agent: it does the task, ticks the box and writes " +
-      "the result under it. Use it for work that would outlast this conversation, not for " +
-      "something you can do now. It runs unattended, so the user will not be watching.",
+      "the result under it. For work that would outlast this conversation, not for something " +
+      "you can do now — it runs unattended, with nobody watching. Only a few per turn; past " +
+      "that it refuses, because queueing your own successors has no end.",
   },
   {
     capability: "cancelDelegation",
@@ -231,14 +237,6 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
     description:
       "Stop a queued or running background task. Work it already wrote to the note stays — " +
       "cancelling is not undoing.",
-  },
-  {
-    capability: "restoreDelegationSnapshot",
-    agentName: "restore_delegation",
-    tier: "delegate",
-    description:
-      "Put the note a finished background task edited back exactly as it was before that " +
-      "task ran. Only that one task's changes are reverted, and only while it is not running.",
   },
 
   // ---- destructive-confirmed -----------------------------------------------
@@ -257,14 +255,27 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
     tier: "destructive-confirmed",
     description:
       "Propose undoing YOUR most recent edit to one note, restoring the bytes from just " +
-      "before it. Destructive because anything written since — by you or by the user — goes " +
+      "before it. Reaches only edits made in the CURRENT conversation; anything older is the " +
+      "user's own undo, not yours. Destructive: everything written to the note since goes " +
       "with it. The user is asked first and may say no.",
+  },
+  {
+    capability: "restoreDelegationSnapshot",
+    agentName: "restore_delegation",
+    tier: "destructive-confirmed",
+    description:
+      "Propose putting the note a finished background task edited back to the bytes it had " +
+      "before that task ran. The SAME whole-file rewind as undo_my_edits, keyed by task: " +
+      "everything written to that note since the run — the task's work, the user's, yours — " +
+      "goes with it. The user is asked first, and a running task refuses.",
   },
 ];
 
 /**
  * - `needs-a-human-at-a-screen` — the action only means anything when a person
  *   is present to see or answer it.
+ * - `window-bookkeeping` — the UI keeping step with itself; nothing a person
+ *   would recognize as work done.
  * - `recursive` — driving the agent itself.
  * - `configuration` — the user's settings and the status reads over them.
  * - `already-in-the-file-tools` — the same effect already reaches the agent
@@ -272,6 +283,7 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
  */
 export type AgentDenialReason =
   | "needs-a-human-at-a-screen"
+  | "window-bookkeeping"
   | "recursive"
   | "configuration"
   | "already-in-the-file-tools";
@@ -287,9 +299,9 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
   {
     reason: "needs-a-human-at-a-screen",
     why:
-      "These open a dialog, a browser, a microphone, a speaker, or the window the user is " +
-      "looking at. A person has to be there for the action to mean anything, and a person " +
-      "who is there does not need you to do it for them. Ask the user to do it and say where.",
+      "These open a dialog, a browser, a microphone, a speaker, or the window itself. The " +
+      "action only means anything with a person there — and a person who is there does not " +
+      "need you to do it for them. Ask them, and say where.",
     capabilities: [
       "transition",
       "reauthenticate",
@@ -298,10 +310,6 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "chooseVaultRoot",
       "mintHtmlAppToken",
       "revokeHtmlAppToken",
-      "refreshVault",
-      "setWatchedNote",
-      "ackCapture",
-      "takePendingDeepLinkNav",
       "ttsSend",
       "ttsFlush",
       "ttsInterrupt",
@@ -324,13 +332,22 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
     ],
   },
   {
+    reason: "window-bookkeeping",
+    why:
+      "The app window keeping step with itself: which note it watches, when it re-crawls the " +
+      "file listing, acknowledging a captured line it already applied, collecting a link the " +
+      "OS handed it. None of it changes a note, and the state behind it is rebuilt without " +
+      "you. If a note looks stale, read the file again — that is the real answer.",
+    capabilities: ["refreshVault", "setWatchedNote", "ackCapture", "takePendingDeepLinkNav"],
+  },
+  {
     reason: "recursive",
     why:
       "These drive an AI session — this conversation, its transcripts and system prompt, the " +
       "editor's inline-AI and ghost-text sessions, the unattended routines, and the channel " +
-      "that carries a human's answer to your own confirmation prompt. An agent that can " +
-      "queue its own turns, rewrite its own instructions or answer its own prompts has no " +
-      "stopping condition. Your turn ends when you stop.",
+      "your own confirmation prompts are answered on. An agent that can queue its own turns, " +
+      "rewrite its own instructions or answer its own prompts has no stopping condition. " +
+      "Your turn ends when you stop.",
     capabilities: [
       "sendAgentCommand",
       "getAgentHistory",
@@ -355,10 +372,10 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
   {
     reason: "configuration",
     why:
-      "These are the user's settings and the status reads over them — which AI provider, " +
-      "which vault, sync, remote access, notifications, voice, connectors, skills, window " +
-      "state. Configuration is the user's, and a setting you changed is one they never chose. " +
-      "Tell them which Settings section to open.",
+      "The user's settings and the status reads over them — AI provider, vault, sync, remote " +
+      "access, notifications, voice, connectors, skills, window state. Configuration is " +
+      "theirs, and a setting you changed is one they never chose. Tell them which Settings " +
+      "section to open.",
     capabilities: [
       "getAppState",
       "getAiProviderSettings",
@@ -388,9 +405,34 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
     reason: "already-in-the-file-tools",
     why:
       "You already read and write vault bytes with your own file tools, where every call is " +
-      "checked against the note's privacy on live disk and every write is captured so the " +
-      "user can undo it. A second route to the same bytes would be neither checked nor " +
-      "captured, so there is not one. Use `read`, `edit` and `write` under ./vault.",
+      "checked against the note's privacy on live disk and every write is captured for the " +
+      "user to undo. A second route to the same bytes would be neither, so there is not one. " +
+      "Use `read`, `edit` and `write` under ./vault.",
     capabilities: ["writeVaultDoc", "writeVaultAsset", "readVaultAsset", "probeNotePrivacy"],
   },
 ];
+
+/**
+ * The never-granted groups as the model reads them — the section the bundled
+ * AGENTS.md carries, rendered from the table so the prompt and the policy
+ * cannot disagree.
+ *
+ * The `capabilities` arrays stay out of it deliberately: those are bridge
+ * method names the model has never seen and cannot call, so listing them
+ * spends per-turn context on noise. The `why` is the whole answer.
+ */
+export function renderNeverGrantedSection(): string {
+  const groups = AGENT_NEVER_GRANTED.map(
+    (group) => `- **${group.reason.replaceAll("-", " ")}** — ${group.why}`,
+  );
+  return [
+    "## What you can't do",
+    "",
+    "The app can do these; you are not given them. When one is what the user needs, say so " +
+      "plainly and name the place in the app — don't invent a tool for it, and don't reach " +
+      "around it with `bash`, `browser` or `peekaboo`.",
+    "",
+    ...groups,
+    "",
+  ].join("\n");
+}

@@ -10,6 +10,7 @@ import {
 import { agentModelSelection } from "../provider/provider-service";
 import { isSetupComplete } from "@repo/agent/setup";
 import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
+import { markChatSessionStart, markChatTurnStart } from "./chat-session-clock";
 import { reduce } from "./app-reducer";
 import { runEffect, type EffectDeps } from "./app-effects";
 import {
@@ -56,6 +57,7 @@ type Turn = {
 let turn: Turn | null = null;
 
 function startTurn(): void {
+  markChatTurnStart();
   turn = {
     startedAt: Date.now(),
     assistantText: null,
@@ -201,6 +203,7 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
     throw err;
   }
   agent = next;
+  markChatSessionStart();
   // Settle the background start before returning, then wire it to the delegation
   // queue so any delegations queued before the agent was ready start draining.
   // If it failed to start, mark delegation unavailable so queued/new tasks fail

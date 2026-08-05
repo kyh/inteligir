@@ -164,13 +164,24 @@ export type AgentCheckpointPort = {
 // prefilter plus a live-disk re-probe of every survivor, dropping silently.
 // ---------------------------------------------------------------------------
 
-/** One bounded page. `limit` is clamped host-side: the privacy re-probe is a
- * file read per row, so an unbounded page would read the whole vault. */
-export type AgentPageOpts = { limit?: number | undefined };
+/** A page request: the FIRST `limit` rows in the projection's own order, with
+ * no cursor past them — `folder` (a vault-relative prefix; "" or absent = the
+ * whole vault) is the only way to reach what falls beyond. `limit` is clamped
+ * host-side: the privacy re-probe is a file read per row, so an unbounded page
+ * would read the whole vault. */
+export type AgentListingOpts = { limit?: number | undefined; folder?: string | undefined };
 
-/** A `listVault` page request. `folder` is a vault-relative prefix ("" or
- * absent = the whole vault). */
-export type AgentListingOpts = AgentPageOpts & { folder?: string | undefined };
+/** A refused port call — one model-safe sentence to relay verbatim. Reads and
+ * mutations share it: a sweep too big to run and a private note are both
+ * answers the model states, never exceptions it guesses at. */
+export type AgentRefusal = { ok: false; reason: string };
+
+/** The two whole-corpus sweeps. They report numbers over the WHOLE vault
+ * (counts, totals, degrees), so a truncated window would be a wrong number
+ * rather than a short page — there is nothing to paginate, only a size past
+ * which the sweep refuses. */
+export type AgentTagsResult = { ok: true; tags: TagCount[] } | AgentRefusal;
+export type AgentLinkGraphResult = { ok: true; graph: AgentLinkGraph } | AgentRefusal;
 
 /** A well-connected note. `degree` counts note-to-note edges over the graph
  * the caller was handed, so it means "connections you can see". */
@@ -228,10 +239,10 @@ export type AgentVaultPort = {
   listVault(opts?: AgentListingOpts): VaultEntry[];
   readVaultDoc(path: string): string | null;
   getVaultFileFacts(path: string): VaultFileFacts | null;
-  listVaultTasks(opts?: AgentPageOpts): VaultTaskEntry[];
-  listTags(): TagCount[];
-  listWikiTargets(opts?: AgentPageOpts): WikiTarget[];
-  getLinkGraph(): AgentLinkGraph;
+  listVaultTasks(opts?: AgentListingOpts): VaultTaskEntry[];
+  listTags(): AgentTagsResult;
+  listWikiTargets(opts?: AgentListingOpts): WikiTarget[];
+  getLinkGraph(): AgentLinkGraphResult;
   getSyncState(): AgentSyncState;
   listDelegations(): AgentDelegation[];
 };
@@ -247,13 +258,10 @@ export type AgentVaultPort = {
 // broker's `confirmRemove` hook, one level down, so no tool can forget to ask.
 // ---------------------------------------------------------------------------
 
-/** A refused action. `reason` is one model-safe sentence to relay verbatim. */
-export type AgentActionRefusal = { ok: false; reason: string };
-
-export type AgentToggleTaskResult = { ok: true; checked: boolean } | AgentActionRefusal;
-export type AgentDelegateResult = { ok: true; id: string; lineText: string } | AgentActionRefusal;
-export type AgentDeleteResult = { ok: true; trashed: boolean } | AgentActionRefusal;
-export type AgentActionOk = { ok: true } | AgentActionRefusal;
+export type AgentToggleTaskResult = { ok: true; checked: boolean } | AgentRefusal;
+export type AgentDelegateResult = { ok: true; id: string; lineText: string } | AgentRefusal;
+export type AgentDeleteResult = { ok: true; trashed: boolean } | AgentRefusal;
+export type AgentActionOk = { ok: true } | AgentRefusal;
 
 export type AgentActionPort = {
   /** Tick/untick one checkbox, keyed by ordinal AND the exact recorded line.
@@ -263,11 +271,14 @@ export type AgentActionPort = {
   /** Hand one checkbox to the background agent. */
   delegateTask(path: string, ordinal: number): AgentDelegateResult;
   cancelDelegation(id: string): AgentActionOk;
-  /** Restore a finished delegation's pre-run bytes. */
+  /** Propose rewinding the note a finished delegation edited to its pre-run
+   * bytes — the same whole-file overwrite as undoMyEdit, so it asks the user
+   * too. A decline is a refusal value. */
   restoreDelegation(id: string): Promise<AgentActionOk>;
   /** Propose trashing a file. Asks the user; a decline is a refusal value. */
   deleteNote(path: string): Promise<AgentDeleteResult>;
-  /** Propose undoing the agent's most recent captured edit to one note. */
+  /** Propose undoing the agent's most recent captured edit to one note, from
+   * the CURRENT conversation only. Asks the user. */
   undoMyEdit(path: string): Promise<AgentActionOk>;
 };
 

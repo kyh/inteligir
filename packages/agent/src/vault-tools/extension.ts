@@ -19,10 +19,9 @@
  * delimiter, so prose rows let a note forge hits pointing at paths it does not
  * own. Mutations answer with our own outcome sentence, which is not vault text.
  *
- * REFUSALS: the mutating ports answer with values, never throws, so this file
- * relays a refusal sentence verbatim and never invents one. A model that is
- * told "the note is private" can say so; a model that catches an exception
- * guesses.
+ * REFUSALS: the ports answer with values, never throws, so this file relays a
+ * refusal sentence verbatim and never invents one. A model that is told "the
+ * note is private" can say so; a model that catches an exception guesses.
  */
 
 import { Type, type Static } from "@sinclair/typebox";
@@ -30,12 +29,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { NotePathSchema } from "@repo/bridge/ipc-registry";
 
 import type { PiExtensionBundle } from "../extension";
-import {
-  grantedDescription,
-  jsonResult,
-  RESULT_SHAPE_NOTE,
-  textResult,
-} from "../extension-helpers";
+import { grantedDescription, jsonResult, textResult } from "../extension-helpers";
 
 // Page sizes the MODEL sees. The host clamps harder (its privacy re-probe is a
 // file read per row); these defaults exist so an unqualified call returns a
@@ -45,13 +39,18 @@ const LISTING_DEFAULT_LIMIT = 50;
 const TASKS_DEFAULT_LIMIT = 50;
 const WIKI_TARGETS_DEFAULT_LIMIT = 100;
 
+/** The one page shape all three listings take: a folder to narrow to (the only
+ * way past the first page — there is no cursor) and a size. */
+const FolderSchema = Type.Optional(
+  Type.String({
+    description:
+      "Vault-relative folder to look in, e.g. 'journal/2026'. Omit for the whole vault; " +
+      "narrowing is how you reach rows past the limit.",
+  }),
+);
+
 const ListVaultSchema = Type.Object({
-  folder: Type.Optional(
-    Type.String({
-      description:
-        "Vault-relative folder to list, e.g. 'journal' or 'projects/2026'. Omit for the whole vault.",
-    }),
-  ),
+  folder: FolderSchema,
   limit: Type.Optional(
     Type.Number({
       description: `Max entries to return (default ${LISTING_DEFAULT_LIMIT}; the host caps it lower on large pages).`,
@@ -60,6 +59,7 @@ const ListVaultSchema = Type.Object({
 });
 
 const PageSchema = Type.Object({
+  folder: FolderSchema,
   limit: Type.Optional(
     Type.Number({ description: "Max rows to return (the host caps it on large pages)." }),
   ),
@@ -73,14 +73,13 @@ const TaskRefSchema = Type.Object({
   }),
   ordinal: Type.Number({
     description:
-      "The checkbox's position among ALL checkboxes in that note, exactly as list_tasks " +
-      "reported it. Not a line number.",
+      "The checkbox's position among ALL checkboxes in that note, from list_tasks. Not a " +
+      "line number.",
   }),
   expectedRaw: Type.String({
     description:
-      "The checkbox's exact source line as list_tasks reported it, byte for byte. The write " +
-      "refuses unless the file still contains this line — that is what stops it ticking the " +
-      "wrong box. Never retype or reformat it.",
+      "The checkbox's exact source line from list_tasks, byte for byte. The write refuses " +
+      "unless the file still contains it — that is what stops it ticking the wrong box.",
   }),
 });
 
@@ -97,13 +96,6 @@ const DelegationIdSchema = Type.Object({
   id: Type.String({ description: "The delegation id, from list_delegations or delegate_task." }),
 });
 
-/** One outcome sentence for a refused action — the port's own words, relayed
- * unchanged so the user hears the real reason (private note, stale line,
- * declined proposal) rather than a paraphrase. */
-function refusal(reason: string): ReturnType<typeof textResult> {
-  return textResult(reason);
-}
-
 const vaultExtension: PiExtensionBundle = {
   name: "vault-tools",
   register:
@@ -116,8 +108,8 @@ const vaultExtension: PiExtensionBundle = {
         name: "list_vault",
         label: "list_vault",
         description:
-          `${grantedDescription("list_vault")} ${RESULT_SHAPE_NOTE} Each element is ` +
-          "`{path, name, kind}`, kind being 'doc' or 'asset'.",
+          `${grantedDescription("list_vault")} Each element is \`{path, name, kind}\`, ` +
+          "kind being 'doc' or 'asset'.",
         parameters: ListVaultSchema,
         execute: async (_toolCallId, params: Static<typeof ListVaultSchema>) => {
           const entries = vault.listVault({
@@ -138,12 +130,12 @@ const vaultExtension: PiExtensionBundle = {
         description:
           `${grantedDescription("read_note")} Returns the markdown itself, frontmatter ` +
           "included — or one sentence saying there is nothing readable there. Your own " +
-          "`read` tool under ./vault does the same job; this one applies the vault's limits.",
+          "`read` tool under ./vault does the same job.",
         parameters: NotePathSchema,
         execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const text = vault.readVaultDoc(params.path);
           if (text === null) {
-            return refusal(
+            return textResult(
               `No readable note at ./vault/${params.path} (missing, not a markdown note, or too large).`,
             );
           }
@@ -155,8 +147,8 @@ const vaultExtension: PiExtensionBundle = {
         name: "get_note_facts",
         label: "get_note_facts",
         description:
-          `${grantedDescription("get_note_facts")} ${RESULT_SHAPE_NOTE} The array holds ` +
-          "one `{path, size, modifiedAt}` element, or is empty when there is no such file.",
+          `${grantedDescription("get_note_facts")} The array holds one ` +
+          "`{path, size, modifiedAt}` element, or is empty when there is no such file.",
         parameters: NotePathSchema,
         execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const facts = vault.getVaultFileFacts(params.path);
@@ -168,13 +160,14 @@ const vaultExtension: PiExtensionBundle = {
         name: "list_tasks",
         label: "list_tasks",
         description:
-          `${grantedDescription("list_tasks")} This is the ONLY source of the \`ordinal\` ` +
-          "and `expectedRaw` that toggle_task and delegate_task require. " +
-          `${RESULT_SHAPE_NOTE} Each element is \`{path, ordinal, raw, text, checked}\` — ` +
-          "pass `raw` as `expectedRaw`.",
+          `${grantedDescription("list_tasks")} The ONLY source of those two values. Each ` +
+          "element is `{path, ordinal, raw, text, checked}` — pass `raw` as `expectedRaw`.",
         parameters: PageSchema,
         execute: async (_toolCallId, params: Static<typeof PageSchema>) => {
-          const tasks = vault.listVaultTasks({ limit: params.limit ?? TASKS_DEFAULT_LIMIT });
+          const tasks = vault.listVaultTasks({
+            folder: params.folder,
+            limit: params.limit ?? TASKS_DEFAULT_LIMIT,
+          });
           return textResult(
             jsonResult(
               tasks.map((task) => ({
@@ -194,21 +187,24 @@ const vaultExtension: PiExtensionBundle = {
         label: "list_tags",
         description:
           `${grantedDescription("list_tags")} Inline \`#tags\` and frontmatter \`tags:\` ` +
-          "together; narrow to one with search_vault's `tag`. " +
-          `${RESULT_SHAPE_NOTE} Each element is \`{tag, count}\`.`,
+          "together; narrow to one with search_vault's `tag`. Each element is `{tag, count}`.",
         parameters: NoArgsSchema,
-        execute: async () => textResult(jsonResult(vault.listTags())),
+        execute: async () => {
+          const result = vault.listTags();
+          return result.ok ? textResult(jsonResult(result.tags)) : textResult(result.reason);
+        },
       });
 
       pi.registerTool({
         name: "list_wiki_targets",
         label: "list_wiki_targets",
         description:
-          `${grantedDescription("list_wiki_targets")} ${RESULT_SHAPE_NOTE} Each element ` +
-          "is `{path, title, type, aliases}`.",
+          `${grantedDescription("list_wiki_targets")} Each element is ` +
+          "`{path, title, type, aliases}`.",
         parameters: PageSchema,
         execute: async (_toolCallId, params: Static<typeof PageSchema>) => {
           const targets = vault.listWikiTargets({
+            folder: params.folder,
             limit: params.limit ?? WIKI_TARGETS_DEFAULT_LIMIT,
           });
           return textResult(
@@ -232,7 +228,10 @@ const vaultExtension: PiExtensionBundle = {
           'and "what are the hubs?". Returns a JSON object — this one is our own derived ' +
           "summary, not note text.",
         parameters: NoArgsSchema,
-        execute: async () => textResult(JSON.stringify(vault.getLinkGraph())),
+        execute: async () => {
+          const result = vault.getLinkGraph();
+          return result.ok ? textResult(JSON.stringify(result.graph)) : textResult(result.reason);
+        },
       });
 
       pi.registerTool({
@@ -250,9 +249,8 @@ const vaultExtension: PiExtensionBundle = {
         name: "list_delegations",
         label: "list_delegations",
         description:
-          `${grantedDescription("list_delegations")} ${RESULT_SHAPE_NOTE} Each element is ` +
-          "`{id, sourceFile, lineText, status, createdAt, startedAt, finishedAt, " +
-          "resultSummary, error}`.",
+          `${grantedDescription("list_delegations")} Each element is \`{id, sourceFile, ` +
+          "lineText, status, createdAt, startedAt, finishedAt, resultSummary, error}`.",
         parameters: NoArgsSchema,
         execute: async () => textResult(jsonResult(vault.listDelegations())),
       });
@@ -267,12 +265,12 @@ const vaultExtension: PiExtensionBundle = {
         name: "toggle_task",
         label: "toggle_task",
         description:
-          `${grantedDescription("toggle_task")} It FLIPS whichever state the line is in, ` +
-          "so read `checked` from list_tasks before calling if you need a specific state.",
+          `${grantedDescription("toggle_task")} It FLIPS the line's current state, so read ` +
+          "`checked` from list_tasks first if you need a specific one.",
         parameters: TaskRefSchema,
         execute: async (_toolCallId, params: Static<typeof TaskRefSchema>) => {
           const result = actions.toggleTask(params.path, params.ordinal, params.expectedRaw);
-          if (!result.ok) return refusal(result.reason);
+          if (!result.ok) return textResult(result.reason);
           return textResult(
             `${result.checked ? "Checked" : "Unchecked"} the task at ordinal ${params.ordinal} in ${params.path}.`,
           );
@@ -284,12 +282,12 @@ const vaultExtension: PiExtensionBundle = {
         name: "delegate_task",
         label: "delegate_task",
         description:
-          `${grantedDescription("delegate_task")} Refuses a private note, a stale ` +
-          "checkbox, or a vault with no AI provider connected; the refusal says which.",
+          `${grantedDescription("delegate_task")} Refuses a private note, a stale checkbox, ` +
+          "no connected AI provider, or one delegation too many this turn — it says which.",
         parameters: DelegateSchema,
         execute: async (_toolCallId, params: Static<typeof DelegateSchema>) => {
           const result = actions.delegateTask(params.path, params.ordinal);
-          if (!result.ok) return refusal(result.reason);
+          if (!result.ok) return textResult(result.reason);
           return textResult(
             `Delegated "${result.lineText}" to the background agent (id ${result.id}). ` +
               `Its status is in list_delegations.`,
@@ -308,20 +306,7 @@ const vaultExtension: PiExtensionBundle = {
           const result = actions.cancelDelegation(params.id);
           return result.ok
             ? textResult(`Cancelled background task ${params.id}.`)
-            : refusal(result.reason);
-        },
-      });
-
-      pi.registerTool({
-        name: "restore_delegation",
-        label: "restore_delegation",
-        description: grantedDescription("restore_delegation"),
-        parameters: DelegationIdSchema,
-        execute: async (_toolCallId, params: Static<typeof DelegationIdSchema>) => {
-          const result = await actions.restoreDelegation(params.id);
-          return result.ok
-            ? textResult(`Restored the note background task ${params.id} edited.`)
-            : refusal(result.reason);
+            : textResult(result.reason);
         },
       });
 
@@ -330,12 +315,12 @@ const vaultExtension: PiExtensionBundle = {
         name: "delete_note",
         label: "delete_note",
         description:
-          `${grantedDescription("delete_note")} Say what you are about to delete before ` +
-          "you call this, so the user is not surprised by the dialog.",
+          `${grantedDescription("delete_note")} Say what you are deleting before you call ` +
+          "this, so the dialog does not surprise the user.",
         parameters: NotePathSchema,
         execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const result = await actions.deleteNote(params.path);
-          if (!result.ok) return refusal(result.reason);
+          if (!result.ok) return textResult(result.reason);
           return textResult(
             result.trashed
               ? `Moved ${params.path} to the system trash. The user can recover it from there.`
@@ -348,14 +333,29 @@ const vaultExtension: PiExtensionBundle = {
         name: "undo_my_edits",
         label: "undo_my_edits",
         description:
-          `${grantedDescription("undo_my_edits")} Only edits made in this conversation ` +
-          "can be undone this way; a background task's edits belong to restore_delegation.",
+          `${grantedDescription("undo_my_edits")} A background task's edits belong to ` +
+          "restore_delegation instead.",
         parameters: NotePathSchema,
         execute: async (_toolCallId, params: Static<typeof NotePathSchema>) => {
           const result = await actions.undoMyEdit(params.path);
           return result.ok
             ? textResult(`Restored ${params.path} to its state before my last edit.`)
-            : refusal(result.reason);
+            : textResult(result.reason);
+        },
+      });
+
+      pi.registerTool({
+        name: "restore_delegation",
+        label: "restore_delegation",
+        description:
+          `${grantedDescription("restore_delegation")} Name the note it rewinds before you ` +
+          `call this, so the dialog does not surprise the user.`,
+        parameters: DelegationIdSchema,
+        execute: async (_toolCallId, params: Static<typeof DelegationIdSchema>) => {
+          const result = await actions.restoreDelegation(params.id);
+          return result.ok
+            ? textResult(`Restored the note background task ${params.id} edited.`)
+            : textResult(result.reason);
         },
       });
     },

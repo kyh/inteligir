@@ -45,7 +45,9 @@
 // and a number computed over a truncated window would disagree with the list
 // beside it — which is itself a private-note oracle. Both pay the full sweep,
 // both say so at their definitions, and both belong on a tool a model calls
-// once, never in a loop.
+// once, never in a loop. Since neither can be paginated, both REFUSE above a
+// corpus ceiling (MAX_SWEEP_NOTES) rather than block the host thread on a vault
+// large enough to make one call take seconds.
 // ---------------------------------------------------------------------------
 
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
@@ -329,6 +331,26 @@ function pageLimit(limit: number | undefined): number {
   return Math.min(Math.max(limit ?? MAX_PAGE_ENTRIES, 1), MAX_PAGE_ENTRIES);
 }
 
+/** Corpus ceiling for the two sweeps no page can bound (`listTags`,
+ * `getLinkGraph`). Both are synchronous and O(vault) — a full probe per note on
+ * the host thread, with the renderer's own IPC behind it — so past some size
+ * the honest answer is that this question is too expensive to ask, not a UI
+ * frozen mid-turn. Deliberately generous: a vault this large is far past where
+ * "read everything" was ever the right tool. */
+const MAX_SWEEP_NOTES = 2_000;
+
+/** The refusal both sweeps relay verbatim: what happened, the number, and the
+ * tool that answers the same question within a page. */
+function sweepRefusal(question: string, notes: number): { ok: false; reason: string } {
+  return {
+    ok: false,
+    reason:
+      `This vault has ${notes} notes, past the ${MAX_SWEEP_NOTES} this can read in one pass, ` +
+      `so ${question} is not available here. Use search_vault, or list_vault with a folder, ` +
+      `and answer from a part of the vault instead.`,
+  };
+}
+
 /** The largest doc `readVaultDoc` will hand back. Everything the port returns
  * lands verbatim in the session transcript and is re-sent with every subsequent
  * turn, so one oversized note is a recurring cost for the whole session. Over
@@ -452,9 +474,11 @@ export function buildAgentVaultPort(deps: {
     // live probe overrules the index.
     listVaultTasks: (opts) => {
       const live = openProbe(deps.probe);
+      const prefix = normalizeFolder(opts?.folder);
       return deps
         .queries()
         .tasks(EXCLUDE)
+        .filter((task) => task.path.startsWith(prefix))
         .slice(0, pageLimit(opts?.limit))
         .filter((task) => live.emittable(task.path));
     },
@@ -480,6 +504,8 @@ export function buildAgentVaultPort(deps: {
     // turned private in the last ~100ms, the surviving entry renders its
     // capitalization — letter case only, never a path or a count.
     listTags: () => {
+      const notes = docCount(deps.vault());
+      if (notes > MAX_SWEEP_NOTES) return sweepRefusal("the tag list", notes);
       const queries = deps.queries();
       const live = openProbe(deps.probe);
       const counted: TagCount[] = [];
@@ -491,9 +517,12 @@ export function buildAgentVaultPort(deps: {
       }
       // Mirrors the tag index's own ordering (most-used first, ties
       // alphabetical case-insensitively) — recomputing counts reorders it.
-      return counted.toSorted(
-        (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),
-      );
+      return {
+        ok: true,
+        tags: counted.toSorted(
+          (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),
+        ),
+      };
     },
 
     // A vault LISTING: a doc's path, title and aliases are all the leak, so a
@@ -502,9 +531,11 @@ export function buildAgentVaultPort(deps: {
     // before probing — the same window rule as listVaultTasks.
     listWikiTargets: (opts) => {
       const live = openProbe(deps.probe);
+      const prefix = normalizeFolder(opts?.folder);
       return deps
         .queries()
         .wikiTargets(EXCLUDE)
+        .filter((target) => target.path.startsWith(prefix))
         .slice(0, pageLimit(opts?.limit))
         .filter((target) => target.type !== "doc" || live.emittable(target.path));
     },
@@ -516,8 +547,10 @@ export function buildAgentVaultPort(deps: {
     // O(notes) disk reads per call — expensive on purpose, and the reason this
     // belongs on a tool a model calls once, never in a loop.
     getLinkGraph: () => {
+      const notes = docCount(deps.vault());
+      if (notes > MAX_SWEEP_NOTES) return sweepRefusal("the link-graph summary", notes);
       const live = openProbe(deps.probe);
-      return summarizeGraph(deps.queries().graph(EXCLUDE), live.emittable);
+      return { ok: true, graph: summarizeGraph(deps.queries().graph(EXCLUDE), live.emittable) };
     },
 
     getSyncState: () => {
@@ -560,6 +593,14 @@ export function buildAgentVaultPort(deps: {
         );
     },
   };
+}
+
+/** Notes in the vault, from the listing crawl the host already keeps warm — the
+ * gate on the two unbounded sweeps. It counts every doc including private ones:
+ * a size check that varied with what the caller may see would report the shape
+ * of the private set. */
+function docCount(vault: VaultReads): number {
+  return vault.list().filter((entry) => entry.kind === "doc").length;
 }
 
 /** Normalize a caller's folder argument to a vault-relative prefix ending in

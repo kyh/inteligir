@@ -31,10 +31,17 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
  * The blueprints are here because they quote real channels as WORKED EXAMPLES
  * of the mechanism, never as callers: a channel named only by a blueprint is
  * dead, and counting the mention as demand would prop it up forever. A new
- * blueprint that quotes channel names belongs in this list too. */
+ * blueprint that quotes channel names belongs in this list too.
+ *
+ * The agent grant table is here for the sharpest version of the same reason: it
+ * partitions the WHOLE non-event registry by construction (agent-grant-parity
+ * enforces exactly that), and most of what it names, it names in order to DENY
+ * — the opposite of a consumer. Left in the corpus it would keep nearly every
+ * channel in the registry looking alive. */
 const SUPPLY = new Set(
   [
     "packages/bridge/src/ipc-registry.ts",
+    "packages/bridge/src/agent-grants.ts",
     "apps/desktop/dev/fixture-bridge.ts",
     "packages/server/src/__tests__/no-dead-channels.test.ts",
     ".claude/skills/add-bridge-channel/SKILL.md",

@@ -40,8 +40,10 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   every survivor re-probed against live disk, dropped silently rather than
   annotated. Counts are recomputed over the notes that survive, so no number
   disagrees with the list beside it. The mutating ones (`toggle_task`,
-  `delete_note`, `undo_my_edits`) refuse a private target outright, the way
-  delegation already does.
+  `delete_note`, `undo_my_edits`, and the two keyed by a delegation id —
+  `cancel_delegation`, `restore_delegation`, which resolve the task's source
+  note and probe that) refuse a private target outright, the way delegation
+  already does.
 - **Editor AI is hard-off.** Ghost-text stops and the ⌘J menu (prompts,
   canned actions, translate) refuses with a toast, derived live from the
   document — the instant you type `private: true`, before any save. This

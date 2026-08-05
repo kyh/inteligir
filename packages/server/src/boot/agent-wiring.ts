@@ -17,6 +17,7 @@ import { resetProviderConfig } from "../provider/provider-config";
 import type { AgentPorts, PrivacyProbe } from "@repo/agent/extension";
 import { buildAgentKnowledgePort, buildAgentVaultPort } from "./agent-knowledge-port";
 import { buildAgentActionPort } from "./agent-action-port";
+import { chatSessionStartedAt, chatTurnSequence } from "../app/chat-session-clock";
 import {
   getConfirmationBroker,
   resetConfirmationBroker,
@@ -106,11 +107,33 @@ export function getAgentPorts(): AgentPorts {
     actions: buildAgentActionPort({
       probe: probeVaultPrivacy,
       vault: getVaultManager,
-      delegations: getDelegationManager,
-      restores: getRestoreManager,
+      delegations: () => {
+        const manager = getDelegationManager();
+        return {
+          createDelegation: (params) => manager.createDelegation(params),
+          cancelDelegation: (id) => manager.cancelDelegation(id),
+          restoreSnapshot: (id) => manager.restoreSnapshot(id),
+          // The record narrowed to the one field the port needs: a PATH to
+          // probe, so an id-keyed action is privacy-checked like a path-keyed
+          // one. Nothing else of the record crosses.
+          find: (id) => {
+            const record = manager.getDelegations().find((delegation) => delegation.id === id);
+            return record === undefined ? null : { sourceFile: record.sourceFile };
+          },
+        };
+      },
+      restores: () => {
+        const manager = getRestoreManager();
+        return {
+          latestChatEdit: (path, since) => manager.latestChatEdit(path, since),
+          restoreChatEdit: (id) => manager.restoreChatEdits([id]),
+        };
+      },
       capture: (path) =>
         getRestoreManager().capture({ origin: "chat", target: { rel: path, tool: "edit" } }),
       confirm: (proposal) => getConfirmationBroker().ask(proposal),
+      chatSessionStartedAt,
+      turnSequence: chatTurnSequence,
       onStaleProjection: () => {
         void getKnowledgeManager().refresh();
       },

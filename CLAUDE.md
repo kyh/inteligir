@@ -477,8 +477,10 @@ indirect connections with reasons), and the link-rewriting `rename_note`
 over the knowledge engine. `vault-tools/` exposes the rest of the granted
 surface: the whole-vault + host-state reads (listing, note read, file facts,
 tasks, tags, wiki targets, link graph, sync state, delegations), the guarded
-`toggle_task`, the delegation trio, and the two destructive proposals
-(`delete_note`, `undo_my_edits`). Result rows are a JSON array, never
+`toggle_task`, delegation (`delegate_task`, `cancel_delegation`), and the
+three destructive proposals (`delete_note`, `undo_my_edits`,
+`restore_delegation` — the last two are ONE primitive, a whole-file rewind to
+captured bytes, so they share a tier). Result rows are a JSON array, never
 newline-joined prose — a note body can contain both the row and field
 delimiters, so prose encoding let a note forge hits pointing at paths it
 does not own (`jsonResult` in `extension-helpers.ts` is the one encoder).
@@ -491,10 +493,14 @@ device reaches the identical handler and the agent must not: every row is
 implemented over a privacy-projecting port
 (`packages/server/src/boot/agent-knowledge-port.ts`,
 `agent-action-port.ts`), never a window handler. The mutating tiers capture a
-restore point before writing (fail-closed) and the destructive pair raises a
+restore point before writing (fail-closed) and the destructive tier raises a
 human confirmation host-side, inside the port, so no tool can skip it
 (`agent-confirm/confirmation-broker.ts` → `onAgentConfirmationRequested`;
-unanswered expires as a decline). The mutating tiers are absent from the
+unanswered expires as a decline); `delegate_task` is additionally capped per
+turn, being the one capability that manufactures agent turns. The
+never-granted groups' `why` is rendered into the seeded bundled AGENTS.md
+(`renderNeverGrantedSection` → `composeAgentInstructions`), so a denial is
+stated to the model rather than met with silence. The mutating tiers are absent from the
 UNATTENDED background session (`AgentPorts.actions` is null there, like
 `checkpoints`): a proposal has no conversation to be confirmed in, and a
 background agent that could delegate would queue its own successors. Both are

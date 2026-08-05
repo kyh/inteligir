@@ -9,8 +9,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { listSkills as listSkillsFromDisk } from "@repo/agent/pi/skills";
-import { prependPath, seedDirectory, seedFile } from "@repo/installer/seed";
+import { prependPath, seedContent, seedDirectory } from "@repo/installer/seed";
 import { readCliVersion } from "@repo/installer/install";
+import { renderNeverGrantedSection } from "@repo/bridge/agent-grants";
 
 import { EXTENSION_BUNDLES } from "./bundles";
 import {
@@ -58,6 +59,21 @@ export function buildRegisterContext(ports: AgentPorts): ExtensionRegisterContex
   return { binDir: BIN_DIR, ports };
 }
 
+/**
+ * The bundled AGENTS.md as the agent actually receives it: the shipped prose
+ * plus the never-granted section RENDERED from the grant table
+ * (@repo/bridge/agent-grants). The denial groups' `why` is written for a model
+ * and is the only place "the agent can't do that" is ever said out loud, so it
+ * belongs in the prompt — and generating it here is what stops the file and the
+ * policy from disagreeing after someone edits one of them.
+ *
+ * Exported for the budget test, which must measure these bytes rather than the
+ * resource file's: what costs context is what gets seeded.
+ */
+export function composeAgentInstructions(bundled: string): string {
+  return `${bundled.trimEnd()}\n\n${renderNeverGrantedSection()}`;
+}
+
 // ---------------------------------------------------------------------------
 // Lifecycle: setup
 // ---------------------------------------------------------------------------
@@ -93,7 +109,11 @@ export async function seedResources(
     console.warn(`[agent] ${msg} — continuing without seed (dev only)`);
   } else {
     seedDirectory(path.join(ctx.bundledResourcesDir, "skills"), path.join(AGENT_DIR, "skills"));
-    seedFile(path.join(ctx.bundledResourcesDir, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
+    const bundledInstructions = path.join(ctx.bundledResourcesDir, "AGENTS.md");
+    if (fs.existsSync(bundledInstructions)) {
+      const bundled = fs.readFileSync(bundledInstructions, "utf8");
+      seedContent(path.join(AGENT_DIR, "AGENTS.md"), composeAgentInstructions(bundled));
+    }
   }
 
   await runBundleSetups(EXTENSION_BUNDLES, ctx);
