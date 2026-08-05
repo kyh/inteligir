@@ -18,10 +18,14 @@ import { generateDeviceKey, installRandomSource, mintDeviceAssertion } from "./d
 import { createDeviceStore, type EnrolledDevice } from "./device-store";
 import { enrollWithPairingBlob, type EnrollResult } from "./enroll";
 
-// The one place the device key's randomness is named. expo-crypto's
-// getRandomBytes is the platform CSPRNG; React Native's ambient
-// `crypto.getRandomValues` is not, and noble would otherwise reach for it.
-installRandomSource(Crypto.getRandomBytes);
+// The one place the device key's randomness is named, and the entry point
+// matters: expo-crypto's `getRandomBytes` carries a __DEV__ branch that fills
+// from Math.random() when remote debugging is on, so a key minted under a
+// debugger would be silently, unrecoverably weak. `getRandomValues` has no
+// such branch — it calls the native module and nothing else. React Native's
+// ambient `crypto.getRandomValues` is not a CSPRNG either, and noble would
+// reach for it unasked.
+installRandomSource((byteCount) => Crypto.getRandomValues(new Uint8Array(byteCount)));
 
 const secureStringStore: StringStorePort = {
   get: (key) => SecureStore.getItem(key),

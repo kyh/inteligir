@@ -43,6 +43,10 @@ export function SyncDevices({
 
   const vaultId = device?.vaultId ?? null;
   const loadRoster = useCallback(() => {
+    // Any roster change retires a shown offer: the blob is a live capability
+    // for its whole TTL, and leaving it on screen next to a device that just
+    // changed reads as if it belonged to that device.
+    setOffer(null);
     if (vaultId === null) {
       setDevices(null);
       return;
