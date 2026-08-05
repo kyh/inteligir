@@ -16,6 +16,7 @@ apps/cloud/
     route.ts              # matchRoute(): parse the @repo/notes/sync/wire routes into an ADT
     device-assertion.ts   # parse + verify a device assertion — the ONE module the Worker and DO share
     device-body.ts        # boundary parsers for the enroll/revoke request bodies
+    rate-limit.ts         # fixed-window budget over the shared rate_limit D1 table
     hash.ts               # sha256Hex()/sha256Bytes() — server-authoritative content hashing
     log.ts                # logUnhandled() — the structured error line both fetch entries emit
     env.d.ts              # types the OPTIONAL runtime vars onto Env (the required one is generated)
@@ -76,8 +77,11 @@ push` — no migration files (`pnpm db:push:local` / `db:push`).
 
 The second, account-free identity model, running **alongside** the one above.
 A bearer that parses as a device assertion is judged as one; anything else goes
-to Better Auth. The device routes accept only device credentials, so neither
-model reaches into the other.
+to Better Auth — except on a `v1…` vaultId, where a session is refused outright
+(`401 device-credential-required`) so an account cannot claim a vault no device
+founded. Every account-model vaultId is a UUID, so nothing live is affected.
+The device routes accept only device credentials, so neither model reaches into
+the other.
 
 - **A vaultId is the fingerprint of its founding key** —
   `"v1" + base32lower(sha256(rawEd25519PublicKey))`, `^v1[a-z2-7]{52}$`. Claiming
@@ -97,21 +101,54 @@ Bearer <string>` like everything else, which is why `HttpSyncPort` needed
   so it is the only component that can answer membership without an extra hop —
   a membership question about its own state, not a second credential check.
 - **Founding is arithmetic**: an empty roster admits exactly the key whose
-  digest reproduces the DO's own name. An empty roster also still admits a
-  Better Auth session (that is every vault today); the first device to found
-  takes that door away.
+  digest reproduces the DO's own name. The DO also admits a session-authorized
+  request while its roster is empty — reachable only for a UUID vault (that is
+  every vault today), since the Worker refuses a session on a `v1…` id; the
+  first device to found takes that door away too.
+- **A 403 never says whether a vault has been founded.** An unenrolled key and a
+  non-founding key on an empty roster get the SAME `device-not-enrolled`;
+  distinguishing them would make any key holder a prober of founding state.
 - **Growth is by signature.** An enrolled device POSTs `enroll-offer` with
   `sha256hex(secret)` — the server never holds the secret. The joining device
   POSTs `enroll` with the secret itself, **unauthenticated by design**. Wrong,
   expired, already-consumed and over-the-attempt-budget all answer an identical
-  `{ok:false}`, so the route is not an offer-existence oracle.
+  `{ok:false}`, so the route is not an offer-existence oracle. It is gated on
+  the vaultId's shape and on a **10/60s-per-IP budget in the Worker**, both
+  _before_ `getByName`. The secret itself must decode
+  to **≥ 32 bytes** (`MIN_ENROLL_SECRET_BYTES`) — the server cannot check
+  randomness, but a short preimage of the stored `sha256hex(secret)` is
+  searchable, so length is refused at both ends.
+- **A stranger can instantiate an empty Durable Object.** Anyone can generate a
+  keypair offline and self-sign an assertion naming any well-shaped `v1…` id; the
+  signature verifies against the key inside it, so the Worker has nothing to
+  object to and the DO runs before answering `device-not-enrolled`. Closing it
+  would need the roster, which lives in the DO — until it is consulted, an
+  enrolled non-founding device and a stranger are the same request. Accepted: the
+  cost is a DO with three empty tables, never vault access. The shape gate and the
+  enroll budget bound the malformed and credential-free cases only.
+
 - **Revocation is a tombstone**, never a `DELETE` — a replayed offer must not
   resurrect a key — and it **closes every open SSE subscriber**, because the DO
   cannot tell which stream belongs to the revoked device. Honest ones reconnect
-  and re-authenticate.
+  and re-authenticate. Revoking the **last live device is refused**
+  (`{ok:false, reason:"last-device"}`): a vault with no live key can neither
+  authenticate nor enroll, so that one tombstone strands the DO and its R2 prefix
+  permanently. Leaving is a client-side "disconnect this vault", not a revoke.
 - **Clock skew is a liveness dependency.** A 401's body carries the reason
   (`assertion-expired`, `assertion-not-yet-valid`, …) so a client can say "check
   this device's clock" rather than "sign in again" — there is no sign-in to offer.
+- **Accepted residual: an assertion is replayable across routes.** It binds the
+  vault and a ≤5-minute window, but NOT the method, path or body — so a captured
+  `Authorization` header is good on **every route of that vault** until it
+  expires: `GET manifest`, `GET/PUT/DELETE file`, `GET changes`, `POST
+enroll-offer`, `GET devices` and `POST revoke`. Concretely, within those minutes
+  a captured header can read and overwrite any file, mint a pairing offer that
+  enrolls an attacker's key permanently, and tombstone devices (all but the
+  last). TLS is what keeps the header off the wire; the fix, if that stops being
+  enough, is to cover the request in the signature — the seam is
+  `deviceAssertionSignedBytes` in `@repo/notes/sync/wire`, whose
+  domain-separated prefix exists precisely so a second signed shape can be added
+  without either being replayable as the other.
 
 ### CORS
 

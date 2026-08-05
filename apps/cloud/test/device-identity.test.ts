@@ -1,17 +1,23 @@
 import {
+  base64UrlEncode,
   changesPath,
   devicesPath,
   enrollOfferPath,
   enrollPath,
+  filePath,
   formatBearer,
+  formatVersionHeader,
+  HEADER_BASE_VERSION,
   manifestPath,
+  MIN_ENROLL_SECRET_BYTES,
   revokePath,
   type DeviceListResponse,
   type EnrollOfferResponse,
   type EnrollResponse,
   type RevokeResponse,
 } from "@repo/notes/sync/wire";
-import { SELF } from "cloudflare:test";
+import { ABSENT_VERSION } from "@repo/notes/sync/vault-file";
+import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { MAX_ASSERTION_LIFETIME_SECONDS, MAX_CLOCK_SKEW_SECONDS } from "../src/device-assertion";
 import {
@@ -73,6 +79,15 @@ function redeem(vaultId: string, s: string, joiner: TestDevice, deviceName = "Ph
   });
 }
 
+/** `signer` asks the roster to tombstone `publicKey`. */
+async function revoke(signer: TestDevice, vaultId: string, publicKey: string): Promise<Response> {
+  return SELF.fetch(ORIGIN + revokePath(vaultId), {
+    method: "POST",
+    headers: { ...json, ...(await signer.auth(vaultId)) },
+    body: JSON.stringify({ publicKey }),
+  });
+}
+
 describe("founding", () => {
   it("a device founds the vault its own key names, and lands on the roster", async () => {
     const desktop = await createDevice();
@@ -100,7 +115,7 @@ describe("founding", () => {
       headers: await stranger.auth(founder.vaultId),
     });
     expect(res.status).toBe(403);
-    expect(await res.text()).toBe("not-founder");
+    expect(await res.text()).toBe("device-not-enrolled");
   });
 
   it("a valid signature that is not on the roster is refused (403)", async () => {
@@ -113,6 +128,25 @@ describe("founding", () => {
     });
     expect(res.status).toBe(403);
     expect(await res.text()).toBe("device-not-enrolled");
+  });
+
+  it("the refusal is not a founding oracle: founded and unfounded read the same", async () => {
+    const founded = await createDevice();
+    await found(founded);
+    const unfounded = await createDevice();
+    const prober = await createDevice();
+
+    const [onFounded, onUnfounded] = await Promise.all([
+      SELF.fetch(ORIGIN + manifestPath(founded.vaultId), {
+        headers: await prober.auth(founded.vaultId),
+      }),
+      SELF.fetch(ORIGIN + manifestPath(unfounded.vaultId), {
+        headers: await prober.auth(unfounded.vaultId),
+      }),
+    ]);
+    expect([onFounded.status, onUnfounded.status]).toEqual([403, 403]);
+    expect(await onFounded.text()).toBe("device-not-enrolled");
+    expect(await onUnfounded.text()).toBe("device-not-enrolled");
   });
 });
 
@@ -331,6 +365,54 @@ describe("enrollment", () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it("a secret under the entropy floor is refused, well-formed or not", async () => {
+    const desktop = await createDevice();
+    const joiner = await createDevice();
+    await found(desktop);
+
+    const short = base64UrlEncode(
+      crypto.getRandomValues(new Uint8Array(MIN_ENROLL_SECRET_BYTES - 1)),
+    );
+    const res = await SELF.fetch(ORIGIN + enrollPath(desktop.vaultId), {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({ s: short, publicKey: joiner.publicKey, deviceName: "Phone" }),
+    });
+    expect(res.status).toBe(400);
+    expect((await manifest(joiner, desktop.vaultId)).status).toBe(403);
+  });
+
+  it("the credential-free redeem route is throttled, so DOs are not unbounded", async () => {
+    const joiner = await createDevice();
+    const pairing = await createEnrollOffer();
+    // A budget this test owns: keyed by IP, and nothing else here sends one.
+    const headers = { ...json, "cf-connecting-ip": "203.0.113.7" };
+
+    env.RATE_LIMIT_DISABLED = "false";
+    try {
+      const statuses: number[] = [];
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        // A different unfounded vaultId each time — the budget, not the vault,
+        // is the thing that has to stop this.
+        const target = await createDevice();
+        const res = await SELF.fetch(ORIGIN + enrollPath(target.vaultId), {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            s: pairing.s,
+            publicKey: joiner.publicKey,
+            deviceName: "Phone",
+          }),
+        });
+        statuses.push(res.status);
+      }
+      expect(statuses.slice(0, 10)).toEqual(Array<number>(10).fill(200));
+      expect(statuses.slice(10)).toEqual([429, 429]);
+    } finally {
+      env.RATE_LIMIT_DISABLED = "true";
+    }
+  });
 });
 
 describe("revocation", () => {
@@ -343,11 +425,7 @@ describe("revocation", () => {
     expect((await manifest(phone, desktop.vaultId)).status).toBe(200);
 
     const revoked = await readJson<RevokeResponse>(
-      await SELF.fetch(ORIGIN + revokePath(desktop.vaultId), {
-        method: "POST",
-        headers: { ...json, ...(await desktop.auth(desktop.vaultId)) },
-        body: JSON.stringify({ publicKey: phone.publicKey }),
-      }),
+      await revoke(desktop, desktop.vaultId, phone.publicKey),
     );
     expect(revoked.ok).toBe(true);
 
@@ -363,11 +441,7 @@ describe("revocation", () => {
 
     const first = await offer(desktop, desktop.vaultId);
     await redeem(desktop.vaultId, first.pairing.s, phone);
-    await SELF.fetch(ORIGIN + revokePath(desktop.vaultId), {
-      method: "POST",
-      headers: { ...json, ...(await desktop.auth(desktop.vaultId)) },
-      body: JSON.stringify({ publicKey: phone.publicKey }),
-    });
+    await revoke(desktop, desktop.vaultId, phone.publicKey);
 
     // A brand-new, perfectly valid offer redeemed by the revoked key.
     const second = await offer(desktop, desktop.vaultId);
@@ -405,11 +479,7 @@ describe("revocation", () => {
     const first = await reader.read();
     expect(new TextDecoder().decode(first.value)).toContain(": connected");
 
-    await SELF.fetch(ORIGIN + revokePath(desktop.vaultId), {
-      method: "POST",
-      headers: { ...json, ...(await desktop.auth(desktop.vaultId)) },
-      body: JSON.stringify({ publicKey: phone.publicKey }),
-    });
+    await revoke(desktop, desktop.vaultId, phone.publicKey);
 
     const next = await reader.read();
     expect(next.done).toBe(true);
@@ -420,19 +490,75 @@ describe("revocation", () => {
     const stranger = await createDevice();
     await found(desktop);
     const result = await readJson<RevokeResponse>(
-      await SELF.fetch(ORIGIN + revokePath(desktop.vaultId), {
-        method: "POST",
-        headers: { ...json, ...(await desktop.auth(desktop.vaultId)) },
-        body: JSON.stringify({ publicKey: stranger.publicKey }),
-      }),
+      await revoke(desktop, desktop.vaultId, stranger.publicKey),
     );
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected not-found");
     expect(result.reason).toBe("not-found");
   });
+
+  it("revoking the LAST live device is refused — a vault is never stranded", async () => {
+    const desktop = await createDevice();
+    await found(desktop);
+
+    const result = await readJson<RevokeResponse>(
+      await revoke(desktop, desktop.vaultId, desktop.publicKey),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.reason).toBe("last-device");
+
+    // Untouched: it still authenticates, and it can still grow the roster.
+    expect((await manifest(desktop, desktop.vaultId)).status).toBe(200);
+    const phone = await createDevice();
+    const { pairing } = await offer(desktop, desktop.vaultId);
+    expect(
+      (await readJson<EnrollResponse>(await redeem(desktop.vaultId, pairing.s, phone))).ok,
+    ).toBe(true);
+  });
+
+  it("the floor counts LIVE devices, not roster rows", async () => {
+    const desktop = await createDevice();
+    const phone = await createDevice();
+    await found(desktop);
+    const { pairing } = await offer(desktop, desktop.vaultId);
+    await redeem(desktop.vaultId, pairing.s, phone);
+
+    // Two live devices, so revoking one is fine…
+    expect(
+      (await readJson<RevokeResponse>(await revoke(desktop, desktop.vaultId, phone.publicKey))).ok,
+    ).toBe(true);
+
+    // …and the tombstone it leaves behind does not make the survivor revocable.
+    const last = await readJson<RevokeResponse>(
+      await revoke(desktop, desktop.vaultId, desktop.publicKey),
+    );
+    expect(last.ok).toBe(false);
+    if (last.ok) throw new Error("expected a refusal");
+    expect(last.reason).toBe("last-device");
+  });
 });
 
 describe("coexistence with the account path", () => {
+  /** Sign a real account up + in, and return its Better Auth bearer. */
+  async function sessionToken(email: string): Promise<string> {
+    const credentials = JSON.stringify({ email, password: "test-password-1234", name: "session" });
+    const headers = { ...json, origin: ORIGIN };
+    await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
+      method: "POST",
+      headers,
+      body: credentials,
+    });
+    const signIn = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers,
+      body: credentials,
+    });
+    const token = signIn.headers.get("set-auth-token");
+    if (token === null) throw new Error("no bearer token");
+    return token;
+  }
+
   it("a session bearer cannot reach the device-identity routes", async () => {
     const desktop = await createDevice();
     await found(desktop);
@@ -446,32 +572,47 @@ describe("coexistence with the account path", () => {
   it("a founded vault stops accepting session-only requests", async () => {
     const desktop = await createDevice();
     await found(desktop);
-
-    // Sign up a real account and point it at the founded vault. The Worker's
-    // ownership table has no row, so it claims it — and the DO still refuses,
-    // because the roster is the authority once it exists.
-    const credentials = JSON.stringify({
-      email: "session@example.com",
-      password: "test-password-1234",
-      name: "session",
-    });
-    await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
-      method: "POST",
-      headers: { ...json, origin: ORIGIN },
-      body: credentials,
-    });
-    const signIn = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
-      method: "POST",
-      headers: { ...json, origin: ORIGIN },
-      body: credentials,
-    });
-    const token = signIn.headers.get("set-auth-token");
-    if (token === null) throw new Error("no bearer token");
+    const token = await sessionToken("session@example.com");
 
     const res = await SELF.fetch(ORIGIN + manifestPath(desktop.vaultId), {
       headers: { authorization: formatBearer(token) },
     });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(await res.text()).toBe("device-credential-required");
+  });
+
+  it("an account cannot squat a device-shaped vault nobody founded", async () => {
+    // The key exists; its vault has never been touched, so no roster says no.
+    const unfounded = await createDevice();
+    const token = await sessionToken("squatter@example.com");
+    const bearer = { authorization: formatBearer(token) };
+
+    const read = await SELF.fetch(ORIGIN + manifestPath(unfounded.vaultId), { headers: bearer });
+    expect(read.status).toBe(401);
+    expect(await read.text()).toBe("device-credential-required");
+
+    const write = await SELF.fetch(ORIGIN + filePath(unfounded.vaultId, "squat.md"), {
+      method: "PUT",
+      headers: { ...bearer, [HEADER_BASE_VERSION]: formatVersionHeader(ABSENT_VERSION) },
+      body: new TextEncoder().encode("mine now\n"),
+    });
+    expect(write.status).toBe(401);
+
+    // And the key whose fingerprint the id IS still founds it, on an empty vault.
+    expect((await manifest(unfounded, unfounded.vaultId)).status).toBe(200);
+    const files = await readJson<{ files: unknown[] }>(
+      await SELF.fetch(ORIGIN + manifestPath(unfounded.vaultId), {
+        headers: await unfounded.auth(unfounded.vaultId),
+      }),
+    );
+    expect(files.files).toEqual([]);
+  });
+
+  it("a UUID vault still authenticates on a session — the account path is unchanged", async () => {
+    const token = await sessionToken("uuid-vault@example.com");
+    const res = await SELF.fetch(ORIGIN + manifestPath("6f1a2b3c-0000-4000-8000-000000000000"), {
+      headers: { authorization: formatBearer(token) },
+    });
+    expect(res.status).toBe(200);
   });
 });

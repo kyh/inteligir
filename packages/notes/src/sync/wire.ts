@@ -401,8 +401,17 @@ export type EnrollOfferRequest = {
 export type EnrollOfferResponse = { readonly notAfter: number };
 
 /**
+ * Shortest offer secret a coordinator accepts, in raw bytes — and the length a
+ * device must MINT at. The server holds only `sha256hex(secret)`, so a short
+ * secret is brute-forceable offline against a live offer. Randomness is not
+ * checkable server-side; length is, so the floor is enforced at both ends.
+ */
+export const MIN_ENROLL_SECRET_BYTES = 32;
+
+/**
  * `POST …/enroll` body. `s` is base64url of the offer secret, named to match
- * the pairing blob field the joining device forwards verbatim.
+ * the pairing blob field the joining device forwards verbatim. Mint it as
+ * `MIN_ENROLL_SECRET_BYTES` (or more) of CSPRNG output.
  */
 export type EnrollRequest = {
   readonly s: string;
@@ -421,10 +430,16 @@ export type EnrollResponse = { readonly ok: boolean };
 /** `POST …/revoke` body. Any enrolled device may revoke any device, itself included. */
 export type RevokeRequest = { readonly publicKey: string };
 
-/** `POST …/revoke` result. */
+/**
+ * `POST …/revoke` result. `last-device` is a refusal, not a failure: a
+ * tombstone is permanent and a vault with no live device can neither
+ * authenticate nor enroll (an offer needs an enrolled signer), so the
+ * coordinator will not perform the one revoke that strands it. Clients render
+ * that as "disconnect this vault" rather than as a retryable error.
+ */
 export type RevokeResponse =
   | { readonly ok: true; readonly revokedAt: number }
-  | { readonly ok: false; readonly reason: "not-found" };
+  | { readonly ok: false; readonly reason: "not-found" | "last-device" };
 
 // ---- base32 ---------------------------------------------------------------
 

@@ -1,8 +1,9 @@
 import { eq, lt } from "drizzle-orm";
 import { createAuth } from "./auth";
 import { createDb } from "../db/client";
-import { desktopAuthCode, rateLimit } from "../db/schema";
+import { desktopAuthCode } from "../db/schema";
 import { sha256Hex } from "../hash";
+import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
 
 // ---------------------------------------------------------------------------
 // Desktop social-login handoff — the authorization-code pattern over the
@@ -46,8 +47,7 @@ const OPAQUE_PARAM = /^[A-Za-z0-9_-]{16,256}$/;
 
 /** Exchange rate limit — same fixed-window shape (and `rate_limit` D1 table)
  * as Better Auth's own limiter: 10 attempts / 60s per IP. */
-const EXCHANGE_WINDOW_MS = 60_000;
-const EXCHANGE_MAX = 10;
+const EXCHANGE_WINDOW: RateWindow = { max: 10, windowMs: 60_000 };
 const EXCHANGE_RATE_KEY_PREFIX = "desktop-exchange:";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -153,35 +153,6 @@ export async function handleDesktopCallback(
   );
 }
 
-/** Fixed-window limiter over the shared `rate_limit` table (Better Auth's own
- * database rate-limit store) — the exchange endpoint takes guessable input, so
- * it gets the same 10/60s-per-IP throttle the auth routes have. */
-async function allowExchange(
-  db: ReturnType<typeof createDb>,
-  ip: string,
-  nowMs: number,
-): Promise<boolean> {
-  const key = `${EXCHANGE_RATE_KEY_PREFIX}${ip}`;
-  const row = await db.select().from(rateLimit).where(eq(rateLimit.key, key)).get();
-  if (row === undefined) {
-    await db
-      .insert(rateLimit)
-      .values({ id: crypto.randomUUID(), key, count: 1, lastRequest: nowMs })
-      .onConflictDoNothing();
-    return true;
-  }
-  if (nowMs - row.lastRequest > EXCHANGE_WINDOW_MS) {
-    await db.update(rateLimit).set({ count: 1, lastRequest: nowMs }).where(eq(rateLimit.key, key));
-    return true;
-  }
-  if (row.count >= EXCHANGE_MAX) return false;
-  await db
-    .update(rateLimit)
-    .set({ count: row.count + 1 })
-    .where(eq(rateLimit.key, key));
-  return true;
-}
-
 /** Expected-failure VALUE (same convention as the DO's version conflicts):
  * bad/expired/replayed codes are a 200 `{ok:false}`, not a throw — the desktop
  * surfaces `error` verbatim. Only rate limiting is a transport-level status. */
@@ -200,8 +171,8 @@ const EXCHANGE_FAILED: ExchangeResult = {
 export async function handleSessionExchange(request: Request, env: Env): Promise<Response> {
   const db = createDb(env.DB);
   if (env.RATE_LIMIT_DISABLED !== "true") {
-    const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-    if (!(await allowExchange(db, ip, Date.now()))) {
+    const key = `${EXCHANGE_RATE_KEY_PREFIX}${callerIp(request)}`;
+    if (!(await allowInWindow(db, key, Date.now(), EXCHANGE_WINDOW))) {
       return new Response("rate limited", { status: 429 });
     }
   }

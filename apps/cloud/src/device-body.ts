@@ -2,6 +2,7 @@ import { isRecord } from "@repo/notes/sync/guards";
 import {
   base64UrlDecode,
   ED25519_PUBLIC_KEY_BYTES,
+  MIN_ENROLL_SECRET_BYTES,
   type EnrollOfferRequest,
   type EnrollRequest,
   type RevokeRequest,
@@ -34,7 +35,11 @@ export function parseEnrollOfferRequest(raw: unknown): EnrollOfferRequest | null
 export function parseEnrollRequest(raw: unknown): EnrollRequest | null {
   if (!isRecord(raw)) return null;
   const { s, publicKey, deviceName } = raw;
-  if (typeof s !== "string" || s === "" || base64UrlDecode(s) === null) return null;
+  if (typeof s !== "string") return null;
+  // The floor is the one property of the secret a server can check: it holds
+  // only sha256hex(secret), which a short preimage surrenders to a search.
+  const secret = base64UrlDecode(s);
+  if (secret === null || secret.length < MIN_ENROLL_SECRET_BYTES) return null;
   if (typeof publicKey !== "string" || !isDevicePublicKey(publicKey)) return null;
   if (typeof deviceName !== "string") return null;
   const name = sanitizeDeviceName(deviceName);

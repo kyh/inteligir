@@ -21,8 +21,9 @@ import { sha256Bytes } from "./hash";
 //   • The Worker (here, statelessly) checks shape, the Ed25519 signature
 //     against the key carried inside the assertion, the time window, and that
 //     `vid` is the vault the path names. A failure is a 401 and the Durable
-//     Object is never instantiated — which is what stops an unauthenticated
-//     caller spinning up DOs by naming arbitrary strings.
+//     Object is never instantiated. That bounds MALFORMED ids only: a
+//     self-signed assertion over a well-shaped id passes every check here,
+//     because the roster it would fail against lives in the DO.
 //   • The DO (the authority) re-runs exactly this, then answers the membership
 //     question only it can: is this key on my roster?
 //
@@ -54,6 +55,8 @@ export const MAX_CLOCK_SKEW_SECONDS = 60;
  */
 export type AssertionRejection =
   | "missing-credential"
+  /** A `v1…` vault was addressed with something that is not a device credential. */
+  | "device-credential-required"
   | "invalid-vault-id"
   | "vault-mismatch"
   | "assertion-lifetime"

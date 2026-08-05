@@ -7,6 +7,7 @@ import { createDb } from "./db/client";
 import { vaultOwner } from "./db/schema";
 import { readDeviceAssertion, unauthorized, verifyDeviceAssertion } from "./device-assertion";
 import { logUnhandled } from "./log";
+import { allowInWindow, callerIp, type RateWindow } from "./rate-limit";
 import { isDeviceRoute, matchRoute, type VaultRouteMatch } from "./route";
 import { VaultCoordinator } from "./vault-coordinator";
 
@@ -35,12 +36,27 @@ import { VaultCoordinator } from "./vault-coordinator";
 //     for that vault by a different user is 403.
 //
 // A bearer that PARSES as an assertion is judged as one and never falls back to
-// the session path; anything else goes to Better Auth. The device-identity
-// routes (enroll/devices/revoke) accept only device credentials, so a session
-// can never reach into the device model or the reverse.
+// the session path; anything else goes to Better Auth — EXCEPT on a vaultId of
+// the self-certifying `v1…` shape, which only a key can own. A session reaching
+// one would let an account holder claim and write a vault no device founded,
+// which is the whole property the naming scheme exists to give. Every vaultId
+// the account model ever minted is a UUID, so the refusal costs nothing live.
 //
-// Rejecting a device credential here, before `getByName`, is what stops an
-// unauthenticated caller instantiating Durable Objects by naming strings.
+// The device-identity routes (enroll/devices/revoke) accept only device
+// credentials, so a session can never reach into the device model or the
+// reverse.
+//
+// Rejecting a device credential here, before `getByName`, keeps a MALFORMED id
+// from ever naming a Durable Object, and the enrollment budget bounds `enroll`,
+// the one route that arrives with no credential at all.
+//
+// It does NOT stop a stranger instantiating DOs. Anyone can generate a keypair
+// offline and self-sign an assertion for any well-shaped `v1…` id: the
+// signature verifies against the key inside it, so the Worker has nothing to
+// object to and the DO runs before answering `device-not-enrolled`. Closing
+// that would need the roster, which lives in the DO — an enrolled non-founding
+// device and a stranger are indistinguishable until it is consulted. Accepted
+// residual, recorded in the README; the cost is an empty DO, not vault access.
 //
 // CORS. Desktop (Electron) and mobile (Expo) call cross-origin, so every response
 // (auth + sync) carries CORS headers and `OPTIONS` is answered as a preflight.
@@ -52,6 +68,15 @@ import { VaultCoordinator } from "./vault-coordinator";
 // ---------------------------------------------------------------------------
 
 export { VaultCoordinator };
+
+/**
+ * Enrollment budget on the credential-free redeem route: 10 attempts / 60s per
+ * IP, the same shape the auth routes and the code exchange use. It bounds two
+ * things at once — offer-secret guessing, and the number of Durable Objects an
+ * anonymous caller can bring into existence by naming them.
+ */
+const ENROLL_WINDOW: RateWindow = { max: 10, windowMs: 60_000 };
+const ENROLL_RATE_KEY_PREFIX = "vault-enroll:";
 
 /** Response headers clients must be able to read cross-origin. */
 const EXPOSED_HEADERS = [HEADER_VERSION, HEADER_CONTENT_HASH, "set-auth-token"].join(", ");
@@ -176,7 +201,7 @@ async function authorizeVault(
     // The shape check is load-bearing on the unauthenticated `enroll` route:
     // without it a caller names arbitrary strings and spins up DOs.
     if (!isValidVaultId(match.vaultId)) return unauthorized("invalid-vault-id");
-    if (match.kind === "enroll") return null;
+    if (match.kind === "enroll") return throttleEnroll(request, env);
     if (assertion === null) return unauthorized("missing-credential");
   }
 
@@ -184,6 +209,10 @@ async function authorizeVault(
     const verdict = await verifyDeviceAssertion(assertion, match.vaultId, nowSeconds());
     return verdict.ok ? null : unauthorized(verdict.reason);
   }
+
+  // A self-certifying vaultId belongs to whoever holds its founding key, and to
+  // nobody else — an account may not claim (or write) one, founded or not.
+  if (isValidVaultId(match.vaultId)) return unauthorized("device-credential-required");
 
   // Authenticate: the bearer plugin reads `Authorization: Bearer …`.
   const auth = createAuth(env, origin);
@@ -196,6 +225,17 @@ async function authorizeVault(
     return new Response("forbidden", { status: 403 });
   }
   return null;
+}
+
+/**
+ * Spend one unit of this caller's enrollment budget. `null` forwards the redeem
+ * to the vault's Durable Object; over budget is a 429 that never addresses one.
+ */
+async function throttleEnroll(request: Request, env: Env): Promise<Response | null> {
+  if (env.RATE_LIMIT_DISABLED === "true") return null;
+  const key = `${ENROLL_RATE_KEY_PREFIX}${callerIp(request)}`;
+  if (await allowInWindow(createDb(env.DB), key, Date.now(), ENROLL_WINDOW)) return null;
+  return new Response("rate limited", { status: 429 });
 }
 
 function nowSeconds(): number {

@@ -4,6 +4,7 @@ import {
   encodeDeviceAssertionPayload,
   formatBearer,
   formatDeviceAssertion,
+  MIN_ENROLL_SECRET_BYTES,
   vaultIdFromKeyDigest,
 } from "@repo/notes/sync/wire";
 import { sha256Bytes, sha256Hex } from "../src/hash";
@@ -86,8 +87,9 @@ export async function createDevice(): Promise<TestDevice> {
 /** A pairing offer: the secret the joining device presents, and its server-side id. */
 export type EnrollOffer = { readonly s: string; readonly enrollId: string };
 
-/** Mint an offer exactly as the desktop will: 32 CSPRNG bytes, server sees only the hash. */
+/** Mint an offer exactly as the desktop will: CSPRNG bytes at the contract's
+ *  floor, of which the server sees only the hash. */
 export async function createEnrollOffer(): Promise<EnrollOffer> {
-  const secret = crypto.getRandomValues(new Uint8Array(32));
+  const secret = crypto.getRandomValues(new Uint8Array(MIN_ENROLL_SECRET_BYTES));
   return { s: base64UrlEncode(secret), enrollId: await sha256Hex(secret) };
 }

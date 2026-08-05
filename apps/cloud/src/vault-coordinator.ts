@@ -246,8 +246,12 @@ export class VaultCoordinator extends DurableObject<Env> {
     if (existing !== null) {
       return existing.revoked_at === null ? null : forbidden("device-revoked");
     }
-    if (this.deviceCount() > 0) return forbidden("device-not-enrolled");
-    if (!(await keyFoundsVault(device.publicKeyBytes, vaultId))) return forbidden("not-founder");
+    // ONE refusal for both misses. Answering "not-founder" on an empty roster
+    // and "device-not-enrolled" on a populated one turns any key holder into a
+    // prober of whether a given vaultId has been founded yet.
+    if (this.deviceCount() > 0 || !(await keyFoundsVault(device.publicKeyBytes, vaultId))) {
+      return forbidden("device-not-enrolled");
+    }
 
     // `OR IGNORE`: two founding requests can race here (this path is outside the
     // mutation mutex), and they carry the same key, so the loser is a no-op.
@@ -263,6 +267,14 @@ export class VaultCoordinator extends DurableObject<Env> {
   private deviceCount(): number {
     const row = this.ctx.storage.sql
       .exec<{ n: number }>("SELECT COUNT(*) AS n FROM devices")
+      .toArray()[0];
+    return row?.n ?? 0;
+  }
+
+  /** Devices that can still authenticate — tombstones excluded. */
+  private liveDeviceCount(): number {
+    const row = this.ctx.storage.sql
+      .exec<{ n: number }>("SELECT COUNT(*) AS n FROM devices WHERE revoked_at IS NULL")
       .toArray()[0];
     return row?.n ?? 0;
   }
@@ -374,6 +386,14 @@ export class VaultCoordinator extends DurableObject<Env> {
       if (existing === null) {
         const missing: RevokeResponse = { ok: false, reason: "not-found" };
         return Response.json(missing);
+      }
+      // Refuse the one revoke nothing can undo: with no live device left, the
+      // vault can neither authenticate nor enroll (an offer needs an enrolled
+      // signer), so its DO and its R2 prefix are stranded for good. Leaving is
+      // a client-side "disconnect", not a tombstone.
+      if (existing.revoked_at === null && this.liveDeviceCount() <= 1) {
+        const last: RevokeResponse = { ok: false, reason: "last-device" };
+        return Response.json(last);
       }
       const revokedAt = existing.revoked_at ?? nowSeconds();
       if (existing.revoked_at === null) {
