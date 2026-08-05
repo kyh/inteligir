@@ -9,7 +9,7 @@ import path from "node:path";
 // (it's three lines) to keep @repo/agent free of a storage dep edge — a
 // package fact, not a lint rule: the dependency direction is one-way, the
 // host composes, agent receives.
-const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
+const INTELIGIR_DIR = process.env["INTELIGIR_HOME"] ?? path.join(os.homedir(), ".inteligir");
 
 export function inteligirPath(...segments: string[]): string {
   return path.join(INTELIGIR_DIR, ...segments);

@@ -165,7 +165,14 @@ driving it; type/test passing isn't feature-correct.
   electron-vite with `--remoteDebuggingPort 9222`. `agent-browser connect 9222`
   attaches to the Electron renderer.
 - Kill stale instances between runs — a leftover Electron/executor process holds
-  ports 9222 and 47888 and the next launch can't bind them.
+  ports 9222 and 47888 and the next launch can't bind them (`pnpm kill:ports`).
+- A LINKED WORKTREE runs isolated: `scripts/worktree-env.mjs` (which every
+  `dev*` script goes through) derives an `~/.inteligir-<hash>` home and its own
+  debug/ws/executor ports from the worktree path, so parallel checkouts don't
+  fight over the host lock or the ports. The primary checkout keeps the plain
+  defaults, so an ordinary `pnpm dev:desktop` is unchanged. `INTELIGIR_HOME`
+  overrides the dir anywhere; it is read in json-store.ts and agent/paths.ts
+  (duplicated on purpose — @repo/agent must not depend on @repo/storage).
 
 ## Quality Gates
 

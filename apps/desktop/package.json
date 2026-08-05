@@ -12,7 +12,7 @@
     "release:publish": "pnpm verify:release && GH_TOKEN=$(gh auth token) pnpm with-env electron-vite build && GH_TOKEN=$(gh auth token) pnpm with-env electron-builder --mac --publish always && pnpm verify:packaged",
     "with-env": "dotenv -e .env --",
     "clean": "rm -rf .cache .output",
-    "dev": "electron-vite dev --remoteDebuggingPort 9222",
+    "dev": "electron-vite dev --remoteDebuggingPort ${INTELIGIR_DEBUG_PORT:-9222}",
     "dev:harness": "vite --config vite.harness.config.ts",
     "start": "electron-vite preview",
     "test": "vitest run",
