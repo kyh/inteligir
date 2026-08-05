@@ -1,12 +1,15 @@
 // ---------------------------------------------------------------------------
 // WS server fold — serves the host's handler map + event stream over ONE
-// WebSocket server. Binds loopback while remote access is disabled, 0.0.0.0
-// when enabled, and rebinds when the manager's config changes (clients
-// reconnect via their supervisors — that's designed-for). Every socket must
-// authenticate (auth or pair frame) within 10s before any request flows.
+// WebSocket server, fed by one HTTP listener per address the remote-access
+// config resolves to (loopback while disabled; loopback plus the selected
+// interface, or every interface, while enabled). Rebinds when the manager's
+// config changes (clients reconnect via their supervisors — that's
+// designed-for). Every socket must authenticate (auth or pair frame) within
+// 10s before any request flows.
 // ---------------------------------------------------------------------------
 
-import type { IncomingMessage } from "node:http";
+import http, { type IncomingMessage } from "node:http";
+import os from "node:os";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 
 import { createBackoff, timeoutSchedule } from "@repo/bridge/backoff";
@@ -35,6 +38,7 @@ import { yieldToEventLoop } from "@repo/storage/yield-to-event-loop";
 import type { HostEvents } from "../boot/create-host";
 import type { WireHandler } from "../handlers/handler-registry";
 import { LOCAL_DEVICE_ID, type DeviceSession, type TokenValidator } from "./device-auth";
+import { LOOPBACK_ADDRESS, resolveBindHosts, type InterfaceTable } from "./network-endpoints";
 import type { RemoteAccessManager } from "./remote-access-manager";
 
 // writeVaultAsset ships base64 image bytes in a single frame.
@@ -86,12 +90,23 @@ export type WsHostOptions = {
   /** Liveness ping cadence. Exists so tests can drive the sweep without waiting
    * out the real interval; production has no reason to set it. */
   pingIntervalMs?: number;
+  /** The OS interface table, read afresh on every bind. Injected so tests can
+   * pin an address list that would otherwise depend on the box's NICs;
+   * production has no reason to set it. */
+  networkInterfaces?: () => InterfaceTable;
 };
 
 export type WsHost = {
   /** Actual bound port, or null while not listening. */
   port: () => number | null;
   close: () => Promise<void>;
+};
+
+/** A live bind: the one ws server plus the HTTP listeners feeding it upgrades
+ * (one per bound address — see `listen`). */
+type LiveServer = {
+  readonly wss: WebSocketServer;
+  readonly listeners: readonly http.Server[];
 };
 
 /** The companion surface a paired remote device may reach (see the registry
@@ -148,6 +163,72 @@ function originAllowed(origin: string | undefined): boolean {
   return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
 }
 
+/** The CONFIG a bind was asked for — never the resolved address list, which is
+ * recomputed from the live interface table on every bind attempt. Comparing
+ * configs is what distinguishes "the user changed something" from "the machine
+ * moved networks under us"; only the former is a rebind. */
+type BindTarget = {
+  readonly enabled: boolean;
+  readonly bindAddress: string;
+  readonly port: number;
+  /** Bumped by every setConfig, so re-selecting the address already pinned
+   * counts as a change. It has to: a pin whose address was absent at bind time
+   * degraded to loopback, and asking for it again is the user's only way to
+   * pick it up once the interface appears. */
+  readonly revision: number;
+};
+
+function sameBind(a: BindTarget, b: BindTarget): boolean {
+  return (
+    a.enabled === b.enabled &&
+    a.bindAddress === b.bindAddress &&
+    a.port === b.port &&
+    a.revision === b.revision
+  );
+}
+
+/** Release the bound ports. `close()` drops the listening handle
+ * synchronously, so the port is free for an immediate rebind; its callback
+ * (which waits on sockets already upgraded away from HTTP) is nothing a
+ * rebind needs to wait for — the ws server's own close covers those. */
+function stopListeners(listeners: readonly http.Server[]): void {
+  for (const listener of listeners) listener.close();
+}
+
+function bindListener(wss: WebSocketServer, host: string, port: number): Promise<http.Server> {
+  return new Promise((resolve, reject) => {
+    const listener = http.createServer((_request, response) => {
+      response.writeHead(426, { "content-type": "text/plain" });
+      response.end("upgrade required");
+    });
+    listener.on("upgrade", (request, socket, head) => {
+      wss.handleUpgrade(request, socket, head, (sock) => {
+        wss.emit("connection", sock, request);
+      });
+    });
+    const onError = (err: Error): void => {
+      listener.removeListener("listening", onListening);
+      listener.close();
+      reject(err);
+    };
+    const onListening = (): void => {
+      listener.removeListener("error", onError);
+      // A BOUND listener with no `error` listener turns any later async error
+      // into an unhandled `error` event, which takes the process down — and
+      // the real teardown handler cannot be attached until every address in
+      // the attempt has resolved. This one holds the gap and stays underneath
+      // it afterwards.
+      listener.on("error", (err) => {
+        console.error(`[ws-host] listener error on ${host}:`, err);
+      });
+      resolve(listener);
+    };
+    listener.once("error", onError);
+    listener.once("listening", onListening);
+    listener.listen(port, host);
+  });
+}
+
 export function startWsHost(options: WsHostOptions): WsHost {
   // One flat dispatch map: host handlers first, shell handlers fill the
   // methods the platform-agnostic host doesn't own.
@@ -199,9 +280,14 @@ export function startWsHost(options: WsHostOptions): WsHost {
     if (sock.readyState === WebSocket.OPEN) sock.send(frame);
   }
 
-  let server: WebSocketServer | null = null;
+  let server: LiveServer | null = null;
   let actualPort: number | null = null;
   let closed = false;
+  // The bind in flight, or null. `server` is only set once the addresses are
+  // bound, so this is what a concurrent caller must AWAIT rather than drop:
+  // returning early would let `close()` resolve — or a rebind proceed — while
+  // an untracked listener is still coming up.
+  let binding: Promise<void> | null = null;
   // Set on the first successful bind: the initial boot bind is fail-fast (the
   // shell surfaces a fatal dialog off the manager's listen error), while a
   // later rebind failure retries with backoff.
@@ -219,17 +305,41 @@ export function startWsHost(options: WsHostOptions): WsHost {
   const responsive = new WeakSet<WebSocket>();
   let preAuthCount = 0;
 
-  function desiredBind(): { host: string; port: number } {
-    const config = options.manager.getConfig();
-    return { host: config.enabled ? "0.0.0.0" : "127.0.0.1", port: config.port };
+  const readInterfaces = options.networkInterfaces ?? (() => os.networkInterfaces());
+
+  function desiredBind(): BindTarget {
+    const { enabled, bindAddress, port, revision } = options.manager.getConfig();
+    return { enabled, bindAddress, port, revision };
   }
 
   /** The bind the CONFIG currently asks for (config values, so an ephemeral
    * `port: 0` stays 0 here) — compared against config on every manager change
-   * to decide rebinds. Deliberately NOT cleared when the live server dies:
-   * recovery from a failed bind is the retry loop's job, and a config change
-   * must still be recognizable as one. */
+   * to decide rebinds, and re-checked after a bind lands so a config change
+   * that raced it is not silently served by the previous target. Deliberately
+   * NOT cleared when the live server dies: recovery from a failed bind is the
+   * retry loop's job, and a config change must still be recognizable as one. */
   let targetBind = desiredBind();
+
+  /** Queue `work` behind everything already queued. EVERY bind and teardown
+   * goes through here — including the backoff retry, which is the one that
+   * used to run outside the chain and could install a listener against a
+   * target the user had already changed. */
+  function enqueue(work: () => Promise<void>): Promise<void> {
+    const previous = rebindChain;
+    const next = (async () => {
+      await previous;
+      await work();
+    })();
+    // The chain the queue and close() both await must never carry a rejection:
+    // one throw would reject every later enqueue and close() itself, wedging
+    // the transport with no way to rebind. Nothing throws today (bindOnce
+    // catches its binds, stopServer always resolves), so this is a guard on
+    // the invariant rather than a live path.
+    rebindChain = next.catch((err: unknown) => {
+      console.error("[ws-host] rebind chain failed:", err);
+    });
+    return next;
+  }
 
   function clearRetry(): void {
     rebindBackoff.cancel();
@@ -238,45 +348,123 @@ export function startWsHost(options: WsHostOptions): WsHost {
 
   function scheduleRetry(): void {
     if (closed) return;
-    rebindBackoff.schedule(listen);
+    rebindBackoff.schedule(() => void enqueue(() => listen()));
   }
 
-  function listen(): void {
-    if (closed || server !== null) return;
-    const bind = targetBind;
+  function tearDown(live: LiveServer, err: unknown): void {
+    console.error("[ws-host] server error:", err);
+    // The server is dead — drop it so a retry (or config change) binds fresh.
+    server = null;
+    actualPort = null;
+    for (const sock of live.wss.clients) sock.terminate();
+    authedSockets.clear();
+    live.wss.close();
+    stopListeners(live.listeners);
+    options.manager.setListening(false, null, toErrorMessage(err));
+    if (everListened) scheduleRetry();
+  }
+
+  /** A bind that came up but has not been committed as `server` yet. */
+  type BindAttempt = {
+    readonly wss: WebSocketServer;
+    readonly listeners: readonly http.Server[];
+    readonly port: number;
+    /** The addresses that actually came up — what `commit` hands the manager,
+     * so nothing downstream has to re-derive reachability from the config. */
+    readonly hosts: readonly string[];
+    /** A non-primary address that failed while the primary one came up.
+     * Reported, never fatal. */
+    readonly extraError: string | null;
+  };
+
+  /** Throw away a ws server + its listeners without touching `server` — for a
+   * bind that must not be kept (closed mid-flight, or superseded). */
+  function discard(attempt: BindAttempt): void {
+    for (const sock of attempt.wss.clients) sock.terminate();
+    attempt.wss.close();
+    stopListeners(attempt.listeners);
+  }
+
+  /** One bind pass, or null if the PRIMARY address failed — already reported,
+   * with a retry scheduled where one is warranted. */
+  async function bindOnce(bind: BindTarget): Promise<BindAttempt | null> {
+    // Resolved HERE, per attempt, against the LIVE interface table — never
+    // from a list captured when the config changed. A pinned address can
+    // vanish between the two (the overlay drops, the laptop sleeps or roams),
+    // and replaying a stale list would rebind the same dead host on every
+    // retry, forever.
+    const hosts = resolveBindHosts(bind, readInterfaces());
+    const [primary = LOOPBACK_ADDRESS, ...extra] = hosts;
+    // One ws server fed by one HTTP listener PER BOUND ADDRESS. A socket binds
+    // exactly one address, and remote access may be pinned to a single
+    // interface (a Tailscale address) while the desktop's own renderer still
+    // dials 127.0.0.1 every launch — so loopback gets its own listener.
+    // `noServer` keeps both listeners upgrading into the SAME ws server, so
+    // client tracking, the liveness sweep and teardown stay single-sourced.
     const wss = new WebSocketServer({
-      host: bind.host,
-      port: bind.port,
+      noServer: true,
       perMessageDeflate: false,
       maxPayload: MAX_PAYLOAD_BYTES,
     });
-    server = wss;
-    wss.on("listening", () => {
-      if (wss !== server) return;
-      everListened = true;
-      clearRetry();
-      const address = wss.address();
-      actualPort = typeof address === "object" && address !== null ? address.port : bind.port;
-      options.manager.setListening(true, actualPort);
-    });
-    wss.on("error", (err) => {
-      if (wss !== server) return;
-      console.error("[ws-host] server error:", err);
-      // The server is dead — drop it so a retry (or config change) binds fresh.
-      server = null;
-      actualPort = null;
-      for (const sock of wss.clients) sock.terminate();
-      authedSockets.clear();
-      wss.close(() => {});
+    // Attached before the first bind: an upgrade can land while a later
+    // address is still binding, and a connection nobody handles is a socket
+    // that never authenticates and never closes.
+    wss.on("connection", handleConnection);
+    const listeners: http.Server[] = [];
+    const bound: string[] = [];
+    let port = bind.port;
+    try {
+      const listener = await bindListener(wss, primary, port);
+      const address = listener.address();
+      // An ephemeral `port: 0` resolves on the FIRST bind; every later
+      // address joins that port so one URL is valid everywhere.
+      if (typeof address === "object" && address !== null) port = address.port;
+      listeners.push(listener);
+      bound.push(primary);
+    } catch (err) {
+      wss.close();
       options.manager.setListening(false, null, toErrorMessage(err));
       if (everListened) scheduleRetry();
-    });
+      return null;
+    }
+    // `resolveBindHosts` puts loopback first, and every address after it is
+    // BEST EFFORT: binding an unassigned IPv4 fails EADDRNOTAVAIL, and the
+    // desktop's own renderer must never lose its socket because a remote
+    // address went away.
+    let extraError: string | null = null;
+    for (const host of extra) {
+      try {
+        listeners.push(await bindListener(wss, host, port));
+        bound.push(host);
+      } catch (err) {
+        extraError = `${host}: ${toErrorMessage(err)}`;
+      }
+    }
+    return { wss, listeners, port, hosts: bound, extraError };
+  }
+
+  function commit(attempt: BindAttempt): void {
+    const live: LiveServer = { wss: attempt.wss, listeners: attempt.listeners };
+    server = live;
+    actualPort = attempt.port;
+    everListened = true;
+    clearRetry();
+    // A post-bind error on ANY listener tears the whole server down, including
+    // loopback — but the retry that follows re-resolves the host list, so a
+    // pinned address that died comes back as a loopback-only bind within a
+    // backoff tick rather than wedging the renderer out.
+    for (const listener of attempt.listeners) {
+      listener.on("error", (err) => {
+        if (server !== live) return;
+        tearDown(live, err);
+      });
+    }
     // Liveness sweep. `responsive` is refreshed by every pong (ws answers our
     // protocol ping automatically on the peer side, so this needs no cooperation
     // from the client protocol). A socket still unmarked one full interval after
     // we pinged it never answered, so it is gone.
     const pingTimer = setInterval(() => {
-      for (const sock of wss.clients) {
+      for (const sock of live.wss.clients) {
         if (!responsive.delete(sock)) {
           sock.terminate();
           continue;
@@ -284,31 +472,68 @@ export function startWsHost(options: WsHostOptions): WsHost {
         sock.ping();
       }
     }, options.pingIntervalMs ?? PING_INTERVAL_MS);
-    // Fires for both teardown paths (stopServer and the error handler both call
+    // Fires for both teardown paths (stopServer and tearDown both call
     // wss.close()), so the timer can never outlive its server.
-    wss.on("close", () => clearInterval(pingTimer));
+    live.wss.on("close", () => clearInterval(pingTimer));
+    options.manager.setListening(true, attempt.port, attempt.extraError, attempt.hosts);
+  }
 
-    wss.on("connection", handleConnection);
+  async function bindUntilCurrent(): Promise<void> {
+    for (;;) {
+      if (closed || server !== null) return;
+      const bind = desiredBind();
+      const attempt = await bindOnce(bind);
+      if (attempt === null) return;
+      if (closed) {
+        discard(attempt);
+        options.manager.setListening(false, null);
+        return;
+      }
+      // A config change that landed mid-bind must not be served by the
+      // listeners the PREVIOUS one asked for: drop them and go round again
+      // against the address the user now wants.
+      if (!sameBind(bind, targetBind)) {
+        discard(attempt);
+        continue;
+      }
+      commit(attempt);
+      return;
+    }
+  }
+
+  /** Bind unless something is already up. A concurrent caller gets the
+   * IN-FLIGHT promise rather than a silent no-op, so `close()` and the rebind
+   * chain always await a bind instead of racing an untracked one. */
+  function listen(): Promise<void> {
+    const inFlight = binding;
+    if (inFlight !== null) return inFlight;
+    const started = bindUntilCurrent().finally(() => {
+      binding = null;
+    });
+    binding = started;
+    return started;
   }
 
   async function stopServer(mode: "rebind" | "final"): Promise<void> {
     clearRetry();
-    const wss = server;
+    const live = server;
     server = null;
     actualPort = null;
     authedSockets.clear();
-    if (wss === null) return;
+    if (live === null) return;
+    // Stop accepting before draining, so nothing new lands mid-teardown.
+    stopListeners(live.listeners);
     let graceTimer: NodeJS.Timeout | null = null;
     if (mode === "final") {
-      for (const sock of wss.clients) sock.terminate();
+      for (const sock of live.wss.clients) sock.terminate();
     } else {
-      for (const sock of wss.clients) sock.close(WS_CLOSE_SERVICE_RESTART, "service restart");
+      for (const sock of live.wss.clients) sock.close(WS_CLOSE_SERVICE_RESTART, "service restart");
       graceTimer = setTimeout(() => {
-        for (const sock of wss.clients) sock.terminate();
+        for (const sock of live.wss.clients) sock.terminate();
       }, REBIND_CLOSE_GRACE_MS);
     }
     await new Promise<void>((resolve) => {
-      wss.close(() => resolve());
+      live.wss.close(() => resolve());
     });
     if (graceTimer !== null) clearTimeout(graceTimer);
     options.manager.setListening(false, null);
@@ -328,19 +553,17 @@ export function startWsHost(options: WsHostOptions): WsHost {
       }
     }
     const bind = desiredBind();
-    if (bind.host === targetBind.host && bind.port === targetBind.port) return;
+    if (sameBind(bind, targetBind)) return;
     targetBind = bind;
-    const previous = rebindChain;
-    rebindChain = (async () => {
-      await previous;
+    void enqueue(async () => {
       // Defer past the current turn's microtasks: the res frame answering the
       // config change that triggered this rebind (and the just-broadcast evt
       // frame) must reach the socket before it starts closing.
       await yieldToEventLoop();
       if (closed) return;
       await stopServer("rebind");
-      listen();
-    })();
+      await listen();
+    });
   });
 
   // Events fan out per SESSION, not to every authed socket: a paired device
@@ -547,7 +770,9 @@ export function startWsHost(options: WsHostOptions): WsHost {
     });
   }
 
-  listen();
+  // Seeds the chain so a config change (or close) queues behind the first bind
+  // instead of racing it.
+  rebindChain = listen();
 
   return {
     port: () => actualPort,

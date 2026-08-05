@@ -835,11 +835,14 @@ export const IPC = {
   onSyncStateChanged: event<SyncState>(),
 
   // Remote access — the WS transport's device-pairing surface: an enable
-  // toggle, LAN URLs, paired devices, and one-time pairing tokens. All state
-  // reads/writes go through the remote-access manager.
-  /** Current remote-access state (enabled/port/listening/lanUrls/devices). */
+  // toggle, the classified endpoints and the one the server binds, paired
+  // devices, and one-time pairing tokens. All state reads/writes go through
+  // the remote-access manager.
+  /** Current remote-access state (enabled/port/listening/endpoints/
+   * bindAddress/devices). */
   getRemoteAccessState: invokeVoid<RemoteAccessState>(),
-  /** Patch the remote-access config (enable toggle only; port stays fixed). */
+  /** Patch the remote-access config (enable toggle + bind selection; the port
+   * stays fixed). */
   setRemoteAccessConfig: invoke<typeof RemoteAccessSetConfigSchema, RemoteAccessState>(
     RemoteAccessSetConfigSchema,
   ),

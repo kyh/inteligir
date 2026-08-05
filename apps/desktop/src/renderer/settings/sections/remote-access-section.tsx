@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@repo/ui/components/button";
 import { Label } from "@repo/ui/components/label";
+import { NativeSelect, NativeSelectOption } from "@repo/ui/components/native-select";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { SettingSwitchRow } from "@renderer/settings/sections/setting-switch-row";
-import type { PairingInfo, RemoteAccessState } from "@repo/bridge/remote-access";
+import {
+  BIND_ALL_ADDRESS,
+  endpointAddress,
+  type PairingInfo,
+  type RemoteAccessState,
+} from "@repo/bridge/remote-access";
 
 // Remote access — let other devices (the mobile companion) connect to this
-// computer's ws transport. The host owns everything: the enable toggle flips
-// the server's bind address, devices live in the paired-device store, and
-// pairing tokens are minted host-side. The onRemoteAccessChanged subscription
-// keeps this reactive across config/device/listen changes. Pairing info is
-// kept local (transient) — it's a one-time secret shown once, not state.
+// computer's ws transport. The host owns everything: the enable toggle and the
+// network selection flip the server's bind, devices live in the paired-device
+// store, and pairing tokens are minted host-side. The onRemoteAccessChanged
+// subscription keeps this reactive across config/device/listen changes.
+// Pairing info is kept local (transient) — it's a one-time secret shown once,
+// not state.
 export function RemoteAccessSection() {
   const [state, setState] = useState<RemoteAccessState | null>(null);
   const [pairing, setPairing] = useState<PairingInfo | null>(null);
@@ -36,6 +43,17 @@ export function RemoteAccessSection() {
       setState(updated);
     } catch {
       setError("Failed to update remote access.");
+    }
+  }, []);
+
+  const handleBind = useCallback(async (address: string) => {
+    const bridge = getBridge();
+    setError(null);
+    setPairing(null);
+    try {
+      setState(await bridge.setRemoteAccessConfig({ bindAddress: address }));
+    } catch {
+      setError("Failed to change the network.");
     }
   }, []);
 
@@ -68,8 +86,31 @@ export function RemoteAccessSection() {
 
   const loading = state === null;
   const enabled = state?.enabled === true;
-  const lanUrls = state?.lanUrls ?? [];
   const devices = state?.devices ?? [];
+  const bindAddress = state?.bindAddress ?? BIND_ALL_ADDRESS;
+  // Loopback is always bound and is not a remote choice — offering it would
+  // mean "reachable by nobody", which is what the toggle already says.
+  const bindable = (state?.endpoints ?? []).filter(
+    (endpoint) => endpoint.reachability !== "loopback",
+  );
+  const bindsAll = bindAddress === BIND_ALL_ADDRESS;
+  const selected = bindable.find((endpoint) => endpointAddress(endpoint) === bindAddress) ?? null;
+  // What the host REPORTED binding, never what the selection implies: the two
+  // differ whenever a pinned address was absent when the server came up.
+  const boundAddresses = state?.boundAddresses ?? [];
+  const reachable = bindable.filter(
+    (endpoint) =>
+      boundAddresses.includes(BIND_ALL_ADDRESS) ||
+      boundAddresses.includes(endpointAddress(endpoint)),
+  );
+  const cleartext = reachable.some((endpoint) => !endpoint.encrypted);
+  const encryptedOnly = reachable.find((endpoint) => endpoint.encrypted) ?? null;
+  const missingBind = !bindsAll && selected === null;
+  // Two different failures, two different remedies: `missingBind` means this
+  // computer no longer holds that address at all, `unbound` means it does but
+  // the server never got a socket on it (it came up after the bind).
+  const unbound =
+    enabled && selected !== null && !boundAddresses.includes(endpointAddress(selected));
 
   return (
     <div className="flex flex-col gap-2">
@@ -86,28 +127,70 @@ export function RemoteAccessSection() {
             Let paired devices on your local network connect to this computer. Off keeps the app
             reachable from this computer only.
           </p>
-          <p className="text-[10px] text-muted-foreground">
-            Connections on your local network are unencrypted. Pair devices only on networks you
-            trust.
-          </p>
 
           {enabled && (
             <>
-              {lanUrls.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] text-muted-foreground">
-                    This computer on your network
-                  </span>
-                  {lanUrls.map((url) => (
-                    <code
-                      key={url}
-                      className="select-all rounded-[8px] bg-card px-2.5 py-1.5 text-[10px] text-foreground"
-                    >
-                      {url}
-                    </code>
+              <p className="text-[10px] text-muted-foreground">
+                {!cleartext && encryptedOnly !== null
+                  ? `Reachable only over ${encryptedOnly.label}, which encrypts and authenticates the connection itself.`
+                  : "Connections on your local network are unencrypted. Pair devices only on networks you trust."}
+              </p>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] text-muted-foreground">Reachable on</span>
+                <NativeSelect
+                  size="sm"
+                  className="w-full"
+                  aria-label="Reachable on"
+                  value={bindAddress}
+                  disabled={busy || loading}
+                  onChange={(event) => void handleBind(event.target.value)}
+                >
+                  <NativeSelectOption value={BIND_ALL_ADDRESS}>Every network</NativeSelectOption>
+                  {bindable.map((endpoint) => (
+                    <NativeSelectOption
+                      key={endpoint.wsUrl}
+                      value={endpointAddress(endpoint)}
+                    >{`${endpoint.label}${endpoint.encrypted ? " (encrypted)" : ""}`}</NativeSelectOption>
                   ))}
-                </div>
-              )}
+                  {missingBind && (
+                    <NativeSelectOption value={bindAddress}>
+                      {`${bindAddress} (unavailable)`}
+                    </NativeSelectOption>
+                  )}
+                </NativeSelect>
+                {missingBind && (
+                  <span className="text-[10px] text-muted-foreground">
+                    That network isn&apos;t available right now, so only this computer can reach the
+                    app. Pick another to expose it again.
+                  </span>
+                )}
+                {unbound && (
+                  <span className="flex flex-col items-start gap-1 text-[10px] text-muted-foreground">
+                    <span>
+                      That network appeared after the app started listening, so nothing is answering
+                      on it yet.
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleBind(bindAddress)}
+                      disabled={busy || loading}
+                      className="h-6 px-2 text-[10px]"
+                    >
+                      Listen on it now
+                    </Button>
+                  </span>
+                )}
+                {reachable.map((endpoint) => (
+                  <code
+                    key={endpoint.wsUrl}
+                    className="select-all rounded-[8px] bg-card px-2.5 py-1.5 text-[10px] text-foreground"
+                  >
+                    {endpoint.wsUrl}
+                  </code>
+                ))}
+              </div>
 
               {devices.length > 0 && (
                 <div className="flex flex-col gap-1.5">
@@ -150,11 +233,18 @@ export function RemoteAccessSection() {
                 {pairing && (
                   <div className="flex flex-col gap-1 rounded-[8px] bg-card px-2.5 py-1.5">
                     <span className="text-[10px] text-muted-foreground">
-                      On the other device, connect to{" "}
-                      <code className="select-all text-foreground">
-                        {pairing.urls.join(" or ")}
-                      </code>{" "}
-                      and enter this one-time code:
+                      On the other device, connect to the address for the network it is on:
+                    </span>
+                    {pairing.urls.map((url) => (
+                      <span key={url.wsUrl} className="flex flex-col gap-0.5">
+                        <span className="text-[10px] text-muted-foreground">{url.label}</span>
+                        <code className="select-all rounded-[8px] bg-muted px-2.5 py-1.5 text-[10px] text-foreground">
+                          {url.wsUrl}
+                        </code>
+                      </span>
+                    ))}
+                    <span className="text-[10px] text-muted-foreground">
+                      Then enter this one-time code:
                     </span>
                     <code className="select-all text-xs text-foreground">{pairing.token}</code>
                     <span className="text-[10px] text-muted-foreground">
