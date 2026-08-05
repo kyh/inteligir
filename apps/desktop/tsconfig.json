@@ -12,7 +12,9 @@
   "include": [
     "src/**/*",
     "dev/**/*",
+    "e2e/**/*",
     "electron.vite.config.ts",
+    "playwright.config.ts",
     "vite.harness.config.ts",
     "vitest.config.ts",
     "../../packages/voice/src/sherpa-onnx-node.d.ts"

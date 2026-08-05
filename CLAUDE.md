@@ -183,9 +183,12 @@ pnpm format:fix && pnpm verify
 ```
 
 `verify` is `typecheck && lint && knip && format && test && build` — the same
-six steps CI runs, in one command so no caller can drift from CI. It is
-check-only on purpose: `format:fix` runs FIRST and never after the gates,
+six steps CI's static job runs, in one command so no caller can drift from CI.
+It is check-only on purpose: `format:fix` runs FIRST and never after the gates,
 because formatting the byte-pinned fixtures corrupts them and ships red.
+CI additionally runs the desktop harness e2e smoke
+(`pnpm -F @repo/desktop test:e2e`, Playwright over `dev:harness`) — kept out
+of `verify` so the static gate never needs a browser.
 
 ## Desktop architecture (@repo/desktop)
 

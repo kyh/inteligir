@@ -70,6 +70,43 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm build
 
+  # The runtime leg of the gate. `check` proves the tree compiles; this proves
+  # the app BOOTS: the real renderer UI over the in-memory fixture Bridge (the
+  # browser dev harness), driven headlessly — renderer boot, the sidebar over
+  # the vault listing, the editor rendering a note, and full-text search
+  # through the wasm-sqlite knowledge engine. Deliberately NOT part of `pnpm
+  # verify` (which stays the static six steps, runnable with no browser);
+  # locally it is `pnpm -F @repo/desktop test:e2e`. Ubuntu on purpose — the
+  # harness is a plain browser page, no Electron.
+  e2e-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The chromium build only moves when @playwright/test does, and the
+      # lockfile hash moves with it.
+      - name: Playwright browser cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install chromium
+        run: pnpm -F @repo/desktop exec playwright install --with-deps chromium
+
+      - name: Harness smoke
+        run: pnpm -F @repo/desktop test:e2e
+
   # macOS is the platform the desktop app actually ships on, and a meaningful
   # slice of the suite is POSIX-behaviour-sensitive: vault path confinement and
   # OS trash, the host lock, hardenAppDir's 0700/0600 sweep, atomic writes, the

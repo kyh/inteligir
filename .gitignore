@@ -57,6 +57,10 @@ apps/desktop/resources/agent/client_secret.json
 .claude/worktrees
 .playwright-mcp
 
+# playwright (the desktop harness e2e smoke)
+test-results/
+playwright-report/
+
 # design-sync (staged scripts, build output, machine state)
 .ds-sync/
 ds-bundle/

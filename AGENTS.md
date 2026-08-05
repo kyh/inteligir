@@ -104,6 +104,12 @@ rewrites the byte-pinned round-trip fixtures after the tests that guard them
 have already passed, so the gate reads green and the commit ships red.
 `verify` is check-only for exactly that reason.
 
+CI adds one **runtime** job beyond the static gate: the harness smoke
+(`pnpm -F @repo/desktop test:e2e` — Playwright over `dev:harness`, headless;
+`pnpm -F @repo/desktop exec playwright install chromium` once if missing). Run
+it before pushing when a change touches the renderer boot path, the sidebar or
+palette, the knowledge engine, or the fixture Bridge.
+
 Runtime — type-checks passing is not feature-correct. Drive the running app
 with [agent-browser](https://github.com/vercel-labs/agent-browser):
 

@@ -19,9 +19,10 @@
         "src/renderer/index.html",
         "src/__tests__/**/*.test.ts",
         "src/renderer/__tests__/**/*.test.ts",
-        "scripts/**/*.mjs"
+        "scripts/**/*.mjs",
+        "e2e/**/*.spec.ts"
       ],
-      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
+      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}", "e2e/**/*.ts"],
       "ignoreDependencies": ["sherpa-onnx-node"]
     },
     "apps/mobile": {

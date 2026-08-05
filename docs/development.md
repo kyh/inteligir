@@ -88,8 +88,19 @@ pnpm format:fix && pnpm verify
 ```
 
 `pnpm verify` = `typecheck && lint && knip && format && test && build`, the same
-six steps CI runs. It is check-only on purpose — `format:fix` is a separate
-first step, never folded in.
+six steps CI's static job runs. It is check-only on purpose — `format:fix` is a
+separate first step, never folded in.
+
+CI runs one RUNTIME job on top of that static gate: the harness smoke —
+Playwright driving `dev:harness` headlessly (renderer boot over the fixture
+Bridge, sidebar → open note, palette full-text search through the wasm-sqlite
+knowledge engine). It stays out of `verify` so the static gate needs no
+browser. Locally:
+
+```bash
+pnpm -F @repo/desktop exec playwright install chromium   # once
+pnpm -F @repo/desktop test:e2e
+```
 
 Rules that are easy to get backwards:
 
