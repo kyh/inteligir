@@ -39,7 +39,22 @@ jobs:
           # Enough history for the two-strikes check in the prompt below.
           fetch-depth: 25
 
+      # The checkout above is the branch TIP; the failed run's logs describe
+      # head_sha. If the branch moved between the failure and this job, a fix
+      # here would diagnose one commit and patch another — and the newer push
+      # already has its own CI run, whose failure re-fires this workflow with
+      # matching logs. Skip rather than mismatch.
+      - name: Check the failed commit is still the branch tip
+        id: current
+        run: |
+          if [ "$(git rev-parse HEAD)" = "${{ github.event.workflow_run.head_sha }}" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run Claude Code
+        if: steps.current.outputs.current == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -57,7 +72,10 @@ jobs:
                converging, then stop.
             3. Reproduce locally where cheap: `pnpm install --frozen-lockfile`,
                then the failing gate step (`pnpm typecheck`, `pnpm lint`,
-               `pnpm knip`, `pnpm format`, `pnpm test`, or `pnpm build`).
+               `pnpm knip`, `pnpm format`, `pnpm test`, or `pnpm build`). If
+               the failed job is `e2e-harness`, reproduce with
+               `pnpm -F @repo/desktop exec playwright install --with-deps chromium`
+               then `pnpm -F @repo/desktop test:e2e`.
             4. Fix the actual cause. Never weaken a gate to get past it (no
                skipped tests, no lint suppressions, no knip ignores) unless the
                gate itself is what the failure proves wrong.
