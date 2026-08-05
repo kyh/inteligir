@@ -25,6 +25,7 @@ import {
   type ServerFrame,
 } from "@repo/bridge/ws-protocol";
 import type { WireHandler } from "../../handlers/handler-registry";
+import { LOOPBACK_ADDRESS, type InterfaceTable } from "../network-endpoints";
 import { RemoteAccessManager } from "../remote-access-manager";
 import { startWsHost, type WsHost, type WsHostSource } from "../ws-host";
 
@@ -94,6 +95,7 @@ async function startTestHost(
     manager?: RemoteAccessManager;
     shellHandlers?: Parameters<typeof startWsHost>[0]["shellHandlers"];
     pingIntervalMs?: number;
+    networkInterfaces?: () => InterfaceTable;
   } = {},
 ): Promise<TestHost> {
   const manager = options.manager ?? makeManager(0);
@@ -104,6 +106,9 @@ async function startTestHost(
     manager,
     ...(options.shellHandlers ? { shellHandlers: options.shellHandlers } : {}),
     ...(options.pingIntervalMs === undefined ? {} : { pingIntervalMs: options.pingIntervalMs }),
+    ...(options.networkInterfaces === undefined
+      ? {}
+      : { networkInterfaces: options.networkInterfaces }),
   });
   cleanups.push(() => wsHost.close());
   const port = await listeningPort(wsHost);
@@ -195,6 +200,28 @@ async function freePort(): Promise<number> {
     });
   });
 }
+
+// RFC 5737 TEST-NET-1: never assigned to a real interface anywhere, so a listen
+// on it fails EADDRNOTAVAIL — exactly what a pinned overlay address does the
+// moment the tunnel drops or the laptop roams.
+const VANISHED_ADDRESS = "192.0.2.1";
+
+function ipv4(address: string, internal = false): os.NetworkInterfaceInfo {
+  return {
+    address,
+    netmask: internal ? "255.0.0.0" : "255.255.255.255",
+    family: "IPv4",
+    mac: "00:00:00:00:00:00",
+    internal,
+    cidr: `${address}/32`,
+  };
+}
+
+const LOOPBACK_ONLY: InterfaceTable = { lo0: [ipv4("127.0.0.1", true)] };
+const WITH_VANISHED: InterfaceTable = {
+  lo0: [ipv4("127.0.0.1", true)],
+  utun9: [ipv4(VANISHED_ADDRESS)],
+};
 
 describe("auth", () => {
   it("authenticates with the local token and round-trips invoke + invoke-void", async () => {
@@ -475,6 +502,34 @@ describe("reconnect supervisor", () => {
     },
   );
 
+  // The renderer dials 127.0.0.1 every launch, so pinning remote access to one
+  // interface must not take the local window offline. Any real non-internal
+  // IPv4 address stands in for the Tailscale one (an unassigned address would
+  // just degrade to loopback and prove nothing); a machine with none — an
+  // offline CI box — has nothing to pin, so there is nothing to test.
+  const pinnable = Object.values(os.networkInterfaces())
+    .flatMap((addresses) => addresses ?? [])
+    .filter((info) => info.family === "IPv4" && !info.internal)
+    .map((info) => info.address);
+
+  it.skipIf(pinnable.length === 0)(
+    "keeps loopback reachable when the bind is pinned to one interface",
+    { timeout: 15_000 },
+    async () => {
+      const pinned = pinnable[0] ?? "";
+      const port = await freePort();
+      const manager = makeManager(port);
+      manager.setConfig({ enabled: true, bindAddress: pinned });
+      const host = await startTestHost({ getVaultRoot: () => "/v" }, { manager });
+
+      const local = connectBridge(`ws://127.0.0.1:${host.port}`, manager.getLocalToken());
+      await expect(local.bridge.getVaultRoot()).resolves.toBe("/v");
+
+      const remote = connectBridge(`ws://${pinned}:${host.port}`, manager.getLocalToken());
+      await expect(remote.bridge.getVaultRoot()).resolves.toBe("/v");
+    },
+  );
+
   it("treats a 4401 close as terminal: unauthorized status, no further attempts", async () => {
     const host = await startTestHost({ getVaultRoot: () => "/v" });
     const { bridge, statuses } = connectBridge(host.url, "wrong-token");
@@ -495,6 +550,96 @@ describe("reconnect supervisor", () => {
 });
 
 describe("rebind failure recovery", () => {
+  it("keeps loopback listening when the pinned address refuses to bind", async () => {
+    const port = await freePort();
+    const manager = makeManager(port);
+    manager.setConfig({ enabled: true, bindAddress: VANISHED_ADDRESS });
+    const host = await startTestHost(
+      { getVaultRoot: () => "/v" },
+      { manager, networkInterfaces: () => WITH_VANISHED },
+    );
+
+    // The renderer's own socket is the thing that must survive.
+    const local = connectBridge(`ws://127.0.0.1:${host.port}`, manager.getLocalToken());
+    await expect(local.bridge.getVaultRoot()).resolves.toBe("/v");
+    expect(manager.getState().listening).toBe(true);
+    expect(manager.getListenError()).toContain(VANISHED_ADDRESS);
+    // The pin is still the config's answer, but only loopback is a socket —
+    // and the reported list, not the config, is what pairing may offer.
+    expect(manager.getState().boundAddresses).toEqual([LOOPBACK_ADDRESS]);
+    expect(manager.createPairingToken().urls.map((url) => url.wsUrl)).toEqual([
+      `ws://${LOOPBACK_ADDRESS}:${host.port}`,
+    ]);
+  });
+
+  // A pin whose address was absent at bind time degraded to loopback. Asking
+  // for the SAME address again once the overlay is up is the recovery path, so
+  // it has to reach the bind rather than compare equal and do nothing.
+  it("rebinds when the pinned address is re-selected unchanged", async () => {
+    const port = await freePort();
+    const manager = makeManager(port);
+    manager.setConfig({ enabled: true, bindAddress: VANISHED_ADDRESS });
+    let interfaces: InterfaceTable = LOOPBACK_ONLY;
+    const host = await startTestHost(
+      { getVaultRoot: () => "/v" },
+      { manager, networkInterfaces: () => interfaces },
+    );
+    // Absent from the table, so the pin resolved away and the bind reported
+    // clean — nothing was attempted on it.
+    expect(manager.getListenError()).toBeNull();
+
+    // It appears. Re-selecting it is the same config, so only the forced
+    // rebind can get the host to attempt it at all.
+    interfaces = WITH_VANISHED;
+    manager.setConfig({ bindAddress: VANISHED_ADDRESS });
+    await vi.waitFor(() => {
+      expect(manager.getListenError()).toContain(VANISHED_ADDRESS);
+    });
+    expect(host.wsHost.port()).toBe(port);
+    expect(manager.getState().boundAddresses).toEqual([LOOPBACK_ADDRESS]);
+  });
+
+  it(
+    "re-resolves the host list on every retry instead of replaying a stale one",
+    { timeout: 20_000 },
+    async () => {
+      const portA = await freePort();
+      const manager = makeManager(portA);
+      // Pinned to an address the table does not hold yet, so the first bind
+      // resolves to loopback alone and reports clean.
+      manager.setConfig({ enabled: true, bindAddress: VANISHED_ADDRESS });
+      let interfaces: InterfaceTable = LOOPBACK_ONLY;
+      const host = await startTestHost(
+        { getVaultRoot: () => "/v" },
+        { manager, networkInterfaces: () => interfaces },
+      );
+      expect(manager.getListenError()).toBeNull();
+
+      // Rebind onto an occupied port to put the backoff retry loop in charge.
+      const portB = await freePort();
+      const blocker = net.createServer();
+      await new Promise<void>((resolve) => blocker.listen(portB, "127.0.0.1", resolve));
+      manager.setConfig({ port: portB });
+      await vi.waitFor(() => {
+        expect(manager.getListenError()).not.toBeNull();
+      });
+      expect(host.wsHost.port()).toBeNull();
+
+      // The address appears mid-retry. A retry that replayed the host list
+      // captured at the config change would never attempt it.
+      interfaces = WITH_VANISHED;
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+      await vi.waitFor(
+        () => {
+          expect(host.wsHost.port()).toBe(portB);
+        },
+        { timeout: 10_000 },
+      );
+      expect(manager.getState().listening).toBe(true);
+      expect(manager.getListenError()).toContain(VANISHED_ADDRESS);
+    },
+  );
+
   it("retries a failed rebind with backoff until the port frees", { timeout: 20_000 }, async () => {
     const portA = await freePort();
     const manager = makeManager(portA);

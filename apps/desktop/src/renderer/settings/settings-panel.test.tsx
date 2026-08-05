@@ -1,6 +1,7 @@
 // Remote-access section of the settings panel (jsdom): the toggle surfaces a
 // bridge failure as the section's inline error (instead of an unhandled
-// rejection with no feedback), and the plaintext-LAN caveat caption renders.
+// rejection with no feedback), and the plaintext-LAN caveat caption renders
+// only while something is actually reachable.
 // Runs the real SettingsPanel over the dev-harness fixture Bridge, with the
 // one method under test overridden per case.
 
@@ -66,9 +67,16 @@ describe("RemoteAccessSection", () => {
     });
   });
 
-  it("renders the unencrypted-network caveat under the toggle", async () => {
+  // The caveat is a claim about what is reachable, so it only holds once
+  // something is: with the toggle off, nothing off this computer is.
+  it("renders the unencrypted-network caveat once remote access is on", async () => {
     renderPanel(newBridge());
-    await screen.findByRole("switch", { name: "Allow other devices" });
-    expect(screen.getByText(/Connections on your local network are unencrypted\./)).toBeTruthy();
+    const toggle = await screen.findByRole("switch", { name: "Allow other devices" });
+    expect(screen.queryByText(/Connections on your local network are unencrypted\./)).toBeNull();
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Connections on your local network are unencrypted\./)).toBeTruthy();
+    });
   });
 });

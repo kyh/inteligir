@@ -19,7 +19,12 @@ import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/bridge/inline-
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import type { ChatSessionSummary } from "@repo/bridge/chat-sessions";
 import type { Bridge, SkillInfo, VaultEntry } from "@repo/bridge/ipc-registry";
-import type { RemoteAccessState } from "@repo/bridge/remote-access";
+import {
+  BIND_ALL_ADDRESS,
+  endpointAddress,
+  type RemoteAccessState,
+  type RemoteEndpoint,
+} from "@repo/bridge/remote-access";
 import type { ListRoutinesResult, Routine } from "@repo/bridge/routines";
 import {
   DAILY_FOLDER_KEY,
@@ -725,13 +730,65 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   let syncPasses = 0;
   let syncDeletionsConfirmed = false;
   // Remote access — no ws server runs in a browser tab, so enabling simulates
-  // the listening state and a LAN URL; one pre-paired device makes the device
-  // list + Revoke exercisable out of the box.
+  // the listening state; one endpoint of each reachability makes the bind
+  // picker (and its encrypted/cleartext copy) exercisable, and one pre-paired
+  // device does the same for the device list + Revoke.
+  const fixtureEndpoints: readonly RemoteEndpoint[] = [
+    {
+      wsUrl: "ws://100.101.102.103:47890",
+      reachability: "private-network",
+      encrypted: true,
+      virtual: false,
+      label: "Tailscale",
+    },
+    {
+      wsUrl: "ws://192.168.1.24:47890",
+      reachability: "lan",
+      encrypted: false,
+      virtual: false,
+      label: "en0 192.168.1.24",
+    },
+    {
+      wsUrl: "ws://172.17.0.1:47890",
+      reachability: "lan",
+      encrypted: false,
+      virtual: true,
+      label: "docker0 172.17.0.1 (virtual)",
+    },
+    {
+      wsUrl: "ws://127.0.0.1:47890",
+      reachability: "loopback",
+      encrypted: false,
+      virtual: false,
+      label: "This computer",
+    },
+  ];
+  const FIXTURE_LOOPBACK = "127.0.0.1";
+  // The overlay address stands in for the one that is not up yet when the app
+  // starts listening — the whole reason a pinned address can be reported by
+  // the interface table and still be bound by nothing. Pinning to it binds
+  // nothing; re-selecting it ("Listen on it now") does, which is the recovery
+  // the host buys with the config revision.
+  const FIXTURE_LATE_ADDRESS = "100.101.102.103";
+  let lateAddressBound = false;
+
+  // What a host would report binding for a given config — loopback always, the
+  // pin only when it actually came up. Modelled rather than derived from the
+  // config at read time, which is the disagreement the whole surface turns on.
+  const fixtureBoundAddresses = (enabled: boolean, bindAddress: string): readonly string[] => {
+    if (!enabled || bindAddress === FIXTURE_LOOPBACK) return [FIXTURE_LOOPBACK];
+    if (bindAddress === BIND_ALL_ADDRESS) return [BIND_ALL_ADDRESS];
+    if (bindAddress === FIXTURE_LATE_ADDRESS && !lateAddressBound) return [FIXTURE_LOOPBACK];
+    const held = fixtureEndpoints.some((endpoint) => endpointAddress(endpoint) === bindAddress);
+    return held ? [FIXTURE_LOOPBACK, bindAddress] : [FIXTURE_LOOPBACK];
+  };
   let remoteAccessState: RemoteAccessState = {
     enabled: false,
     port: 47890,
     listening: false,
-    lanUrls: [],
+    endpoints: fixtureEndpoints,
+    bindAddress: BIND_ALL_ADDRESS,
+    boundAddresses: fixtureBoundAddresses(false, BIND_ALL_ADDRESS),
     devices: [
       {
         id: "fixture-device",
@@ -1772,25 +1829,48 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     onSocialSignInResult: socialResultEvents.subscribe,
 
     // Remote access — simulated ws-server state so the settings section is
-    // drivable: toggling flips listening + LAN URLs, pairing returns a fixed
-    // token, revoking drops the pre-paired fixture device.
+    // drivable: toggling flips listening, the bind selection round-trips
+    // through the same bound-address model the host reports, pairing hands
+    // back every URL those bound addresses can reach (encrypted first, virtual
+    // adapters dropped, like the host does), revoking drops the pre-paired
+    // fixture device.
     getRemoteAccessState: async () => remoteAccessState,
     setRemoteAccessConfig: async (patch) => {
       const enabled = patch.enabled ?? remoteAccessState.enabled;
+      const bindAddress = patch.bindAddress ?? remoteAccessState.bindAddress;
+      // Asking for the address already selected is the forced rebind, and it
+      // is what brings the late address up.
+      lateAddressBound = enabled && bindAddress === remoteAccessState.bindAddress;
       remoteAccessState = {
         ...remoteAccessState,
         enabled,
         listening: enabled,
-        lanUrls: enabled ? [`ws://192.168.1.24:${remoteAccessState.port}`] : [],
+        bindAddress,
+        boundAddresses: fixtureBoundAddresses(enabled, bindAddress),
       };
       emitRemoteAccess();
       return remoteAccessState;
     },
-    createPairingToken: async () => ({
-      token: "fixture-pairing-token",
-      urls: ["ws://127.0.0.1:47890"],
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    }),
+    createPairingToken: async () => {
+      const { boundAddresses, endpoints } = remoteAccessState;
+      const offered = endpoints
+        .filter(
+          (endpoint) =>
+            endpoint.reachability !== "loopback" &&
+            !endpoint.virtual &&
+            (boundAddresses.includes(BIND_ALL_ADDRESS) ||
+              boundAddresses.includes(endpointAddress(endpoint))),
+        )
+        .toSorted((a, b) => Number(b.encrypted) - Number(a.encrypted));
+      return {
+        token: "fixture-pairing-token",
+        urls:
+          offered.length > 0
+            ? offered.map((endpoint) => ({ wsUrl: endpoint.wsUrl, label: endpoint.label }))
+            : [{ wsUrl: "ws://127.0.0.1:47890", label: "This computer" }],
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      };
+    },
     revokeRemoteDevice: async ({ id }) => {
       remoteAccessState = {
         ...remoteAccessState,

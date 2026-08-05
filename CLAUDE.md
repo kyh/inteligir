@@ -378,10 +378,56 @@ in Settings → Routines (list, add/edit, enable, Run now, Restore last run).
 
 ### Remote access — `packages/server/src/transport/`
 
-Off by default. When enabled (Settings → Remote access) the ws host binds
-0.0.0.0 instead of loopback and a phone pairs with a one-time token, minting a
-revocable device token; `remote-access-manager.ts` owns the device roster, and
-a revoke closes the live socket, not just future auths.
+Off by default. When enabled (Settings → Remote access) the ws host also binds
+the configured `bindAddress` (default 0.0.0.0, every interface) and a phone
+pairs with a one-time token, minting a revocable device token;
+`remote-access-manager.ts` owns the device roster, and a revoke closes the live
+socket, not just future auths.
+
+Loopback ALWAYS gets its own listener, is bound FIRST, and never depends on
+anything after it — the renderer dials 127.0.0.1 every launch, so a pinned
+address that vanished (overlay dropped, laptop roamed) must degrade to a
+loopback-only bind, not take the window offline. Every address after loopback
+is best-effort and reports through `setListening`'s error string. The host list
+is re-resolved from the LIVE interface table on every attempt (`targetBind`
+holds config only, purely for change detection), so a retry can never replay a
+dead host forever; every bind, rebind and retry is serialized by one chain that
+`close()` awaits. One ws server (`noServer`) fed by one HTTP listener per bound
+address keeps client tracking, the liveness sweep and teardown single-sourced.
+
+**The bind REPORTS what it bound; nothing downstream re-derives it.**
+`setListening` carries the addresses that actually came up, the manager keeps
+them as `boundAddresses`, and reachability — the Settings list, the pairing
+offer — is filtered on that alone. Re-resolving the config against the live
+interface table is what let an address the server never bound (booted before
+Tailscale was up) be offered as the one reachable, encrypted URL with nothing
+listening on it. Because the config is only a REQUEST, asking for it again is
+the recovery: an in-memory `revision` on the config makes re-selecting the
+already-pinned address compare as a change, so `sameBind` forces the rebind,
+and Settings offers that as "Listen on it now" beside the pinned-but-unbound
+copy (a different condition from an address the interface table no longer
+holds at all).
+
+`network-endpoints.ts` classifies each IPv4 interface as loopback / lan /
+private-network (IPv4-only is a stated constraint in that module's header, not
+an oversight). private-network requires BOTH the 100.64.0.0/10 CGNAT range AND
+a `255.255.255.255` netmask: 100.64/10 is carrier-grade NAT space, so Starlink,
+carrier tethering and campus/pod networks lease real subnets out of it over
+plaintext hops, and only the /32 corroborates the point-to-point overlay
+(Tailscale). Detected by RANGE + MASK, never by interface name. Only that tier
+reports `encrypted: true`, because plain LAN `ws://` is not, and that flag is
+what the Settings copy tells the user about their security. Hypervisor/container
+adapters (`bridge100`, `vmnet`, `docker`, `veth`…) bind fine but reach nobody,
+so they are flagged `virtual`, ranked last, labelled `(virtual)` — and they
+disqualify the overlay claim outright, since several CNIs hand pods a /32 out of
+100.64/10 and would otherwise reproduce its whole signature over a cleartext
+bridge. Pairing drops virtual endpoints and ORDERS the rest encrypted-first, but
+never filters a real one: a phone off the tailnet still needs the LAN fallback to
+pair at all. Each offered URL is its OWN labelled, select-all line — the
+companion's pairing input takes the first url in the pasted text, so an
+or-joined blob hands a phone on the wrong network an address it cannot reach.
+Binding the overlay address alone is what retires the deferred-TLS story: the
+transport is already encrypted and peer-authenticated.
 
 A paired device is NOT the renderer. It reaches only
 `REMOTE_ALLOWED_METHODS` / `REMOTE_ALLOWED_EVENTS`
