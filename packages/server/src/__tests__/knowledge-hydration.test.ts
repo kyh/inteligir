@@ -153,6 +153,9 @@ describe("hydration cursor", () => {
   it("keeps the largest single read bounded by the page, not the corpus", () => {
     // THE invariant. Quadruple the corpus: a monolithic read's biggest
     // call quadruples with it; a paged read's does not move at all.
+    // Every assertion is a ROW COUNT — seeding 2,500 docs is just slow enough
+    // that a loaded shared CI runner can blow vitest's 5s default, so the
+    // timeout is explicit like the benchmark's below.
     const peaks = new Map<number, { paged: number; monolithic: number }>();
     for (const docs of [500, 2000]) {
       const driver = countingDriver();
@@ -173,7 +176,7 @@ describe("hydration cursor", () => {
     expect(large.paged).toBe(small.paged); // 100 docs × 8 links = 800 either way
     expect(large.monolithic).toBe(small.monolithic * 4); // 4k vs 16k rows
     expect(large.paged).toBeLessThan(large.monolithic / 4);
-  });
+  }, 60_000);
 });
 
 // ---- Manager-level: progressive hydration ----------------------------------------
