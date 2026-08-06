@@ -19,7 +19,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { scanTaskItems } from "@repo/notes/knowledge/link-extract";
+import { scanTaskItems } from "./link-extract";
 
 const processor = unified().use(remarkParse).use(remarkFrontmatter).use(remarkGfm);
 

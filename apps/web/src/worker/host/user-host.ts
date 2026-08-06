@@ -38,6 +38,7 @@ import {
   type PendingSocketState,
 } from "./socket-state";
 import { createCloudStores } from "./stores";
+import { resolveDailyNotePath } from "./daily-note";
 import { seedVault } from "./vault/seed";
 import { UserVault, VAULT_ROOT } from "./vault/user-vault";
 
@@ -217,6 +218,7 @@ export class UserHost extends DurableObject<Env> {
       prefix: ctx.id.name ?? ctx.id.toString(),
       vault: this.vault,
       knowledge: this.knowledge,
+      dailyPath: (now) => resolveDailyNotePath(stores.uiState.read(), now),
       publicOrigin: () => this.publicOrigin(),
       emitAgentEvent: (event) => {
         this.events.emit("onAgentEvent", event);
@@ -224,8 +226,26 @@ export class UserHost extends DurableObject<Env> {
       emitConfirmation: (request) => {
         this.events.emit("onAgentConfirmationRequested", request);
       },
+      emitDelegations: (result) => {
+        this.events.emit("onDelegationsUpdated", result);
+      },
+      emitDelegationStream: (id, text) => {
+        this.events.emit("onDelegationStreamed", { id, text });
+      },
+      emitRoutines: (result) => {
+        this.events.emit("onRoutinesUpdated", result);
+      },
+      emitEditCaptured: (capture) => {
+        this.events.emit("onAgentEditCaptured", capture);
+      },
       onBusyChanged: () => {
         this.events.emit("onAppState", cloudAppState(this.agent.runner.agentBusy()));
+      },
+      onDeadlineChanged: () => {
+        // A routine's schedule moved, or a background run took the lane and
+        // with it a lease to reclaim. Re-derived at the end of the inbound
+        // path, like every other deadline this host keeps.
+        this.alarmDirty = true;
       },
       defer: (work) => {
         ctx.waitUntil(work);
@@ -245,6 +265,11 @@ export class UserHost extends DurableObject<Env> {
           credentials: this.agent.credentials,
           origin: () => this.publicOrigin(),
           scripted: this.agent.scripted,
+        },
+        background: {
+          delegations: this.agent.delegations,
+          routines: this.agent.routines,
+          snapshots: this.agent.snapshots,
         },
       });
     });
@@ -430,6 +455,10 @@ export class UserHost extends DurableObject<Env> {
     const now = Date.now();
     this.reapPendingSockets(now);
     await this.vault.sweepTrash(now);
+    // The unattended half: a routine whose slot has passed fires HERE, which is
+    // what a Durable Object's alarm is for and what the desktop's `setInterval`
+    // could not do through a closed laptop.
+    await this.agent.sweepBackground(now);
     await this.knowledge.flush();
     const next = this.nextDueAt(Date.now());
     if (next !== null) await this.ctx.storage.setAlarm(next);
@@ -458,6 +487,8 @@ export class UserHost extends DurableObject<Env> {
     }
     const sweep = this.vault.nextSweepAt();
     if (sweep !== null) due.push(sweep);
+    const background = this.agent.backgroundDueAt(now);
+    if (background !== null) due.push(background);
     // An index rebuild too large for one pass finishes on the alarm rather than
     // only as far as the next client message happens to carry it.
     if (this.knowledge.hasPendingWork()) due.push(now + INDEX_CONTINUATION_MS);

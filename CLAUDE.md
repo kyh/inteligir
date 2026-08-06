@@ -50,7 +50,7 @@ apps/            # shippable artifacts
 packages/        # libraries — boundaries are PACKAGE facts (deps + exports maps)
   notes/         # PURE platform-neutral domain (@repo/notes) — runs in Worker/RN/renderer:
                  #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery,
-                 #                the ONE crawl-exclusion set
+                 #                the checkbox locator, the ONE crawl-exclusion set
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
   bridge/        # Iso wire contract (@repo/bridge) — Bridge/IPC registry, ws client +
                  # protocol, shared schemas; loads in renderer/RN/node (deps: notes only)
@@ -372,7 +372,8 @@ session on `BACKGROUND_SESSION_DIR`). Before the agent dispatches, the host
 "Restore original" undoes an agent edit byte-exactly. The agent edits the file
 via `./vault`, checks the box, and appends a result; completion kicks a vault
 refresh (the ephemeral-index rule). Status streams to inline badges (`onDelegationsUpdated`).
-`find-task-line.ts` is the pure, content-addressed locator.
+`@repo/notes/knowledge/find-task-line` is the pure, content-addressed locator —
+in core because the cloud host's queue resolves checkboxes with the same one.
 `server/restore/` (`RestoreManager` over the `SnapshotStore`) is the ONE
 AI-edit-undo module both surfaces call in through: the chat tool gate captures
 per allowed write (fail-closed — a capture failure blocks the tool) behind the

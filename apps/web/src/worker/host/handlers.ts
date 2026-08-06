@@ -2,12 +2,14 @@
 // The cloud host's handler map: what is implemented, and — in one table — what
 // is not yet.
 //
-// Twenty-three methods are answered for real: the app phase and the two
+// Everything this host owns is answered for real: the app phase and the two
 // JsonStores over the Durable Object's KV, the vault (./vault-handlers) whose
-// manifest and bytes this object owns, and the knowledge index
-// (./knowledge-handlers) over that vault. Every other method is registered as a
-// SHIM that throws through `unavailable()`, naming the feature it waits on —
-// never a silent `[]` (see ShimRegistrar for why).
+// manifest and bytes this object owns, the knowledge index
+// (./knowledge-handlers) over that vault, the agent (../agent/agent-handlers)
+// and the background work over it (../background/background-handlers). Every
+// other method is registered as a SHIM that throws through `unavailable()`,
+// naming the feature it waits on — never a silent `[]` (see ShimRegistrar for
+// why).
 //
 // `CLOUD_SHIMS` is the migration backlog. Each group is roughly one later
 // commit, and a group empties as that commit lands.
@@ -16,6 +18,10 @@
 import type { AppState } from "@repo/bridge/app-state";
 import type { HostMethod } from "@repo/bridge/ipc-registry";
 import { registerAgentHandlers, type AgentServices } from "../agent/agent-handlers";
+import {
+  registerBackgroundHandlers,
+  type BackgroundServices,
+} from "../background/background-handlers";
 import { unavailable, type HandlerRegistrar, type ShimRegistrar } from "./handler-registry";
 import type { HostEvents } from "./host-events";
 import { registerKnowledgeHandlers } from "./knowledge-handlers";
@@ -30,6 +36,7 @@ type CloudHostServices = {
   readonly vault: UserVault;
   readonly knowledge: UserKnowledge;
   readonly agent: AgentServices;
+  readonly background: BackgroundServices;
 };
 
 /**
@@ -73,29 +80,6 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
     feature: "the vault",
     methods: ["chooseVaultRoot", "probeNotePrivacy", "setWatchedNote"],
   },
-  {
-    feature: "delegation",
-    methods: [
-      "createDelegation",
-      "listDelegations",
-      "cancelDelegation",
-      "restoreDelegationSnapshot",
-    ],
-  },
-  {
-    feature: "routines",
-    methods: [
-      "listRoutines",
-      "upsertRoutine",
-      "deleteRoutine",
-      "runRoutineNow",
-      "restoreRoutineRun",
-    ],
-  },
-  // The AGENT's undo is real (`undo_my_edits` over ./agent/agent-snapshots);
-  // this channel is the EDITOR's post-turn undo toast, which needs the
-  // renderer's own capture coordinates and has no client here yet.
-  { feature: "AI-edit undo", methods: ["restoreAgentEdits"] },
   { feature: "deep-link capture", methods: ["ackCapture", "takePendingDeepLinkNav"] },
   {
     feature: "editor AI",
@@ -209,6 +193,7 @@ export function registerCloudHandlers(
   registerVaultHandlers(handle, services.vault, services.knowledge);
   registerKnowledgeHandlers(handle, services.knowledge, services.vault);
   registerAgentHandlers(handle, services.agent);
+  registerBackgroundHandlers(handle, services.background);
 
   for (const group of CLOUD_SHIMS) {
     for (const method of group.methods) shim(method, group.feature);

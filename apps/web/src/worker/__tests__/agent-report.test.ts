@@ -35,7 +35,7 @@ function withHost<T>(name: string, run: (host: UserHost) => Promise<T> | T): Pro
 async function liveToken(host: UserHost, userId: string): Promise<string> {
   host.agent.credentials.setSelection({ provider: SANDBOX_PROVIDER_ID, modelId: "sandbox-1" });
   await host.agent.runner.send({ type: "user_message", text: "wake up" });
-  const scripted = host.agent.scripted();
+  const scripted = host.agent.scripted("chat");
   if (scripted === null) throw new Error("this deployment is not running the scripted container");
   const state = await scripted.state();
   if (state.phase !== "ready") throw new Error("the scripted container did not boot");

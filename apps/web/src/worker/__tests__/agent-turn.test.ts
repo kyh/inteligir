@@ -46,7 +46,7 @@ async function turn(host: UserHost, text: string, script: FauxAgentScript["steps
 }
 
 function scriptedPort(host: UserHost): FakeSandbox {
-  const existing = host.agent.scripted();
+  const existing = host.agent.scripted("chat");
   if (existing === null) throw new Error("this deployment is not running the scripted container");
   return existing;
 }
@@ -103,7 +103,7 @@ describe("an agent turn", () => {
       await host.vault.writeText("notes/one.md", "# One\n");
       await host.vault.writeText("notes/two.md", "# Two\n");
       await turn(host, "look around", [{ text: "done" }]);
-      const scripted = host.agent.scripted();
+      const scripted = host.agent.scripted("chat");
       return scripted === null ? [] : [...scripted.materialized().keys()].toSorted();
     });
     // AGENTS.md is seeded on first connect, not here, so the vault is exactly

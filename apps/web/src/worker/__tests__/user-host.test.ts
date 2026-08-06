@@ -73,11 +73,11 @@ describe("first-frame auth", () => {
     ws.send(JSON.stringify({ t: "auth", token: owner.token }));
     expect(await frames.next()).toEqual({ t: "welcome" });
 
-    // Exactly one hydration push: getAppState is the only HYDRATED_EVENTS
-    // getter with a real handler — the sync and remote-access getters are
-    // shims that throw, so their events are never pushed. The index broadcast
-    // that follows is the seed being projected, which happens after the
-    // welcome by design.
+    // One push per HYDRATED_EVENTS getter this host answers — the app phase,
+    // the delegation dock and the routines list. The sync and remote-access
+    // getters are shims that throw, so their events are never pushed, which is
+    // the design working. The index broadcast that follows is the seed being
+    // projected, which happens after the welcome by design.
     ws.send(JSON.stringify({ t: "req", id: 1, method: "getAppState" }));
     const events: string[] = [];
     for (;;) {
@@ -89,7 +89,11 @@ describe("first-frame auth", () => {
       expect(frame).toEqual({ t: "res", id: 1, ok: true, result: READY_STATE });
       break;
     }
-    expect(events.filter((event) => event !== "onKnowledgeUpdated")).toEqual(["onAppState"]);
+    expect(events.filter((event) => event !== "onKnowledgeUpdated")).toEqual([
+      "onAppState",
+      "onDelegationsUpdated",
+      "onRoutinesUpdated",
+    ]);
     ws.close(1000, "done");
   });
 
@@ -180,16 +184,17 @@ describe("capability classes", () => {
         error: "nosuch is not available to this client",
       });
 
-      // An allowlisted method reaches its handler: the refusal is the shim's,
-      // which is what proves the gate let it past rather than answering for it.
+      // An allowlisted method reaches its handler and is ANSWERED, which is
+      // what proves the gate let it past rather than answering for it.
       await host.webSocketMessage(
         server,
         JSON.stringify({ t: "req", id: 3, method: "listDelegations" }),
       );
-      const allowed = await frames.next();
-      expect(allowed).toMatchObject({ t: "res", id: 3, ok: false });
-      expect(allowed).toMatchObject({
-        error: expect.stringContaining("delegation is not available"),
+      expect(await frames.next()).toEqual({
+        t: "res",
+        id: 3,
+        ok: true,
+        result: { delegations: [] },
       });
 
       server.close(1000, "done");

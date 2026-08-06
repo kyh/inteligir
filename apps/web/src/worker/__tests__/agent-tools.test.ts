@@ -18,7 +18,6 @@ import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
 import {
   agentToolManifest,
   agentToolNames,
-  CLOUD_UNGRANTED,
   executeAgentTool,
   type AgentToolContext,
 } from "../agent/agent-tools";
@@ -29,21 +28,27 @@ type ToolRun = (name: string, args: unknown) => Promise<{ isError: boolean; text
 
 /** A tool executor over one object's real vault and index. `confirm` is
  * supplied per case, because "what happens when the user says no" is half of
- * what the destructive tier means. */
+ * what the destructive tier means; `attended` is the lane, because the other
+ * half is what an unattended run may not reach at all. */
 function withTools<T>(
   name: string,
   confirm: (proposal: Omit<AgentConfirmationRequest, "id">) => Promise<boolean>,
   run: (ctx: { host: UserHost; call: ToolRun }) => Promise<T>,
+  attended = true,
 ): Promise<T> {
   const stub = env.UserHost.getByName(userHostName(name));
   return runInDurableObject(stub, async (host) => {
-    // The object's OWN snapshot store and index — a second composition would
-    // put the restore points somewhere the production path never looks.
+    // The object's OWN snapshot store, index and delegation queue — a second
+    // composition would put the restore points somewhere the production path
+    // never looks.
     const context: AgentToolContext = {
       vault: host.vault,
       knowledge: host.knowledge,
       snapshots: host.agent.snapshots,
-      sessionId: host.agent.chat.activeSessionId(),
+      delegations: host.agent.delegations,
+      scope: { origin: "chat", ref: host.agent.chat.activeSessionId() },
+      turnId: "turn-under-test",
+      attended,
       confirm,
     };
     return run({ host, call: (tool, args) => executeAgentTool(context, tool, args) });
@@ -54,7 +59,7 @@ const always = (): Promise<boolean> => Promise.resolve(true);
 
 describe("the agent's tool surface", () => {
   it("takes every model-facing sentence from the grant table", () => {
-    const manifest = agentToolManifest();
+    const manifest = agentToolManifest(true);
     for (const tool of manifest) {
       const grant = AGENT_GRANTS.find((row) => row.agentName === tool.name);
       expect(grant, `${tool.name} has no grant row`).toBeDefined();
@@ -62,23 +67,44 @@ describe("the agent's tool surface", () => {
     }
   });
 
-  it("accounts for every granted capability — implemented or declared absent", () => {
+  it("implements every capability the grant table declares", () => {
     const implemented = new Set(agentToolNames());
-    const declaredAbsent = new Set(CLOUD_UNGRANTED.map((row) => row.agentName));
-    const unaccounted = AGENT_GRANTS.map((row) => row.agentName).filter(
-      (name) => !implemented.has(name) && !declaredAbsent.has(name),
+    const missing = AGENT_GRANTS.map((row) => row.agentName).filter(
+      (name) => !implemented.has(name),
     );
     // A granted capability this host silently drops is the confusion the grant
-    // table exists to end — it must be implemented or say why not.
-    expect(unaccounted).toEqual([]);
+    // table exists to end.
+    expect(missing).toEqual([]);
   });
 
-  it("answers an unknown tool with the reason it is absent, not a throw", async () => {
-    const result = await withTools("tools-absent", always, ({ call }) =>
-      call("delegate_task", { path: "a.md", ordinal: 0 }),
+  it("withholds the delegate and destructive tiers from an unattended container", () => {
+    const unattended = new Set(agentToolManifest(false).map((tool) => tool.name));
+    const withheld = AGENT_GRANTS.filter(
+      (row) => row.tier === "delegate" || row.tier === "destructive-confirmed",
+    );
+    expect(withheld.length).toBeGreaterThan(0);
+    for (const row of withheld) expect(unattended.has(row.agentName)).toBe(false);
+    // The read tiers are unchanged: an unattended run still needs the vault.
+    expect(unattended.has("search_vault")).toBe(true);
+  });
+
+  it("refuses those tiers at the executor too, not only in the menu", async () => {
+    const result = await withTools(
+      "tools-unattended",
+      always,
+      ({ call }) => call("delete_note", { path: "anything.md" }),
+      false,
     );
     expect(result.isError).toBe(true);
-    expect(result.text).toContain("no background agent");
+    expect(result.text).toContain("Nobody is watching");
+  });
+
+  it("answers an unknown tool with a sentence, not a throw", async () => {
+    const result = await withTools("tools-absent", always, ({ call }) =>
+      call("summon_a_pony", { colour: "pink" }),
+    );
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("no tool called summon_a_pony");
   });
 
   it("returns listings as a JSON array, never prose rows", async () => {

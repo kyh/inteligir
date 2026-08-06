@@ -23,15 +23,21 @@ import type { ProviderCredentials } from "../agent/provider-credentials";
 import { verifyScopedToken } from "../agent/agent-crypto";
 import { readBearer } from "./session";
 
-/** Answer one container report. */
+/**
+ * Answer one container report.
+ *
+ * The bearer proves three things at once, and the third is the newest: this
+ * object, the container generation it was minted for, and WHICH LANE that
+ * container is — the conversation's or the unattended one. The lane decides
+ * whether the report's writes land under the chat undo toast or a background
+ * task's "Restore original", so it is read off the credential rather than
+ * accepted from the body a container composes.
+ */
 export async function handleAgentReport(request: Request, runner: AgentRunner): Promise<Response> {
   const token = readBearer(request.headers);
   if (token === null) return new Response("unauthorized", { status: 401 });
-  // Bound to this object AND to the container generation it was minted for: a
-  // token from a container that was replaced reports into nothing.
-  if (!(await runner.acceptsReportToken(token))) {
-    return new Response("unauthorized", { status: 401 });
-  }
+  const lane = await runner.resolveReportLane(token);
+  if (lane === null) return new Response("unauthorized", { status: 401 });
 
   let body: unknown;
   try {
@@ -46,7 +52,7 @@ export async function handleAgentReport(request: Request, runner: AgentRunner): 
     });
   }
   const report: AgentReport = body;
-  return Response.json(await runner.report(report));
+  return Response.json(await runner.report(report, lane));
 }
 
 /**

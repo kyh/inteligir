@@ -27,14 +27,9 @@
     "@repo/vault": "workspace:*",
     "@repo/voice": "workspace:*",
     "@sinclair/typebox": "catalog:",
-    "remark-frontmatter": "catalog:",
-    "remark-gfm": "catalog:",
-    "remark-parse": "catalog:",
-    "unified": "catalog:",
     "ws": "^8.21.1"
   },
   "devDependencies": {
-    "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "@types/ws": "^8.18.1",
     "typescript": "catalog:",

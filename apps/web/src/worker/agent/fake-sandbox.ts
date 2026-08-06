@@ -148,7 +148,18 @@ export class FakeSandbox implements SandboxPort {
     return Promise.resolve();
   }
 
+  /**
+   * Run the turn, then report that it ended.
+   *
+   * `busy` clears BEFORE the `turn_end` report goes out, exactly as the real
+   * daemon clears `activeTurn` before sending it. That ordering is load-bearing
+   * rather than incidental: the host dispatches the next queued background task
+   * from inside that very report, and a container still calling itself busy
+   * while announcing that it is not would deadlock an event-driven queue on its
+   * own completion notice.
+   */
   private async runTurn(turn: SandboxTurn): Promise<void> {
+    let failure: string | null = null;
     try {
       const step = this.script.shift() ?? echoStep(turn.text);
       await this.emit(turn.turnId, [{ type: "agent_start" }]);
@@ -190,16 +201,11 @@ export class FakeSandbox implements SandboxPort {
         },
       ]);
       await this.emit(turn.turnId, [{ type: "agent_end" }]);
-      await this.deps.report({ kind: "turn_end", turnId: turn.turnId, error: null });
     } catch (error) {
-      await this.deps.report({
-        kind: "turn_end",
-        turnId: turn.turnId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      this.busy = false;
+      failure = error instanceof Error ? error.message : String(error);
     }
+    this.busy = false;
+    await this.deps.report({ kind: "turn_end", turnId: turn.turnId, error: failure });
   }
 
   /**

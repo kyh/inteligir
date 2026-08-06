@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { scanTaskItems } from "@repo/notes/knowledge/link-extract";
+import { scanTaskItems } from "../link-extract";
 
-import { findTaskLine } from "../delegation/find-task-line";
+import { findTaskLine } from "../find-task-line";
 
 const DOC = [
   "# Project",

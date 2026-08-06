@@ -1,11 +1,12 @@
 // ---------------------------------------------------------------------------
-// Restore points for agent writes — what makes `undo_my_edits` a real answer
-// rather than a tool that apologises.
+// Restore points for agent writes — the ONE module every AI-edit undo goes
+// through.
 //
 // The rule the desktop set stands: a mutation the agent makes captures a
 // restore point BEFORE it touches the file, and a capture that fails BLOCKS the
 // write. An AI edit with no undo point must never happen, so the capture is
-// fail-closed and its failure is the tool's refusal.
+// fail-closed and its failure is the tool's refusal — or, for a background run,
+// the reason it never dispatched.
 //
 // The mechanics differ because the storage does. There is no `~/.inteligir` to
 // copy bytes into; there is R2, which already holds the file's current bytes
@@ -14,20 +15,48 @@
 // vault — which means the manifest, the knowledge index and the deletion gate
 // all see an ordinary write and stay authoritative.
 //
-// Scope is the CURRENT THREAD, matching the grant table's promise: `undo_my_edits`
-// reaches edits made in this conversation, and anything older is the user's own
-// undo, not the agent's.
+// SCOPE IS (ORIGIN, REF), and the three origins are the three surfaces that
+// write:
+//   - `chat`   — ref is the chat thread. Every allowed write captures one, and
+//                each is announced so the post-turn undo toast can offer it.
+//   - `delegation` / `routine` — ref is the RUN. The pre-run capture is taken
+//                before the turn dispatches, and the surface's "Restore
+//                original" reads it back by the id it recorded.
+// The origin is what keeps them apart: a chatty conversation can never evict a
+// background run's undo point, and a background run never appears in the chat
+// toast.
+//
+// A CREATE IS NOT AN EMPTY FILE. When the target does not exist yet, the
+// restore point is "it did not exist", and undoing it TOMBSTONES the file
+// rather than writing zero bytes — the vault's trash is what "gone" means here,
+// so an undone create is recoverable for the retention window like any other
+// delete.
 // ---------------------------------------------------------------------------
 
-/** Snapshots kept per user. Each is one copy of one note; the cap bounds what a
- * long agent session can accumulate in R2. */
-const MAX_SNAPSHOTS = 200;
+/** Snapshots kept PER ORIGIN. A count cap rather than an age window, for the
+ * desktop's reason: snapshots are whole-file copies, so "50 × a note" is a
+ * bounded footprint, while an idle vault never loses its recent undo points to
+ * a calendar. Per origin, so a long chat cannot evict a background run's. */
+const SNAPSHOT_RETENTION = 50;
+
+/** Which surface captured a snapshot — and the retention bucket it counts
+ * against. */
+export type SnapshotOrigin = "chat" | "delegation" | "routine";
+
+/** What the pre-write state WAS. `edit` = the file existed and the blob holds
+ * its exact prior bytes; `create` = it did not, so undo removes it. */
+type SnapshotKind = "edit" | "create";
+
+/** The surface + the thing within it a capture belongs to (see the header). */
+export type SnapshotScope = { readonly origin: SnapshotOrigin; readonly ref: string };
 
 type SnapshotRow = {
-  readonly id: number;
+  readonly snapshot_id: string;
+  readonly origin: string;
+  readonly ref: string;
   readonly path: string;
-  readonly session_id: string;
-  readonly object_key: string;
+  readonly kind: string;
+  readonly object_key: string | null;
   readonly created_at: number;
 };
 
@@ -39,6 +68,8 @@ export type SnapshotVault = {
   /** Write bytes back at `path` — an ordinary vault write, gate and index
    * included. */
   writeText(path: string, content: string): Promise<{ readonly ok: boolean }>;
+  /** Tombstone `path` — how a created file is un-created. */
+  trash(paths: readonly string[]): Promise<{ readonly ok: boolean }>;
 };
 
 export type SnapshotDeps = {
@@ -48,6 +79,18 @@ export type SnapshotDeps = {
    * snapshot lives beside the file it copies. */
   readonly prefix: string;
   readonly vault: SnapshotVault;
+  /** A chat capture landed. Fired for that origin ONLY: the post-turn undo
+   * toast must never offer to undo a background run, which has its own
+   * affordance and its own run-state guard. */
+  readonly onChatCaptured: (capture: CapturedEdit) => void;
+};
+
+/** What `onChatCaptured` announces — the wire shape's own fields, resolved. */
+export type CapturedEdit = {
+  readonly id: string;
+  readonly path: string;
+  readonly kind: SnapshotKind;
+  readonly capturedAt: number;
 };
 
 export type RestoreOutcome =
@@ -59,110 +102,203 @@ export class AgentSnapshots {
   private readonly bucket: R2Bucket;
   private readonly prefix: string;
   private readonly vault: SnapshotVault;
+  private readonly onChatCaptured: (capture: CapturedEdit) => void;
 
   constructor(deps: SnapshotDeps) {
     this.sql = deps.sql;
     this.bucket = deps.bucket;
     this.prefix = deps.prefix;
     this.vault = deps.vault;
+    this.onChatCaptured = deps.onChatCaptured;
     this.sql.exec(
       `CREATE TABLE IF NOT EXISTS agent_snapshots (
-         id INTEGER PRIMARY KEY,
+         snapshot_id TEXT PRIMARY KEY,
+         origin TEXT NOT NULL,
+         ref TEXT NOT NULL,
          path TEXT NOT NULL,
-         session_id TEXT NOT NULL,
-         object_key TEXT NOT NULL,
+         kind TEXT NOT NULL,
+         object_key TEXT,
          created_at INTEGER NOT NULL
        )`,
     );
     this.sql.exec(
-      "CREATE INDEX IF NOT EXISTS agent_snapshots_path ON agent_snapshots (session_id, path, id)",
+      "CREATE INDEX IF NOT EXISTS agent_snapshots_scope ON agent_snapshots (origin, ref, path, created_at)",
     );
   }
 
   /**
-   * Copy the current bytes at `path` aside.
+   * Copy the current bytes at `path` aside, and answer with the id that undoes
+   * it — or `null`, which the caller must treat as "do not write".
    *
-   * Answers `true` when there is now a restore point — including for a path
-   * that does not exist yet, where the restore point is "it did not exist" and
-   * is recorded as an empty snapshot with no blob. `false` means the copy
-   * failed, and the caller must refuse the write.
+   * A path that does not exist yet captures a `create` with no blob: there are
+   * no bytes to copy, and the undo is a tombstone rather than an empty write.
    */
-  async capture(sessionId: string, path: string): Promise<boolean> {
+  async capture(scope: SnapshotScope, path: string): Promise<string | null> {
     const current = this.vault.lookup(path);
-    const objectKey = `${this.prefix}/.snapshots/${crypto.randomUUID()}`;
-    try {
-      if (current !== null && current.state === "live") {
+    const live = current !== null && current.state === "live";
+    const objectKey = live ? `${this.prefix}/.snapshots/${crypto.randomUUID()}` : null;
+    if (objectKey !== null && current !== null) {
+      try {
         const object = await this.bucket.get(`${this.prefix}/${current.key}`);
-        if (object === null) return false;
+        if (object === null) return null;
         await this.bucket.put(objectKey, object.body);
-      } else {
-        // A file the agent is about to CREATE has an empty restore point: the
-        // undo is "put it back to nothing", which is an empty write rather than
-        // a delete — the vault's own trash owns removal.
-        await this.bucket.put(objectKey, new Uint8Array(0));
+      } catch {
+        return null;
       }
-    } catch {
-      return false;
     }
+    const id = crypto.randomUUID();
+    const capturedAt = Date.now();
     this.sql.exec(
-      "INSERT INTO agent_snapshots (path, session_id, object_key, created_at) VALUES (?, ?, ?, ?)",
+      `INSERT INTO agent_snapshots (snapshot_id, origin, ref, path, kind, object_key, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      scope.origin,
+      scope.ref,
       path,
-      sessionId,
+      live ? "edit" : "create",
       objectKey,
-      Date.now(),
+      capturedAt,
     );
     await this.prune();
-    return true;
+    if (scope.origin === "chat") {
+      // Best-effort: the capture is already durable, and a broadcast failure
+      // must not turn into a blocked agent write.
+      try {
+        this.onChatCaptured({ id, path, kind: live ? "edit" : "create", capturedAt });
+      } catch {
+        // Nothing here can recover a socket; the undo point stands either way.
+      }
+    }
+    return id;
   }
 
-  /** Put `path` back to the newest snapshot taken in `sessionId`. */
-  async restore(sessionId: string, path: string): Promise<RestoreOutcome> {
+  /**
+   * Put every named snapshot's file back, aggregating failures into one
+   * sentence — whatever could be restored was.
+   *
+   * `origin` is a GUARD, not a lookup hint: each surface holds ids from its own
+   * captures, so an id from another one arriving here means a caller reached
+   * past its own undo — the chat toast trying to rewind a background task's
+   * work, which that task's own affordance owns behind its run-state check.
+   *
+   * IDEMPOTENT, and deliberately not consuming: "Restore original" is an
+   * affordance a user may click twice, and the second click landing on the same
+   * bytes is the answer they asked for. `consume` is the exception the agent's
+   * own undo takes.
+   */
+  async restore(ids: readonly string[], origin: SnapshotOrigin): Promise<RestoreOutcome> {
+    const failures: string[] = [];
+    for (const id of ids) {
+      const row = this.rowAt(id);
+      if (row === null) {
+        failures.push("No saved copy exists for that edit.");
+        continue;
+      }
+      if (row.origin !== origin) {
+        failures.push(`${row.path} was not edited by this surface, so it cannot be undone here.`);
+        continue;
+      }
+      const applied = await this.applyRestore(row);
+      if (!applied.ok) failures.push(applied.reason);
+    }
+    return failures.length === 0 ? { ok: true } : { ok: false, reason: failures.join(" ") };
+  }
+
+  /** Drop a snapshot and its blob. The agent's own `undo_my_edits` calls this
+   * after restoring: a second undo of the same edit would otherwise rewind to
+   * the same bytes and report success while changing nothing. */
+  async consume(id: string): Promise<void> {
+    const row = this.rowAt(id);
+    if (row === null) return;
+    this.sql.exec("DELETE FROM agent_snapshots WHERE snapshot_id = ?", id);
+    if (row.object_key !== null) await this.bucket.delete(row.object_key);
+  }
+
+  /** The newest snapshot for one scope + path, or null. The lookup behind the
+   * agent's own undo, which keys on a PATH: a model has no capture ids. */
+  latest(scope: SnapshotScope, path: string): string | null {
     const row = this.sql
-      .exec<SnapshotRow>(
-        `SELECT id, path, session_id, object_key, created_at FROM agent_snapshots
-         WHERE session_id = ? AND path = ? ORDER BY id DESC LIMIT 1`,
-        sessionId,
+      .exec<{ snapshot_id: string }>(
+        `SELECT snapshot_id FROM agent_snapshots
+         WHERE origin = ? AND ref = ? AND path = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+        scope.origin,
+        scope.ref,
         path,
       )
       .toArray()[0];
-    if (row === undefined) {
-      return { ok: false, reason: `I have not edited ${path} in this conversation.` };
+    return row?.snapshot_id ?? null;
+  }
+
+  /** Whether `id` still names bytes something can be restored from — what a
+   * `hasSnapshot` flag on a delegation or a routine run reports. */
+  holds(id: string): boolean {
+    return this.rowAt(id) !== null;
+  }
+
+  // ---- internals ------------------------------------------------------------
+
+  private rowAt(id: string): SnapshotRow | null {
+    return (
+      this.sql
+        .exec<SnapshotRow>(
+          `SELECT snapshot_id, origin, ref, path, kind, object_key, created_at
+           FROM agent_snapshots WHERE snapshot_id = ?`,
+          id,
+        )
+        .toArray()[0] ?? null
+    );
+  }
+
+  /**
+   * The byte-restore both undo surfaces share.
+   *
+   * A `create` snapshot undoes by TOMBSTONING the file — the vault has no OS
+   * trash to hand it to, and a permanent delete would make undoing an
+   * agent-created note the one irreversible step in an undo feature. An `edit`
+   * writes its bytes back through the vault, recreating the file if it was
+   * deleted since.
+   */
+  private async applyRestore(row: SnapshotRow): Promise<RestoreOutcome> {
+    if (row.kind === "create") {
+      const current = this.vault.lookup(row.path);
+      // Already gone counts as done: the undo's whole claim is about the
+      // file's absence, not about who removed it.
+      if (current === null || current.state !== "live") return { ok: true };
+      const trashed = await this.vault.trash([row.path]);
+      return trashed.ok ? { ok: true } : { ok: false, reason: `Could not remove ${row.path}.` };
+    }
+    if (row.object_key === null) {
+      return { ok: false, reason: `The saved copy of ${row.path} is no longer available.` };
     }
     const object = await this.bucket.get(row.object_key);
     if (object === null) {
-      return { ok: false, reason: `The saved copy of ${path} is no longer available.` };
+      return { ok: false, reason: `The saved copy of ${row.path} is no longer available.` };
     }
-    const written = await this.vault.writeText(path, await object.text());
-    if (!written.ok) return { ok: false, reason: `Could not write ${path}.` };
-    // The snapshot is CONSUMED: a second undo of the same edit would otherwise
-    // rewind to the same bytes and report success while changing nothing.
-    this.sql.exec("DELETE FROM agent_snapshots WHERE id = ?", row.id);
-    await this.bucket.delete(row.object_key);
-    return { ok: true };
+    const written = await this.vault.writeText(row.path, await object.text());
+    return written.ok ? { ok: true } : { ok: false, reason: `Could not write ${row.path}.` };
   }
 
-  /** Whether this conversation has anything to undo for `path`. */
-  hasSnapshot(sessionId: string, path: string): boolean {
-    const row = this.sql
-      .exec<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM agent_snapshots WHERE session_id = ? AND path = ?",
-        sessionId,
-        path,
-      )
-      .toArray()[0];
-    return (row?.n ?? 0) > 0;
-  }
-
-  /** Drop the oldest snapshots past the cap, blobs and all. */
+  /** Drop the oldest snapshots past the cap in each origin, blobs and all. */
   private async prune(): Promise<void> {
-    const doomed = this.sql
-      .exec<{ id: number; object_key: string }>(
-        "SELECT id, object_key FROM agent_snapshots ORDER BY id DESC LIMIT -1 OFFSET ?",
-        MAX_SNAPSHOTS,
-      )
-      .toArray();
+    const doomed: SnapshotRow[] = [];
+    for (const origin of ["chat", "delegation", "routine"] satisfies SnapshotOrigin[]) {
+      doomed.push(
+        ...this.sql
+          .exec<SnapshotRow>(
+            `SELECT snapshot_id, origin, ref, path, kind, object_key, created_at
+             FROM agent_snapshots WHERE origin = ?
+             ORDER BY created_at DESC, rowid DESC LIMIT -1 OFFSET ?`,
+            origin,
+            SNAPSHOT_RETENTION,
+          )
+          .toArray(),
+      );
+    }
     if (doomed.length === 0) return;
-    for (const row of doomed) this.sql.exec("DELETE FROM agent_snapshots WHERE id = ?", row.id);
-    await this.bucket.delete(doomed.map((row) => row.object_key));
+    for (const row of doomed) {
+      this.sql.exec("DELETE FROM agent_snapshots WHERE snapshot_id = ?", row.snapshot_id);
+    }
+    const keys = doomed.flatMap((row) => (row.object_key === null ? [] : [row.object_key]));
+    if (keys.length > 0) await this.bucket.delete(keys);
   }
 }

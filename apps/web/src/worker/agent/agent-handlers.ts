@@ -17,7 +17,7 @@ import type { AiProviderSettings } from "@repo/bridge/ai-provider";
 import type { HandlerRegistrar } from "../host/handler-registry";
 import { unavailable } from "../host/handler-registry";
 
-import type { AgentRunner } from "./agent-runner";
+import type { AgentLane, AgentRunner } from "./agent-runner";
 import type { ChatStore } from "./chat-store";
 import type { FakeSandbox } from "./fake-sandbox";
 import { offeredProviders, providerEntry, providerInfo, resolveModelId } from "./provider-catalog";
@@ -34,9 +34,9 @@ export type AgentServices = {
    * off the socket that authenticated, because a Durable Object has no notion
    * of the hostname its Worker was called at. */
   readonly origin: () => string;
-  /** The scripted container, where one is running. `null` on the real runtime,
-   * which is what makes the script channel fail closed. */
-  readonly scripted: () => FakeSandbox | null;
+  /** A lane's scripted container, where one is running. `null` on the real
+   * runtime, which is what makes the script channel fail closed. */
+  readonly scripted: (lane: AgentLane) => FakeSandbox | null;
 };
 
 export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentServices): void {
@@ -74,12 +74,15 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
   // The scripted runtime's response queue — the cloud twin of the desktop's
   // faux-agent script channel, and fail-closed the same way: a deployment
   // running a real container has no queue to script.
+  //
+  // BOTH lanes take the script. A drive that delegates a checkbox needs the
+  // unattended container to answer too, and the caller has no way to name a
+  // lane — nor should it, since the lane is a fact of how a turn was started.
   handle("setFauxAgentScript", (script) => {
-    const scripted = services.scripted();
-    if (scripted === null) {
-      throw new Error("setFauxAgentScript requires AGENT_RUNTIME=scripted");
-    }
-    scripted.setScript(script);
+    const chat = services.scripted("chat");
+    if (chat === null) throw new Error("setFauxAgentScript requires AGENT_RUNTIME=scripted");
+    chat.setScript(script);
+    services.scripted("background")?.setScript(script);
   });
 
   handle("getAgentSystemPrompt", () => services.runner.systemPrompt());

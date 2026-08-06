@@ -16,18 +16,27 @@
 //     with whatever arguments it likes — and every one of them is
 //     schema-checked and scoped to this user's own vault before it runs.
 //
-// WHAT IS NOT GRANTED HERE, and why, is DECLARED rather than absent
-// (`CLOUD_UNGRANTED`), because "the agent can't do that" arriving as silence is
-// the confusion the grant table exists to end. The cloud host has no delegation
-// manager yet, so the four delegation rows have nothing behind them.
+// THE UNATTENDED LANE GETS A NARROWER MENU, and it is narrowed in TWO places
+// on purpose. The manifest a container boots with omits the tiers an
+// unattended turn may not use, so the model never sees a tool it cannot call;
+// the executor refuses them anyway, so a container running a stale boot cannot
+// reach one. Which tiers those are comes from the grant table's own `tier`
+// field rather than a second list here — the same rule the desktop states as
+// "`AgentPorts.actions` is null in the background session".
 //
-// RESULT ENCODING: every listing is a JSON array (`jsonRows`), never
+// RESULT ENCODING: every listing is a JSON array (`rows`), never
 // newline-joined prose. A note body can contain any prose delimiter, so prose
 // rows let a note forge hits pointing at paths it does not own. Outcome
 // sentences stay prose — they are our own words, not vault text.
 // ---------------------------------------------------------------------------
 
-import { AGENT_GRANTS, type AgentGrant } from "@repo/bridge/agent-grants";
+import { AGENT_GRANTS, type AgentGrant, type AgentGrantTier } from "@repo/bridge/agent-grants";
+import type {
+  CreateDelegationParams,
+  CreateDelegationResult,
+  ListDelegationsResult,
+  RestoreSnapshotResult,
+} from "@repo/bridge/delegation";
 import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
@@ -38,7 +47,7 @@ import { Value } from "@sinclair/typebox/value";
 import type { UserKnowledge } from "../host/knowledge/user-knowledge";
 import { heldDeletionMessage, type UserVault } from "../host/vault/user-vault";
 import { renameWithLinkRewrite } from "../host/vault/vault-rename";
-import type { AgentSnapshots } from "./agent-snapshots";
+import type { AgentSnapshots, SnapshotScope } from "./agent-snapshots";
 import type { SandboxToolSpec } from "./sandbox-port";
 
 /** Page sizes the MODEL sees, and the ceilings it cannot exceed. Every row
@@ -64,7 +73,28 @@ const MAX_SWEEP_NOTES = 20_000;
 /** Notes named in a graph summary's samples. */
 const GRAPH_SAMPLE = 12;
 
+/** Background tasks `list_delegations` hands back, newest first. */
+const DELEGATIONS_MAX = 50;
+
+/** Delegations one interactive turn may queue. Small on purpose, and the same
+ * number the desktop's action port uses: a turn that genuinely needs a fourth
+ * background task is a turn that should be reporting back instead. It is the
+ * one tier that manufactures agent TURNS, so it is the one with a budget. */
+const MAX_DELEGATIONS_PER_TURN = 3;
+
 export type AgentToolResult = { readonly isError: boolean; readonly text: string };
+
+/** The delegation surface the `delegate` tier reaches, narrowed to the four
+ * capabilities the grant table declares. Structural, so the real store
+ * satisfies it and nothing here can reach past those four. */
+export type DelegationToolPort = {
+  list(): ListDelegationsResult;
+  create(params: CreateDelegationParams, turnId: string | null): Promise<CreateDelegationResult>;
+  cancel(id: string): Promise<{ ok: boolean }>;
+  restoreSnapshot(id: string): Promise<RestoreSnapshotResult>;
+  /** How many this turn has already queued — the cap's counter. */
+  queuedInTurn(turnId: string): number;
+};
 
 /** What the executor needs. Structural so tests drive the real tools over a
  * real vault and index without a container anywhere. */
@@ -72,9 +102,16 @@ export type AgentToolContext = {
   readonly vault: UserVault;
   readonly knowledge: UserKnowledge;
   readonly snapshots: AgentSnapshots;
-  /** The chat thread the current turn belongs to — the scope `undo_my_edits`
-   * promises. */
-  readonly sessionId: string;
+  readonly delegations: DelegationToolPort;
+  /** Where this turn's restore points live — the conversation, or the
+   * background run. It is what `undo_my_edits` scopes its promise to. */
+  readonly scope: SnapshotScope;
+  /** The container turn this call belongs to — the boundary the delegate cap
+   * counts against. */
+  readonly turnId: string;
+  /** Whether a human is in this conversation. False on the background lane,
+   * where the delegate and destructive tiers do not exist. */
+  readonly attended: boolean;
   /** Raise a destructive proposal with the human and wait for the answer. A
    * non-answer is a decline. */
   readonly confirm: (proposal: Omit<AgentConfirmationRequest, "id">) => Promise<boolean>;
@@ -88,6 +125,32 @@ type ToolDefinition = {
   readonly mechanics: string;
   readonly execute: (ctx: AgentToolContext, args: unknown) => Promise<AgentToolResult>;
 };
+
+/**
+ * Why a tier is absent from an UNATTENDED turn, or null when it is granted
+ * there.
+ *
+ * Both refusals are the desktop's own reasoning, said to the model rather than
+ * met with silence: a proposal has no conversation to be confirmed in, and a
+ * background agent that could delegate would queue its own successors.
+ */
+function unattendedRefusal(tier: AgentGrantTier): string | null {
+  switch (tier) {
+    case "destructive-confirmed":
+      return (
+        "Nobody is watching this run, so there is no conversation to confirm a destructive " +
+        "action in. Say what you would have done and leave it to the user."
+      );
+    case "delegate":
+      return (
+        "You ARE the background agent. Handing work to it would queue your own successors, " +
+        "which has no stopping condition. Do the work in this run, or report that it is too large."
+      );
+    case "read-projected":
+    case "write-checkpointed":
+      return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Argument schemas
@@ -178,6 +241,27 @@ const RenameArgs = Type.Object(
         "New vault-relative path ('notes/new.md', or 'archive/old.md' to move it). The " +
         "destination file name must be a valid note name.",
     }),
+  },
+  { additionalProperties: false },
+);
+
+const DelegateArgs = Type.Object(
+  {
+    path: Type.String({
+      description: "Vault-relative path of the note the checkbox lives in, from list_tasks.",
+    }),
+    ordinal: Type.Number({
+      description:
+        "The checkbox's position among ALL checkboxes in that note, from list_tasks. Not a " +
+        "line number.",
+    }),
+  },
+  { additionalProperties: false },
+);
+
+const DelegationRef = Type.Object(
+  {
+    id: Type.String({ description: "The background task's id, from list_delegations." }),
   },
   { additionalProperties: false },
 );
@@ -378,6 +462,30 @@ const TOOLS: readonly ToolDefinition[] = [
       return success(JSON.stringify(await linkGraphSummary(ctx)));
     },
   },
+  {
+    name: "list_delegations",
+    parameters: NoArgs,
+    mechanics:
+      `The ${DELEGATIONS_MAX} most recent, each \`{id, path, line, status, result}\` — ` +
+      "`result` is the one-line outcome, or the reason it failed. Pass `id` to " +
+      "cancel_delegation and restore_delegation.",
+    execute: (ctx) =>
+      Promise.resolve(
+        rows(
+          ctx.delegations
+            .list()
+            .delegations.toReversed()
+            .slice(0, DELEGATIONS_MAX)
+            .map((delegation) => ({
+              id: delegation.id,
+              path: delegation.sourceFile,
+              line: delegation.lineText,
+              status: delegation.status,
+              result: delegation.resultSummary ?? delegation.error ?? "",
+            })),
+        ),
+      ),
+  },
 
   // ---- write-checkpointed --------------------------------------------------
   {
@@ -401,7 +509,7 @@ const TOOLS: readonly ToolDefinition[] = [
         return failure(toggleRefusal(edit.reason));
       }
       // Fail-closed: no restore point, no write.
-      if (!(await ctx.snapshots.capture(ctx.sessionId, args.path))) {
+      if ((await ctx.snapshots.capture(ctx.scope, args.path)) === null) {
         return failure(`Could not save a restore point for ${args.path}, so I did not write it.`);
       }
       const written = await ctx.vault.writeText(args.path, edit.content);
@@ -417,12 +525,50 @@ const TOOLS: readonly ToolDefinition[] = [
     mechanics: "",
     execute: async (ctx, raw) => {
       const args = parse(RenameArgs, raw);
-      if (!(await ctx.snapshots.capture(ctx.sessionId, args.from))) {
+      if ((await ctx.snapshots.capture(ctx.scope, args.from)) === null) {
         return failure(`Could not save a restore point for ${args.from}, so I did not move it.`);
       }
       const result = await renameWithLinkRewrite(ctx.vault, ctx.knowledge, args.from, args.to);
       if (!result.ok) return failure(`Rename failed: ${result.error}`);
       return success(`Renamed ${args.from} to ${args.to}, rewriting the links that pointed at it.`);
+    },
+  },
+
+  // ---- delegate — the one tier that manufactures agent turns -----------------
+  {
+    name: "delegate_task",
+    parameters: DelegateArgs,
+    mechanics:
+      `At most ${MAX_DELEGATIONS_PER_TURN} per turn. The task runs unattended on its own ` +
+      "container, so say what you handed off before you call this.",
+    execute: async (ctx, raw) => {
+      const args = parse(DelegateArgs, raw);
+      if (ctx.delegations.queuedInTurn(ctx.turnId) >= MAX_DELEGATIONS_PER_TURN) {
+        return failure(
+          `You have already handed ${MAX_DELEGATIONS_PER_TURN} tasks to the background agent ` +
+            "in this turn. Report back on those before queueing more.",
+        );
+      }
+      const created = await ctx.delegations.create(
+        { sourceFile: args.path, ordinal: args.ordinal },
+        ctx.turnId,
+      );
+      if (!created.ok) return failure(created.error);
+      return success(
+        `Handed "${created.delegation.anchor.text}" (${args.path}) to the background agent.`,
+      );
+    },
+  },
+  {
+    name: "cancel_delegation",
+    parameters: DelegationRef,
+    mechanics: "",
+    execute: async (ctx, raw) => {
+      const { id } = parse(DelegationRef, raw);
+      const cancelled = await ctx.delegations.cancel(id);
+      return cancelled.ok
+        ? success(`Cancelled background task ${id}.`)
+        : failure(`There is no queued or running background task with id ${id}.`);
     },
   },
 
@@ -457,7 +603,8 @@ const TOOLS: readonly ToolDefinition[] = [
     mechanics: "A background task's edits are not yours to undo.",
     execute: async (ctx, raw) => {
       const { path } = parse(NotePath, raw);
-      if (!ctx.snapshots.hasSnapshot(ctx.sessionId, path)) {
+      const snapshotId = ctx.snapshots.latest(ctx.scope, path);
+      if (snapshotId === null) {
         return failure(`I have not edited ${path} in this conversation.`);
       }
       const confirmed = await ctx.confirm({
@@ -468,41 +615,36 @@ const TOOLS: readonly ToolDefinition[] = [
         confirmLabel: "Undo",
       });
       if (!confirmed) return failure(`The user declined to undo my edit to ${path}.`);
-      const result = await ctx.snapshots.restore(ctx.sessionId, path);
+      const result = await ctx.snapshots.restore([snapshotId], ctx.scope.origin);
       if (!result.ok) return failure(result.reason);
+      // Consumed, so a second undo of the same edit cannot rewind to the same
+      // bytes and report success while changing nothing.
+      await ctx.snapshots.consume(snapshotId);
       return success(`Restored ${path} to its state before my last edit.`);
     },
   },
-];
-
-/**
- * Grant rows this host does NOT implement, with the reason a model is told.
- *
- * Declared rather than absent for the grant table's own reason: a capability
- * that is simply missing reads to a model as a tool it should invent a name
- * for. Each entry is rendered into the seeded instructions
- * (./agent-instructions), so a denial is stated rather than met with silence.
- */
-export const CLOUD_UNGRANTED: readonly { readonly agentName: string; readonly why: string }[] = [
   {
-    agentName: "list_delegations",
-    why: "Background tasks do not run on this host yet, so there is nothing to list.",
-  },
-  {
-    agentName: "delegate_task",
-    why:
-      "There is no background agent on this host yet, so a checkbox cannot be handed off. Do " +
-      "the work in this turn, or tell the user it is too large for one.",
-  },
-  {
-    agentName: "cancel_delegation",
-    why: "Nothing can be delegated here, so nothing can be cancelled.",
-  },
-  {
-    agentName: "restore_delegation",
-    why:
-      "Nothing can be delegated here, so no background task has edited a note. undo_my_edits " +
-      "covers your own edits.",
+    name: "restore_delegation",
+    parameters: DelegationRef,
+    mechanics: "",
+    execute: async (ctx, raw) => {
+      const { id } = parse(DelegationRef, raw);
+      const delegation = ctx.delegations.list().delegations.find((row) => row.id === id);
+      if (delegation === undefined) return failure(`There is no background task with id ${id}.`);
+      const confirmed = await ctx.confirm({
+        title: `Undo the background task's edit to ${delegation.sourceFile}?`,
+        detail:
+          `This puts ${delegation.sourceFile} back to the bytes it had before that task ran. ` +
+          "Everything written to it since goes with it.",
+        confirmLabel: "Restore",
+      });
+      if (!confirmed) {
+        return failure(`The user declined to restore ${delegation.sourceFile}.`);
+      }
+      const result = await ctx.delegations.restoreSnapshot(id);
+      if (!result.ok) return failure(result.error);
+      return success(`Restored ${delegation.sourceFile} to its state before that task ran.`);
+    },
   },
 ];
 
@@ -511,26 +653,33 @@ export const CLOUD_UNGRANTED: readonly { readonly agentName: string; readonly wh
 // ---------------------------------------------------------------------------
 
 /**
- * The tools the container registers, with each description opening on the
- * grant table's own sentence.
+ * The tools a container registers, with each description opening on the grant
+ * table's own sentence.
+ *
+ * `attended` narrows the MENU rather than only the answers: a background
+ * container is never handed the delegate or destructive tiers, so the model
+ * does not spend a turn discovering it cannot use them.
  *
  * Throws for a tool with no grant row, which is the point: a capability nobody
  * declared is a capability nobody weighed.
  */
-export function agentToolManifest(): SandboxToolSpec[] {
-  return TOOLS.map((tool) => {
+export function agentToolManifest(attended: boolean): SandboxToolSpec[] {
+  return TOOLS.flatMap((tool) => {
     const grant = grantFor(tool.name);
-    return {
-      name: tool.name,
-      description:
-        tool.mechanics === "" ? grant.description : `${grant.description} ${tool.mechanics}`,
-      parameters: tool.parameters,
-    };
+    if (!attended && unattendedRefusal(grant.tier) !== null) return [];
+    return [
+      {
+        name: tool.name,
+        description:
+          tool.mechanics === "" ? grant.description : `${grant.description} ${tool.mechanics}`,
+        parameters: tool.parameters,
+      },
+    ];
   });
 }
 
 /** The grant row for `agentName`, or a throw naming the gap. */
-export function grantFor(agentName: string): AgentGrant {
+function grantFor(agentName: string): AgentGrant {
   const grant = AGENT_GRANTS.find((row) => row.agentName === agentName);
   if (grant === undefined) {
     throw new Error(
@@ -547,12 +696,12 @@ export function agentToolNames(): readonly string[] {
 }
 
 /**
- * Run one tool call from the container.
+ * Run one tool call from a container.
  *
- * A tool that is not offered, or arguments that do not fit its schema, come
- * back as an ERROR RESULT rather than a throw: pi turns an error result into
- * something the model reads and can correct, where a transport failure reads as
- * the host being broken.
+ * A tool that is not offered, one its lane may not use, or arguments that do
+ * not fit its schema all come back as an ERROR RESULT rather than a throw: pi
+ * turns an error result into something the model reads and can correct, where a
+ * transport failure reads as the host being broken.
  */
 export async function executeAgentTool(
   ctx: AgentToolContext,
@@ -560,9 +709,12 @@ export async function executeAgentTool(
   args: unknown,
 ): Promise<AgentToolResult> {
   const tool = TOOLS.find((candidate) => candidate.name === name);
-  if (tool === undefined) {
-    const denied = CLOUD_UNGRANTED.find((row) => row.agentName === name);
-    return failure(denied?.why ?? `There is no tool called ${name} on this host.`);
+  if (tool === undefined) return failure(`There is no tool called ${name} on this host.`);
+  if (!ctx.attended) {
+    // The manifest already withheld it; this is what holds when a container is
+    // running a boot from before that was true.
+    const refusal = unattendedRefusal(grantFor(name).tier);
+    if (refusal !== null) return failure(refusal);
   }
   try {
     return await tool.execute(ctx, args);

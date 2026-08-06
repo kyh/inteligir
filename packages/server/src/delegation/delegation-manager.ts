@@ -15,7 +15,7 @@ import { Value } from "@sinclair/typebox/value";
 
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
-import { findTaskLine } from "./find-task-line";
+import { findTaskLine } from "@repo/notes/knowledge/find-task-line";
 import {
   BackgroundTurnLock,
   getBackgroundTurnLock,

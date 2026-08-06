@@ -116,12 +116,14 @@ describe("user-host gate chokepoints", () => {
     // Its gate is NOT the client class — a container is not a client — so this
     // pins the two conditions it does carry, both required. A route that read a
     // report before proving whose container sent it would be a hole neither
-    // socket chokepoint could close.
+    // socket chokepoint could close. The same call answers WHICH LANE the
+    // container is, so the undo surface a report's writes land under is read
+    // off the credential rather than taken from the body.
     expect(agentEndpointSource).toContain("readBearer(request.headers)");
-    expect(agentEndpointSource).toContain("runner.acceptsReportToken(token)");
+    expect(agentEndpointSource).toContain("runner.resolveReportLane(token)");
     // And the body is parsed only AFTER both, so an unauthenticated caller
     // cannot spend this object's time on a megabyte of JSON.
-    const authIndex = agentEndpointSource.indexOf("acceptsReportToken");
+    const authIndex = agentEndpointSource.indexOf("resolveReportLane");
     const parseIndex = agentEndpointSource.indexOf("await request.json()");
     expect(authIndex).toBeGreaterThan(-1);
     expect(parseIndex).toBeGreaterThan(authIndex);

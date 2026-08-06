@@ -779,25 +779,10 @@ importers:
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.52
-      remark-frontmatter:
-        specifier: 'catalog:'
-        version: 5.0.0
-      remark-gfm:
-        specifier: 'catalog:'
-        version: 4.0.1
-      remark-parse:
-        specifier: 'catalog:'
-        version: 11.0.0
-      unified:
-        specifier: 'catalog:'
-        version: 11.0.5
       ws:
         specifier: ^8.21.1
         version: 8.21.1
     devDependencies:
-      '@types/mdast':
-        specifier: 'catalog:'
-        version: 4.0.4
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1

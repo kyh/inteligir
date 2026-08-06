@@ -61,6 +61,16 @@ const IMPLEMENTED: readonly HostMethod[] = [
   "setAiProviderConfig",
   "connectAiProvider",
   "disconnectAiProvider",
+  "createDelegation",
+  "listDelegations",
+  "cancelDelegation",
+  "restoreDelegationSnapshot",
+  "listRoutines",
+  "upsertRoutine",
+  "deleteRoutine",
+  "runRoutineNow",
+  "restoreRoutineRun",
+  "restoreAgentEdits",
 ];
 
 /** An in-memory stand-in for `ctx.storage.kv` — the same synchronous contract. */
@@ -111,6 +121,11 @@ function withHandlers<T>(
           origin: () => "https://inteligir.com",
           scripted: host.agent.scripted,
         },
+        background: {
+          delegations: host.agent.delegations,
+          routines: host.agent.routines,
+          snapshots: host.agent.snapshots,
+        },
       });
     });
     return run({ handlers, events });
@@ -128,12 +143,12 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("splits those methods into 35 implementations and 54 shims", () => {
+  it("splits those methods into 45 implementations and 44 shims", () => {
     // The counts are the migration's progress bar: 89 host methods (110 IPC
     // entries minus 19 events and the 2 desktop-shell methods).
     expect(HOST_METHODS).toHaveLength(89);
-    expect(IMPLEMENTED).toHaveLength(35);
-    expect(shimmedMethods).toHaveLength(54);
+    expect(IMPLEMENTED).toHaveLength(45);
+    expect(shimmedMethods).toHaveLength(44);
     expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
     expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });

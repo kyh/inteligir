@@ -21,7 +21,6 @@ import {
 } from "@repo/bridge/agent-instructions";
 import { renderNeverGrantedSection } from "@repo/bridge/agent-grants";
 
-import { CLOUD_UNGRANTED, grantFor } from "./agent-tools";
 import type { UserVault } from "../host/vault/user-vault";
 
 /** Characters of the user's own instructions carried into a turn. */
@@ -55,28 +54,9 @@ ${AGENT_INSTRUCTIONS_AGENT_PATH} holds the user's standing instructions and your
 memory of them. Append durable facts about how they work to its Memory section.
 `;
 
-/**
- * Rows the grant table declares that this host does not implement, rendered as
- * their own denial section.
- *
- * Separate from `renderNeverGrantedSection` because the reason is different in
- * kind: those capabilities are withheld on purpose and always will be, these
- * are absent because the feature behind them has not been built here. Telling
- * a model "you may not" when the truth is "there is nothing to" produces a
- * model that argues.
- */
-function renderUngrantedSection(): string {
-  if (CLOUD_UNGRANTED.length === 0) return "";
-  const rows = CLOUD_UNGRANTED.map((row) => `- **${row.agentName}** — ${row.why}`);
-  return ["## Not on this host", "", ...rows, ""].join("\n");
-}
-
 /** The bundled instructions, grant table and all. */
 function bundledInstructions(): string {
-  // Reading each ungranted row through the table is what makes a stale entry a
-  // startup failure rather than a sentence about a tool nobody declared.
-  for (const row of CLOUD_UNGRANTED) grantFor(row.agentName);
-  return [BUNDLED, renderUngrantedSection(), renderNeverGrantedSection()].join("\n");
+  return [BUNDLED, renderNeverGrantedSection()].join("\n");
 }
 
 /**

@@ -306,9 +306,13 @@ async function runTurn(current: Daemon, turn: ContainerTurn): Promise<void> {
   if (session !== null && session.isSeeded()) seededThrough = turn.seededThrough;
 
   await events.flush();
-  await current.reporter.send({ kind: "turn_end", turnId: turn.turnId, error: failure });
+  // The turn is OVER before it is REPORTED. That ordering is load-bearing for
+  // the background lane: the object dispatches the next queued task from inside
+  // this very report, and a daemon still holding `activeTurn` while announcing
+  // that the turn ended would deadlock the queue on its own completion notice.
   if (current.stream === events) current.stream = null;
   activeTurn = null;
+  await current.reporter.send({ kind: "turn_end", turnId: turn.turnId, error: failure });
 }
 
 async function teardown(): Promise<void> {
