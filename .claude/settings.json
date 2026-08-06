@@ -14,9 +14,9 @@
       "Bash(pnpm dev:desktop)",
       "Bash(pnpm dev:web)",
       "Bash(pnpm --filter @repo/desktop dev:harness)",
-      "Bash(pnpm --filter @repo/cloud dev)",
-      "Bash(pnpm --filter @repo/cloud test)",
-      "Bash(pnpm --filter @repo/cloud db:push:local)",
+      "Bash(pnpm --filter @repo/web dev)",
+      "Bash(pnpm --filter @repo/web test)",
+      "Bash(pnpm --filter @repo/web db:push:local)",
       "Bash(pkill -f \"turbo watch dev\")",
       "Bash(pkill -f \"electron-vite\")",
       "Bash(pkill -f \"Electron.app/Contents/MacOS/Electron\")",
@@ -24,10 +24,10 @@
       "Bash(npx -y emulate:*)"
     ],
     "deny": [
-      "Bash(pnpm --filter @repo/cloud db:push)",
-      "Bash(pnpm -F @repo/cloud db:push)",
-      "Bash(pnpm --filter @repo/cloud db:studio)",
-      "Bash(pnpm -F @repo/cloud db:studio)"
+      "Bash(pnpm --filter @repo/web db:push)",
+      "Bash(pnpm -F @repo/web db:push)",
+      "Bash(pnpm --filter @repo/web db:studio)",
+      "Bash(pnpm -F @repo/web db:studio)"
     ]
   }
 }
