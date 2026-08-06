@@ -156,7 +156,8 @@ export type UploadOutcome =
 /** A move's verdict — the primitive rename, before any link rewriting. */
 export type MoveOutcome = { readonly ok: true } | { readonly ok: false; readonly error: string };
 
-/** Every live doc's bytes, for the pure rename-rewrite pass. */
+/** The docs a rename-rewrite pass will read, plus the universe it resolves
+ * against. */
 export type DocSnapshot = {
   /** Doc contents keyed by vault path. */
   readonly docs: ReadonlyMap<string, string>;
@@ -164,9 +165,34 @@ export type DocSnapshot = {
   readonly versions: ReadonlyMap<string, number>;
   /** Every live path — the resolution universe links resolve against. */
   readonly files: readonly string[];
-  /** True when the vault holds more docs than the snapshot cap allows, so the
-   * caller must not present a partial rewrite as a complete one. */
-  readonly truncated: boolean;
+};
+
+/**
+ * A doc's bytes as a mutation had them in hand, with the hash the manifest
+ * recorded them under.
+ *
+ * The pair is inseparable on purpose: the hash is what lets a later reader
+ * prove these bytes are still the ones the manifest names, so text without its
+ * hash — bytes nobody can date — is unrepresentable.
+ */
+export type ChangedBody = { readonly text: string; readonly contentHash: string };
+
+/**
+ * What one mutation did, in the terms a derived index needs: which paths now
+ * hold different bytes, and which are gone.
+ *
+ * Not a per-operation union, because no consumer branches on the operation —
+ * a rename and a delete-then-write leave the index with the same work to do,
+ * and modelling them apart would only invite a consumer to handle one and
+ * forget the other. `refresh()` announces an empty change: the manifest was
+ * never stale, so there is nothing to reproject.
+ */
+export type VaultChange = {
+  /** Files this mutation created or overwrote. `body` is null when the
+   * mutation never held the bytes (a move, a restore, a streamed upload) or
+   * when the path is not a doc — the reader fetches them if it needs them. */
+  readonly upserted: readonly { readonly path: string; readonly body: ChangedBody | null }[];
+  readonly removed: readonly string[];
 };
 
 export type UserVaultDeps = {
@@ -176,15 +202,18 @@ export type UserVaultDeps = {
    * collide and a vault's objects are enumerable under one prefix. */
   readonly prefix: string;
   /** Fired after every mutation, and by `refresh()`. The host turns it into
-   * one `onVaultChanged` broadcast; this class never touches the wire. */
-  readonly onChanged: () => void;
+   * one `onVaultChanged` broadcast and hands it to the knowledge index; this
+   * class never touches the wire. */
+  readonly onChanged: (change: VaultChange) => void;
 };
+
+const NO_CHANGE: VaultChange = { upserted: [], removed: [] };
 
 export class UserVault {
   private readonly sql: SqlStorage;
   private readonly bucket: R2Bucket;
   private readonly prefix: string;
-  private readonly onChanged: () => void;
+  private readonly onChanged: (change: VaultChange) => void;
 
   /** Serializes mutations (see the CONCURRENCY note above). */
   private mutationTail: Promise<void> = Promise.resolve();
@@ -207,8 +236,13 @@ export class UserVault {
     this.onChanged = deps.onChanged;
     // Synchronous, so the table exists before anything else in this object's
     // construction can reach it.
+    //
+    // QUALIFIED, because this object's SQLite is shared: the knowledge index's
+    // schema is core's (@repo/notes/knowledge/sql-knowledge-store) and claims
+    // the unqualified `files`. Two tables cannot hold one name, and the shared
+    // schema is the one that cannot yield.
     this.sql.exec(
-      `CREATE TABLE IF NOT EXISTS files (
+      `CREATE TABLE IF NOT EXISTS vault_files (
          path_key TEXT PRIMARY KEY,
          path TEXT NOT NULL,
          version INTEGER NOT NULL,
@@ -220,7 +254,7 @@ export class UserVault {
     );
     // Serves the trash view, the retention sweep, and the deletion gate's
     // window count — every query that asks about tombstones.
-    this.sql.exec("CREATE INDEX IF NOT EXISTS files_deleted_at ON files (deleted_at)");
+    this.sql.exec("CREATE INDEX IF NOT EXISTS vault_files_deleted_at ON vault_files (deleted_at)");
   }
 
   // ---- reads (no mutex; concurrent) ----------------------------------------
@@ -228,7 +262,7 @@ export class UserVault {
   /** The vault's live files, in path order — the sidebar's whole listing. */
   list(): VaultEntry[] {
     const rows = this.sql
-      .exec<{ path: string }>("SELECT path FROM files WHERE deleted_at IS NULL ORDER BY path")
+      .exec<{ path: string }>("SELECT path FROM vault_files WHERE deleted_at IS NULL ORDER BY path")
       .toArray();
     return rows.map((row) => ({
       path: row.path,
@@ -241,15 +275,36 @@ export class UserVault {
   listTrash(): TrashedEntry[] {
     const rows = this.sql
       .exec<{ path: string; deleted_at: number }>(
-        "SELECT path, deleted_at FROM files WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, path",
+        "SELECT path, deleted_at FROM vault_files WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, path",
       )
       .toArray();
     return rows.map((row) => ({ path: row.path, deletedAt: row.deleted_at }));
   }
 
+  /**
+   * Every live file with the manifest facts a derived index reconciles
+   * against.
+   *
+   * The content hash is the point: it is the sha-256 of the bytes R2 holds, so
+   * an index that records the hash it projected can tell exactly which files
+   * moved under it — with no stat heuristics, no crawl, and no reads at all
+   * when nothing changed.
+   */
+  liveFiles(): StoredFile[] {
+    return this.sql
+      .exec<FileRow>(
+        `SELECT path_key, path, version, content_hash, size, updated_at, deleted_at
+         FROM vault_files WHERE deleted_at IS NULL ORDER BY path`,
+      )
+      .toArray()
+      .map(toStoredFile);
+  }
+
   /** True when nothing has ever been written here — the seed's precondition. */
   isEmpty(): boolean {
-    return this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM files").toArray()[0]?.n === 0;
+    return (
+      this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM vault_files").toArray()[0]?.n === 0
+    );
   }
 
   /** The row at `rawPath`, live or tombstoned, or `null` when there is none. */
@@ -304,27 +359,23 @@ export class UserVault {
   }
 
   /**
-   * Every live doc's bytes plus the full path universe — the input the pure
-   * rename-rewrite pass needs.
+   * The bytes of the named docs, plus the full path universe — the input the
+   * pure rename-rewrite pass needs.
    *
-   * `limit` caps the R2 reads a single rename may issue. It is a real ceiling,
-   * not a defensive one: one GET per doc is the cost of answering "which notes
-   * link here?" with no link index, and a Worker invocation has a finite
-   * subrequest budget. Over the cap the snapshot comes back `truncated` and the
-   * caller degrades to a plain rename plus the old-title alias, which is
-   * exactly the fallback the alias exists to be.
+   * The caller names the docs because only it can: the knowledge index knows
+   * which notes a rename can possibly touch, and reading any others would be
+   * one R2 GET apiece to compute no edit at all. A named path that is missing
+   * or unreadable is simply absent from the result — it will not be rewritten.
    */
-  async snapshotDocs(limit: number): Promise<DocSnapshot> {
+  async snapshotDocs(paths: readonly string[]): Promise<DocSnapshot> {
     const rows = this.sql
       .exec<{ path: string; path_key: string; version: number }>(
-        "SELECT path, path_key, version FROM files WHERE deleted_at IS NULL ORDER BY path",
+        "SELECT path, path_key, version FROM vault_files WHERE deleted_at IS NULL ORDER BY path",
       )
       .toArray();
     const files = rows.map((row) => row.path);
-    const docRows = rows.filter((row) => isDocPath(row.path));
-    if (docRows.length > limit) {
-      return { docs: new Map(), versions: new Map(), files, truncated: true };
-    }
+    const wanted = new Set(paths);
+    const docRows = rows.filter((row) => wanted.has(row.path) && isDocPath(row.path));
     const docs = new Map<string, string>();
     const versions = new Map<string, number>();
     // Bounded fan-out: R2 round trips dominate, and issuing them one at a time
@@ -346,7 +397,7 @@ export class UserVault {
         versions.set(row.path, row.version);
       }
     }
-    return { docs, versions, files, truncated: false };
+    return { docs, versions, files };
   }
 
   // ---- mutations (serialized through the mutex) ----------------------------
@@ -381,7 +432,13 @@ export class UserVault {
         return { ok: false, reason: "version-conflict", current };
       }
       const file = await this.commit(parsed, current, contentHash, bytes.length, bytes);
-      this.onChanged();
+      // Decoded here rather than threaded down from `writeText`, so EVERY
+      // writer announces a doc the same way — including the byte-only ones,
+      // where the caller has no text to thread.
+      const body = isDocPath(parsed.path)
+        ? { text: new TextDecoder().decode(bytes), contentHash }
+        : null;
+      this.onChanged({ upserted: [{ path: parsed.path, body }], removed: [] });
       return { ok: true, file };
     });
   }
@@ -397,7 +454,7 @@ export class UserVault {
     try {
       await this.runExclusive(async () => {
         await this.commit(claim, null, contentHash, bytes.length, bytes);
-        this.onChanged();
+        this.onChanged({ upserted: [{ path: claim.path, body: null }], removed: [] });
       });
     } finally {
       this.reserved.delete(claim.key);
@@ -436,7 +493,8 @@ export class UserVault {
       }
       await this.runExclusive(() => {
         this.insertRow(claim, null, stored.contentHash, stored.size);
-        this.onChanged();
+        // No body: the bytes were streamed to R2 and never held here.
+        this.onChanged({ upserted: [{ path: claim.path, body: null }], removed: [] });
       });
       return { ok: true, path: claim.path };
     } finally {
@@ -461,14 +519,15 @@ export class UserVault {
       if (held !== null) return { ok: false, reason: "held", held };
       for (const target of targets) {
         this.sql.exec(
-          "UPDATE files SET deleted_at = ?, updated_at = ? WHERE path_key = ?",
+          "UPDATE vault_files SET deleted_at = ?, updated_at = ? WHERE path_key = ?",
           now,
           now,
           target.key,
         );
       }
-      if (targets.length > 0) this.onChanged();
-      return { ok: true, trashed: targets.map((target) => target.path) };
+      const trashed = targets.map((target) => target.path);
+      if (trashed.length > 0) this.onChanged({ upserted: [], removed: trashed });
+      return { ok: true, trashed };
     });
   }
 
@@ -480,11 +539,11 @@ export class UserVault {
       const current = this.rowAt(parsed.key);
       if (current === null || current.state !== "trashed") return false;
       this.sql.exec(
-        "UPDATE files SET deleted_at = NULL, updated_at = ? WHERE path_key = ?",
+        "UPDATE vault_files SET deleted_at = NULL, updated_at = ? WHERE path_key = ?",
         Date.now(),
         parsed.key,
       );
-      this.onChanged();
+      this.onChanged({ upserted: [{ path: current.path, body: null }], removed: [] });
       return true;
     });
   }
@@ -512,12 +571,12 @@ export class UserVault {
       if (from.key === to.key) {
         if (from.path === to.path) return { ok: true };
         this.sql.exec(
-          "UPDATE files SET path = ?, version = version + 1, updated_at = ? WHERE path_key = ?",
+          "UPDATE vault_files SET path = ?, version = version + 1, updated_at = ? WHERE path_key = ?",
           to.path,
           Date.now(),
           from.key,
         );
-        this.onChanged();
+        this.onChanged({ upserted: [{ path: to.path, body: null }], removed: [from.path] });
         return { ok: true };
       }
 
@@ -535,7 +594,7 @@ export class UserVault {
       // so the manifest never points at a missing blob in either direction.
       await this.bucket.put(this.objectKey(to.key), object.body, { sha256: source.contentHash });
       this.sql.exec(
-        `UPDATE files SET path_key = ?, path = ?, version = version + 1, updated_at = ?
+        `UPDATE vault_files SET path_key = ?, path = ?, version = version + 1, updated_at = ?
          WHERE path_key = ?`,
         to.key,
         to.path,
@@ -543,7 +602,7 @@ export class UserVault {
         from.key,
       );
       await this.bucket.delete(this.objectKey(from.key));
-      this.onChanged();
+      this.onChanged({ upserted: [{ path: to.path, body: null }], removed: [source.path] });
       return { ok: true };
     });
   }
@@ -551,7 +610,7 @@ export class UserVault {
   /** Re-announce the vault without changing it — the "Refresh vault" command.
    * There is no snapshot to rebuild here; the manifest was never stale. */
   refresh(): void {
-    this.onChanged();
+    this.onChanged(NO_CHANGE);
   }
 
   // ---- retention -----------------------------------------------------------
@@ -561,7 +620,7 @@ export class UserVault {
   nextSweepAt(): number | null {
     const row = this.sql
       .exec<{ oldest: number | null }>(
-        "SELECT MIN(deleted_at) AS oldest FROM files WHERE deleted_at IS NOT NULL",
+        "SELECT MIN(deleted_at) AS oldest FROM vault_files WHERE deleted_at IS NOT NULL",
       )
       .toArray()[0];
     const oldest = row?.oldest ?? null;
@@ -573,7 +632,7 @@ export class UserVault {
     return this.runExclusive(async () => {
       const due = this.sql
         .exec<{ path_key: string }>(
-          "SELECT path_key FROM files WHERE deleted_at IS NOT NULL AND deleted_at <= ?",
+          "SELECT path_key FROM vault_files WHERE deleted_at IS NOT NULL AND deleted_at <= ?",
           now - TRASH_RETENTION_MS,
         )
         .toArray();
@@ -585,28 +644,15 @@ export class UserVault {
 
   // ---- internals -----------------------------------------------------------
 
-  /** Manifest row → the caller-facing record, with live and trashed split so
-   * neither can be read as the other. */
   private rowAt(key: string): StoredFile | null {
     const row = this.sql
       .exec<FileRow>(
         `SELECT path_key, path, version, content_hash, size, updated_at, deleted_at
-         FROM files WHERE path_key = ?`,
+         FROM vault_files WHERE path_key = ?`,
         key,
       )
       .toArray()[0];
-    if (row === undefined) return null;
-    const facts: FileFacts = {
-      path: row.path,
-      key: row.path_key,
-      version: row.version,
-      contentHash: row.content_hash,
-      size: row.size,
-      updatedAt: row.updated_at,
-    };
-    return row.deleted_at === null
-      ? { ...facts, state: "live" }
-      : { ...facts, state: "trashed", deletedAt: row.deleted_at };
+    return row === undefined ? null : toStoredFile(row);
   }
 
   /** Bytes to R2 first, then the manifest row. The ordering is the invariant. */
@@ -635,7 +681,7 @@ export class UserVault {
     const version = (current?.version ?? 0) + 1;
     const now = Date.now();
     this.sql.exec(
-      `INSERT INTO files (path_key, path, version, content_hash, size, updated_at, deleted_at)
+      `INSERT INTO vault_files (path_key, path, version, content_hash, size, updated_at, deleted_at)
        VALUES (?, ?, ?, ?, ?, ?, NULL)
        ON CONFLICT(path_key) DO UPDATE SET
          path = excluded.path,
@@ -665,7 +711,7 @@ export class UserVault {
   /** Manifest row out first, then the blob — a purge's half of the ordering
    * rule. An interrupted purge leaves an orphan blob, never a dangling row. */
   private async purge(keys: readonly string[]): Promise<void> {
-    for (const key of keys) this.sql.exec("DELETE FROM files WHERE path_key = ?", key);
+    for (const key of keys) this.sql.exec("DELETE FROM vault_files WHERE path_key = ?", key);
     await this.bucket.delete(keys.map((key) => this.objectKey(key)));
   }
 
@@ -729,13 +775,13 @@ export class UserVault {
     const recent =
       this.sql
         .exec<{ n: number }>(
-          "SELECT COUNT(*) AS n FROM files WHERE deleted_at IS NOT NULL AND deleted_at > ?",
+          "SELECT COUNT(*) AS n FROM vault_files WHERE deleted_at IS NOT NULL AND deleted_at > ?",
           now - DELETION_WINDOW_MS,
         )
         .toArray()[0]?.n ?? 0;
     const liveCount =
       this.sql
-        .exec<{ n: number }>("SELECT COUNT(*) AS n FROM files WHERE deleted_at IS NULL")
+        .exec<{ n: number }>("SELECT COUNT(*) AS n FROM vault_files WHERE deleted_at IS NULL")
         .toArray()[0]?.n ?? 0;
     const deletions = recent + targets.length;
     const limit = Math.max(MIN_HELD_DELETIONS, HELD_DELETION_SHARE * liveCount);
@@ -770,6 +816,22 @@ export function heldDeletionMessage(held: HeldDeletions): string {
     `(${named}${held.sample.length < held.deletions ? ", …" : ""}). ` +
     "Confirm the deletion to proceed."
   );
+}
+
+/** Manifest row → the caller-facing record, with live and trashed split so
+ * neither can be read as the other. */
+function toStoredFile(row: FileRow): StoredFile {
+  const facts: FileFacts = {
+    path: row.path,
+    key: row.path_key,
+    version: row.version,
+    contentHash: row.content_hash,
+    size: row.size,
+    updatedAt: row.updated_at,
+  };
+  return row.deleted_at === null
+    ? { ...facts, state: "live" }
+    : { ...facts, state: "trashed", deletedAt: row.deleted_at };
 }
 
 function isVaultKey(key: VaultKey | null): key is VaultKey {

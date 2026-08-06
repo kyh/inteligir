@@ -13,6 +13,7 @@ import type { ReadVaultAssetResult } from "@repo/bridge/ipc-registry";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import type { HandlerRegistrar } from "./handler-registry";
+import type { UserKnowledge } from "./knowledge/user-knowledge";
 import { base64ToBytes, bytesToBase64 } from "./vault/base64";
 import { heldDeletionMessage, VAULT_ROOT, type UserVault } from "./vault/user-vault";
 import { renameWithLinkRewrite } from "./vault/vault-rename";
@@ -29,7 +30,11 @@ import { renameWithLinkRewrite } from "./vault/vault-rename";
  */
 const MAX_INLINE_ASSET_UPLOAD_BYTES = 4 * 1024 * 1024;
 
-export function registerVaultHandlers(handle: HandlerRegistrar, vault: UserVault): void {
+export function registerVaultHandlers(
+  handle: HandlerRegistrar,
+  vault: UserVault,
+  knowledge: UserKnowledge,
+): void {
   handle("getVaultRoot", () => VAULT_ROOT);
   handle("listVault", () => vault.list());
   handle("readVaultDoc", ({ path }) => vault.readText(path));
@@ -59,7 +64,7 @@ export function registerVaultHandlers(handle: HandlerRegistrar, vault: UserVault
     return { removed: result.trashed.length > 0 };
   });
 
-  handle("renameVaultEntry", ({ from, to }) => renameWithLinkRewrite(vault, from, to));
+  handle("renameVaultEntry", ({ from, to }) => renameWithLinkRewrite(vault, knowledge, from, to));
 
   handle("writeVaultAsset", async ({ dir, baseName, bytesBase64 }) => {
     const bytes = base64ToBytes(bytesBase64);

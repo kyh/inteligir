@@ -42,6 +42,13 @@ const IMPLEMENTED: readonly HostMethod[] = [
   "writeVaultAsset",
   "readVaultAsset",
   "refreshVault",
+  "getBacklinks",
+  "getForwardLinks",
+  "getLinkGraph",
+  "searchVault",
+  "listWikiTargets",
+  "listVaultTasks",
+  "toggleVaultTask",
 ];
 
 /** An in-memory stand-in for `ctx.storage.kv` — the same synchronous contract. */
@@ -75,7 +82,12 @@ function withHandlers<T>(
     const events = new HostEvents();
     const stores = createCloudStores(memoryKv());
     const handlers = collectHandlers((handle, shim) => {
-      registerCloudHandlers(handle, shim, { stores, events, vault: host.vault });
+      registerCloudHandlers(handle, shim, {
+        stores,
+        events,
+        vault: host.vault,
+        knowledge: host.knowledge,
+      });
     });
     return run({ handlers, events });
   });
@@ -92,12 +104,12 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("splits those methods into 16 implementations and 73 shims", () => {
+  it("splits those methods into 23 implementations and 66 shims", () => {
     // The counts are the migration's progress bar: 89 host methods (110 IPC
     // entries minus 19 events and the 2 desktop-shell methods).
     expect(HOST_METHODS).toHaveLength(89);
-    expect(IMPLEMENTED).toHaveLength(16);
-    expect(shimmedMethods).toHaveLength(73);
+    expect(IMPLEMENTED).toHaveLength(23);
+    expect(shimmedMethods).toHaveLength(66);
     expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
     expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });

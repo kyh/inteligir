@@ -40,9 +40,12 @@ src/
       socket-state.ts    The socket attachment: the only state a wake can read
       host-events.ts     The per-instance event bus (never module scope)
       handler-registry.ts collectHandlers(): the completeness guard + shims
-      handlers.ts        6 implementations + CLOUD_SHIMS, the migration backlog
+      handlers.ts        the implementations + CLOUD_SHIMS, the migration backlog
+      vault-handlers.ts  the vault's ten channels
+      knowledge-handlers.ts the index's seven channels, incl. the guarded toggle
       stores.ts          ui-state + notifications as JsonStores over DO KV
       vault/             THE VAULT — manifest in DO SQLite, bytes in R2
+      knowledge/         THE INDEX — core's SQL store over DO SQLite + FTS5
     rate-limit.ts        fixed-window budget over the shared rate_limit D1 table
     hash.ts              sha256Hex() — authoritative content hashing
     log.ts               logUnhandled() — the structured line both fetch entries emit
@@ -57,6 +60,8 @@ src/
     worker-configuration.d.ts  generated bindings (`pnpm cf-typegen`)
     __tests__/
       user-vault.test.ts     the vault: manifest, R2 bytes, tombstones, the gate
+      user-knowledge.test.ts the index: projection, hydration after eviction, rename scope
+      do-sql-driver.test.ts  core's SQL store over the DO binding, incl. ranking
       desktop-session.test.ts the code mint/exchange path (state, single use, TTL)
       password-reset.test.ts request → token → reset, with a mock EMAIL binding
       user-host.test.ts      the host socket end to end, incl. eviction + the alarm
@@ -86,9 +91,11 @@ one directory: every tool that resolves a file's config by walking up
 
 - **One vault per user**, living in that user's `UserHost` object — there is no
   separate vault object and no vault id to address. The manifest is DO SQLite
-  storage (a `files` row per path: `version`, `contentHash`, `size`,
-  `deleted_at`); file bytes are R2 objects under this object's own prefix, and
-  the manifest is authoritative for versions and hashes.
+  storage (a `vault_files` row per path: `version`, `contentHash`, `size`,
+  `deleted_at` — qualified because the knowledge index's core schema owns the
+  unqualified `files` in the same database); file bytes are R2 objects under
+  this object's own prefix, and the manifest is authoritative for versions and
+  hashes.
 - **Write ordering is crash-consistent**: bytes reach R2 BEFORE the manifest row
   commits, and a permanent purge removes the manifest row BEFORE the R2 object.
   The tolerable failure is an orphan blob, never a dangling pointer.
@@ -101,6 +108,37 @@ one directory: every tool that resolves a file's config by walking up
   held by one number: deletions past `max(25, 5% of the manifest)` inside a
   rolling window are held whole until a human confirms. It reads a COUNT, never
   a cause — it bounds the blast radius of a mass delete, it does not detect one.
+
+### The knowledge index (inside the same DO)
+
+- **Core's SQL `KnowledgeStore`, unforked**, over a third `SqlDriver` bound to
+  `ctx.storage.sql` (`knowledge/do-sql-driver.ts`). The schema, the guards and
+  the FTS5 bm25 ranking are `@repo/notes`'s, so cloud search ranks the way the
+  desktop's node:sqlite one does. Durable Object SQLite refuses `BEGIN` and
+  `PRAGMA user_version`, so the driver binds core's two optional seams
+  (`transaction` over `ctx.storage.transactionSync`, `schemaVersion` over a row
+  it owns).
+- **Projection is a WRITE, not a diff.** The object is the only writer, so every
+  mutation hands `UserKnowledge` the doc's text plus the hash the manifest
+  stored it under, and the projection happens on the way out of the inbound
+  path. There is no crawl and no stat fingerprint to compare.
+- **Hydration is the normal path.** The object hibernates, so the in-memory
+  `LinkGraphIndex` is gone by the next message while the rows are not. Every
+  query replays them through core's resumable cursor, paged with a yield between
+  pages.
+- **A reconcile survives, once per wake**, because the store is a
+  wipe-and-rebuild cache and write-time projection is best-effort (a streamed
+  upload never held its bytes). It diffs the manifest's own content hashes
+  against the hash each projection recorded — exact, and free when nothing
+  moved. Work too large for one pass continues on the host's alarm.
+- **`reset()` drops only what the store created.** The index shares a database
+  with the manifest, which is durable state, so the driver records every table
+  core creates and drops exactly those — never a hardcoded list that could fall
+  behind the schema.
+- **Rename asks the index, not the vault.** `renameCandidates` names the moved
+  doc, the notes whose links resolve to it, and the notes whose links the new
+  name would SHADOW — all off the in-memory graph — so a rename reads only the
+  docs it may rewrite however large the vault is.
 
 ### Workspace host (`GET /v1/host/:userId/ws`)
 
@@ -150,7 +188,7 @@ dependency graph.
   server-side and would otherwise volunteer state the method gate forbids
   asking for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a
   third path appears.
-- **Sixteen methods are implemented; 73 are shims.** `collectHandlers` throws at
+- **Twenty-three methods are implemented; 66 are shims.** `collectHandlers` throws at
   construction if any of the 89 is unregistered. `host/handlers.ts`'s
   `CLOUD_SHIMS` is the migration backlog, grouped by feature; a shim throws
   naming its gap and never returns a plausible empty value.

@@ -75,7 +75,9 @@ describe("first-frame auth", () => {
 
     // Exactly one hydration push: getAppState is the only HYDRATED_EVENTS
     // getter with a real handler — the sync and remote-access getters are
-    // shims that throw, so their events are never pushed.
+    // shims that throw, so their events are never pushed. The index broadcast
+    // that follows is the seed being projected, which happens after the
+    // welcome by design.
     ws.send(JSON.stringify({ t: "req", id: 1, method: "getAppState" }));
     const events: string[] = [];
     for (;;) {
@@ -87,7 +89,7 @@ describe("first-frame auth", () => {
       expect(frame).toEqual({ t: "res", id: 1, ok: true, result: READY_STATE });
       break;
     }
-    expect(events).toEqual(["onAppState"]);
+    expect(events.filter((event) => event !== "onKnowledgeUpdated")).toEqual(["onAppState"]);
     ws.close(1000, "done");
   });
 

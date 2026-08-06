@@ -23,6 +23,7 @@ import { mayInvoke, mayReceive, SESSION_CLIENT_CLASS } from "./client-class";
 import { collectHandlers, type WireHandler } from "./handler-registry";
 import { registerCloudHandlers } from "./handlers";
 import { HostEvents } from "./host-events";
+import { INDEX_CONTINUATION_MS, UserKnowledge } from "./knowledge/user-knowledge";
 import { verifyHostSession } from "./session";
 import {
   authedState,
@@ -112,6 +113,14 @@ export class UserHost extends DurableObject<Env> {
    */
   readonly vault: UserVault;
 
+  /**
+   * The link/search index over that vault (see ./knowledge/user-knowledge).
+   *
+   * PUBLIC for the same reason the vault is: a Durable Object's API is its RPC
+   * surface, and `runInDurableObject` tests drive the index's own passes.
+   */
+  readonly knowledge: UserKnowledge;
+
   /** Set when a mutation may have created a deadline; consumed by `syncAlarm`
    * at the end of the inbound path. In memory only, and never read across
    * one — it is set and cleared inside a single invocation. */
@@ -142,17 +151,31 @@ export class UserHost extends DurableObject<Env> {
       // write — the fallback keeps the prefix total without inventing a
       // second namespace anyone can reach.
       prefix: ctx.id.name ?? ctx.id.toString(),
-      onChanged: () => {
+      onChanged: (change) => {
         // A mutation can create a deadline (a delete arms the retention
         // sweep), so the alarm is re-derived at the end of the inbound path
         // rather than from here — this callback is synchronous and the alarm
-        // is storage I/O.
+        // is storage I/O. The index is told the same way: recording is
+        // synchronous, and the projection it implies runs on the way out.
         this.alarmDirty = true;
+        this.knowledge.record(change);
         this.events.emit("onVaultChanged", { root: VAULT_ROOT });
       },
     });
+    this.knowledge = new UserKnowledge({
+      storage: ctx.storage,
+      vault: this.vault,
+      onUpdated: () => {
+        this.events.emit("onKnowledgeUpdated", {});
+      },
+    });
     const handlers = collectHandlers((handle, shim) => {
-      registerCloudHandlers(handle, shim, { stores, events: this.events, vault: this.vault });
+      registerCloudHandlers(handle, shim, {
+        stores,
+        events: this.events,
+        vault: this.vault,
+        knowledge: this.knowledge,
+      });
     });
     this.dispatch = new Map(Object.entries(handlers));
     this.events.onAny((method, payload) => {
@@ -167,6 +190,9 @@ export class UserHost extends DurableObject<Env> {
       // frames (see ./asset-route).
       if (matchHostAssetPath(request.method, new URL(request.url).pathname) !== null) {
         const response = await handleAssetUpload(request, this.env, this.vault, this.ctx.id.name);
+        // Project what the upload wrote before answering, so the index is never
+        // a message behind the manifest.
+        await this.knowledge.flush();
         await this.syncAlarm();
         return response;
       }
@@ -230,6 +256,7 @@ export class UserHost extends DurableObject<Env> {
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     try {
       await this.dispatchMessage(ws, message);
+      await this.knowledge.flush();
       await this.syncAlarm();
     } catch (error) {
       logUnhandledCallback("user-host", "webSocketMessage", error);
@@ -294,7 +321,8 @@ export class UserHost extends DurableObject<Env> {
     const now = Date.now();
     this.reapPendingSockets(now);
     await this.vault.sweepTrash(now);
-    const next = this.nextDueAt(now);
+    await this.knowledge.flush();
+    const next = this.nextDueAt(Date.now());
     if (next !== null) await this.ctx.storage.setAlarm(next);
   }
 
@@ -321,6 +349,9 @@ export class UserHost extends DurableObject<Env> {
     }
     const sweep = this.vault.nextSweepAt();
     if (sweep !== null) due.push(sweep);
+    // An index rebuild too large for one pass finishes on the alarm rather than
+    // only as far as the next client message happens to carry it.
+    if (this.knowledge.hasPendingWork()) due.push(now + INDEX_CONTINUATION_MS);
     return due.length === 0 ? null : Math.min(...due);
   }
 
@@ -330,11 +361,11 @@ export class UserHost extends DurableObject<Env> {
     if (existing === null || existing > at) await this.ctx.storage.setAlarm(at);
   }
 
-  /** Re-derive the alarm after an inbound path that mutated something. Skipped
-   * entirely when nothing did, so a chatty read-only socket pays no storage
-   * read per message. */
+  /** Re-derive the alarm after an inbound path that mutated something, or that
+   * left indexing work behind. Skipped entirely when neither happened, so a
+   * chatty read-only socket pays no storage read per message. */
   private async syncAlarm(): Promise<void> {
-    if (!this.alarmDirty) return;
+    if (!this.alarmDirty && !this.knowledge.hasPendingWork()) return;
     this.alarmDirty = false;
     const next = this.nextDueAt(Date.now());
     if (next !== null) await this.armAlarm(next);

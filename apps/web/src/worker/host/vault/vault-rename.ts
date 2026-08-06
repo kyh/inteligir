@@ -7,7 +7,8 @@
 // the cloud rewrites exactly the spans the desktop rewrites. What this module
 // owns is the ORDER, and the order is the safety model:
 //
-//   1. snapshot every doc BEFORE the move (edits are computed from those exact
+//   1. ask the knowledge index which docs this rename can possibly touch, and
+//      snapshot THOSE before the move (edits are computed from those exact
 //      bytes, so a stale read can never corrupt a file);
 //   2. move the file — the source of truth. If it fails, nothing is rewritten;
 //   3. write each edit CONDITIONALLY, at the version its snapshot was read at.
@@ -34,25 +35,13 @@ import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 
+import type { UserKnowledge } from "../knowledge/user-knowledge";
 import type { UserVault } from "./user-vault";
 import { parseVaultPath } from "./vault-key";
 
-/**
- * How many docs one rename may read to compute its rewrite.
- *
- * The desktop read the whole vault off local disk; here every doc is an R2 GET
- * against a finite per-invocation subrequest budget, and there is no link index
- * yet to name the docs that actually reference the renamed file. So the scan is
- * capped and the overflow is HONEST rather than silent: past the cap the rename
- * still happens and the old-title alias is still recorded, so nothing dangles —
- * links reach the file through the alias instead of through rewritten bytes.
- * The cap can go away once the knowledge index can answer "who links here?"
- * without reading the vault.
- */
-const MAX_REWRITE_DOCS = 250;
-
 export async function renameWithLinkRewrite(
   vault: UserVault,
+  knowledge: UserKnowledge,
   rawFrom: string,
   rawTo: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -70,7 +59,7 @@ export async function renameWithLinkRewrite(
 
   const from = source.path;
   const to = target.path;
-  const snapshot = await vault.snapshotDocs(MAX_REWRITE_DOCS);
+  const snapshot = await vault.snapshotDocs(await knowledge.renameCandidates(from, to));
   const moved = await vault.move(from, to);
   if (!moved.ok) return moved;
 
@@ -84,9 +73,7 @@ export async function renameWithLinkRewrite(
     oldStem !== "" &&
     oldStem.toLowerCase() !== titleFromPath(to).toLowerCase();
 
-  const edits = snapshot.truncated
-    ? new Map<string, string>()
-    : computeRenameEdits(snapshot.docs, snapshot.files, from, to);
+  const edits = computeRenameEdits(snapshot.docs, snapshot.files, from, to);
 
   for (const [postPath, content] of edits) {
     // The moved doc's own edit is keyed at `to`; its snapshot sits at `from`,
@@ -105,8 +92,7 @@ export async function renameWithLinkRewrite(
 
 /** No rewrite touched the moved doc, so the alias is written on its own —
  * read-then-write-at-that-version, so a concurrent edit loses the alias rather
- * than its content. Reads the file fresh rather than the snapshot, which is
- * what lets a rename past the snapshot cap still record one. */
+ * than its content. */
 async function recordAliasStandalone(vault: UserVault, to: string, oldStem: string): Promise<void> {
   const current = vault.lookup(to);
   if (current === null || current.state !== "live") return;

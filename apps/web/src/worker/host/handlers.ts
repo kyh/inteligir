@@ -2,10 +2,11 @@
 // The cloud host's handler map: what is implemented, and — in one table — what
 // is not yet.
 //
-// Sixteen methods are answered for real: the app phase and the two JsonStores
-// over the Durable Object's KV, plus the vault (./vault-handlers), whose
-// manifest and bytes this object now owns. Every other method is registered as
-// a SHIM that throws through `unavailable()`, naming the feature it waits on —
+// Twenty-three methods are answered for real: the app phase and the two
+// JsonStores over the Durable Object's KV, the vault (./vault-handlers) whose
+// manifest and bytes this object owns, and the knowledge index
+// (./knowledge-handlers) over that vault. Every other method is registered as a
+// SHIM that throws through `unavailable()`, naming the feature it waits on —
 // never a silent `[]` (see ShimRegistrar for why).
 //
 // `CLOUD_SHIMS` is the migration backlog. Each group is roughly one later
@@ -16,6 +17,8 @@ import type { AppState } from "@repo/bridge/app-state";
 import type { HostMethod } from "@repo/bridge/ipc-registry";
 import { unavailable, type HandlerRegistrar, type ShimRegistrar } from "./handler-registry";
 import type { HostEvents } from "./host-events";
+import { registerKnowledgeHandlers } from "./knowledge-handlers";
+import type { UserKnowledge } from "./knowledge/user-knowledge";
 import type { CloudStores } from "./stores";
 import { registerVaultHandlers } from "./vault-handlers";
 import type { UserVault } from "./vault/user-vault";
@@ -24,6 +27,7 @@ type CloudHostServices = {
   readonly stores: CloudStores;
   readonly events: HostEvents;
   readonly vault: UserVault;
+  readonly knowledge: UserKnowledge;
 };
 
 /**
@@ -85,18 +89,6 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
   {
     feature: "the vault",
     methods: ["chooseVaultRoot", "probeNotePrivacy", "setWatchedNote"],
-  },
-  {
-    feature: "the knowledge index",
-    methods: [
-      "getBacklinks",
-      "getForwardLinks",
-      "getLinkGraph",
-      "searchVault",
-      "listWikiTargets",
-      "listVaultTasks",
-      "toggleVaultTask",
-    ],
   },
   {
     feature: "delegation",
@@ -227,7 +219,8 @@ export function registerCloudHandlers(
     })),
   );
 
-  registerVaultHandlers(handle, services.vault);
+  registerVaultHandlers(handle, services.vault, services.knowledge);
+  registerKnowledgeHandlers(handle, services.knowledge, services.vault);
 
   for (const group of CLOUD_SHIMS) {
     for (const method of group.methods) shim(method, group.feature);

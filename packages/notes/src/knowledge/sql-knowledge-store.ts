@@ -1,8 +1,11 @@
 // ---------------------------------------------------------------------------
 // The SQL KnowledgeStore — schema, guards, and queries written ONCE over an
 // injected SqlDriver (engine.ts's injected-port precedent), so desktop
-// (node:sqlite) and the dev harness (SQLite wasm) run the IDENTICAL
-// migrations and bm25 search. Only the byte-level binding is per-platform.
+// (node:sqlite), the dev harness (SQLite wasm) and the cloud host (Durable
+// Object storage) run the IDENTICAL migrations and bm25 search. Only the
+// byte-level binding is per-platform — plus the two statements a platform may
+// refuse to accept as SQL at all, which the driver may own instead
+// (SqlDriver.transaction / .schemaVersion).
 //
 // Versioning is deliberately trivial — single-version wipe-and-rebuild, three
 // guards checked at open: PRAGMA user_version vs KNOWLEDGE_SCHEMA_VERSION,
@@ -44,7 +47,14 @@ export type SqlValue = null | number | string;
 export type SqlRow = Record<string, unknown>;
 
 /** The per-platform SQLite binding. Implementations own the file/instance
- * lifecycle; the store owns every statement that runs through it. */
+ * lifecycle; the store owns every statement that runs through it.
+ *
+ * The last two members are optional because they name the only two things a
+ * platform can refuse to express as SQL. Durable Object storage refuses BOTH:
+ * it answers SQLITE_AUTH to `PRAGMA user_version` and rejects
+ * `BEGIN`/`SAVEPOINT` outright (it owns write coalescing and offers
+ * `transactionSync` instead). A driver that leaves them unset gets the plain
+ * SQL path, which is what every file-backed binding wants. */
 export type SqlDriver = {
   /** Execute one or more statements with no parameters or results. */
   exec(sql: string): void;
@@ -56,6 +66,12 @@ export type SqlDriver = {
    * in-memory instance) and reopen empty — the recovery primitive. */
   reset(): void;
   close(): void;
+  /** Run `fn` as one atomic unit, rolling back if it throws. Bound only where
+   * the platform's own API must own the transaction. */
+  transaction?(fn: () => void): void;
+  /** Read/write the schema version where `PRAGMA user_version` is unavailable.
+   * `read()` answers 0 for a database that has never carried one. */
+  schemaVersion?: { read(): number; write(version: number): void };
 };
 
 // ---- Paged hydration ----------------------------------------------------------
@@ -341,9 +357,25 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     return first === undefined ? null : columnString(first, "value");
   };
 
+  const readSchemaVersion = (): number => {
+    const owned = driver.schemaVersion;
+    if (owned !== undefined) return owned.read();
+    const row = driver.all("PRAGMA user_version", [])[0];
+    return row === undefined ? 0 : columnNumber(row, "user_version");
+  };
+
+  const writeSchemaVersion = (version: number): void => {
+    const owned = driver.schemaVersion;
+    if (owned !== undefined) {
+      owned.write(version);
+      return;
+    }
+    driver.exec(`PRAGMA user_version = ${version}`);
+  };
+
   const initSchema = (): void => {
     driver.exec(SCHEMA_DDL);
-    driver.exec(`PRAGMA user_version = ${KNOWLEDGE_SCHEMA_VERSION}`);
+    writeSchemaVersion(KNOWLEDGE_SCHEMA_VERSION);
     driver.run(
       "INSERT INTO meta (key, value) VALUES ('projection_version', ?), ('vault_root', ?)",
       [String(PROJECTION_VERSION), vaultRoot],
@@ -358,8 +390,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
   const open = (): void => {
     try {
       driver.exec("PRAGMA foreign_keys = ON");
-      const versionRow = driver.all("PRAGMA user_version", [])[0];
-      const userVersion = versionRow === undefined ? 0 : columnNumber(versionRow, "user_version");
+      const userVersion = readSchemaVersion();
       const hasMeta =
         driver.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'", [])
           .length > 0;
@@ -385,13 +416,8 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     }
   };
 
-  const transaction = (fn: () => void): void => {
-    if (transactionDepth > 0) {
-      fn(); // already atomic under the outermost transaction
-      return;
-    }
+  const runStatements = (fn: () => void): void => {
     driver.exec("BEGIN");
-    transactionDepth = 1;
     try {
       fn();
       driver.exec("COMMIT");
@@ -402,6 +428,18 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         // The transaction may already be gone (e.g. the failure closed it).
       }
       throw err;
+    }
+  };
+
+  const transaction = (fn: () => void): void => {
+    if (transactionDepth > 0) {
+      fn(); // already atomic under the outermost transaction
+      return;
+    }
+    transactionDepth = 1;
+    try {
+      if (driver.transaction === undefined) runStatements(fn);
+      else driver.transaction(fn);
     } finally {
       transactionDepth = 0;
     }

@@ -14,8 +14,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../hash";
 import { userHostName } from "../host/host-address";
+import { UserKnowledge } from "../host/knowledge/user-knowledge";
 import { seedVault } from "../host/vault/seed";
-import { UserVault } from "../host/vault/user-vault";
+import { UserVault, type VaultChange } from "../host/vault/user-vault";
 import { renameWithLinkRewrite } from "../host/vault/vault-rename";
 import { authenticated, invoke, ORIGIN, signUp, WEB_ORIGIN, type Account } from "./host-helpers";
 
@@ -24,8 +25,11 @@ const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 type VaultContext = {
   vault: UserVault;
+  /** The index over that vault, wired exactly as the host wires it — a rename
+   * asks it which docs to read, so a fake here would be testing nothing. */
+  knowledge: UserKnowledge;
   /** One entry per `onChanged` — the host's broadcast trigger. */
-  changes: number[];
+  changes: VaultChange[];
   state: DurableObjectState;
 };
 
@@ -39,16 +43,21 @@ function withVault<T>(
 ): Promise<T> {
   const stub = env.UserHost.getByName(userHostName(name));
   return runInDurableObject(stub, (_host, state) => {
-    const changes: number[] = [];
+    const changes: VaultChange[] = [];
     let vault: UserVault | null = null;
+    let knowledge: UserKnowledge | null = null;
     const bucket = bucketFor({ list: () => vault?.list().length ?? -1 });
     vault = new UserVault({
       sql: state.storage.sql,
       bucket,
       prefix: `test:${name}`,
-      onChanged: () => changes.push(Date.now()),
+      onChanged: (change) => {
+        changes.push(change);
+        knowledge?.record(change);
+      },
     });
-    return run({ vault, changes, state });
+    knowledge = new UserKnowledge({ storage: state.storage, vault, onUpdated: () => {} });
+    return run({ vault, knowledge, changes, state });
   });
 }
 
@@ -259,11 +268,13 @@ describe("deletion gate", () => {
 
 describe("rename", () => {
   it("rewrites every link that pointed at the moved note", async () => {
-    await withVault("rename-links", async ({ vault }) => {
+    await withVault("rename-links", async ({ vault, knowledge }) => {
       await vault.writeText("notes/Alpha.md", "# Alpha\n\nSee [[Beta]].\n");
       await vault.writeText("Beta.md", "# Beta\n\nBack to [[Alpha]] and [[Alpha|the start]].\n");
 
-      expect(await renameWithLinkRewrite(vault, "notes/Alpha.md", "notes/Gamma.md")).toEqual({
+      expect(
+        await renameWithLinkRewrite(vault, knowledge, "notes/Alpha.md", "notes/Gamma.md"),
+      ).toEqual({
         ok: true,
       });
 
@@ -281,12 +292,14 @@ describe("rename", () => {
   });
 
   it("retitles by case without moving a byte", async () => {
-    await withVault("rename-case", async ({ vault }) => {
+    await withVault("rename-case", async ({ vault, knowledge }) => {
       await vault.writeText("Note.md", "# Note\n");
       const before = await env.VAULT_FILES.list({ prefix: "test:rename-case/" });
       expect(before.objects).toHaveLength(1);
 
-      expect(await renameWithLinkRewrite(vault, "Note.md", "note.md")).toEqual({ ok: true });
+      expect(await renameWithLinkRewrite(vault, knowledge, "Note.md", "note.md")).toEqual({
+        ok: true,
+      });
 
       expect(vault.list()).toEqual([{ path: "note.md", name: "note.md", kind: "doc" }]);
       expect(await vault.readText("note.md")).toBe("# Note\n");
@@ -298,15 +311,19 @@ describe("rename", () => {
   });
 
   it("refuses to clobber a live file and refuses an illegal name", async () => {
-    await withVault("rename-refusals", async ({ vault }) => {
+    await withVault("rename-refusals", async ({ vault, knowledge }) => {
       await vault.writeText("one.md", "1");
       await vault.writeText("two.md", "2");
 
-      expect(await renameWithLinkRewrite(vault, "one.md", "two.md")).toMatchObject({ ok: false });
-      expect(await renameWithLinkRewrite(vault, "one.md", "bad:name.md")).toMatchObject({
+      expect(await renameWithLinkRewrite(vault, knowledge, "one.md", "two.md")).toMatchObject({
         ok: false,
       });
-      expect(await renameWithLinkRewrite(vault, "missing.md", "x.md")).toMatchObject({ ok: false });
+      expect(await renameWithLinkRewrite(vault, knowledge, "one.md", "bad:name.md")).toMatchObject({
+        ok: false,
+      });
+      expect(await renameWithLinkRewrite(vault, knowledge, "missing.md", "x.md")).toMatchObject({
+        ok: false,
+      });
       expect(vault.list()).toHaveLength(2);
     });
   });
@@ -410,7 +427,7 @@ describe("vault over the bridge", () => {
     // Age the tombstone past retention and let the sweep run for real.
     await runInDurableObject(stub, (_host, state) => {
       state.storage.sql.exec(
-        "UPDATE files SET deleted_at = ? WHERE path = ?",
+        "UPDATE vault_files SET deleted_at = ? WHERE path = ?",
         Date.now() - RETENTION_MS - 1000,
         "Welcome.md",
       );
