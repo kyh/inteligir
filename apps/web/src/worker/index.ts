@@ -6,6 +6,7 @@ import { handleResetPage } from "./auth/reset-page";
 import { createDb } from "./db/client";
 import { vaultOwner } from "./db/schema";
 import { readDeviceAssertion, unauthorized, verifyDeviceAssertion } from "./device-assertion";
+import { routeHostAsset } from "./host/asset-route";
 import { UserHost } from "./host/user-host";
 import { routeHostSocket } from "./host/ws-route";
 import { logUnhandled } from "./log";
@@ -199,6 +200,12 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   // against an exact allowlist instead (host/origins.ts).
   const socket = await routeHostSocket(request, env, url.pathname);
   if (socket !== null) return socket;
+
+  // Attachment upload — the one workspace capability that cannot fit in a
+  // Bridge frame, so it arrives as a streamed HTTP body instead (see
+  // host/asset-route.ts). CORS-wrapped like every other API response.
+  const asset = await routeHostAsset(request, env, url.pathname);
+  if (asset !== null) return withCors(request, asset);
 
   // Sync surface.
   const match = matchRoute(request.method, url.pathname, url.search);

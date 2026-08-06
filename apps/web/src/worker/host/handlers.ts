@@ -2,11 +2,11 @@
 // The cloud host's handler map: what is implemented, and — in one table — what
 // is not yet.
 //
-// Six methods are answered for real, because their whole substrate is already
-// here: two JsonStores over the Durable Object's KV, and an app phase with
-// nothing to set up. Every other method is registered as a SHIM that throws
-// through `unavailable()`, naming the feature it waits on — never a silent
-// `[]` (see ShimRegistrar for why).
+// Sixteen methods are answered for real: the app phase and the two JsonStores
+// over the Durable Object's KV, plus the vault (./vault-handlers), whose
+// manifest and bytes this object now owns. Every other method is registered as
+// a SHIM that throws through `unavailable()`, naming the feature it waits on —
+// never a silent `[]` (see ShimRegistrar for why).
 //
 // `CLOUD_SHIMS` is the migration backlog. Each group is roughly one later
 // commit, and a group empties as that commit lands.
@@ -17,10 +17,13 @@ import type { HostMethod } from "@repo/bridge/ipc-registry";
 import { unavailable, type HandlerRegistrar, type ShimRegistrar } from "./handler-registry";
 import type { HostEvents } from "./host-events";
 import type { CloudStores } from "./stores";
+import { registerVaultHandlers } from "./vault-handlers";
+import type { UserVault } from "./vault/user-vault";
 
 type CloudHostServices = {
   readonly stores: CloudStores;
   readonly events: HostEvents;
+  readonly vault: UserVault;
 };
 
 /**
@@ -73,23 +76,15 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
       "stopStt",
     ],
   },
+  // What is left of the vault group is being RETIRED, not implemented: there
+  // is one vault per account and no folder to choose, and the Durable Object
+  // is the only writer so there is nothing to watch. `probeNotePrivacy` waits
+  // on the agent — it is the fail-closed gate that keeps a private note out of
+  // an AI surface, and answering it before any AI surface exists would be
+  // answering "public" to a question nobody is yet entitled to ask.
   {
     feature: "the vault",
-    methods: [
-      "getVaultRoot",
-      "chooseVaultRoot",
-      "listVault",
-      "readVaultDoc",
-      "getVaultFileFacts",
-      "writeVaultDoc",
-      "deleteVaultEntry",
-      "renameVaultEntry",
-      "writeVaultAsset",
-      "readVaultAsset",
-      "probeNotePrivacy",
-      "setWatchedNote",
-      "refreshVault",
-    ],
+    methods: ["chooseVaultRoot", "probeNotePrivacy", "setWatchedNote"],
   },
   {
     feature: "the knowledge index",
@@ -235,6 +230,8 @@ export function registerCloudHandlers(
       ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
     })),
   );
+
+  registerVaultHandlers(handle, services.vault);
 
   for (const group of CLOUD_SHIMS) {
     for (const method of group.methods) shim(method, group.feature);

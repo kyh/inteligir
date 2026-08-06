@@ -17,12 +17,13 @@ import {
   type SendFrame,
 } from "@repo/bridge/ws-protocol";
 
-import { createAuth } from "../auth/auth";
 import { logUnhandled, logUnhandledCallback } from "../log";
+import { handleAssetUpload, matchHostAssetPath } from "./asset-route";
 import { mayInvoke, mayReceive, SESSION_CLIENT_CLASS } from "./client-class";
 import { collectHandlers, type WireHandler } from "./handler-registry";
 import { registerCloudHandlers } from "./handlers";
 import { HostEvents } from "./host-events";
+import { verifyHostSession } from "./session";
 import {
   authedState,
   pendingState,
@@ -32,6 +33,8 @@ import {
   type PendingSocketState,
 } from "./socket-state";
 import { createCloudStores } from "./stores";
+import { seedVault } from "./vault/seed";
+import { UserVault, VAULT_ROOT } from "./vault/user-vault";
 
 // ---------------------------------------------------------------------------
 // UserHost — one Durable Object per user, serving that user's Bridge (the
@@ -60,17 +63,6 @@ import { createCloudStores } from "./stores";
 // userId instantiates an empty Durable Object. The cost is an object with two
 // unwritten KV keys, never another user's state.
 // ---------------------------------------------------------------------------
-
-/** Namespace prefix for the object name. The DO namespace is already this
- * class's own, so the prefix buys legibility in logs rather than isolation. */
-const USER_HOST_PREFIX = "user:";
-
-/** The object name serving `userId` — the one place the addressing scheme is
- * spelled, shared by the route that dials it and the bind check that proves
- * a socket reached the right one. */
-export function userHostName(userId: string): string {
-  return `${USER_HOST_PREFIX}${userId}`;
-}
 
 /**
  * How long a socket may sit unauthenticated. Enforced by a DO ALARM, not a
@@ -110,6 +102,22 @@ export class UserHost extends DurableObject<Env> {
   private readonly events = new HostEvents();
 
   /**
+   * This user's vault: the manifest in this object's own SQLite, the bytes in
+   * R2 under this object's name (see ./vault/user-vault).
+   *
+   * PUBLIC because a Durable Object's API is its RPC surface and the Worker
+   * holds the only stub — the same reason `fetch` is public. It is also how
+   * `runInDurableObject` tests drive the vault's own verbs (the deletion gate's
+   * confirmation, the trash view) that no Bridge channel spells yet.
+   */
+  readonly vault: UserVault;
+
+  /** Set when a mutation may have created a deadline; consumed by `syncAlarm`
+   * at the end of the inbound path. In memory only, and never read across
+   * one — it is set and cleared inside a single invocation. */
+  private alarmDirty = false;
+
+  /**
    * The one flat dispatch map.
    *
    * NOTHING outside `resolveHandler()` may read it, and nothing outside
@@ -126,8 +134,25 @@ export class UserHost extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     const stores = createCloudStores(ctx.storage.kv);
+    this.vault = new UserVault({
+      sql: ctx.storage.sql,
+      bucket: env.VAULT_FILES,
+      // An object addressed by id rather than by name can never authenticate
+      // (the bind check compares against `userHostName`), so it can never
+      // write — the fallback keeps the prefix total without inventing a
+      // second namespace anyone can reach.
+      prefix: ctx.id.name ?? ctx.id.toString(),
+      onChanged: () => {
+        // A mutation can create a deadline (a delete arms the retention
+        // sweep), so the alarm is re-derived at the end of the inbound path
+        // rather than from here — this callback is synchronous and the alarm
+        // is storage I/O.
+        this.alarmDirty = true;
+        this.events.emit("onVaultChanged", { root: VAULT_ROOT });
+      },
+    });
     const handlers = collectHandlers((handle, shim) => {
-      registerCloudHandlers(handle, shim, { stores, events: this.events });
+      registerCloudHandlers(handle, shim, { stores, events: this.events, vault: this.vault });
     });
     this.dispatch = new Map(Object.entries(handlers));
     this.events.onAny((method, payload) => {
@@ -137,6 +162,14 @@ export class UserHost extends DurableObject<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     try {
+      // Two ways in, and the split is the transport, not the capability: the
+      // Bridge socket, and the attachment upload that cannot fit in one of its
+      // frames (see ./asset-route).
+      if (matchHostAssetPath(request.method, new URL(request.url).pathname) !== null) {
+        const response = await handleAssetUpload(request, this.env, this.vault, this.ctx.id.name);
+        await this.syncAlarm();
+        return response;
+      }
       return await this.upgrade(request);
     } catch (error) {
       logUnhandled("user-host", request, error);
@@ -157,7 +190,7 @@ export class UserHost extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server, [SOCKET_TAG_V1]);
     const now = Date.now();
     writeSocketState(server, pendingState(now, new URL(request.url).origin));
-    await this.armAuthDeadline(now + AUTH_DEADLINE_MS);
+    await this.armAlarm(now + AUTH_DEADLINE_MS);
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -197,6 +230,7 @@ export class UserHost extends DurableObject<Env> {
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     try {
       await this.dispatchMessage(ws, message);
+      await this.syncAlarm();
     } catch (error) {
       logUnhandledCallback("user-host", "webSocketMessage", error);
       ws.close(WS_CLOSE_INTERNAL_ERROR, "internal error");
@@ -246,32 +280,64 @@ export class UserHost extends DurableObject<Env> {
   }
 
   /**
-   * The auth deadline sweep. Closes every pending socket past its deadline and
-   * re-arms for the earliest one still waiting, so one alarm serves any number
-   * of them.
+   * The object's ONE alarm, serving every deadline this host keeps.
+   *
+   * A Durable Object has exactly one pending alarm, so a second concern cannot
+   * call `setAlarm` for itself — it would silently cancel whatever was already
+   * armed. The multiplex is therefore structural rather than conventional:
+   * every concern runs its own sweep here, every concern answers `nextDueAt`
+   * with when it next needs waking, and the alarm is re-armed at the earliest
+   * of them. Adding a third concern is a sweep plus a row in `nextDueAt`;
+   * `setAlarm` appears in exactly one place below.
    */
   override async alarm(): Promise<void> {
     const now = Date.now();
-    let earliest: number | null = null;
+    this.reapPendingSockets(now);
+    await this.vault.sweepTrash(now);
+    const next = this.nextDueAt(now);
+    if (next !== null) await this.ctx.storage.setAlarm(next);
+  }
+
+  /** Close every pending socket past its auth deadline. */
+  private reapPendingSockets(now: number): void {
+    for (const ws of this.ctx.getWebSockets()) {
+      const state = readSocketState(ws);
+      if (state === null || state.phase !== "pending") continue;
+      if (state.since + AUTH_DEADLINE_MS <= now) {
+        ws.close(WS_CLOSE_UNAUTHORIZED, "authentication deadline elapsed");
+      }
+    }
+  }
+
+  /** When this host next needs waking: the earliest of every concern's own
+   * next-due time, or `null` when nothing is pending. */
+  private nextDueAt(now: number): number | null {
+    const due: number[] = [];
     for (const ws of this.ctx.getWebSockets()) {
       const state = readSocketState(ws);
       if (state === null || state.phase !== "pending") continue;
       const deadline = state.since + AUTH_DEADLINE_MS;
-      if (deadline <= now) {
-        ws.close(WS_CLOSE_UNAUTHORIZED, "authentication deadline elapsed");
-        continue;
-      }
-      earliest = earliest === null ? deadline : Math.min(earliest, deadline);
+      if (deadline > now) due.push(deadline);
     }
-    if (earliest !== null) await this.ctx.storage.setAlarm(earliest);
+    const sweep = this.vault.nextSweepAt();
+    if (sweep !== null) due.push(sweep);
+    return due.length === 0 ? null : Math.min(...due);
   }
 
-  /** Arm the sweep for `deadline` unless one is already due sooner. This object
-   * has no other alarm; a second use would have to multiplex with this one
-   * rather than overwrite it. */
-  private async armAuthDeadline(deadline: number): Promise<void> {
+  /** Arm the alarm for `at` unless one is already due sooner. */
+  private async armAlarm(at: number): Promise<void> {
     const existing = await this.ctx.storage.getAlarm();
-    if (existing === null || existing > deadline) await this.ctx.storage.setAlarm(deadline);
+    if (existing === null || existing > at) await this.ctx.storage.setAlarm(at);
+  }
+
+  /** Re-derive the alarm after an inbound path that mutated something. Skipped
+   * entirely when nothing did, so a chatty read-only socket pays no storage
+   * read per message. */
+  private async syncAlarm(): Promise<void> {
+    if (!this.alarmDirty) return;
+    this.alarmDirty = false;
+    const next = this.nextDueAt(Date.now());
+    if (next !== null) await this.armAlarm(next);
   }
 
   // ---- auth ----------------------------------------------------------------
@@ -301,30 +367,32 @@ export class UserHost extends DurableObject<Env> {
       ws.close(WS_CLOSE_UNAUTHORIZED, "invalid session");
       return;
     }
+    // A brand-new account lands in a workspace, not an empty one. Seeded HERE
+    // rather than at construction because merely NAMING a host instantiates
+    // one, and a vault written for a caller who never proved who they are is a
+    // vault written for a stranger. Idempotent, so every later connect is one
+    // COUNT query.
+    //
+    // Before this socket is marked authed, so the seed's own change events
+    // never arrive ahead of its `welcome` — a client that has not been welcomed
+    // has not subscribed to anything yet.
+    await seedVault(this.vault);
     writeSocketState(ws, admitted);
     ws.send(encodeFrame({ t: "welcome" }));
     await this.hydrate(ws, admitted);
   }
 
-  /**
-   * Resolve the session bearer, or `null` to refuse. Two conditions, both
-   * required: Better Auth accepts the token, AND the session's user is the one
-   * this object serves. The second is what makes the userId in the URL a mere
-   * address — naming another user's host reaches an object that refuses.
-   */
+  /** Resolve the session bearer against this object's own name (./session), or
+   * `null` to refuse. */
   private async authenticate(
     state: PendingSocketState,
     token: string,
   ): Promise<AuthedSocketState | null> {
-    const auth = createAuth(this.env, state.baseUrl);
-    const result = await auth.api.getSession({
-      headers: new Headers({ authorization: `Bearer ${token}` }),
-    });
-    if (result === null) return null;
-    if (this.ctx.id.name !== userHostName(result.user.id)) return null;
+    const session = await verifyHostSession(this.env, state.baseUrl, token, this.ctx.id.name);
+    if (session === null) return null;
     // The class comes from the credential, never from the wire: one admission
     // path, one class (see ./client-class).
-    return authedState(result.user.id, result.session.id, SESSION_CLIENT_CLASS, Date.now());
+    return authedState(session.userId, session.sessionId, SESSION_CLIENT_CLASS, Date.now());
   }
 
   // ---- dispatch ------------------------------------------------------------

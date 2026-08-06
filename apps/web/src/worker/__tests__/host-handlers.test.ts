@@ -7,14 +7,16 @@
 // gap. A method left unregistered is a Bridge call that hangs forever.
 // ---------------------------------------------------------------------------
 
-import { env } from "cloudflare:test";
+import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import type { HostMethod } from "@repo/bridge/ipc-registry";
 
+import { matchHostAssetPath } from "../host/asset-route";
 import { mayInvoke, mayReceive } from "../host/client-class";
 import { collectHandlers, HOST_METHODS } from "../host/handler-registry";
 import { CLOUD_SHIMS, registerCloudHandlers } from "../host/handlers";
+import { userHostName } from "../host/host-address";
 import { HostEvents } from "../host/host-events";
 import { allowedOrigins, originAllowed } from "../host/origins";
 import { createCloudStores } from "../host/stores";
@@ -30,6 +32,16 @@ const IMPLEMENTED: readonly HostMethod[] = [
   "setUiState",
   "getNotificationSettings",
   "updateNotificationSettings",
+  "getVaultRoot",
+  "listVault",
+  "readVaultDoc",
+  "getVaultFileFacts",
+  "writeVaultDoc",
+  "deleteVaultEntry",
+  "renameVaultEntry",
+  "writeVaultAsset",
+  "readVaultAsset",
+  "refreshVault",
 ];
 
 /** An in-memory stand-in for `ctx.storage.kv` — the same synchronous contract. */
@@ -46,81 +58,99 @@ function memoryKv() {
   };
 }
 
-function buildHandlers() {
-  const events = new HostEvents();
-  const stores = createCloudStores(memoryKv());
-  const handlers = collectHandlers((handle, shim) => {
-    registerCloudHandlers(handle, shim, { stores, events });
+/**
+ * A fresh handler map, built INSIDE a Durable Object so the vault's real
+ * SQLite + R2 substrate is behind it. The callback runs there too — a
+ * `SqlStorage` handle is bound to the object's I/O context and cannot be used
+ * once it has been handed back out.
+ */
+function withHandlers<T>(
+  run: (ctx: {
+    handlers: ReturnType<typeof collectHandlers>;
+    events: HostEvents;
+  }) => Promise<T> | T,
+): Promise<T> {
+  const stub = env.UserHost.getByName(userHostName("handler-fixture"));
+  return runInDurableObject(stub, (host) => {
+    const events = new HostEvents();
+    const stores = createCloudStores(memoryKv());
+    const handlers = collectHandlers((handle, shim) => {
+      registerCloudHandlers(handle, shim, { stores, events, vault: host.vault });
+    });
+    return run({ handlers, events });
   });
-  return { handlers, events };
 }
 
 const shimmedMethods: readonly HostMethod[] = CLOUD_SHIMS.flatMap((group) => group.methods);
 
 describe("cloud handler registry", () => {
-  it("registers every host method the IPC registry declares", () => {
-    const { handlers } = buildHandlers();
-    const registered = Object.keys(handlers);
-    expect(registered).toHaveLength(HOST_METHODS.length);
-    expect(registered.toSorted()).toEqual([...HOST_METHODS].toSorted());
+  it("registers every host method the IPC registry declares", async () => {
+    await withHandlers(({ handlers }) => {
+      const registered = Object.keys(handlers);
+      expect(registered).toHaveLength(HOST_METHODS.length);
+      expect(registered.toSorted()).toEqual([...HOST_METHODS].toSorted());
+    });
   });
 
-  it("splits those methods into 6 implementations and 89 shims", () => {
+  it("splits those methods into 16 implementations and 79 shims", () => {
     // The counts are the migration's progress bar: 95 host methods (116 IPC
     // entries minus 19 events and the 2 desktop-shell methods).
     expect(HOST_METHODS).toHaveLength(95);
-    expect(IMPLEMENTED).toHaveLength(6);
-    expect(shimmedMethods).toHaveLength(89);
+    expect(IMPLEMENTED).toHaveLength(16);
+    expect(shimmedMethods).toHaveLength(79);
     expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
     expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });
 
   it("answers every shim by naming its gap, never with an empty value", async () => {
-    const { handlers } = buildHandlers();
-    for (const method of shimmedMethods) {
-      const handler = handlers[method];
-      // Send-kind shims are fire-and-forget: collectHandlers swallows their
-      // throw by contract, so only the invoke kinds surface one.
-      if (method === "ttsSend" || method === "ttsFlush") continue;
-      if (method === "ttsInterrupt" || method === "sendSttAudio") continue;
-      await expect(async () => handler(undefined)).rejects.toThrow(
-        /is not available on the cloud host yet/,
-      );
-    }
+    await withHandlers(async ({ handlers }) => {
+      for (const method of shimmedMethods) {
+        const handler = handlers[method];
+        // Send-kind shims are fire-and-forget: collectHandlers swallows their
+        // throw by contract, so only the invoke kinds surface one.
+        if (method === "ttsSend" || method === "ttsFlush") continue;
+        if (method === "ttsInterrupt" || method === "sendSttAudio") continue;
+        await expect(async () => handler(undefined)).rejects.toThrow(
+          /is not available on the cloud host yet/,
+        );
+      }
+    });
   });
 
   it("persists ui state and notification settings through the store", async () => {
-    const { handlers } = buildHandlers();
-    await handlers.setUiState({ key: "workspace.openNote", value: "notes/ideas.md" });
-    expect(await handlers.getUiState(undefined)).toEqual({
-      "workspace.openNote": "notes/ideas.md",
-    });
+    await withHandlers(async ({ handlers }) => {
+      await handlers.setUiState({ key: "workspace.openNote", value: "notes/ideas.md" });
+      expect(await handlers.getUiState(undefined)).toEqual({
+        "workspace.openNote": "notes/ideas.md",
+      });
 
-    await handlers.setUiState({ key: "workspace.openNote", value: undefined });
-    expect(await handlers.getUiState(undefined)).toEqual({});
+      await handlers.setUiState({ key: "workspace.openNote", value: undefined });
+      expect(await handlers.getUiState(undefined)).toEqual({});
 
-    expect(await handlers.getNotificationSettings(undefined)).toEqual({ enabled: true });
-    expect(await handlers.updateNotificationSettings({ enabled: false })).toEqual({
-      enabled: false,
+      expect(await handlers.getNotificationSettings(undefined)).toEqual({ enabled: true });
+      expect(await handlers.updateNotificationSettings({ enabled: false })).toEqual({
+        enabled: false,
+      });
+      // An absent `enabled` must not overwrite the live setting.
+      expect(await handlers.updateNotificationSettings({})).toEqual({ enabled: false });
     });
-    // An absent `enabled` must not overwrite the live setting.
-    expect(await handlers.updateNotificationSettings({})).toEqual({ enabled: false });
   });
 
   it("reports a ready app phase and re-announces it on SETUP", async () => {
-    const { handlers, events } = buildHandlers();
-    expect(await handlers.getAppState(undefined)).toEqual({ phase: "ready", agent: "idle" });
+    await withHandlers(async ({ handlers, events }) => {
+      expect(await handlers.getAppState(undefined)).toEqual({ phase: "ready", agent: "idle" });
 
-    const seen: unknown[] = [];
-    events.onAny((method, payload) => {
-      if (method === "onAppState") seen.push(payload);
+      const seen: unknown[] = [];
+      events.onAny((method, payload) => {
+        if (method === "onAppState") seen.push(payload);
+      });
+      await handlers.transition({ type: "SETUP" });
+      expect(seen).toEqual([{ phase: "ready", agent: "idle" }]);
+
+      await expect(async () => handlers.transition({ type: "RESET_APP_DATA" })).rejects.toThrow(
+        /app-data reset is not available/,
+      );
     });
-    await handlers.transition({ type: "SETUP" });
-    expect(seen).toEqual([{ phase: "ready", agent: "idle" }]);
-
-    await expect(async () => handlers.transition({ type: "RESET_APP_DATA" })).rejects.toThrow(
-      /app-data reset is not available/,
-    );
   });
 });
 
@@ -174,7 +204,7 @@ describe("origin allowlist", () => {
   });
 });
 
-describe("host socket route", () => {
+describe("host routes", () => {
   it("matches only a GET on /v1/host/:userId/ws", () => {
     expect(matchHostSocketPath("GET", "/v1/host/user-123/ws")).toBe("user-123");
     expect(matchHostSocketPath("GET", "/v1/host/a%2Fb/ws")).toBe("a/b");
@@ -182,5 +212,13 @@ describe("host socket route", () => {
     expect(matchHostSocketPath("GET", "/v1/host//ws")).toBeNull();
     expect(matchHostSocketPath("GET", "/v1/host/user-123")).toBeNull();
     expect(matchHostSocketPath("GET", "/v1/vault/abc/manifest")).toBeNull();
+  });
+
+  it("matches only a POST on /v1/host/:userId/assets", () => {
+    expect(matchHostAssetPath("POST", "/v1/host/user-123/assets")).toBe("user-123");
+    expect(matchHostAssetPath("GET", "/v1/host/user-123/assets")).toBeNull();
+    // The two leaves never answer for each other.
+    expect(matchHostAssetPath("POST", "/v1/host/user-123/ws")).toBeNull();
+    expect(matchHostSocketPath("GET", "/v1/host/user-123/assets")).toBeNull();
   });
 });

@@ -15,9 +15,17 @@
 //
 // If you are here because this test failed: do not add your call site to an
 // allowlist. Route it through resolveHandler/sendEvent — that is the fix.
+//
+// The socket is no longer the only way in: the asset upload arrives as an HTTP
+// request, reaches the same vault, and cannot pass through either chokepoint
+// (there is no frame to resolve and no socket to push to). So it carries the
+// gate itself, and the last case below is what keeps it carrying one — an HTTP
+// route that reached a capability without naming it would be a hole no amount
+// of care on the socket path could close.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
+import assetSource from "../host/asset-route.ts?raw";
 import source from "../host/user-host.ts?raw";
 
 /** Source lines with comments stripped, so a mention in prose never counts as
@@ -92,6 +100,13 @@ describe("user-host gate chokepoints", () => {
       writes.map((line) => line.trim()),
       "A socket write outside sendEvent() and the two per-socket answers",
     ).toEqual([]);
+  });
+
+  it("gates the HTTP transport on the capability it serves", () => {
+    // Named as the CHANNEL it stands in for, not as "an upload": the two are
+    // the same capability over two transports, so they must be gated on the
+    // same registry method or one of them will drift into a second policy.
+    expect(assetSource).toContain('mayInvoke(SESSION_CLIENT_CLASS, "writeVaultAsset")');
   });
 
   it("keeps both chokepoints present and named", () => {

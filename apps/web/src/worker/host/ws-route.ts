@@ -14,25 +14,13 @@
 // object verifies) and the reason no forwarded verdict exists to forge.
 // ---------------------------------------------------------------------------
 
+import { matchHostPath, userHostName } from "./host-address";
 import { allowedOrigins, originAllowed } from "./origins";
-import { userHostName } from "./user-host";
 
-/** `GET /v1/host/:userId/ws` — the one route this module owns. */
-const HOST_SOCKET_PATH = /^\/v1\/host\/([^/]+)\/ws$/;
-
-/** The userId a host-socket path addresses, or `null` when `pathname` is not
- * one. Pure — no bindings, no I/O. */
+/** The userId a `GET /v1/host/:userId/ws` addresses, or `null` when `pathname`
+ * is not one. Pure — no bindings, no I/O. */
 export function matchHostSocketPath(method: string, pathname: string): string | null {
-  if (method !== "GET") return null;
-  const raw = HOST_SOCKET_PATH.exec(pathname)?.[1];
-  if (raw === undefined) return null;
-  let userId: string;
-  try {
-    userId = decodeURIComponent(raw);
-  } catch {
-    return null; // malformed percent-encoding in the id segment
-  }
-  return userId === "" ? null : userId;
+  return method === "GET" ? matchHostPath(pathname, "ws") : null;
 }
 
 /** Answer the host-socket upgrade, or `null` when this request is not one. */

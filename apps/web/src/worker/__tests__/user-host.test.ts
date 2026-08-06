@@ -6,116 +6,27 @@
 // set from attachments rather than from memory it no longer has.
 // ---------------------------------------------------------------------------
 
-import {
-  parseServerFrame,
-  WS_CLOSE_UNAUTHORIZED,
-  type ServerFrame,
-} from "@repo/bridge/ws-protocol";
+import { WS_CLOSE_UNAUTHORIZED } from "@repo/bridge/ws-protocol";
 import {
   env,
   evictDurableObject,
   runDurableObjectAlarm,
   runInDurableObject,
-  SELF,
 } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { userHostName } from "../host/user-host";
-
-/** The origin the Worker is reached on — Better Auth derives its baseURL from
- * it, so every request in the file uses one. */
-const ORIGIN = "https://inteligir-web.workers.dev";
-/** A deployed origin the socket allowlist admits with no configuration. */
-const WEB_ORIGIN = "https://inteligir.com";
+import { userHostName } from "../host/host-address";
+import {
+  accepted,
+  authenticated,
+  openSocket,
+  readFrames,
+  signUp,
+  WEB_ORIGIN,
+  type Account,
+} from "./host-helpers";
 
 const READY_STATE = { phase: "ready", agent: "idle" };
-
-type Account = { readonly userId: string; readonly token: string };
-
-async function signUp(email: string): Promise<Account> {
-  const password = "test-password-1234";
-  const name = email.split("@")[0] ?? "user";
-  const signUpResponse = await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
-    method: "POST",
-    headers: { "content-type": "application/json", origin: ORIGIN },
-    body: JSON.stringify({ email, password, name }),
-  });
-  if (signUpResponse.status !== 200) {
-    throw new Error(`sign-up failed: ${signUpResponse.status} ${await signUpResponse.text()}`);
-  }
-  const token = signUpResponse.headers.get("set-auth-token");
-  if (token === null || token === "") throw new Error("no set-auth-token header");
-
-  const session = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
-    headers: { authorization: `Bearer ${token}`, origin: ORIGIN },
-  });
-  const body = (await session.json()) as { user: { id: string } } | null;
-  if (body === null) throw new Error("no session for the token just issued");
-  return { userId: body.user.id, token };
-}
-
-function openSocket(userId: string, origin: string | null): Promise<Response> {
-  const headers = new Headers({ upgrade: "websocket" });
-  if (origin !== null) headers.set("origin", origin);
-  return SELF.fetch(`${ORIGIN}/v1/host/${encodeURIComponent(userId)}/ws`, { headers });
-}
-
-type SocketReader = {
-  /** The next server frame, in order. */
-  next: () => Promise<ServerFrame>;
-  /** The close code, once the server closes. */
-  closed: Promise<number>;
-};
-
-function readFrames(ws: WebSocket): SocketReader {
-  const queue: ServerFrame[] = [];
-  let waiting: ((frame: ServerFrame) => void) | null = null;
-  ws.addEventListener("message", (event) => {
-    if (typeof event.data !== "string") return;
-    const frame = parseServerFrame(event.data);
-    if (frame === null) return;
-    if (waiting === null) {
-      queue.push(frame);
-      return;
-    }
-    const resolve = waiting;
-    waiting = null;
-    resolve(frame);
-  });
-  const closed = new Promise<number>((resolve) => {
-    ws.addEventListener("close", (event) => {
-      resolve(event.code);
-    });
-  });
-  return {
-    next: () => {
-      const queued = queue.shift();
-      if (queued !== undefined) return Promise.resolve(queued);
-      return new Promise<ServerFrame>((resolve) => {
-        waiting = resolve;
-      });
-    },
-    closed,
-  };
-}
-
-async function accepted(userId: string): Promise<{ ws: WebSocket; frames: SocketReader }> {
-  const response = await openSocket(userId, WEB_ORIGIN);
-  expect(response.status).toBe(101);
-  const ws = response.webSocket;
-  if (ws === null) throw new Error("upgrade response carried no webSocket");
-  ws.accept();
-  return { ws, frames: readFrames(ws) };
-}
-
-/** Connect, authenticate, and consume the welcome plus the hydration push. */
-async function authenticated(account: Account): Promise<{ ws: WebSocket; frames: SocketReader }> {
-  const { ws, frames } = await accepted(account.userId);
-  ws.send(JSON.stringify({ t: "auth", token: account.token }));
-  expect(await frames.next()).toEqual({ t: "welcome" });
-  expect(await frames.next()).toEqual({ t: "evt", method: "onAppState", payload: READY_STATE });
-  return { ws, frames };
-}
 
 // One account per Durable Object under test: a host is per-user, so sharing
 // one would let a test's leftover sockets and stored state reach the next.
