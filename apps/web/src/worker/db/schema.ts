@@ -110,7 +110,7 @@ export const rateLimit = sqliteTable("rate_limit", {
 });
 
 /**
- * Desktop sign-in handoff codes (src/auth/desktop-session.ts). Not a Better
+ * Desktop sign-in handoff codes (src/worker/auth/desktop-session.ts). Not a Better
  * Auth table; the desktop-callback surface owns it. Each row is one SHORT-LIVED
  * (~90s), SINGLE-USE authorization code minted at the social OAuth callback:
  * the `inteligir://session` deep link carries only the opaque code, and the

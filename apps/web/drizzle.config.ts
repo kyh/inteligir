@@ -9,7 +9,7 @@ import type { Config } from "drizzle-kit";
 // is a single deployer (the account owner; the README gates `db:push` behind a
 // "never run this" warning), the schema is small and additive so far, and
 // nothing derived can rot — vitest.config.ts feeds the test D1 by running
-// `drizzle-kit export` over src/db/schema.ts, so the suite always runs the
+// `drizzle-kit export` over src/worker/db/schema.ts, so the suite always runs the
 // schema the source declares. Revisit when a second deployer or a destructive
 // column change appears; until then a migrations/ directory is ceremony that
 // nobody would ever replay.
@@ -17,11 +17,11 @@ import type { Config } from "drizzle-kit";
 // This config targets the REMOTE D1 over the HTTP API. Set these before `pnpm db:push`:
 //   CLOUDFLARE_ACCOUNT_ID   CLOUDFLARE_DATABASE_ID   CLOUDFLARE_D1_TOKEN
 // For local, use drizzle.config.local.ts (points at the miniflare sqlite file).
-// Column names are explicit in src/db/schema.ts, so no `casing` inference needed.
+// Column names are explicit in src/worker/db/schema.ts, so no `casing` inference needed.
 export default {
   dialect: "sqlite",
   driver: "d1-http",
-  schema: "./src/db/schema.ts",
+  schema: "./src/worker/db/schema.ts",
   dbCredentials: {
     accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
     databaseId: process.env.CLOUDFLARE_DATABASE_ID ?? "",

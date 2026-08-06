@@ -169,7 +169,7 @@ export class VaultCoordinator extends DurableObject<Env> {
   }
 
   override async fetch(request: Request): Promise<Response> {
-    // Same contract as the Worker entry (src/log.ts): every expected failure
+    // Same contract as the Worker entry (src/worker/log.ts): every expected failure
     // here is a value (a 4xx, or an `{ok:false}` conflict at 200), so a throw is
     // a bug or a storage outage — log it once, structured, and answer 500. An
     // unwrapped throw would surface to the client as the Worker's own opaque

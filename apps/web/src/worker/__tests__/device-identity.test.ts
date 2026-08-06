@@ -19,7 +19,7 @@ import {
 import { ABSENT_VERSION } from "@repo/notes/sync/vault-file";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { MAX_ASSERTION_LIFETIME_SECONDS, MAX_CLOCK_SKEW_SECONDS } from "../src/device-assertion";
+import { MAX_ASSERTION_LIFETIME_SECONDS, MAX_CLOCK_SKEW_SECONDS } from "../device-assertion";
 import {
   ASSERTION_LIFETIME_SECONDS,
   createDevice,
@@ -38,7 +38,7 @@ import {
 // the other half still works.
 // ---------------------------------------------------------------------------
 
-const ORIGIN = "https://inteligir-cloud.workers.dev";
+const ORIGIN = "https://inteligir-web.workers.dev";
 
 const json = { "content-type": "application/json" };
 

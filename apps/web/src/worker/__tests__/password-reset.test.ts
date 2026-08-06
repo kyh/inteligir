@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import { createExecutionContext, env, SELF, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import worker from "../src/index";
-import { sendResetEmail } from "../src/auth/reset-email";
-import { createDb } from "../src/db/client";
-import { verification } from "../src/db/schema";
+import worker from "../index";
+import { sendResetEmail } from "../auth/reset-email";
+import { createDb } from "../db/client";
+import { verification } from "../db/schema";
 
 // The password-reset flow, driven against the real in-process Worker +
 // D1. Email delivery is the ONE piece that can't run here (it needs the
@@ -12,7 +12,7 @@ import { verification } from "../src/db/schema";
 // through `worker.fetch` with the pool env's bindings plus a MOCK `EMAIL`
 // whose `.send` records the message-builder — everything else (token mint,
 // consume, page serve, sign-in checks) is the production code path via SELF.
-const ORIGIN = "https://inteligir-cloud.workers.dev";
+const ORIGIN = "https://inteligir-web.workers.dev";
 const OLD_PASSWORD = "old-password-1234";
 const NEW_PASSWORD = "new-password-5678";
 

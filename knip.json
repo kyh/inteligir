@@ -4,16 +4,6 @@
   "ignore": [".design-sync/**"],
   "workspaces": {
     ".": {},
-    "apps/cloud": {
-      "entry": ["test/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      // NOT a stale suppression, and NOT an npm package: `cloudflare:workers`
-      // and `cloudflare:test` are workerd / vitest-pool-workers BUILT-IN module
-      // specifiers. knip reads the `cloudflare:` scheme prefix as a package
-      // name and reports 6 "unlisted dependencies". Removing this line turns
-      // the gate red; installing a `cloudflare` package would be worse.
-      "ignoreDependencies": ["cloudflare"]
-    },
     "apps/desktop": {
       "entry": ["src/renderer/index.html", "src/__tests__/**/*.test.ts", "scripts/**/*.mjs"],
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
@@ -33,9 +23,18 @@
       // it back there rather than adding an ignore here.
     },
     "apps/web": {
-      "entry": ["src/routes/**/*.tsx"],
+      // The Worker entry (src/worker/server.ts) is not listed: knip reads it
+      // from wrangler.jsonc's `main`. `src/worker/index.ts` is the test suite's
+      // entry (vitest.config `main`), which no plugin resolves.
+      "entry": ["src/routes/**/*.tsx", "src/worker/index.ts", "src/worker/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx,css}"],
-      "ignoreDependencies": ["tailwindcss"]
+      // `cloudflare` is NOT a stale suppression, and NOT an npm package:
+      // `cloudflare:workers` and `cloudflare:test` are workerd /
+      // vitest-pool-workers BUILT-IN module specifiers. knip reads the
+      // `cloudflare:` scheme prefix as a package name and reports them as
+      // "unlisted dependencies". Removing it turns the gate red; installing a
+      // `cloudflare` package would be worse.
+      "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },
     "packages/agent": {
       "entry": ["src/**/*.test.ts"],

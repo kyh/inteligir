@@ -12,9 +12,11 @@ import { isDeviceRoute, matchRoute, type VaultRouteMatch } from "./route";
 import { VaultCoordinator } from "./vault-coordinator";
 
 // ---------------------------------------------------------------------------
-// Worker entry for the vault-sync backend + Better Auth.
+// The vault-sync backend + Better Auth: the API half of the one Worker this app
+// deploys (./server.ts routes `OWNED_PREFIXES` here and everything else to the
+// marketing site's SSR handler).
 //
-// ONE Worker serves two surfaces:
+// Two surfaces:
 //   • /api/auth/*  — Better Auth (email+password, bearer), running in-process
 //     over Drizzle + D1 (`createAuth(env).handler`).
 //   • /v1/vault/*  — the sync routes (`@repo/notes/sync/wire`), forwarded to the
@@ -24,7 +26,7 @@ import { VaultCoordinator } from "./vault-coordinator";
 // itself says which:
 //
 //   • A DEVICE ASSERTION — self-issued, 5-minute, Ed25519-signed (see
-//     src/device-assertion.ts). Verified statelessly here; the Durable Object
+//     src/worker/device-assertion.ts). Verified statelessly here; the Durable Object
 //     independently re-verifies and answers membership. A vaultId under this
 //     model is the fingerprint of its founding key, so there is no ownership
 //     table to consult and D1 is not touched at all.
@@ -62,12 +64,27 @@ import { VaultCoordinator } from "./vault-coordinator";
 // (auth + sync) carries CORS headers and `OPTIONS` is answered as a preflight.
 //
 // ERRORS. `fetch` wraps the whole route table so an unhandled throw becomes one
-// structured log line (src/log.ts) plus an opaque 500 that still carries CORS
+// structured log line (src/worker/log.ts) plus an opaque 500 that still carries CORS
 // headers — workerd's own unhandled-exception 500 has neither, so the client
 // sees an unexplained network failure and `wrangler tail` shows nothing.
 // ---------------------------------------------------------------------------
 
+// This module is also the test suite's Worker entry (vitest.config.ts `main`),
+// and a Durable Object binding resolves its class against the entry's exports —
+// so dropping this re-export 500s every DO-backed test.
 export { VaultCoordinator };
+
+/**
+ * The path prefixes this surface owns. `./server.ts` splits on them, so a route
+ * added below must be reachable through one of these or it never arrives.
+ * `/auth/` is claimed whole: the reset page is the Worker's, not the site's.
+ */
+const OWNED_PREFIXES = ["/api/", "/v1/", "/auth/"] as const;
+
+/** True when `pathname` belongs to this API surface rather than the site. */
+export function ownsPath(pathname: string): boolean {
+  return OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 /**
  * Enrollment budget on the credential-free redeem route: 10 attempts / 60s per
@@ -163,7 +180,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     return withCors(request, Response.json({ socialProviders: enabledSocialProviders(env) }));
   }
 
-  // Desktop social-login handoff (see src/auth/desktop-session.ts): the
+  // Desktop social-login handoff (see src/worker/auth/desktop-session.ts): the
   // browser lands on the callback with the session COOKIE Better Auth just
   // set; the desktop later burns the minted single-use code over HTTPS. The
   // deep link between them carries only the opaque code — never a token.

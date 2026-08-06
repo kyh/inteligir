@@ -1,17 +1,17 @@
 import { formatBearer, manifestPath } from "@repo/notes/sync/wire";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { createDb } from "../src/db/client";
-import { desktopAuthCode } from "../src/db/schema";
-import { sha256Hex } from "../src/hash";
+import { createDb } from "../db/client";
+import { desktopAuthCode } from "../db/schema";
+import { sha256Hex } from "../hash";
 
-// The desktop social-login handoff (src/auth/desktop-session.ts), driven
+// The desktop social-login handoff (src/worker/auth/desktop-session.ts), driven
 // against the real in-process Worker + D1. A real provider consent can't run
 // here, but the flow AFTER consent is provider-agnostic: Better Auth sets a
 // session cookie and redirects the browser to /v1/auth/desktop-callback — so
 // an email sign-up's session cookie exercises the exact same callback → mint
 // → exchange → bearer path the OAuth callback produces.
-const ORIGIN = "https://inteligir-cloud.workers.dev";
+const ORIGIN = "https://inteligir-web.workers.dev";
 const STATE = "desktop-minted-state_0000000000";
 
 /** Sign a fresh user up and return the SESSION COOKIE pair (`name=value`) the

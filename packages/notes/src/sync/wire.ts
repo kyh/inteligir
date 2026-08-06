@@ -6,7 +6,7 @@ import { isValidVaultPath, type VaultPath } from "./vault-file";
 // wire.ts — the HTTP wire contract for vault sync.
 //
 // A PURE description of the HTTP surface the coordinator (the Cloudflare
-// Worker in apps/cloud) exposes and the client (desktop, mobile) calls, so both
+// Worker in apps/web) exposes and the client (desktop, mobile) calls, so both
 // ends build against ONE contract. NO fetch, NO server, NO I/O — only route
 // shapes, header + content-type names, and a handful of pure build/parse
 // helpers (the JSON bodies are the `SyncPort` result ADTs verbatim). Same
@@ -16,7 +16,7 @@ import { isValidVaultPath, type VaultPath } from "./vault-file";
 // `lib: ES2023`, `types: []`.
 //
 // ROUTE TABLE (the paths come from the builders below; the coordinator's
-// `matchRoute` in apps/cloud mirrors this — it does not redefine it):
+// `matchRoute` in apps/web mirrors this — it does not redefine it):
 //   manifest    GET    /v1/vault/:vaultId/manifest
 //   getFile     GET    /v1/vault/:vaultId/file?path=…
 //   putFile     PUT    /v1/vault/:vaultId/file?path=…   (body = raw bytes)

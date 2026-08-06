@@ -13,14 +13,14 @@ import {
 } from "@repo/notes/sync/wire";
 import { SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { sha256Hex } from "../src/hash";
+import { sha256Hex } from "../hash";
 
 // Real miniflare DO + R2 + D1 in-process (see vitest.config.ts). Auth is real
 // Better Auth over D1: tests sign a user up + in through `/api/auth/*`, pull the
 // bearer token from the `set-auth-token` response header, and send it on the
 // sync routes. Every request uses one ORIGIN, and the worker derives the auth
 // baseURL from the request origin, so they line up automatically.
-const ORIGIN = "https://inteligir-cloud.workers.dev";
+const ORIGIN = "https://inteligir-web.workers.dev";
 
 /**
  * Sign a user up then in via the Better Auth handler; return the bearer token

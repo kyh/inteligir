@@ -6,15 +6,15 @@ import Constants from "expo-constants";
 // contract — so this is the single backend origin.
 // ---------------------------------------------------------------------------
 
-/** The wrangler dev port the coordinator Worker serves on locally. */
-const DEV_COORDINATOR_PORT = 8787;
+/** The `pnpm dev:web` port the coordinator Worker serves on locally. */
+const DEV_COORDINATOR_PORT = 5174;
 
 /**
  * Resolve the coordinator origin:
  *   1. `EXPO_PUBLIC_COORDINATOR_URL` (baked at build / set in the shell)
  *   2. `app.config` `extra.coordinatorUrl`
- *   3. dev fallback — the Metro host machine on the wrangler port, so a device
- *      on the same LAN reaches `wrangler dev` running on your laptop.
+ *   3. dev fallback — the Metro host machine on the vite dev port, so a device
+ *      on the same LAN reaches `pnpm dev:web` running on your laptop.
  *
  * Throws when none resolve (a real build with no origin configured), surfacing
  * the misconfiguration rather than silently pointing nowhere.

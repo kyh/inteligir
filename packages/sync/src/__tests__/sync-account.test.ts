@@ -1,7 +1,7 @@
 // Store-level tests for the SyncAccount: the config gate, the install-stable
 // vault id, and the auth guards that fire before any network call. The full
 // Better Auth round-trip needs a live coordinator and is out of scope here
-// (exercised end-to-end against the real Worker in apps/cloud tests); the
+// (exercised end-to-end against the real Worker in apps/web tests); the
 // fetch-stubbed cases below pin the token-capture and social-initiation
 // contracts without one.
 

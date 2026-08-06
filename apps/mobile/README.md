@@ -3,7 +3,7 @@
 A sync/read/light-edit companion for the vault: Expo SDK 57 + Expo Router +
 NativeWind. It drives the SAME platform-neutral sync engine as desktop
 (`@repo/notes/sync`) through Expo adapters, against the coordinator Worker
-(`apps/cloud`). **No agent RUNS on mobile** — the agent is a desktop-host
+(`apps/web`). **No agent RUNS on mobile** — the agent is a desktop-host
 capability. Mobile can drive a PAIRED desktop host's agent remotely over the ws
 transport (chat + the delegation dock); the rich editor stays desktop-only.
 
@@ -55,7 +55,7 @@ engine's 3-way reconcile (conflicts preserved as sibling copies).
 
 ### Vault device keys — the account-free path
 
-The second identity model (`apps/cloud/README.md` § Device keys), running
+The second identity model (`apps/web/README.md` § Device keys), running
 alongside the one above and winning when this device has enrolled. `pair.tsx`
 takes the block the desktop's Settings → Sync → Devices produces: this device
 generates an Ed25519 key (`lib/sync/device-key.ts`, @noble over expo-crypto's
@@ -81,12 +81,12 @@ block carried) resolves in order (`lib/base-url.ts`):
 
 1. `EXPO_PUBLIC_COORDINATOR_URL`
 2. `app.config.js` → `extra.coordinatorUrl`
-3. dev fallback — the Metro host machine on `:8787`, so a device on your LAN
-   reaches `wrangler dev` on your laptop
+3. dev fallback — the Metro host machine on `:5174`, so a device on your LAN
+   reaches `pnpm dev:web` on your laptop
 
 ## Local development
 
-Run the coordinator first (`pnpm --filter @repo/cloud dev`), then:
+Run the coordinator first (`pnpm dev:web`), then:
 
 ```bash
 pnpm --filter @repo/mobile dev        # expo start (Metro)

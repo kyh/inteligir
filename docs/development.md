@@ -13,8 +13,9 @@ How to run, verify, and change inteligir. Written for humans and agents alike;
 ## The two ways to run the app
 
 Same renderer UI both times; they differ in what backs the Bridge. (The other
-apps have their own loops: `apps/cloud` — `wrangler dev` + the Workers test
-pool, see its README; `apps/mobile` — Expo, needs a device/simulator.)
+apps have their own loops: `apps/web` — `vite dev` (site + API on one Worker) +
+the Workers test pool, see its README; `apps/mobile` — Expo, needs a
+device/simulator.)
 
 ### 1. Browser dev harness — fixture Bridge (fastest loop, no backend)
 
@@ -68,8 +69,7 @@ one walk+stat snapshot inside VaultManager (~1s TTL).
 | What                                                                      | Where                                                                     |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | App dev harness (vite)                                                    | 5173 (auto-increments)                                                    |
-| Marketing site (`pnpm dev:web`)                                           | 5174 (auto-increments)                                                    |
-| Coordinator Worker (`wrangler dev`)                                       | 8787                                                                      |
+| Site + coordinator Worker (`pnpm dev:web`)                                | 5174 (auto-increments)                                                    |
 | Electron CDP debugging                                                    | 9222                                                                      |
 | Executor daemon                                                           | 47888                                                                     |
 | App state (auth, sessions, ui-state, delegations, snapshots, `host.lock`) | `~/.inteligir`                                                            |
@@ -146,9 +146,9 @@ rotting in prose here:
   gate, faux provider) + the pi-quarantine and bundle drift guards.
 - `pnpm --filter @repo/server test` — the node backend (vault, delegation
   +snapshots, knowledge manager, sync adapters, handlers, secrets).
-- `pnpm --filter @repo/cloud test` — the sync Worker against real in-process
-  miniflare (DO + R2 + D1 + Better Auth), incl. the end-to-end sync test that
-  drives @repo/notes's engine through the real backend.
+- `pnpm --filter @repo/web test` — the Worker's API surface against real
+  in-process miniflare (DO + R2 + D1 + Better Auth), incl. the end-to-end sync
+  test that drives @repo/notes's engine through the real backend.
 - `pnpm --filter @repo/mobile test` — the Expo sync adapters on node (in-memory
   fakes; no simulator).
 

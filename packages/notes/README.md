@@ -8,7 +8,7 @@ knowledge engine (links/tags/search/tasks), and the markdown parse pipeline.
 This is the sharing seam. ZERO node/electron/react/workspace imports — lint-
 (`.oxlintrc.json` `no-restricted-imports`) and tsconfig-enforced (`lib:
 ["ES2023", "WebWorker"]`, `types: []`) — so the same code runs unchanged in
-the Cloudflare Worker (apps/cloud), React Native (apps/mobile), and the
+the Cloudflare Worker (apps/web), React Native (apps/mobile), and the
 desktop renderer. Platforms inject capabilities (hasher, IO, clock).
 Everything above it (bridge, vault, sync, server, agent, all three apps)
 depends on it; it depends on nothing in the workspace.

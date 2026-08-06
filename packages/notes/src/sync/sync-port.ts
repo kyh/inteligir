@@ -44,7 +44,7 @@ export type Unsubscribe = () => void;
 
 /**
  * The vault-sync transport. Implemented by the backend (the per-vault
- * Cloudflare Durable Object in apps/cloud), called by clients (desktop,
+ * Cloudflare Durable Object in apps/web), called by clients (desktop,
  * mobile). File content is raw
  * bytes (`Uint8Array`) — UTF-8 for markdown, opaque bytes for images/pdfs — so
  * the one protocol carries text and binary vault files alike. (`Uint8Array` is

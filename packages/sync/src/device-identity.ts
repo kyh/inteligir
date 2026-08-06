@@ -3,7 +3,7 @@
 //
 // The device-key model replaces "an account owns the vault" with "a set of
 // enrolled public keys owns it, and the vaultId is the fingerprint of the
-// founder's key" (apps/cloud/README.md § Device keys). This module is the
+// founder's key" (apps/web/README.md § Device keys). This module is the
 // desktop end of it: generate the pair, keep the halves in the two places that
 // suit them, and mint the short-lived assertion the coordinator accepts as a
 // bearer credential.

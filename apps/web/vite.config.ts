@@ -18,7 +18,11 @@ export default defineConfig({
   resolve: { alias: { "@": src } },
   plugins: [
     cloudflare({ viteEnvironment: { name: "ssr" } }),
-    tanstackStart(),
+    // Start would otherwise take `src/server.ts` as the server entry. The entry
+    // lives with the rest of the Worker instead, because that directory is its
+    // own tsconfig program (see src/worker/tsconfig.json) — and the entry, which
+    // names `Env` and re-exports the Durable Object, has to be inside it.
+    tanstackStart({ server: { entry: "./worker/server.ts" } }),
     viteReact(),
     tailwindcss(),
   ],

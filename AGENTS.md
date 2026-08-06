@@ -65,21 +65,22 @@ beyond a user row. If you actually need an account (Settings → Account, vault
 sync, mobile sign-in), stand up the local Worker — four commands:
 
 ```sh
-cp apps/cloud/.dev.vars.example apps/cloud/.dev.vars   # set BETTER_AUTH_SECRET to anything
-pnpm --filter @repo/cloud dev                          # wrangler dev → http://localhost:8787
+cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET to anything
+pnpm dev:web                                       # vite dev → http://localhost:5174
 
-curl -s -o /dev/null localhost:8787/api/auth/get-session   # materializes the local D1 file
-pnpm --filter @repo/cloud db:push:local                    # apply the schema to it
+curl -s -o /dev/null localhost:5174/api/auth/get-session   # materializes the local D1 file
+pnpm --filter @repo/web db:push:local                      # apply the schema to it
 
-curl -s -X POST localhost:8787/api/auth/sign-up/email \
-  -H 'content-type: application/json' \
+# Better Auth refuses a state-changing request with no Origin (MISSING_OR_NULL_ORIGIN).
+curl -s -X POST localhost:5174/api/auth/sign-up/email \
+  -H 'content-type: application/json' -H 'origin: http://localhost:5174' \
   -d '{"email":"dev@inteligir.local","password":"password","name":"Dev"}'
 ```
 
 The sign-up returns 200 with a `set-auth-token` header — that bearer is exactly
 what the sync clients use, so you can drive `/v1/vault/*` with curl alone. To
-drive it through a UI instead, put `http://localhost:8787` in the desktop's
-Settings → Account coordinator URL (mobile defaults to the Metro host on 8787).
+drive it through a UI instead, put `http://localhost:5174` in the desktop's
+Settings → Account coordinator URL.
 
 Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
@@ -134,13 +135,12 @@ Two things worth knowing before you reach for the UI:
 
 ## Platform matrix
 
-| Surface           | Dev command                               | Where     | Agent-verifiable at runtime?                                                  |
-| ----------------- | ----------------------------------------- | --------- | ----------------------------------------------------------------------------- |
-| Desktop harness   | `pnpm --filter @repo/desktop dev:harness` | :5173     | **Yes** — `agent-browser open`                                                |
-| Desktop (product) | `pnpm dev:desktop`                        | CDP :9222 | **Yes** — `agent-browser connect 9222`                                        |
-| Web (marketing)   | `pnpm dev:web`                            | :5174     | **Yes** — `agent-browser open`                                                |
-| Cloud Worker      | `pnpm --filter @repo/cloud dev`           | :8787     | **Yes** — curl; no UI. Also `-F @repo/cloud test` (real in-process miniflare) |
-| Mobile (Expo)     | `pnpm --filter @repo/mobile dev`          | simulator | **No** — verify with `typecheck` + `test`                                     |
+| Surface           | Dev command                               | Where     | Agent-verifiable at runtime?                                                                      |
+| ----------------- | ----------------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
+| Desktop harness   | `pnpm --filter @repo/desktop dev:harness` | :5173     | **Yes** — `agent-browser open`                                                                    |
+| Desktop (product) | `pnpm dev:desktop`                        | CDP :9222 | **Yes** — `agent-browser connect 9222`                                                            |
+| Web (site + API)  | `pnpm dev:web`                            | :5174     | **Yes** — `agent-browser open`; API by curl. Also `-F @repo/web test` (real in-process miniflare) |
+| Mobile (Expo)     | `pnpm --filter @repo/mobile dev`          | simulator | **No** — verify with `typecheck` + `test`                                                         |
 
 Ports auto-increment if taken, so read the dev server's own output before
 assuming a URL.
@@ -171,8 +171,8 @@ assuming a URL.
 ```
 apps/desktop    Electron shell + the product UI (renderer)      @repo/desktop
 apps/mobile     Expo companion — sync/read/light-edit           @repo/mobile
-apps/web        TanStack Start marketing site on Workers        @repo/web
-apps/cloud      CF Worker — Better Auth (D1) + vault sync (DO+R2)  @repo/cloud
+apps/web        ONE CF Worker — marketing site + Better Auth (D1)
+                + vault sync (DO+R2), one origin                 @repo/web
 packages/notes  Pure domain — sync engine, knowledge, markdown  @repo/notes
 packages/bridge Iso wire contract — IPC registry, ws, schemas   @repo/bridge
 packages/server Node host — the composition root                @repo/server
@@ -184,5 +184,5 @@ packages/{agent,vault,storage,voice,connectors,sync,installer,ui}
   state, change checklists, per-package test commands.
 - `docs/e2e-driving.md` — login-free chat / delegation / connector recipes.
 - `docs/privacy.md` — the `private: true` guarantee and its holes.
-- `apps/cloud/README.md` — the Worker's protocol, local loop, and owner-only
+- `apps/web/README.md` — the Worker's protocol, local loop, and owner-only
   deploy.

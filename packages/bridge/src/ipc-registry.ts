@@ -874,7 +874,7 @@ export const IPC = {
    * reactive. Same shape as getSyncState. */
   onSyncStateChanged: event<SyncState>(),
 
-  // Vault device identity — the account-free credential model (apps/cloud's
+  // Vault device identity — the account-free credential model (apps/web's
   // README § Device keys). ADDITIVE: an install with no device key syncs on
   // the account exactly as before, and `reconnectSyncVault` is the only thing
   // that changes that.

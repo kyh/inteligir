@@ -7,7 +7,7 @@ import {
   MIN_ENROLL_SECRET_BYTES,
   vaultIdFromKeyDigest,
 } from "@repo/notes/sync/wire";
-import { sha256Bytes, sha256Hex } from "../src/hash";
+import { sha256Bytes, sha256Hex } from "../hash";
 
 // ---------------------------------------------------------------------------
 // Test-side device: an Ed25519 keypair that mints REAL assertions in the same
@@ -31,7 +31,7 @@ export type TestDevice = {
   signOver(encodedPayload: string): Promise<string>;
 };
 
-export type AssertionOptions = {
+type AssertionOptions = {
   readonly iat?: number;
   readonly lifetimeSeconds?: number;
   /** Sign with a DIFFERENT key than the payload names — forgery. */

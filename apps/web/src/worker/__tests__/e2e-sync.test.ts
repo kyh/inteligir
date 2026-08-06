@@ -30,7 +30,7 @@ import { createDevice, createEnrollOffer, nowSeconds, type TestDevice } from "./
 // preserved as copies -> another user is denied (403 -> error, no data leak).
 // ---------------------------------------------------------------------------
 
-const ORIGIN = "https://inteligir-cloud.workers.dev";
+const ORIGIN = "https://inteligir-web.workers.dev";
 
 /** Route the client's fetch to the in-process Worker. */
 const fetchSelf: typeof fetch = (input, init) => SELF.fetch(input, init);

@@ -11,9 +11,9 @@ backend, plus a marketing site.
 apps/              Shippable artifacts
   desktop/         Electron app — main/preload + the product UI (renderer) (@repo/desktop)
   mobile/          Expo companion — sync + read + light-edit, no agent (@repo/mobile)
-  web/             TanStack Start marketing site on Cloudflare Workers — SSR (the
-                   download link resolves the latest release server-side)
-  cloud/           CF Worker — Better Auth + vault-sync coordinator (@repo/cloud)
+  web/             ONE CF Worker (@repo/web) — the TanStack Start marketing site
+                   plus the backend: Better Auth (D1) + the vault-sync
+                   coordinator (Durable Object + R2), same origin
 packages/          Libraries
   notes/           Pure platform-neutral domain — sync engine, knowledge, markdown (@repo/notes)
   bridge/          Iso wire contract — Bridge/IPC registry, ws client, schemas (@repo/bridge)
@@ -30,23 +30,22 @@ packages/          Libraries
 
 Workspace `README.md`s — every workspace has one:
 
-| Workspace             | README                                                                   |
-| --------------------- | ------------------------------------------------------------------------ |
-| `apps/desktop`        | [Electron shell — process boundary, packaging](./apps/desktop/README.md) |
-| `apps/mobile`         | [Expo companion — sync, read, remote chat](./apps/mobile/README.md)      |
-| `apps/web`            | [marketing site — SSR on Cloudflare Workers](./apps/web/README.md)       |
-| `apps/cloud`          | [Worker — Better Auth + vault-sync coordinator](./apps/cloud/README.md)  |
-| `packages/notes`      | [pure domain — sync, knowledge, markdown](./packages/notes/README.md)    |
-| `packages/bridge`     | [iso wire contract — IPC registry, ws](./packages/bridge/README.md)      |
-| `packages/agent`      | [the pi capability + harness quarantine](./packages/agent/README.md)     |
-| `packages/server`     | [node backend — vault, delegation, boot](./packages/server/README.md)    |
-| `packages/vault`      | [VaultManager — confined markdown IO](./packages/vault/README.md)        |
-| `packages/storage`    | [node fs/json substrate over ~/.inteligir](./packages/storage/README.md) |
-| `packages/sync`       | [desktop vault-sync adapters](./packages/sync/README.md)                 |
-| `packages/connectors` | [MCP connectors + executor daemon](./packages/connectors/README.md)      |
-| `packages/voice`      | [voice capability — STT + TTS proxy](./packages/voice/README.md)         |
-| `packages/installer`  | [generic checksum-verified CLI install](./packages/installer/README.md)  |
-| `packages/ui`         | [shared design system](./packages/ui/README.md)                          |
+| Workspace             | README                                                                      |
+| --------------------- | --------------------------------------------------------------------------- |
+| `apps/desktop`        | [Electron shell — process boundary, packaging](./apps/desktop/README.md)    |
+| `apps/mobile`         | [Expo companion — sync, read, remote chat](./apps/mobile/README.md)         |
+| `apps/web`            | [inteligir.com — marketing site + the backend Worker](./apps/web/README.md) |
+| `packages/notes`      | [pure domain — sync, knowledge, markdown](./packages/notes/README.md)       |
+| `packages/bridge`     | [iso wire contract — IPC registry, ws](./packages/bridge/README.md)         |
+| `packages/agent`      | [the pi capability + harness quarantine](./packages/agent/README.md)        |
+| `packages/server`     | [node backend — vault, delegation, boot](./packages/server/README.md)       |
+| `packages/vault`      | [VaultManager — confined markdown IO](./packages/vault/README.md)           |
+| `packages/storage`    | [node fs/json substrate over ~/.inteligir](./packages/storage/README.md)    |
+| `packages/sync`       | [desktop vault-sync adapters](./packages/sync/README.md)                    |
+| `packages/connectors` | [MCP connectors + executor daemon](./packages/connectors/README.md)         |
+| `packages/voice`      | [voice capability — STT + TTS proxy](./packages/voice/README.md)            |
+| `packages/installer`  | [generic checksum-verified CLI install](./packages/installer/README.md)     |
+| `packages/ui`         | [shared design system](./packages/ui/README.md)                             |
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — quickstart, the
 platform matrix of what is headlessly verifiable, and the runtime recipes.

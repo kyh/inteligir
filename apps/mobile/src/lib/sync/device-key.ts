@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // This device's Ed25519 sync key: generate one, and mint the short-lived
 // assertion the coordinator accepts as a bearer credential
-// (apps/cloud/README.md § Device keys).
+// (apps/web/README.md § Device keys).
 //
 // PURE — no expo, no react-native — so the whole crypto path runs under node in
 // tests. @noble/ed25519 + @noble/hashes are pure JS, so there is no native

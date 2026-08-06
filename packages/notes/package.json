@@ -2,7 +2,7 @@
   "name": "@repo/notes",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps so it runs unchanged in the Cloudflare Worker (apps/cloud), React Native (apps/mobile), and the desktop renderer. `src/sync/` is the vault-sync protocol: wire types + the pure last-write-wins/conflict-copy reconcile brain. No I/O, no clock, no crypto — the caller supplies hashes + timestamps.",
+  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps so it runs unchanged in the Cloudflare Worker (apps/web), React Native (apps/mobile), and the desktop renderer. `src/sync/` is the vault-sync protocol: wire types + the pure last-write-wins/conflict-copy reconcile brain. No I/O, no clock, no crypto — the caller supplies hashes + timestamps.",
   "type": "module",
   "exports": {
     "./sync/vault-file": "./src/sync/vault-file.ts",
