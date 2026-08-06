@@ -4,8 +4,9 @@ ONE Cloudflare Worker serving two surfaces from one origin:
 
 - the **marketing site** — a TanStack Start landing page, server-rendered;
 - the **backend** — Better Auth on D1, plus one `UserHost` Durable Object per
-  user holding that user's vault: the manifest in the object's own SQLite, the
-  file bytes in R2.
+  user holding that user's vault (the manifest in the object's own SQLite, the
+  file bytes in R2) and driving that user's agent, which runs the pi coding
+  agent as a node process inside a per-user Cloudflare Sandbox.
 
 `src/worker/server.ts` is the entry that splits them: `/api/*`, `/v1/*` and
 `/auth/*` go to the rest of `src/worker/`, everything else to Start's SSR
@@ -44,8 +45,28 @@ src/
       vault-handlers.ts  the vault's ten channels
       knowledge-handlers.ts the index's seven channels, incl. the guarded toggle
       stores.ts          ui-state + notifications as JsonStores over DO KV
+      agent-endpoints.ts the object's half of the report + OAuth-callback routes
       vault/             THE VAULT — manifest in DO SQLite, bytes in R2
       knowledge/         THE INDEX — core's SQL store over DO SQLite + FTS5
+    agent/               THE AGENT — the container, and everything around it
+      sandbox-port.ts    the five verbs the DO may ask of a container
+      cf-sandbox.ts      that port over @cloudflare/sandbox
+      fake-sandbox.ts    that port in memory, scripted (AGENT_RUNTIME=scripted)
+      sandbox-class.ts   the Sandbox subclass: enableInternet=false + the egress seam
+      egress.ts          the pure credential-injection decision
+      agent-composition.ts where the parts are assembled + the runtime choice
+      agent-runner.ts    the turn lifecycle — dispatch and RETURN, never await
+      agent-tools.ts     the granted capabilities, implemented host-side
+      agent-snapshots.ts restore points in R2, so undo_my_edits is real
+      agent-instructions.ts the bundled prompt, rendered from the grant table
+      chat-store.ts      THE DURABLE TRANSCRIPT (pi's session files are working state)
+      confirmations.ts   the destructive tier's human
+      provider-catalog.ts the providers, their API hosts, their OAuth gate
+      provider-credentials.ts sealed refresh tokens + short-lived access tokens
+      provider-oauth.ts  the PKCE round-trip the Worker owns
+      vault-revisions.ts a bounded change log, so a wake pushes a delta
+      agent-route.ts     the Worker leg of both agent routes
+      agent-handlers.ts  the agent's twelve Bridge channels
     rate-limit.ts        fixed-window budget over the shared rate_limit D1 table
     hash.ts              sha256Hex() — authoritative content hashing
     log.ts               logUnhandled() — the structured line both fetch entries emit
@@ -67,6 +88,10 @@ src/
       user-host.test.ts      the host socket end to end, incl. eviction + the alarm
       host-handlers.test.ts  registry completeness, the classes, the origin rule
       no-ungated-dispatch.test.ts structural guard on the two chokepoints
+      agent-turn.test.ts     a whole turn over the scripted container
+      agent-tools.test.ts    the granted capabilities over a real vault + index
+      agent-credentials.test.ts sealing, token scoping, egress injection
+      agent-report.test.ts   the report route: its gate, and what it applies
       apply-schema.ts        applies the exported schema DDL to each test file's D1
       env.d.ts               types cloudflare:test's env (+ TEST_SCHEMA)
 public/                  Static assets
@@ -188,10 +213,71 @@ dependency graph.
   server-side and would otherwise volunteer state the method gate forbids
   asking for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a
   third path appears.
-- **Twenty-three methods are implemented; 66 are shims.** `collectHandlers` throws at
+- **Thirty-five methods are implemented; 54 are shims.** `collectHandlers` throws at
   construction if any of the 89 is unregistered. `host/handlers.ts`'s
   `CLOUD_SHIMS` is the migration backlog, grouped by feature; a shim throws
   naming its gap and never returns a plausible empty value.
+
+### The agent (`src/worker/agent/`)
+
+The pi coding agent runs as a **node process inside a per-user Cloudflare
+Sandbox**, driven by that user's `UserHost`. pi is never imported into the
+Worker; the image is `container/`, built from this repo.
+
+- **The container filesystem is EPHEMERAL.** On sleep (10 minutes idle) or
+  restart every file is deleted, every process terminates, and only the
+  Sandbox's Durable Object identity survives. So a wake is not a recovery path,
+  it is the ordinary one: the image carries everything, and the vault is
+  re-materialized from the manifest each time. `persistAcrossSessions`,
+  `snapshot()` and `start({snapshot})` are **not** built on — they appear only
+  in the GA blog post and not in the API reference.
+- **A Durable Object never awaits a turn.** `send` resolves once the container
+  has accepted the turn; everything the turn produces arrives later as short
+  authenticated requests to `POST /v1/agent/:userId/report`, which the object
+  folds into the transcript and broadcasts. An object that instead held the
+  container's event stream open would be pinned for the life of the turn, and
+  an outbound connection expires at fifteen minutes — mid-answer.
+- **The provider credential never reaches the container.** The Worker owns the
+  OAuth round-trip, the refresh token is AES-GCM sealed in the object under an
+  HKDF-derived per-user key, and the container is handed a **placeholder**. Per
+  request, the Sandbox's outbound interception (`static outboundByHost`) mints a
+  short-lived access token and puts it on the wire. What the container DOES hold
+  is its report bearer, which entitles it to _spend_ this user's provider quota
+  and nothing else — bound to one account and one container generation. That is
+  a spend bound, not isolation, and it is the honest replacement for pi's
+  plaintext-at-0600 `auth.json` (fine on one person's machine; not multi-tenant).
+- **Egress is `enableInternet = false` plus an allowlist.** `allowedHosts` is
+  the firewall; `outboundByHost` is the credential seam and intercepts HTTP/HTTPS
+  on ports 80 and 443 only, so it is not a security boundary. The allowlist is
+  the provider APIs plus `PUBLIC_HOST`; anything else is a deliberate
+  `AGENT_EXTRA_ALLOWED_HOSTS` entry.
+- **The Durable Object owns the transcript; pi's session files are working
+  state.** A wake starts a FRESH pi session seeded with prior turns as context,
+  rather than rehydrating pi's `sessions/*.jsonl`. Rehydrating would mean this
+  repo hand-authoring a third party's on-disk format and keeping step with it
+  across upgrades — the coupling the pi quarantine exists to prevent, relocated
+  somewhere no test could see it. The cost is real: pi's own view of the
+  conversation restarts, so anything not in the transcript does not come back.
+- **The granted tools are implemented HOST-SIDE** (`agent-tools.ts`), and the
+  container forwards calls to them. So the grant table (`@repo/bridge/agent-grants`)
+  stays the one declaration of what the agent may do, every tool's model-facing
+  sentence comes from it, and the destructive tier's confirmation is raised
+  inside the executor where no container can skip it. Capabilities this host does
+  not implement are DECLARED (`CLOUD_UNGRANTED`) and rendered into the prompt —
+  delegation has no backend here yet, so `delegate_task` says so rather than
+  going silently missing.
+- **The agent's file writes come back through the vault of record**, so the
+  manifest, the knowledge index and the deletion gate all stay authoritative.
+  Reported REMOVALS are refused: deletion is the destructive tier's, so a
+  container-side `rm` changes nothing the user will see.
+- **`private: true` is not a feature of this host.** There is no privacy
+  filtering anywhere in the agent path; the whole vault materializes.
+- **`AGENT_RUNTIME=scripted`** replaces the container with an in-memory one
+  (`fake-sandbox.ts`) — the cloud twin of the desktop's `INTELIGIR_FAUX_AGENT=1`.
+  The runner, the transcript, the tool executor, the confirmation broker and the
+  vault write-back are the production ones either way; only the process that
+  would have produced the reports is fake. The whole test suite runs this way,
+  and so does any deployment without the Workers Paid plan.
 
 ### Auth (`/api/auth/*`) — Better Auth on the Worker
 
@@ -305,3 +391,82 @@ pnpm --filter @repo/web deploy       # == vite build && wrangler deploy
 # (optional) tail logs
 wrangler tail inteligir-web
 ```
+
+## Lighting up the agent (owner-only)
+
+Everything above deploys and runs with **no agent**: leave `AGENT_RUNTIME`
+unset for the real container, or set it to `scripted` for the in-memory one. The
+scripted runtime needs nothing at all — no plan, no image, no provider account —
+and offers a `Sandbox (no account)` provider so a chat turn, a tool call and a
+vault write can be driven end to end. Use it to verify the wiring before
+provisioning anything.
+
+The real runtime needs five things, and all five are owner-only.
+
+**1. The Workers Paid plan.** `@cloudflare/sandbox` (GA at 0.12.4) requires it.
+There is no free tier for containers.
+
+**2. The image.** `container/` is a normal npm project built from this repo, so
+the Docker build context is the REPO ROOT:
+
+```bash
+docker build -f apps/web/container/Dockerfile -t inteligir-agent .
+```
+
+`wrangler deploy` builds and pushes it automatically from the `image` field in
+`wrangler.jsonc`, so a plain deploy is enough once Docker is available on the
+deploying machine. Build it by hand first if you want the failure to be legible.
+
+**3. `PUBLIC_HOST`.** The container reaches this Worker from outside, and the
+provider OAuth redirect URI must match what was registered byte for byte —
+neither can be derived per-request. Set it to the host this Worker is served on:
+
+```bash
+wrangler secret put PUBLIC_HOST        # e.g. inteligir.com
+```
+
+**4. A provider OAuth app.** A provider is offered **only** when its whole trio
+is set — the same both-or-nothing gate the social sign-in providers use, because
+an OAuth client belongs to whoever registered it. Register the redirect URI
+`https://<PUBLIC_HOST>/v1/ai/oauth/callback` in the provider's console, then:
+
+```bash
+wrangler secret put ANTHROPIC_OAUTH_AUTHORIZE_URL
+wrangler secret put ANTHROPIC_OAUTH_TOKEN_URL
+wrangler secret put ANTHROPIC_OAUTH_CLIENT_ID
+# wrangler secret put ANTHROPIC_OAUTH_CLIENT_SECRET   # only for a confidential client
+# …the same four with OPENAI_ for OpenAI.
+```
+
+The authorize/token URLs are configuration rather than constants on purpose:
+this repo does not hardcode a provider's consent endpoints, so a self-hoster
+points at whatever their own registered app uses.
+
+**5. Optional — the `browser` tool.** It connects to Cloudflare Browser Run over
+CDP, which is a `wss://` upgrade, and **whether a WebSocket upgrade escapes a
+Sandbox's egress is unverified** — the outbound documentation never names it.
+The tool is not registered at all unless all three are set:
+
+```bash
+wrangler secret put BROWSER_RUN_ACCOUNT_ID
+wrangler secret put BROWSER_RUN_API_TOKEN       # Browser Rendering: Edit
+wrangler secret put AGENT_EXTRA_ALLOWED_HOSTS   # api.cloudflare.com
+```
+
+The tool bounds its connect and reports a named diagnostic rather than hanging,
+so a failure says what was attempted and what to check. If the upgrade does not
+land, the tool is the only thing that stops working.
+
+### What could not be verified without an account
+
+- that a container starts, that the daemon comes up on its port, and that
+  `containerFetch` reaches it;
+- that `outboundByHost` intercepts the provider request and that the injected
+  credential is accepted;
+- that a `wss://` CDP upgrade escapes the Sandbox at all;
+- the provider OAuth endpoints themselves, which is why they are configuration.
+
+Everything on the Worker side of those seams — the port contract, the runner,
+the tools, the transcript, the credential sealing and minting, the egress
+decision, and the report route's gate — is driven by the test suite against the
+scripted runtime.

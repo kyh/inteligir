@@ -17,6 +17,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
+    "@cloudflare/sandbox": "0.12.4",
+    "@repo/agent-container": "workspace:*",
     "@repo/bridge": "workspace:*",
     "@repo/notes": "workspace:*",
     "@repo/storage": "workspace:*",

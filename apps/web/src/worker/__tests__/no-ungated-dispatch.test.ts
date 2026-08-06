@@ -25,6 +25,7 @@
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
+import agentEndpointSource from "../host/agent-endpoints.ts?raw";
 import assetSource from "../host/asset-route.ts?raw";
 import source from "../host/user-host.ts?raw";
 
@@ -107,6 +108,23 @@ describe("user-host gate chokepoints", () => {
     // the same capability over two transports, so they must be gated on the
     // same registry method or one of them will drift into a second policy.
     expect(assetSource).toContain('mayInvoke(SESSION_CLIENT_CLASS, "writeVaultAsset")');
+  });
+
+  it("gates the container's report on the token that names its generation", () => {
+    // The report route is the third transport into this object and the widest:
+    // everything downstream of it writes to the vault or runs a granted tool.
+    // Its gate is NOT the client class — a container is not a client — so this
+    // pins the two conditions it does carry, both required. A route that read a
+    // report before proving whose container sent it would be a hole neither
+    // socket chokepoint could close.
+    expect(agentEndpointSource).toContain("readBearer(request.headers)");
+    expect(agentEndpointSource).toContain("runner.acceptsReportToken(token)");
+    // And the body is parsed only AFTER both, so an unauthenticated caller
+    // cannot spend this object's time on a megabyte of JSON.
+    const authIndex = agentEndpointSource.indexOf("acceptsReportToken");
+    const parseIndex = agentEndpointSource.indexOf("await request.json()");
+    expect(authIndex).toBeGreaterThan(-1);
+    expect(parseIndex).toBeGreaterThan(authIndex);
   });
 
   it("keeps both chokepoints present and named", () => {

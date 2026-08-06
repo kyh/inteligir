@@ -172,6 +172,8 @@ apps/desktop    Electron shell + the product UI (renderer)      @repo/desktop
 apps/mobile     Expo companion — remote control, no agent       @repo/mobile
 apps/web        ONE CF Worker — marketing site + Better Auth (D1)
                 + the UserHost DO holding the vault, one origin  @repo/web
+apps/web/container  The agent image: pi in a per-user Cloudflare
+                Sandbox, driven by that UserHost       @repo/agent-container
 packages/notes  Pure domain — knowledge + markdown              @repo/notes
 packages/bridge Iso wire contract — IPC registry, ws, schemas   @repo/bridge
 packages/server Node host — the composition root                @repo/server

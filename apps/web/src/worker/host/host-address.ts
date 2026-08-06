@@ -26,6 +26,15 @@ export function userHostName(userId: string): string {
   return `${USER_HOST_PREFIX}${userId}`;
 }
 
+/** The userId an object's own name serves, or `null` for an object addressed by
+ * id (which can never authenticate, so it serves nobody). The inverse of
+ * `userHostName`, kept beside it so the two cannot disagree about the prefix. */
+export function userIdFromHostName(hostName: string | undefined): string | null {
+  if (hostName === undefined || !hostName.startsWith(USER_HOST_PREFIX)) return null;
+  const userId = hostName.slice(USER_HOST_PREFIX.length);
+  return userId === "" ? null : userId;
+}
+
 /** The userId a `/v1/host/:userId/<leaf>` path addresses, or `null` when
  * `pathname` is not one of this leaf's. */
 export function matchHostPath(pathname: string, leaf: string): string | null {

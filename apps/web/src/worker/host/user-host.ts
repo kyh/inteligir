@@ -17,13 +17,17 @@ import {
   type SendFrame,
 } from "@repo/bridge/ws-protocol";
 
+import { composeAgent, type AgentComposition } from "../agent/agent-composition";
+import { isOAuthCallbackPath, matchAgentReportPath } from "../agent/agent-route";
+import { handleAgentReport, handleOAuthCallback } from "./agent-endpoints";
 import { logUnhandled, logUnhandledCallback } from "../log";
 import { handleAssetUpload, matchHostAssetPath } from "./asset-route";
 import { mayInvoke, mayReceive, SESSION_CLIENT_CLASS } from "./client-class";
 import { collectHandlers, type WireHandler } from "./handler-registry";
-import { registerCloudHandlers } from "./handlers";
+import { cloudAppState, registerCloudHandlers } from "./handlers";
 import { HostEvents } from "./host-events";
 import { INDEX_CONTINUATION_MS, UserKnowledge } from "./knowledge/user-knowledge";
+import { userIdFromHostName } from "./host-address";
 import { verifyHostSession } from "./session";
 import {
   authedState,
@@ -88,6 +92,18 @@ const PRE_AUTH_MAX_FRAME_CHARS = 4096;
  * socket speaks, so a future frame vocabulary can enumerate the old ones. */
 const SOCKET_TAG_V1 = "v1";
 
+/** Where the last authenticated socket's origin is kept — the OAuth redirect
+ * URI's fallback when no public host is declared. */
+const LAST_ORIGIN_KEY = "host/last-origin";
+
+/** The Durable Object's synchronous key-value storage, as this object uses it.
+ * `get` answers `unknown` because what comes back is JSON an earlier version of
+ * this code wrote — a generic would be a promise nothing can keep. */
+type SyncKvStorage = {
+  get(key: string): unknown;
+  put(key: string, value: unknown): void;
+};
+
 // RFC 6455 close codes used below; the 44xx application codes live in
 // ws-protocol beside the frames they refuse.
 const WS_CLOSE_NORMAL = 1000;
@@ -140,8 +156,24 @@ export class UserHost extends DurableObject<Env> {
    */
   private readonly dispatch: ReadonlyMap<string, WireHandler>;
 
+  /**
+   * The agent, and the container it drives (see ../agent/agent-composition).
+   *
+   * PUBLIC for the vault's reason — a Durable Object's API is its RPC surface,
+   * and the Worker holds the only stub. It is also how the egress interceptor
+   * reaches a credential without one ever being handed to a container.
+   */
+  readonly agent: AgentComposition;
+
+  /** The origin the last authenticated socket arrived on, so the OAuth redirect
+   * URI has something to fall back to where the deployment declared no public
+   * host. Persisted, because the object hibernates between the socket that saw
+   * it and the connect that needs it. */
+  private readonly kv: SyncKvStorage;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.kv = ctx.storage.kv;
     const stores = createCloudStores(ctx.storage.kv);
     this.vault = new UserVault({
       sql: ctx.storage.sql,
@@ -159,6 +191,10 @@ export class UserHost extends DurableObject<Env> {
         // synchronous, and the projection it implies runs on the way out.
         this.alarmDirty = true;
         this.knowledge.record(change);
+        // Every writer moves the agent workspace's revision, so a container
+        // that wakes after a browser edit materializes the delta rather than
+        // the note it last saw.
+        this.agent.revisions.record(change);
         this.events.emit("onVaultChanged", { root: VAULT_ROOT });
       },
     });
@@ -169,12 +205,47 @@ export class UserHost extends DurableObject<Env> {
         this.events.emit("onKnowledgeUpdated", {});
       },
     });
+    this.agent = composeAgent({
+      env,
+      // An object nobody can name serves nobody: it can never authenticate, so
+      // it can never reach a credential. The empty id keeps the composition
+      // total without inventing an account.
+      userId: userIdFromHostName(ctx.id.name) ?? "",
+      sql: ctx.storage.sql,
+      kv: ctx.storage.kv,
+      bucket: env.VAULT_FILES,
+      prefix: ctx.id.name ?? ctx.id.toString(),
+      vault: this.vault,
+      knowledge: this.knowledge,
+      publicOrigin: () => this.publicOrigin(),
+      emitAgentEvent: (event) => {
+        this.events.emit("onAgentEvent", event);
+      },
+      emitConfirmation: (request) => {
+        this.events.emit("onAgentConfirmationRequested", request);
+      },
+      onBusyChanged: () => {
+        this.events.emit("onAppState", cloudAppState(this.agent.runner.agentBusy()));
+      },
+      defer: (work) => {
+        ctx.waitUntil(work);
+      },
+    });
     const handlers = collectHandlers((handle, shim) => {
       registerCloudHandlers(handle, shim, {
         stores,
         events: this.events,
         vault: this.vault,
         knowledge: this.knowledge,
+        agent: {
+          env,
+          userId: userIdFromHostName(ctx.id.name) ?? "",
+          runner: this.agent.runner,
+          chat: this.agent.chat,
+          credentials: this.agent.credentials,
+          origin: () => this.publicOrigin(),
+          scripted: this.agent.scripted,
+        },
       });
     });
     this.dispatch = new Map(Object.entries(handlers));
@@ -183,18 +254,56 @@ export class UserHost extends DurableObject<Env> {
     });
   }
 
+  /**
+   * Mint a provider access token for a container that proved it is this
+   * account's.
+   *
+   * RPC, because the egress interceptor runs in the Worker and the sealed
+   * refresh token is here. It is the ONLY way a live credential leaves this
+   * object, and it never leaves toward the container — the interceptor puts it
+   * on a request the container already sent.
+   */
+  mintProviderAccessToken(
+    identity: string,
+    providerId: string,
+  ): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+    return this.agent.runner.mintProviderAccessToken(identity, providerId);
+  }
+
+  /** The origin this deployment is reached on: the declared public host, else
+   * the last origin an authenticated socket arrived on. */
+  private publicOrigin(): string {
+    const declared = this.env.PUBLIC_HOST;
+    if (declared !== undefined && declared !== "") return `https://${declared}`;
+    const stored = this.kv.get(LAST_ORIGIN_KEY);
+    return typeof stored === "string" ? stored : "";
+  }
+
   override async fetch(request: Request): Promise<Response> {
     try {
-      // Two ways in, and the split is the transport, not the capability: the
-      // Bridge socket, and the attachment upload that cannot fit in one of its
-      // frames (see ./asset-route).
-      if (matchHostAssetPath(request.method, new URL(request.url).pathname) !== null) {
+      // Four ways in, and the split is the transport or the CREDENTIAL, never
+      // the capability: the Bridge socket, the attachment upload that cannot
+      // fit in one of its frames (./asset-route), the container's report
+      // (./agent-endpoints), and the provider's OAuth redirect. The last two
+      // carry a token this Worker minted rather than a session, because neither
+      // caller has one.
+      const pathname = new URL(request.url).pathname;
+      if (matchHostAssetPath(request.method, pathname) !== null) {
         const response = await handleAssetUpload(request, this.env, this.vault, this.ctx.id.name);
         // Project what the upload wrote before answering, so the index is never
         // a message behind the manifest.
         await this.knowledge.flush();
         await this.syncAlarm();
         return response;
+      }
+      if (matchAgentReportPath(request.method, pathname) !== null) {
+        const response = await handleAgentReport(request, this.agent.runner);
+        await this.knowledge.flush();
+        await this.syncAlarm();
+        return response;
+      }
+      if (isOAuthCallbackPath(pathname)) {
+        return await handleOAuthCallback(request, this.env, this.agent.credentials);
       }
       return await this.upgrade(request);
     } catch (error) {
@@ -408,6 +517,10 @@ export class UserHost extends DurableObject<Env> {
     // never arrive ahead of its `welcome` — a client that has not been welcomed
     // has not subscribed to anything yet.
     await seedVault(this.vault);
+    // The origin an AUTHENTICATED socket arrived on — never a pending one, so
+    // an unauthenticated caller cannot set the origin a later OAuth redirect
+    // URI is built from.
+    this.kv.put(LAST_ORIGIN_KEY, state.baseUrl);
     writeSocketState(ws, admitted);
     ws.send(encodeFrame({ t: "welcome" }));
     await this.hydrate(ws, admitted);

@@ -17,3 +17,32 @@ BETTER_AUTH_SECRET=
 # Set to "true" ONLY when a local script signs up several users from one IP —
 # auth is rate-limited to 10 requests/60s per IP (see src/worker/auth/auth.ts).
 # RATE_LIMIT_DISABLED=true
+
+# The agent. Local dev has no Workers Paid plan and usually no Docker, so run
+# the scripted container instead of a real Cloudflare Sandbox: it needs no
+# plan, no image and no provider account, and offers a `Sandbox (no account)`
+# provider so a whole turn can be driven. Unset (or anything else) = the real
+# container.
+AGENT_RUNTIME=scripted
+
+# The public host the container reports to and the provider OAuth redirect URI
+# is built from. Only needed with the real container — the redirect URI must
+# match what was registered with the provider byte for byte.
+# PUBLIC_HOST=
+
+# Provider OAuth apps. A provider is offered only when its whole trio is set.
+# Register `https://<PUBLIC_HOST>/v1/ai/oauth/callback` as the redirect URI.
+# ANTHROPIC_OAUTH_AUTHORIZE_URL=
+# ANTHROPIC_OAUTH_TOKEN_URL=
+# ANTHROPIC_OAUTH_CLIENT_ID=
+# ANTHROPIC_OAUTH_CLIENT_SECRET=
+# OPENAI_OAUTH_AUTHORIZE_URL=
+# OPENAI_OAUTH_TOKEN_URL=
+# OPENAI_OAUTH_CLIENT_ID=
+# OPENAI_OAUTH_CLIENT_SECRET=
+
+# Cloudflare Browser Run, for the agent's `browser` tool. Both or neither, and
+# `api.cloudflare.com` must be in AGENT_EXTRA_ALLOWED_HOSTS.
+# BROWSER_RUN_ACCOUNT_ID=
+# BROWSER_RUN_API_TOKEN=
+# AGENT_EXTRA_ALLOWED_HOSTS=

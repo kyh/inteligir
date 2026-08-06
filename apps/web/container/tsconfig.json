@@ -1,0 +1,11 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    // A node process, not a Worker: node's globals win here, and the DOM's
+    // do not exist. `undici-types` comes with @types/node and supplies fetch.
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}

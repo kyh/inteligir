@@ -23,6 +23,11 @@ import api, { ownsPath } from "./index";
 // ---------------------------------------------------------------------------
 
 export { UserHost } from "./host/user-host";
+// Both are required to deploy: `AgentSandbox` is the container's Durable Object
+// class, and the SDK constructs outbound-interception fetchers that reference
+// `ContainerProxy` by name from the entrypoint's exports.
+export { AgentSandbox } from "./agent/sandbox-class";
+export { ContainerProxy } from "@cloudflare/sandbox";
 
 export default {
   fetch(request, env, ctx) {

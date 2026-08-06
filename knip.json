@@ -36,6 +36,13 @@
       // `cloudflare` package would be worse.
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },
+    // The agent container image is its own npm project, built from this repo by
+    // the Dockerfile. The daemon entry is resolved from the package's `bin`
+    // field; `src/protocol.ts` is the pure wire contract @repo/web imports.
+    "apps/web/container": {
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/agent": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],

@@ -38,8 +38,38 @@
   // vault manifest and the workspace's Bridge host over a hibernatable
   // WebSocket. Addressed by `getByName("user:" + userId)`.
   "durable_objects": {
-    "bindings": [{ "name": "UserHost", "class_name": "UserHost" }],
+    "bindings": [
+      { "name": "UserHost", "class_name": "UserHost" },
+      { "name": "AGENT_SANDBOX", "class_name": "AgentSandbox" },
+    ],
   },
+
+  // The agent's container: one per user, running the pi coding agent as a node
+  // process (src/worker/agent/sandbox-class.ts). Needs the Workers Paid plan.
+  //
+  // Its FILESYSTEM IS EPHEMERAL — every file is deleted when the container
+  // sleeps, which is its normal state — so the image must carry everything a
+  // wake needs and nothing is installed per user at runtime. `./container` is
+  // that image, built from this repo.
+  //
+  // A deployment without the plan (or without Docker locally) sets
+  // `AGENT_RUNTIME=scripted` and gets the in-memory container instead; the
+  // whole test suite runs that way.
+  "containers": [
+    {
+      "class_name": "AgentSandbox",
+      "image": "./container/Dockerfile",
+      // The context is the REPO ROOT, not the Dockerfile's directory (which is
+      // wrangler's default). `container/` is a pnpm workspace package: its
+      // versions come from the root lockfile and catalog, and a context of the
+      // folder alone resolves neither — the install fails with "pnpm-lock.yaml
+      // is absent". `.dockerignore` at the root is what keeps that context from
+      // being every node_modules in the tree.
+      "image_build_context": "../..",
+      "max_instances": 10,
+      "instance_type": "standard-2",
+    },
+  ],
   // SQLite-backed storage: the vault manifest tables, and the UserHost's
   // synchronous `ctx.storage.kv` (which only the SQLite backend exposes, and
   // which the JsonStore engine needs — see @repo/storage/do-store-adapter).
@@ -52,6 +82,7 @@
     { "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] },
     { "tag": "v2", "new_sqlite_classes": ["UserHost"] },
     { "tag": "v3", "deleted_classes": ["VaultCoordinator"] },
+    { "tag": "v4", "new_sqlite_classes": ["AgentSandbox"] },
   ],
 
   // R2 holds the raw file bytes, keyed `${userId}/${path}`. The manifest (in the
@@ -94,4 +125,9 @@
   // request origin (so localhost/preview/prod all work with no config), and
   // BETTER_AUTH_SECRET + any OAuth client secrets are secrets — set them with
   // `wrangler secret put` (see README), never committed here.
+  //
+  // PUBLIC_HOST is deliberately NOT here either, even though it is not secret:
+  // it is the one origin the provider OAuth redirect URI and the container's
+  // report URL are built from, and a value committed here would be the
+  // production host in local dev too. Set it per environment.
 }

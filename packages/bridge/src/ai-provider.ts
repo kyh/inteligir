@@ -57,4 +57,12 @@ export type AiProviderSettings = {
   readonly providers: readonly AiProviderInfo[];
 };
 
-export type AiConnectResult = { ok: true } | { ok: false; error: string };
+/**
+ * `authorizeUrl` is present only where the HOST cannot open a browser for the
+ * user — a cloud host serving a client it has no screen in common with. When it
+ * is there, the connection is NOT yet made: the client must send the user to
+ * that URL, and the host completes the exchange on the callback. A host that
+ * owns the machine (the desktop, which opens the system browser itself) omits
+ * it, and `{ ok: true }` alone means connected.
+ */
+export type AiConnectResult = { ok: true; authorizeUrl?: string } | { ok: false; error: string };

@@ -1,3 +1,5 @@
+import { routeAgentReport, routeOAuthCallback } from "./agent/agent-route";
+import { AgentSandbox } from "./agent/sandbox-class";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleDesktopCallback, handleSessionExchange } from "./auth/desktop-session";
 import { handleResetPage } from "./auth/reset-page";
@@ -38,6 +40,12 @@ import { logUnhandled } from "./log";
 // and a Durable Object binding resolves its class against the entry's exports —
 // so dropping this re-export 500s every DO-backed test.
 export { UserHost };
+// The Sandbox subclass and the SDK's ContainerProxy BOTH have to be exported
+// from the Worker entry or the container never deploys and outbound
+// interception never installs — the second failure is silent, which is what
+// makes it worth naming here (see ./agent/sandbox-class).
+export { AgentSandbox };
+export { ContainerProxy } from "@cloudflare/sandbox";
 
 /**
  * The path prefixes this surface owns. `./server.ts` splits on them, so a route
@@ -123,6 +131,16 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (request.method === "POST" && url.pathname === "/v1/auth/exchange") {
     return withCors(request, await handleSessionExchange(request, env));
   }
+
+  // The container's report — everything an agent turn produces, arriving as
+  // short authenticated requests so no Durable Object ever awaits a turn.
+  const report = await routeAgentReport(request, env, url.pathname);
+  if (report !== null) return withCors(request, report);
+
+  // The provider OAuth redirect. Not CORS-relevant (a browser navigation, not
+  // a fetch), but wrapped like everything else so one response shape holds.
+  const oauth = await routeOAuthCallback(request, env, url.pathname);
+  if (oauth !== null) return withCors(request, oauth);
 
   // The workspace's Bridge socket. Answered BEFORE the CORS wrapper below: a
   // 101 carries a `webSocket` that re-emitting the response would drop, and a

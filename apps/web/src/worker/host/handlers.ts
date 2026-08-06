@@ -15,6 +15,7 @@
 
 import type { AppState } from "@repo/bridge/app-state";
 import type { HostMethod } from "@repo/bridge/ipc-registry";
+import { registerAgentHandlers, type AgentServices } from "../agent/agent-handlers";
 import { unavailable, type HandlerRegistrar, type ShimRegistrar } from "./handler-registry";
 import type { HostEvents } from "./host-events";
 import { registerKnowledgeHandlers } from "./knowledge-handlers";
@@ -28,15 +29,19 @@ type CloudHostServices = {
   readonly events: HostEvents;
   readonly vault: UserVault;
   readonly knowledge: UserKnowledge;
+  readonly agent: AgentServices;
 };
 
 /**
  * The cloud host's app phase. There is no setup step — no CLI to install, no
- * local agent to log in — and no effect that can fail, so `starting` and
- * `error` are states this host cannot be in and does not model. `agent` is
- * idle because there is no agent yet.
+ * local runtime to provision — and no effect that can fail, so `starting` and
+ * `error` are states this host cannot be in and does not model. `agent` tracks
+ * the container: a turn is dispatched and reported back, so "busy" is what the
+ * last report said, not what an in-process session is doing.
  */
-const CLOUD_APP_STATE: AppState = { phase: "ready", agent: "idle" };
+export function cloudAppState(agentBusy: boolean): AppState {
+  return { phase: "ready", agent: agentBusy ? "busy" : "idle" };
+}
 
 type ShimGroup = {
   /** Names the gap in the thrown message — keep it the feature, not the file. */
@@ -46,27 +51,6 @@ type ShimGroup = {
 
 /** The migration backlog: every host method with no cloud implementation. */
 export const CLOUD_SHIMS: readonly ShimGroup[] = [
-  {
-    feature: "the agent",
-    methods: [
-      "sendAgentCommand",
-      "getAgentHistory",
-      "listChatSessions",
-      "readChatSession",
-      "reauthenticate",
-      "setFauxAgentScript",
-      "getAgentSystemPrompt",
-    ],
-  },
-  {
-    feature: "the AI provider",
-    methods: [
-      "getAiProviderSettings",
-      "setAiProviderConfig",
-      "connectAiProvider",
-      "disconnectAiProvider",
-    ],
-  },
   {
     feature: "voice",
     methods: [
@@ -82,10 +66,9 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
   },
   // What is left of the vault group is being RETIRED, not implemented: there
   // is one vault per account and no folder to choose, and the Durable Object
-  // is the only writer so there is nothing to watch. `probeNotePrivacy` waits
-  // on the agent — it is the fail-closed gate that keeps a private note out of
-  // an AI surface, and answering it before any AI surface exists would be
-  // answering "public" to a question nobody is yet entitled to ask.
+  // is the only writer so there is nothing to watch. `probeNotePrivacy` is
+  // retired too — `private: true` is not a feature of this host, so a probe
+  // would answer a question nothing here asks.
   {
     feature: "the vault",
     methods: ["chooseVaultRoot", "probeNotePrivacy", "setWatchedNote"],
@@ -109,8 +92,10 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
       "restoreRoutineRun",
     ],
   },
+  // The AGENT's undo is real (`undo_my_edits` over ./agent/agent-snapshots);
+  // this channel is the EDITOR's post-turn undo toast, which needs the
+  // renderer's own capture coordinates and has no client here yet.
   { feature: "AI-edit undo", methods: ["restoreAgentEdits"] },
-  { feature: "agent confirmations", methods: ["resolveAgentConfirmation"] },
   { feature: "deep-link capture", methods: ["ackCapture", "takePendingDeepLinkNav"] },
   {
     feature: "editor AI",
@@ -174,7 +159,9 @@ export function registerCloudHandlers(
   shim: ShimRegistrar,
   services: CloudHostServices,
 ): void {
-  handle("getAppState", () => CLOUD_APP_STATE);
+  const appState = (): AppState => cloudAppState(services.agent.runner.agentBusy());
+
+  handle("getAppState", appState);
   handle("transition", (event) => {
     switch (event.type) {
       case "SETUP":
@@ -183,12 +170,12 @@ export function registerCloudHandlers(
         // behind, so both answer with the phase this host is already in —
         // re-announced, so a client that transitioned and waited is not
         // stranded on an event that never comes.
-        services.events.emit("onAppState", CLOUD_APP_STATE);
+        services.events.emit("onAppState", appState());
         return;
-      // Two of the four events reach subsystems that do not exist yet, so this
-      // one handler is part real and part gap.
       case "NEW_SESSION":
-        return unavailable("agent sessions");
+        services.agent.runner.newSession();
+        services.events.emit("onAppState", appState());
+        return;
       case "RESET_APP_DATA":
         return unavailable("app-data reset");
     }
@@ -221,6 +208,7 @@ export function registerCloudHandlers(
 
   registerVaultHandlers(handle, services.vault, services.knowledge);
   registerKnowledgeHandlers(handle, services.knowledge, services.vault);
+  registerAgentHandlers(handle, services.agent);
 
   for (const group of CLOUD_SHIMS) {
     for (const method of group.methods) shim(method, group.feature);

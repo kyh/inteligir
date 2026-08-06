@@ -58,6 +58,22 @@ export default defineConfig({
           // Tests hit the in-process Worker from one IP; keep the auth limiter
           // off so multi-user suites don't 429. Rate limiting is covered in prod.
           RATE_LIMIT_DISABLED: "true",
+          // The agent runs in the in-memory container (src/worker/agent/
+          // fake-sandbox.ts), not a Cloudflare Sandbox: the real one needs the
+          // Workers Paid plan and a built image, and neither exists in CI. The
+          // runner, the tool executor, the transcript, the confirmation broker
+          // and the vault write-back are all the production ones either way —
+          // the port is the seam, so the suite drives real code.
+          AGENT_RUNTIME: "scripted",
+          // A provider is offered only when its whole OAuth trio is configured
+          // (src/worker/agent/provider-catalog.ts), so the suites that drive
+          // the credential path need one — otherwise every case would be
+          // testing the "not configured on this deployment" branch. No token
+          // endpoint is ever dialed: ProviderCredentials takes its `fetch`
+          // injected.
+          ANTHROPIC_OAUTH_AUTHORIZE_URL: "https://provider.test/authorize",
+          ANTHROPIC_OAUTH_TOKEN_URL: "https://provider.test/token",
+          ANTHROPIC_OAUTH_CLIENT_ID: "test-client",
         },
       },
     }),

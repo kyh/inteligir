@@ -1,0 +1,29 @@
+{
+  "name": "@repo/agent-container",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The agent image: the pi coding agent as a node process inside a per-user Cloudflare Sandbox, plus the daemon that materializes ./vault and reports every event, tool call and file write back to the user's UserHost Durable Object. src/protocol.ts is the pure wire contract the Worker half imports; src/pi/* is this package's harness quarantine.",
+  "bin": {
+    "inteligir-agent": "./dist/main.js"
+  },
+  "type": "module",
+  "exports": {
+    "./protocol": "./src/protocol.ts"
+  },
+  "scripts": {
+    "build:container": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node24 --packages=external --outfile=dist/main.js",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@sinclair/typebox": "catalog:",
+    "playwright-core": "^1.58.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "esbuild": "^0.28.1",
+    "typescript": "catalog:"
+  }
+}

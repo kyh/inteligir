@@ -1,5 +1,10 @@
 packages:
   - apps/*
+  # The agent container image is built from this repo and is its own npm
+  # project (the Dockerfile installs it), so it is a workspace member rather
+  # than a folder inside @repo/web — that is what typechecks it and what lets
+  # `pnpm deploy` produce the image's node_modules.
+  - apps/web/container
   - packages/*
 
 catalog:

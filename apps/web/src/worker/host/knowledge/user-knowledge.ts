@@ -53,10 +53,12 @@ import {
   type WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
 import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
+import { relatedNotes, type RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import {
   createSqlKnowledgeStore,
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
+import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { searchVaultNotes, type VaultSearchSources } from "@repo/notes/knowledge/vault-search";
 
 import { sha256Hex } from "../../hash";
@@ -219,6 +221,26 @@ export class UserKnowledge {
   async tasks(): Promise<VaultTaskEntry[]> {
     await this.settle();
     return this.graph.tasks();
+  }
+
+  /** Every tag in the vault with how many notes carry it, most-used first. */
+  async tags(): Promise<TagCount[]> {
+    await this.settle();
+    return this.graph.tags();
+  }
+
+  /** Notes connected to `path` indirectly — shared link targets, co-citation,
+   * shared tags, similar wording — ranked, each with its reason. The lexical
+   * leg runs through the persisted FTS5 index, so the blend is the same one
+   * core's own composition produces. */
+  async relatedNotes(path: string, limit?: number): Promise<RelatedNoteEntry[]> {
+    await this.settle();
+    return relatedNotes(
+      this.graph,
+      (query, max) => this.store.search(query, max),
+      path,
+      limit === undefined ? {} : { limit },
+    );
   }
 
   /**

@@ -40,4 +40,55 @@ interface Env {
    * several users would otherwise trip the limiter. Unset in dev/prod → enabled.
    */
   readonly RATE_LIMIT_DISABLED?: string;
+
+  /**
+   * Which agent runtime this deployment runs. "scripted" replaces the
+   * Cloudflare Sandbox with the in-memory container (agent/fake-sandbox), which
+   * is what the test suite and any deployment without the Workers Paid plan
+   * use; anything else (including unset) runs the real one.
+   */
+  readonly AGENT_RUNTIME?: string;
+  /**
+   * The public host this Worker is reached on — the container's report URL and
+   * the provider OAuth redirect URI are both built from it, and the redirect
+   * URI has to match what was registered with the provider byte for byte, so
+   * it cannot be derived per-request the way the Better Auth baseURL is.
+   */
+  readonly PUBLIC_HOST?: string;
+  /**
+   * Extra hostnames the agent container may reach, comma-separated. The
+   * container runs with `enableInternet = false`; the provider APIs and
+   * PUBLIC_HOST are allowed by construction, and everything else — a package
+   * registry, Cloudflare Browser Run — is a deliberate addition here.
+   */
+  readonly AGENT_EXTRA_ALLOWED_HOSTS?: string;
+
+  /**
+   * Cloudflare Browser Run, for the agent's `browser` tool. Both or neither:
+   * the tool is not registered at all without them, because a tool that always
+   * fails is worse in a model's menu than a tool that is not there.
+   *
+   * `AGENT_EXTRA_ALLOWED_HOSTS` must also name `api.cloudflare.com`, and
+   * whether the CDP `wss://` upgrade escapes a Sandbox's egress at all is
+   * UNVERIFIED — the outbound documentation never names WebSocket upgrade.
+   */
+  readonly BROWSER_RUN_ACCOUNT_ID?: string;
+  readonly BROWSER_RUN_API_TOKEN?: string;
+
+  /**
+   * The provider OAuth apps, per provider. All three of a provider's values
+   * must be set for it to be offered at all — the same both-or-nothing gate the
+   * social sign-in providers use, and for the same reason: an OAuth client
+   * belongs to whoever registered it, so a deployment nobody configured must
+   * offer nothing rather than a button that dead-ends.
+   */
+  readonly ANTHROPIC_OAUTH_AUTHORIZE_URL?: string;
+  readonly ANTHROPIC_OAUTH_TOKEN_URL?: string;
+  readonly ANTHROPIC_OAUTH_CLIENT_ID?: string;
+  /** Absent is normal — a public client uses PKCE alone. */
+  readonly ANTHROPIC_OAUTH_CLIENT_SECRET?: string;
+  readonly OPENAI_OAUTH_AUTHORIZE_URL?: string;
+  readonly OPENAI_OAUTH_TOKEN_URL?: string;
+  readonly OPENAI_OAUTH_CLIENT_ID?: string;
+  readonly OPENAI_OAUTH_CLIENT_SECRET?: string;
 }
