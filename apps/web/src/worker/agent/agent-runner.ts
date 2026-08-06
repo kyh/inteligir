@@ -65,9 +65,11 @@ import { agentToolManifest, executeAgentTool, type DelegationToolPort } from "./
 import type { ChatStore } from "./chat-store";
 import { ConfirmationBroker } from "./confirmations";
 import {
+  chooseProvider,
   providerEntry,
   resolveModelId,
   sandboxRuntimeEnabled,
+  type ProviderChoice,
   type ProviderEntry,
 } from "./provider-catalog";
 import type { ProviderCredentials } from "./provider-credentials";
@@ -219,13 +221,8 @@ export class AgentRunner {
    * phrasing would only be a second thing to keep true.
    */
   providerRefusal(): string | null {
-    const selection = this.deps.credentials.selection();
-    const provider = selection === null ? null : providerEntry(selection.provider);
-    if (provider === null) return "No AI provider is selected. Choose one in Settings → AI.";
-    if (!this.deps.credentials.connected(provider.id)) {
-      return `${provider.label} is not connected. Connect it in Settings → AI.`;
-    }
-    return null;
+    const choice = this.chooseProvider();
+    return choice.ok ? null : choice.error;
   }
 
   // ---- the outbound half ----------------------------------------------------
@@ -771,9 +768,15 @@ export class AgentRunner {
     };
   }
 
+  private chooseProvider(): ProviderChoice {
+    return chooseProvider(this.deps.credentials.selection(), (provider) =>
+      this.deps.credentials.connected(provider),
+    );
+  }
+
   private selectedProvider(): ProviderEntry | null {
-    const selection = this.deps.credentials.selection();
-    return selection === null ? null : providerEntry(selection.provider);
+    const choice = this.chooseProvider();
+    return choice.ok ? choice.entry : null;
   }
 
   private bootId(lane: AgentLane): string {

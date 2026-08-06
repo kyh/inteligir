@@ -19,6 +19,12 @@ import {
 
 import { composeAgent, type AgentComposition } from "../agent/agent-composition";
 import { isOAuthCallbackPath, matchAgentReportPath } from "../agent/agent-route";
+import { TextGenerator } from "../ai/text-generator";
+import { CaptureInbox } from "../capture/capture-inbox";
+import { CaptureService } from "../capture/capture-service";
+import { handleDeepLink } from "../capture/deep-link-route";
+import { matchDeepLinkPath } from "../capture/deep-link";
+import { composeVoice, type VoiceComposition } from "../voice/voice-composition";
 import { handleAgentReport, handleOAuthCallback } from "./agent-endpoints";
 import { logUnhandled, logUnhandledCallback } from "../log";
 import { handleAssetUpload, matchHostAssetPath } from "./asset-route";
@@ -166,6 +172,26 @@ export class UserHost extends DurableObject<Env> {
    */
   readonly agent: AgentComposition;
 
+  /**
+   * The editor's AI — no-tools text turns, run directly from this object rather
+   * than through the container (see ../ai/text-generator for why, and for what
+   * an outbound fetch costs an object that would otherwise hibernate).
+   *
+   * PUBLIC for the vault's reason: a Durable Object's API is its RPC surface,
+   * and it is how `runInDurableObject` tests drive the lane bounds.
+   */
+  readonly ai: TextGenerator;
+
+  /** Text-to-speech and dictation, per OBJECT — never module scope, because
+   * this capability moves note content through a third party (../voice). */
+  readonly voice: VoiceComposition;
+
+  /** The deep-link capture inbox and the nav parking over it (../capture).
+   * PUBLIC for the vault's reason: a Durable Object's API is its RPC surface,
+   * and it is how `runInDurableObject` tests drive a drain the alarm owns. */
+  readonly captureInbox: CaptureInbox;
+  readonly capture: CaptureService;
+
   /** The origin the last authenticated socket arrived on, so the OAuth redirect
    * URI has something to fall back to where the deployment declared no public
    * host. Persisted, because the object hibernates between the socket that saw
@@ -251,6 +277,53 @@ export class UserHost extends DurableObject<Env> {
         ctx.waitUntil(work);
       },
     });
+    this.ai = new TextGenerator({
+      credentials: this.agent.credentials,
+      // Bound rather than passed bare: `fetch` on workerd is an unbound global,
+      // and a method-shaped reference to it throws on call.
+      fetch: (input, init) => fetch(input, init),
+      emitDelta: (requestId, delta) => {
+        this.events.emit("onAiStreamed", { requestId, delta });
+      },
+    });
+    this.voice = composeVoice({
+      env,
+      userId: userIdFromHostName(ctx.id.name) ?? "",
+      kv: ctx.storage.kv,
+      uiState: stores.uiState,
+      emitAudio: (pcm) => {
+        // A registry-declared binary channel: the transport packs the bytes
+        // rather than base64-ing them into JSON (see BINARY_CHANNELS). COPIED
+        // out of the reader's chunk, which the stream is free to reuse the
+        // moment this returns.
+        const audio = new ArrayBuffer(pcm.byteLength);
+        new Uint8Array(audio).set(pcm);
+        this.events.emit("onTtsAudio", { audio });
+      },
+      emitTranscript: (transcript) => {
+        this.events.emit("onSttTranscript", transcript);
+      },
+      defer: (work) => {
+        ctx.waitUntil(work);
+      },
+    });
+    this.captureInbox = new CaptureInbox({
+      kv: ctx.storage.kv,
+      vault: this.vault,
+      dailyPath: (now) => resolveDailyNotePath(stores.uiState.read(), now),
+      onApply: (event) => {
+        this.events.emit("onCaptureApply", event);
+      },
+      now: () => Date.now(),
+    });
+    this.capture = new CaptureService({
+      kv: ctx.storage.kv,
+      inbox: this.captureInbox,
+      onNav: (event) => {
+        this.events.emit("onDeepLinkNav", event);
+      },
+    });
+
     const handlers = collectHandlers((handle, shim) => {
       registerCloudHandlers(handle, shim, {
         stores,
@@ -271,6 +344,9 @@ export class UserHost extends DurableObject<Env> {
           routines: this.agent.routines,
           snapshots: this.agent.snapshots,
         },
+        ai: this.ai,
+        voice: this.voice,
+        capture: { inbox: this.captureInbox, service: this.capture },
       });
     });
     this.dispatch = new Map(Object.entries(handlers));
@@ -306,13 +382,24 @@ export class UserHost extends DurableObject<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     try {
-      // Four ways in, and the split is the transport or the CREDENTIAL, never
+      // Five ways in, and the split is the transport or the CREDENTIAL, never
       // the capability: the Bridge socket, the attachment upload that cannot
-      // fit in one of its frames (./asset-route), the container's report
-      // (./agent-endpoints), and the provider's OAuth redirect. The last two
-      // carry a token this Worker minted rather than a session, because neither
-      // caller has one.
+      // fit in one of its frames (./asset-route), the deep link that arrives as
+      // a navigation rather than a frame (../capture/deep-link-route), the
+      // container's report (./agent-endpoints), and the provider's OAuth
+      // redirect. The last two carry a token this Worker minted rather than a
+      // session, because neither caller has one.
       const pathname = new URL(request.url).pathname;
+      if (matchDeepLinkPath(request.method, pathname) !== null) {
+        const response = await handleDeepLink(request, this.env, this.capture, this.ctx.id.name);
+        // A capture may have landed on today's note; the index must not be a
+        // message behind the manifest, and the ack deadline it armed is a
+        // reason to wake.
+        this.alarmDirty = true;
+        await this.knowledge.flush();
+        await this.syncAlarm();
+        return response;
+      }
       if (matchHostAssetPath(request.method, pathname) !== null) {
         const response = await handleAssetUpload(request, this.env, this.vault, this.ctx.id.name);
         // Project what the upload wrote before answering, so the index is never
@@ -455,6 +542,10 @@ export class UserHost extends DurableObject<Env> {
     const now = Date.now();
     this.reapPendingSockets(now);
     await this.vault.sweepTrash(now);
+    // A capture whose offer nobody answered lands on today's note HERE, which
+    // is what a Durable Object's alarm is for and what the desktop's
+    // `setTimeout` could not do through an evicted process.
+    await this.captureInbox.sweep(now);
     // The unattended half: a routine whose slot has passed fires HERE, which is
     // what a Durable Object's alarm is for and what the desktop's `setInterval`
     // could not do through a closed laptop.
@@ -489,6 +580,8 @@ export class UserHost extends DurableObject<Env> {
     if (sweep !== null) due.push(sweep);
     const background = this.agent.backgroundDueAt(now);
     if (background !== null) due.push(background);
+    const capture = this.captureInbox.nextDueAt();
+    if (capture !== null) due.push(capture);
     // An index rebuild too large for one pass finishes on the alarm rather than
     // only as far as the next client message happens to carry it.
     if (this.knowledge.hasPendingWork()) due.push(now + INDEX_CONTINUATION_MS);

@@ -91,4 +91,25 @@ interface Env {
   readonly OPENAI_OAUTH_TOKEN_URL?: string;
   readonly OPENAI_OAUTH_CLIENT_ID?: string;
   readonly OPENAI_OAUTH_CLIENT_SECRET?: string;
+
+  /**
+   * The ElevenLabs voice text-to-speech speaks with. Optional: unset uses the
+   * one the desktop shipped, so a hosted account sounds like the app the user
+   * already knows. The API KEY is not here — it is per USER (Settings → Voice),
+   * sealed in their own Durable Object, never a deployment secret.
+   */
+  readonly ELEVENLABS_VOICE_ID?: string;
+
+  /**
+   * Workers AI, for speech-to-text. Both or neither: dictation is refused with
+   * a sentence rather than half-configured, the same both-or-nothing gate
+   * Browser Run and the provider OAuth apps use.
+   *
+   * Reached over the REST API rather than an `ai` binding ON PURPOSE — a
+   * declared binding has no local implementation, so the test pool opens a
+   * remote connection at startup and every test in this package would need a
+   * Cloudflare credential (see voice/voice-upstreams.ts).
+   */
+  readonly WORKERS_AI_ACCOUNT_ID?: string;
+  readonly WORKERS_AI_API_TOKEN?: string;
 }

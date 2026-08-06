@@ -1,6 +1,7 @@
 import { routeAgentReport, routeOAuthCallback } from "./agent/agent-route";
 import { AgentSandbox } from "./agent/sandbox-class";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
+import { routeDeepLink } from "./capture/deep-link-route";
 import { handleDesktopCallback, handleSessionExchange } from "./auth/desktop-session";
 import { handleResetPage } from "./auth/reset-page";
 import { routeHostAsset } from "./host/asset-route";
@@ -154,6 +155,12 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   // host/asset-route.ts). CORS-wrapped like every other API response.
   const asset = await routeHostAsset(request, env, url.pathname);
   if (asset !== null) return withCors(request, asset);
+
+  // The web scheme's front door — what `inteligir://` was (see
+  // capture/deep-link-route.ts). Authenticated like the upload, because a
+  // capture writes to the user's vault.
+  const link = await routeDeepLink(request, env, url.pathname);
+  if (link !== null) return withCors(request, link);
 
   return withCors(request, new Response("not found", { status: 404 }));
 }

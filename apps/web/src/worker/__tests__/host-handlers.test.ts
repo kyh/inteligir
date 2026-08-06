@@ -15,7 +15,7 @@ import type { HostMethod } from "@repo/bridge/ipc-registry";
 import { matchHostAssetPath } from "../host/asset-route";
 import { mayInvoke, mayReceive } from "../host/client-class";
 import { collectHandlers, HOST_METHODS } from "../host/handler-registry";
-import { CLOUD_SHIMS, registerCloudHandlers } from "../host/handlers";
+import { CLOUD_RETIRED, CLOUD_SHIMS, registerCloudHandlers } from "../host/handlers";
 import { userHostName } from "../host/host-address";
 import { HostEvents } from "../host/host-events";
 import { allowedOrigins, originAllowed } from "../host/origins";
@@ -71,6 +71,24 @@ const IMPLEMENTED: readonly HostMethod[] = [
   "runRoutineNow",
   "restoreRoutineRun",
   "restoreAgentEdits",
+  "generateInlineAi",
+  "cancelInlineAi",
+  "classifyAiIntent",
+  "generateGhostText",
+  "cancelGhostText",
+  "listGhostModels",
+  "isTtsAvailable",
+  "setVoiceApiKey",
+  "ttsSend",
+  "ttsFlush",
+  "ttsInterrupt",
+  "startStt",
+  "sendSttAudio",
+  "stopStt",
+  "ackCapture",
+  "takePendingDeepLinkNav",
+  "listSkills",
+  "createSkill",
 ];
 
 /** An in-memory stand-in for `ctx.storage.kv` — the same synchronous contract. */
@@ -126,13 +144,18 @@ function withHandlers<T>(
           routines: host.agent.routines,
           snapshots: host.agent.snapshots,
         },
+        ai: host.ai,
+        voice: host.voice,
+        capture: { inbox: host.captureInbox, service: host.capture },
       });
     });
     return run({ handlers, events });
   });
 }
 
-const shimmedMethods: readonly HostMethod[] = CLOUD_SHIMS.flatMap((group) => group.methods);
+const pendingMethods: readonly HostMethod[] = CLOUD_SHIMS.flatMap((group) => group.methods);
+const retiredMethods: readonly HostMethod[] = CLOUD_RETIRED.flatMap((group) => group.methods);
+const shimmedMethods: readonly HostMethod[] = [...pendingMethods, ...retiredMethods];
 
 describe("cloud handler registry", () => {
   it("registers every host method the IPC registry declares", async () => {
@@ -143,26 +166,34 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("splits those methods into 45 implementations and 44 shims", () => {
+  it("splits those methods into 63 implementations, 9 pending and 17 retired", () => {
     // The counts are the migration's progress bar: 89 host methods (110 IPC
     // entries minus 19 events and the 2 desktop-shell methods).
     expect(HOST_METHODS).toHaveLength(89);
-    expect(IMPLEMENTED).toHaveLength(45);
-    expect(shimmedMethods).toHaveLength(44);
+    expect(IMPLEMENTED).toHaveLength(63);
+    expect(pendingMethods).toHaveLength(9);
+    expect(retiredMethods).toHaveLength(17);
     expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
     expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });
 
-  it("answers every shim by naming its gap, never with an empty value", async () => {
+  it("answers a backlog shim by naming what it waits on", async () => {
     await withHandlers(async ({ handlers }) => {
-      for (const method of shimmedMethods) {
-        const handler = handlers[method];
-        // Send-kind shims are fire-and-forget: collectHandlers swallows their
-        // throw by contract, so only the invoke kinds surface one.
-        if (method === "ttsSend" || method === "ttsFlush") continue;
-        if (method === "ttsInterrupt" || method === "sendSttAudio") continue;
-        await expect(async () => handler(undefined)).rejects.toThrow(
+      for (const method of pendingMethods) {
+        await expect(async () => handlers[method](undefined)).rejects.toThrow(
           /is not available on the cloud host yet/,
+        );
+      }
+    });
+  });
+
+  // A retired capability says so rather than promising "yet": the two refusals
+  // are different sentences because they ask the user for different things.
+  it("answers a retired shim by naming the decision", async () => {
+    await withHandlers(async ({ handlers }) => {
+      for (const method of retiredMethods) {
+        await expect(async () => handlers[method](undefined)).rejects.toThrow(
+          /does not exist on the cloud host — /,
         );
       }
     });

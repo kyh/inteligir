@@ -1,27 +1,42 @@
 // ---------------------------------------------------------------------------
-// The cloud host's handler map: what is implemented, and — in one table — what
-// is not yet.
+// The cloud host's handler map: what is implemented, and — in two tables —
+// what is not.
 //
 // Everything this host owns is answered for real: the app phase and the two
 // JsonStores over the Durable Object's KV, the vault (./vault-handlers) whose
 // manifest and bytes this object owns, the knowledge index
 // (./knowledge-handlers) over that vault, the agent (../agent/agent-handlers)
-// and the background work over it (../background/background-handlers). Every
-// other method is registered as a SHIM that throws through `unavailable()`,
-// naming the feature it waits on — never a silent `[]` (see ShimRegistrar for
-// why).
+// and the background work over it (../background/background-handlers), the
+// editor's AI (../ai/ai-handlers), voice (../voice/voice-handlers), deep-link
+// capture (../capture/capture-handlers) and skills (../skills/skills-handlers).
 //
-// `CLOUD_SHIMS` is the migration backlog. Each group is roughly one later
-// commit, and a group empties as that commit lands.
+// The rest is registered as a SHIM that throws, and the two tables are not the
+// same kind of thing:
+//
+//   • `CLOUD_SHIMS` is the migration BACKLOG — a capability this host will
+//     have, grouped by the commit that will bring it. A group empties as that
+//     commit lands.
+//   • `CLOUD_RETIRED` is a set of DECISIONS. Each row says what does not exist
+//     here and why, and its refusal says so rather than promising "yet". A row
+//     moving from the backlog to this table is a design conclusion, not a
+//     deferral, so it carries its reason.
+//
+// Neither is ever a silent `[]` (see ShimRegistrar for why).
 // ---------------------------------------------------------------------------
 
 import type { AppState } from "@repo/bridge/app-state";
 import type { HostMethod } from "@repo/bridge/ipc-registry";
 import { registerAgentHandlers, type AgentServices } from "../agent/agent-handlers";
+import { registerAiHandlers } from "../ai/ai-handlers";
+import type { TextGenerator } from "../ai/text-generator";
 import {
   registerBackgroundHandlers,
   type BackgroundServices,
 } from "../background/background-handlers";
+import { registerCaptureHandlers, type CaptureServices } from "../capture/capture-handlers";
+import { registerSkillsHandlers } from "../skills/skills-handlers";
+import { registerVoiceHandlers } from "../voice/voice-handlers";
+import type { VoiceComposition } from "../voice/voice-composition";
 import { unavailable, type HandlerRegistrar, type ShimRegistrar } from "./handler-registry";
 import type { HostEvents } from "./host-events";
 import { registerKnowledgeHandlers } from "./knowledge-handlers";
@@ -37,6 +52,9 @@ type CloudHostServices = {
   readonly knowledge: UserKnowledge;
   readonly agent: AgentServices;
   readonly background: BackgroundServices;
+  readonly ai: TextGenerator;
+  readonly voice: VoiceComposition;
+  readonly capture: CaptureServices;
 };
 
 /**
@@ -56,42 +74,8 @@ type ShimGroup = {
   readonly methods: readonly HostMethod[];
 };
 
-/** The migration backlog: every host method with no cloud implementation. */
+/** The migration backlog: every host method with no cloud implementation yet. */
 export const CLOUD_SHIMS: readonly ShimGroup[] = [
-  {
-    feature: "voice",
-    methods: [
-      "isTtsAvailable",
-      "setVoiceApiKey",
-      "ttsSend",
-      "ttsFlush",
-      "ttsInterrupt",
-      "startStt",
-      "sendSttAudio",
-      "stopStt",
-    ],
-  },
-  // What is left of the vault group is being RETIRED, not implemented: there
-  // is one vault per account and no folder to choose, and the Durable Object
-  // is the only writer so there is nothing to watch. `probeNotePrivacy` is
-  // retired too — `private: true` is not a feature of this host, so a probe
-  // would answer a question nothing here asks.
-  {
-    feature: "the vault",
-    methods: ["chooseVaultRoot", "probeNotePrivacy", "setWatchedNote"],
-  },
-  { feature: "deep-link capture", methods: ["ackCapture", "takePendingDeepLinkNav"] },
-  {
-    feature: "editor AI",
-    methods: [
-      "generateInlineAi",
-      "cancelInlineAi",
-      "classifyAiIntent",
-      "generateGhostText",
-      "cancelGhostText",
-      "listGhostModels",
-    ],
-  },
   {
     feature: "connectors",
     methods: [
@@ -106,14 +90,34 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
       "getPendingConnectorAuth",
     ],
   },
-  // The account channels are the desktop shell's own: a cloud client is
-  // already signed in — the session is what named this object — so there is
-  // nothing here to sign in to, point at a server, or sign out of. Remote
-  // access will not be implemented but RETIRED: there is no home machine for a
-  // phone to pair with. Both are shimmed rather than deleted because the
-  // registry still declares them.
+];
+
+type RetiredGroup = ShimGroup & {
+  /** What replaced it, or why the question stopped making sense here. Rendered
+   * into the refusal, so a client's error names the decision. */
+  readonly why: string;
+};
+
+/** Capabilities this host will NOT have, each with the reason. */
+export const CLOUD_RETIRED: readonly RetiredGroup[] = [
   {
-    feature: "account",
+    feature: "choosing a vault folder",
+    why: "there is one vault per account and no folder to pick",
+    methods: ["chooseVaultRoot"],
+  },
+  {
+    feature: "the open-note watcher",
+    why: "this object is the only writer, so the manifest is never stale",
+    methods: ["setWatchedNote"],
+  },
+  {
+    feature: "the note privacy probe",
+    why: "`private: true` is not a feature of this host, so a probe would answer a question nothing here asks",
+    methods: ["probeNotePrivacy"],
+  },
+  {
+    feature: "the account channels",
+    why: "a client is already signed in — the session is what named this object",
     methods: [
       "getAccountState",
       "setAccountServerUrl",
@@ -127,6 +131,7 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
   },
   {
     feature: "remote access",
+    why: "there is no home machine for a phone to pair with; every client already reaches this object over the network",
     methods: [
       "getRemoteAccessState",
       "setRemoteAccessConfig",
@@ -134,8 +139,11 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
       "revokeRemoteDevice",
     ],
   },
-  { feature: "skills", methods: ["listSkills", "createSkill"] },
-  { feature: "integrations", methods: ["listIntegrations", "repairIntegrations"] },
+  {
+    feature: "CLI integrations",
+    why: "they reported installed-vs-pinned versions of local binaries, and this host installs none",
+    methods: ["listIntegrations", "repairIntegrations"],
+  },
 ];
 
 export function registerCloudHandlers(
@@ -194,8 +202,17 @@ export function registerCloudHandlers(
   registerKnowledgeHandlers(handle, services.knowledge, services.vault);
   registerAgentHandlers(handle, services.agent);
   registerBackgroundHandlers(handle, services.background);
+  registerAiHandlers(handle, services.ai);
+  registerVoiceHandlers(handle, services.voice);
+  registerCaptureHandlers(handle, services.capture);
+  registerSkillsHandlers(handle, services.vault);
 
   for (const group of CLOUD_SHIMS) {
-    for (const method of group.methods) shim(method, group.feature);
+    for (const method of group.methods) shim(method, { kind: "pending", feature: group.feature });
+  }
+  for (const group of CLOUD_RETIRED) {
+    for (const method of group.methods) {
+      shim(method, { kind: "retired", feature: group.feature, why: group.why });
+    }
   }
 }

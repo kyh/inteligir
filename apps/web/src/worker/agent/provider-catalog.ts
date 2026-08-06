@@ -33,6 +33,11 @@ type ProviderAuthStyle =
   /** `x-api-key: <token>` — Anthropic's own scheme for direct API keys. */
   | { readonly header: "x-api-key"; readonly prefix: "" };
 
+/** Which HTTP shape this provider's completion API speaks. The Worker calls it
+ * directly for the editor's no-tools turns (../ai/provider-wire), so the format
+ * has to be a declared fact rather than something inferred from a model id. */
+type ProviderWire = "anthropic" | "openai";
+
 export type ProviderEntry = {
   readonly id: string;
   readonly label: string;
@@ -41,11 +46,22 @@ export type ProviderEntry = {
   readonly apiHost: string;
   /** Base URL the container's pi runtime is pointed at. */
   readonly baseUrl: string;
+  readonly wire: ProviderWire;
   readonly auth: ProviderAuthStyle;
   /** Extra headers the provider requires on every request, injected alongside
    * the credential so the container never has to know them. */
   readonly extraHeaders: Readonly<Record<string, string>>;
   readonly defaultModelId: string;
+  /**
+   * The model the latency-sensitive editor surfaces run on — ghost text, and
+   * the AI menu's intent classification.
+   *
+   * DECLARED per provider rather than derived from a price list: the desktop
+   * picked the cheapest model in pi's registry by output cost, and this catalog
+   * carries no cost column, so a derivation here would be a guess dressed as a
+   * rule. Naming it is one line per provider and cannot be wrong.
+   */
+  readonly fastModelId: string;
   readonly models: readonly AiProviderModel[];
   /** OAuth scopes requested at authorize time. */
   readonly scopes: readonly string[];
@@ -61,11 +77,13 @@ const ANTHROPIC: ProviderEntry = {
   label: "Claude",
   apiHost: "api.anthropic.com",
   baseUrl: "https://api.anthropic.com/v1",
+  wire: "anthropic",
   auth: { header: "authorization", prefix: "Bearer " },
   // Anthropic rejects a request with no API version, and the version is a
   // property of the wire contract this Worker speaks — not of the image.
   extraHeaders: { "anthropic-version": "2023-06-01" },
   defaultModelId: "claude-sonnet-5",
+  fastModelId: "claude-haiku-5",
   models: [
     { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
     { id: "claude-opus-5", label: "Claude Opus 5" },
@@ -80,9 +98,11 @@ const OPENAI: ProviderEntry = {
   label: "OpenAI",
   apiHost: "api.openai.com",
   baseUrl: "https://api.openai.com/v1",
+  wire: "openai",
   auth: { header: "authorization", prefix: "Bearer " },
   extraHeaders: {},
   defaultModelId: "gpt-5.5",
+  fastModelId: "gpt-5.5-mini",
   models: [
     { id: "gpt-5.5", label: "GPT-5.5" },
     { id: "gpt-5.5-mini", label: "GPT-5.5 mini" },
@@ -98,9 +118,11 @@ const SANDBOX: ProviderEntry = {
   // every entry has one shape and no code branches on a missing host.
   apiHost: "sandbox.invalid",
   baseUrl: "https://sandbox.invalid/v1",
+  wire: "openai",
   auth: { header: "authorization", prefix: "Bearer " },
   extraHeaders: {},
   defaultModelId: "sandbox-1",
+  fastModelId: "sandbox-1",
   models: [{ id: "sandbox-1", label: "Scripted" }],
   scopes: [],
   requiresAuth: false,
@@ -220,4 +242,30 @@ export function resolveModelId(entry: ProviderEntry, requested: string | undefin
     return requested;
   }
   return entry.defaultModelId;
+}
+
+/** The provider a turn will run on, or the ONE sentence saying why none can. */
+export type ProviderChoice =
+  | { readonly ok: true; readonly entry: ProviderEntry; readonly modelId: string }
+  | { readonly ok: false; readonly error: string };
+
+/**
+ * Resolve the stored selection into a provider that can actually run.
+ *
+ * ONE function for every surface — the composer, a delegation create, a routine
+ * tick, the editor's ⌘J and its ghost text — because the fix is the same in all
+ * of them and a second phrasing would only be a second thing to keep true.
+ */
+export function chooseProvider(
+  selection: { readonly provider: string; readonly modelId: string } | null,
+  connected: (provider: string) => boolean,
+): ProviderChoice {
+  const entry = selection === null ? null : providerEntry(selection.provider);
+  if (entry === null) {
+    return { ok: false, error: "No AI provider is selected. Choose one in Settings → AI." };
+  }
+  if (!connected(entry.id)) {
+    return { ok: false, error: `${entry.label} is not connected. Connect it in Settings → AI.` };
+  }
+  return { ok: true, entry, modelId: resolveModelId(entry, selection?.modelId) };
 }

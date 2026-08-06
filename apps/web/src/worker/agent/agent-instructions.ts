@@ -21,6 +21,9 @@ import {
 } from "@repo/bridge/agent-instructions";
 import { renderNeverGrantedSection } from "@repo/bridge/agent-grants";
 
+import type { SkillInfo } from "@repo/bridge/ipc-registry";
+
+import { listVaultSkills, promptableSkills, SKILLS_DIR } from "../skills/vault-skills";
 import type { UserVault } from "../host/vault/user-vault";
 
 /** Characters of the user's own instructions carried into a turn. */
@@ -66,19 +69,44 @@ function bundledInstructions(): string {
  * standing instructions, which is the common case and not an error.
  */
 export async function composeInstructions(vault: UserVault): Promise<string> {
+  const sections = [bundledInstructions(), renderSkills(await listVaultSkills(vault))];
   const file = vault.lookup(AGENT_INSTRUCTIONS_PATH);
-  if (file === null || file.state !== "live") return bundledInstructions();
-  let userText: string;
-  try {
-    userText = await vault.readText(file.path);
-  } catch {
-    return bundledInstructions();
+  if (file !== null && file.state === "live") {
+    try {
+      sections.push(
+        `## From ${AGENT_INSTRUCTIONS_AGENT_PATH}`,
+        "",
+        boundUserInstructions(await vault.readText(file.path)),
+      );
+    } catch {
+      // No standing instructions is the common case, not an error.
+    }
   }
+  return sections.filter((section) => section !== "").join("\n");
+}
+
+/**
+ * The skills listing, as the model receives it.
+ *
+ * Name, bounded description and PATH — the path being the point: nothing
+ * materializes these into pi's own skills directory (there is no durable
+ * container filesystem to materialize them into), so the way a skill's body
+ * reaches the model is the agent opening the file with its ordinary `read`
+ * tool. Saying so is what turns a listing into a capability.
+ */
+function renderSkills(skills: readonly SkillInfo[]): string {
+  const loaded = promptableSkills(skills);
+  if (loaded.length === 0) return "";
   return [
-    bundledInstructions(),
-    `## From ${AGENT_INSTRUCTIONS_AGENT_PATH}`,
+    "## Skills",
     "",
-    boundUserInstructions(userText),
+    `The user keeps standing procedures in \`${SKILLS_DIR}/\`. When one applies to`,
+    "what you have been asked to do, read its file first and follow it.",
+    "",
+    ...loaded.map(
+      (skill) => `- **${skill.name}** (\`./vault/${skill.filePath}\`) — ${skill.description}`,
+    ),
+    "",
   ].join("\n");
 }
 
