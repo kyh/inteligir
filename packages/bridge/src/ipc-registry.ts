@@ -69,22 +69,15 @@ import {
   type RunRoutineNowResult,
   type UpsertRoutineResult,
 } from "./routines";
-import type { SyncOutcome } from "@repo/notes/sync/engine";
 import {
-  SyncNowSchema,
+  SetAccountServerUrlSchema,
   SyncRequestPasswordResetSchema,
-  SyncRevokeDeviceSchema,
-  SyncSetConfigSchema,
   SyncSignInSchema,
   SyncSignUpSchema,
   SyncSocialSignInSchema,
   type AccountCapabilities,
-  type SyncDeviceListResult,
-  type SyncPairingOfferResult,
-  type SyncReconnectResult,
-  type SyncRevokeDeviceResult,
+  type AccountState,
   type SyncSignInResult,
-  type SyncState,
 } from "./sync";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./chat-message";
@@ -639,7 +632,7 @@ export const IPC = {
   revokeHtmlAppToken: invoke<typeof HtmlAppTokenSchema, void>(HtmlAppTokenSchema),
   /** LIVE-disk privacy probe for one note — the SAME probe the agent tool
    * gate runs (never an index, never the renderer buffer). The context-hint
-   * path needs it: a sync pull or agent write can flip a note `private: true`
+   * path needs it: an external or agent write can flip a note `private: true`
    * on disk before the open-note watcher refreshes the editor buffer, and a
    * private note's PATH must not reach the model either. */
   probeNotePrivacy: invoke<typeof NotePathSchema, NotePrivacyProbe>(NotePathSchema),
@@ -647,7 +640,7 @@ export const IPC = {
    * external edits (vault liveness — CLAUDE.md § Decisions). Pass
    * `{ path: null }` when no note is open. */
   setWatchedNote: invoke<typeof WatchedNoteSchema, void>(WatchedNoteSchema),
-  /** Rebuild the ephemeral snapshot now: re-list + reindex + sync kick. The
+  /** Rebuild the ephemeral snapshot now: re-list + reindex. The
    * renderer calls this on window focus (debounced) and from the "Refresh vault"
    * command; the host also calls it internally on delegation completion. */
   refreshVault: invokeVoid<void>(),
@@ -825,20 +818,25 @@ export const IPC = {
    * in-flight connector OAuth consent, or null when none is pending. */
   getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(),
 
-  // Vault sync — reconcile the local vault against the coordinator Worker.
-  // OFF by default; gated at runtime by the sync-config store + a credential
-  // (an account session, or this install's device key).
-  /** Current sync state (enabled/signed-in/coordinator/last-status/device). */
-  getSyncState: invokeVoid<SyncState>(),
-  /** Patch the sync config (enable toggle + coordinator URL). */
-  setSyncConfig: invoke<typeof SyncSetConfigSchema, SyncState>(SyncSetConfigSchema),
-  /** Email+password sign-in against the configured coordinator. */
+  // Account — the optional Better Auth session against the configured server.
+  // Guest is the default; the account gates cloud saves and nothing else.
+  /** Current account state (signed-in / email / server URL). */
+  getAccountState: invokeVoid<AccountState>(),
+  /** Point this install at a server (the URL identifies the service an account
+   * belongs to). Returns the resulting state. */
+  setAccountServerUrl: invoke<typeof SetAccountServerUrlSchema, AccountState>(
+    SetAccountServerUrlSchema,
+  ),
+  /** Fired on every config / auth change so the Account settings UI is
+   * reactive. Same shape as getAccountState. */
+  onAccountStateChanged: event<AccountState>(),
+  /** Email+password sign-in against the configured server. */
   syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>(SyncSignInSchema),
-  /** Ask the coordinator to email a password-reset link. NEUTRAL by
+  /** Ask the server to email a password-reset link. NEUTRAL by
    * contract: `ok` means "request accepted", NEVER "that email exists" — the
-   * coordinator answers identically for known and unknown emails, and the
-   * renderer shows the same "if that email has an account…" copy either way.
-   * `ok:false` carries only transport/config failures (no coordinator URL,
+   * server answers identically for known and unknown emails, and the
+   * UI shows the same "if that email has an account…" copy either way.
+   * `ok:false` carries only transport/config failures (no server URL,
    * network down), which reveal nothing about any account. */
   syncRequestPasswordReset: invoke<typeof SyncRequestPasswordResetSchema, SyncSignInResult>(
     SyncRequestPasswordResetSchema,
@@ -846,7 +844,7 @@ export const IPC = {
   /** Email+password sign-UP (guest→account upgrade); success signs in. */
   syncSignUp: invoke<typeof SyncSignUpSchema, SyncSignInResult>(SyncSignUpSchema),
   /** INITIATE social OAuth for a capability-listed provider: opens the system
-   * browser at the coordinator's authorization URL. ok = browser opened —
+   * browser at the server's authorization URL. ok = browser opened —
    * the session lands on-device when the `inteligir://session` deep link
    * completes the exchange (see onSocialSignInResult). */
   syncSocialSignIn: invoke<typeof SyncSocialSignInSchema, SyncSignInResult>(SyncSocialSignInSchema),
@@ -854,57 +852,14 @@ export const IPC = {
    * `inteligir://session` callback → HTTPS code exchange → session adoption).
    * Deep-link-driven — there is no request to respond to — so the account
    * UI's "finish in your browser…" pending state resolves on this event: ok
-   * clears it (onSyncStateChanged flips signedIn too), an error carries the
+   * clears it (onAccountStateChanged flips signedIn too), an error carries the
    * user-facing message (expired/replayed link, exchange failure). */
   onSocialSignInResult: event<SyncSignInResult>(),
-  /** Which social providers the configured coordinator serves (env-gated
+  /** Which social providers the configured server serves (env-gated
    * server-side) — drives the Account section's social buttons. */
   getAccountCapabilities: invokeVoid<AccountCapabilities>(),
   /** Clear the local session (best-effort remote revoke). */
   syncSignOut: invokeVoid<void>(),
-  /** Force one reconcile pass now; returns the outcome. `confirmDeletions` is
-   * the deletion count the user approved, releasing a pass the engine's
-   * deletion gate held — that pass only, and only up to that count.
-   * Absent from REMOTE_ALLOWED_METHODS: a paired phone drives the DESKTOP's
-   * vault, where its user can see none of the files a hold names. The phone
-   * confirms its OWN vault's holds through the mobile sync manager, which is a
-   * different engine on a different device and never crosses this channel. */
-  syncNow: invoke<typeof SyncNowSchema, SyncOutcome>(SyncNowSchema),
-  /** Fired on every config / auth / status change so the settings Sync UI is
-   * reactive. Same shape as getSyncState. */
-  onSyncStateChanged: event<SyncState>(),
-
-  // Vault device identity — the account-free credential model (apps/web's
-  // README § Device keys). ADDITIVE: an install with no device key syncs on
-  // the account exactly as before, and `reconnectSyncVault` is the only thing
-  // that changes that.
-  /** The coordinator's device roster for THIS vault, tombstones included. A
-   * network read, so a failure is a value the panel renders inline. Refuses
-   * without a device key: the account credential is not admitted on the
-   * device routes. */
-  getSyncDevices: invokeVoid<SyncDeviceListResult>(),
-  /** Mint a one-time pairing offer and return the blob to paste into the
-   * joining device. The coordinator receives only `sha256(secret)`, so the
-   * blob — coordinator URL + vaultId + secret — is the ONLY copy of the
-   * capability, live until it expires. Never persisted host-side. */
-  createSyncPairingOffer: invokeVoid<SyncPairingOfferResult>(),
-  /** Tombstone another device's key. Effective on its very next request; a
-   * tombstone is permanent (a replayed offer must not resurrect a key). The
-   * coordinator REFUSES the last live device — that comes back as
-   * `reason:"last-device"`, and the answer to it is disconnectSyncVault. */
-  revokeSyncDevice: invoke<typeof SyncRevokeDeviceSchema, SyncRevokeDeviceResult>(
-    SyncRevokeDeviceSchema,
-  ),
-  /** Found a device-owned vault from a freshly generated key and point sync at
-   * it. The new remote starts EMPTY, so the first pass plans pushes only and
-   * uploads the whole vault; nothing local is deleted and the previous
-   * configuration is left intact underneath (disconnecting restores it). */
-  reconnectSyncVault: invokeVoid<SyncReconnectResult>(),
-  /** Stop syncing this vault from this device: forget the device key and turn
-   * sync off. Purely LOCAL — no coordinator call — because the server cannot
-   * tell "I am leaving" from "strand this vault". The roster row stays until
-   * another device revokes it. Returns the resulting state. */
-  disconnectSyncVault: invokeVoid<SyncState>(),
 
   // Remote access — the WS transport's device-pairing surface: an enable
   // toggle, the classified endpoints and the one the server binds, paired
@@ -989,10 +944,9 @@ export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
 // see. Never grant the agent a capability by adding a method here.
 
 /** The ONLY methods a paired remote device may invoke. Everything else — the
- * whole vault/knowledge/settings/provider/sync/remote-access surface and the
- * desktop-shell methods — is local-session-only. Mobile reads vault CONTENT
- * through vault sync (R2), never through these channels, so its host-bridge
- * surface is just chat + the delegation dock. */
+ * whole vault/knowledge/settings/provider/account/remote-access surface and
+ * the desktop-shell methods — is local-session-only. A paired phone drives
+ * chat + the delegation dock and nothing else. */
 export const REMOTE_ALLOWED_METHODS = [
   "getAgentHistory",
   "sendAgentCommand",
@@ -1073,7 +1027,7 @@ type HydrationGetter<E extends EventMethod> = {
  * too; a getter missing on a given host simply skips its push. */
 export const HYDRATED_EVENTS = {
   onRemoteAccessChanged: "getRemoteAccessState",
-  onSyncStateChanged: "getSyncState",
+  onAccountStateChanged: "getAccountState",
   onAppState: "getAppState",
   onDelegationsUpdated: "listDelegations",
   onRoutinesUpdated: "listRoutines",

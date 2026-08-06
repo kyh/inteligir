@@ -30,11 +30,6 @@ import { getDelegationManager } from "../delegation/delegation-manager";
 import { getRestoreManager } from "../restore/restore-manager";
 import { getRoutinesManager } from "../routines/routines-manager";
 import { disposeKnowledgeManager, getKnowledgeManager } from "../knowledge/knowledge-manager";
-import {
-  getSyncCoordinator,
-  setSyncEventSink,
-  setSyncVaultAccessor,
-} from "@repo/sync/sync-coordinator";
 import { setSyncBrowserOpener } from "@repo/sync/sync-account";
 import { installHostRuntime, openExternalHttpUrl } from "../platform-instance";
 import {
@@ -88,18 +83,8 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // it also survives a logout/login VaultManager reset.
   setVaultTrashItem(platform.trashItem);
 
-  // Sync's coordinator broadcasts state through this sink (sync/ never
-  // imports the host event bus) — installed before start() kicks the initial
-  // reconcile so no state emission is dropped.
-  setSyncEventSink(emitEvent);
-
-  // Sync reaches the vault only through this injected accessor — no host
-  // package reaches another host package's singleton directly; the accessor
-  // also keeps a logout/login vault rebuild transparent.
-  setSyncVaultAccessor(getVaultManager);
-
-  // Social sign-in opens the coordinator-supplied authorization URL through
-  // the guarded host opener (scheme-checked; sync/ never owns a browser
+  // Social sign-in opens the server-supplied authorization URL through the
+  // guarded host opener (scheme-checked; sync/ never owns a browser
   // launcher). No opener installed = socialSignIn refuses with {ok:false}.
   setSyncBrowserOpener(openExternalHttpUrl);
 
@@ -168,20 +153,15 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // CLAUDE.md § Decisions) — the notifier
       // fires from app-initiated writes, the open-note watcher, and on-demand
       // refresh (focus / "Refresh vault" / delegation completion). The notifier
-      // is module-scoped, so it survives a logout/login reset. Every vault change
-      // nudges the knowledge index (in the vault-change notifier) and, when sync
-      // is live, the sync engine — including a `save` (autosave), which must still
-      // sync even though it does not broadcast onVaultChanged. Wrapping here
-      // (once) keeps the sync engine rebuildable underneath without re-installing
-      // this notifier.
+      // is module-scoped, so it survives a logout/login reset. Every vault
+      // change nudges the knowledge index — including a `save` (autosave),
+      // which must still re-index even though it does not broadcast
+      // onVaultChanged.
       // Injected here (not imported by vault/) so the vault layer has zero
       // outbound capability edges — the host composes, vault receives.
       setVaultWorkspaceLinkDir(WORKSPACE_DIR);
       getVaultManager().ensureReady();
-      setVaultChangeNotifier((root, kind) => {
-        vaultChangeNotifier(root, kind);
-        getSyncCoordinator().onVaultChanged();
-      });
+      setVaultChangeNotifier(vaultChangeNotifier);
       // First index build rides the debounce too, keeping it off the boot
       // path; a query landing earlier builds lazily.
       getKnowledgeManager().scheduleRefresh();
@@ -208,20 +188,9 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
         console.warn("[host] capture inbox drain failed:", err);
       }
 
-      // Vault-sync — LIVE, gated at runtime (not by the build). The coordinator
-      // reads its own config store (@repo/sync/sync-account.ts): it constructs
-      // + starts the SyncEngine only when sync is enabled AND a bearer token is
-      // present, and kicks an initial reconcile. Toggling config / signing in at
-      // runtime rebuilds or tears the engine down; the vault-change wrapper above
-      // routes local edits into it. OFF by default (no config = disabled). Only
-      // vault FILES sync; the knowledge index + AI state live under ~/.inteligir
-      // (outside the vault) and are never listed by the engine.
-      getSyncCoordinator().start();
-
       initMachine();
     },
     async dispose() {
-      getSyncCoordinator().dispose();
       disposeKnowledgeManager();
       await shutdown();
       releaseHostLock();

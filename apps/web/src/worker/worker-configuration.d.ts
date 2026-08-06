@@ -6,13 +6,12 @@ interface __BaseEnv_Env {
 	DB: D1Database;
 	EMAIL: SendEmail;
 	BETTER_AUTH_SECRET: string;
-	VaultCoordinator: DurableObjectNamespace<import("./server").VaultCoordinator>;
 	UserHost: DurableObjectNamespace<import("./server").UserHost>;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {
 		mainModule: typeof import("./server");
-		durableNamespaces: "VaultCoordinator" | "UserHost";
+		durableNamespaces: "UserHost";
 	}
 	interface Env extends __BaseEnv_Env {}
 }

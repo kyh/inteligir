@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The module-level connection singleton (mirrors ../sync/manager.ts): binds
+// The module-level connection singleton: binds
 // the pure owner in connection-core.ts to the real createWsBridge, the shared
 // app-foreground seam (../app-lifecycle.ts — `active` resumes, `background`
 // suspends) and the platform clock/timer, and exposes the React hook.

@@ -954,14 +954,14 @@ describe("welcome hydration", () => {
     async () => {
       const port = await freePort();
       const manager = makeManager(port);
-      let syncView: unknown = { phase: "idle" };
+      let accountView: unknown = { phase: "idle" };
       const host = await startTestHost(
-        { getVaultRoot: () => "/v", getSyncState: () => syncView },
+        { getVaultRoot: () => "/v", getAccountState: () => accountView },
         { manager },
       );
       const { bridge, statuses } = connectBridge(host.url, manager.getLocalToken());
       const seen: unknown[] = [];
-      bridge.onSyncStateChanged((state) => seen.push(state));
+      bridge.onAccountStateChanged((state) => seen.push(state));
       await expect(bridge.getVaultRoot()).resolves.toBe("/v");
       // The first welcome already hydrates.
       await vi.waitFor(() => {
@@ -974,7 +974,7 @@ describe("welcome hydration", () => {
       await vi.waitFor(() => {
         expect(statuses).toContain("disconnected");
       });
-      syncView = { phase: "healed" };
+      accountView = { phase: "healed" };
 
       await vi.waitFor(
         () => {

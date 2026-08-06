@@ -6,7 +6,7 @@ import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@repo/bridge/client";
-import type { AccountCapabilities, SyncSignInResult, SyncState } from "@repo/bridge/sync";
+import type { AccountCapabilities, AccountState, SyncSignInResult } from "@repo/bridge/sync";
 
 const SOCIAL_LABELS: Record<string, string> = {
   github: "GitHub",
@@ -23,15 +23,13 @@ function socialLabel(provider: string): string {
  * un-sticks the UI. */
 const SOCIAL_PENDING_TIMEOUT_MS = 2 * 60_000;
 
-// Account — the first-class OPTIONAL login. Guest is the default and
-// the account gates ONLY cloud saves: Sync consumes the session this section
-// establishes, nothing else may. Backed by the same Better Auth coordinator
-// the sync engine talks to (email+password + env-gated social), through the
-// existing sync:* Bridge channels. The server URL lives here because the URL
-// identifies the service the account belongs to; the Sync section only
-// consumes the resulting session.
+// Account — the first-class OPTIONAL login. Guest is the default and the
+// account gates ONLY cloud saves; nothing else may consume the session this
+// section establishes. Better Auth against the configured server
+// (email+password + env-gated social). The server URL lives here because the
+// URL identifies the service the account belongs to.
 export function AccountSection() {
-  const [state, setState] = useState<SyncState | null>(null);
+  const [state, setState] = useState<AccountState | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,18 +46,18 @@ export function AccountSection() {
   useEffect(() => {
     const bridge = getBridge();
     void bridge
-      .getSyncState()
+      .getAccountState()
       .then((initial) => {
         setState(initial);
-        setUrlInput(initial.coordinatorUrl);
+        setUrlInput(initial.serverUrl);
         return undefined;
       })
       .catch(() => {});
-    return bridge.onSyncStateChanged(setState);
+    return bridge.onAccountStateChanged(setState);
   }, []);
 
   // The deep-link completion's verdict: ok resolves the pending state
-  // (onSyncStateChanged flips signedIn), an error surfaces its message
+  // (onAccountStateChanged flips signedIn), an error surfaces its message
   // (expired/replayed link, exchange failure).
   useEffect(
     () =>
@@ -80,11 +78,11 @@ export function AccountSection() {
     return () => clearTimeout(timer);
   }, [socialPending]);
 
-  // Social buttons are capability-driven: the coordinator reports exactly the
+  // Social buttons are capability-driven: the server reports exactly the
   // providers its env has credentials for. Re-probed when the URL changes.
-  const coordinatorUrl = state?.coordinatorUrl ?? "";
+  const serverUrl = state?.serverUrl ?? "";
   useEffect(() => {
-    if (coordinatorUrl.trim() === "") {
+    if (serverUrl.trim() === "") {
       setCapabilities(null);
       return;
     }
@@ -99,12 +97,12 @@ export function AccountSection() {
     return () => {
       stale = true;
     };
-  }, [coordinatorUrl]);
+  }, [serverUrl]);
 
   const handleSaveUrl = useCallback(() => {
     setError(null);
     void getBridge()
-      .setSyncConfig({ coordinatorUrl: urlInput.trim() })
+      .setAccountServerUrl({ serverUrl: urlInput.trim() })
       .then(setState)
       .catch(() => setError("Failed to save the server URL."));
   }, [urlInput]);
@@ -128,16 +126,16 @@ export function AccountSection() {
 
   const handleSubmit = useCallback(async () => {
     const bridge = getBridge();
-    // Persist any pending URL edit first so auth hits the right coordinator.
-    if (urlInput.trim() !== coordinatorUrl) {
-      setState(await bridge.setSyncConfig({ coordinatorUrl: urlInput.trim() }));
+    // Persist any pending URL edit first so auth hits the right server.
+    if (urlInput.trim() !== serverUrl) {
+      setState(await bridge.setAccountServerUrl({ serverUrl: urlInput.trim() }));
     }
     await runAuth(() =>
       mode === "sign-up"
         ? bridge.syncSignUp({ email, password })
         : bridge.syncSignIn({ email, password }),
     );
-  }, [mode, email, password, urlInput, coordinatorUrl, runAuth]);
+  }, [mode, email, password, urlInput, serverUrl, runAuth]);
 
   /** Switch between sign-in / sign-up / forgot-password, clearing outcome
    * copy so a stale error or confirmation never bleeds across modes. */
@@ -149,9 +147,9 @@ export function AccountSection() {
 
   const handleRequestReset = useCallback(async () => {
     const bridge = getBridge();
-    // Persist any pending URL edit first so the request hits the right coordinator.
-    if (urlInput.trim() !== coordinatorUrl) {
-      setState(await bridge.setSyncConfig({ coordinatorUrl: urlInput.trim() }));
+    // Persist any pending URL edit first so the request hits the right server.
+    if (urlInput.trim() !== serverUrl) {
+      setState(await bridge.setAccountServerUrl({ serverUrl: urlInput.trim() }));
     }
     setBusy(true);
     setError(null);
@@ -171,15 +169,15 @@ export function AccountSection() {
     } finally {
       setBusy(false);
     }
-  }, [email, urlInput, coordinatorUrl]);
+  }, [email, urlInput, serverUrl]);
 
   const handleSocial = useCallback(
     async (provider: string) => {
       setError(null);
       const bridge = getBridge();
-      // Persist any pending URL edit first so auth hits the right coordinator.
-      if (urlInput.trim() !== coordinatorUrl) {
-        setState(await bridge.setSyncConfig({ coordinatorUrl: urlInput.trim() }));
+      // Persist any pending URL edit first so auth hits the right server.
+      if (urlInput.trim() !== serverUrl) {
+        setState(await bridge.setAccountServerUrl({ serverUrl: urlInput.trim() }));
       }
       setSocialPending(provider);
       try {
@@ -195,7 +193,7 @@ export function AccountSection() {
         setError("Social sign-in failed.");
       }
     },
-    [urlInput, coordinatorUrl],
+    [urlInput, serverUrl],
   );
 
   const handleSignOut = useCallback(async () => {
@@ -221,8 +219,8 @@ export function AccountSection() {
       <div className="rounded-[12px] bg-muted">
         <div className="flex flex-col gap-2 px-3 py-2">
           <p className="text-[10px] text-muted-foreground">
-            Optional — an account unlocks cloud saves (vault sync) and nothing else. Everything
-            except sync works without one, and signing in keeps your local vault as is.
+            Optional — an account unlocks cloud saves and nothing else. Everything else works
+            without one, and signing in leaves your local vault exactly as it is.
           </p>
 
           <div className="flex flex-col gap-1">
@@ -325,8 +323,8 @@ export function AccountSection() {
               </div>
 
               {/* Social sign-in, live end to end: the button opens the system
-                  browser at the coordinator's authorization URL; consent
-                  redirects to the coordinator's interstitial, whose
+                  browser at the server's authorization URL; consent
+                  redirects to the server's interstitial, whose
                   inteligir://session deep link (single-use code + this
                   device's state nonce — never a token) completes the sign-in
                   host-side. Providers are env-gated via /v1/capabilities. */}

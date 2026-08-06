@@ -4,14 +4,11 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.6.0
-  "@better-auth/expo": ^1.6.25
   "@cloudflare/vite-plugin": ^1.47.0
   "@cloudflare/vitest-pool-workers": ^0.18.8
   "@earendil-works/pi-ai": ^0.82.0
   "@earendil-works/pi-coding-agent": ^0.82.0
   "@expo/metro-runtime": ~57.0.7
-  "@noble/ed25519": ^3.1.0
-  "@noble/hashes": ^2.2.0
   "@sinclair/typebox": ^0.34.52
   "@tailwindcss/vite": ^4.3.3
   "@tanstack/react-router": ^1.170.18
@@ -30,13 +27,11 @@ catalog:
   expo-dev-client: ~57.0.9
   expo-file-system: ~57.0.1
   expo-linking: ~57.0.4
-  expo-network: ~57.0.1
   expo-router: ~57.0.8
   expo-secure-store: ~57.0.1
   expo-splash-screen: ~57.0.5
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.1
-  expo-web-browser: ~57.0.2
   lucide-react: ^1.26.0
   react: ^19.2.8
   react-dom: ^19.2.8

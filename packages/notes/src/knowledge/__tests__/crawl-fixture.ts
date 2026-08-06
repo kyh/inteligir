@@ -1,19 +1,18 @@
-// The ONE vault tree every platform crawl is pinned against. Desktop
-// (packages/vault) and mobile (apps/mobile) each build it in their own
-// filesystem and assert their manifest listing equals CRAWL_FIXTURE_MANIFEST,
-// so an exclusion added to one walk and not the other fails a test instead of
-// deleting the divergent files off every device on the next sync pass.
+// The vault tree the crawl is pinned against: it is built on a real filesystem
+// and the walk's complete listing must equal CRAWL_FIXTURE_LISTING, so a name
+// silently added to (or dropped from) @repo/notes/knowledge/crawl-exclusions
+// fails a test instead of making the user's files unreachable.
 
 /** Every file the fixture vault contains, in no particular order. */
 export const CRAWL_FIXTURE_FILES: readonly string[] = [
   "note.md",
   "assets/pic.png",
-  // Hidden from a sidebar, present on disk — and so in the manifest.
+  // Hidden from a sidebar, present on disk — and so in the listing.
   ".hidden.md",
   ".archive/moved.md",
   "deep/.stash/kept.md",
   ".gitignore",
-  // In-flight atomic-write siblings: half-written bytes, never manifest files.
+  // In-flight atomic-write siblings: half-written bytes, never vault files.
   "note.md.tmp",
   "deep/.stash/draft.md.tmp",
   // Hard-pruned trees: version control, note-app state, dependency and build
@@ -47,13 +46,13 @@ export const CRAWL_FIXTURE_FILES: readonly string[] = [
   "._note.md",
   "assets/._pic.png",
   // A cloud placeholder: evidence that `evicted.md` is not on this disk, not a
-  // file of its own — it must never upload as an empty note.
+  // file of its own — it must never surface as an empty note.
   ".evicted.md.icloud",
 ];
 
-/** The files a manifest listing of that tree must contain — sorted, so a
- * platform that orders its walk differently still compares equal. */
-export const CRAWL_FIXTURE_MANIFEST: readonly string[] = [
+/** The files a complete listing of that tree must contain — sorted, so a walk
+ * that orders its readdir differently still compares equal. */
+export const CRAWL_FIXTURE_LISTING: readonly string[] = [
   ".archive/moved.md",
   ".gitignore",
   ".hidden.md",

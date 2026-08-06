@@ -5,8 +5,8 @@ import path from "node:path";
 
 import {
   CRAWL_FIXTURE_FILES,
-  CRAWL_FIXTURE_MANIFEST,
-} from "@repo/notes/sync/testing/crawl-fixture";
+  CRAWL_FIXTURE_LISTING,
+} from "@repo/notes/knowledge/testing/crawl-fixture";
 
 import {
   VaultListingIncompleteError,
@@ -118,14 +118,6 @@ describe("VaultManager", () => {
     expect(mgr.readText("fresh/new.md")).toBe("x");
   });
 
-  it("deletes files", () => {
-    const mgr = newManager();
-    mgr.writeText("temp.md", "x");
-    expect(mgr.delete("temp.md")).toBe(true);
-    expect(mgr.delete("temp.md")).toBe(false);
-    expect(fs.existsSync(path.join(root, "temp.md"))).toBe(false);
-  });
-
   it("refuses a root inside the app data dir (wiped on logout)", () => {
     const mgr = newManager();
     const inside = path.join(os.homedir(), ".inteligir", "vault");
@@ -134,13 +126,13 @@ describe("VaultManager", () => {
     expect(mgr.getRoot()).toBe(root);
   });
 
-  it("blocks writes while suspended (signed out) and resumes after", () => {
+  it("blocks writes while suspended (signed out) and resumes after", async () => {
     const mgr = newManager();
     mgr.writeText("a.md", "before");
     suspendVaultWrites();
     try {
       expect(() => mgr.writeText("a.md", "during")).toThrow(/signed out/);
-      expect(() => mgr.delete("a.md")).toThrow(/signed out/);
+      await expect(mgr.trash("a.md")).rejects.toThrow(/signed out/);
       // The pre-suspension content is untouched.
       expect(mgr.readText("a.md")).toBe("before");
     } finally {
@@ -448,12 +440,12 @@ describe("VaultManager", () => {
     expect(mgr.unaccountedPaths()).toEqual([]);
   });
 
-  // Desktop and mobile crawl the same vault, so a name only one of them lists
-  // is a deletion the other fans out on its next pass. Both walks answer from
-  // ONE exclusion set (@repo/notes/sync/crawl-exclusions) and both pin
-  // themselves against the SAME fixture — apps/mobile's sync-io test is the
-  // other half of this assertion.
-  it("classifies the shared crawl fixture exactly as mobile does", () => {
+  // A name this walk drops is a file the app cannot reach at all, so the walk
+  // and the pure predicate must classify identically. Both answer from ONE
+  // exclusion set (@repo/notes/knowledge/crawl-exclusions) and both pin
+  // themselves against the SAME fixture — @repo/notes' crawl-exclusions test
+  // is the other half of this assertion.
+  it("classifies the shared crawl fixture exactly as the pure predicate does", () => {
     const mgr = newManager();
     mgr.ensureReady();
     for (const rel of CRAWL_FIXTURE_FILES) {
@@ -461,7 +453,7 @@ describe("VaultManager", () => {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, "x");
     }
-    expect(mgr.listAllPaths().toSorted()).toEqual(CRAWL_FIXTURE_MANIFEST);
+    expect(mgr.listAllPaths().toSorted()).toEqual(CRAWL_FIXTURE_LISTING);
     // The fixture's placeholder stub is excluded like any other non-note, and
     // the file it hides is reported for the engine to judge against its base.
     expect(mgr.unaccountedPaths()).toEqual(["evicted.md"]);
@@ -585,7 +577,8 @@ describe("VaultManager", () => {
     mgr.writeText("a.md", "one"); // new file
     mgr.writeText("a.md", "two"); // overwrite (autosave-shaped)
     mgr.writeBytes("img.png", new Uint8Array([1])); // new binary
-    mgr.delete("a.md");
+    fs.rmSync(path.join(root, "a.md"));
+    mgr.refresh();
     mgr.writeText("b.md", "x");
     mgr.rename("b.md", "c.md");
 
@@ -629,9 +622,8 @@ describe("VaultManager", () => {
   });
 });
 
-// User-initiated deletes go to the OS trash through the injected platform
-// capability; sync-applied remote deletes keep the permanent delete(). The
-// fallback pins today's Linux-without-a-trash behavior: permanent remove.
+// Every delete goes to the OS trash through the injected platform capability.
+// The fallback pins today's Linux-without-a-trash behavior: permanent remove.
 describe("VaultManager.trash", () => {
   function newTrashManager(trashItem: (abs: string) => Promise<void>): VaultManager {
     return new VaultManager({ settingsPath, defaultRoot: root, manageAgentLink: false, trashItem });

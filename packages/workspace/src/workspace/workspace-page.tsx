@@ -19,7 +19,6 @@ import { useAgentConfirm } from "@repo/workspace/workspace/use-agent-confirm";
 import { useAgentEditUndo } from "@repo/workspace/workspace/use-agent-edit-undo";
 import { useDeepLinkNav } from "@repo/workspace/workspace/use-deep-link";
 import { useOpenDailyNote } from "@repo/workspace/workspace/use-note-templates";
-import { useSyncHoldToast } from "@repo/workspace/workspace/use-sync-hold-toast";
 import { useOpenNote } from "@repo/editor/note/open-note-store";
 import { VaultProvider } from "@repo/workspace/workspace/vault-context";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
@@ -72,13 +71,6 @@ function AgentEditUndo() {
  * nothing — the shared confirm dialog is hosted at the app root. */
 function AgentConfirm() {
   useAgentConfirm();
-  return null;
-}
-
-/** The one global report of a sync pass the deletion gate held — Settings →
- * Sync only exists while its dialog is open. Renders nothing. */
-function SyncHoldToast() {
-  useSyncHoldToast();
   return null;
 }
 
@@ -149,7 +141,6 @@ export function WorkspacePage() {
       <DeepLinkNav />
       <AgentEditUndo />
       <AgentConfirm />
-      <SyncHoldToast />
       <SidebarProvider className="bg-sidebar">
         <AppSidebar onOpenPalette={() => setPaletteOpen(true)} />
         {/* Flush Attio-style editor pane: a full-height column butted against

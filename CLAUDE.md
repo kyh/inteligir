@@ -9,8 +9,8 @@ checkbox to _delegate_ it to a background agent that does the task and writes th
 result back.
 
 Turborepo monorepo: an Electron desktop app (the product) + an Expo mobile
-companion + a Cloudflare Worker vault-sync/auth backend + a TanStack Start
-marketing site + shared packages.
+companion + a Cloudflare Worker holding the auth backend and the server-side
+vault + a TanStack Start marketing site + shared packages.
 
 ## Tech Stack
 
@@ -20,9 +20,9 @@ marketing site + shared packages.
 - **UI**: shadcn/ui (Base UI), lucide-react, sonner, zustand
 - **Web**: TanStack Start + React 19 + Tailwind CSS 4 on Cloudflare Workers — the
   marketing site AND the backend, one Worker, one origin
-- **Mobile**: Expo + Expo Router + NativeWind (@repo/mobile) — sync/read/light-edit companion, no agent
+- **Mobile**: Expo + Expo Router + NativeWind (@repo/mobile) — a remote control for a paired desktop host, no agent
   (the Expo SDK major is pinned in `pnpm-workspace.yaml`'s catalog; naming it here only rots)
-- **Cloud**: that same Worker's `src/worker/` (@repo/web) — Better Auth on D1 + a Durable Object per vault + R2
+- **Cloud**: that same Worker's `src/worker/` (@repo/web) — Better Auth on D1 + a `UserHost` Durable Object per user + R2
 - **AI Agent**: pi coding agent framework (@earendil-works/pi-coding-agent)
 
 The agent runs locally in the desktop app; agent auth is provider OAuth
@@ -31,10 +31,11 @@ The agent runs locally in the desktop app; agent auth is provider OAuth
 menu under `INTELIGIR_FAUX_AGENT=1` for deterministic login-free testing),
 handled by pi on-device. The vault is a folder of markdown the user
 owns; the agent reaches it through a `./vault` symlink in its workspace and
-edits files with its native file tools. The only server-side surface is the
-**opt-in vault sync** (apps/web's `src/worker/`: Better Auth sessions + file bytes in R2 +
-per-vault manifests in a Durable Object) — **off by default**, and it syncs
-vault FILES only; notes never live in a server database.
+edits files with its native file tools. The server-side surface is apps/web's
+`src/worker/`: Better Auth sessions on D1, plus ONE `UserHost` Durable Object
+per user holding that user's vault — its manifest in the object's own SQLite,
+its file bytes in R2. Notes are files there too; they never live in a
+relational database.
 
 ## Workspace Structure
 
@@ -42,13 +43,14 @@ vault FILES only; notes never live in a server database.
 apps/            # shippable artifacts
   web/           # ONE CF Worker (@repo/web) — src/worker/server.ts splits it: the
                  # TanStack Start marketing site, plus src/worker/ =
-                 # /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
+                 # /api/auth/* (Better Auth/D1) + the UserHost DO (Bridge over
+                 # ws, vault manifest in its SQLite, bytes in R2)
   desktop/       # Electron shell — the notes product (@repo/desktop)
-  mobile/        # Expo companion (@repo/mobile) — sync + read + light-edit, no agent
+  mobile/        # Expo companion (@repo/mobile) — a remote control for a paired desktop host, no agent
 packages/        # libraries — boundaries are PACKAGE facts (deps + exports maps)
   notes/         # PURE platform-neutral domain (@repo/notes) — runs in Worker/RN/renderer:
-                 #   sync/      — vault-sync engine + protocol (reconcile, wire, HttpSyncPort)
-                 #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery
+                 #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery,
+                 #                the ONE crawl-exclusion set
                  #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
   bridge/        # Iso wire contract (@repo/bridge) — Bridge/IPC registry, ws client +
                  # protocol, shared schemas; loads in renderer/RN/node (deps: notes only)
@@ -68,10 +70,10 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
   connectors/    # MCP/connectors capability (@repo/connectors) — executor daemon
                  # lifecycle + typed client, connector install orchestration (ports-
                  # injected), Google OAuth client, emulate-connectors dev override
-  sync/          # Desktop vault-sync adapters (@repo/sync) — node SyncManager over the
-                 # notes engine, SyncAccount (Better Auth client), SyncCoordinator
-                 # lifecycle; event emission + vault access injected
-                 # (setSyncEventSink, setSyncVaultAccessor)
+  sync/          # The desktop's account client (@repo/sync) — SyncAccount: Better Auth
+                 # over the configured server (email+password, social OAuth with a
+                 # state nonce, password reset) plus the server-URL + session
+                 # JsonStores; the browser opener is injected (setSyncBrowserOpener)
   server/        # Node backend (@repo/server) — the composition root: boot/ (createHost),
                  # handlers, transport (ws host), app machine, provider, knowledge shell,
                  # delegation, capture, restore (AI-edit undo), HostPlatform. Exports
@@ -92,7 +94,7 @@ vault→storage+notes+bridge; agent→bridge+installer+notes;
 voice→storage+bridge; connectors→installer+storage+bridge (agent never
 imports connectors: code-mode reaches the daemon through the injected
 ExecutorPort; the boot-computed fail-closed dev-flag gate is single-source
-in @repo/bridge/dev-flags); sync→vault+storage+notes+bridge;
+in @repo/bridge/dev-flags); sync→storage+bridge;
 server→agent+bridge+connectors+notes+storage+sync+vault+voice;
 editor→bridge+notes+ui; workspace→bridge+editor+notes+ui.
 The UI packages and mobile reach the backend through @repo/bridge (+notes/ui)
@@ -105,13 +107,13 @@ connectors, sync) sit BELOW server: they never import @repo/server (that
 would be a package cycle) or electron — upward needs cross module-scoped
 install seams the composition root fills (setSecretCipherProvider,
 setVaultTrashItem, configureVoiceModelHost/configureTts,
-setSyncEventSink/setSyncVaultAccessor; ConnectorInstallOps binds openExternal
-per call).
+setSyncBrowserOpener; ConnectorInstallOps binds openExternal per call).
 
 `@repo/notes` is the sharing seam: no node/electron/react/workspace imports
-(lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
-clock) — see `notes/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
-engine and knowledge/markdown code through thin adapters.
+(lint- and tsconfig-enforced); platforms inject capabilities (the SQL driver,
+the clock) — see `notes/src/knowledge/sql-knowledge-store.ts`. The desktop host
+and the Worker's `UserHost` drive the SAME knowledge and markdown code through
+thin adapters.
 
 The product's UI lives in `@repo/workspace` (over `@repo/editor`); the desktop
 renderer is a ~35-line entry that dials the host and mounts it.
@@ -147,8 +149,7 @@ and `.claude/skills/add-editor-node` carry the worked recipes.
 touching anything. The essentials:
 
 - **Provision**: `pnpm install`. That's all — there is no bootstrap script and
-  the desktop app is guest by default (sync is off), so most flows need no
-  account at all.
+  the desktop app is guest by default, so most flows need no account at all.
 - **Fastest loop**: `pnpm --filter @repo/desktop dev:harness` — the real
   renderer UI in a plain browser over the fixture Bridge, no Electron, no
   backend.
@@ -216,23 +217,22 @@ capabilities and hands the agent an injected `AgentPorts`
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files) and writes atomically. Liveness is the **ephemeral
 listing** (§ Decisions): NO recursive watcher — the listing is a one-shot crawl
-(uncapped; `.gitignore` filters the VIEW at read time, never the crawl or the
-sync manifest — absence from the manifest is a DELETE) refreshed on window
+(uncapped; `.gitignore` filters the VIEW at read time, never the crawl — a
+name the crawl excludes is unreachable, not merely hidden) refreshed on window
 focus, app writes,
 delegation completion, and a "Refresh vault" palette command; only the OPEN
 note gets a (non-recursive) watcher, driven by a pure change classifier with
 self-save filtering, so autosaves generate zero vault-changed traffic. It also
 maintains a `./vault` symlink in the agent workspace so the agent's file tools
-find it regardless of where the user put it. User-initiated deletes go to the
-**OS trash** (`HostPlatform.trashItem`); sync-applied remote deletes are
-permanent (§ Decisions).
+find it regardless of where the user put it. Deletes go to the **OS trash**
+(`HostPlatform.trashItem`) — the only removal path there is (§ Decisions).
 `~/.inteligir` is app state, NOT the vault — but **note content does reach
 it**: session transcripts record every note the agent read, and
 pre-delegation snapshots are raw note bytes. The dir is therefore owner-only
 (0700 dirs / 0600 data files — json-store's default write mode plus a
 boot-time `hardenAppDir` sweep that heals pre-existing installs). Versioned
-`JsonStore`s hold the rest (ui-state, delegations, sync config); pi's
-auth.json is pi-owned — plaintext-but-0600 by design.
+`JsonStore`s hold the rest (ui-state, delegations, the account's server URL
+and session); pi's auth.json is pi-owned — plaintext-but-0600 by design.
 
 Notes are **markdown with a fixed MDX vocabulary**: GFM plus `[[wiki-links]]`
 (aliases, `![[transclusion]]`), `$$` math, mermaid fences, `> [!NOTE]` alerts,
@@ -258,7 +258,7 @@ the vault byte-surgically (shadow-protection qualifies links the new name
 would steal) and record the old stem in the moved doc's frontmatter
 `aliases:` — wiki targets resolve through aliases after every path tier (a
 real filename always beats an alias). Derived indexes are rebuilt per device
-and NEVER synced.
+from the vault's own files.
 
 ### UI — `apps/desktop/src/renderer`, one fixed workspace
 
@@ -454,28 +454,27 @@ them at three points, all three required — invoke/send dispatch, event
 broadcast, AND the reconnect hydration push (which resolves a getter host-side
 and would otherwise volunteer state the method gate forbids asking for).
 
-### Vault sync — `@repo/notes/sync` + `apps/web/src/worker` + platform adapters
+### Account — `@repo/sync` + `apps/web/src/worker`
 
-**Off by default** (runtime `sync-config` store; Settings → Sync). One pure
-engine — `notes/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
-preserved as sibling copies, never lost) — with injected platform ports:
-desktop binds node crypto/VaultManager/JsonStore
-(`packages/sync/src/sync-manager.ts`, lifecycle in
-`sync-coordinator.ts`), mobile binds expo-crypto/expo-file-system
-(`apps/mobile/src/lib/sync/`). The coordinator (`apps/web/src/worker/`) shares
-ONE Worker with the marketing site — `src/worker/server.ts` sends `/api/*`, `/v1/*` and
-`/auth/*` to it and everything else to the site's SSR handler, so the app and the
-API are same-origin:
-`/api/auth/*` = Better Auth (email+password, bearer tokens) over Drizzle + D1,
-`/v1/vault/*` = per-vault `VaultCoordinator` Durable Object (SQLite manifest,
-optimistic concurrency — a version conflict is an HTTP-200 `{ok:false}` VALUE,
-never a throw) with bytes in R2. First authenticated user to touch a vaultId
-owns it. D1 schema ships via `drizzle-kit push` (no migration files);
-`test/e2e-sync.test.ts` drives the real engine against the real Worker
-in-process. `.github/workflows/deploy.yml` publishes it with the site on every
-green push to main (see `apps/web/README.md`). Every engine
-pass (explicit, debounced, periodic) reports through `onOutcome`; unresolved
-conflict copies are listed in Settings → Sync with Open / Dismiss-copy.
+An account is OPTIONAL: guest is the default, and the Better Auth session gates
+cloud saves and nothing else (pinned by `account-boundary.test.ts`, which fences
+the account vocabulary to `packages/sync/` and the Account settings section).
+`packages/sync/src/sync-account.ts` is the whole desktop client — email+password
+sign-in/sign-up, social OAuth (initiate in the system browser, complete through
+the `inteligir://session` deep link), password reset, and the two
+`~/.inteligir` JsonStores holding the server URL and the bearer session. The
+server URL is per-install configuration with no default: a self-hoster points at
+their own Worker, so every call refuses as a VALUE until one is set.
+
+The server (`apps/web/src/worker/`) shares ONE Worker with the marketing site —
+`src/worker/server.ts` sends `/api/*`, `/v1/*` and `/auth/*` to it and everything
+else to the site's SSR handler, so the app and the API are same-origin.
+`/api/auth/*` is Better Auth (email+password, bearer tokens) over Drizzle + D1;
+everything else the app needs is the per-user `UserHost` Durable Object, which
+holds that user's vault (§ Workspace Structure). D1 schema ships via
+`drizzle-kit push` (no migration files). `.github/workflows/deploy.yml`
+publishes the Worker with the site on every green push to main (see
+`apps/web/README.md`).
 
 ### Agent surface — `packages/agent` (@repo/agent)
 
@@ -489,7 +488,7 @@ is one folder + one line. `code-mode/` is the MCP/connectors capability
 indirect connections with reasons), and the link-rewriting `rename_note`
 over the knowledge engine. `vault-tools/` exposes the rest of the granted
 surface: the whole-vault + host-state reads (listing, note read, file facts,
-tasks, tags, wiki targets, link graph, sync state, delegations), the guarded
+tasks, tags, wiki targets, link graph, delegations), the guarded
 `toggle_task`, delegation (`delegate_task`, `cancel_delegation`), and the
 three destructive proposals (`delete_note`, `undo_my_edits`,
 `restore_delegation` — the last two are ONE primitive, a whole-file rewind to
@@ -608,39 +607,36 @@ record for the decisions code comments cite.
   persists projections (`~/.inteligir/indexes/<hash>.sqlite`) purely to make
   boot cheap; corruption or a version mismatch deletes and rebuilds from the
   vault. Nothing durable may ever live in index.sqlite — durable state
-  belongs in the `~/.inteligir` JsonStores. Per-device, never synced.
+  belongs in the `~/.inteligir` JsonStores. Per-device, rebuilt from the
+  vault's own files.
 - **Frontmatter is the ONLY property store.** No metadata DB, ever. Typed
   properties parse/serialize against the file's own YAML
   (`@repo/notes/markdown/frontmatter`); YAML the typing rules can't represent
   is preserved byte-exactly, never coerced or dropped.
-- **Delete = OS trash.** User-initiated deletes (`deleteVaultEntry`: sidebar,
-  header, HTML-app broker, conflict dismiss) move the file to the OS trash
-  via `HostPlatform.trashItem` (Electron `shell.trashItem`; permanent-remove
+- **Delete = OS trash, on the desktop.** Deletes (`deleteVaultEntry`: sidebar,
+  header, HTML-app broker) move the file to the OS trash via
+  `HostPlatform.trashItem` (Electron `shell.trashItem`; permanent-remove
   fallback where the OS has none). The OS is the trash UI — no in-app trash
-  view. Sync-applied remote deletes stay permanent (`VaultManager.delete`):
-  the originating device already trashed, core's `SyncIo.remove` is
-  synchronous by contract, and reconcile preserves conflicting local edits as
-  sibling copies.
-- **Sync has THREE independent deletion guards; never merge them.** The
-  empty-listing refusal and the unaccounted-in-base refusal recognize a
-  specific broken LISTING; the deletion gate (`packages/notes/src/sync/engine.ts`)
-  recognizes an implausible RESULT — a plan deleting more than
-  `max(25, 5% of the base manifest)` is held whole, applying nothing and
-  leaving the anchor clean, until a human confirms it. That third layer exists
-  because every listing rule has eventually leaked, and it is the only one that
-  needs no listing invariant to hold. It **bounds the blast radius of a leak;
-  it does not detect one** — it reads a count, never a cause, so a leak that
-  sheds a single path (one case-only rename, one symlink) sits far below the
-  floor and passes straight through. Only an explicit human action may pass
-  `confirmDeletions`, which carries the approved COUNT and waives the gate only
-  up to it, for one pass, never persisted: the confirmed pass re-reconciles, so
-  a plan that grew since the hold holds again with the new number. The
-  debounced, periodic and realtime passes must always be able to do nothing but
-  report the hold. The gate is **per device against that device's own anchor**,
-  so a confirmation on one device CAUSES the hold on every other — desktop
-  (Settings → Sync, plus a global toast on the transition into held) and mobile
-  (the vault screen's status row) each carry their own confirm affordance, and
-  neither may tell the user to go and confirm on the other.
+  view, and `trash()` is the ONLY removal path `VaultManager` offers. In the
+  server-side vault there is no OS, so its equivalent is a TOMBSTONE
+  (`apps/web/src/worker/host/vault/user-vault.ts`): a deleted row keeps its
+  bytes for a retention window and is purged by the host's alarm. Something
+  has to play that part — undoing an agent-CREATED note is a delete, so with
+  no trash tier every such undo would be permanent.
+- **The vault's deletion gate reads a COUNT, never a cause.** It lives in the
+  object every writer goes through
+  (`apps/web/src/worker/host/vault/user-vault.ts`), so the workspace, the agent
+  and the HTTP upload route are all held by ONE gate with one number: deletions
+  past `max(25, 5% of the manifest)` inside a rolling window are held whole,
+  applying nothing, until a human confirms. Accumulated over a WINDOW rather
+  than judged per call, because a caller deleting one file at a time in a loop
+  is the shape this deployment can actually produce and a per-call gate would
+  never see it; the window drains on its own, and a restore removes its file
+  from it, so undoing pressure releases the hold. It **bounds the blast radius
+  of a mass delete; it does not detect one** — a bug shedding one path per call
+  sits far below the floor and passes straight through. Only an explicit human
+  action may pass `confirmDeletions`, which carries the approved COUNT and
+  waives the gate only up to it, never persisted.
 - **No tag rename/delete UI, ever.** Tags are projections over note bodies
   (inline `#tags` + frontmatter `tags:`); a "rename/delete tag" affordance is
   a bulk content mutation disguised as a filter-chip action. Edit the notes
@@ -665,8 +661,8 @@ record for the decisions code comments cite.
   by the `createHost` guard plus `host.lock`, and the managers are already
   constructor-injectable, so tests build them with fakes
   (`delegation-manager.test.ts`) without a registry. Do not build a disposable
-  registry, and do not thread services through the app machine, provider or
-  sync modules on this argument alone. The node `HostServices` resolves each
+  registry, and do not thread services through the app machine or the provider
+  modules on this argument alone. The node `HostServices` resolves each
   field on READ rather than capturing an instance: "Reset app data" rebuilds
   every singleton while the handler map `collectHandlers()` produced at boot
   lives on. The
@@ -699,12 +695,6 @@ record for the decisions code comments cite.
   composition is the ONLY way the package can test its own knowledge engine;
   ~1,200 lines of tests for related-notes, tags, the link graph, the perf
   oracle and the privacy gate drive production logic through it.
-- **SSE, not hibernatable WebSockets, for the vault DO changes stream**
-  (`vault-coordinator.ts`). Cloudflare's WebSocket page recommends
-  hibernation, but no doc says don't stream SSE from a Durable Object. Sync is
-  OFF by default, so exposure is one resident DO per online synced device, and
-  a rewrite would cross `@repo/notes/sync/wire` — the pure seam BOTH platforms
-  drive — for a rounding-error bill. Revisit if sync becomes default-on.
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** Push is a supported primary flow for serverless databases, and the
   three things that make it dangerous are all absent here: one deployer (the
@@ -727,7 +717,7 @@ record for the decisions code comments cite.
   never configured or allowlisted. Two things hold it up. The Worker declares
   no `routes` and no custom domain, so its workers.dev hostname is the only one
   that reaches it and a spoofed `Host` never arrives — which is what makes
-  trusting the incoming origin safe. And the coordinator URL is per-install
+  trusting the incoming origin safe. And the server URL is per-install
   configuration (Settings → Account; a self-hoster points at their own Worker),
   so a fixed fallback would mint password-reset links back at the wrong
   deployment. Adding a route or a custom domain is the trigger to revisit: once

@@ -180,15 +180,6 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
       "it reads the whole vault, and refuses outright on one too large to sweep at once.",
   },
   {
-    capability: "getSyncState",
-    agentName: "get_sync_state",
-    tier: "read-projected",
-    description:
-      "Whether vault sync is on and how the last pass went, plus any unresolved conflict " +
-      "copies. Sync is off by default. You cannot start, stop or configure it — if a pass is " +
-      "held or failing, say so and let the user act.",
-  },
-  {
     capability: "listDelegations",
     agentName: "list_delegations",
     tier: "read-projected",
@@ -316,7 +307,6 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "startStt",
       "sendSttAudio",
       "stopStt",
-      "syncNow",
       "syncSignIn",
       "syncSignUp",
       "syncSignOut",
@@ -324,8 +314,6 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "syncRequestPasswordReset",
       "createPairingToken",
       "revokeRemoteDevice",
-      "createSyncPairingOffer",
-      "revokeSyncDevice",
       "installConnector",
       "uninstallConnector",
       "createExecutorOAuthClient",
@@ -374,7 +362,7 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
   {
     reason: "configuration",
     why:
-      "The user's settings and the status reads over them — AI provider, vault, sync, remote " +
+      "The user's settings and the status reads over them — AI provider, vault, account, remote " +
       "access, notifications, voice, connectors, skills, window state. Configuration is " +
       "theirs, and a setting you changed is one they never chose. Tell them which Settings " +
       "section to open.",
@@ -389,10 +377,8 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "getUiState",
       "setUiState",
       "getVaultRoot",
-      "setSyncConfig",
-      "getSyncDevices",
-      "reconnectSyncVault",
-      "disconnectSyncVault",
+      "getAccountState",
+      "setAccountServerUrl",
       "getAccountCapabilities",
       "getRemoteAccessState",
       "setRemoteAccessConfig",

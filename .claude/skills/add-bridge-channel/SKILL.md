@@ -20,7 +20,7 @@ enforces all three.
   remote allowlists.
 - `packages/server/src/handlers/handler-registry.ts` — `collectHandlers`, which
   validates payloads and throws at boot on a missing or duplicate handler.
-- `apps/desktop/dev/fixture-bridge.ts` — the header's stub convention.
+- `packages/workspace/src/dev/fixture-bridge.ts` — the header's stub convention.
 - CLAUDE.md § "Remote-device capability is an ALLOWLIST, never a blocklist".
 
 ## The four entry kinds
@@ -105,7 +105,7 @@ token mint/revoke) are implemented by the Electron shell and passed to
 to that set when the handler must touch main-process state the host package
 cannot see.
 
-### 3. Fixture stub — `apps/desktop/dev/fixture-bridge.ts`
+### 3. Fixture stub — `packages/workspace/src/dev/fixture-bridge.ts`
 
 The harness's Bridge is typed `: Bridge`, so this file **fails typecheck until
 the channel is covered**. The convention from its header:
@@ -163,7 +163,7 @@ pair it with the getter that answers the same shape in `HYDRATED_EVENTS`:
 ```ts
 export const HYDRATED_EVENTS = {
   onRemoteAccessChanged: "getRemoteAccessState",
-  onSyncStateChanged: "getSyncState",
+  onAccountStateChanged: "getAccountState",
   ...
 } as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
 ```

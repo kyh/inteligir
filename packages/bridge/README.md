@@ -10,7 +10,7 @@ node/electron/react imports, ever. That boundary is a package fact: deps are
 `@repo/notes` + typebox only. The renderer and mobile depend on @repo/bridge
 (+notes/ui) ONLY — never `@repo/server` — so "no node in the UI's contract"
 is an unresolvable-import fact, not a lint opinion. Host packages below
-server (agent, connectors, vault, sync, voice) import it for the same shapes.
+server (agent, connectors, vault, account, voice) import it for the same shapes.
 
 ## Layout
 
@@ -39,7 +39,7 @@ src/
                         # delegation wire shapes; routine model + pure due-math
   executor.ts           # wire types for the connectors daemon HTTP API (executor 1.5.4)
   sync.ts, remote-access.ts, ui-state.ts, daily-notes.ts
-                        # vault-sync + device-pairing contracts, ui-state keys,
+                        # account + device-pairing contracts, ui-state keys,
                         # daily-note/template conventions
 ```
 

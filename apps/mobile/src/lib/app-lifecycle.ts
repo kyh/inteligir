@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// The ONE AppState → foreground/background mapping, shared by the host
-// connection and the realtime sync stream. iOS's transient `inactive`
+// The ONE AppState → foreground/background mapping, behind the host
+// connection's suspend/resume. iOS's transient `inactive`
 // (control center, app-switcher peek) is deliberately ignored — tearing
 // connections down there would churn reconnects for a state that usually
 // bounces straight back to `active`.

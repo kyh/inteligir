@@ -27,8 +27,8 @@ function useHostAutoStart() {
   }, []);
 }
 
-// The root layout: SafeArea + a themed native Stack. No QueryClient — sync is
-// direct via @repo/notes, not an API/tRPC layer.
+// The root layout: SafeArea + a themed native Stack. No QueryClient — every
+// read is a Bridge call over the paired host connection.
 export default function RootLayout() {
   useHostAutoStart();
   const theme = themeFor(useColorScheme() === "dark");

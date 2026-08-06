@@ -2,7 +2,7 @@
   "name": "@repo/bridge",
   "version": "0.1.0",
   "private": true,
-  "description": "The isomorphic wire contract between UIs and the backend: the Bridge/IPC registry (TypeBox channel schemas → the transport-agnostic Bridge type), the ws client + protocol, and the shared domain schemas (chat log, delegation, deep links, sync state…). Loads in the desktop renderer, React Native, and node — no node/electron/react imports, ever; that boundary is now a package fact (this package's deps are @repo/notes + typebox only).",
+  "description": "The isomorphic wire contract between UIs and the backend: the Bridge/IPC registry (TypeBox channel schemas → the transport-agnostic Bridge type), the ws client + protocol, and the shared domain schemas (chat log, delegation, deep links, account state…). Loads in the desktop renderer, React Native, and node — no node/electron/react imports, ever; that boundary is now a package fact (this package's deps are @repo/notes + typebox only).",
   "type": "module",
   "exports": {
     "./__tests__/chat-log-fixtures": "./src/__tests__/chat-log-fixtures.ts",

@@ -1,9 +1,8 @@
-// Store-level tests for the SyncAccount: the config gate, the install-stable
-// vault id, and the auth guards that fire before any network call. The full
-// Better Auth round-trip needs a live coordinator and is out of scope here
-// (exercised end-to-end against the real Worker in apps/web tests); the
-// fetch-stubbed cases below pin the token-capture and social-initiation
-// contracts without one.
+// Store-level tests for the SyncAccount: the server-URL config and the auth
+// guards that fire before any network call. The full Better Auth round-trip
+// needs a live server and is out of scope here (exercised end-to-end against
+// the real Worker in apps/web tests); the fetch-stubbed cases below pin the
+// token-capture and social-initiation contracts without one.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
@@ -18,7 +17,6 @@ function accountAt(dir: string, opts: Partial<SyncAccountOptions> = {}): SyncAcc
   return new SyncAccount({
     configPath: path.join(dir, "sync-config.json"),
     authPath: path.join(dir, "sync-auth.json"),
-    vaultIdPath: path.join(dir, "sync-vault-id.json"),
     ...opts,
   });
 }
@@ -32,39 +30,13 @@ afterEach(() => {
 });
 
 describe("SyncAccount config", () => {
-  it("defaults to disabled with an empty coordinator URL", () => {
-    expect(accountAt(tmp).getConfig()).toEqual({ enabled: false, coordinatorUrl: "" });
+  it("defaults to no server and reports a signed-out state", () => {
+    expect(accountAt(tmp).getState()).toEqual({ signedIn: false, email: null, serverUrl: "" });
   });
 
-  it("patches one field at a time, leaving the other untouched", () => {
-    const account = accountAt(tmp);
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
-    expect(account.getConfig()).toEqual({
-      enabled: false,
-      coordinatorUrl: "https://sync.example",
-    });
-    account.setConfig({ enabled: true });
-    expect(account.getConfig()).toEqual({
-      enabled: true,
-      coordinatorUrl: "https://sync.example",
-    });
-  });
-
-  it("persists config across account instances (round-trips to disk)", () => {
-    accountAt(tmp).setConfig({ enabled: true, coordinatorUrl: "https://sync.example" });
-    expect(accountAt(tmp).getConfig()).toEqual({
-      enabled: true,
-      coordinatorUrl: "https://sync.example",
-    });
-  });
-});
-
-describe("SyncAccount vault id", () => {
-  it("mints a stable id on first use and keeps it across instances", () => {
-    const first = accountAt(tmp).getVaultId();
-    expect(first).not.toBe("");
-    // Same process, re-read.
-    expect(accountAt(tmp).getVaultId()).toBe(first);
+  it("persists the server URL across account instances (round-trips to disk)", () => {
+    accountAt(tmp).setServerUrl("https://inteligir.example");
+    expect(accountAt(tmp).getServerUrl()).toBe("https://inteligir.example");
   });
 });
 
@@ -75,24 +47,24 @@ describe("SyncAccount session", () => {
     expect(account.getEmail()).toBeNull();
   });
 
-  it("refuses sign-in with no coordinator URL (before any network call)", async () => {
+  it("refuses sign-in with no server URL (before any network call)", async () => {
     const result = await accountAt(tmp).signIn("a@b.c", "pw");
-    expect(result).toEqual({ ok: false, error: "Set a coordinator URL first." });
+    expect(result).toEqual({ ok: false, error: "Set a server URL first." });
   });
 
-  it("refuses sign-up, social sign-in, and reset requests with no coordinator URL", async () => {
+  it("refuses sign-up, social sign-in, and reset requests with no server URL", async () => {
     const account = accountAt(tmp);
     expect(await account.signUp("a@b.c", "pw")).toEqual({
       ok: false,
-      error: "Set a coordinator URL first.",
+      error: "Set a server URL first.",
     });
     expect(await account.socialSignIn("github")).toEqual({
       ok: false,
-      error: "Set a coordinator URL first.",
+      error: "Set a server URL first.",
     });
     expect(await account.requestPasswordReset("a@b.c")).toEqual({
       ok: false,
-      error: "Set a coordinator URL first.",
+      error: "Set a server URL first.",
     });
   });
 });
@@ -102,7 +74,7 @@ describe("SyncAccount session", () => {
 // stubbing it exercises the REAL client against pinned wire shapes.
 // ---------------------------------------------------------------------------
 
-describe("SyncAccount auth flows (stubbed coordinator)", () => {
+describe("SyncAccount auth flows (stubbed server)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -118,14 +90,14 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
       ),
     );
     const account = accountAt(tmp);
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const result = await account.signUp("new@example.com", "pw");
     expect(result).toEqual({ ok: true });
     expect(account.getToken()).toBe("bearer-token");
     expect(account.getEmail()).toBe("new@example.com");
   });
 
-  it("socialSignIn opens the coordinator's authorization URL and does NOT sign in", async () => {
+  it("socialSignIn opens the server's authorization URL and does NOT sign in", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Response.json({ url: "https://github.com/login/oauth/authorize?x=1" })),
@@ -136,7 +108,7 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
         opened.push(url);
       },
     });
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const result = await account.socialSignIn("github");
     expect(result).toEqual({ ok: true });
     expect(opened).toEqual(["https://github.com/login/oauth/authorize?x=1"]);
@@ -149,18 +121,18 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
     // No openExternal override and no setSyncBrowserOpener seam fill: the
     // sign-in must fail {ok:false} — never a silent package-owned fallback.
     const account = accountAt(tmp);
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const result = await account.socialSignIn("github");
     expect(result.ok).toBe(false);
   });
 
-  it("requestPasswordReset hits the coordinator's reset endpoint and stays NEUTRAL", async () => {
+  it("requestPasswordReset hits the server's reset endpoint and stays NEUTRAL", async () => {
     const calls: { url: string; body: string }[] = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: unknown, init?: { body?: unknown }) => {
         calls.push({ url: String(url), body: typeof init?.body === "string" ? init.body : "" });
-        // The coordinator's answer is identical for known and unknown emails —
+        // The server's answer is identical for known and unknown emails —
         // this stub IS that neutral 200.
         return Response.json({
           status: true,
@@ -169,7 +141,7 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
       }),
     );
     const account = accountAt(tmp);
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const result = await account.requestPasswordReset("who@example.com");
     // ok = request accepted, NEVER "that email exists": the renderer shows its
     // own fixed neutral copy, and nothing server-side reaches the UI.
@@ -177,7 +149,7 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
     expect(calls).toEqual([
       {
         url: "https://sync.example/api/auth/request-password-reset",
-        // redirectTo is the coordinator's own Worker-hosted reset page.
+        // redirectTo is the server's own Worker-hosted reset page.
         body: JSON.stringify({ email: "who@example.com", redirectTo: "/auth/reset" }),
       },
     ]);
@@ -195,13 +167,13 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
     expect(failed.ok).toBe(false);
   });
 
-  it("getCapabilities parses the coordinator's social list and fails soft", async () => {
+  it("getCapabilities parses the server's social list and fails soft", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => Response.json({ socialProviders: ["github", "google"] })),
     );
     const account = accountAt(tmp);
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     expect(await account.getCapabilities()).toEqual({ socialProviders: ["github", "google"] });
 
     vi.stubGlobal(
@@ -226,8 +198,8 @@ describe("SyncAccount auth flows (stubbed coordinator)", () => {
 
 const SOCIAL_CODE = "c".repeat(43);
 
-/** Initiate a social sign-in against a stubbed coordinator and capture the
- * state nonce from the callbackURL the client sent. */
+/** Initiate a social sign-in against a stubbed server and capture the state
+ * nonce from the callbackURL the client sent. */
 async function initiateSocial(account: SyncAccount): Promise<string> {
   let state: string | null = null;
   vi.stubGlobal(
@@ -252,7 +224,7 @@ describe("SyncAccount completeSocialSignIn", () => {
 
   it("adopts the exchanged bearer when the state matches the pending sign-in", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const state = await initiateSocial(account);
 
     const exchange = vi.fn(async (url: unknown, init?: { body?: unknown }) => {
@@ -276,7 +248,7 @@ describe("SyncAccount completeSocialSignIn", () => {
     });
     vi.stubGlobal("fetch", noNetwork);
     const account = accountAt(tmp);
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const result = await account.completeSocialSignIn(SOCIAL_CODE, "s".repeat(22));
     expect(result.ok).toBe(false);
     expect(noNetwork).not.toHaveBeenCalled();
@@ -285,7 +257,7 @@ describe("SyncAccount completeSocialSignIn", () => {
 
   it("refuses a WRONG state before any network call, WITHOUT burning the pending", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const state = await initiateSocial(account);
 
     // A junk `inteligir://session` fired at this machine (grammar-valid but
@@ -309,7 +281,7 @@ describe("SyncAccount completeSocialSignIn", () => {
 
   it("surfaces an exchange rejection ({ok:false}) without signing in", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const state = await initiateSocial(account);
 
     vi.stubGlobal(
@@ -325,7 +297,7 @@ describe("SyncAccount completeSocialSignIn", () => {
 
   it("a completed sign-in is single-use too — replaying the deep link fails", async () => {
     const account = accountAt(tmp, { openExternal: () => {} });
-    account.setConfig({ coordinatorUrl: "https://sync.example" });
+    account.setServerUrl("https://sync.example");
     const state = await initiateSocial(account);
     vi.stubGlobal(
       "fetch",
@@ -353,9 +325,7 @@ describe("SyncAccount sign-out isolation", () => {
         throw new Error("offline");
       }),
     );
-    const account = accountAt(tmp);
-    account.setConfig({ enabled: true, coordinatorUrl: "https://sync.example" });
-    const vaultId = account.getVaultId();
+    accountAt(tmp).setServerUrl("https://sync.example");
     // Establish a session directly in the store (the artifact signIn writes).
     fs.writeFileSync(
       path.join(tmp, "sync-auth.json"),
@@ -368,8 +338,7 @@ describe("SyncAccount sign-out isolation", () => {
 
     expect(fresh.getToken()).toBeNull();
     expect(fresh.getEmail()).toBeNull();
-    // Config + vault id survive: sign-out is NOT a teardown.
-    expect(fresh.getConfig()).toEqual({ enabled: true, coordinatorUrl: "https://sync.example" });
-    expect(fresh.getVaultId()).toBe(vaultId);
+    // The server URL survives: sign-out is NOT a teardown.
+    expect(fresh.getServerUrl()).toBe("https://sync.example");
   });
 });

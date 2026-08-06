@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // A minimal external store for `useSyncExternalStore`: one current value,
-// change notification, stable accessors. The sync status (sync/manager.ts)
+// change notification, stable accessors. The host status (host/connection.ts)
 // and the host-connection snapshot (host/connection-core.ts) both sit on it.
 // ---------------------------------------------------------------------------
 

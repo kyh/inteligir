@@ -18,7 +18,6 @@ import type {
 } from "@repo/notes/knowledge/link-graph-index";
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
-import type { SyncStatus } from "@repo/notes/sync/status";
 
 import { isRecord } from "@repo/bridge/wire-helpers";
 import type { Delegation } from "@repo/bridge/delegation";
@@ -203,22 +202,6 @@ export type AgentLinkGraph = {
   clusters: AgentGraphCluster[];
 };
 
-/** Sync status minus the free-form failure message: a host error string
- * routinely embeds the coordinator URL or a vault path, there is no way to
- * sanitize an arbitrary message, and a model can act on a network error
- * either way. So it reports THAT the last pass failed, not why. */
-export type AgentSyncStatus =
-  | Extract<SyncStatus, { phase: "idle" | "syncing" | "ok" }>
-  | { phase: "held"; deletions: number; baseCount: number; sample: string[] }
-  | { phase: "error" };
-
-export type AgentSyncState = {
-  enabled: boolean;
-  status: AgentSyncStatus;
-  /** Vault paths of unresolved conflict COPIES, privacy-filtered. */
-  conflicts: string[];
-};
-
 /** One delegation as the model may see it — built field by field host-side,
  * never the Bridge's `Delegation` whole, so a field that record grows next
  * cannot reach the model with no code change and no failing type. */
@@ -243,7 +226,6 @@ export type AgentVaultPort = {
   listTags(): AgentTagsResult;
   listWikiTargets(opts?: AgentListingOpts): WikiTarget[];
   getLinkGraph(): AgentLinkGraphResult;
-  getSyncState(): AgentSyncState;
   listDelegations(): AgentDelegation[];
 };
 

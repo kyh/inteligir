@@ -26,17 +26,10 @@ export function inteligirPath(...segments: string[]): string {
 
 /** Short stable file-name key for a path-like identifier (vault root,
  * vaultId — both may contain `/`): sha-256 hex, first 16 chars. The shared
- * idiom behind every per-vault file under ~/.inteligir (index DBs, sync base
- * manifests, sync blob dirs). */
+ * idiom behind every per-vault file under ~/.inteligir (index DBs). */
 export function shortPathKey(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex").slice(0, 16);
 }
-
-/** Prefix of the per-vault last-synced blob dirs. Declared here rather than
- * beside the writer so the permission sweep and the writer cannot drift: the
- * dirs hold raw note bytes but carry a per-vault suffix, which puts them out
- * of reach of any exact-name list. */
-export const SYNC_BLOBS_DIR_PREFIX = "sync-blobs-";
 
 // ~/.inteligir holds credentials (pi's auth.json, secrets.json) — keep the
 // directory itself owner-only. New dirs are created 0o700 by the mkdir calls
@@ -60,9 +53,8 @@ function restrictInteligirDir(filePath: string): void {
 // the snapshots index, delegation records naming note lines). Revisit
 // before ever pointing a JsonStore outside ~/.inteligir.
 //
-// Exported so other ~/.inteligir JSON writers (e.g. @repo/sync's base-manifest
-// store) inherit the same atomic-write + owner-only guarantees instead of
-// hand-rolling a weaker fs branch.
+// Exported so other ~/.inteligir JSON writers inherit the same atomic-write +
+// owner-only guarantees instead of hand-rolling a weaker fs branch.
 export const realFs: StoreAdapter = {
   read: (filePath) => {
     try {

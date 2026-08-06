@@ -1,7 +1,5 @@
 // Native + product identity for the inteligir mobile companion. Mirrors the
-// template's app.config shape; the identity is inteligir's. `scheme` MUST stay
-// in sync with the Better Auth expo client (`expoClient({ scheme })` in
-// src/lib/auth.ts) — it is the deep-link callback origin the auth flow uses.
+// template's app.config shape; the identity is inteligir's.
 //
 // Plain JS, not TS: the workspace TypeScript is the 7.x native preview, which
 // drops the compiler JS API that expo's config loader (@expo/require-utils)
@@ -33,16 +31,12 @@ module.exports = ({ config }) => ({
       backgroundColor: "#171717",
     },
   },
-  // The coordinator (Cloudflare Worker) origin, baked at build time. In dev the
-  // client falls back to the Metro host on the wrangler port (see
-  // src/lib/base-url.ts), so this may stay unset locally. Fill `eas.projectId`
-  // once the app is registered with EAS (`eas init`).
+  // Fill `eas.projectId` once the app is registered with EAS (`eas init`).
   extra: {
-    coordinatorUrl: process.env.EXPO_PUBLIC_COORDINATOR_URL,
     // eas: { projectId: "your-eas-project-id" },
   },
-  // No OTA updates: this is a sync/read companion shipped through the store,
-  // and the app is not registered with EAS. Declared explicitly rather than
+  // No OTA updates: this is a companion shipped through the store, and the app
+  // is not registered with EAS. Declared explicitly rather than
   // left to default — Expo's tooling (and knip's expo plugin) otherwise assume
   // `expo-updates` is a dependency, which meant carrying a knip ignore for a
   // package nothing installs. State the truth in the native config instead.
@@ -58,7 +52,6 @@ module.exports = ({ config }) => ({
   plugins: [
     "expo-router",
     "expo-secure-store",
-    "expo-web-browser",
     [
       "expo-splash-screen",
       {

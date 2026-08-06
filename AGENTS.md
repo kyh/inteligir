@@ -2,8 +2,8 @@
 
 **inteligir** is an AI-native notes app — Obsidian with an agent. The product is
 an **Electron desktop app** over a local Node host; a Cloudflare Worker serves
-opt-in vault sync, an Expo app is a read/light-edit companion, and a TanStack
-Start site is marketing. This is the tool-agnostic guide for coding agents —
+auth and the server-side vault, an Expo app is a remote control for a paired
+desktop, and a TanStack Start site is marketing. This is the tool-agnostic guide for coding agents —
 it's meant to be **run**, not just read. `CLAUDE.md` holds the architecture and
 the durable decisions; `docs/development.md` the full dev loop. Both point back
 here.
@@ -53,16 +53,16 @@ node apps/desktop/node_modules/electron/install.js
 pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"
 ```
 
-**No login is needed for the product.** The desktop app is guest by default and
-vault sync is OFF by default, so chat, the editor, delegation, knowledge and
-the vault all work with zero provisioning.
+**No login is needed for the product.** The desktop app is guest by default, so
+chat, the editor, delegation, knowledge and the vault all work with zero
+provisioning.
 
 ## There is no seeded login — provision one only for the account surface
 
 This repo ships **no seed script and no test account**. Notes live in the
 user's local vault, never in a server database, so there is nothing to seed
-beyond a user row. If you actually need an account (Settings → Account, vault
-sync, mobile sign-in), stand up the local Worker — four commands:
+beyond a user row. If you actually need an account (Settings → Account), stand
+up the local Worker — four commands:
 
 ```sh
 cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET to anything
@@ -77,10 +77,9 @@ curl -s -X POST localhost:5174/api/auth/sign-up/email \
   -d '{"email":"dev@inteligir.local","password":"password","name":"Dev"}'
 ```
 
-The sign-up returns 200 with a `set-auth-token` header — that bearer is exactly
-what the sync clients use, so you can drive `/v1/vault/*` with curl alone. To
-drive it through a UI instead, put `http://localhost:5174` in the desktop's
-Settings → Account coordinator URL.
+The sign-up returns 200 with a `set-auth-token` header — that bearer is the
+session credential every client carries. To drive it through a UI instead, put
+`http://localhost:5174` in the desktop's Settings → Account server URL.
 
 Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
@@ -170,10 +169,10 @@ assuming a URL.
 
 ```
 apps/desktop    Electron shell + the product UI (renderer)      @repo/desktop
-apps/mobile     Expo companion — sync/read/light-edit           @repo/mobile
+apps/mobile     Expo companion — remote control, no agent       @repo/mobile
 apps/web        ONE CF Worker — marketing site + Better Auth (D1)
-                + vault sync (DO+R2), one origin                 @repo/web
-packages/notes  Pure domain — sync engine, knowledge, markdown  @repo/notes
+                + the UserHost DO holding the vault, one origin  @repo/web
+packages/notes  Pure domain — knowledge + markdown              @repo/notes
 packages/bridge Iso wire contract — IPC registry, ws, schemas   @repo/bridge
 packages/server Node host — the composition root                @repo/server
 packages/{agent,vault,storage,voice,connectors,sync,installer,ui}

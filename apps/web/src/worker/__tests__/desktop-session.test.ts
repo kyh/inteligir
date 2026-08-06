@@ -1,4 +1,3 @@
-import { formatBearer, manifestPath } from "@repo/notes/sync/wire";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
@@ -59,7 +58,7 @@ async function exchange(code: string): Promise<{ status: number; body: unknown }
 }
 
 describe("desktop social-login handoff", () => {
-  it("callback mints a code; exchange returns a bearer that works on the sync routes", async () => {
+  it("callback mints a code; exchange returns a bearer that authenticates", async () => {
     const cookie = await signUpWithCookie("handoff@example.com");
     const callback = await desktopCallback(cookie, STATE);
     expect(callback.status).toBe(200);
@@ -86,12 +85,14 @@ describe("desktop social-login handoff", () => {
     const token = "token" in exchanged ? exchanged.token : null;
     if (typeof token !== "string") throw new Error("no token in exchange body");
 
-    // The exchanged bearer is a REAL session credential: it authenticates a
-    // sync route (the same adoption path email sign-in's token takes).
-    const manifest = await SELF.fetch(ORIGIN + manifestPath("vault-handoff"), {
-      headers: { authorization: formatBearer(token) },
+    // The exchanged bearer is a REAL session credential: Better Auth resolves
+    // it to the very account that just signed up (the same adoption path email
+    // sign-in's token takes).
+    const session = await SELF.fetch(ORIGIN + "/api/auth/get-session", {
+      headers: { authorization: `Bearer ${token}`, origin: ORIGIN },
     });
-    expect(manifest.status).toBe(200);
+    expect(session.status).toBe(200);
+    expect(await session.json()).toMatchObject({ user: { email: "handoff@example.com" } });
   });
 
   it("a code is SINGLE-USE — the second exchange fails", async () => {

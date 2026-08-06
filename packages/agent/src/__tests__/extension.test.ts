@@ -43,7 +43,6 @@ function fakePorts(): AgentPorts {
         ok: true,
         graph: { totalNotes: 0, totalLinks: 0, orphans: [], hubs: [], clusters: [] },
       }),
-      getSyncState: () => ({ enabled: false, status: { phase: "idle" }, conflicts: [] }),
       listDelegations: () => [],
     },
     actions: {

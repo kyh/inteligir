@@ -31,34 +31,33 @@ Sole export: `@repo/vault/vault`.
 - **Ephemeral listing, ONE watcher** (vault liveness — CLAUDE.md § Decisions).
   NO recursive filesystem watcher, ever. The listing is an
   on-demand crawl cached for 1s (`SNAPSHOT_TTL_MS`) so a refresh burst —
-  renderer listing + knowledge diff + sync fingerprints — shares one walk;
+  renderer listing + knowledge diff + fingerprints — shares one walk;
   triggers: app structural writes, window focus, "Refresh vault", delegation
   completion. The only watcher is a non-recursive watch on the open note's
   parent dir filtered to its basename (single-file watches miss atomic-rename
   saves). External edits elsewhere wait for the next refresh — that trade is
   the design.
 - **Autosaves are silent.** Content overwrites notify with kind `save` (no
-  broadcast; knowledge + sync stay live); `SelfSaveRegistry` filters the
+  broadcast; knowledge stays live); `SelfSaveRegistry` filters the
   resulting watch event on the full `mtimeMs:size:ino` fingerprint so an
-  mtime-colliding external edit still surfaces. Restore and sync-pull don't
-  record — their writes reload the editor.
-- **A crawl that could not be READ ≠ deletions.** `listAllPaths()` — the sync
-  manifest source — THROWS `VaultListingIncompleteError` on a missing root or
-  an unreadable subtree: reconcile reads "in base, absent locally" as a local
-  delete, and a truncated crawl is indistinguishable from a mass deletion.
-  `list()`/`listWithStats()` stay lenient; failed-read snapshots are never
-  cached, so recovery is immediate.
+  mtime-colliding external edit still surfaces. A restore doesn't record —
+  its write reloads the editor.
+- **A crawl that could not be READ ≠ absence.** `listAllPaths()` — the
+  COMPLETE listing, for callers that read an absent path as a lost file —
+  THROWS `VaultListingIncompleteError` on a missing root or an unreadable
+  subtree, because a truncated crawl is indistinguishable from a vault that
+  lost those files. `list()`/`listWithStats()` stay lenient; failed-read
+  snapshots are never cached, so recovery is immediate.
 - **Unreadable single files are REPORTED, not refused.** An entry the crawl may
   not read (a symlink reports as neither file nor directory) and a cloud
   placeholder (`.note.md.icloud`, reported as the `note.md` it hides) come back
-  from `unaccountedPaths()`, sorted, off the same snapshot. Whether one can
-  delete anything depends on the last-synced base, which this package does not
-  hold: the engine intersects them with its base and fails the pass only on a
-  hit. Refusing here instead would let one symlink anywhere under the vault
-  wedge sync forever, with no in-app remedy.
-- **Delete = OS trash** (CLAUDE.md § Decisions). User deletes go through
-  `trash()` (injected `HostPlatform.trashItem`; permanent fallback where the
-  OS has none); `delete()` is permanent, SYNC-only — origin already trashed.
+  from `unaccountedPaths()`, sorted, off the same snapshot. Only a caller
+  holding a prior listing can tell a note it just lost sight of from a symlink
+  that was never a note; refusing here instead would let one symlink anywhere
+  under the vault wedge every listing, with no in-app remedy.
+- **Delete = OS trash** (CLAUDE.md § Decisions). `trash()` is the ONLY removal
+  path (injected `HostPlatform.trashItem`; permanent `fs.rm` fallback where the
+  OS has none).
 - **Confinement, two layers.** Every path resolves lexically under the root
   AND re-verifies after realpath, so a symlink planted inside the vault can't
   point IPC file ops outside. The agent's raw fs access is unconfined by
@@ -68,22 +67,19 @@ Sole export: `@repo/vault/vault`.
   `~/.inteligir` — wiped on logout. Between logout and re-login, writes throw
   (`suspendVaultWrites`) so a dirty autosave can't rebuild a default-root
   vault; reads stay allowed.
-- **The manifest exclusions are ONE shared fact.** The tool- and OS-owned trees
+- **Crawl exclusions make a file UNREACHABLE.** The tool- and OS-owned trees
   (version control, `node_modules` and the build/dependency caches, editor
   state, volume metadata), atomicWrite's in-flight `*.tmp` siblings, `.DS_Store`
   and friends, and iCloud placeholder stubs live in
-  `@repo/notes/sync/crawl-exclusions`, which both this crawl and mobile's walk
-  answer from. A name only one platform lists is pushed by that platform and
-  read by the other as a local delete, so this set may only hold names NEITHER
-  platform can produce as a note, excluded on EVERY pass — and adding to it is
-  a permanent deletion for any platform that did not already exclude the name.
-- **Hiding filters the VIEW, not the manifest.** Files matched by the root
+  `@repo/notes/knowledge/crawl-exclusions`; this crawl is pinned against the
+  same fixture as that module's pure predicate. A name there is not hidden but
+  absent, so it may only hold names no vault can hold as a real note.
+- **Hiding filters the VIEW, not the crawl.** Files matched by the root
   `.gitignore`/`.ignore` AND dot-prefixed files/directories are withheld from
   `list()`/`listWithStats()`, but the crawl descends both and `listAllPaths()`
   returns every file on disk; a hidden file the user explicitly opens still
-  reads/writes fine. Absence from the manifest is a DELETE to reconcile, so
-  neither decluttering the sidebar nor dragging a folder into `.archive/` may
-  fan a permanent deletion out to every device.
+  reads/writes fine. Decluttering the sidebar — or dragging a folder into
+  `.archive/` — must never make a file the vault no longer holds.
 - **Rename is clobber-proof and case-aware.** Occupancy is case/NFC-
   insensitive over the real dir listing, decided by inode so a case-only
   self-rename passes through to one atomic `renameSync`.
@@ -92,8 +88,8 @@ Sole export: `@repo/vault/vault`.
 
 All bound by the composition root, `packages/server/src/boot/create-host.ts`:
 
-- `setVaultChangeNotifier` — broadcast hookup (`onVaultChanged` + knowledge +
-  sync); module-scoped so it survives `resetVaultManager()` on logout.
+- `setVaultChangeNotifier` — broadcast hookup (`onVaultChanged` + knowledge);
+  module-scoped so it survives `resetVaultManager()` on logout.
 - `setVaultWorkspaceLinkDir` — the agent workspace that receives the `vault`
   symlink (vault never imports agent/*).
 - `setVaultTrashItem` — `HostPlatform.trashItem`; unset, `trash()` throws.
@@ -109,8 +105,9 @@ pnpm --filter @repo/vault test
 `vault.test.ts` pins confinement (traversal + symlink escapes), snapshot
 TTL/invalidation, the listing refusals (missing root, unreadable subtree), the
 unaccounted-for reports (symlink, cloud placeholder) that replace a refusal,
-the view/manifest split for hidden and ignore-matched paths, the shared crawl
-fixture both platforms classify identically, rename occupancy, trash-vs-delete,
-the write-suspension gate, and real open-note watch events against a temp dir;
+the view/complete-listing split for hidden and ignore-matched paths, the crawl
+fixture the pure predicate is pinned against too, rename occupancy, trash and
+its fallback, the write-suspension gate, and real open-note watch events
+against a temp dir;
 `classify-file-change.test.ts` enumerates the verdict function +
 `SelfSaveRegistry` TTL/fingerprint semantics.

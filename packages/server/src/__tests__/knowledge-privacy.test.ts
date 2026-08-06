@@ -5,13 +5,12 @@
 // Both bundles' REAL execute() closures run here, registered against one fake
 // pi over the REAL privacy-filtered ports and a real core index — the knowledge
 // tools (search_vault / get_backlinks / get_links / related_notes) and the vault
-// tools (the nine whole-vault and host-state reads). The vault PROJECTIONS are
+// tools (the whole-vault and host-state reads). The vault PROJECTIONS are
 // additionally asserted directly, where the claim is about a shape the tool
 // layer only forwards. Every one asserts the same thing: the private note's
 // path, title, tasks and body text never appear — including via
-// backlinks-from-a-private-source, links-TO-a-private-target, a conflict copy
-// that spells a private note's name, and the index-lag TOCTOU case (public in
-// the index, private on disk NOW).
+// backlinks-from-a-private-source, links-TO-a-private-target, and the
+// index-lag TOCTOU case (public in the index, private on disk NOW).
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -35,9 +34,7 @@ import type {
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
 import type { ExtensionAPI } from "@repo/agent/pi/pi-types";
-import type { SyncSummary } from "../boot/agent-knowledge-port";
 import type { Delegation } from "@repo/bridge/delegation";
-import type { SyncStatus } from "@repo/notes/sync/status";
 
 // Distinctive markers that exist ONLY in the private note — any of these in a
 // tool result is a leak.
@@ -47,20 +44,6 @@ const PRIVATE_BODY = "TOP-SECRET umbrella rocket equations";
 // A second private note, in a folder, carrying its own markers — the one the
 // folder-scoped listing must not surface.
 const PRIVATE_JOURNAL = "journal/2026-08-03.md";
-// A conflict copy of the private note: sync named it after the note it forked
-// from, and its own bytes are perfectly public. The copy is a real file on
-// disk, so nothing but the NAME gives it away. It is deliberately a search hit,
-// a tag carrier and a backlink source, so every projection has to drop it on
-// its own.
-const PRIVATE_CONFLICT_COPY = "secret-plans (conflict 2026-08-01T00-00-00-000Z).md";
-// A conflict copy OF that copy. Inverting its name ONCE lands on a file that
-// reads public, so a single-step origin check emits it — and its name spells
-// the private stem anyway.
-const DOUBLE_CONFLICT_COPY =
-  "secret-plans (conflict 2026-08-01T00-00-00-000Z) (conflict 2026-08-02T00-00-00-000Z).md";
-// A copy whose origin is ABSENT — the private note it forked from was renamed,
-// moved or trashed. Fail-closed: the surviving copy must not un-hide the name.
-const ORPHANED_CONFLICT_COPY = "moved-away (conflict 2026-08-01T00-00-00-000Z).md";
 
 // The vault as bytes — the index is fed from it AND the live probe reads it,
 // so index and disk agree except where a test overrides the disk.
@@ -75,13 +58,6 @@ const VAULT: Record<string, string> = {
   "hidden-lab.md":
     "---\nprivate: true\ntags: [meta, classified]\n---\n# Hidden Lab\n\nclassified centrifuge notes\n\n- [ ] spin the centrifuge\n",
   [PRIVATE_JOURNAL]: "---\nprivate: true\n---\n# Stakeout\n\nthe rendezvous is at dawn\n",
-  [PRIVATE_CONFLICT_COPY]:
-    "# Remote copy\n\nnothing sensitive in these bytes, umbrella included #logistics\n\n[[open-notes]]\n",
-  [DOUBLE_CONFLICT_COPY]: "# Second fork\n\nalso nothing sensitive\n",
-  [ORPHANED_CONFLICT_COPY]: "# Moved away\n\nthe note this forked from is gone\n",
-  // The same shape over a PUBLIC note — the conflict-name rule must drop only
-  // the copies whose origin is private, never every conflict copy.
-  "other (conflict 2026-08-01T00-00-00-000Z).md": "# Other (remote)\n\nthe losing side\n",
   // Public task + tag carrier, deliberately lexically distinct from the notes
   // above so it perturbs neither the search nor the related_notes fixtures. Its
   // self-link is the graph's self-edge case.
@@ -212,8 +188,6 @@ function expectNoLeak(payload: string): void {
   expect(payload).not.toContain(PRIVATE_JOURNAL);
   expect(payload).not.toContain("Stakeout");
   expect(payload).not.toContain("rendezvous");
-  // The conflict copy's own bytes are public; its NAME is the leak, and
-  // "secret-plans" is a prefix of both it and PRIVATE_PATH.
   expect(payload).not.toContain("secret-plans");
 }
 
@@ -327,18 +301,6 @@ describe("agent knowledge tools — private notes never reach the model", () => 
     expectNoLeak(payload);
   });
 
-  it("search_vault by tag drops a conflict copy whose origin is private", async () => {
-    // The copy's own bytes are public and it really does carry #logistics, so
-    // the index hands it over and only the origin check takes it out.
-    expect(seededIndex().notesWithTag("logistics", { excludePrivate: true })).toContain(
-      PRIVATE_CONFLICT_COPY,
-    );
-    const tools = captureTools();
-    const payload = await outbound(tools, "search_vault", { tag: "logistics" });
-    expectNoLeak(payload);
-    expect(payload).toContain("chores.md");
-  });
-
   it("related_notes TOCTOU: a candidate public in the index but private on disk NOW drops", async () => {
     const tools = captureTools({
       "meta-index.md": "---\nprivate: true\n---\n# Meta index\n\n#meta\n",
@@ -355,31 +317,9 @@ describe("agent knowledge tools — private notes never reach the model", () => 
 // SAME expectNoLeak rule the tool payloads above are.
 // ---------------------------------------------------------------------------
 
-const SYNC_EMAIL = "vault-owner@example.com";
-const COORDINATOR_URL = "https://vault-sync.example.workers.dev";
-const PUBLIC_CONFLICT_COPY = "other (conflict 2026-08-01T00-00-00-000Z).md";
-
-/** The sync source as the HOST really hands it over: the full Bridge state,
- * account fields and all. It is declared wide and then narrowed on assignment
- * to the port's `SyncSummary`, which is the point — the extra fields are
- * present at runtime for the projection to leak if it ever spread them, and
- * absent from the type so it cannot name them. (The account vocabulary itself
- * is fenced out of this file by account-boundary.test.ts, which is why the
- * signed-in flag never appears here or in the port.) */
-function syncSourceWith(status: SyncStatus = { phase: "idle" }): SyncSummary {
-  const hostState = {
-    enabled: true,
-    email: SYNC_EMAIL,
-    coordinatorUrl: COORDINATOR_URL,
-    status,
-    conflicts: [{ path: PUBLIC_CONFLICT_COPY }, { path: PRIVATE_CONFLICT_COPY }],
-  };
-  return hostState;
-}
-
 /** A field the stored record does not carry today — standing in for whatever
  * the Bridge's `Delegation` grows next. Present at runtime, absent from the
- * type, exactly like syncSourceWith's account fields. */
+ * type, so a spread would carry it straight to the model. */
 const HOST_ONLY_DELEGATION_FIELD = "~/.inteligir/sessions/background.jsonl";
 
 function delegationOn(sourceFile: string, lineText: string): Delegation {
@@ -447,7 +387,6 @@ function expectGraph(result: AgentLinkGraphResult): AgentLinkGraph {
 function buildVaultPort(
   opts: {
     overrides?: Record<string, string>;
-    sync?: SyncSummary;
     delegations?: Delegation[];
   } = {},
 ): AgentVaultPort {
@@ -457,7 +396,6 @@ function buildVaultPort(
     queries: () => index,
     probe: diskProbe(overrides),
     vault: () => diskVault(overrides),
-    sync: () => opts.sync ?? syncSourceWith(),
     delegations: () => opts.delegations ?? DELEGATIONS,
   });
 }
@@ -478,25 +416,6 @@ describe("agent vault port — private notes never reach the model", () => {
     // An attachment carries no frontmatter, so nothing can mark it private and
     // the port never probes it.
     expect(paths).toContain("assets/diagram.png");
-    // A conflict copy of a PUBLIC note is an ordinary public file.
-    expect(paths).toContain(PUBLIC_CONFLICT_COPY);
-  });
-
-  it("listVault walks the WHOLE conflict chain, and fails closed on a lost origin", () => {
-    // Non-vacuity: both copies are real files whose own bytes read public, and
-    // the intermediate one the double copy inverts to reads public too — one
-    // step of origin checking clears it.
-    expect(diskProbe()(DOUBLE_CONFLICT_COPY)).toBe("public");
-    expect(diskProbe()(PRIVATE_CONFLICT_COPY)).toBe("public");
-    expect(diskProbe()(ORPHANED_CONFLICT_COPY)).toBe("public");
-    const paths = buildVaultPort()
-      .listVault()
-      .map((entry) => entry.path);
-    expect(paths).not.toContain(DOUBLE_CONFLICT_COPY);
-    // The origin is gone, so nothing confirms it was ever private — which is
-    // exactly why this drops: renaming or trashing a private note must not
-    // un-hide its name through the copy that outlived it.
-    expect(paths).not.toContain(ORPHANED_CONFLICT_COPY);
   });
 
   it("listVault scopes to a folder, and the limit bounds the PROBE window", () => {
@@ -605,10 +524,9 @@ describe("agent vault port — private notes never reach the model", () => {
     expect(JSON.stringify(seededIndex().graph())).toContain(PRIVATE_PATH);
     const summary = expectGraph(buildVaultPort().getLinkGraph());
     expectNoLeak(JSON.stringify(summary));
-    // open-notes, other, chores, journal/01, journal/02, meta-index, link-hub
-    // and the public conflict copy — the three private notes and the conflict
-    // copy that spells one of their names are all absent from the COUNT too.
-    expect(summary.totalNotes).toBe(8);
+    // open-notes, other, chores, journal/01, journal/02, meta-index, link-hub —
+    // the three private notes are absent from the COUNT too.
+    expect(summary.totalNotes).toBe(7);
     // link-hub → meta-index is the only edge left standing: its link to the
     // private note is gone, and its dangling one was never a note.
     expect(summary.totalLinks).toBe(1);
@@ -632,77 +550,6 @@ describe("agent vault port — private notes never reach the model", () => {
     // the total but not in the degree would render it an orphan with a link.
     expect(summary.totalLinks).toBe(1);
     expect(summary.orphans).toContain("chores.md");
-  });
-
-  it("getSyncState strips the account email and the coordinator address", () => {
-    const state = buildVaultPort().getSyncState();
-    const payload = JSON.stringify(state);
-    expect(payload).not.toContain(SYNC_EMAIL);
-    expect(payload).not.toContain(COORDINATOR_URL);
-    expect(state.enabled).toBe(true);
-  });
-
-  it("getSyncState drops a conflict copy that spells a private note's name", () => {
-    const state = buildVaultPort().getSyncState();
-    expectNoLeak(JSON.stringify(state));
-    // The dropped copy's own bytes are public — only its NAME, taken from the
-    // note it forked from, gives it away. The public note's copy survives, so
-    // this is the origin check working and not a blanket refusal.
-    expect(state.conflicts).toEqual([PUBLIC_CONFLICT_COPY]);
-  });
-
-  it("getSyncState filters the held-pass sample and drops the error message", () => {
-    const held = buildVaultPort({
-      sync: syncSourceWith({
-        phase: "held",
-        deletions: 3,
-        baseCount: 40,
-        sample: [PRIVATE_PATH, "chores.md"],
-      }),
-    }).getSyncState();
-    expectNoLeak(JSON.stringify(held));
-    expect(held.status).toEqual({
-      phase: "held",
-      deletions: 3,
-      baseCount: 40,
-      sample: ["chores.md"],
-    });
-
-    const failed = buildVaultPort({
-      sync: syncSourceWith({
-        phase: "error",
-        message: `PUT ${COORDINATOR_URL}/v1/vault/${PRIVATE_PATH} failed`,
-      }),
-    }).getSyncState();
-    // A host-generated message routinely embeds the coordinator URL and a vault
-    // path; there is no sanitizing an arbitrary string, so only the phase goes.
-    expect(failed.status).toEqual({ phase: "error" });
-    expectNoLeak(JSON.stringify(failed));
-  });
-
-  it("getSyncState enumerates the ok phase rather than passing the status through", () => {
-    // Declared wide, narrowed on assignment — the extra field is there at
-    // runtime for a pass-through to carry, and absent from the type.
-    const hostStatus = {
-      phase: "ok" as const,
-      pushed: 1,
-      pulled: 2,
-      deleted: 0,
-      conflicts: 1,
-      merged: 3,
-      message: `PUT ${COORDINATOR_URL} retried`,
-    };
-    const status: SyncStatus = hostStatus;
-    const state = buildVaultPort({ sync: syncSourceWith(status) }).getSyncState();
-    expect(state.status).toEqual({
-      phase: "ok",
-      pushed: 1,
-      pulled: 2,
-      deleted: 0,
-      conflicts: 1,
-      merged: 3,
-    });
-    expect(JSON.stringify(state)).not.toContain(COORDINATOR_URL);
   });
 
   it("listDelegations drops the whole record for a note that turned private", () => {
@@ -754,7 +601,6 @@ describe("agent vault tools — private notes never reach the model", () => {
     list_tags: {},
     list_wiki_targets: {},
     get_link_graph: {},
-    get_sync_state: {},
     list_delegations: {},
   };
 

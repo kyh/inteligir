@@ -145,27 +145,23 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
       "getPendingConnectorAuth",
     ],
   },
-  // Vault sync and remote access are the two groups that will not be
-  // implemented but RETIRED: a cloud workspace reads the vault the coordinator
-  // already holds, and there is no home machine for a phone to pair with. They
-  // are shimmed rather than deleted because the registry still declares them.
+  // The account channels are the desktop shell's own: a cloud client is
+  // already signed in — the session is what named this object — so there is
+  // nothing here to sign in to, point at a server, or sign out of. Remote
+  // access will not be implemented but RETIRED: there is no home machine for a
+  // phone to pair with. Both are shimmed rather than deleted because the
+  // registry still declares them.
   {
-    feature: "vault sync",
+    feature: "account",
     methods: [
-      "getSyncState",
-      "setSyncConfig",
+      "getAccountState",
+      "setAccountServerUrl",
       "syncSignIn",
       "syncRequestPasswordReset",
       "syncSignUp",
       "syncSocialSignIn",
       "getAccountCapabilities",
       "syncSignOut",
-      "syncNow",
-      "getSyncDevices",
-      "createSyncPairingOffer",
-      "revokeSyncDevice",
-      "reconnectSyncVault",
-      "disconnectSyncVault",
     ],
   },
   {

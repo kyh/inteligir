@@ -28,42 +28,38 @@
   // TypeScript readable in the dashboard — a non-issue for a public repo.
   "upload_source_maps": true,
   // Logs on (the default sampling); traces at 1% — enough to spot a latency
-  // shape without paying to trace a sync loop that runs on every save.
+  // shape without paying to trace every keystroke's save.
   "observability": {
     "enabled": true,
     "traces": { "enabled": true, "head_sampling_rate": 0.01 },
   },
 
-  // Two Durable Object classes:
-  //   • VaultCoordinator — one per vault, the source of truth for that vault's
-  //     manifest (path -> version) + roster. Addressed by `getByName(vaultId)`.
-  //   • UserHost — one per user, the workspace's Bridge host over a
-  //     hibernatable WebSocket. Addressed by `getByName("user:" + userId)`.
+  // One Durable Object class: UserHost — one per user, holding that user's
+  // vault manifest and the workspace's Bridge host over a hibernatable
+  // WebSocket. Addressed by `getByName("user:" + userId)`.
   "durable_objects": {
-    "bindings": [
-      { "name": "VaultCoordinator", "class_name": "VaultCoordinator" },
-      { "name": "UserHost", "class_name": "UserHost" },
-    ],
+    "bindings": [{ "name": "UserHost", "class_name": "UserHost" }],
   },
   // SQLite-backed storage: the vault manifest tables, and the UserHost's
   // synchronous `ctx.storage.kv` (which only the SQLite backend exposes, and
   // which the JsonStore engine needs — see @repo/storage/do-store-adapter).
   //
-  // APPEND a tag per class; never edit a tag that has shipped. And do NOT
+  // APPEND a tag per change; never edit a tag that has shipped. And do NOT
   // convert this to the newer declarative `exports` field — the two are
   // mutually exclusive, and swapping them on a namespace that already holds
   // vault manifests is a one-way door.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] },
     { "tag": "v2", "new_sqlite_classes": ["UserHost"] },
+    { "tag": "v3", "deleted_classes": ["VaultCoordinator"] },
   ],
 
-  // R2 holds the raw file bytes, keyed `${vaultId}/${path}`. The manifest (in the
+  // R2 holds the raw file bytes, keyed `${userId}/${path}`. The manifest (in the
   // DO) is authoritative for versions/hashes; R2 is just the blob store.
   "r2_buckets": [{ "binding": "VAULT_FILES", "bucket_name": "inteligir-vault-files" }],
 
-  // D1 (SQLite) backs Better Auth (user/session/account/verification) + the
-  // `vault_owner` ownership table. `database_id` is filled in at deploy time
+  // D1 (SQLite) backs Better Auth (user/session/account/verification) plus the
+  // rate-limit and desktop-handoff tables. `database_id` is filled in at deploy time
   // (`wrangler d1 create inteligir-auth` prints it). The schema lives in
   // src/worker/db/schema.ts and is applied with `drizzle-kit push` — no migration
   // files (`pnpm db:push:local` / `db:push`); tests derive the same schema via

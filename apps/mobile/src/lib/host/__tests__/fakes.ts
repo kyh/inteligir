@@ -1,6 +1,6 @@
 // In-memory fakes for the host-connection runtime, so the PURE logic runs on
-// node with no react-native / expo-secure-store / real sockets. Mirrors the
-// sync suite's fakes: tests drive the injected ports, never native modules.
+// node with no react-native / expo-secure-store / real sockets: tests drive
+// the injected ports, never native modules.
 
 import type { WsConstructor, WsLike } from "@repo/bridge/ws-bridge";
 import {

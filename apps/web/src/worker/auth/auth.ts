@@ -13,15 +13,8 @@ import { sendResetEmail } from "./reset-email";
 //   • bearer() — lets clients authenticate with `Authorization: Bearer <token>`
 //     instead of a cookie. Sign-in/sign-up return the token in the
 //     `set-auth-token` response header; `auth.api.getSession({ headers })` then
-//     validates that bearer token in-process. This is the contract the desktop
-//     and mobile sync clients already speak (`@repo/notes/sync/wire`).
-//
-// The Expo mobile client (@better-auth/expo, added in the mobile app) drives
-// email/password + bearer directly — it needs no server-side plugin here, and
-// pulling @better-auth/expo into a Worker drags the whole Expo SDK into the
-// bundle + a second @types/react, so it stays out. `expo://` is trusted below
-// independently. If social OAuth on mobile is added later, revisit isolating
-// the server expo plugin so it doesn't bloat the Worker.
+//     validates that bearer token in-process — the contract every client
+//     speaks, since none of them carries cookies.
 //
 // Secrets are runtime env, NOT hardcoded: `BETTER_AUTH_SECRET` (a DEDICATED key, never
 // reused — set via `wrangler secret put`) and the optional OAuth client

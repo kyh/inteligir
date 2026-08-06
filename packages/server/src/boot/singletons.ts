@@ -40,7 +40,7 @@ import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { getNotifications } from "../notifications";
 import { getSecretStore } from "@repo/storage/secrets";
-import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
+import { getSyncAccount } from "@repo/sync/sync-account";
 import { getVaultManager, type VaultChangeKind } from "@repo/vault/vault";
 import { setStoreRecoveryNotifier } from "@repo/storage/json-store-core";
 
@@ -86,7 +86,7 @@ export function constructHostSingletons(): (root: string, kind: VaultChangeKind)
   getDelegationManager(); // vault + restore (push channels wire to emitEvent at construction)
   getRoutinesManager(); // vault + restore + the shared background-turn lock (same wiring story)
   getExecutorDaemon(); // paths
-  getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
+  getSyncAccount(); // account stores (allocation only; disk stays lazy)
 
   return vaultChange;
 }

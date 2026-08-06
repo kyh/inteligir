@@ -92,12 +92,12 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("splits those methods into 16 implementations and 79 shims", () => {
-    // The counts are the migration's progress bar: 95 host methods (116 IPC
+  it("splits those methods into 16 implementations and 73 shims", () => {
+    // The counts are the migration's progress bar: 89 host methods (110 IPC
     // entries minus 19 events and the 2 desktop-shell methods).
-    expect(HOST_METHODS).toHaveLength(95);
+    expect(HOST_METHODS).toHaveLength(89);
     expect(IMPLEMENTED).toHaveLength(16);
-    expect(shimmedMethods).toHaveLength(79);
+    expect(shimmedMethods).toHaveLength(73);
     expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
     expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });

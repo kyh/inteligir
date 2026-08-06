@@ -10,12 +10,12 @@ backend, plus a marketing site.
 ```
 apps/              Shippable artifacts
   desktop/         Electron app — main/preload + the product UI (renderer) (@repo/desktop)
-  mobile/          Expo companion — sync + read + light-edit, no agent (@repo/mobile)
+  mobile/          Expo companion — a remote control for a paired desktop, no agent (@repo/mobile)
   web/             ONE CF Worker (@repo/web) — the TanStack Start marketing site
-                   plus the backend: Better Auth (D1) + the vault-sync
-                   coordinator (Durable Object + R2), same origin
+                   plus the backend: Better Auth (D1) + the per-user UserHost
+                   Durable Object holding the vault (+ R2), same origin
 packages/          Libraries
-  notes/           Pure platform-neutral domain — sync engine, knowledge, markdown (@repo/notes)
+  notes/           Pure platform-neutral domain — knowledge + markdown (@repo/notes)
   bridge/          Iso wire contract — Bridge/IPC registry, ws client, schemas (@repo/bridge)
   installer/       Generic CLI provisioning (@repo/installer)
   agent/           The pi capability (@repo/agent)
@@ -23,7 +23,7 @@ packages/          Libraries
   vault/           VaultManager — the user's markdown folder (@repo/vault)
   voice/           Voice capability — sherpa-onnx STT dictation (@repo/voice)
   connectors/      MCP/connectors capability + executor daemon (@repo/connectors)
-  sync/            Desktop vault-sync adapters (@repo/sync)
+  sync/            The desktop's account client — Better Auth (@repo/sync)
   server/          Node backend — vault, delegation, connectors, voice, boot (@repo/server)
   ui/              Shared UI components (@repo/ui)
 ```
@@ -33,15 +33,15 @@ Workspace `README.md`s — every workspace has one:
 | Workspace             | README                                                                      |
 | --------------------- | --------------------------------------------------------------------------- |
 | `apps/desktop`        | [Electron shell — process boundary, packaging](./apps/desktop/README.md)    |
-| `apps/mobile`         | [Expo companion — sync, read, remote chat](./apps/mobile/README.md)         |
+| `apps/mobile`         | [Expo companion — remote chat + delegations](./apps/mobile/README.md)       |
 | `apps/web`            | [inteligir.com — marketing site + the backend Worker](./apps/web/README.md) |
-| `packages/notes`      | [pure domain — sync, knowledge, markdown](./packages/notes/README.md)       |
+| `packages/notes`      | [pure domain — knowledge + markdown](./packages/notes/README.md)            |
 | `packages/bridge`     | [iso wire contract — IPC registry, ws](./packages/bridge/README.md)         |
 | `packages/agent`      | [the pi capability + harness quarantine](./packages/agent/README.md)        |
 | `packages/server`     | [node backend — vault, delegation, boot](./packages/server/README.md)       |
 | `packages/vault`      | [VaultManager — confined markdown IO](./packages/vault/README.md)           |
 | `packages/storage`    | [node fs/json substrate over ~/.inteligir](./packages/storage/README.md)    |
-| `packages/sync`       | [desktop vault-sync adapters](./packages/sync/README.md)                    |
+| `packages/sync`       | [the desktop's account client](./packages/sync/README.md)                   |
 | `packages/connectors` | [MCP connectors + executor daemon](./packages/connectors/README.md)         |
 | `packages/voice`      | [voice capability — STT + TTS proxy](./packages/voice/README.md)            |
 | `packages/installer`  | [generic checksum-verified CLI install](./packages/installer/README.md)     |

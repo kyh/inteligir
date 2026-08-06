@@ -17,7 +17,7 @@ import type { AgentPorts } from "@repo/agent/extension";
 import type { BundledResources } from "@repo/agent/setup";
 import { getExecutorDaemon, type ExecutorDaemon } from "@repo/connectors/executor-daemon";
 import { getSecretStore, type SecretStore } from "@repo/storage/secrets";
-import { getSyncCoordinator, type SyncCoordinator } from "@repo/sync/sync-coordinator";
+import { getSyncAccount, type SyncAccount } from "@repo/sync/sync-account";
 import { getVaultManager, type VaultManager } from "@repo/vault/vault";
 
 import { getAgentPorts, getBundledResources } from "./agent-wiring";
@@ -52,7 +52,7 @@ export type HostServices = {
   readonly notifications: NotificationsManager;
   readonly uiState: UiStateManager;
   readonly secrets: SecretStore;
-  readonly sync: SyncCoordinator;
+  readonly account: SyncAccount;
   readonly executorDaemon: ExecutorDaemon;
   readonly remoteAccess: RemoteAccessManager;
   readonly agentPorts: AgentPorts;
@@ -99,8 +99,8 @@ export function createHostServices(): HostServices {
     get secrets() {
       return getSecretStore();
     },
-    get sync() {
-      return getSyncCoordinator();
+    get account() {
+      return getSyncAccount();
     },
     get executorDaemon() {
       return getExecutorDaemon();

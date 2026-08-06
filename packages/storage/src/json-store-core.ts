@@ -17,9 +17,9 @@ import { isRecord, toErrorMessage } from "./fs-errors";
  * The byte-level seam under every JsonStore: a keyed string blob store.
  *
  * SYNCHRONOUS IS A CONTRACT, not a convenience. `capture-manager`'s
- * exactly-once compare-and-swap and the sync engine's `SyncIo.remove` are
- * correct only because a read-modify-write completes in one JS turn, with no
- * await for another caller to interleave on. Never widen these to promises —
+ * exactly-once compare-and-swap is correct only because a read-modify-write
+ * completes in one JS turn, with no await for another caller to interleave
+ * on. Never widen these to promises —
  * both the node filesystem and a SQLite-backed Durable Object's KV expose
  * synchronous primitives, so nothing needs it.
  */

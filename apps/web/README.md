@@ -3,8 +3,9 @@
 ONE Cloudflare Worker serving two surfaces from one origin:
 
 - the **marketing site** — a TanStack Start landing page, server-rendered;
-- the **backend** — Better Auth on D1, the vault-sync protocol from
-  `@repo/notes/sync/*` over R2 (file bytes) + a Durable Object per vault.
+- the **backend** — Better Auth on D1, plus one `UserHost` Durable Object per
+  user holding that user's vault: the manifest in the object's own SQLite, the
+  file bytes in R2.
 
 `src/worker/server.ts` is the entry that splits them: `/api/*`, `/v1/*` and
 `/auth/*` go to the rest of `src/worker/`, everything else to Start's SSR
@@ -29,9 +30,8 @@ src/
     site-config.ts       Title, description, links — single source for metadata
   styles/globals.css     Inter Variable + @repo/ui/globals.css
   worker/                THE WORKER — its own tsconfig program (see below)
-    server.ts            Worker entry: path split + the Durable Object exports
+    server.ts            Worker entry: path split + the Durable Object export
     index.ts             The API route table + CORS; `ownsPath` is the split
-    vault-coordinator.ts Durable Object: manifest + versions + SSE + R2 + roster
     host/                THE WORKSPACE HOST — one Durable Object per user
       user-host.ts       Durable Object: hibernatable sockets, auth, dispatch
       ws-route.ts        The Worker leg: origin gate, then address the object
@@ -42,26 +42,21 @@ src/
       handler-registry.ts collectHandlers(): the completeness guard + shims
       handlers.ts        6 implementations + CLOUD_SHIMS, the migration backlog
       stores.ts          ui-state + notifications as JsonStores over DO KV
-    route.ts             matchRoute(): parse the @repo/notes/sync/wire routes
-    device-assertion.ts  parse + verify a device assertion — Worker and DO share it
-    device-body.ts       boundary parsers for the enroll/revoke request bodies
+      vault/             THE VAULT — manifest in DO SQLite, bytes in R2
     rate-limit.ts        fixed-window budget over the shared rate_limit D1 table
-    hash.ts              sha256Hex()/sha256Bytes() — authoritative content hashing
+    hash.ts              sha256Hex() — authoritative content hashing
     log.ts               logUnhandled() — the structured line both fetch entries emit
     env.d.ts             types the OPTIONAL runtime vars onto Env
     auth/auth.ts         createAuth(env, baseURL): per-request Better Auth
     auth/desktop-session.ts  the desktop social handoff: mint/burn the exchange code
     auth/reset-page.ts   the password-reset form the emailed link lands on
     auth/reset-email.ts  sends that link over the EMAIL binding
-    db/schema.ts         Drizzle schema: Better Auth tables + vault_owner
+    db/schema.ts         Drizzle schema: Better Auth tables + rate_limit + handoff codes
     db/client.ts         createDb(d1): per-request Drizzle client over the binding
     tsconfig.json        the no-DOM program
     worker-configuration.d.ts  generated bindings (`pnpm cf-typegen`)
     __tests__/
-      sync.test.ts           miniflare DO + R2 + D1 in-process (vitest-pool-workers)
-      e2e-sync.test.ts       the real @repo/notes engine against the real Worker
-      device-identity.test.ts founding, enrollment, replay, revocation, clock skew
-      device-helpers.ts      a test-side Ed25519 device that mints REAL assertions
+      user-vault.test.ts     the vault: manifest, R2 bytes, tombstones, the gate
       desktop-session.test.ts the code mint/exchange path (state, single use, TTL)
       password-reset.test.ts request → token → reset, with a mock EMAIL binding
       user-host.test.ts      the host socket end to end, incl. eviction + the alarm
@@ -87,23 +82,30 @@ one directory: every tool that resolves a file's config by walking up
 (tsc, the editor, oxlint's type-aware pass) then finds the right one.
 `pnpm typecheck` runs both.
 
-### Sync (`/v1/vault/*`)
+### The vault (inside the host DO)
 
-- **One DO per vault** (`env.VaultCoordinator.getByName(vaultId)`). It owns the
-  manifest in DO SQLite storage (a `files` row per path: `version`, `contentHash`,
-  `size`). File bytes live in R2, keyed
-  `${vaultId}/${path}` — the manifest is authoritative for versions/hashes.
-- **Versions & optimistic concurrency**: a PUT/DELETE carries `x-base-version`.
-  A mismatch returns `version-conflict` **as a value at HTTP 200** (never an error
-  status), mirroring `SyncPort`.
-- **Race-free**: all mutations run through an in-memory promise-chain mutex; bytes
-  are written to R2 before the manifest row commits.
-- **Changes stream**: `GET …/changes` is Server-Sent Events.
+- **One vault per user**, living in that user's `UserHost` object — there is no
+  separate vault object and no vault id to address. The manifest is DO SQLite
+  storage (a `files` row per path: `version`, `contentHash`, `size`,
+  `deleted_at`); file bytes are R2 objects under this object's own prefix, and
+  the manifest is authoritative for versions and hashes.
+- **Write ordering is crash-consistent**: bytes reach R2 BEFORE the manifest row
+  commits, and a permanent purge removes the manifest row BEFORE the R2 object.
+  The tolerable failure is an orphan blob, never a dangling pointer.
+- **Delete is a TOMBSTONE.** "Delete = OS trash" cannot survive the move (there
+  is no OS), and undoing an agent-CREATED note is a delete — with no trash tier
+  every such undo would be permanent. A tombstoned row keeps its bytes for a
+  retention window and is purged by the host's alarm.
+- **The deletion gate** (CLAUDE.md § Decisions) sits here, in the object every
+  writer goes through, so the workspace, the agent and the upload route are all
+  held by one number: deletions past `max(25, 5% of the manifest)` inside a
+  rolling window are held whole until a human confirms. It reads a COUNT, never
+  a cause — it bounds the blast radius of a mass delete, it does not detect one.
 
 ### Workspace host (`GET /v1/host/:userId/ws`)
 
 **One Durable Object per user** (`env.UserHost.getByName("user:" + userId)`)
-serving that user's Bridge — the 95 host methods and 19 event channels
+serving that user’s Bridge — the 89 host methods and 19 event channels
 `@repo/bridge/ipc-registry` declares — over one hibernatable WebSocket per
 client. It is the cloud counterpart of the desktop's local ws host, written
 fresh rather than shared: `@repo/server` reaches node through half its
@@ -148,8 +150,8 @@ dependency graph.
   server-side and would otherwise volunteer state the method gate forbids
   asking for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a
   third path appears.
-- **Six methods are implemented; 89 are shims.** `collectHandlers` throws at
-  construction if any of the 95 is unregistered. `host/handlers.ts`'s
+- **Sixteen methods are implemented; 73 are shims.** `collectHandlers` throws at
+  construction if any of the 89 is unregistered. `host/handlers.ts`'s
   `CLOUD_SHIMS` is the migration backlog, grouped by feature; a shim throws
   naming its gap and never returns a plausible empty value.
 
@@ -172,92 +174,15 @@ dependency graph.
 - The auth tables live in **D1** (`DB` binding) via the Drizzle adapter
   (`provider: "sqlite"`). Schema in `src/worker/db/schema.ts`, applied with
   `drizzle-kit push` — no migration files (`pnpm db:push:local` / `db:push`).
-- **Ownership** (`vault_owner` table): the first authenticated user to touch a
-  `vaultId` claims it. A sync request for a claimed vault by a different user → 403;
+- **Ownership needs no table.** A session names exactly one host object
+  (`getByName("user:" + userId)`), so a user can only ever reach their own vault;
   no/invalid bearer token → 401.
-
-### Device keys (`/v1/vault/:vaultId/{enroll-offer,enroll,devices,revoke}`)
-
-The second, account-free identity model, running **alongside** the one above.
-A bearer that parses as a device assertion is judged as one; anything else goes
-to Better Auth — except on a `v1…` vaultId, where a session is refused outright
-(`401 device-credential-required`) so an account cannot claim a vault no device
-founded. Every account-model vaultId is a UUID, so nothing live is affected.
-The device routes accept only device credentials, so neither model reaches into
-the other.
-
-- **A vaultId is the fingerprint of its founding key** —
-  `"v1" + base32lower(sha256(rawEd25519PublicKey))`, `^v1[a-z2-7]{52}$`. Claiming
-  someone else's vault is a preimage problem, not a race to be first.
-- **The credential is a self-issued 5-minute assertion**, not a minted token:
-  `base64url({v,vid,dev,iat,exp}) + "." + base64url(Ed25519 signature)` over a
-  domain-separated prefix (`@repo/notes/sync/wire`). It is `Authorization:
-Bearer <string>` like everything else, which is why `HttpSyncPort` needed
-  nothing but `getToken` per request.
-- **Verification is split and neither half trusts the other's word.** The
-  Worker checks shape, signature, the time window and `vid` — statelessly, before
-  `getByName`, which is what stops an unauthenticated caller instantiating DOs by
-  naming strings. The DO re-parses the same raw header and adds the one question
-  only it can answer: is this key on my `devices` roster? There is deliberately
-  no `x-device`-style forwarded verdict to forge.
-- **This is why the DO authenticates at all.** It holds the ownership record,
-  so it is the only component that can answer membership without an extra hop —
-  a membership question about its own state, not a second credential check.
-- **Founding is arithmetic**: an empty roster admits exactly the key whose
-  digest reproduces the DO's own name. The DO also admits a session-authorized
-  request while its roster is empty — reachable only for a UUID vault (that is
-  every vault today), since the Worker refuses a session on a `v1…` id; the
-  first device to found takes that door away too.
-- **A 403 never says whether a vault has been founded.** An unenrolled key and a
-  non-founding key on an empty roster get the SAME `device-not-enrolled`;
-  distinguishing them would make any key holder a prober of founding state.
-- **Growth is by signature.** An enrolled device POSTs `enroll-offer` with
-  `sha256hex(secret)` — the server never holds the secret. The joining device
-  POSTs `enroll` with the secret itself, **unauthenticated by design**. Wrong,
-  expired, already-consumed and over-the-attempt-budget all answer an identical
-  `{ok:false}`, so the route is not an offer-existence oracle. It is gated on
-  the vaultId's shape and on a **10/60s-per-IP budget in the Worker**, both
-  _before_ `getByName`. The secret itself must decode
-  to **≥ 32 bytes** (`MIN_ENROLL_SECRET_BYTES`) — the server cannot check
-  randomness, but a short preimage of the stored `sha256hex(secret)` is
-  searchable, so length is refused at both ends.
-- **A stranger can instantiate an empty Durable Object.** Anyone can generate a
-  keypair offline and self-sign an assertion naming any well-shaped `v1…` id; the
-  signature verifies against the key inside it, so the Worker has nothing to
-  object to and the DO runs before answering `device-not-enrolled`. Closing it
-  would need the roster, which lives in the DO — until it is consulted, an
-  enrolled non-founding device and a stranger are the same request. Accepted: the
-  cost is a DO with three empty tables, never vault access. The shape gate and the
-  enroll budget bound the malformed and credential-free cases only.
-
-- **Revocation is a tombstone**, never a `DELETE` — a replayed offer must not
-  resurrect a key — and it **closes every open SSE subscriber**, because the DO
-  cannot tell which stream belongs to the revoked device. Honest ones reconnect
-  and re-authenticate. Revoking the **last live device is refused**
-  (`{ok:false, reason:"last-device"}`): a vault with no live key can neither
-  authenticate nor enroll, so that one tombstone strands the DO and its R2 prefix
-  permanently. Leaving is a client-side "disconnect this vault", not a revoke.
-- **Clock skew is a liveness dependency.** A 401's body carries the reason
-  (`assertion-expired`, `assertion-not-yet-valid`, …) so a client can say "check
-  this device's clock" rather than "sign in again" — there is no sign-in to offer.
-- **Accepted residual: an assertion is replayable across routes.** It binds the
-  vault and a ≤5-minute window, but NOT the method, path or body — so a captured
-  `Authorization` header is good on **every route of that vault** until it
-  expires: `GET manifest`, `GET/PUT/DELETE file`, `GET changes`, `POST
-enroll-offer`, `GET devices` and `POST revoke`. Concretely, within those minutes
-  a captured header can read and overwrite any file, mint a pairing offer that
-  enrolls an attacker's key permanently, and tombstone devices (all but the
-  last). TLS is what keeps the header off the wire; the fix, if that stops being
-  enough, is to cover the request in the signature — the seam is
-  `deviceAssertionSignedBytes` in `@repo/notes/sync/wire`, whose
-  domain-separated prefix exists precisely so a second signed shape can be added
-  without either being replayable as the other.
 
 ### CORS
 
 Desktop (Electron) and mobile (Expo) reach the API from their own processes, and
 every API response carries CORS headers, `OPTIONS` is answered as a preflight,
-and `x-vault-version` / `x-vault-content-hash` / `set-auth-token` are exposed.
+and `set-auth-token` is exposed.
 Nothing narrows the allowed origin: bearer auth carries no cookies, so the
 reflected origin grants a browser nothing a `fetch` from any origin could not
 already do with a token it holds.
@@ -315,8 +240,8 @@ wrangler r2 bucket create inteligir-vault-files
 #    wrangler.jsonc -> d1_databases[0].database_id
 wrangler d1 create inteligir-auth
 
-# 4. Push the schema (user/session/account/verification + vault_owner) to the
-#    remote D1. No migration files — put the three creds in the root
+# 4. Push the schema (user/session/account/verification + the rate-limit and
+#    handoff tables) to the remote D1. No migration files — put the three creds in the root
 #    .env.production.local (see .env.example), then push:
 #      CLOUDFLARE_ACCOUNT_ID  CLOUDFLARE_DATABASE_ID  CLOUDFLARE_D1_TOKEN
 #    (D1_TOKEN = a Cloudflare API token with D1 edit; DATABASE_ID = the id above)

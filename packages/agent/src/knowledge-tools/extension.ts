@@ -1,7 +1,7 @@
 /**
  * Knowledge extension — exposes the derived knowledge indexes (lexical search,
  * backlinks, forward links) and the link-aware rename as agent tools. The
- * indexes live OUTSIDE the vault (rebuilt per device, never synced), so the
+ * indexes live OUTSIDE the vault (rebuilt per device from its files), so the
  * agent's native file tools can't reach them — and a raw `bash mv` can't
  * rewrite the links they track — hence the capabilities arrive through
  * `ports.knowledge` (built main-side in boot/agent-wiring.ts). Pure

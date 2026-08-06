@@ -235,17 +235,6 @@ const vaultExtension: PiExtensionBundle = {
       });
 
       pi.registerTool({
-        name: "get_sync_state",
-        label: "get_sync_state",
-        description:
-          `${grantedDescription("get_sync_state")} \`enabled: false\` is the ordinary ` +
-          "answer, not a problem to fix; Settings → Sync is where the user changes it. " +
-          "Returns a JSON object.",
-        parameters: NoArgsSchema,
-        execute: async () => textResult(JSON.stringify(vault.getSyncState())),
-      });
-
-      pi.registerTool({
         name: "list_delegations",
         label: "list_delegations",
         description:

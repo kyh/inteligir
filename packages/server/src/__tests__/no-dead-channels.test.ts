@@ -42,7 +42,7 @@ const SUPPLY = new Set(
   [
     "packages/bridge/src/ipc-registry.ts",
     "packages/bridge/src/agent-grants.ts",
-    "apps/desktop/dev/fixture-bridge.ts",
+    "packages/workspace/src/dev/fixture-bridge.ts",
     "packages/server/src/__tests__/no-dead-channels.test.ts",
     ".claude/skills/add-bridge-channel/SKILL.md",
     ".claude/skills/add-editor-node/SKILL.md",

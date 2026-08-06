@@ -18,8 +18,6 @@ const TEARDOWN_FILE = path.join(REPO_ROOT, "packages/server/src/boot/agent-wirin
 /** Teardowns NOT called by name in agent-wiring.ts, with the reason each is
  * still covered (or exempt). Adding here requires the same justification. */
 const ALLOWED_ABSENT = new Set([
-  // Cascaded: resetSyncCoordinator() calls resetSyncAccount() itself.
-  "resetSyncAccount",
   // Test-only seam: clears the faux provider's scripted responses between
   // tests — no store cache or handle, nothing to leak across a wipe.
   "resetFauxResponses",

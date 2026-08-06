@@ -23,7 +23,7 @@ device/simulator.)
 pnpm --filter @repo/desktop dev:harness        # vite on http://localhost:5173
 ```
 
-An in-memory fixture Bridge (`apps/desktop/dev/fixture-bridge.ts`) seeds a
+An in-memory fixture Bridge (`packages/workspace/src/dev/fixture-bridge.ts`) seeds a
 sample vault and runs the **real knowledge engine** over it; agent chat streams
 a canned reply; the AI surface returns canned intents/completions; voice and
 executor report unavailable. Edits persist until reload. Use this for all UI
@@ -61,7 +61,7 @@ DB per vault root. It is a pure cache of projected markdown: deleting it (or
 any corruption/version mismatch) is always safe — the host rebuilds it from
 the vault automatically. Never put durable state in it. Desktop search is
 FTS5 bm25 (title/heading/body weighted 10/4/1) through this store; a refresh
-burst (focus → renderer listing + knowledge diff + sync fingerprints) shares
+burst (focus → renderer listing + knowledge diff + fingerprints) shares
 one walk+stat snapshot inside VaultManager (~1s TTL).
 
 ## Ports & shared state
@@ -69,7 +69,7 @@ one walk+stat snapshot inside VaultManager (~1s TTL).
 | What                                                                      | Where                                                                     |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | App dev harness (vite)                                                    | 5173 (auto-increments)                                                    |
-| Site + coordinator Worker (`pnpm dev:web`)                                | 5174 (auto-increments)                                                    |
+| Site + API Worker (`pnpm dev:web`)                                        | 5174 (auto-increments)                                                    |
 | Electron CDP debugging                                                    | 9222                                                                      |
 | Executor daemon                                                           | 47888                                                                     |
 | App state (auth, sessions, ui-state, delegations, snapshots, `host.lock`) | `~/.inteligir`                                                            |
@@ -134,9 +134,9 @@ rotting in prose here:
 
 ## Tests
 
-- `pnpm --filter @repo/notes test` — the pure domain: vault-sync engine +
-  reconcile + wire contract, knowledge engine (link graph, search, rename),
-  markdown parse/vocabulary.
+- `pnpm --filter @repo/notes test` — the pure domain: the knowledge engine
+  (link graph, search, rename), the crawl-exclusion set, markdown
+  parse/vocabulary.
 - `pnpm --filter @repo/desktop test` — the renderer: editor pipeline (round-trip
   matrix, adversarial harness, kit parity, corpus classification), combobox,
   knowledge fixtures.
@@ -145,12 +145,11 @@ rotting in prose here:
 - `pnpm --filter @repo/agent test` — the pi capability (extensions, privacy
   gate, faux provider) + the pi-quarantine and bundle drift guards.
 - `pnpm --filter @repo/server test` — the node backend (vault, delegation
-  +snapshots, knowledge manager, sync adapters, handlers, secrets).
+  +snapshots, knowledge manager, handlers, secrets).
 - `pnpm --filter @repo/web test` — the Worker's API surface against real
-  in-process miniflare (DO + R2 + D1 + Better Auth), incl. the end-to-end sync
-  test that drives @repo/notes's engine through the real backend.
-- `pnpm --filter @repo/mobile test` — the Expo sync adapters on node (in-memory
-  fakes; no simulator).
+  in-process miniflare (UserHost DO + R2 + D1 + Better Auth).
+- `pnpm --filter @repo/mobile test` — the pure companion modules on node
+  (in-memory fakes; no simulator).
 
 ## Releasing the desktop app
 

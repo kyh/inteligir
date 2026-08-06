@@ -1,22 +1,43 @@
+import { emitEvent } from "../events";
 import type { HandlerRegistrar } from "./handler-registry";
 import type { HostServices } from "../boot/host-services";
 
+/**
+ * Account channels. Every mutation re-emits the whole state so the Account
+ * settings section stays reactive without polling; the ONE other emitter is
+ * the deep-link service, which completes a social sign-in nobody is awaiting.
+ */
 export function registerSyncHandlers(
   handle: HandlerRegistrar,
-  services: Pick<HostServices, "sync">,
+  services: Pick<HostServices, "account">,
 ): void {
-  handle("getSyncState", () => services.sync.getState());
-  handle("setSyncConfig", (patch) => services.sync.setConfig(patch));
-  handle("syncSignIn", ({ email, password }) => services.sync.signIn(email, password));
-  handle("syncSignUp", ({ email, password }) => services.sync.signUp(email, password));
-  handle("syncSocialSignIn", ({ provider }) => services.sync.socialSignIn(provider));
-  handle("syncRequestPasswordReset", ({ email }) => services.sync.requestPasswordReset(email));
-  handle("getAccountCapabilities", () => services.sync.getCapabilities());
-  handle("syncSignOut", () => services.sync.signOut());
-  handle("syncNow", (opts) => services.sync.syncNow(opts));
-  handle("getSyncDevices", () => services.sync.listDevices());
-  handle("createSyncPairingOffer", () => services.sync.createPairingOffer());
-  handle("revokeSyncDevice", ({ publicKey }) => services.sync.revokeDevice(publicKey));
-  handle("reconnectSyncVault", () => services.sync.reconnectVault());
-  handle("disconnectSyncVault", () => services.sync.disconnectVault());
+  const emitState = (): void => {
+    emitEvent("onAccountStateChanged", services.account.getState());
+  };
+
+  handle("getAccountState", () => services.account.getState());
+  handle("setAccountServerUrl", ({ serverUrl }) => {
+    services.account.setServerUrl(serverUrl);
+    emitState();
+    return services.account.getState();
+  });
+  handle("syncSignIn", async ({ email, password }) => {
+    const result = await services.account.signIn(email, password);
+    emitState();
+    return result;
+  });
+  handle("syncSignUp", async ({ email, password }) => {
+    const result = await services.account.signUp(email, password);
+    emitState();
+    return result;
+  });
+  // Initiation only — the browser leg completes through the deep link, which
+  // emits both the verdict and the state.
+  handle("syncSocialSignIn", ({ provider }) => services.account.socialSignIn(provider));
+  handle("syncRequestPasswordReset", ({ email }) => services.account.requestPasswordReset(email));
+  handle("getAccountCapabilities", () => services.account.getCapabilities());
+  handle("syncSignOut", async () => {
+    await services.account.signOut();
+    emitState();
+  });
 }

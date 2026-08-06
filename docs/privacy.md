@@ -35,8 +35,8 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   related notes come back the same way.
 - **Every other vault tool drops it too.** The whole-vault reads the agent
   gets (`list_vault`, `read_note`, `get_note_facts`, `list_tasks`,
-  `list_tags`, `list_wiki_targets`, `get_link_graph`, `get_sync_state`,
-  `list_delegations`) run through the same projection: excluded at the index,
+  `list_tags`, `list_wiki_targets`, `get_link_graph`, `list_delegations`) run
+  through the same projection: excluded at the index,
   every survivor re-probed against live disk, dropped silently rather than
   annotated. Counts are recomputed over the notes that survive, so no number
   disagrees with the list beside it. The mutating ones (`toggle_task`,
@@ -56,9 +56,9 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   agent which note is open; for a private note even the path is withheld.
   Checked twice at send time, fail-closed: the live editor buffer (so a
   just-typed `private: true` counts before any save) AND a host-side
-  live-disk probe (so an external flip — a sync pull or an agent write that
-  landed `private: true` on disk before the editor reloaded — suppresses the
-  path too).
+  live-disk probe (so an external flip — an agent write or an outside editor
+  that landed `private: true` on disk before the editor reloaded — suppresses
+  the path too).
 - **Delegation refuses it.** "Delegate" on a checkbox inside a private note
   fails with an explicit error, at creation and re-checked at dispatch.
 - **Fail-closed defaults.** Frontmatter that can't be parsed (malformed
@@ -80,10 +80,6 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   can screenshot a private note that is open on your screen.
 - **Filenames still leak to the shell.** `bash ls vault/` shows private
   notes' names; only the knowledge tools hide paths.
-- **Sync uploads it unencrypted.** Vault sync (off by default) mirrors
-  private notes to the sync server exactly like any other file — the flag
-  provides no server-side protection. Excluding them from sync would be
-  worse (silent data loss on other devices), so we sync and say so.
 - **Chat paste is not covered.** Content you paste into the chat composer,
   or copy into a public note, is out of scope by definition.
 - **HTML Apps can read it.** The `window.inteligir.files` broker does not
@@ -93,12 +89,11 @@ boundary**. Read the "What it does NOT do" list before relying on it.
   model typed plus the refusal string in `~/.inteligir/sessions/*.jsonl` —
   never the note's content. Content a `bash` bypass obtained WOULD land in
   the transcript (the hole above).
-- **Whole-vault COUNTS are not partitioned (accepted).** Sync's manifest
-  covers every file, private ones included, so the number of files it tracks
-  differenced against a count taken over the public notes alone yields how
-  many private notes exist. A count, never a name or a byte — and the
-  alternative, a manifest that hides private files, is silent data loss on
-  your other devices.
+- **Whole-vault COUNTS are not partitioned (accepted).** The vault listing
+  covers every file, private ones included, so a total differenced against a
+  count taken over the public notes alone yields how many private notes exist.
+  A count, never a name or a byte — and the alternative, a listing that hides
+  private files, loses them silently.
 - **A refusal is an existence oracle (accepted).** The block reason tells
   the model that the path it named exists and is private, so an agent could
   guess filenames and learn which exist-and-are-private — paths only, never
@@ -108,8 +103,8 @@ boundary**. Read the "What it does NOT do" list before relying on it.
 
 ## Mechanics
 
-- The flag is plain frontmatter — the file is the only store; it syncs as
-  bytes and any editor can set it. Strict typing per the properties panel:
+- The flag is plain frontmatter — the file is the only store, and any editor
+  can set it. Strict typing per the properties panel:
   **only a top-level, lowercase `private: true` (a plain YAML boolean) marks
   a note private.** `private: yes`, `private: "true"`, a capitalized
   `Private: true` (different key), or `private` nested under another key all

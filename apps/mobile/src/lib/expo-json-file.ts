@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // One JSON document under the app's document directory, over Expo's
 // synchronous File API. The read/write pair every persisted mobile store sits
-// on (the sync base manifest, the chat outbox); a fresh `File` instance per
+// on (today the chat outbox); a fresh `File` instance per
 // call so `exists` reflects current state.
 //
 // The replace goes through a temp sibling written in full and then renamed

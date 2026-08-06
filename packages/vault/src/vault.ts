@@ -42,7 +42,7 @@ import {
   cloudPlaceholderTarget,
   isExcludedFileName,
   isPrunedName,
-} from "@repo/notes/sync/crawl-exclusions";
+} from "@repo/notes/knowledge/crawl-exclusions";
 import type { VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
 
 // ---------------------------------------------------------------------------
@@ -74,29 +74,26 @@ function classify(fileName: string): VaultEntry["kind"] {
   return isDocPath(fileName) ? "doc" : "other";
 }
 
-// What the crawl excludes from the MANIFEST (hard-pruned trees, in-flight
-// `*.tmp` siblings, OS metadata) lives in @repo/notes/sync/crawl-exclusions —
-// one fact both this walk and mobile's answer from, because a name only one
-// platform excludes reconciles as a deletion on the other.
+// What the crawl leaves out of the vault ENTIRELY (hard-pruned trees, in-flight
+// `*.tmp` siblings, OS metadata) lives in @repo/notes/knowledge/crawl-exclusions.
 //
 // Root-level ignore files parsed (v1) to filter the VIEW — not access, and not
-// the sync manifest. Matched files are still crawled; they are withheld from
-// the listings the user sees, and a file explicitly opened still reads/writes
+// the crawl. Matched files are still crawled; they are withheld from the
+// listings the user sees, and a file explicitly opened still reads/writes
 // fine.
 const IGNORE_FILES = [".gitignore", ".ignore"];
 
 /** How a vault change should propagate. `refresh` runs the full pipeline
- * (broadcast onVaultChanged + knowledge + sync) — structural writes, the open-
- * note watcher, focus/manual refresh, delegation completion. `save` is a
- * content overwrite of an existing file (an autosave): it keeps the knowledge
- * index and sync live but does NOT broadcast, so the user's own typing stops
- * generating any vault-changed traffic (vault liveness — CLAUDE.md
- * § Decisions). */
+ * (broadcast onVaultChanged + knowledge) — structural writes, the open-note
+ * watcher, focus/manual refresh, delegation completion. `save` is a content
+ * overwrite of an existing file (an autosave): it keeps the knowledge index
+ * live but does NOT broadcast, so the user's own typing stops generating any
+ * vault-changed traffic (vault liveness — CLAUDE.md § Decisions). */
 export type VaultChangeKind = "refresh" | "save";
 
 /** A listed vault file as the WALK sees it: identity and kind straight off the
- * Dirent, no stat. This is everything the sidebar listing and the sync manifest
- * need, which is why the crawl never pays a stat to produce them. */
+ * Dirent, no stat. This is everything the sidebar listing and the complete
+ * listing need, which is why the crawl never pays a stat to produce them. */
 type VaultWalkEntry = { path: string; name: string; kind: VaultEntry["kind"] };
 
 /** The stat triple change-detection diffs on. Content can't change without
@@ -112,9 +109,9 @@ export type VaultListingEntry =
   | (VaultWalkEntry & { kind: "doc" } & StatIdentity)
   | (VaultWalkEntry & { kind: "other" });
 
-/** How long a walk snapshot may be reused. Bounds staleness for sync's
- * snapshot-served fingerprints; a refresh burst (window focus fans into
- * renderer listing + knowledge + sync) shares ONE crawl inside the window. */
+/** How long a walk snapshot may be reused. Bounds staleness for the
+ * snapshot-served fingerprints; a refresh burst (window focus fans into the
+ * renderer listing + knowledge) shares ONE crawl inside the window. */
 const SNAPSHOT_TTL_MS = 1000;
 
 /** How long the stat sweep behind `listWithStats()` may run before yielding to
@@ -135,9 +132,8 @@ type VaultSnapshot = {
   /** The subset of `entries` withheld from the UI: matched by the root ignore
    * files, or dot-prefixed — either directly or through an ancestor directory
    * that is. Both are VIEW choices, they declutter the sidebar, so they share
-   * one set and neither leaves `entries`: sync reads a path's absence from the
-   * manifest as a local DELETE, and a file that is still on disk must never
-   * say that. */
+   * one set and neither leaves `entries`: hiding a file from a sidebar must
+   * never make it absent from the vault. */
   hidden: ReadonlySet<string>;
   /** Entries the crawl saw but cannot represent as vault files — symlinks
    * (which a Dirent reports as neither file nor directory) and special files.
@@ -147,9 +143,8 @@ type VaultSnapshot = {
   skipped: ReadonlySet<string>;
   /** The REAL paths behind the cloud placeholders the crawl saw
    * (`.note.md.icloud` → `note.md`), never the stubs themselves. Each names a
-   * file that is real on every other device, so a manifest built over this
-   * crawl would report it deleted — but only if it was ever synced, which this
-   * crawl has no way to know. */
+   * file the user has that this disk does not currently hold, so the crawl
+   * reports it rather than presenting it as absent. */
   placeholders: ReadonlySet<string>;
   /** Stat identities, filled LAZILY by `statOf` and memoized here — so a
    * refresh burst pays each file's stat at most once no matter how many
@@ -157,30 +152,28 @@ type VaultSnapshot = {
   stats: Map<string, StatIdentity>;
   /** Did every directory READ succeed? `false` when the root was missing or a
    * readdir failed — `entries` is then a best-effort partial. The UI listing
-   * serves it anyway (lenient); `listAllPaths()` (the sync manifest source)
-   * refuses it, because a truncated listing is indistinguishable from a mass
-   * deletion. Deliberately narrower than "saw every file": `skipped` and
-   * `placeholders` name individual files this crawl could not read, which is a
-   * question only the engine (which holds the last-synced base) can answer. */
+   * serves it anyway (lenient); `listAllPaths()` refuses it, because a
+   * truncated listing is indistinguishable from a vault that lost those files.
+   * Deliberately narrower than "saw every file": `skipped` and `placeholders`
+   * name individual files this crawl could not read, which only a caller
+   * holding a prior listing can judge. */
   complete: boolean;
   /** The first directory the crawl could not read, vault-relative ("." for the
-   * root), or null when the crawl was complete. Carried so a wedged sync names
-   * the offending folder instead of only the vault root. */
+   * root), or null when the crawl was complete. Carried so a refusal names the
+   * offending folder instead of only the vault root. */
   unreadable: string | null;
 };
 
 /** Thrown by `listAllPaths()` when the crawl could not READ the vault — a
- * missing root or an unreadable subtree. Sync-facing on purpose: the 3-way
- * reconcile reads "in base, absent from local" as a LOCAL DELETE, and a
- * truncated crawl is indistinguishable from a mass deletion, so it must fail
- * the pass rather than propagate one. The UI-facing `list()`/`listWithStats()`
- * stay lenient and serve the partial instead.
+ * missing root or an unreadable subtree. The COMPLETE listing exists for
+ * callers that would read an absent path as a lost file, so it refuses a
+ * partial rather than presenting truncation as absence. The UI-facing
+ * `list()`/`listWithStats()` stay lenient and serve the partial instead.
  *
  * Individual files the crawl saw but could not read (a symlink, a cloud
  * placeholder) are NOT this: the listing is whole, one path in it is not a
- * file, and whether that can delete anything depends on the last-synced base
- * this class knows nothing about. Those come back from `unaccountedPaths()`
- * and the engine decides. */
+ * file, and only a caller holding a prior listing can judge what that means.
+ * Those come back from `unaccountedPaths()`. */
 export class VaultListingIncompleteError extends Error {
   constructor(root: string, reason: string) {
     super(
@@ -315,17 +308,13 @@ export class VaultManager {
   }
 
   /** Every file path ON DISK under the vault (same crawl as list(), minus the
-   * entry shaping) — including the hidden ones list() withholds. A truncated
-   * manifest reads as deletions: the 3-way reconcile treats "was in base and
-   * remote, missing from local" as a local deletion and propagates it to the
-   * coordinator and every peer. That is exactly why this — and ONLY this, the
-   * sync-facing listing — THROWS on a crawl that could not be READ instead of
-   * returning the partial; the engine surfaces the throw as a failed pass and
-   * retries later. It is also why neither the ignore files nor the dot-prefix
-   * rule can filter here: decluttering a SIDEBAR (or dragging a folder into
-   * `.archive/`) must never be a vault-wide deletion. The exclusions are
-   * exactly the shared manifest set (@repo/notes/sync/crawl-exclusions), which
-   * both platforms apply on every pass.
+   * entry shaping) — including the hidden ones list() withholds. This is the
+   * COMPLETE listing, for callers that read an absent path as a lost file, so
+   * it THROWS on a crawl that could not be READ instead of returning the
+   * partial. It is also why neither the ignore files nor the dot-prefix rule
+   * can filter here: decluttering a SIDEBAR (or dragging a folder into
+   * `.archive/`) is a VIEW choice and must never read as a missing file. The
+   * exclusions are exactly @repo/notes/knowledge/crawl-exclusions.
    * Nothing here stats, so a per-file stat hiccup cannot silently thin this
    * listing — only a failed readdir or a missing root can, and both are
    * refused above. Files the crawl saw but could not read are reported by
@@ -348,16 +337,14 @@ export class VaultManager {
   /** The paths this crawl SAW but could not present as vault files: entries it
    * refuses to read (a symlink reports as neither file nor directory) and the
    * real names behind cloud placeholders (`.note.md.icloud` → `note.md`).
-   * Sorted, and served off the same TTL snapshot as `listAllPaths()`, so a sync
-   * pass asking both crawls once.
+   * Sorted, and served off the same TTL snapshot as `listAllPaths()`, so a
+   * caller asking both crawls once.
    *
-   * Each is a file that may still exist on every other device, so leaving it
-   * out of the manifest can read as a local delete — but ONLY if it was ever
-   * synced, and this class does not know the last-synced base. So it reports
-   * instead of refusing: the engine intersects these with its base and fails
-   * the pass on a hit. A symlink that was never a note is a no-op, which is the
-   * common case — one link anywhere under the vault must not wedge sync
-   * forever. */
+   * Each is a path the vault holds something under that this crawl could not
+   * present as a file. It REPORTS rather than refusing, because only a caller
+   * holding a prior listing can tell a note it just lost sight of from a
+   * symlink that was never a note — and the latter is the common case, which
+   * must not wedge every listing forever. */
   unaccountedPaths(): readonly string[] {
     const snapshot = this.getSnapshot();
     // A path the crawl DID account for is readable, whatever else sits beside
@@ -373,7 +360,7 @@ export class VaultManager {
    * diff basis. Freshness follows the snapshot TTL: external edits surface on
    * the next refresh trigger, exactly the ephemeral-liveness contract.
    * Hidden files are withheld exactly as in list(): derived knowledge indexes
-   * what the user chose to see, and only sync must track disk.
+   * what the user chose to see.
    *
    * ASYNC because one stat per doc is the crawl's dominant syscall cost, and a
    * whole-vault sweep in one uninterruptible call is a multi-hundred-
@@ -388,7 +375,7 @@ export class VaultManager {
    * derived knowledge self-heals on the next refresh. Non-docs never stat, so
    * nothing can thin them out of the listing — a flaky mount would otherwise
    * make the reconcile see an asset as deleted and re-add it every pass. Only
-   * sync (`listAllPaths`) must refuse a partial, and it never stats at all. */
+   * `listAllPaths` must refuse a partial, and it never stats at all. */
   async listWithStats(): Promise<VaultListingEntry[]> {
     // The slice clock starts BEFORE the walk: a cold call pays for its own
     // crawl, so charging that to the first slice makes the sweep yield right
@@ -415,7 +402,7 @@ export class VaultManager {
   // The shared crawl behind list()/listAllPaths()/listWithStats(): ONE walk,
   // cached for SNAPSHOT_TTL_MS and invalidated by every mutating method (and
   // rebuilt, never reused, by an explicit refresh()) — so the window-focus
-  // fan-out (renderer listing, knowledge diff, sync manifest+fingerprints)
+  // fan-out (renderer listing, knowledge diff + fingerprints)
   // shares a single crawl instead of three.
   //
   // The crawl NEVER stats. Identity and kind come off the Dirent, which is
@@ -423,11 +410,11 @@ export class VaultManager {
   // the single largest cost in a large vault. Stats are filled in lazily by
   // statOf() for the two consumers that want them and memoized on the snapshot.
   //
-  // A stat-free walk is what keeps the sync-facing listing honest, too: a file
+  // A stat-free walk is what keeps the complete listing honest, too: a file
   // readdir saw but stat cannot read (a flaky network mount) stays LISTED, so
-  // it can never fall out of the manifest and be read as a deletion. Its
-  // fingerprint goes null instead, which makes the engine re-read the bytes and
-  // fail the pass loudly if those are unreadable too.
+  // it can never drop out and be read as a missing file. Its fingerprint goes
+  // null instead, so a consumer re-reads the bytes and fails loudly if those
+  // are unreadable too.
   private getSnapshot(): VaultSnapshot {
     const root = this.getRoot();
     const fresh = this.freshSnapshot(root);
@@ -512,8 +499,8 @@ export class VaultManager {
     this.snapshot = null;
   }
 
-  // The recursive walk behind the snapshot: excludes only the shared manifest
-  // set (@repo/notes/sync/crawl-exclusions) and RECORDS everything else it
+  // The recursive walk behind the snapshot: excludes only the crawl-exclusion
+  // set (@repo/notes/knowledge/crawl-exclusions) and RECORDS everything else it
   // cannot present as a plain readable file — the hidden paths (dot-prefixed or
   // ignore-matched, a VIEW choice each consumer decides for itself), the
   // entries it refuses to read (symlinks), and the cloud placeholders standing
@@ -554,10 +541,10 @@ export class VaultManager {
         dirents = fs.readdirSync(dir, { withFileTypes: true });
       } catch {
         complete = false; // unreadable subtree — skip it, but never hide that
-        // Named so a wedged sync is diagnosable: an ignored directory is now
+        // Named so the refusal is diagnosable: an ignored directory is still
         // descended, so a chmod-000 or disconnected mount the user thought
-        // they had excluded fails every pass, and the root alone doesn't say
-        // which one. Mirrors mobile's sibling error.
+        // they had excluded fails every complete listing, and the root alone
+        // doesn't say which one.
         unreadable ??= prefix === "" ? "." : prefix;
         return;
       }
@@ -568,19 +555,19 @@ export class VaultManager {
         // `ignore` wants a trailing slash to match directory patterns.
         if (dirent.isDirectory()) {
           // A hidden directory is DESCENDED anyway — the readdirs it costs
-          // buy the one thing the sync manifest cannot do without: its files
-          // are on disk, so leaving them unwalked would present them to
-          // reconcile as local deletions to fan out to every device.
+          // buy the one thing a complete listing cannot do without: its files
+          // are on disk, so leaving them unwalked would present a file the
+          // user still has as one the vault no longer holds.
           visit(
             childPath(dir, name),
             `${rel}/`,
             inherited || name.startsWith(".") || (ig !== null && ig.ignores(`${rel}/`)),
           );
         } else if (dirent.isFile()) {
-          // A placeholder stub is not a file to sync — it is the crawl saying
-          // the file it NAMES has been evicted from this disk. Record the real
-          // path (isExcludedFileName then keeps the stub out of the manifest,
-          // where it would otherwise upload as an empty file to every device).
+          // A placeholder stub is not a file — it is the crawl saying the file
+          // it NAMES has been evicted from this disk. Record the real path
+          // (isExcludedFileName then keeps the stub out of the listing, where
+          // it would otherwise present as an empty note).
           const evicted = cloudPlaceholderTarget(name);
           if (evicted !== null) placeholders.add(prefix + evicted);
           if (isExcludedFileName(name)) continue;
@@ -634,7 +621,7 @@ export class VaultManager {
     atomicWrite(target, content);
     this.invalidateSnapshot();
     // A new file changes the listing (refresh); overwriting an existing one is a
-    // content save (sync + knowledge stay live, but no broadcast — the open-note
+    // content save (knowledge stays live, but no broadcast — the open-note
     // watcher covers the open file, and the app's own autosaves go silent).
     this.notify(existed ? "save" : "refresh");
   }
@@ -642,8 +629,8 @@ export class VaultManager {
   /** Record that the app itself just wrote `rel` (the editor's autosave path),
    * so the watch event that write triggers on the open note is filtered out
    * rather than mistaken for an external edit. Called by the editor write
-   * handler only — restore / sync-pull deliberately do NOT record, so their
-   * writes to the open note still surface as reloads. */
+   * handler only — a restore deliberately does NOT record, so its write to the
+   * open note still surfaces as a reload. */
   markSelfSave(rel: string): void {
     // Full stat fingerprint (mtimeMs:size:ino), not mtime alone — an external
     // edit with a colliding mtime must still surface (classify-file-change).
@@ -652,16 +639,16 @@ export class VaultManager {
     if (fingerprint !== null) this.selfSaves.record(rel, fingerprint);
   }
 
-  /** Raw file bytes — the binary-safe primitive the sync protocol reads (markdown
-   * is UTF-8, but images/pdfs are opaque bytes a text round-trip would corrupt).
-   * A fresh `Uint8Array` copy so callers can't mutate node's internal buffer. */
+  /** Raw file bytes — the binary-safe read (markdown is UTF-8, but images/pdfs
+   * are opaque bytes a text round-trip would corrupt). A fresh `Uint8Array`
+   * copy so callers can't mutate node's internal buffer. */
   readBytes(rel: string): Uint8Array {
     const target = this.resolve(rel);
     return new Uint8Array(fs.readFileSync(target));
   }
 
-  /** Atomically write raw bytes — the binary-safe write the sync client uses to
-   * land a pulled file. Same confinement + atomic-rename story as writeText. */
+  /** Atomically write raw bytes — the binary-safe write behind pasted/dropped
+   * attachments. Same confinement + atomic-rename story as writeText. */
   writeBytes(rel: string, content: Uint8Array): void {
     assertVaultWritable();
     const target = this.resolve(rel);
@@ -672,17 +659,17 @@ export class VaultManager {
     this.notify(existed ? "save" : "refresh");
   }
 
-  /** Cheap stat-keyed change-detection fingerprint for the sync engine's hash
-   * cache — `mtimeMs:size:ino`, or `null` on any error (missing file, etc.).
+  /** Cheap stat-keyed change-detection fingerprint for the knowledge pass's
+   * hash cache — `mtimeMs:size:ino`, or `null` on any error (missing file).
    * A change to content necessarily changes at least one of these, so a matching
    * fingerprint safely licenses reusing a cached hash instead of re-reading.
-   * Memoized on the shared snapshot when fresh (so a sync pass and a knowledge
-   * pass in the same window stat each file once between them, ≤SNAPSHOT_TTL_MS
-   * stale — own writes always invalidate); a path ABSENT from the crawl
-   * (a non-listing spelling, a file created since) falls through to a
-   * resolve()-confined live stat, never to a false null. Crawl membership is
-   * `entries`, which holds the hidden files too — so the paths sync lists are
-   * exactly the paths it can fingerprint off the memo. */
+   * Memoized on the shared snapshot when fresh (so two passes in the same
+   * window stat each file once between them, ≤SNAPSHOT_TTL_MS stale — own
+   * writes always invalidate); a path ABSENT from the crawl (a non-listing
+   * spelling, a file created since) falls through to a resolve()-confined live
+   * stat, never to a false null. Crawl membership is `entries`, which holds the
+   * hidden files too — so every listed path can be fingerprinted off the
+   * memo. */
   statFingerprint(rel: string): string | null {
     const cached = this.freshSnapshot(this.getRoot());
     if (cached !== null && cached.entries.has(rel)) {
@@ -726,26 +713,12 @@ export class VaultManager {
     }
   }
 
-  /** Permanent remove. This is the SYNC path only (a sync-applied remote
-   * delete was user-initiated — and trashed — on the ORIGINATING device, and
-   * core's SyncIo.remove is synchronous); user-initiated deletes go through
-   * trash() instead. */
-  delete(rel: string): boolean {
-    assertVaultWritable();
-    const target = this.resolve(rel);
-    if (!fs.existsSync(target)) return false;
-    fs.rmSync(target, { force: true });
-    this.invalidateSnapshot();
-    this.notify("refresh");
-    return true;
-  }
-
-  /** User-initiated delete: move the file to the OS trash so it's recoverable
-   * (the OS is the trash UI — no in-app trash view). Falls back to a
-   * permanent remove when the platform can't trash (some Linux setups),
-   * matching the old behavior there. Non-recursive by contract, like
-   * delete(): the UI offers Delete on files only, and shell.trashItem
-   * accepting a directory must not silently widen that affordance. */
+  /** Delete a vault file: move it to the OS trash so it stays recoverable
+   * (the OS is the trash UI — no in-app trash view, CLAUDE.md § Decisions).
+   * The ONLY removal path there is; a permanent `fs.rm` exists here solely as
+   * the fallback for platforms that cannot trash (some Linux setups).
+   * Non-recursive by contract: the UI offers Delete on files only, and
+   * shell.trashItem accepting a directory must not silently widen that. */
   async trash(rel: string): Promise<boolean> {
     assertVaultWritable();
     const target = this.resolve(rel);
@@ -768,7 +741,7 @@ export class VaultManager {
    * The occupied check is CASE-INSENSITIVE (and unicode-normalization-
    * insensitive) over the destination directory's real listing: a plain
    * existsSync(dst) passes on case-sensitive dev filesystems and then
-   * explodes on the APFS/NTFS machines the vault syncs to — and on APFS it
+   * explodes on the APFS/NTFS machines the vault lives on — and on APFS it
    * refused CASE-ONLY self-renames because existsSync(dst) saw the source
    * itself. Occupancy is decided by inode: a matching name that IS the
    * source (case-only / normalization-only retitle) passes through to a
@@ -869,7 +842,7 @@ export class VaultManager {
 
   /** Fire the full refresh pipeline on demand (window focus, the "Refresh vault"
    * command, delegation completion). This is the ephemeral snapshot's rebuild
-   * trigger — the renderer re-lists, knowledge re-indexes, sync kicks — and it
+   * trigger — the renderer re-lists and knowledge re-indexes — and it
    * always drops the walk snapshot first, so the whole burst shares one FRESH
    * crawl (a refresh must discover external edits, never reuse the cache). */
   refresh(): void {
@@ -1013,8 +986,8 @@ export class VaultManager {
 }
 
 /** The change-detection fingerprint: `mtimeMs:size:ino`. One spelling, so the
- * open-note classifier, the sync hash cache and the snapshot memo can never
- * disagree about what "unchanged" means. */
+ * open-note classifier, the knowledge hash cache and the snapshot memo can
+ * never disagree about what "unchanged" means. */
 function fingerprintOf(identity: StatIdentity): string {
   return `${identity.mtimeMs}:${identity.size}:${identity.ino}`;
 }

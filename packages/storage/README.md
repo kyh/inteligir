@@ -61,11 +61,11 @@ Exports map = exactly these ten subpaths; no barrel.
   mid-session. pi's
   auth.json stays pi-owned (plaintext-but-0600 by design; no cipher seam).
 - **`StoreAdapter` is synchronous, permanently.** Not a convenience:
-  `capture-manager`'s exactly-once compare-and-swap and the sync engine's
-  `SyncIo.remove` are correct only because a read-modify-write completes in
-  one JS turn with no await to interleave on. Both backings offer synchronous
-  primitives (node fs; a SQLite-backed DO's `ctx.storage.kv`), so an async
-  adapter would buy nothing and break those callers.
+  `capture-manager`'s exactly-once compare-and-swap is correct only because a
+  read-modify-write completes in one JS turn with no await to interleave on.
+  Both backings offer synchronous primitives (node fs; a SQLite-backed DO's
+  `ctx.storage.kv`), so an async adapter would buy nothing and break that
+  caller.
 - **Version drift is quarantine-only.** There is deliberately no migration
   registry until a real migration needs one. Any version other than
   `current` (newer, older, missing) sets the file aside (`.newer-v<N>-<ts>` /

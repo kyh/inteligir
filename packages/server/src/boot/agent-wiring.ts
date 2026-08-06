@@ -43,7 +43,7 @@ import {
 } from "@repo/connectors/executor-daemon";
 import { resetNotifications } from "../notifications";
 import { resetSecretStore } from "@repo/storage/secrets";
-import { getSyncCoordinator, resetSyncCoordinator } from "@repo/sync/sync-coordinator";
+import { resetSyncAccount } from "@repo/sync/sync-account";
 import { resetRemoteAccessManager } from "../transport/remote-access-manager";
 import { resetUiState } from "../ui-state";
 import {
@@ -98,7 +98,6 @@ export function getAgentPorts(): AgentPorts {
       queries: () => getKnowledgeManager(),
       probe: probeVaultPrivacy,
       vault: getVaultManager,
-      sync: () => getSyncCoordinator().getState(),
       delegations: () => getDelegationManager().getDelegations(),
     }),
     // The mutating tiers (boot/agent-action-port.ts): live-disk privacy on
@@ -250,7 +249,7 @@ export function teardownAgentResources(): void {
   resetRoutinesManager();
   resetSnapshotStore();
   resetExecutorDaemon();
-  resetSyncCoordinator();
+  resetSyncAccount();
   // Also revokes every paired remote device and pairing token, which closes
   // their live ws sockets — remote credentials must not survive logout.
   resetRemoteAccessManager();

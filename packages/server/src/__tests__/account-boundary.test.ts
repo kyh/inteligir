@@ -2,11 +2,11 @@
 // Account-boundary guard: the Better Auth account gates ONLY cloud
 // saves. This test walks the repo's source and asserts every reference to the
 // account layer — the SyncAccount client, its session file, the sign-in/out
-// Bridge channels, and the `signedIn` state — lives inside the sync layer or
-// the Account/Sync settings sections. Any other feature reaching for the
-// account (AI, editor, delegation, vault, …) fails here BEFORE it can ship a
-// gate the product forbids. The import direction is pinned too:
-// the provider layer never imports sync, and sync never imports the
+// Bridge channels, and the `signedIn` state — lives inside @repo/sync or the
+// Account settings section. Any other feature reaching for the account (AI,
+// editor, delegation, vault, …) fails here BEFORE it can ship a gate the
+// product forbids. The import direction is pinned too: the provider layer
+// never imports the account layer and the account layer never imports the
 // provider layer — so provider disconnect and account sign-out CANNOT touch
 // each other's storage.
 // ---------------------------------------------------------------------------
@@ -37,15 +37,15 @@ function scannedDirs(): string[] {
 const SKIP_DIR_NAMES = new Set(["node_modules", "dist", ".cache", ".output", ".expo", "coverage"]);
 
 /** Account-layer tokens: the client class, its singleton, the session file,
- * the auth Bridge channels, and the signed-in flag. Deliberately NOT the
- * whole sync vocabulary — sync lifecycle wiring (getSyncCoordinator in the
- * composition root) is fine; consuming the ACCOUNT is what's fenced. */
+ * the auth Bridge channels, and the signed-in flag. Consuming the ACCOUNT is
+ * what's fenced; the composition root may still WIRE it, which is why the
+ * three files that do are named below. */
 const ACCOUNT_TOKENS =
   /\bSyncAccount\b|\bgetSyncAccount\b|sync-auth|\bsyncSignIn\b|\bsyncSignUp\b|\bsyncSignOut\b|\bsyncSocialSignIn\b|\bgetAccountCapabilities\b|\bsignedIn\b/;
 
 /** The ONLY places allowed to speak the account vocabulary. */
 const ALLOWED = [
-  // The account+sync layer itself (client, coordinator, their tests).
+  // The account client itself, and its tests.
   "packages/sync/src/",
   // The Bridge surface: wire contract, channel table, host handlers.
   "packages/bridge/src/sync.ts",
@@ -54,15 +54,21 @@ const ALLOWED = [
   // The cloud host's handler table, for the same reason: it must answer every
   // channel the registry declares, and it names these only to refuse them.
   "apps/web/src/worker/host/handlers.ts",
-  // The two settings surfaces: Account owns the session, Sync consumes it.
+  // The one settings surface that owns the session.
   "packages/workspace/src/settings/sections/account-section.tsx",
-  "packages/workspace/src/settings/sections/sync-section.tsx",
   // The dev-harness Bridge must implement every channel by contract.
   "packages/workspace/src/dev/fixture-bridge.ts",
   // The agent grant table names the account channels only to DECLARE them
   // never-granted, and its declaration is exhaustive over the registry by
   // construction. A denial is the opposite of a consumer.
   "packages/bridge/src/agent-grants.ts",
+  // Composition, not consumption. These three reach the singleton to WIRE it —
+  // the services object the account handlers act through, the boot-time
+  // allocation of its stores, and the deep-link leg that finishes a social
+  // sign-in the account itself initiated. None of them reads a session.
+  "packages/server/src/boot/host-services.ts",
+  "packages/server/src/boot/singletons.ts",
+  "packages/server/src/capture/deep-link-service.ts",
   // This guard names the tokens it hunts.
   "packages/server/src/__tests__/account-boundary.test.ts",
 ];
@@ -92,7 +98,7 @@ function rel(file: string): string {
 }
 
 describe("account boundary (#459)", () => {
-  it("only the sync layer and the Account/Sync settings sections reference the account", () => {
+  it("only the account layer and the Account settings section reference the account", () => {
     const violations: string[] = [];
     for (const file of sourceFiles()) {
       const relative = rel(file);
@@ -103,11 +109,11 @@ describe("account boundary (#459)", () => {
     }
     expect(
       violations,
-      `Account references outside the sync layer — the account may gate ONLY cloud saves:\n${violations.join("\n")}`,
+      `Account references outside the account layer — the account may gate ONLY cloud saves:\n${violations.join("\n")}`,
     ).toEqual([]);
   });
 
-  it("provider layer and sync layer never import each other (teardown decouple)", () => {
+  it("provider layer and account layer never import each other (teardown decouple)", () => {
     const providerDir = path.join(REPO_ROOT, "packages/server/src/provider");
     const syncDir = path.join(REPO_ROOT, "packages/sync/src");
     const agentAuth = path.join(REPO_ROOT, "packages/agent/src/auth.ts");
@@ -116,9 +122,10 @@ describe("account boundary (#459)", () => {
     walk(providerDir, providerFiles);
     providerFiles.push(agentAuth);
     for (const file of providerFiles) {
-      expect(fs.readFileSync(file, "utf8"), `${rel(file)} must not import sync`).not.toMatch(
-        /from "[^"]*\/sync\//,
-      );
+      expect(
+        fs.readFileSync(file, "utf8"),
+        `${rel(file)} must not import the account layer`,
+      ).not.toMatch(/from "[^"]*\/sync\//);
     }
 
     const syncFiles: string[] = [];

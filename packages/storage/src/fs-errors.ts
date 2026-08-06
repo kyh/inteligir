@@ -7,9 +7,8 @@ export function isEnoent(err: unknown): boolean {
 }
 
 // Two deliberate one-line copies so storage stays a LEAF package (dep DAG,
-// CLAUDE.md): the canonical isRecord lives in @repo/notes/sync/guards (re-
-// exported by @repo/bridge/wire-helpers) — a workspace edge for two
-// one-liners isn't worth un-leafing the substrate.
+// CLAUDE.md): the canonical isRecord lives in @repo/bridge/wire-helpers — a
+// workspace edge for two one-liners isn't worth un-leafing the substrate.
 
 /** True for a non-null, non-array object — narrows `unknown` before indexing
  * its keys (json-store's raw-parse boundary). */

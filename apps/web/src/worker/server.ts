@@ -7,8 +7,8 @@ import api, { ownsPath } from "./index";
 //
 // The split is by path and nothing else — `ownsPath` (declared beside the API
 // route table, so the two cannot drift) sends /api/*, /v1/* and /auth/* to the
-// vault-sync + Better Auth surface, and everything else to TanStack Start's SSR
-// handler.
+// Better Auth + workspace-host surface, and everything else to TanStack Start's
+// SSR handler.
 //
 // The default export is a plain `ExportedHandler<Env>` rather than Start's
 // `createServerEntry(...)`: Cloudflare calls it with `(request, env, ctx)` and
@@ -23,7 +23,6 @@ import api, { ownsPath } from "./index";
 // ---------------------------------------------------------------------------
 
 export { UserHost } from "./host/user-host";
-export { VaultCoordinator } from "./vault-coordinator";
 
 export default {
   fetch(request, env, ctx) {

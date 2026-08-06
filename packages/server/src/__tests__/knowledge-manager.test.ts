@@ -44,6 +44,13 @@ function newManager(openStore?: (r: string) => SqlKnowledgeStore): KnowledgeMana
   );
 }
 
+/** Remove a vault file behind the manager's back, the way an external editor
+ * would — then let the crawl notice on the next refresh. */
+function removeVaultFile(rel: string): void {
+  fs.rmSync(path.join(root, rel));
+  vault.refresh();
+}
+
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-test-"));
   root = path.join(tmp, "vault");
@@ -143,7 +150,7 @@ describe("KnowledgeManager", () => {
     await manager.refresh();
     expect(manager.backlinks("target.md")).toHaveLength(1);
 
-    vault.delete("target.md");
+    removeVaultFile("target.md");
     await manager.refresh();
     const forward = manager.forwardLinks("hub.md");
     expect(forward[0]?.targetPath).toBeNull();
@@ -217,7 +224,7 @@ describe("KnowledgeManager", () => {
     vault.writeText("a.md", "# A\n\n#solo tag.\n");
     await manager.refresh();
     expect(manager.notesWithTag("solo")).toEqual(["a.md"]);
-    vault.delete("a.md");
+    removeVaultFile("a.md");
     await manager.refresh();
     expect(manager.notesWithTag("solo")).toEqual([]);
   });

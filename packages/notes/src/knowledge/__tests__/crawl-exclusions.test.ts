@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { cloudPlaceholderTarget, isExcludedFileName, isPrunedName } from "../crawl-exclusions";
-import { CRAWL_FIXTURE_FILES, CRAWL_FIXTURE_MANIFEST } from "./crawl-fixture";
+import { CRAWL_FIXTURE_FILES, CRAWL_FIXTURE_LISTING } from "./crawl-fixture";
 
-/** The shared predicate applied the way a platform walk applies it: prune whole
- * directories by segment, then exclude by file name. Both real walks (desktop's
- * VaultManager.walk, mobile's SyncIo walk) do exactly this, and each pins
- * ITSELF against the same fixture in its own package — this is the pure oracle
- * those two agree with. */
-function manifestPaths(files: readonly string[]): string[] {
+/** The predicate applied the way the real walk applies it: prune whole
+ * directories by segment, then exclude by file name. VaultManager.walk does
+ * exactly this and pins ITSELF against the same fixture in its own package —
+ * this is the pure oracle it agrees with. */
+function crawledPaths(files: readonly string[]): string[] {
   return files
     .filter((rel) => {
       const segments = rel.split("/");
@@ -19,13 +18,12 @@ function manifestPaths(files: readonly string[]): string[] {
 }
 
 describe("crawl exclusions", () => {
-  it("classifies the shared fixture into the expected manifest", () => {
-    expect(manifestPaths(CRAWL_FIXTURE_FILES)).toEqual(CRAWL_FIXTURE_MANIFEST);
+  it("classifies the fixture tree into the expected listing", () => {
+    expect(crawledPaths(CRAWL_FIXTURE_FILES)).toEqual(CRAWL_FIXTURE_LISTING);
   });
 
-  // The bug this whole module exists to prevent: a dot-entry that vanishes
-  // from the manifest is a permanent, fanned-out deletion of a file that is
-  // still on disk.
+  // The bug this whole module exists to prevent: a dot-entry pruned here is a
+  // file still on disk that the app can no longer reach at all.
   it("keeps dot-entries — only the named tool-owned trees are pruned", () => {
     expect(isPrunedName(".archive")).toBe(false);
     expect(isExcludedFileName(".hidden.md")).toBe(false);
@@ -37,8 +35,8 @@ describe("crawl exclusions", () => {
   });
 
   // A vault living in or beside a dev repo is ordinary, and every one of these
-  // trees is regenerable, machine-local and potentially gigabytes — uploading
-  // them to the user's bucket is the failure mode this set exists to stop.
+  // trees is regenerable and potentially gigabytes — crawling them on every
+  // refresh is the failure mode this set exists to stop.
   it("prunes tool-owned build and dependency trees", () => {
     for (const name of [
       ".venv",
@@ -84,7 +82,7 @@ describe("crawl exclusions", () => {
   });
 
   // The stub is evidence about a file the crawl could NOT see. Listing it would
-  // upload an empty note to every device under a name none of them can use.
+  // present an empty note under a name nothing can open.
   it("maps an iCloud placeholder to the file it stands in for, and never lists it", () => {
     expect(cloudPlaceholderTarget(".note.md.icloud")).toBe("note.md");
     expect(isExcludedFileName(".note.md.icloud")).toBe(true);

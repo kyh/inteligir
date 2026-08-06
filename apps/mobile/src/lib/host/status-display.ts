@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Presentation mapping for the host-connection status — one place for the
-// label + indicator-dot color every screen (Connect, Chat header, the vault
-// screen's nav pill, the delegation badges) renders from. Consumers import the
+// label + indicator-dot color every screen (Home, Connect, the Chat header,
+// the delegation badges) renders from. Consumers import the
 // semantic constants, never a hex literal.
 // ---------------------------------------------------------------------------
 

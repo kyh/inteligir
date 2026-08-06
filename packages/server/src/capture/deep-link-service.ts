@@ -16,7 +16,7 @@
 
 import { getCaptureManager } from "./capture-manager";
 import { emitEvent } from "../events";
-import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
+import { getSyncAccount } from "@repo/sync/sync-account";
 import { parseDeepLink, type CaptureKind, type DeepLinkNavEvent } from "@repo/bridge/deep-link";
 
 /** Token bucket: how many URLs may land in a burst… */
@@ -124,8 +124,16 @@ function getService(): DeepLinkService {
     },
     emitNav: (event) => emitEvent("onDeepLinkNav", event),
     completeSession: (code, state) => {
-      // Outcome surfaces via onSocialSignInResult/onSyncStateChanged.
-      void getSyncCoordinator().completeSocialSignIn(code, state);
+      // Deep-link-driven, so there is no request to answer: the verdict reaches
+      // the Account UI as onSocialSignInResult, and the adopted session as the
+      // state push beside it.
+      void getSyncAccount()
+        .completeSocialSignIn(code, state)
+        .then((result) => {
+          emitEvent("onSocialSignInResult", result);
+          emitEvent("onAccountStateChanged", getSyncAccount().getState());
+          return undefined;
+        });
     },
     now: () => Date.now(),
   });

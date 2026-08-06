@@ -2,11 +2,10 @@
   "name": "@repo/sync",
   "version": "0.1.0",
   "private": true,
-  "description": "Desktop vault-sync adapters over @repo/notes' pure engine: the node SyncManager (vault IO + hashing + base/blob stores under ~/.inteligir), the SyncAccount (Better Auth client, bearer token + config JsonStores, social sign-in state nonce), the DeviceIdentity + device-route client (this install's Ed25519 key, the vault its fingerprint founds, pairing offers and revocation), and the SyncCoordinator lifecycle (runtime gate, credential selection, engine rebuild/teardown, conflict tracking). Host event emission is injected (setSyncEventSink) — this package never imports server/electron code.",
+  "description": "The desktop's account client: SyncAccount (Better Auth over the configured server — email+password, sign-up, social OAuth with a state nonce, password reset, capabilities probe) plus the two ~/.inteligir JsonStores that remember the server URL and the bearer session. Holds no vault state. The system-browser opener is injected (setSyncBrowserOpener) — this package never imports server or electron code.",
   "type": "module",
   "exports": {
-    "./sync-account": "./src/sync-account.ts",
-    "./sync-coordinator": "./src/sync-coordinator.ts"
+    "./sync-account": "./src/sync-account.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -15,9 +14,7 @@
   },
   "dependencies": {
     "@repo/bridge": "workspace:*",
-    "@repo/notes": "workspace:*",
     "@repo/storage": "workspace:*",
-    "@repo/vault": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:"
   },

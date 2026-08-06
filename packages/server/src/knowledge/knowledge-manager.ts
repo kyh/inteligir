@@ -21,7 +21,7 @@
 // fingerprints; a changed file is re-read and content-hashed, and only a
 // changed HASH re-projects and re-writes — a provider-wide mtime rewrite
 // updates fingerprints without any projection/FTS churn. Passes are
-// serialized on a queue (SyncEngine's idiom), chunked by a time budget with
+// serialized on a queue, chunked by a time budget with
 // event-loop yields so a first-ever full build never stalls the process, and
 // gated by a generation counter so a root switch/dispose aborts stale work.
 //
@@ -105,7 +105,7 @@ export class KnowledgeManager {
   /** Bumped on root switch / recovery / dispose: an in-flight pass checks it
    * at every yield and aborts when the world moved on under it. */
   private generation = 0;
-  /** Serialized pass queue — two passes never overlap (SyncEngine's idiom). */
+  /** Serialized pass queue — two passes never overlap. */
   private queue: Promise<void> = Promise.resolve();
 
   constructor(

@@ -2,9 +2,8 @@
 // Standard base64 ↔ bytes, for the two Bridge channels that carry attachment
 // bytes as strings (`writeVaultAsset`, `readVaultAsset`).
 //
-// Deliberately NOT `@repo/notes/sync/wire`'s helpers: those are base64URL (the
-// alphabet an enrollment secret travels in), and feeding a standard base64
-// payload through a URL-alphabet decoder corrupts every `+` and `/`.
+// Standard base64, NOT base64URL: the two alphabets differ on `+` and `/`, and
+// feeding a standard payload through a URL-alphabet decoder corrupts both.
 // ---------------------------------------------------------------------------
 
 /** `btoa`/`atob` work over a latin1 STRING, so bytes cross in chunks small

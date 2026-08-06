@@ -4,7 +4,7 @@
 // get_backlinks / get_links / related_notes) plus its single mutation, rename
 // (rename_note — same rewrite pipeline as user renames; see renameNote below),
 // and the AgentVaultPort, which projects the WHOLE-VAULT and host-state reads
-// (listing, tasks, tags, wiki targets, link graph, sync state, delegations).
+// (listing, tasks, tags, wiki targets, link graph, delegations).
 //
 // The two exist for the same reason: the handlers those reads serve are
 // privacy-BLIND on purpose — the user looking at their own vault must see
@@ -65,8 +65,6 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
-import { conflictOriginPath } from "@repo/notes/sync/reconcile";
-import type { SyncStatus } from "@repo/notes/sync/status";
 
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import type {
@@ -74,14 +72,12 @@ import type {
   AgentGraphCluster,
   AgentGraphHub,
   AgentLinkGraph,
-  AgentSyncStatus,
   AgentVaultPort,
   KnowledgePort,
   PrivacyProbe,
   RenameNoteResult,
 } from "@repo/agent/extension";
 import type { Delegation } from "@repo/bridge/delegation";
-import type { SyncConflict } from "@repo/bridge/sync";
 import type { VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
 import type { VaultManager } from "@repo/vault/vault";
 
@@ -139,7 +135,6 @@ const EXCLUDE: PrivacyOpts = { excludePrivate: true };
 function openProbe(probe: (rel: string) => PrivacyProbe): {
   verdict: (rel: string) => PrivacyProbe;
   isPublic: (rel: string) => boolean;
-  emittable: (rel: string) => boolean;
 } {
   const memo = new Map<string, PrivacyProbe>();
   const verdict = (rel: string): PrivacyProbe => {
@@ -150,38 +145,7 @@ function openProbe(probe: (rel: string) => PrivacyProbe): {
     return fresh;
   };
   const isPublic = (rel: string): boolean => verdict(rel) === "public";
-  // Emitting a path is a strictly stronger question than reading one, and the
-  // difference is the conflict copy: sync names it after the note it forked
-  // from, so `secret-plans (conflict …).md` SPELLS a private note's name even
-  // when the copy itself holds public bytes. A path the port VOLUNTEERS
-  // therefore has to clear its whole ancestry; a path the CALLER already named
-  // (readVaultDoc, getVaultFileFacts, and the SUBJECT of backlinks/forwardLinks/
-  // relatedNotes) tells it nothing it didn't have, so those keep the plain
-  // public check.
-  //
-  // The walk runs to the root of the chain because one step is not enough: a
-  // copy of a copy inverts to another copy, which reads public itself and would
-  // spell the private stem anyway. Every ancestor must read public NOW — an
-  // absent one fails closed like every other branch here, since moving,
-  // renaming or trashing a private note must not un-hide its name through the
-  // copy that outlived it. Terminates: each inversion strictly shortens the
-  // path.
-  //
-  // This is the one check here that fails OPEN on drift: change the conflict
-  // stamp format and `conflictOriginPath` stops recognizing copies, so every
-  // ancestry silently clears. The round-trip against `conflictCopyName` in
-  // notes/src/sync/__tests__/reconcile.test.ts is what holds the two halves
-  // together — keep them in the same module and keep that test.
-  const emittable = (rel: string): boolean => {
-    if (!isPublic(rel)) return false;
-    let origin = conflictOriginPath(rel);
-    while (origin !== null) {
-      if (!isPublic(origin)) return false;
-      origin = conflictOriginPath(origin);
-    }
-    return true;
-  };
-  return { verdict, isPublic, emittable };
+  return { verdict, isPublic };
 }
 
 export function buildAgentKnowledgePort(deps: {
@@ -203,7 +167,7 @@ export function buildAgentKnowledgePort(deps: {
       return deps
         .queries()
         .search(query, limit, EXCLUDE)
-        .filter((hit) => live.emittable(hit.path));
+        .filter((hit) => live.isPublic(hit.path));
     },
     backlinks: (path) => {
       const live = openProbe(deps.probe);
@@ -213,7 +177,7 @@ export function buildAgentKnowledgePort(deps: {
       return deps
         .queries()
         .backlinks(path, EXCLUDE)
-        .filter((entry) => live.emittable(entry.sourcePath));
+        .filter((entry) => live.isPublic(entry.sourcePath));
     },
     forwardLinks: (path) => {
       const live = openProbe(deps.probe);
@@ -240,7 +204,7 @@ export function buildAgentKnowledgePort(deps: {
       return deps
         .queries()
         .forwardLinks(path)
-        .filter((entry) => entry.targetPath === null || live.emittable(entry.targetPath));
+        .filter((entry) => entry.targetPath === null || live.isPublic(entry.targetPath));
     },
     relatedNotes: (path) => {
       const live = openProbe(deps.probe);
@@ -251,14 +215,14 @@ export function buildAgentKnowledgePort(deps: {
       return deps
         .queries()
         .relatedNotes(path, EXCLUDE)
-        .filter((entry) => live.emittable(entry.path));
+        .filter((entry) => live.isPublic(entry.path));
     },
     notesWithTag: (tag) => {
       const live = openProbe(deps.probe);
       return deps
         .queries()
         .notesWithTag(tag, EXCLUDE)
-        .filter((path) => live.emittable(path));
+        .filter((path) => live.isPublic(path));
     },
     rename: (from, to) => renameNote(deps, from, to),
   };
@@ -372,26 +336,6 @@ const MAX_CLUSTER_MEMBERS = 20;
 // the tool layer names them, and agent/ may never import the host. The
 // projection ITSELF stays here: the vocabulary is the model's, the disk reads
 // and the privacy re-probe are the host's.
-//
-// `AgentSyncStatus`'s pass-through phases are `Extract`ed from the shared
-// `SyncStatus` on purpose: `projectSyncStatus` builds every variant field by
-// field, so a field the Bridge adds to `ok` lands as a typecheck failure at the
-// construction site rather than a silent new disclosure.
-
-/** The sync state the projection may SEE — deliberately narrower than the
- * Bridge's `SyncState`, which production hands it structurally.
- *
- * The account fields — the email and the session flag — are absent by TYPE
- * rather than dropped by discipline: __tests__/account-boundary.test.ts fences
- * that vocabulary to the sync layer (the account gates cloud saves and nothing
- * else), and a port that cannot name them cannot leak them. The coordinator
- * address goes the same way for a plainer reason — it is infrastructure the
- * model can do nothing with, and everything it sees lands in a transcript. */
-export type SyncSummary = {
-  enabled: boolean;
-  status: SyncStatus;
-  conflicts: readonly SyncConflict[];
-};
 
 export function buildAgentVaultPort(deps: {
   queries: () => VaultQueries;
@@ -399,14 +343,12 @@ export function buildAgentVaultPort(deps: {
    * passes; absent/indeterminate/private all drop, fail-closed. */
   probe: (rel: string) => PrivacyProbe;
   vault: () => VaultReads;
-  sync: () => SyncSummary;
   delegations: () => readonly Delegation[];
 }): AgentVaultPort {
   return {
     // A PAGE of the listing: the prefix and the cap are applied to the crawl
-    // BEFORE any probing, so the page is `limit` rows no matter how many of them
-    // turn out to be private — one read each, plus the conflict ancestry a
-    // conflict-named row costs (`emittable`), which is a handful at most.
+    // BEFORE any probing, so the page is `limit` rows no matter how many of
+    // them turn out to be private — one live read each.
     //
     // Slicing before filtering is what buys that bound, and it costs something
     // real, stated rather than hidden: the page comes back SHORT, so a caller
@@ -428,7 +370,7 @@ export function buildAgentVaultPort(deps: {
         .filter((entry) => entry.path.startsWith(prefix))
         .toSorted((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
         .slice(0, pageLimit(opts?.limit))
-        .filter((entry) => entry.kind !== "doc" || live.emittable(entry.path));
+        .filter((entry) => entry.kind !== "doc" || live.isPublic(entry.path));
     },
 
     // The privacy verdict is taken on the BYTES BEING RETURNED, not on a
@@ -480,7 +422,7 @@ export function buildAgentVaultPort(deps: {
         .tasks(EXCLUDE)
         .filter((task) => task.path.startsWith(prefix))
         .slice(0, pageLimit(opts?.limit))
-        .filter((task) => live.emittable(task.path));
+        .filter((task) => live.isPublic(task.path));
     },
 
     // Counts are RECOMPUTED over the notes that read public on disk NOW, not
@@ -512,7 +454,7 @@ export function buildAgentVaultPort(deps: {
       for (const { tag } of queries.tags(EXCLUDE)) {
         const count = queries
           .notesWithTag(tag, EXCLUDE)
-          .filter((path) => live.emittable(path)).length;
+          .filter((path) => live.isPublic(path)).length;
         if (count > 0) counted.push({ tag, count });
       }
       // Mirrors the tag index's own ordering (most-used first, ties
@@ -537,7 +479,7 @@ export function buildAgentVaultPort(deps: {
         .wikiTargets(EXCLUDE)
         .filter((target) => target.path.startsWith(prefix))
         .slice(0, pageLimit(opts?.limit))
-        .filter((target) => target.type !== "doc" || live.emittable(target.path));
+        .filter((target) => target.type !== "doc" || live.isPublic(target.path));
     },
 
     // The second unbounded sweep, and for listTags' reason in its sharpest
@@ -550,21 +492,7 @@ export function buildAgentVaultPort(deps: {
       const notes = docCount(deps.vault());
       if (notes > MAX_SWEEP_NOTES) return sweepRefusal("the link-graph summary", notes);
       const live = openProbe(deps.probe);
-      return { ok: true, graph: summarizeGraph(deps.queries().graph(EXCLUDE), live.emittable) };
-    },
-
-    getSyncState: () => {
-      const live = openProbe(deps.probe);
-      const state = deps.sync();
-      // Named field by field, never spread: a spread would carry whatever the
-      // Bridge's SyncState grows next straight through to the model.
-      return {
-        enabled: state.enabled,
-        status: projectSyncStatus(state.status, live.emittable),
-        conflicts: state.conflicts
-          .map((conflict) => conflict.path)
-          .filter((path) => live.emittable(path)),
-      };
+      return { ok: true, graph: summarizeGraph(deps.queries().graph(EXCLUDE), live.isPublic) };
     },
 
     // A delegation record stores `lineText` and `anchor.text` — a raw line
@@ -577,7 +505,7 @@ export function buildAgentVaultPort(deps: {
       const live = openProbe(deps.probe);
       return deps
         .delegations()
-        .filter((record) => live.emittable(record.sourceFile))
+        .filter((record) => live.isPublic(record.sourceFile))
         .map(
           (record): AgentDelegation => ({
             id: record.id,
@@ -621,12 +549,12 @@ function normalizeFolder(folder: string | undefined): string {
  * be opened, and counting one would make a note whose only links dangle look
  * connected. So an orphan here means "no resolved link to another note", which
  * is the question the word is asking. */
-function summarizeGraph(graph: LinkGraph, emittable: (rel: string) => boolean): AgentLinkGraph {
+function summarizeGraph(graph: LinkGraph, isPublic: (rel: string) => boolean): AgentLinkGraph {
   const titles = new Map<string, string>();
   for (const node of graph.nodes) {
     if (node.phantom) continue;
     const path = node.path;
-    if (path === undefined || !emittable(path)) continue;
+    if (path === undefined || !isPublic(path)) continue;
     titles.set(node.id, node.title);
   }
   const degree = new Map<string, number>();
@@ -690,45 +618,4 @@ function findClusters(adjacency: Map<string, string[]>): AgentGraphCluster[] {
     });
   }
   return clusters.toSorted((a, b) => b.size - a.size).slice(0, MAX_CLUSTERS);
-}
-
-/** The held-pass `sample` is a list of vault paths about to be deleted, so it
- * is filtered like any other path list; it is already a SAMPLE, so a drop reads
- * as the cap doing its job. `deletions` / `baseCount` stay — they are counts
- * over the whole manifest, and a manifest is not privacy-partitioned (sync
- * carries private notes like any other file), which is the accepted hole
- * docs/privacy.md records.
- *
- * Exhaustive with NO default: every variant is enumerated field by field, so a
- * phase or a field the Bridge adds is a typecheck failure here rather than a
- * silent new disclosure. A `default: return status` would be a spread wearing a
- * switch. */
-function projectSyncStatus(
-  status: SyncStatus,
-  emittable: (rel: string) => boolean,
-): AgentSyncStatus {
-  switch (status.phase) {
-    case "idle":
-      return { phase: "idle" };
-    case "syncing":
-      return { phase: "syncing" };
-    case "ok":
-      return {
-        phase: "ok",
-        pushed: status.pushed,
-        pulled: status.pulled,
-        deleted: status.deleted,
-        conflicts: status.conflicts,
-        merged: status.merged,
-      };
-    case "held":
-      return {
-        phase: "held",
-        deletions: status.deletions,
-        baseCount: status.baseCount,
-        sample: status.sample.filter((path) => emittable(path)),
-      };
-    case "error":
-      return { phase: "error" };
-  }
 }

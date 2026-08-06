@@ -5,11 +5,14 @@
 // lives in ipc-registry.ts; import those from there directly.
 // ---------------------------------------------------------------------------
 
-import { isRecord } from "@repo/notes/sync/guards";
-
-// The ONE isRecord — defined in @repo/notes (pure, importable everywhere);
-// re-exported here so IPC-seam consumers keep their one-stop helper import.
-export { isRecord };
+/**
+ * True for a non-null, non-array object — narrows `unknown` before indexing its
+ * keys. The single definition app-wide: every wire boundary (IPC frames, HTTP
+ * payloads, stored JSON) parses through it, and nothing on a wire is trusted.
+ */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 /** Human-readable message for a caught value. A non-Error throw stringifies —
  * or, when `fallback` is given, yields the fallback instead (for UI surfaces
