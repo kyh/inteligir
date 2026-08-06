@@ -28,8 +28,8 @@ import {
   inteligirPath,
   realFs,
   shortPathKey,
-  type FsAdapter,
 } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import type { VaultManager } from "@repo/vault/vault";
 import type { SyncPort } from "@repo/notes/sync/sync-port";
 import {
@@ -150,11 +150,11 @@ function baseStorePath(vaultId: string): string {
 
 /** A synchronous `JsonFile` over a plain file path — `read` returns `null` on
  * any error (missing file, permission denied, …); `write` creates the parent
- * dir on demand. Delegates to an injected `FsAdapter` when the caller supplies
+ * dir on demand. Delegates to an injected `StoreAdapter` when the caller supplies
  * one (tests), otherwise to storage's shared `realFs` adapter — the same
  * atomic tmp-then-rename write + owner-only modes (0o600 file / 0o700 dir)
  * every ~/.inteligir JSON store gets. */
-function nodeJsonFile(filePath: string, adapter: FsAdapter = realFs): JsonFile {
+function nodeJsonFile(filePath: string, adapter: StoreAdapter = realFs): JsonFile {
   return {
     read: () => adapter.read(filePath),
     write: (text) => {
@@ -170,7 +170,7 @@ function nodeJsonFile(filePath: string, adapter: FsAdapter = realFs): JsonFile {
  */
 export function createJsonBaseStore(
   vaultId: string,
-  opts: { fs?: FsAdapter | undefined; path?: string | undefined } = {},
+  opts: { fs?: StoreAdapter | undefined; path?: string | undefined } = {},
 ): BaseStore {
   return createJsonFileBaseStore(nodeJsonFile(opts.path ?? baseStorePath(vaultId), opts.fs));
 }
@@ -261,8 +261,8 @@ export type SyncManagerOptions = {
   basePath?: string;
   /** Override the base-blob directory (tests — keeps ~/.inteligir untouched). */
   blobsDir?: string;
-  /** FsAdapter for the base store (tests). */
-  fs?: FsAdapter;
+  /** StoreAdapter for the base store (tests). */
+  fs?: StoreAdapter;
   /** Clock for conflict-copy timestamps. Defaults to the wall clock. */
   now?: () => Date;
   /** Debounce window (ms) for `scheduleSync`. Default 300ms. */

@@ -42,7 +42,7 @@ import { getNotifications } from "../notifications";
 import { getSecretStore } from "@repo/storage/secrets";
 import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
 import { getVaultManager, type VaultChangeKind } from "@repo/vault/vault";
-import { setStoreRecoveryNotifier } from "@repo/storage/json-store";
+import { setStoreRecoveryNotifier } from "@repo/storage/json-store-core";
 
 /** The vault-change notifier create-host's start() installs post-ensureReady.
  * A `save` (autosave content overwrite) keeps the knowledge index live but

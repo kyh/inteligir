@@ -9,7 +9,8 @@
 
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { DEFAULT_PROVIDER } from "./provider-catalog";
 
 const PROVIDER_CONFIG_VERSION = 1;
@@ -36,7 +37,7 @@ const DEFAULT_CONFIG: StoredProviderConfig = {
 
 export type ProviderConfigOptions = {
   storePath?: string;
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
 };
 
 export class ProviderConfigStore {

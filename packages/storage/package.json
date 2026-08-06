@@ -7,10 +7,12 @@
   "exports": {
     "./agent-log": "./src/agent-log.ts",
     "./atomic-write": "./src/atomic-write.ts",
+    "./do-store-adapter": "./src/do-store-adapter.ts",
     "./fs-errors": "./src/fs-errors.ts",
     "./harden-app-dir": "./src/harden-app-dir.ts",
     "./host-lock": "./src/host-lock.ts",
     "./json-store": "./src/json-store.ts",
+    "./json-store-core": "./src/json-store-core.ts",
     "./secrets": "./src/secrets.ts",
     "./yield-to-event-loop": "./src/yield-to-event-loop.ts"
   },

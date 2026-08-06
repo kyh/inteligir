@@ -33,7 +33,8 @@ import ignore, { type Ignore } from "ignore";
 import { type Static, Type } from "@sinclair/typebox";
 
 import { atomicWrite } from "@repo/storage/atomic-write";
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { yieldToEventLoop } from "@repo/storage/yield-to-event-loop";
 import { classifyFileChange, SelfSaveRegistry } from "./classify-file-change";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -192,7 +193,7 @@ export class VaultListingIncompleteError extends Error {
 }
 
 type VaultManagerOptions = {
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
   /** Override the settings file path (tests). */
   settingsPath?: string;
   /** Override the first-run default vault root (tests). */

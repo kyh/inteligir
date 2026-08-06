@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DelegationManager, type DelegationAgent } from "../delegation/delegation-manager";
 import { RestoreManager } from "../restore/restore-manager";
 import { SNAPSHOT_RETENTION, SnapshotStore } from "../restore/snapshot-store";
-import type { FsAdapter } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 
-function memoryFs(): FsAdapter {
+function memoryFs(): StoreAdapter {
   const files = new Map<string, string>();
   return {
     read: (p) => files.get(p) ?? null,

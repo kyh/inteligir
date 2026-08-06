@@ -244,6 +244,36 @@
       }
     },
     {
+      "files": [
+        "packages/storage/src/json-store-core.ts",
+        "packages/storage/src/do-store-adapter.ts",
+        "packages/storage/src/fs-errors.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "node:*",
+                  "electron",
+                  "electron/*",
+                  "electron-updater",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**",
+                  "@repo/server",
+                  "@repo/server/*"
+                ],
+                "message": "the JsonStore engine and its non-node adapters run inside a Durable Object as well as on node — keep them platform-neutral; node lives in json-store.ts behind the StoreAdapter seam"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/agent/src/**"],
       "rules": {
         "no-restricted-imports": [

@@ -5,10 +5,10 @@ import { DelegationManager, type DelegationAgent } from "../delegation/delegatio
 import { BackgroundTurnLock } from "../delegation/background-turn-lock";
 import { RestoreManager } from "../restore/restore-manager";
 import { SnapshotStore } from "../restore/snapshot-store";
-import type { FsAdapter } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import type { RoutineSchedule } from "@repo/bridge/routines";
 
-function memoryFs(): FsAdapter {
+function memoryFs(): StoreAdapter {
   const files = new Map<string, string>();
   return {
     read: (p) => files.get(p) ?? null,

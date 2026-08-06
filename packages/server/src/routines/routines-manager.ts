@@ -45,7 +45,8 @@ import {
 import type { RestoreSnapshotResult } from "@repo/bridge/delegation";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import { runTextTurn } from "@repo/agent/text-turn";
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { isEnoent } from "@repo/storage/fs-errors";
 import { getVaultManager } from "@repo/vault/vault";
 
@@ -86,7 +87,7 @@ const PRIVATE_TARGET_ERROR =
 type PendingRun = { id: string; manual: boolean };
 
 export type RoutinesManagerOptions = {
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
   path?: string;
   /** Read a vault file's raw text (throws ENOENT when absent). Defaults to
    * the live VaultManager. */

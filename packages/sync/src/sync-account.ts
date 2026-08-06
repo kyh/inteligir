@@ -17,7 +17,8 @@ import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 import { createAuthClient } from "better-auth/client";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { AccountCapabilities, SyncSignInResult } from "@repo/bridge/sync";
 
@@ -92,7 +93,7 @@ export function setSyncBrowserOpener(opener: BrowserOpener): void {
 }
 
 export type SyncAccountOptions = {
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
   configPath?: string;
   authPath?: string;
   vaultIdPath?: string;

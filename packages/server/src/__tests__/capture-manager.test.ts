@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CaptureManager, type CaptureIo } from "../capture/capture-manager";
-import type { FsAdapter } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import type { CaptureApplyEvent } from "@repo/bridge/ipc-registry";
 
 const TODAY = "journal/2026-07-16.md";
 const NOW = new Date(2026, 6, 16);
 
-/** In-memory FsAdapter for the inbox JsonStore — shared across manager
+/** In-memory StoreAdapter for the inbox JsonStore — shared across manager
  * reconstructions to simulate a crash/restart. */
-function memoryFs(): FsAdapter & { files: Map<string, string> } {
+function memoryFs(): StoreAdapter & { files: Map<string, string> } {
   const files = new Map<string, string>();
   return {
     files,

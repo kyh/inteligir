@@ -10,7 +10,8 @@
 import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import type { RemoteDeviceInfo } from "@repo/bridge/remote-access";
 
 const DEVICES_VERSION = 1;
@@ -69,7 +70,7 @@ function hashesEqual(a: string, b: string): boolean {
 }
 
 export type DeviceAuthOptions = {
-  fs?: FsAdapter | undefined;
+  fs?: StoreAdapter | undefined;
   devicesPath?: string | undefined;
   /** Injectable clock for pairing-expiry tests. */
   now?: (() => number) | undefined;

@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { RestoreManager } from "../restore/restore-manager";
 import { SnapshotStore } from "../restore/snapshot-store";
-import type { FsAdapter } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import type { AgentEditCaptured } from "@repo/bridge/ipc-registry";
 
 /** A snapshot store over an in-memory map — no ~/.inteligir writes in tests. */
 function memorySnapshots(): SnapshotStore {
   const files = new Map<string, string>();
-  const fs: FsAdapter = {
+  const fs: StoreAdapter = {
     read: (p) => files.get(p) ?? null,
     write: (p, content) => {
       files.set(p, content);

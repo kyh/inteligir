@@ -24,7 +24,8 @@ import crypto from "node:crypto";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { emitEvent } from "../events";
 import { resolveDailyNotePath } from "../daily-note";
 import { getVaultManager } from "@repo/vault/vault";
@@ -77,7 +78,7 @@ export type CaptureIo = {
 };
 
 export type CaptureManagerOptions = {
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
   /** Override the inbox path (tests). */
   path?: string;
   /** Override the vault IO (tests). Defaults to VaultManager readText/writeText. */

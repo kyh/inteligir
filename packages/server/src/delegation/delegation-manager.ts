@@ -23,7 +23,8 @@ import {
 } from "./background-turn-lock";
 import { remapVaultPath } from "../restore/snapshot-store";
 import { getRestoreManager, type RestoreManager } from "../restore/restore-manager";
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { isSelectedProviderConnected } from "../provider/provider-service";
 import { getVaultManager } from "@repo/vault/vault";
 import { emitEvent } from "../events";
@@ -71,7 +72,7 @@ export type DelegationAgent = {
 };
 
 export type DelegationManagerOptions = {
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
   path?: string;
   /** Read a vault file's raw text. Defaults to the live VaultManager. */
   readVault?: (rel: string) => string;

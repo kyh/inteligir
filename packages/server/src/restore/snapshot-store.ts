@@ -34,7 +34,8 @@ import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { atomicWrite } from "@repo/storage/atomic-write";
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 
 // Retention: keep the newest 50 snapshots PER ORIGIN, pruned on host start.
 // A count cap (not an age window) keeps disk usage proportional to actual AI
@@ -94,7 +95,7 @@ const SnapshotsFileSchema = Type.Object(
 );
 
 /** The few content-file operations the store needs, injectable for tests.
- * Kept separate from FsAdapter (which is JSON-store-shaped): pruning needs
+ * Kept separate from StoreAdapter (which is JSON-store-shaped): pruning needs
  * remove + directory listing, which no JsonStore ever needs. */
 export type SnapshotFileAdapter = {
   read: (filePath: string) => string | null;
@@ -162,7 +163,7 @@ export type SnapshotReadResult =
 
 export type SnapshotStoreOptions = {
   /** JsonStore adapter for the index (tests). */
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
   /** Content-file adapter (tests). */
   files?: SnapshotFileAdapter;
   /** Content directory. Defaults to ~/.inteligir/snapshots. */

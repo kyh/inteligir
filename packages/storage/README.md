@@ -7,8 +7,11 @@ atomic-write, the single-host pidfile lock, the boot-time permission sweep
 
 ## Why it exists
 
-Node-only (Electron main / the `@repo/server` host) — never renderer or
-mobile. A **leaf**: no workspace deps (two one-line guard copies in
+Node (Electron main / the `@repo/server` host) — never renderer or
+mobile — with one deliberate exception: the `JsonStore` ENGINE
+(`json-store-core.ts`) imports no node and runs anywhere its `StoreAdapter`
+does, including inside a Durable Object (`do-store-adapter.ts`). A **leaf**:
+no workspace deps (two one-line guard copies in
 `fs-errors.ts` exist precisely to keep it that way); upward needs (recovery
 notifier, pi session-dir names) cross injected seams the composition root
 fills (recovery notifier, pi session-dir names, the secret cipher). Anything
@@ -19,10 +22,16 @@ owner-only modes are inherited, not re-implemented.
 
 ```
 src/
-  json-store.ts      # JsonStore<T>: schema-validated JSON over ~/.inteligir —
+  json-store-core.ts # JsonStoreCore<T>, platform-neutral (zero node imports):
                      #   TypeBox check on read AND write, quarantine-on-drift,
-                     #   close() kill switch; realFs adapter (0600/0700);
-                     #   inteligirPath(), shortPathKey(), recovery-notifier seam
+                     #   the read cache, close() kill switch, recovery-notifier
+                     #   seam — all byte access through a StoreAdapter
+  json-store.ts      # The node binding: realFs adapter (atomic, 0600/0700),
+                     #   inteligirPath(), shortPathKey(), and the JsonStore<T>
+                     #   that defaults to realFs — what every host store uses
+  do-store-adapter.ts # StoreAdapter over a Durable Object's synchronous KV
+                     #   (ctx.storage.kv); SyncKv declared structurally so the
+                     #   package stays a leaf
   atomic-write.ts    # The ONE tmp-then-rename dance; explicit chmod on the tmp
                      #   so a stale crash-leftover can't smuggle a wider mode
   host-lock.ts       # Pidfile lock on ~/.inteligir/host.lock: refuse a second
@@ -41,7 +50,7 @@ src/
                      #   long synchronous scans use to stay interruptible
 ```
 
-Exports map = exactly these eight subpaths; no barrel.
+Exports map = exactly these ten subpaths; no barrel.
 
 ## Invariants
 
@@ -51,6 +60,12 @@ Exports map = exactly these eight subpaths; no barrel.
   already on disk and for third parties — pi keeps creating transcripts 0644
   mid-session. pi's
   auth.json stays pi-owned (plaintext-but-0600 by design; no cipher seam).
+- **`StoreAdapter` is synchronous, permanently.** Not a convenience:
+  `capture-manager`'s exactly-once compare-and-swap and the sync engine's
+  `SyncIo.remove` are correct only because a read-modify-write completes in
+  one JS turn with no await to interleave on. Both backings offer synchronous
+  primitives (node fs; a SQLite-backed DO's `ctx.storage.kv`), so an async
+  adapter would buy nothing and break those callers.
 - **Version drift is quarantine-only.** There is deliberately no migration
   registry until a real migration needs one. Any version other than
   `current` (newer, older, missing) sets the file aside (`.newer-v<N>-<ts>` /
@@ -105,7 +120,9 @@ pnpm --filter @repo/storage test
 `json-store.test.ts` pins quarantine-not-migrate (newer/older/unversioned →
 backup + defaults, bytes preserved), write-time schema refusal, real-fs
 0600/0700 modes incl. healing a crash-leftover tmp, and no by-reference cache
-leaks. `host-lock.test.ts`: refuse-live / reclaim-stale / release-only-our-own.
+leaks. `do-store-adapter.test.ts` drives the same engine over an in-memory
+`SyncKv`: round-trip, both quarantine paths landing on sibling KEYS (no
+filesystem semantics), and the closed-store write no-op. `host-lock.test.ts`: refuse-live / reclaim-stale / release-only-our-own.
 `harden-app-dir.test.ts`: the sweep's reach and its skips. `agent-log.test.ts`:
 tag filtering, `message_update` skipping, rotation, logout-wipe survival.
 `secrets.test.ts`: cipher round-trip, no plaintext on disk when encryption is

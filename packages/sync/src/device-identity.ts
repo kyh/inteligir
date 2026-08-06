@@ -26,7 +26,8 @@
 import crypto from "node:crypto";
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { getSecretStore, type SecretStore } from "@repo/storage/secrets";
 import {
   base64UrlDecode,
@@ -71,7 +72,7 @@ const DEFAULT_DEVICE: StoredDevice = {
 };
 
 export type DeviceIdentityOptions = {
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
   storePath?: string;
   /** Resolved lazily so a DeviceIdentity can be constructed before createHost
    * installs the platform cipher. Tests pass a store over a fake cipher. */

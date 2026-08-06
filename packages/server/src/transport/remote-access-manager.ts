@@ -12,7 +12,8 @@ import os from "node:os";
 import { type Static, Type } from "@sinclair/typebox";
 
 import { emitEvent } from "../events";
-import { JsonStore, inteligirPath, type FsAdapter } from "@repo/storage/json-store";
+import { JsonStore, inteligirPath } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 import { DeviceAuthStore, type PairingRedeemResult, type TokenValidator } from "./device-auth";
 import {
   classifyEndpoints,
@@ -68,7 +69,7 @@ export type RemoteAccessConfig = {
 };
 
 export type RemoteAccessManagerOptions = {
-  fs?: FsAdapter | undefined;
+  fs?: StoreAdapter | undefined;
   configPath?: string | undefined;
   devicesPath?: string | undefined;
   now?: (() => number) | undefined;

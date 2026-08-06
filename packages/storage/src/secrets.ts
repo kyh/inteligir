@@ -14,7 +14,8 @@
 
 import { type Static, Type } from "@sinclair/typebox";
 
-import { JsonStore, inteligirPath, type FsAdapter } from "./json-store";
+import { JsonStore, inteligirPath } from "./json-store";
+import type { StoreAdapter } from "./json-store-core";
 
 /** Which non-plaintext entry kind a cipher produces in secrets.json. An entry
  * written under a kind the current cipher can't read degrades to "not
@@ -84,7 +85,7 @@ const DEFAULT_SECRETS: SecretsFile = { version: 1, secrets: {} };
 export type SecretStoreOptions = {
   storePath?: string;
   cipher?: SecretCipher;
-  fs?: FsAdapter;
+  fs?: StoreAdapter;
 };
 
 export class SecretStore {

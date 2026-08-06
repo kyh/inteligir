@@ -9,7 +9,7 @@ import {
   remapVaultPath,
   type SnapshotMeta,
 } from "../restore/snapshot-store";
-import type { FsAdapter } from "@repo/storage/json-store";
+import type { StoreAdapter } from "@repo/storage/json-store-core";
 
 const DIR = "/snaps";
 
@@ -25,7 +25,7 @@ const meta = (id: string, path: string, overrides?: Partial<SnapshotMeta>): Snap
  * files, plus direct access for tamper/orphan setups. */
 function makeStore() {
   const files = new Map<string, string>();
-  const fs: FsAdapter = {
+  const fs: StoreAdapter = {
     read: (p) => files.get(p) ?? null,
     write: (p, content) => {
       files.set(p, content);

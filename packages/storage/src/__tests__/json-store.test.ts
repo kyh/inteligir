@@ -5,9 +5,10 @@ import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { JsonStore, type FsAdapter, type StoreRecoveryEvent } from "../json-store";
+import { JsonStore } from "../json-store";
+import type { StoreAdapter, StoreRecoveryEvent } from "../json-store-core";
 
-function memoryFs(): FsAdapter & { files: Map<string, string>; modes: Map<string, number> } {
+function memoryFs(): StoreAdapter & { files: Map<string, string>; modes: Map<string, number> } {
   const files = new Map<string, string>();
   const modes = new Map<string, number>();
   return {
@@ -251,7 +252,7 @@ describe("JsonStore corruption recovery", () => {
 
   it("falls back to a backup copy when rename throws", () => {
     const files = new Map<string, string>([["/test.json", "not json"]]);
-    const fs: FsAdapter = {
+    const fs: StoreAdapter = {
       read: (path) => files.get(path) ?? null,
       write: (path, content) => {
         files.set(path, content);
@@ -294,7 +295,7 @@ type Versioned = { version: 2; items: number[] };
 const DEFAULT_VERSIONED: Versioned = { version: 2, items: [] };
 
 function versionedStore(
-  fs: FsAdapter,
+  fs: StoreAdapter,
   onRecovery?: (event: StoreRecoveryEvent) => void,
 ): JsonStore<Versioned> {
   return new JsonStore<Versioned>("/test.json", VersionedSchema, DEFAULT_VERSIONED, {
