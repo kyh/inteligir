@@ -22,7 +22,21 @@ export function logUnhandled(surface: string, request: Request, error: unknown):
     surface,
     method: request.method,
     path: new URL(request.url).pathname,
+    ...errorFields(error),
+  });
+}
+
+/**
+ * The same line for a throw with no request behind it — a WebSocket callback,
+ * an alarm. `callback` takes `method`/`path`'s place as the queryable "where".
+ */
+export function logUnhandledCallback(surface: string, callback: string, error: unknown): void {
+  console.error({ event: "unhandled-error", surface, callback, ...errorFields(error) });
+}
+
+function errorFields(error: unknown): { message: string; stack: string | undefined } {
+  return {
     message: error instanceof Error ? error.message : String(error),
     stack: error instanceof Error ? error.stack : undefined,
-  });
+  };
 }

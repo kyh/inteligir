@@ -6,6 +6,8 @@ import { handleResetPage } from "./auth/reset-page";
 import { createDb } from "./db/client";
 import { vaultOwner } from "./db/schema";
 import { readDeviceAssertion, unauthorized, verifyDeviceAssertion } from "./device-assertion";
+import { UserHost } from "./host/user-host";
+import { routeHostSocket } from "./host/ws-route";
 import { logUnhandled } from "./log";
 import { allowInWindow, callerIp, type RateWindow } from "./rate-limit";
 import { isDeviceRoute, matchRoute, type VaultRouteMatch } from "./route";
@@ -71,8 +73,8 @@ import { VaultCoordinator } from "./vault-coordinator";
 
 // This module is also the test suite's Worker entry (vitest.config.ts `main`),
 // and a Durable Object binding resolves its class against the entry's exports —
-// so dropping this re-export 500s every DO-backed test.
-export { VaultCoordinator };
+// so dropping these re-exports 500s every DO-backed test.
+export { UserHost, VaultCoordinator };
 
 /**
  * The path prefixes this surface owns. `./server.ts` splits on them, so a route
@@ -190,6 +192,13 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (request.method === "POST" && url.pathname === "/v1/auth/exchange") {
     return withCors(request, await handleSessionExchange(request, env));
   }
+
+  // The workspace's Bridge socket. Answered BEFORE the CORS wrapper below: a
+  // 101 carries a `webSocket` that re-emitting the response would drop, and a
+  // WebSocket handshake is not CORS-preflighted anyway — its Origin is checked
+  // against an exact allowlist instead (host/origins.ts).
+  const socket = await routeHostSocket(request, env, url.pathname);
+  if (socket !== null) return socket;
 
   // Sync surface.
   const match = matchRoute(request.method, url.pathname, url.search);

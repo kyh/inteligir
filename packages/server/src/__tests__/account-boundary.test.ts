@@ -51,6 +51,9 @@ const ALLOWED = [
   "packages/bridge/src/sync.ts",
   "packages/bridge/src/ipc-registry.ts",
   "packages/server/src/handlers/sync-handlers.ts",
+  // The cloud host's handler table, for the same reason: it must answer every
+  // channel the registry declares, and it names these only to refuse them.
+  "apps/web/src/worker/host/handlers.ts",
   // The two settings surfaces: Account owns the session, Sync consumes it.
   "packages/workspace/src/settings/sections/account-section.tsx",
   "packages/workspace/src/settings/sections/sync-section.tsx",

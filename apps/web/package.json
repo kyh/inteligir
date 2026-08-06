@@ -17,8 +17,11 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
+    "@repo/bridge": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/storage": "workspace:*",
     "@repo/ui": "workspace:*",
+    "@sinclair/typebox": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "better-auth": "catalog:",

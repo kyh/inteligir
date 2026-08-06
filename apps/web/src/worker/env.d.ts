@@ -15,6 +15,13 @@
 interface Env {
   /** Optional extra trusted origins, comma-separated (e.g. a desktop protocol). */
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string;
+  /**
+   * Optional extra origins allowed to open a host WebSocket, comma-separated
+   * and EXACT (scheme + host + port). The deployed origins are built in; this
+   * is how a dev server gets admitted, from `.dev.vars` rather than a commit —
+   * so a deployment nobody configured admits nothing extra.
+   */
+  readonly HOST_ALLOWED_ORIGINS?: string;
   /** Optional GitHub OAuth credentials — the provider is enabled only when both exist. */
   readonly GITHUB_CLIENT_ID?: string;
   readonly GITHUB_CLIENT_SECRET?: string;

@@ -22,6 +22,7 @@ import api, { ownsPath } from "./index";
 // included.
 // ---------------------------------------------------------------------------
 
+export { UserHost } from "./host/user-host";
 export { VaultCoordinator } from "./vault-coordinator";
 
 export default {

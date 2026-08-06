@@ -34,17 +34,29 @@
     "traces": { "enabled": true, "head_sampling_rate": 0.01 },
   },
 
-  // One Durable Object per vault: the source of truth for that vault's manifest
-  // (path -> version) + generation counter. Addressed by `getByName(vaultId)`.
+  // Two Durable Object classes:
+  //   • VaultCoordinator — one per vault, the source of truth for that vault's
+  //     manifest (path -> version) + roster. Addressed by `getByName(vaultId)`.
+  //   • UserHost — one per user, the workspace's Bridge host over a
+  //     hibernatable WebSocket. Addressed by `getByName("user:" + userId)`.
   "durable_objects": {
-    "bindings": [{ "name": "VaultCoordinator", "class_name": "VaultCoordinator" }],
+    "bindings": [
+      { "name": "VaultCoordinator", "class_name": "VaultCoordinator" },
+      { "name": "UserHost", "class_name": "UserHost" },
+    ],
   },
-  // SQLite-backed storage for the manifest table + generation meta.
+  // SQLite-backed storage: the vault manifest tables, and the UserHost's
+  // synchronous `ctx.storage.kv` (which only the SQLite backend exposes, and
+  // which the JsonStore engine needs — see @repo/storage/do-store-adapter).
   //
-  // Do NOT convert this to the newer declarative `exports` field. The two are
+  // APPEND a tag per class; never edit a tag that has shipped. And do NOT
+  // convert this to the newer declarative `exports` field — the two are
   // mutually exclusive, and swapping them on a namespace that already holds
   // vault manifests is a one-way door.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] },
+    { "tag": "v2", "new_sqlite_classes": ["UserHost"] },
+  ],
 
   // R2 holds the raw file bytes, keyed `${vaultId}/${path}`. The manifest (in the
   // DO) is authoritative for versions/hashes; R2 is just the blob store.

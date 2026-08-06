@@ -29,9 +29,19 @@ src/
     site-config.ts       Title, description, links — single source for metadata
   styles/globals.css     Inter Variable + @repo/ui/globals.css
   worker/                THE WORKER — its own tsconfig program (see below)
-    server.ts            Worker entry: path split + the Durable Object export
+    server.ts            Worker entry: path split + the Durable Object exports
     index.ts             The API route table + CORS; `ownsPath` is the split
     vault-coordinator.ts Durable Object: manifest + versions + SSE + R2 + roster
+    host/                THE WORKSPACE HOST — one Durable Object per user
+      user-host.ts       Durable Object: hibernatable sockets, auth, dispatch
+      ws-route.ts        The Worker leg: origin gate, then address the object
+      origins.ts         The exact-match origin allowlist
+      client-class.ts    ClientClass + the two capability gates
+      socket-state.ts    The socket attachment: the only state a wake can read
+      host-events.ts     The per-instance event bus (never module scope)
+      handler-registry.ts collectHandlers(): the completeness guard + shims
+      handlers.ts        6 implementations + CLOUD_SHIMS, the migration backlog
+      stores.ts          ui-state + notifications as JsonStores over DO KV
     route.ts             matchRoute(): parse the @repo/notes/sync/wire routes
     device-assertion.ts  parse + verify a device assertion — Worker and DO share it
     device-body.ts       boundary parsers for the enroll/revoke request bodies
@@ -54,6 +64,9 @@ src/
       device-helpers.ts      a test-side Ed25519 device that mints REAL assertions
       desktop-session.test.ts the code mint/exchange path (state, single use, TTL)
       password-reset.test.ts request → token → reset, with a mock EMAIL binding
+      user-host.test.ts      the host socket end to end, incl. eviction + the alarm
+      host-handlers.test.ts  registry completeness, the classes, the origin rule
+      no-ungated-dispatch.test.ts structural guard on the two chokepoints
       apply-schema.ts        applies the exported schema DDL to each test file's D1
       env.d.ts               types cloudflare:test's env (+ TEST_SCHEMA)
 public/                  Static assets
@@ -86,6 +99,59 @@ one directory: every tool that resolves a file's config by walking up
 - **Race-free**: all mutations run through an in-memory promise-chain mutex; bytes
   are written to R2 before the manifest row commits.
 - **Changes stream**: `GET …/changes` is Server-Sent Events.
+
+### Workspace host (`GET /v1/host/:userId/ws`)
+
+**One Durable Object per user** (`env.UserHost.getByName("user:" + userId)`)
+serving that user's Bridge — the 95 host methods and 19 event channels
+`@repo/bridge/ipc-registry` declares — over one hibernatable WebSocket per
+client. It is the cloud counterpart of the desktop's local ws host, written
+fresh rather than shared: `@repo/server` reaches node through half its
+dependency graph.
+
+- **Hibernation is the point.** Sockets are accepted with
+  `ctx.acceptWebSocket` and served through the `webSocket*` handler methods, so
+  an idle host with open sockets accrues no duration billing. The consequence
+  is that **no in-memory field may hold anything a later message needs**:
+  per-socket identity lives in `serializeAttachment` (16 KiB cap,
+  structured-clone types), and the broadcast set is rebuilt from
+  `ctx.getWebSockets()` on every push rather than tracked in a `Map`. Tags are
+  fixed at accept time, so auth state cannot be one.
+- **Origin first, at HTTP 403.** An exact-match allowlist of FULL origins
+  (scheme + host + port) — the deployed ones plus whatever
+  `HOST_ALLOWED_ORIGINS` names — checked in the Worker before the Upgrade and
+  before `getByName`. An **absent** Origin is refused: a browser always sends
+  one, so its absence is a non-browser caller. A 403 rather than a close code,
+  because a close on a completed handshake tells an attacker their upgrade
+  worked.
+- **The userId in the path is an ADDRESS, not a credential.** Nothing in the
+  Worker authenticates the socket; the session bearer arrives in the first
+  `{t:"auth"}` frame and the object binds it to its OWN name. Same split as the
+  vault routes — the Worker addresses, the object verifies — and the same
+  accepted residual: naming a userId instantiates an empty object.
+- **The 10s auth deadline is a DO alarm**, not a `setTimeout`. A pending timer
+  pins the object in memory, which is the hibernation this transport exists to
+  get; an alarm survives eviction, so a socket that connects and then says
+  nothing at all is still reaped. One alarm serves every pending socket (it
+  re-arms for the earliest one left).
+- **Capability classes replace the privileged loopback peer.** There is no
+  local renderer here — every client is remote over the same socket — so `web`
+  (the full workspace UI) and `mobile` (the companion's
+  `REMOTE_ALLOWED_*` set) are decided server-side from HOW a socket
+  authenticated, never from anything it asserts. `web` is **blanket-granted**
+  the whole surface, deliberately: an allowlist between a user's session and
+  that user's own object protects nothing the session does not already own. A
+  capability that ever reaches outside the tenancy needs its own class.
+- **Two chokepoints, and a test that keeps it at two.** `resolveHandler()` is
+  the only reader of the dispatch map and `sendEvent()` the only pusher of an
+  event frame — including the reconnect hydration, which resolves a getter
+  server-side and would otherwise volunteer state the method gate forbids
+  asking for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a
+  third path appears.
+- **Six methods are implemented; 89 are shims.** `collectHandlers` throws at
+  construction if any of the 95 is unregistered. `host/handlers.ts`'s
+  `CLOUD_SHIMS` is the migration backlog, grouped by feature; a shim throws
+  naming its gap and never returns a plausible empty value.
 
 ### Auth (`/api/auth/*`) — Better Auth on the Worker
 
