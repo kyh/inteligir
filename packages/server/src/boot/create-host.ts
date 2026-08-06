@@ -17,6 +17,7 @@ import { setDevFlagsAllowed } from "@repo/bridge/dev-flags";
 import { initMachine, shutdown } from "../app/app-machine";
 import { emitEvent, subscribeEvents } from "../events";
 import { constructHostSingletons } from "./singletons";
+import { createHostServices } from "./host-services";
 import { initAgentLog } from "@repo/storage/agent-log";
 import { setSecretCipherProvider } from "@repo/storage/secrets";
 import { configureVoiceModelHost } from "@repo/voice/model-download";
@@ -129,7 +130,10 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // watcher must not start until ensureReady() has run.
   const vaultChangeNotifier = constructHostSingletons();
 
-  const handlers = collectHandlers(registerAllHandlers);
+  // The one services set the handler layer acts through — handlers never reach
+  // for a getX() accessor themselves (boot/host-services.ts).
+  const services = createHostServices();
+  const handlers = collectHandlers((handle) => registerAllHandlers(handle, services));
 
   let started = false;
 

@@ -1,9 +1,12 @@
 import type { HandlerRegistrar } from "./handler-registry";
-import { getRemoteAccessManager } from "../transport/remote-access-manager";
+import type { HostServices } from "../boot/host-services";
 
-export function registerRemoteAccessHandlers(handle: HandlerRegistrar): void {
-  handle("getRemoteAccessState", () => getRemoteAccessManager().getState());
-  handle("setRemoteAccessConfig", (patch) => getRemoteAccessManager().setConfig(patch));
-  handle("createPairingToken", () => getRemoteAccessManager().createPairingToken());
-  handle("revokeRemoteDevice", ({ id }) => getRemoteAccessManager().revokeDevice(id));
+export function registerRemoteAccessHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "remoteAccess">,
+): void {
+  handle("getRemoteAccessState", () => services.remoteAccess.getState());
+  handle("setRemoteAccessConfig", (patch) => services.remoteAccess.setConfig(patch));
+  handle("createPairingToken", () => services.remoteAccess.createPairingToken());
+  handle("revokeRemoteDevice", ({ id }) => services.remoteAccess.revokeDevice(id));
 }

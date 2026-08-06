@@ -1,7 +1,10 @@
-import { getRestoreManager } from "../restore/restore-manager";
 import type { HandlerRegistrar } from "./handler-registry";
+import type { HostServices } from "../boot/host-services";
 
-export function registerRestoreHandlers(handle: HandlerRegistrar): void {
+export function registerRestoreHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "restore">,
+): void {
   // Undo a turn's chat-agent edits. No busy-guard, deliberately: the undo
   // toast appears after the turn that produced these captures has settled,
   // and the restore is an ordinary user-intent vault write — if a LATER turn
@@ -11,5 +14,5 @@ export function registerRestoreHandlers(handle: HandlerRegistrar): void {
   // must refuse while ITS run is active because the run targets the same
   // snapshot. The renderer flushes the open note before calling (registry
   // contract), so the write never fights a dirty buffer.
-  handle("restoreAgentEdits", ({ ids }) => getRestoreManager().restoreChatEdits(ids));
+  handle("restoreAgentEdits", ({ ids }) => services.restore.restoreChatEdits(ids));
 }

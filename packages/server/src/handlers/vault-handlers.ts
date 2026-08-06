@@ -2,9 +2,8 @@ import { seedUserAgentInstructions } from "../agent-instructions/agent-instructi
 import { remapNoteMetadata } from "../boot/rename-orchestration";
 import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import { probeVaultPrivacy } from "../boot/agent-wiring";
-import { getPlatform } from "../platform-instance";
-import { getVaultManager } from "@repo/vault/vault";
 import type { HandlerRegistrar } from "./handler-registry";
+import type { HostServices } from "../boot/host-services";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
@@ -50,20 +49,23 @@ export function pickAssetPath(dir: string, name: string, existing: ReadonlySet<s
   return candidate;
 }
 
-export function registerVaultHandlers(handle: HandlerRegistrar): void {
+export function registerVaultHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "vault" | "platform">,
+): void {
   // ---- Trusted surface (Vault panel) ----------------------------------------
 
-  handle("getVaultRoot", () => getVaultManager().getRoot());
+  handle("getVaultRoot", () => services.vault.getRoot());
 
   handle("chooseVaultRoot", async (): Promise<ChooseVaultResult> => {
-    const chosen = await getPlatform().pickDirectory({
+    const chosen = await services.platform.pickDirectory({
       title: "Choose vault folder",
-      defaultPath: getVaultManager().getRoot(),
+      defaultPath: services.vault.getRoot(),
     });
     if (chosen === null) return { ok: false, reason: "canceled" };
     try {
       // setRoot rejects a folder inside ~/.inteligir (wiped on logout).
-      getVaultManager().setRoot(chosen);
+      services.vault.setRoot(chosen);
     } catch (err) {
       return { ok: false, reason: "error", error: toErrorMessage(err) };
     }
@@ -72,15 +74,15 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
     // pick it up on their next construction — same cadence as any other
     // AGENTS.md edit.
     seedUserAgentInstructions();
-    return { ok: true, root: getVaultManager().getRoot() };
+    return { ok: true, root: services.vault.getRoot() };
   });
 
-  handle("listVault", () => getVaultManager().list());
-  handle("readVaultDoc", ({ path }) => getVaultManager().readText(path));
+  handle("listVault", () => services.vault.list());
+  handle("readVaultDoc", ({ path }) => services.vault.readText(path));
   // Size + mtime for one file — the facts the stat-free listing crawl skips.
-  handle("getVaultFileFacts", ({ path }) => getVaultManager().fileFacts(path));
+  handle("getVaultFileFacts", ({ path }) => services.vault.fileFacts(path));
   handle("writeVaultDoc", ({ path, content }) => {
-    const vault = getVaultManager();
+    const vault = services.vault;
     vault.writeText(path, content);
     // This is the editor's write path (autosave). Mark it a self-save so the
     // open-note watcher filters the event it triggers rather than reloading the
@@ -97,17 +99,17 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
   // The renderer names the open note; the host watches that single file
   // (vault liveness — CLAUDE.md § Decisions).
   handle("setWatchedNote", ({ path }) => {
-    getVaultManager().watchOpenNote(path);
+    services.vault.watchOpenNote(path);
   });
   // On-demand snapshot rebuild (window focus / "Refresh vault" command).
   handle("refreshVault", () => {
-    getVaultManager().refresh();
+    services.vault.refresh();
   });
   // Every user-initiated delete (sidebar, header, HTML-app broker remove,
   // sync conflict-dismiss) lands here → OS trash, recoverable. Sync-applied
   // remote deletes bypass this channel and stay permanent (vault.delete).
   handle("deleteVaultEntry", async ({ path }) => ({
-    removed: await getVaultManager().trash(path),
+    removed: await services.vault.trash(path),
   }));
   handle("renameVaultEntry", ({ from, to }) => {
     // Boundary enforcement of the note-name ruleset (the renderer validates
@@ -119,7 +121,7 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
     if (!verdict.ok) return { ok: false, error: noteNameErrorMessage(verdict.reason) };
     // Rename, then rewrite [[wiki]] / relative md links vault-wide so nothing
     // dangles (snapshot-verified byte surgery — see knowledge/rename-rewrite).
-    const result = renameWithLinkRewrite(getVaultManager(), from, to);
+    const result = renameWithLinkRewrite(services.vault, from, to);
     // Repoint delegations + AI-write checkpoints at the new path — the single
     // shared remap the agent's rename_note tool uses too, so the two rename
     // paths can't drift.
@@ -130,7 +132,7 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
   // ---- Attachments (image paste/drop) ---------------------------------------
 
   handle("writeVaultAsset", ({ dir, baseName, bytesBase64 }) => {
-    const vault = getVaultManager();
+    const vault = services.vault;
     const existing = new Set(vault.list().map((entry) => entry.path));
     const path = pickAssetPath(normalizeAssetDir(dir), sanitizeAssetName(baseName), existing);
     vault.writeBytes(path, new Uint8Array(Buffer.from(bytesBase64, "base64")));
@@ -139,7 +141,7 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
 
   handle("readVaultAsset", ({ path }): ReadVaultAssetResult => {
     try {
-      const bytes = getVaultManager().readBytes(path);
+      const bytes = services.vault.readBytes(path);
       if (bytes.length > MAX_ASSET_BYTES) {
         return { ok: false, error: `File too large to preview (${bytes.length} bytes)` };
       }

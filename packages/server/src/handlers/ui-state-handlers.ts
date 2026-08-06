@@ -1,9 +1,12 @@
 import type { HandlerRegistrar } from "./handler-registry";
-import { getUiState } from "../ui-state";
+import type { HostServices } from "../boot/host-services";
 
-export function registerUiStateHandlers(handle: HandlerRegistrar): void {
-  handle("getUiState", () => getUiState().getAll());
+export function registerUiStateHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "uiState">,
+): void {
+  handle("getUiState", () => services.uiState.getAll());
   handle("setUiState", ({ key, value }) => {
-    getUiState().set(key, value);
+    services.uiState.set(key, value);
   });
 }

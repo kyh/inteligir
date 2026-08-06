@@ -1,10 +1,13 @@
-import { getCaptureManager } from "../capture/capture-manager";
 import { takePendingDeepLinkNav } from "../capture/deep-link-service";
 import type { HandlerRegistrar } from "./handler-registry";
+import type { HostServices } from "../boot/host-services";
 
-export function registerCaptureHandlers(handle: HandlerRegistrar): void {
+export function registerCaptureHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "capture">,
+): void {
   handle("ackCapture", ({ id, outcome }) => {
-    getCaptureManager().ack(id, outcome);
+    services.capture.ack(id, outcome);
   });
   handle("takePendingDeepLinkNav", () => takePendingDeepLinkNav());
 }

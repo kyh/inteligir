@@ -14,13 +14,13 @@ import {
   isEmulateConnectorsEnabled,
 } from "@repo/connectors/emulate-connectors";
 import * as executor from "@repo/connectors/executor-client";
-import { getExecutorDaemon } from "@repo/connectors/executor-daemon";
 import {
   ensureGoogleOAuthClient,
   getBundledGoogleClient,
 } from "@repo/connectors/google-oauth-client";
 import type { HandlerRegistrar } from "./handler-registry";
-import { getHostOptions, openExternalHttpUrl } from "../platform-instance";
+import type { HostServices } from "../boot/host-services";
+import { openExternalHttpUrl } from "../platform-instance";
 import type { ExecutorStatus } from "@repo/bridge/ipc-registry";
 
 // The real ports the connector orchestration runs on: the executor-client 1:1,
@@ -47,7 +47,10 @@ const connectorOps: ConnectorInstallOps = {
   waitMs: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
 
-export function registerExecutorHandlers(handle: HandlerRegistrar): void {
+export function registerExecutorHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "executorDaemon" | "options">,
+): void {
   handle("installConnector", (req) => installConnector(connectorOps, req));
   handle("uninstallConnector", (req) => uninstallConnector(connectorOps, req));
   // Dev-only: the E2E drive polls this for the in-flight OAuth consent
@@ -78,7 +81,7 @@ export function registerExecutorHandlers(handle: HandlerRegistrar): void {
   handle("ensureGoogleOAuthClient", () =>
     ensureGoogleOAuthClient(
       executor,
-      getBundledGoogleClient(getHostOptions().bundledGoogleClient) ??
+      getBundledGoogleClient(services.options.bundledGoogleClient) ??
         emulatePlaceholderGoogleClient(),
     ),
   );
@@ -86,7 +89,7 @@ export function registerExecutorHandlers(handle: HandlerRegistrar): void {
   handle("executorStatus", (): ExecutorStatus => {
     // The redirect URI is fixed for the daemon's life and cached on the
     // connection, so there's no need for a live round-trip here.
-    const conn = getExecutorDaemon().getConnection();
+    const conn = services.executorDaemon.getConnection();
     return conn ? { running: true, redirectUri: conn.redirectUri } : { running: false };
   });
 }

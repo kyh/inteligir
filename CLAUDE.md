@@ -18,10 +18,11 @@ marketing site + shared packages.
 - **Desktop**: Electron + electron-vite (@repo/desktop) — the product
 - **Editor**: Plate (platejs) rich markdown + a raw textarea fallback
 - **UI**: shadcn/ui (Base UI), lucide-react, sonner, zustand
-- **Web**: TanStack Start + React 19 + Tailwind CSS 4 on Cloudflare Workers (marketing site, no backend)
+- **Web**: TanStack Start + React 19 + Tailwind CSS 4 on Cloudflare Workers — the
+  marketing site AND the backend, one Worker, one origin
 - **Mobile**: Expo + Expo Router + NativeWind (@repo/mobile) — sync/read/light-edit companion, no agent
   (the Expo SDK major is pinned in `pnpm-workspace.yaml`'s catalog; naming it here only rots)
-- **Cloud**: Cloudflare Worker (@repo/cloud) — Better Auth on D1 + a Durable Object per vault + R2
+- **Cloud**: that same Worker's `src/worker/` (@repo/web) — Better Auth on D1 + a Durable Object per vault + R2
 - **AI Agent**: pi coding agent framework (@earendil-works/pi-coding-agent)
 
 The agent runs locally in the desktop app; agent auth is provider OAuth
@@ -31,7 +32,7 @@ menu under `INTELIGIR_FAUX_AGENT=1` for deterministic login-free testing),
 handled by pi on-device. The vault is a folder of markdown the user
 owns; the agent reaches it through a `./vault` symlink in its workspace and
 edits files with its native file tools. The only server-side surface is the
-**opt-in vault sync** (apps/cloud: Better Auth sessions + file bytes in R2 +
+**opt-in vault sync** (apps/web's `src/worker/`: Better Auth sessions + file bytes in R2 +
 per-vault manifests in a Durable Object) — **off by default**, and it syncs
 vault FILES only; notes never live in a server database.
 
@@ -39,10 +40,11 @@ vault FILES only; notes never live in a server database.
 
 ```
 apps/            # shippable artifacts
-  web/           # Marketing site (@repo/web) — landing page only
+  web/           # ONE CF Worker (@repo/web) — src/worker/server.ts splits it: the
+                 # TanStack Start marketing site, plus src/worker/ =
+                 # /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
   desktop/       # Electron shell — the notes product (@repo/desktop)
   mobile/        # Expo companion (@repo/mobile) — sync + read + light-edit, no agent
-  cloud/         # CF Worker (@repo/cloud) — /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
 packages/        # libraries — boundaries are PACKAGE facts (deps + exports maps)
   notes/         # PURE platform-neutral domain (@repo/notes) — runs in Worker/RN/renderer:
                  #   sync/      — vault-sync engine + protocol (reconcile, wire, HttpSyncPort)
@@ -334,7 +336,7 @@ and full-text search live in the command palette.
   `session?code=…&state=…` completes a social sign-in (an opaque single-use
   exchange code + the state nonce this device minted at initiation — NEVER a
   raw token; the host state-checks and exchanges it over HTTPS, see
-  `packages/sync/src/sync-account.ts` + `apps/cloud/src/auth/desktop-session.ts`).
+  `packages/sync/src/sync-account.ts` + `apps/web/src/worker/auth/desktop-session.ts`).
   Target paths are computed host-side, never taken from the URL.
 - **Tasks view**: a palette-launched alternate main surface like the graph
   ("Open tasks view") over the projection's per-doc task extraction (every
@@ -452,7 +454,7 @@ them at three points, all three required — invoke/send dispatch, event
 broadcast, AND the reconnect hydration push (which resolves a getter host-side
 and would otherwise volunteer state the method gate forbids asking for).
 
-### Vault sync — `@repo/notes/sync` + `apps/cloud` + platform adapters
+### Vault sync — `@repo/notes/sync` + `apps/web/src/worker` + platform adapters
 
 **Off by default** (runtime `sync-config` store; Settings → Sync). One pure
 engine — `notes/src/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
@@ -460,14 +462,18 @@ preserved as sibling copies, never lost) — with injected platform ports:
 desktop binds node crypto/VaultManager/JsonStore
 (`packages/sync/src/sync-manager.ts`, lifecycle in
 `sync-coordinator.ts`), mobile binds expo-crypto/expo-file-system
-(`apps/mobile/src/lib/sync/`). The coordinator (`apps/cloud`) is ONE Worker:
+(`apps/mobile/src/lib/sync/`). The coordinator (`apps/web/src/worker/`) shares
+ONE Worker with the marketing site — `src/worker/server.ts` sends `/api/*`, `/v1/*` and
+`/auth/*` to it and everything else to the site's SSR handler, so the app and the
+API are same-origin:
 `/api/auth/*` = Better Auth (email+password, bearer tokens) over Drizzle + D1,
 `/v1/vault/*` = per-vault `VaultCoordinator` Durable Object (SQLite manifest,
 optimistic concurrency — a version conflict is an HTTP-200 `{ok:false}` VALUE,
 never a throw) with bytes in R2. First authenticated user to touch a vaultId
 owns it. D1 schema ships via `drizzle-kit push` (no migration files);
 `test/e2e-sync.test.ts` drives the real engine against the real Worker
-in-process. Deploy is owner-only (see `apps/cloud/README.md`). Every engine
+in-process. `.github/workflows/deploy.yml` publishes it with the site on every
+green push to main (see `apps/web/README.md`). Every engine
 pass (explicit, debounced, periodic) reports through `onOutcome`; unresolved
 conflict copies are listed in Settings → Sync with Open / Dismiss-copy.
 
@@ -649,13 +655,21 @@ record for the decisions code comments cite.
   paired phone — including destructive ones like `RESET_APP_DATA`. Allowlists
   fail closed. Adding a channel to `REMOTE_ALLOWED_*` is a deliberate act with
   a threat model attached, not a default.
-- **Host services are process-global `getX()` singletons ON PURPOSE.** Do not
-  thread an explicit `HostContext` through the handlers, and do not build a
-  disposable registry. One host per process is a domain fact (a single-user
-  desktop app), enforced by the `createHost` guard plus `host.lock`. The
-  managers are constructor-injectable, so tests already build them with fakes
-  (`delegation-manager.test.ts`) — the conversion would buy testability that
-  exists, across 185 `getX()` call sites in 53 files and 5 package APIs. The
+- **`getX()` singletons are the node host's wiring; the HANDLER layer takes
+  them as a parameter.** `packages/server/src/handlers/**` receives an explicit
+  `HostServices` (`boot/host-services.ts`) — no handler reaches for an accessor
+  itself — because a host isolate that runs many vaults in ONE module scope
+  would otherwise share one user's vault manager, chat agent and secret store
+  with every other user. Everywhere else, `getX()` stays THE way to reach a
+  service: one host per process is a domain fact for the desktop app, enforced
+  by the `createHost` guard plus `host.lock`, and the managers are already
+  constructor-injectable, so tests build them with fakes
+  (`delegation-manager.test.ts`) without a registry. Do not build a disposable
+  registry, and do not thread services through the app machine, provider or
+  sync modules on this argument alone. The node `HostServices` resolves each
+  field on READ rather than capturing an instance: "Reset app data" rebuilds
+  every singleton while the handler map `collectHandlers()` produced at boot
+  lives on. The
   `reset*()` set that `teardownAgentResources()` calls is ORDER-INDEPENDENT:
   every body is `instance?.close(); instance = null`, and a reset that reads
   another singleton is a bug. The only real ordering is the four pins around
@@ -695,8 +709,8 @@ record for the decisions code comments cite.
   files.** Push is a supported primary flow for serverless databases, and the
   three things that make it dangerous are all absent here: one deployer (the
   account owner), an additive schema, and nothing derived that can rot —
-  `apps/cloud/vitest.config.ts` builds the test DDL by running
-  `drizzle-kit export` over `src/db/schema.ts`, so the suite always runs the
+  `apps/web/vitest.config.ts` builds the test DDL by running
+  `drizzle-kit export` over `src/worker/db/schema.ts`, so the suite always runs the
   schema the source declares. A second deployer or a destructive column change
   is the trigger for adopting migrations. The Better Auth tables in that
   schema are hand-written and diverge from `@better-auth/cli generate` in two

@@ -10,6 +10,7 @@ import { type Static, Type } from "@sinclair/typebox";
 import { JsonStore, inteligirPath } from "@repo/storage/json-store";
 import type { StoreRecoveryEvent } from "@repo/storage/json-store-core";
 import { getPlatform } from "./platform-instance";
+import type { HostNotification } from "./platform";
 
 // Deliberately unversioned store: a single boolean preference whose
 // reset-to-default on mismatch is harmless (defaults to enabled).
@@ -24,10 +25,21 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   enabled: true,
 };
 
+/** The two platform capabilities delivery needs, injected rather than reached
+ * for: this manager is a service the host hands out, so it must not resolve
+ * the host's own platform singleton from inside. */
+export type NotificationSink = {
+  notify: (notification: HostNotification) => void;
+  anyUiFocused: () => boolean;
+};
+
 export class NotificationsManager {
   private readonly store: JsonStore<NotificationSettings>;
 
-  constructor(storePath?: string) {
+  constructor(
+    private readonly sink: NotificationSink,
+    storePath?: string,
+  ) {
     this.store = new JsonStore(
       storePath ?? inteligirPath("notifications.json"),
       NotificationSettingsSchema,
@@ -68,11 +80,10 @@ export class NotificationsManager {
    */
   notifyAgentIdle(body: string | undefined): void {
     if (!this.getSettings().enabled) return;
-    const platform = getPlatform();
-    if (platform.anyUiFocused()) return;
+    if (this.sink.anyUiFocused()) return;
 
     const preview = body?.trim().slice(0, 180) ?? "Agent finished.";
-    platform.notify({
+    this.sink.notify({
       title: "Inteligir",
       body: preview.length > 0 ? preview : "Agent finished.",
     });
@@ -90,14 +101,14 @@ export class NotificationsManager {
       event.kind === "newer-version"
         ? `${file} was written by a newer version of Inteligir and was set aside. Backup: ${event.backupPath}`
         : `${file} could not be read and was reset. Backup: ${event.backupPath}`;
-    getPlatform().notify({ title: "Inteligir — settings file recovered", body });
+    this.sink.notify({ title: "Inteligir — settings file recovered", body });
   }
 }
 
 let instance: NotificationsManager | null = null;
 
 export function getNotifications(): NotificationsManager {
-  if (!instance) instance = new NotificationsManager();
+  if (!instance) instance = new NotificationsManager(getPlatform());
   return instance;
 }
 

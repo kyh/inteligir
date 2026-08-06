@@ -1,21 +1,22 @@
 import type { HandlerRegistrar } from "./handler-registry";
-import { getSyncCoordinator } from "@repo/sync/sync-coordinator";
+import type { HostServices } from "../boot/host-services";
 
-export function registerSyncHandlers(handle: HandlerRegistrar): void {
-  handle("getSyncState", () => getSyncCoordinator().getState());
-  handle("setSyncConfig", (patch) => getSyncCoordinator().setConfig(patch));
-  handle("syncSignIn", ({ email, password }) => getSyncCoordinator().signIn(email, password));
-  handle("syncSignUp", ({ email, password }) => getSyncCoordinator().signUp(email, password));
-  handle("syncSocialSignIn", ({ provider }) => getSyncCoordinator().socialSignIn(provider));
-  handle("syncRequestPasswordReset", ({ email }) =>
-    getSyncCoordinator().requestPasswordReset(email),
-  );
-  handle("getAccountCapabilities", () => getSyncCoordinator().getCapabilities());
-  handle("syncSignOut", () => getSyncCoordinator().signOut());
-  handle("syncNow", (opts) => getSyncCoordinator().syncNow(opts));
-  handle("getSyncDevices", () => getSyncCoordinator().listDevices());
-  handle("createSyncPairingOffer", () => getSyncCoordinator().createPairingOffer());
-  handle("revokeSyncDevice", ({ publicKey }) => getSyncCoordinator().revokeDevice(publicKey));
-  handle("reconnectSyncVault", () => getSyncCoordinator().reconnectVault());
-  handle("disconnectSyncVault", () => getSyncCoordinator().disconnectVault());
+export function registerSyncHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "sync">,
+): void {
+  handle("getSyncState", () => services.sync.getState());
+  handle("setSyncConfig", (patch) => services.sync.setConfig(patch));
+  handle("syncSignIn", ({ email, password }) => services.sync.signIn(email, password));
+  handle("syncSignUp", ({ email, password }) => services.sync.signUp(email, password));
+  handle("syncSocialSignIn", ({ provider }) => services.sync.socialSignIn(provider));
+  handle("syncRequestPasswordReset", ({ email }) => services.sync.requestPasswordReset(email));
+  handle("getAccountCapabilities", () => services.sync.getCapabilities());
+  handle("syncSignOut", () => services.sync.signOut());
+  handle("syncNow", (opts) => services.sync.syncNow(opts));
+  handle("getSyncDevices", () => services.sync.listDevices());
+  handle("createSyncPairingOffer", () => services.sync.createPairingOffer());
+  handle("revokeSyncDevice", ({ publicKey }) => services.sync.revokeDevice(publicKey));
+  handle("reconnectSyncVault", () => services.sync.reconnectVault());
+  handle("disconnectSyncVault", () => services.sync.disconnectVault());
 }

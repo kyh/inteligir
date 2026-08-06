@@ -1,6 +1,6 @@
 import { emitEvent } from "../events";
-import { getUiState } from "../ui-state";
 import type { HandlerRegistrar } from "./handler-registry";
+import type { HostServices } from "../boot/host-services";
 import { initParakeet, pushAudio, startSession, stopSession } from "@repo/voice/parakeet";
 import { configureTts, ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@repo/voice/tts-proxy";
 import { getVoiceApiKey, setVoiceApiKey } from "@repo/voice/voice-secret";
@@ -32,7 +32,10 @@ function toFloat32Samples(payload: unknown): Float32Array | null {
   return null;
 }
 
-export function registerVoiceHandlers(handle: HandlerRegistrar): void {
+export function registerVoiceHandlers(
+  handle: HandlerRegistrar,
+  services: Pick<HostServices, "uiState" | "secrets">,
+): void {
   // Host seams for the voice package (it sits below the server, so the event
   // bus + platform capabilities are injected — before any transport can
   // deliver a voice call). The MODEL host seam is installed earlier, at
@@ -41,14 +44,14 @@ export function registerVoiceHandlers(handle: HandlerRegistrar): void {
   configureTts({
     // Voice owns its secret: the proxy reads the stored key through this
     // injected source (voice-secret → SecretStore), never through ui-state.
-    getApiKey: () => getVoiceApiKey(),
+    getApiKey: () => getVoiceApiKey(services.secrets),
     emitAudio: (audio) => emitEvent("onTtsAudio", { audio }),
   });
 
   handle("isTtsAvailable", () => ttsAvailable());
   handle("setVoiceApiKey", ({ value }) => {
     // ui-state (the presence marker) is a server store — bound here.
-    setVoiceApiKey(value, getUiState());
+    setVoiceApiKey(value, services.uiState, services.secrets);
   });
   handle("ttsSend", ({ text }) => ttsSend(text));
   handle("ttsFlush", () => ttsFlush());
