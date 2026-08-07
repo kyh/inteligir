@@ -103,8 +103,8 @@ many users, so a module-level instance is a cross-tenant bug (CLAUDE.md § "One
 host per user is a Durable Object").
 
 A method with no implementation yet is registered as a SHIM naming the gap
-(`CLOUD_SHIMS` for the backlog, `CLOUD_RETIRED` for a decision) — never a silent
-`[]`.
+(`CLOUD_SHIMS`, the backlog) — never a silent `[]`. There is no table for a
+capability decided against: retiring one means deleting its channel.
 
 ### 3. Fixture stub — `packages/workspace/src/dev/fixture-bridge.ts`
 

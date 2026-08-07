@@ -11,7 +11,7 @@ import { type Static, Type } from "@sinclair/typebox";
 //
 // Deliberately NOT cron: cadence + "HH:MM" (+ a day picker where the cadence
 // needs one) is the whole schedule language. The due computation over it is
-// pure (routine-schedule.ts) and tested like the sync guard.
+// pure (routine-schedule.ts) and tested as a pure function.
 // ---------------------------------------------------------------------------
 
 /** Local time of day, 24h "HH:MM". The pattern is the wire guard; the pure

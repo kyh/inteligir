@@ -32,6 +32,7 @@ import {
   providerOAuthSecret,
   type ProviderEntry,
 } from "./provider-catalog";
+import type { DeletableDurableKv } from "../store/durable-kv";
 
 /** Refresh this many milliseconds before the access token actually expires, so
  * a turn never starts on a credential that dies mid-stream. */
@@ -60,21 +61,8 @@ export type PendingAuthorization = {
 /** The selection the agent runs on. */
 export type ProviderSelection = { readonly provider: string; readonly modelId: string };
 
-/**
- * Synchronous key-value storage — the Durable Object's `ctx.storage.kv`.
- *
- * `get` answers `unknown` rather than a caller-chosen generic: what comes back
- * is JSON that was written by some earlier version of this code, so a generic
- * would be a promise nothing can keep. Every read below narrows.
- */
-export type CredentialKv = {
-  get(key: string): unknown;
-  put(key: string, value: unknown): void;
-  delete(key: string): boolean;
-};
-
 export type CredentialStoreDeps = {
-  readonly kv: CredentialKv;
+  readonly kv: DeletableDurableKv;
   readonly userId: string;
   /** The deployment secret both derived keys come from. */
   readonly secret: string;
@@ -92,7 +80,7 @@ export type MintResult =
   | { readonly ok: false; readonly error: string };
 
 export class ProviderCredentials {
-  private readonly kv: CredentialKv;
+  private readonly kv: DeletableDurableKv;
   private readonly userId: string;
   private readonly secret: string;
   private readonly env: Env;

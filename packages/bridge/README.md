@@ -18,10 +18,10 @@ src/
   ipc-registry.ts       # THE single source of truth: every channel = TypeBox payload
                         # schema + result/event type; Bridge, IpcHandler, IpcEvent,
                         # IPC_METHODS, HYDRATED_EVENTS all derive from it
-  ws-protocol.ts        # frame vocabulary shared by ws host + client: auth/pair/req/
-                        # send → welcome/paired/res/evt; close codes; binary STT tag
-  ws-bridge.ts          # the Bridge over a WebSocket (desktop renderer + mobile);
-                        # reconnect supervisor, request queue, injected WebSocket impl
+  ws-protocol.ts        # frame vocabulary shared by the UserHost DO + client:
+                        # auth/req/send → welcome/res/evt; close codes; binary tags
+  ws-bridge.ts          # the Bridge over a WebSocket (browser + React Native);
+                        # ticket minter, reconnect supervisor, request queue
   backoff.ts            # the ONE capped-exponential retry-delay policy (schedule injected)
   wire-helpers.ts       # isRecord (re-export from notes), toErrorMessage, isHttpUrl
   deep-link.ts          # inteligir:// pure parser + sanitizer — exactly six verbs
@@ -37,10 +37,9 @@ src/
   ai-provider.ts, inline-ai.ts  # provider settings + editor-AI/ghost-text params
   delegation.ts, routines.ts, routine-schedule.ts
                         # delegation wire shapes; routine model + pure due-math
-  executor.ts           # wire types for the connectors daemon HTTP API (executor 1.5.4)
-  sync.ts, ui-state.ts, daily-notes.ts
-                        # account contracts, ui-state keys, daily-note/template
-                        # conventions
+  executor.ts           # wire types the connector channels carry
+  ui-state.ts, daily-notes.ts
+                        # ui-state keys, daily-note/template conventions
 ```
 
 ## Invariants

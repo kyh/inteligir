@@ -15,7 +15,7 @@ ONE Cloudflare Worker serving three surfaces from one origin:
 `/auth/*` go to the rest of `src/worker/`, everything else to Start's SSR
 handler — the marketing page and the client-only shell `/app` is served from.
 One origin is what makes the UI and the API same-origin to each other, which is
-what the host socket's exact-match Origin allowlist depends on.
+what the session cookie — and so the ticket mint's Origin allowlist — depends on.
 
 ## Layout
 
@@ -47,17 +47,19 @@ src/
   styles/globals.css     Inter Variable + @repo/ui/globals.css
   worker/                THE WORKER — its own tsconfig program (see below)
     server.ts            Worker entry: path split + the Durable Object export
-    index.ts             The API route table + CORS; `ownsPath` is the split
+    index.ts             The API route table; `ownsPath` is the split
     host/                THE WORKSPACE HOST — one Durable Object per user
       user-host.ts       Durable Object: hibernatable sockets, auth, dispatch
-      ws-route.ts        The Worker leg: origin gate, then address the object
-      origins.ts         The exact-match origin allowlist
-      client-class.ts    ClientClass + the two capability gates
+      host-route.ts      The ONE Worker leg: credential → object name → forward
+      host-address.ts    `user:<id>` — the object name, derived never parsed
+      ticket-route.ts    POST /v1/host/ticket: verify, classify, mint
+      socket-ticket.ts   the tickets themselves: single-use, in the object's SQL
+      origins.ts         The exact-match origin allowlist (on the mint)
+      client-class.ts    ClientClass, how it is decided, + the two capability gates
       socket-state.ts    The socket attachment: the only state a wake can read
       host-events.ts     The per-instance event bus (never module scope)
       handler-registry.ts collectHandlers(): the completeness guard + shims
-      handlers.ts        the implementations + CLOUD_SHIMS (the backlog) and
-                         CLOUD_RETIRED (the decisions, each with its reason)
+      handlers.ts        the implementations + CLOUD_SHIMS (the backlog)
       vault-handlers.ts  the vault's ten channels
       knowledge-handlers.ts the index's seven channels, incl. the guarded toggle
       stores.ts          ui-state + notifications as JsonStores over DO KV
@@ -98,7 +100,7 @@ src/
       deep-link.ts       the web→scheme translation over the pure grammar
       capture-inbox.ts   the durable inbox + the version-checked append
       capture-service.ts what a delivered link does; the parked nav
-      deep-link-route.ts POST /v1/host/:userId/link, address-then-verify
+      deep-link-route.ts the object's half of POST /v1/host/link
       capture-handlers.ts the two capture channels
     skills/              SKILLS — `skills/<slug>/SKILL.md` in the VAULT
       vault-skills.ts    the slug, the renderer, the listing's prompt budget
@@ -109,10 +111,9 @@ src/
     env.d.ts             types the OPTIONAL runtime vars onto Env
     auth/auth.ts         createAuth(env, baseURL): per-request Better Auth
     auth/invite.ts       the invite gate in front of sign-up
-    auth/desktop-session.ts  the desktop social handoff: mint/burn the exchange code
     auth/reset-page.ts   the password-reset form the emailed link lands on
     auth/reset-email.ts  sends that link over the EMAIL binding
-    db/schema.ts         Drizzle schema: Better Auth tables + rate_limit + handoff codes
+    db/schema.ts         Drizzle schema: Better Auth tables + rate_limit + invites
     db/client.ts         createDb(d1): per-request Drizzle client over the binding
     tsconfig.json        the no-DOM program
     worker-configuration.d.ts  generated bindings (`pnpm cf-typegen`)
@@ -120,10 +121,10 @@ src/
       user-vault.test.ts     the vault: manifest, R2 bytes, tombstones, the gate
       user-knowledge.test.ts the index: projection, hydration after eviction, rename scope
       do-sql-driver.test.ts  core's SQL store over the DO binding, incl. ranking
-      desktop-session.test.ts the code mint/exchange path (state, single use, TTL)
       password-reset.test.ts request → token → reset, with a mock EMAIL binding
       user-host.test.ts      the host socket end to end, incl. eviction + the alarm
-      host-handlers.test.ts  registry completeness, the classes, the origin rule
+      host-handlers.test.ts  registry completeness, the classes, the origin rule,
+                             the route shape
       no-ungated-dispatch.test.ts structural guard on the two chokepoints
       agent-turn.test.ts     a whole turn over the scripted container
       agent-tools.test.ts    the granted capabilities over a real vault + index
@@ -175,15 +176,15 @@ HTML-app runtime — and nothing else.
 - **The Bridge is installed before the first render**
   (`src/app/workspace-mount.tsx`): `getBridge()` throws by design, so the
   workspace only renders once `installBridge` has run. The socket is
-  `wss://<this origin>/v1/host/<userId>/ws`, and the first frame carries the
-  Better Auth **session token**, read from `getSession()`. Nothing writes a
-  token to storage the page can read — the durable credential stays the
-  httpOnly session cookie, and the token is held in memory only long enough to
-  hand to the transport.
+  `wss://<this origin>/v1/host/ws` — no userId — and the first frame spends a
+  **single-use ticket** minted at `POST /v1/host/ticket` over the session
+  cookie. The page never holds a session token at all: `getSession()` is asked
+  only who the user is, so an XSS steals one socket rather than the account.
 - **Three states, all of them surfaced.** Not signed in → the route guard
-  redirects to `/app/sign-in` before the workspace chunk is even fetched. Close
-  4401 (`unauthorized`) is terminal for the bridge's supervisor, so it replaces
-  the UI with a "sign in again" surface rather than hanging. Disconnected shows
+  redirects to `/app/sign-in` before the workspace chunk is even fetched.
+  `unauthorized` — a mint the host refused, or a ticket it would not spend — is
+  terminal for the bridge's supervisor, so it replaces the UI with a "sign in
+  again" surface rather than hanging. Disconnected shows
   a banner and nothing else — retry is the bridge's job, and reimplementing it
   beside the one that already backs off is how two supervisors end up racing.
 - **`__root.tsx` carries no theme provider.** `@repo/ui`'s provider writes the
@@ -300,10 +301,10 @@ Three pages over the existing Better Auth routes, sharing one card
   name would SHADOW — all off the in-memory graph — so a rename reads only the
   docs it may rewrite however large the vault is.
 
-### Workspace host (`GET /v1/host/:userId/ws`)
+### Workspace host (`/v1/host/*`)
 
 **One Durable Object per user** (`env.UserHost.getByName("user:" + userId)`)
-serving that user’s Bridge — the 71 host methods and 17 event channels
+serving that user’s Bridge — the 71 host methods and 15 event channels
 `@repo/bridge/ipc-registry` declares — over one hibernatable WebSocket per
 client.
 
@@ -315,46 +316,55 @@ client.
   structured-clone types), and the broadcast set is rebuilt from
   `ctx.getWebSockets()` on every push rather than tracked in a `Map`. Tags are
   fixed at accept time, so auth state cannot be one.
-- **Origin first, at HTTP 403.** An exact-match allowlist of FULL origins
-  (scheme + host + port) — the deployed ones plus whatever
-  `HOST_ALLOWED_ORIGINS` names — checked in the Worker before the Upgrade and
-  before `getByName`. An **absent** Origin is refused: a browser always sends
-  one, so its absence is a non-browser caller. A 403 rather than a close code,
-  because a close on a completed handshake tells an attacker their upgrade
-  worked.
-- **The userId in the path is an ADDRESS, not a credential.** Nothing in the
-  Worker authenticates the socket; the session bearer arrives in the first
-  `{t:"auth"}` frame and the object binds it to its OWN name. Same split as the
-  vault routes — the Worker addresses, the object verifies — and the same
-  accepted residual: naming a userId instantiates an empty object.
+- **There is NO userId in any path.** `host-route.ts` derives the object name
+  from the credential the request carries, so a caller holding no session
+  cannot bring a Durable Object into existence by naming one, and a caller
+  holding one can only ever address their own. The Worker still ADDRESSES and
+  the object still VERIFIES — nothing but the request itself is forwarded, so
+  there is no verdict to forge.
+- **The socket authenticates with a TICKET, in the first frame.** `POST
+/v1/host/ticket` mints one against the session; the object stores it in its
+  own SQLite and the first `{t:"auth"}` frame spends it. Single-use (a
+  `DELETE … RETURNING` inside one synchronous turn), sixty seconds, and worth
+  exactly one socket — so a reconnect mints again, and a leaked ticket is not
+  an account. Admitting a socket costs one local read, with no D1 round trip on
+  the wake path.
+- **The Origin allowlist guards the MINT, not the upgrade.** An exact-match
+  allowlist of FULL origins (scheme + host + port) — the deployed ones plus
+  whatever `HOST_ALLOWED_ORIGINS` names — because the cookie is the one
+  credential a cross-site page can make a browser send. It is deliberately NOT
+  on the upgrade: a native client sends no Origin, and a socket opened without
+  a ticket does nothing and is reaped. Turning the gate into a classifier
+  ("absent means native") would derive a capability grant from a header a
+  caller omits for free.
 - **The 10s auth deadline is a DO alarm**, not a `setTimeout`. A pending timer
   pins the object in memory, which is the hibernation this transport exists to
   get; an alarm survives eviction, so a socket that connects and then says
   nothing at all is still reaped. One alarm serves every pending socket (it
   re-arms for the earliest one left).
-- **Capability classes replace the privileged loopback peer.** There is no
-  local renderer here — every client is remote over the same socket — so `web`
-  (the full workspace UI) and `mobile` (the companion's
-  `REMOTE_ALLOWED_*` set) are decided server-side from HOW a socket
-  authenticated, never from anything it asserts. `web` is **blanket-granted**
-  the whole surface, deliberately: an allowlist between a user's session and
-  that user's own object protects nothing the session does not already own. A
-  capability that ever reaches outside the tenancy needs its own class.
+- **The capability class is decided by WHICH CREDENTIAL minted the ticket.**
+  A session **cookie** from an allowlisted Origin is `web` (the full workspace);
+  a **bearer** with no browser Origin is `mobile` (the companion's
+  `REMOTE_ALLOWED_*` set). Both are credentials, so neither is a header a
+  caller sets for free — and the two remaining combinations refuse, because a
+  bearer arriving with an Origin is a non-browser reaching for the browser
+  class. `web` is **blanket-granted** the whole surface, deliberately: an
+  allowlist between a user's session and that user's own object protects
+  nothing the session does not already own. A capability that ever reaches
+  outside the tenancy needs its own class.
 - **Two chokepoints, and a test that keeps it at two.** `resolveHandler()` is
   the only reader of the dispatch map and `sendEvent()` the only pusher of an
   event frame — including the reconnect hydration, which resolves a getter
   server-side and would otherwise volunteer state the method gate forbids
   asking for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a
   third path appears.
-- **Sixty-three methods are implemented; 9 are pending and 17 are retired.**
-  `collectHandlers` throws at construction if any of the 89 is unregistered.
-  `host/handlers.ts` keeps two tables, and they are different kinds of thing:
-  `CLOUD_SHIMS` is the migration backlog (connectors, and only connectors),
-  while `CLOUD_RETIRED` is a set of decisions — the account channels, remote
-  access, the vault-folder picker, the open-note watcher, the privacy probe and
-  the CLI-integration pair. A backlog shim says "not available yet"; a retired
-  one says what does not exist here and why, because "yet" is a promise this
-  host will never keep. Neither ever returns a plausible empty value.
+- **Sixty-three of the 71 host methods are implemented; 8 are owed.**
+  `collectHandlers` throws at construction if any is unregistered.
+  `host/handlers.ts` keeps ONE table — `CLOUD_SHIMS`, the migration backlog
+  (connectors, and only connectors) — and a shim says "not available yet"
+  rather than returning a plausible empty value. There is no second table for
+  capabilities decided against: retiring one means deleting its channel, which
+  the no-dead-channels guard already makes complete.
 
 ### The agent (`src/worker/agent/`)
 
@@ -469,14 +479,14 @@ from the Durable Object**, not container turns.
 - **Workers AI over REST, not the `ai` binding.** A declared binding has no
   local implementation, so the vitest pool opens a remote connection at startup
   and every test in this package would need a Cloudflare credential. Configured
-  as `WORKERS_AI_ACCOUNT_ID` + `WORKERS_AI_API_TOKEN`, both-or-nothing, exactly
-  like Browser Run.
+  as `CLOUDFLARE_ACCOUNT_ID` + `WORKERS_AI_API_TOKEN`, both-or-nothing, exactly
+  like Browser Run — which shares the account id and brings its own token.
 - **`onVoiceModelState` is dead here** and stays unemitted: it reported a local
   model download, and there is no per-user writable disk and no local inference.
 
 ### Deep-link capture (`src/worker/capture/`)
 
-`inteligir://` becomes `POST /v1/host/:userId/link?verb=…`.
+`inteligir://` becomes `POST /v1/host/link?verb=…`.
 
 - **The grammar is reused VERBATIM.** `@repo/bridge/deep-link` is pure, so the
   parser, the sanitizer, the line formatter, the append rule and the exact-line
@@ -578,13 +588,6 @@ improvement, and not one of the two blockers above.
   header on sign-in/up). Email+password is enabled; the `socialProviders` seam
   turns on GitHub/Google when the matching `*_CLIENT_ID` + `*_CLIENT_SECRET` pair
   is set.
-- **Desktop social handoff** (`src/worker/auth/desktop-session.ts`): the OAuth
-  flow's browser leg lands on `GET /v1/auth/desktop-callback?state=…` (session
-  cookie just set by Better Auth), which mints a **90s single-use** code (stored
-  hashed in D1, `desktop_auth_code`) and launches
-  `inteligir://session?code&state` — the deep link never carries a token.
-  `POST /v1/auth/exchange` burns the code (rate-limited 10/60s per IP) and
-  returns the session bearer.
 - The auth tables live in **D1** (`DB` binding) via the Drizzle adapter
   (`provider: "sqlite"`). Schema in `src/worker/db/schema.ts`, applied with
   `drizzle-kit push` — no migration files (`pnpm db:push:local` / `db:push`).
@@ -592,14 +595,19 @@ improvement, and not one of the two blockers above.
   (`getByName("user:" + userId)`), so a user can only ever reach their own vault;
   no/invalid bearer token → 401.
 
-### CORS
+### No CORS
 
-Desktop (Electron) and mobile (Expo) reach the API from their own processes, and
-every API response carries CORS headers, `OPTIONS` is answered as a preflight,
-and `set-auth-token` is exposed.
-Nothing narrows the allowed origin: bearer auth carries no cookies, so the
-reflected origin grants a browser nothing a `fetch` from any origin could not
-already do with a token it holds.
+There are none, and that is a decision rather than an omission. Every browser
+client is served by this same Worker from this same origin, and the one
+cross-origin caller left — a native app — is not a browser and is not subject
+to CORS at all.
+
+The headers this surface used to emit reflected the request's `Origin` (or `*`
+when absent). That was safe for exactly one reason: `access-control-allow-
+credentials` was never set, so a reflected origin granted a page nothing it
+could not already do with a token it holds. **If CORS is ever reintroduced,
+that header must stay absent** — the auth surface here is cookie-bearing, and a
+sandboxed frame's `Origin: null` reflects just as happily as any other.
 
 ## Dev
 
@@ -770,7 +778,7 @@ Sandbox's egress is unverified** — the outbound documentation never names it.
 The tool is not registered at all unless all three are set:
 
 ```bash
-wrangler secret put BROWSER_RUN_ACCOUNT_ID
+wrangler secret put CLOUDFLARE_ACCOUNT_ID       # shared by every CF service
 wrangler secret put BROWSER_RUN_API_TOKEN       # Browser Rendering: Edit
 wrangler secret put AGENT_EXTRA_ALLOWED_HOSTS   # api.cloudflare.com
 ```
@@ -793,7 +801,7 @@ shipped.
 refuses with a sentence rather than half-working:
 
 ```bash
-wrangler secret put WORKERS_AI_ACCOUNT_ID
+wrangler secret put CLOUDFLARE_ACCOUNT_ID       # the same one Browser Run uses
 wrangler secret put WORKERS_AI_API_TOKEN        # Workers AI: Read
 ```
 

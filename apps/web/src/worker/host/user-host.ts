@@ -24,18 +24,19 @@ import { TextGenerator } from "../ai/text-generator";
 import { CaptureInbox } from "../capture/capture-inbox";
 import { CaptureService } from "../capture/capture-service";
 import { handleDeepLink } from "../capture/deep-link-route";
-import { matchDeepLinkPath } from "../capture/deep-link";
 import { composeVoice, type VoiceComposition } from "../voice/voice-composition";
 import { handleAgentReport, handleOAuthCallback } from "./agent-endpoints";
 import { logUnhandled, logUnhandledCallback } from "../log";
-import { handleAssetUpload, matchHostAssetPath } from "./asset-route";
-import { mayInvoke, mayReceive, SESSION_CLIENT_CLASS } from "./client-class";
+import { handleAssetUpload } from "./asset-route";
+import { mayInvoke, mayReceive } from "./client-class";
 import { collectHandlers, type WireHandler } from "./handler-registry";
 import { cloudAppState, registerCloudHandlers } from "./handlers";
 import { HostEvents } from "./host-events";
 import { INDEX_CONTINUATION_MS, UserKnowledge } from "./knowledge/user-knowledge";
 import { userIdFromHostName } from "./host-address";
-import { verifyHostSession } from "./session";
+import { matchHostLeaf, type HostLeaf } from "./host-route";
+import { SocketTickets } from "./socket-ticket";
+import { handleTicketMint } from "./ticket-route";
 import {
   authedState,
   pendingState,
@@ -48,11 +49,13 @@ import { createCloudStores, type CloudStores } from "./stores";
 import { resolveDailyNotePath } from "./daily-note";
 import { SEED_OPEN_NOTE, seedVault } from "./vault/seed";
 import { UserVault, VAULT_ROOT } from "./vault/user-vault";
+import type { DurableKv } from "../store/durable-kv";
 
 // ---------------------------------------------------------------------------
-// UserHost — one Durable Object per user, serving that user's Bridge (the
-// registry's 95 host methods + 19 event channels) over ONE hibernatable
-// WebSocket per client. Addressed `env.UserHost.getByName("user:" + userId)`.
+// UserHost — one Durable Object per user, serving that user's Bridge (every
+// host method and event channel the registry declares) over ONE hibernatable
+// WebSocket per client. Addressed `env.UserHost.getByName("user:" + userId)`,
+// with the userId derived from the caller's credential rather than their URL.
 //
 // HIBERNATION IS THE POINT. Sockets are accepted with `ctx.acceptWebSocket`
 // and served through the `webSocket*` handler methods rather than
@@ -63,18 +66,20 @@ import { UserVault, VAULT_ROOT } from "./vault/user-vault";
 // set is rebuilt from `ctx.getWebSockets()` on every push instead of being
 // tracked in a Map.
 //
-// AUTH is a first frame, not the handshake. A browser cannot set an
+// AUTH is a first frame, not the handshake, and what it carries is a TICKET
+// (./socket-ticket) rather than a session. A browser cannot set an
 // Authorization header on `new WebSocket()`, and the two alternatives are
-// worse: a token in the query string lands in every request log, and a cookie
-// on the upgrade makes the socket forgeable from any page the browser has
-// open. So the URL carries only the userId — an addressing hint, not a
-// credential — and the socket must present the session bearer in an `auth`
-// frame that this object verifies AND binds to its own name. A caller who
-// names someone else's host reaches an object that refuses them.
+// worse: a credential in the query string lands in every request log, and the
+// cookie that rides the handshake is attached cross-origin too, so a socket
+// admitted on it alone would be forgeable from any page the browser has open.
+// The ticket answers all of it — this object minted it, for one socket, for one
+// minute, and spending it is a synchronous read of this object's own SQLite
+// with no session round trip on the wake path.
 //
-// That leaves the same accepted residual the vault surface records: naming a
-// userId instantiates an empty Durable Object. The cost is an object with two
-// unwritten KV keys, never another user's state.
+// The URL carries NO userId. The Worker derives the object name from the
+// caller's own credential (./host-route), so naming an object is not something
+// a request can do, and the empty-host residual that shape used to leave behind
+// is gone with it.
 // ---------------------------------------------------------------------------
 
 /**
@@ -104,14 +109,6 @@ const SOCKET_TAG_V1 = "v1";
  * URI's fallback when no public host is declared. */
 const LAST_ORIGIN_KEY = "host/last-origin";
 
-/** The Durable Object's synchronous key-value storage, as this object uses it.
- * `get` answers `unknown` because what comes back is JSON an earlier version of
- * this code wrote — a generic would be a promise nothing can keep. */
-type SyncKvStorage = {
-  get(key: string): unknown;
-  put(key: string, value: unknown): void;
-};
-
 // RFC 6455 close codes used below; the 44xx application codes live in
 // ws-protocol beside the frames they refuse.
 const WS_CLOSE_NORMAL = 1000;
@@ -126,26 +123,28 @@ export class UserHost extends DurableObject<Env> {
    * (see ./host-events). */
   private readonly events = new HostEvents();
 
-  /**
-   * This user's vault: the manifest in this object's own SQLite, the bytes in
-   * R2 under this object's name (see ./vault/user-vault).
-   *
-   * PUBLIC because a Durable Object's API is its RPC surface and the Worker
-   * holds the only stub — the same reason `fetch` is public. It is also how
-   * `runInDurableObject` tests drive the vault's own verbs (the deletion gate's
-   * confirmation, the trash view) that no Bridge channel spells yet.
-   */
+  // ---- the composition ----------------------------------------------------
+  //
+  // THE RPC SURFACE IS `fetch` AND `mintProviderAccessToken`, and nothing else.
+  // Every field below is this object's own composition; it is `readonly` and
+  // public for exactly one reason, stated here rather than seven times: a
+  // `runInDurableObject` test runs INSIDE the object and drives the real vault,
+  // index and agent through them — including the verbs no Bridge channel spells
+  // yet (the deletion gate's confirmation, the trash view, the lane bounds).
+  //
+  // So they are a TEST SEAM, not an interface. Reaching one across a stub would
+  // be a second way into this object that skips `fetch`'s admission entirely,
+  // and there is no such caller: `env.UserHost.getByName(…)` is dialled in
+  // exactly three places, and all three call `fetch` or mint a credential.
+
+  /** This user's vault: the manifest in this object's own SQLite, the bytes in
+   * R2 under this object's name (see ./vault/user-vault). */
   readonly vault: UserVault;
 
-  /**
-   * The link/search index over that vault (see ./knowledge/user-knowledge).
-   *
-   * PUBLIC for the same reason the vault is: a Durable Object's API is its RPC
-   * surface, and `runInDurableObject` tests drive the index's own passes.
-   */
+  /** The link/search index over that vault (see ./knowledge/user-knowledge). */
   readonly knowledge: UserKnowledge;
 
-  /** Set when a mutation may have created a deadline; consumed by `syncAlarm`
+  /** Set when a mutation may have created a deadline; consumed by `refreshAlarm`
    * at the end of the inbound path. In memory only, and never read across
    * one — it is set and cleared inside a single invocation. */
   private alarmDirty = false;
@@ -164,32 +163,23 @@ export class UserHost extends DurableObject<Env> {
    */
   private readonly dispatch: ReadonlyMap<string, WireHandler>;
 
-  /**
-   * The agent, and the container it drives (see ../agent/agent-composition).
-   *
-   * PUBLIC for the vault's reason — a Durable Object's API is its RPC surface,
-   * and the Worker holds the only stub. It is also how the egress interceptor
-   * reaches a credential without one ever being handed to a container.
-   */
+  /** The agent, and the container it drives (see ../agent/agent-composition).
+   * The one thing that DOES leave this object is a minted provider token, and
+   * it leaves through `mintProviderAccessToken` below rather than through
+   * here. */
   readonly agent: AgentComposition;
 
-  /**
-   * The editor's AI — no-tools text turns, run directly from this object rather
-   * than through the container (see ../ai/text-generator for why, and for what
-   * an outbound fetch costs an object that would otherwise hibernate).
-   *
-   * PUBLIC for the vault's reason: a Durable Object's API is its RPC surface,
-   * and it is how `runInDurableObject` tests drive the lane bounds.
-   */
+  /** The editor's AI — no-tools text turns, run directly from this object
+   * rather than through the container (see ../ai/text-generator for why, and
+   * for what an outbound fetch costs an object that would otherwise
+   * hibernate). */
   readonly ai: TextGenerator;
 
   /** Text-to-speech and dictation, per OBJECT — never module scope, because
    * this capability moves note content through a third party (../voice). */
   readonly voice: VoiceComposition;
 
-  /** The deep-link capture inbox and the nav parking over it (../capture).
-   * PUBLIC for the vault's reason: a Durable Object's API is its RPC surface,
-   * and it is how `runInDurableObject` tests drive a drain the alarm owns. */
+  /** The deep-link capture inbox and the nav parking over it (../capture). */
   readonly captureInbox: CaptureInbox;
   readonly capture: CaptureService;
 
@@ -197,17 +187,22 @@ export class UserHost extends DurableObject<Env> {
    * URI has something to fall back to where the deployment declared no public
    * host. Persisted, because the object hibernates between the socket that saw
    * it and the connect that needs it. */
-  private readonly kv: SyncKvStorage;
+  private readonly kv: DurableKv;
 
   /** This user's durable host state (./stores). Held because the seed decides
    * which note a brand-new workspace lands on, and that is ui-state. */
   private readonly stores: CloudStores;
+
+  /** Unspent socket tickets (./socket-ticket) — minted for a verified session,
+   * spent by the socket it opens. */
+  private readonly tickets: SocketTickets;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.kv = ctx.storage.kv;
     const stores = createCloudStores(ctx.storage.kv);
     this.stores = stores;
+    this.tickets = new SocketTickets(ctx.storage.sql);
     this.vault = new UserVault({
       sql: ctx.storage.sql,
       bucket: env.VAULT_FILES,
@@ -388,45 +383,57 @@ export class UserHost extends DurableObject<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     try {
-      // Five ways in, and the split is the transport or the CREDENTIAL, never
-      // the capability: the Bridge socket, the attachment upload that cannot
-      // fit in one of its frames (./asset-route), the deep link that arrives as
-      // a navigation rather than a frame (../capture/deep-link-route), the
-      // container's report (./agent-endpoints), and the provider's OAuth
-      // redirect. The last two carry a token this Worker minted rather than a
-      // session, because neither caller has one.
+      // Six ways in, and the split is the transport or the CREDENTIAL, never
+      // the capability: the ticket mint (./ticket-route), the Bridge socket,
+      // the attachment upload that cannot fit in one of its frames
+      // (./asset-route), the deep link that arrives as a navigation rather than
+      // a frame (../capture/deep-link-route), the container's report
+      // (./agent-endpoints), and the provider's OAuth redirect. The last two
+      // carry a token this Worker minted rather than a session, because neither
+      // caller has one.
       const pathname = new URL(request.url).pathname;
-      if (matchDeepLinkPath(request.method, pathname) !== null) {
+      const leaf = matchHostLeaf(request.method, pathname);
+      if (leaf !== null) return await this.handleLeaf(leaf, request);
+      if (matchAgentReportPath(request.method, pathname) !== null) {
+        const response = await handleAgentReport(request, this.agent.runner);
+        await this.knowledge.flush();
+        await this.refreshAlarm();
+        return response;
+      }
+      if (isOAuthCallbackPath(pathname)) {
+        return await handleOAuthCallback(request, this.env, this.agent.credentials);
+      }
+      return new Response("not found", { status: 404 });
+    } catch (error) {
+      logUnhandled("user-host", request, error);
+      return new Response("internal error", { status: 500 });
+    }
+  }
+
+  private async handleLeaf(leaf: HostLeaf, request: Request): Promise<Response> {
+    switch (leaf) {
+      case "ticket":
+        return await handleTicketMint(request, this.env, this.tickets, this.ctx.id.name);
+      case "ws":
+        return await this.upgrade(request);
+      case "assets": {
+        const response = await handleAssetUpload(request, this.env, this.vault, this.ctx.id.name);
+        // Project what the upload wrote before answering, so the index is never
+        // a message behind the manifest.
+        await this.knowledge.flush();
+        await this.refreshAlarm();
+        return response;
+      }
+      case "link": {
         const response = await handleDeepLink(request, this.env, this.capture, this.ctx.id.name);
         // A capture may have landed on today's note; the index must not be a
         // message behind the manifest, and the ack deadline it armed is a
         // reason to wake.
         this.alarmDirty = true;
         await this.knowledge.flush();
-        await this.syncAlarm();
+        await this.refreshAlarm();
         return response;
       }
-      if (matchHostAssetPath(request.method, pathname) !== null) {
-        const response = await handleAssetUpload(request, this.env, this.vault, this.ctx.id.name);
-        // Project what the upload wrote before answering, so the index is never
-        // a message behind the manifest.
-        await this.knowledge.flush();
-        await this.syncAlarm();
-        return response;
-      }
-      if (matchAgentReportPath(request.method, pathname) !== null) {
-        const response = await handleAgentReport(request, this.agent.runner);
-        await this.knowledge.flush();
-        await this.syncAlarm();
-        return response;
-      }
-      if (isOAuthCallbackPath(pathname)) {
-        return await handleOAuthCallback(request, this.env, this.agent.credentials);
-      }
-      return await this.upgrade(request);
-    } catch (error) {
-      logUnhandled("user-host", request, error);
-      return new Response("internal error", { status: 500 });
     }
   }
 
@@ -484,7 +491,7 @@ export class UserHost extends DurableObject<Env> {
     try {
       await this.dispatchMessage(ws, message);
       await this.knowledge.flush();
-      await this.syncAlarm();
+      await this.refreshAlarm();
     } catch (error) {
       logUnhandledCallback("user-host", "webSocketMessage", error);
       ws.close(WS_CLOSE_INTERNAL_ERROR, "internal error");
@@ -547,6 +554,7 @@ export class UserHost extends DurableObject<Env> {
   override async alarm(): Promise<void> {
     const now = Date.now();
     this.reapPendingSockets(now);
+    this.tickets.sweep(now);
     await this.vault.sweepTrash(now);
     // A capture whose offer nobody answered lands on today's note HERE, which
     // is what a Durable Object's alarm is for and what the desktop's
@@ -603,7 +611,7 @@ export class UserHost extends DurableObject<Env> {
   /** Re-derive the alarm after an inbound path that mutated something, or that
    * left indexing work behind. Skipped entirely when neither happened, so a
    * chatty read-only socket pays no storage read per message. */
-  private async syncAlarm(): Promise<void> {
+  private async refreshAlarm(): Promise<void> {
     if (!this.alarmDirty && !this.knowledge.hasPendingWork()) return;
     this.alarmDirty = false;
     const next = this.nextDueAt(Date.now());
@@ -634,11 +642,16 @@ export class UserHost extends DurableObject<Env> {
       ws.close(WS_CLOSE_UNAUTHORIZED, "not authenticated");
       return;
     }
-    const admitted = await this.authenticate(state, frame.token);
-    if (admitted === null) {
-      ws.close(WS_CLOSE_UNAUTHORIZED, "invalid session");
+    // The class comes from the ticket, never from the wire: this object minted
+    // it against a verified session under the Origin rules (./client-class),
+    // and spending it is atomic, so a second socket presenting the same one is
+    // refused.
+    const clientClass = this.tickets.consume(frame.ticket, Date.now());
+    if (clientClass === null) {
+      ws.close(WS_CLOSE_UNAUTHORIZED, "invalid ticket");
       return;
     }
+    const admitted = authedState(clientClass, Date.now());
     // A brand-new account lands in a workspace, not an empty one. Seeded HERE
     // rather than at construction because merely NAMING a host instantiates
     // one, and a vault written for a caller who never proved who they are is a
@@ -660,23 +673,10 @@ export class UserHost extends DurableObject<Env> {
     // The origin an AUTHENTICATED socket arrived on — never a pending one, so
     // an unauthenticated caller cannot set the origin a later OAuth redirect
     // URI is built from.
-    this.kv.put(LAST_ORIGIN_KEY, state.baseUrl);
+    this.kv.put(LAST_ORIGIN_KEY, state.origin);
     writeSocketState(ws, admitted);
     ws.send(encodeFrame({ t: "welcome" }));
     await this.hydrate(ws, admitted);
-  }
-
-  /** Resolve the session bearer against this object's own name (./session), or
-   * `null` to refuse. */
-  private async authenticate(
-    state: PendingSocketState,
-    token: string,
-  ): Promise<AuthedSocketState | null> {
-    const session = await verifyHostSession(this.env, state.baseUrl, token, this.ctx.id.name);
-    if (session === null) return null;
-    // The class comes from the credential, never from the wire: one admission
-    // path, one class (see ./client-class).
-    return authedState(session.userId, session.sessionId, SESSION_CLIENT_CLASS, Date.now());
   }
 
   // ---- dispatch ------------------------------------------------------------

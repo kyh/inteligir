@@ -48,7 +48,7 @@ type AiProviderStore = {
   /** Run the OAuth connect flow for `provider`; resolves when it completes. */
   connect: (provider: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   /** Drop `provider`'s on-device credentials. Touches ONLY pi's auth.json —
-   * the app stays in the workspace as a guest, the sync account untouched. */
+   * the app stays in the workspace, the user's own account untouched. */
   disconnect: (provider: string) => Promise<void>;
 };
 

@@ -1,17 +1,18 @@
 // ---------------------------------------------------------------------------
-// App lifecycle state machine types.
+// App lifecycle state types.
 //
-// The machine models APP LIFECYCLE ONLY — provider login is NOT an app phase:
-// the app boots as a guest straight toward the workspace; AI-provider
-// connection lives in the provider layer (Settings → AI,
-// `connectAiProvider`/`disconnectAiProvider`) and the optional account
-// (Better Auth) lives in the sync layer. Neither gates app entry.
+// APP LIFECYCLE ONLY — signing in is not an app phase and neither is provider
+// login: reaching the workspace already means a Better Auth session, and
+// AI-provider connection lives behind Settings → AI
+// (`connectAiProvider`/`disconnectAiProvider`). Neither gates app entry.
 // ---------------------------------------------------------------------------
 
 import { type Static, Type } from "@sinclair/typebox";
 
 // ---------------------------------------------------------------------------
-// External events — sent by renderer via IPC
+// Events — what a client may send over the `transition` channel. There is no
+// internal half: the host answers a transition inline rather than running an
+// effect queue that feeds itself.
 // ---------------------------------------------------------------------------
 
 export const AppEventSchema = Type.Union([
@@ -20,28 +21,6 @@ export const AppEventSchema = Type.Union([
   Type.Object({ type: Type.Literal("RETRY") }, { additionalProperties: false }),
   Type.Object({ type: Type.Literal("NEW_SESSION") }, { additionalProperties: false }),
 ]);
-
-type AppEvent = Static<typeof AppEventSchema>;
-
-// ---------------------------------------------------------------------------
-// Internal events — emitted by effect runner, never from renderer
-// ---------------------------------------------------------------------------
-
-type InternalEvent =
-  | { type: "SETUP_OK" }
-  | { type: "SETUP_FAIL"; message: string }
-  // RESET failures carry their own event so the error state records WHICH
-  // effect died: a failed wipe must RETRY as a RESET (the wipe may not have
-  // happened), never quietly downgrade to a plain SETUP that leaves the data
-  // the user asked to destroy intact.
-  | { type: "RESET_FAIL"; message: string }
-  | { type: "AGENT_START" }
-  | { type: "AGENT_END" }
-  | { type: "NEW_SESSION_OK" }
-  | { type: "NEW_SESSION_FAIL"; message: string };
-
-/** All events the machine can process — external + internal */
-export type MachineEvent = AppEvent | InternalEvent;
 
 // ---------------------------------------------------------------------------
 // App state

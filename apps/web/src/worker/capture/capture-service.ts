@@ -19,18 +19,12 @@ import type { DeepLinkAction, DeepLinkNav, DeepLinkNavEvent } from "@repo/bridge
 import { isRecord } from "@repo/bridge/wire-helpers";
 
 import type { CaptureInbox } from "./capture-inbox";
+import type { DeletableDurableKv } from "../store/durable-kv";
 
 const PARKED_NAV_KEY = "capture/parked-nav";
 
-/** The Durable Object's synchronous key-value storage, as this module uses it. */
-type CaptureKv = {
-  get(key: string): unknown;
-  put(key: string, value: unknown): void;
-  delete(key: string): boolean;
-};
-
 export type CaptureServiceDeps = {
-  readonly kv: CaptureKv;
+  readonly kv: DeletableDurableKv;
   readonly inbox: CaptureInbox;
   /** Push a nav to connected clients (`onDeepLinkNav`). */
   readonly onNav: (event: DeepLinkNavEvent) => void;

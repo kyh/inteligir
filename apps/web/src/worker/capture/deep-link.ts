@@ -32,25 +32,6 @@ import { parseDeepLink, type DeepLinkAction } from "@repo/bridge/deep-link";
  * `/capture/append?text=…` reads the way the scheme did. */
 const HTTP_VERBS = ["append", "task", "today", "note", "search"] as const;
 
-/** The route this surface owns, as one place both the matcher and the client
- * would build from. */
-const CAPTURE_PATH = /^\/v1\/host\/([^/]+)\/link$/;
-
-/** The userId a `POST /v1/host/:userId/link` addresses, or `null`. Pure — no
- * bindings, no I/O, exactly like ../host/host-address's own matchers. */
-export function matchDeepLinkPath(method: string, pathname: string): string | null {
-  if (method !== "POST") return null;
-  const match = CAPTURE_PATH.exec(pathname);
-  const raw = match?.[1];
-  if (raw === undefined) return null;
-  try {
-    const userId = decodeURIComponent(raw);
-    return userId === "" ? null : userId;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Translate a web deep link into the scheme grammar and parse it, or `null` for
  * anything outside it.

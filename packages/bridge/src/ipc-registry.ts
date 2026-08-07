@@ -341,6 +341,43 @@ const VaultWriteAssetSchema = Type.Object(
  * a broken image is a UI state, not an exception — hence a Result, not a throw. */
 export type ReadVaultAssetResult = { ok: true; bytesBase64: string } | { ok: false; error: string };
 
+/** The deletion gate's refusal, in the terms a human is asked to confirm. */
+export type HeldDeletions = {
+  /** How many deletions this call would bring the window to. */
+  readonly deletions: number;
+  /** Files the vault holds right now, for "N of M" phrasing. */
+  readonly liveCount: number;
+  /** The count above which the gate holds. */
+  readonly limit: number;
+  /** A few of the paths this call would remove. */
+  readonly sample: readonly string[];
+};
+
+/**
+ * What a delete did.
+ *
+ * THREE outcomes, not a boolean, because the gate holding is a third thing:
+ * `absent` says the path named no live file, and answering a HELD delete with
+ * it would report a file the user can still see as gone. A caller that shows a
+ * row must be able to tell "it went", "it was never there" and "the host
+ * refused, here is why" apart.
+ */
+export type DeleteVaultEntryResult =
+  | { readonly outcome: "trashed" }
+  | { readonly outcome: "absent" }
+  | { readonly outcome: "held"; readonly held: HeldDeletions };
+
+/** The sentence a held deletion is reported with — one phrasing, so the refusal
+ * reads the same in a toast, in an agent tool's failure and in a log. */
+export function heldDeletionMessage(held: HeldDeletions): string {
+  const named = held.sample.map((path) => `"${path}"`).join(", ");
+  return (
+    `Refusing to delete ${held.deletions} file(s) of ${held.liveCount} without confirmation ` +
+    `(${named}${held.sample.length < held.deletions ? ", …" : ""}). ` +
+    "Confirm the deletion to proceed."
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Knowledge — the host's link + lexical search indexes over the vault
 // (backlinks, graph, palette search, wiki autocomplete). Result shapes live
@@ -543,7 +580,9 @@ export const IPC = {
    * listing never stats (see VaultFileFacts). */
   getVaultFileFacts: invoke<typeof VaultPathSchema, VaultFileFacts | null>(VaultPathSchema),
   writeVaultDoc: invoke<typeof VaultWriteDocSchema, void>(VaultWriteDocSchema),
-  deleteVaultEntry: invoke<typeof VaultPathSchema, { removed: boolean }>(VaultPathSchema),
+  /** Trash one vault entry. A tombstone, not a removal — and subject to the
+   * deletion gate, whose hold is its own outcome rather than an error. */
+  deleteVaultEntry: invoke<typeof VaultPathSchema, DeleteVaultEntryResult>(VaultPathSchema),
   /** Rename/move a file to a new vault-relative path (creating parent dirs).
    * Refuses to clobber an existing file. */
   renameVaultEntry: invoke<typeof VaultRenameSchema, { ok: true } | { ok: false; error: string }>(

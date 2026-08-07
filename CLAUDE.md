@@ -240,14 +240,14 @@ d3-force canvas) and full-text search live in the command palette.
   client; stops on note switch / voice-chat start).
 - **Deep links / capture**: `inteligir://` has exactly six verbs
   (`packages/bridge/src/deep-link.ts`, pure parser + sanitizer) and the web
-  answers five of them at `POST /v1/host/:userId/link`: `append`/`task` capture
+  answers five of them at `POST /v1/host/link`: `append`/`task` capture
   ONE sanitized plain-text line onto TODAY's daily note (durable inbox +
   exactly-once apply — the open note's live buffer via `onCaptureApply`, else
   the host-side CAS drain), and `today` / `note/<target>` / `search?q=`
   navigate. Target paths are computed host-side, never taken from the URL. It
   is a POST because a GET a page can cause is a CSRF write; `/app/link` is the
-  navigable client that reads the query and calls it with the user's bearer,
-  and the desktop shell translates the scheme into that route.
+  navigable client that reads the query and calls it same-origin, and the
+  desktop shell translates the scheme into that route.
 - **Tasks view**: a palette-launched alternate main surface like the graph
   ("Open tasks view") over the projection's per-doc task extraction (every GFM
   `- [ ]` is a task; per-note `tasks: false` opts out). Scheduling is
@@ -306,9 +306,13 @@ channel pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. The `UserHost` builds a
 schema-validated handler map from that same registry (`host/handler-registry.ts`
 — a channel added there fails the object's boot until it is answered) and
-serves it over one hibernatable WebSocket at `GET /v1/host/:userId/ws`. The
-client dials it with `createWsBridge` and authenticates with its Better Auth
-session token in the socket's FIRST FRAME — never a cookie, never a query
+serves it over one hibernatable WebSocket at `GET /v1/host/ws`. NO route under
+`/v1/host/*` carries a userId: the Worker derives the object name from the
+credential the request presents (`host/host-route.ts`), so a caller with no
+session can instantiate nothing and a caller with one reaches only their own.
+The client dials with `createWsBridge` and spends a single-use TICKET in the
+socket's FIRST FRAME — minted at `POST /v1/host/ticket` against the session,
+stored in the object it opens, and never a session token, a cookie or a query
 param. Add a channel = registry entry + host handler + one line in the fixture
 Bridge (`packages/workspace/src/dev/fixture-bridge.ts`), which fails typecheck
 until covered. The fixture stub must do something real against the in-memory
@@ -395,14 +399,17 @@ record for the decisions code comments cite.
   push (which resolves a getter host-side and would otherwise volunteer state
   the method gate forbids asking for).
 
-- **The Origin gate on the host socket REJECTS an absent Origin.** A browser
-  always attaches Origin to a WebSocket handshake, so its absence means a
-  non-browser caller, and admitting that silently is the CSRF hole the check
-  exists to close. It is an exact-match allowlist of full origins — never a
-  hostname comparison, which would admit every port on a dev machine. This is
-  what a native client (the Expo app) currently cannot get past, and the fix is
-  a design decision about how a non-browser client proves itself, not a
-  loosening of this check.
+- **The socket's credential is a single-use TICKET, and the class rides on
+  it.** `POST /v1/host/ticket` mints one against the session; the object that
+  will serve the socket stores it and the first frame spends it — atomically, so
+  two sockets cannot share one. That is what stopped a session token being
+  handed to page JavaScript, and what lets a class be decided SERVER-SIDE from
+  which credential arrived: a cookie from an allowlisted Origin is `web`, a
+  bearer with no browser Origin is `mobile`. Both are credentials. The Origin
+  allowlist therefore guards the MINT — the one request a cross-site page could
+  cause — and never the upgrade, where a native client cannot pass it. Making
+  the Origin check a CLASSIFIER instead ("absent means native") is the thing to
+  refuse: it derives a capability grant from a header a caller omits for free.
 
 - **One host per user is a Durable Object, not a singleton registry.** The
   object IS the composition root: its constructor builds the vault, the index,

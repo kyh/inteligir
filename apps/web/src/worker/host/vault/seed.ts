@@ -19,9 +19,9 @@ import {
 
 import type { UserVault } from "./user-vault";
 
-const WELCOME = `# Welcome
-
-This is your vault: a folder of markdown files you own. Notes are plain
+// No `# Welcome` heading: the page title above every note IS its filename, so a
+// leading h1 that repeats the file name renders twice.
+const WELCOME = `This is your vault: a folder of markdown files you own. Notes are plain
 markdown, so nothing here is locked up in a format only this app can read.
 
 ## Chat edits these files
@@ -47,9 +47,10 @@ links back to it, so structure emerges from writing rather than from filing.
 Start anywhere. Rename this note when it stops being useful.
 `;
 
-const MEETING_TEMPLATE = `# {{title}}
-
-Date: {{date}}
+// `{{title}}` is deliberately absent for the same reason `# Welcome` is: the
+// substitution IS the new note's filename, and the page title already renders
+// it. `{{date}}` earns its place — nothing else on screen carries it.
+const MEETING_TEMPLATE = `Date: {{date}}
 
 ## Attendees
 

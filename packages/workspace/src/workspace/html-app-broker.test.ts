@@ -55,7 +55,7 @@ function makeBridge(
     writeVaultDoc: async ({ path, content }) => {
       store.set(path, content);
     },
-    deleteVaultEntry: async ({ path }) => ({ removed: store.delete(path) }),
+    deleteVaultEntry: async ({ path }) => ({ outcome: store.delete(path) ? "trashed" : "absent" }),
     searchVault,
     getBacklinks,
   };

@@ -411,7 +411,7 @@ describe("vault over the bridge", () => {
 
     expect(await invoke(ws, frames, 10, "deleteVaultEntry", { path: "Welcome.md" })).toMatchObject({
       ok: true,
-      result: { removed: true },
+      result: { outcome: "trashed" },
     });
     expect(await runInDurableObject(stub, (_host, state) => state.storage.getAlarm())).toBe(
       authDeadline,
@@ -468,16 +468,18 @@ describe("vault over the bridge", () => {
   });
 });
 
-function upload(account: Account, query: string, body: BodyInit, origin = WEB_ORIGIN) {
-  return SELF.fetch(`${ORIGIN}/v1/host/${encodeURIComponent(account.userId)}/assets?${query}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${account.token}`,
-      origin,
-      "content-type": "application/octet-stream",
-    },
-    body,
+function upload(
+  account: Account,
+  query: string,
+  body: BodyInit,
+  origin: string | null = WEB_ORIGIN,
+) {
+  const headers = new Headers({
+    cookie: account.cookie,
+    "content-type": "application/octet-stream",
   });
+  if (origin !== null) headers.set("origin", origin);
+  return SELF.fetch(`${ORIGIN}/v1/host/assets?${query}`, { method: "POST", headers, body });
 }
 
 describe("asset upload route", () => {
@@ -503,26 +505,26 @@ describe("asset upload route", () => {
     });
   });
 
-  it("refuses an unauthenticated upload and a foreign origin", async () => {
-    const anonymous = await SELF.fetch(
-      `${ORIGIN}/v1/host/${encodeURIComponent(uploader.userId)}/assets?name=x.bin`,
-      { method: "POST", headers: { origin: WEB_ORIGIN }, body: "x" },
-    );
+  it("refuses an upload with no credential to address an object with", async () => {
+    const anonymous = await SELF.fetch(`${ORIGIN}/v1/host/assets?name=x.bin`, {
+      method: "POST",
+      headers: { origin: WEB_ORIGIN },
+      body: "x",
+    });
     expect(anonymous.status).toBe(401);
-
-    const foreign = await upload(uploader, "name=x.bin", "x", "https://evil.example");
-    expect(foreign.status).toBe(403);
   });
 
-  it("refuses a session that names another user's host", async () => {
-    const response = await SELF.fetch(
-      `${ORIGIN}/v1/host/${encodeURIComponent(owner.userId)}/assets?name=x.bin`,
-      {
-        method: "POST",
-        headers: { authorization: `Bearer ${uploader.token}`, origin: WEB_ORIGIN },
-        body: "x",
-      },
-    );
-    expect(response.status).toBe(401);
+  it("refuses a foreign origin, and a companion class that may not write assets", async () => {
+    expect((await upload(uploader, "name=x.bin", "x", "https://evil.example")).status).toBe(403);
+
+    // A bearer with no browser origin is the COMPANION class, and
+    // `writeVaultAsset` is not on its allowlist — the same gate the socket
+    // applies, over the other transport.
+    const companion = await SELF.fetch(`${ORIGIN}/v1/host/assets?name=x.bin`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${uploader.token}` },
+      body: "x",
+    });
+    expect(companion.status).toBe(403);
   });
 });

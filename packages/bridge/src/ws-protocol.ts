@@ -1,11 +1,10 @@
 // ---------------------------------------------------------------------------
-// WS Bridge wire protocol — the frame vocabulary shared by the ws host
-// (server/transport/ws-host.ts) and the ws client (ws-bridge.ts). Text frames
-// are JSON; binary frames are [1-byte tag][payload bytes], and WHICH channels
-// use them is declared in ipc-registry's BINARY_CHANNELS — this module only
-// knows how to frame bytes, never which feature owns them. Isomorphic: no node
-// imports — this loads in the browser,
-// React Native, and node alike. All inbound parsing goes through the
+// WS Bridge wire protocol — the frame vocabulary shared by the UserHost Durable
+// Object and the ws client (ws-bridge.ts). Text frames are JSON; binary frames
+// are [1-byte tag][payload bytes], and WHICH channels use them is declared in
+// ipc-registry's BINARY_CHANNELS — this module only knows how to frame bytes,
+// never which feature owns them. Isomorphic: no node imports, so it loads in
+// the browser and React Native alike. All inbound parsing goes through the
 // type-guard parse functions so a malformed frame is a `null`, never a throw.
 // ---------------------------------------------------------------------------
 
@@ -15,10 +14,9 @@ import { isRecord } from "./wire-helpers";
 // Close codes + binary tags
 // ---------------------------------------------------------------------------
 
-/** Auth failed (bad token, or the auth deadline elapsed before one arrived). */
+/** Auth failed (unknown, spent or stale ticket, or the auth deadline elapsed
+ * before one arrived). */
 export const WS_CLOSE_UNAUTHORIZED = 4401;
-/** The connection came from a disallowed HTTP Origin — rejected before auth. */
-export const WS_CLOSE_FORBIDDEN_ORIGIN = 4403;
 
 // Binary tag values live in ipc-registry's BINARY_CHANNELS, beside every other
 // channel declaration.
@@ -27,8 +25,8 @@ export const WS_CLOSE_FORBIDDEN_ORIGIN = 4403;
 // Text frames
 // ---------------------------------------------------------------------------
 
-/** First frame on connect: present a device (or local-renderer) token. */
-export type AuthFrame = { t: "auth"; token: string };
+/** First frame on connect: spend the single-use ticket the host minted. */
+export type AuthFrame = { t: "auth"; ticket: string };
 /** Invoke / invoke-void request (invoke-void carries no payload). */
 export type ReqFrame = { t: "req"; id: number; method: string; payload?: unknown };
 /** Fire-and-forget send (except BINARY_CHANNELS sends, which go binary). */
@@ -63,7 +61,7 @@ export function parseClientFrame(text: string): ClientFrame | null {
   if (raw === null) return null;
   switch (raw["t"]) {
     case "auth":
-      return typeof raw["token"] === "string" ? { t: "auth", token: raw["token"] } : null;
+      return typeof raw["ticket"] === "string" ? { t: "auth", ticket: raw["ticket"] } : null;
     case "req":
       return typeof raw["id"] === "number" && typeof raw["method"] === "string"
         ? { t: "req", id: raw["id"], method: raw["method"], payload: raw["payload"] }

@@ -1,7 +1,6 @@
 // catalogInstallRequest — the pure catalog-entry → install-request mapping the
 // connectors UI sends over the host-orchestrated installConnector channel.
-// (The install/uninstall orchestration itself is server-side — see
-// packages/server/src/__tests__/connector-install.test.ts.)
+// The orchestration itself is the host's, and is not exercised here.
 
 import { describe, expect, it } from "vitest";
 

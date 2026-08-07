@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { createExecutionContext, env, SELF, waitOnExecutionContext } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
 import { sendResetEmail } from "../auth/reset-email";
@@ -52,23 +52,18 @@ async function signUp(email: string): Promise<void> {
   }
 }
 
-/** POST /api/auth/request-password-reset through the mock-EMAIL env, with the
- * same `redirectTo` the desktop sends. Unlike `SELF.fetch`, calling the handler
- * directly means we own the ExecutionContext — so we also drain it, or any
- * `waitUntil` work the request scheduled would outlive the test. */
-async function requestReset(email: string, testEnv: Env): Promise<Response> {
-  const ctx = createExecutionContext();
-  const response = await worker.fetch(
+/** POST /api/auth/request-password-reset through the mock-EMAIL env. Called
+ * directly rather than through `SELF.fetch` because that is the only way to
+ * swap the `EMAIL` binding for one that records. */
+function requestReset(email: string, testEnv: Env): Promise<Response> {
+  return worker.fetch(
     new Request(ORIGIN + "/api/auth/request-password-reset", {
       method: "POST",
       headers: { "content-type": "application/json", origin: ORIGIN },
       body: JSON.stringify({ email, redirectTo: "/auth/reset" }),
     }),
     testEnv,
-    ctx,
   );
-  await waitOnExecutionContext(ctx);
-  return response;
 }
 
 function signIn(email: string, password: string): Promise<Response> {

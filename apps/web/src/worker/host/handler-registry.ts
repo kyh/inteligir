@@ -45,31 +45,12 @@ export type HandlerRegistrar = <K extends HostMethod>(method: K, fn: IpcHandler<
  * absent one, so a plausible answer renders a confidently wrong world where a
  * throw names itself in the res frame.
  */
-export type ShimRegistrar = (method: HostMethod, gap: Gap) => void;
-
-/**
- * Why a method has no implementation — a backlog item, or a decision.
- *
- * The distinction is the user-facing one and it is worth carrying in the type:
- * "not yet" says wait, and "does not exist here" says stop looking. A capability
- * that was RETIRED rather than deferred — a local CLI's version report, a
- * pairing token for a home machine — reading as "yet" is a promise this host
- * will never keep.
- */
-type Gap =
-  | { readonly kind: "pending"; readonly feature: string }
-  | { readonly kind: "retired"; readonly feature: string; readonly why: string };
+export type ShimRegistrar = (method: HostMethod, feature: string) => void;
 
 /** The one refusal an unimplemented capability answers with — the single
  * message format, so every gap reads the same in a res frame and in a log. */
 export function unavailable(feature: string): never {
   throw new Error(`${feature} is not available yet`);
-}
-
-/** What a shimmed method throws. */
-function refuse(gap: Gap): never {
-  if (gap.kind === "pending") unavailable(gap.feature);
-  throw new Error(`${gap.feature} does not exist here — ${gap.why}`);
 }
 
 function parsePayload(method: IpcMethod, schema: TSchema, raw: unknown): unknown {
@@ -132,8 +113,8 @@ export function collectHandlers(
     }
   };
 
-  const shim: ShimRegistrar = (method, gap) => {
-    claim(method, () => refuse(gap));
+  const shim: ShimRegistrar = (method, feature) => {
+    claim(method, () => unavailable(feature));
   };
 
   register(handle, shim);

@@ -21,10 +21,14 @@ import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 //
 // This is a SIGNED-IN SHELL: it holds an account against the deployment and
 // says so. It does not open a note, run the agent, or watch a delegation, and
-// the screen says that too rather than offering a button that would fail — the
-// host admits browser clients only (its WebSocket upgrade requires an Origin
-// header, which React Native does not send), so a native client cannot reach
-// the Bridge until that admission has a design.
+// the screen says that too rather than offering a button that would fail.
+//
+// What is missing is the COMPANION SURFACE, not the way in. The host admits a
+// native client: the bearer this app already holds mints a socket ticket at
+// `POST /v1/host/ticket`, and because it arrives with no browser Origin the
+// host decides the `mobile` class for it — chat plus the delegation dock
+// (`REMOTE_ALLOWED_METHODS`), and nothing else. Building those two panels is a
+// feature; connecting is five lines over `@repo/bridge`'s `createWsBridge`.
 //
 // What it is for today is the account: signing in on a phone, confirming which
 // deployment it belongs to, and signing out of a device you no longer hold.

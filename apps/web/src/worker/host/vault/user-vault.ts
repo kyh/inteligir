@@ -29,7 +29,7 @@
 // is purged by the host's alarm.
 // ---------------------------------------------------------------------------
 
-import type { VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
+import type { HeldDeletions, VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -130,22 +130,12 @@ export type WriteOutcome =
   | { readonly ok: false; readonly reason: "version-conflict"; readonly current: StoredFile | null }
   | { readonly ok: false; readonly reason: "bad-path" };
 
-/** A delete's verdict. `held` carries everything a confirmation prompt needs. */
+/** A delete's verdict. `held` carries everything a confirmation prompt needs,
+ * and it is `@repo/bridge`'s own shape so the value a channel answers with is
+ * the value this class produced rather than a re-spelling of it. */
 export type TrashOutcome =
   | { readonly ok: true; readonly trashed: readonly string[] }
   | { readonly ok: false; readonly reason: "held"; readonly held: HeldDeletions };
-
-/** The deletion gate's refusal, in the terms a human is asked to confirm. */
-export type HeldDeletions = {
-  /** How many deletions this call would bring the window to. */
-  readonly deletions: number;
-  /** Files the vault holds right now, for "N of M" phrasing. */
-  readonly liveCount: number;
-  /** The count above which the gate holds. */
-  readonly limit: number;
-  /** A few of the paths this call would remove. */
-  readonly sample: readonly string[];
-};
 
 /** A streamed upload's verdict. Over-size is a value: a chunked body declares
  * no length, so the only place the cap can be enforced is after the fact. */
@@ -804,18 +794,6 @@ export class UserVault {
     );
     return run;
   }
-}
-
-/** The sentence a held deletion is reported with — one phrasing, so the
- * refusal reads the same in a Bridge error as it will in a confirmation
- * dialog. */
-export function heldDeletionMessage(held: HeldDeletions): string {
-  const named = held.sample.map((path) => `"${path}"`).join(", ");
-  return (
-    `Refusing to delete ${held.deletions} file(s) of ${held.liveCount} without confirmation ` +
-    `(${named}${held.sample.length < held.deletions ? ", …" : ""}). ` +
-    "Confirm the deletion to proceed."
-  );
 }
 
 /** Manifest row → the caller-facing record, with live and trashed split so

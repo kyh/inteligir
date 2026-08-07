@@ -107,7 +107,7 @@ describe("user-host gate chokepoints", () => {
     // Named as the CHANNEL it stands in for, not as "an upload": the two are
     // the same capability over two transports, so they must be gated on the
     // same registry method or one of them will drift into a second policy.
-    expect(assetSource).toContain('mayInvoke(SESSION_CLIENT_CLASS, "writeVaultAsset")');
+    expect(assetSource).toContain('mayInvoke(clientClass, "writeVaultAsset")');
   });
 
   it("gates the container's report on the token that names its generation", () => {

@@ -10,22 +10,15 @@
 import { env, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-import { matchDeepLinkPath, parseWebDeepLink } from "../capture/deep-link";
+import { parseWebDeepLink } from "../capture/deep-link";
 import { userHostName } from "../host/host-address";
-import { authenticated, invoke, ORIGIN, signUp, WEB_ORIGIN } from "./host-helpers";
+import { authenticated, invoke, ORIGIN, signUp, WEB_ORIGIN, type Account } from "./host-helpers";
 
 function params(query: string): URLSearchParams {
   return new URLSearchParams(query);
 }
 
 describe("the web deep-link grammar", () => {
-  it("matches only a POST on /v1/host/:userId/link", () => {
-    expect(matchDeepLinkPath("POST", "/v1/host/user-123/link")).toBe("user-123");
-    expect(matchDeepLinkPath("POST", "/v1/host/a%2Fb/link")).toBe("a/b");
-    expect(matchDeepLinkPath("GET", "/v1/host/user-123/link")).toBeNull();
-    expect(matchDeepLinkPath("POST", "/v1/host/user-123/ws")).toBeNull();
-  });
-
   it("reuses the scheme's sanitizer verbatim", () => {
     // Markdown/MDX-active characters are escaped, whitespace runs collapse, and
     // the line is inert — the guard lives in @repo/bridge/deep-link, and this
@@ -62,34 +55,31 @@ describe("the web deep-link grammar", () => {
 });
 
 async function postLink(
-  account: { userId: string; token: string },
+  account: Account,
   query: string,
-  init: { origin?: string | null; token?: string | null } = {},
+  init: { origin?: string | null; cookie?: string | null } = {},
 ): Promise<Response> {
   const headers = new Headers();
   const origin = init.origin === undefined ? WEB_ORIGIN : init.origin;
   if (origin !== null) headers.set("origin", origin);
-  const token = init.token === undefined ? account.token : init.token;
-  if (token !== null) headers.set("authorization", `Bearer ${token}`);
+  const cookie = init.cookie === undefined ? account.cookie : init.cookie;
+  if (cookie !== null) headers.set("cookie", cookie);
   const { SELF } = await import("cloudflare:test");
-  return SELF.fetch(`${ORIGIN}/v1/host/${encodeURIComponent(account.userId)}/link?${query}`, {
-    method: "POST",
-    headers,
-  });
+  return SELF.fetch(`${ORIGIN}/v1/host/link?${query}`, { method: "POST", headers });
 }
 
 describe("the deep-link route", () => {
-  it("refuses an unknown origin, a missing bearer and another user's host", async () => {
+  it("refuses an unknown origin, a cookie no browser attached, and no credential", async () => {
     const account = await signUp("link-gate@example.com");
-    const other = await signUp("link-gate-other@example.com");
 
     expect((await postLink(account, "verb=today", { origin: "https://evil.example" })).status).toBe(
       403,
     );
+    // A cookie with no Origin is a cookie no browser sent, so it admits to no
+    // class at all rather than to the companion one.
     expect((await postLink(account, "verb=today", { origin: null })).status).toBe(403);
-    expect((await postLink(account, "verb=today", { token: null })).status).toBe(401);
-    // The userId is an ADDRESS: the object binds the session to its own name.
-    expect((await postLink({ ...account, token: other.token }, "verb=today")).status).toBe(401);
+    // Nothing to address an object with, so nothing is woken to say no.
+    expect((await postLink(account, "verb=today", { cookie: null })).status).toBe(401);
   });
 
   it("lands a capture on TODAY's note, at a path the URL never named", async () => {

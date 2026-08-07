@@ -1,15 +1,14 @@
 @import "@repo/ui/globals.css";
-/* The dev harness's vite root is `dev/`, so Tailwind v4's automatic source
-   detection scans apps/desktop/dev/** (plus @repo/ui's explicit @source) and
-   never sees src/renderer/**. Every renderer-only utility class was therefore
-   missing from the harness stylesheet — a probe div with `cursor-pointer
-   bg-primary/10 rounded-[12px]` computed to no styles at all, so the harness
-   silently under-rendered the real UI it exists to preview. Electron builds
-   were unaffected (their root IS src/renderer), which is exactly why this
-   went unnoticed. */
+/* Tailwind v4's automatic source detection is rooted at the CONSUMING app, so
+   a consumer whose root is not this package never scans it and every
+   workspace-only utility class is silently missing from its stylesheet — a
+   probe div with `cursor-pointer bg-primary/10 rounded-[12px]` computes to no
+   styles at all, and the app under-renders rather than failing. The explicit
+   @source below is what makes this package's classes independent of where it
+   is mounted. */
 @source "../../**/*.{ts,tsx}";
 /* Markdown-render styles for the AI chat surface (ai-elements/response). Lives
-   here, not in @repo/ui's shared globals, since only the renderer renders it. */
+   here, not in @repo/ui's shared globals, since only this package renders it. */
 @import "streamdown/styles.css";
 
 html,

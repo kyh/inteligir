@@ -18,20 +18,12 @@ import type { UiState } from "@repo/bridge/ui-state";
 import type { JsonStoreCore } from "../store/json-store-core";
 
 import { openCredential, sealCredential } from "../agent/agent-crypto";
+import type { DeletableDurableKv } from "../store/durable-kv";
 
 const SECRET_KEY = "voice/elevenlabs-key";
 
-/** The Durable Object's synchronous key-value storage, as this module uses it.
- * `get` answers `unknown` for ../agent/provider-credentials' reason: what comes
- * back is JSON some earlier version of this code wrote. */
-type VoiceSecretKv = {
-  get(key: string): unknown;
-  put(key: string, value: unknown): void;
-  delete(key: string): boolean;
-};
-
 export type VoiceSecretDeps = {
-  readonly kv: VoiceSecretKv;
+  readonly kv: DeletableDurableKv;
   readonly uiState: JsonStoreCore<UiState>;
   readonly userId: string;
   /** The deployment secret the seal key is derived from. */

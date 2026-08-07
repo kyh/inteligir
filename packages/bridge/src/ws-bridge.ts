@@ -1,11 +1,16 @@
 // ---------------------------------------------------------------------------
-// WS Bridge client — the Bridge implementation over a WebSocket, derived
-// from the IPC registry. Isomorphic: no
-// node imports — the desktop renderer (browser) and the mobile app (React
-// Native) both run this, injecting their WebSocket implementation. A
-// reconnect supervisor (the ONLY retry owner) keeps one socket alive with
+// WS Bridge client — the Bridge implementation over a WebSocket, derived from
+// the IPC registry. Isomorphic: no node imports — the browser workspace and a
+// React Native client both run this, injecting their WebSocket implementation.
+// A reconnect supervisor (the ONLY retry owner) keeps one socket alive with
 // exponential backoff; requests made while disconnected queue until the
 // server's welcome, and event subscriptions survive reconnects.
+//
+// Every connection begins by MINTING a ticket, because a ticket is spent by the
+// socket it opens: a reconnect cannot replay the last one, so the credential is
+// a function rather than a value. That is also where a dead session is
+// discovered — the minter says `unauthorized`, and the supervisor stops before
+// it dials rather than after.
 // ---------------------------------------------------------------------------
 
 import { createBackoff, timeoutSchedule } from "./backoff";
@@ -41,13 +46,30 @@ export type WsLike = {
 
 export type WsConstructor = new (url: string) => WsLike;
 
-/** `unauthorized` is terminal: the server rejected our token (close 4401), so
- * the supervisor stops — re-presenting a dead credential forever helps no one. */
+/** `unauthorized` is terminal: the session behind the ticket is gone, so the
+ * supervisor stops — re-presenting a dead credential forever helps no one. */
 export type WsBridgeStatus = "connecting" | "connected" | "disconnected" | "unauthorized";
+
+/**
+ * A freshly minted socket ticket, or why there is none.
+ *
+ * The two failures are answered differently and so cannot share a shape:
+ * `unauthorized` means the session is gone and no amount of retrying will
+ * produce a ticket, while `unavailable` is the network between here and the
+ * host. Collapsing them would either strand a signed-in user on a blip or spin
+ * forever against a dead session.
+ */
+export type MintedTicket =
+  | { readonly ok: true; readonly ticket: string }
+  | { readonly ok: false; readonly reason: "unauthorized" | "unavailable" };
+
+/** Mints the single-use ticket the next socket authenticates with. Called once
+ * per connection ATTEMPT, because a ticket is spent by the socket it opens. */
+export type TicketMinter = () => Promise<MintedTicket>;
 
 export type WsBridgeOptions = {
   url: string;
-  token: string;
+  mintTicket: TicketMinter;
   /** Defaults to globalThis.WebSocket (browser / React Native / node ≥ 22). */
   webSocketImpl?: WsConstructor;
   /** Fires on every status transition. */
@@ -68,8 +90,8 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
   const WebSocketImpl = options.webSocketImpl ?? globalThis.WebSocket;
 
   let disposed = false;
-  // Terminal: the server closed with 4401 — our credential is dead, so no
-  // further connection attempts and every request rejects immediately.
+  // Terminal: the session is gone — no further connection attempts, and every
+  // request rejects immediately.
   let unauthorized = false;
   let sock: WsLike | null = null;
   // Welcomed = the server accepted our auth frame; only then may requests flow.
@@ -97,12 +119,32 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
   function connect(): void {
     if (disposed || unauthorized) return;
     setStatus("connecting");
+    void mintThenDial();
+  }
+
+  /** Mint first, dial second. A socket opened before the ticket is in hand
+   * would sit against the host's auth deadline waiting for one, and a mint that
+   * fails would have to close a connection it should never have made. */
+  async function mintThenDial(): Promise<void> {
+    const minted = await options.mintTicket().catch((): MintedTicket => {
+      return { ok: false, reason: "unavailable" };
+    });
+    if (disposed || unauthorized) return;
+    if (!minted.ok) {
+      if (minted.reason === "unauthorized") handleUnauthorized();
+      else handleDisconnect();
+      return;
+    }
+    dial(minted.ticket);
+  }
+
+  function dial(ticket: string): void {
     const socket = new WebSocketImpl(options.url);
     sock = socket;
     socket.binaryType = "arraybuffer";
     socket.addEventListener("open", () => {
       if (socket !== sock) return;
-      socket.send(encodeFrame({ t: "auth", token: options.token }));
+      socket.send(encodeFrame({ t: "auth", ticket }));
     });
     socket.addEventListener("message", (event) => {
       if (socket !== sock) return;
@@ -152,8 +194,8 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
     scheduleReconnect();
   }
 
-  /** Auth rejection (close 4401) is terminal — reconnecting would just
-   * re-present the same dead token. */
+  /** Auth rejection is terminal — the session behind the ticket is gone, so
+   * the next mint would fail exactly as this one did. */
   function handleUnauthorized(): void {
     unauthorized = true;
     sock = null;

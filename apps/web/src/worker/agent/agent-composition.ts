@@ -39,16 +39,17 @@ import { AgentSnapshots, type CapturedEdit } from "./agent-snapshots";
 import { ChatStore } from "./chat-store";
 import { createCfSandboxPort } from "./cf-sandbox";
 import { FakeSandbox } from "./fake-sandbox";
-import { ProviderCredentials, type CredentialKv } from "./provider-credentials";
+import { ProviderCredentials } from "./provider-credentials";
 import { sandboxRuntimeEnabled } from "./provider-catalog";
 import type { SandboxPort } from "./sandbox-port";
 import { VaultRevisions } from "./vault-revisions";
+import type { DeletableDurableKv } from "../store/durable-kv";
 
 export type AgentCompositionDeps = {
   readonly env: Env;
   readonly userId: string;
   readonly sql: SqlStorage;
-  readonly kv: CredentialKv;
+  readonly kv: DeletableDurableKv;
   readonly bucket: R2Bucket;
   /** R2 key prefix for this user's blobs — the vault's own. */
   readonly prefix: string;

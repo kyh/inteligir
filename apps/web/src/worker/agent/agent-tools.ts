@@ -37,7 +37,7 @@ import type {
   ListDelegationsResult,
   RestoreSnapshotResult,
 } from "@repo/bridge/delegation";
-import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
+import { heldDeletionMessage, type AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -45,7 +45,7 @@ import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import type { UserKnowledge } from "../host/knowledge/user-knowledge";
-import { heldDeletionMessage, type UserVault } from "../host/vault/user-vault";
+import type { UserVault } from "../host/vault/user-vault";
 import { renameWithLinkRewrite } from "../host/vault/vault-rename";
 import type { AgentSnapshots, SnapshotScope } from "./agent-snapshots";
 import type { SandboxToolSpec } from "./sandbox-port";

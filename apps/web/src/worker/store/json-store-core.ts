@@ -33,21 +33,6 @@ export type StoreAdapter = {
 };
 
 /**
- * Why a file was set aside. Either way the original bytes survive at
- * `backupPath` and the store resets to its defaults — this event is the
- * user's only pointer to the backup, so it must be surfaced.
- */
-export type StoreRecoveryEvent =
-  | { kind: "corrupt"; filePath: string; backupPath: string; reason: string }
-  | {
-      kind: "newer-version";
-      filePath: string;
-      backupPath: string;
-      fileVersion: number;
-      supportedVersion: number;
-    };
-
-/**
  * On-disk format version. Every new store MUST provide this. Version drift is
  * quarantine-only until a real migration ships: a file at any version other
  * than `current` (newer, older, or unversioned) is set aside and the store
@@ -60,12 +45,6 @@ export type StoreVersioning = {
 };
 
 export type JsonStoreCoreOptions<T> = {
-  /**
-   * Called when a file is quarantined (corrupt or written by a newer build).
-   * The console.error log fires unconditionally either way; this is how a
-   * store points its user at the backup.
-   */
-  onRecovery?: (event: StoreRecoveryEvent) => void;
   /**
    * Coerce the validated wire/disk shape into the in-memory type the store
    * exposes. Throws to reject the read the same way a Value.Check failure
@@ -93,7 +72,6 @@ export class JsonStoreCore<T> {
   // is a no-op, so a teardown that wipes the namespace cannot be undone by a
   // stale reference an in-flight handler still holds.
   private closed = false;
-  private readonly onRecovery: ((event: StoreRecoveryEvent) => void) | undefined;
   private readonly decode: (raw: unknown) => T;
   private readonly encode: (value: T) => unknown;
   private readonly versioning: StoreVersioning | undefined;
@@ -105,7 +83,6 @@ export class JsonStoreCore<T> {
     private readonly defaultValue: T,
     options: JsonStoreCoreOptions<T> = {},
   ) {
-    this.onRecovery = options.onRecovery;
     // `raw as T`: the schema↔generic seam. `raw` was already Value.Check'd
     // against `schema`, but `schema: TSchema` erases its Static type, so the
     // compiler can't connect it to T. Callers omitting `decode` assert
@@ -190,10 +167,6 @@ export class JsonStoreCore<T> {
     return updated;
   }
 
-  invalidate(): void {
-    this.cache = undefined;
-  }
-
   /**
    * Permanently disable writes on this store instance. Any subsequent
    * write/update is a no-op (update still returns the current read). Use this
@@ -211,15 +184,18 @@ export class JsonStoreCore<T> {
       `[json-store] ${this.filePath}: ${reason}; original preserved at ${backupPath}, store reset to defaults`,
     );
     this.cache = structuredClone(this.defaultValue);
-    this.surface({ kind: "corrupt", filePath: this.filePath, backupPath, reason });
     return structuredClone(this.cache);
   }
 
   /**
-   * A file written by a NEWER build than this one (electron-updater
-   * downgrade/rollback). Not corruption — the data is healthy, we just
-   * can't read it. Set it aside under a name that records the version so
-   * a later re-upgrade (or the user) can restore it.
+   * A file written by a NEWER build than this one — a rollback of the Worker.
+   * Not corruption: the data is healthy, this build just cannot read it. Set it
+   * aside under a name that records the version so a later re-upgrade can
+   * restore it.
+   *
+   * The `console.error` is the WHOLE record on purpose. There is no user-facing
+   * recovery surface in this host — no dialog, no settings pane pointing at a
+   * backup — so a callback for one would be a seam with nothing on the far end.
    */
   private quarantineNewer(raw: string, fileVersion: number, supportedVersion: number): T {
     const backupPath = `${this.filePath}.newer-v${fileVersion}-${Date.now()}`;
@@ -228,13 +204,6 @@ export class JsonStoreCore<T> {
       `[json-store] ${this.filePath}: file version ${fileVersion} is newer than supported ${supportedVersion} (downgraded build?); quarantined to ${backupPath}, store reset to defaults`,
     );
     this.cache = structuredClone(this.defaultValue);
-    this.surface({
-      kind: "newer-version",
-      filePath: this.filePath,
-      backupPath,
-      fileVersion,
-      supportedVersion,
-    });
     return structuredClone(this.cache);
   }
 
@@ -251,14 +220,6 @@ export class JsonStoreCore<T> {
       this.adapter.write(backupPath, raw);
     } catch {
       // Recovery is best-effort; the console.error is the durable record.
-    }
-  }
-
-  private surface(event: StoreRecoveryEvent): void {
-    try {
-      this.onRecovery?.(event);
-    } catch {
-      // Non-fatal — the console.error in the caller is the durable record.
     }
   }
 }

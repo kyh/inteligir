@@ -1,13 +1,12 @@
 // ---------------------------------------------------------------------------
-// `POST /v1/host/:userId/assets` — attachment bytes, off the socket.
+// `POST /v1/host/assets` — attachment bytes, off the socket.
 //
 // Why a second transport for one capability: the Bridge carries attachments as
-// base64 inside ONE WebSocket frame. On the desktop that was fine (the local
-// transport sized its frame ceiling at 64 MiB for exactly this). A Durable
-// Object caps a RECEIVED message at 32 MiB, base64 inflates by a third, and a
-// multi-megabyte frame blocks every other message on the socket while it
-// arrives — so the socket stops being a plausible way to move a file well
-// before a user stops trying to paste one.
+// base64 inside ONE WebSocket frame. A Durable Object caps a RECEIVED message
+// at 32 MiB, base64 inflates by a third, and a multi-megabyte frame blocks
+// every other message on the socket while it arrives — so the socket stops
+// being a plausible way to move a file well before a user stops trying to paste
+// one.
 //
 // This route is the same CAPABILITY as `writeVaultAsset`, over a transport that
 // suits it: the body streams straight into R2 while a digest runs beside it, so
@@ -15,15 +14,11 @@
 // write lock. It is gated on that capability rather than on being an HTTP
 // route, so a client class that may not write assets cannot reach them here
 // either.
-//
-// The Worker half ADDRESSES; the object VERIFIES — the same split as the
-// socket, and the reason there is no forwarded verdict to forge.
 // ---------------------------------------------------------------------------
 
-import { mayInvoke, SESSION_CLIENT_CLASS } from "./client-class";
-import { matchHostPath, userHostName } from "./host-address";
-import { allowedOrigins, originAllowed } from "./origins";
-import { readBearer, verifyHostSession } from "./session";
+import { clientClassFor, mayInvoke } from "./client-class";
+import { allowedOrigins } from "./origins";
+import { readCredential, verifyHostSession } from "./session";
 import type { UserVault } from "./vault/user-vault";
 
 /**
@@ -33,35 +28,13 @@ import type { UserVault } from "./vault/user-vault";
  */
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 
-/** The userId a `POST /v1/host/:userId/assets` addresses, or `null`. */
-export function matchHostAssetPath(method: string, pathname: string): string | null {
-  return method === "POST" ? matchHostPath(pathname, "assets") : null;
-}
-
-/** Answer the asset upload, or `null` when this request is not one. */
-export async function routeHostAsset(
-  request: Request,
-  env: Env,
-  pathname: string,
-): Promise<Response | null> {
-  const userId = matchHostAssetPath(request.method, pathname);
-  if (userId === null) return null;
-  // The same allowlist the socket is held to, for the same reason: the only
-  // client is the workspace served from a known origin, and admitting an
-  // unknown one costs more than it buys.
-  if (!originAllowed(request.headers.get("origin"), allowedOrigins(env))) {
-    return new Response("origin not allowed", { status: 403 });
-  }
-  return env.UserHost.getByName(userHostName(userId)).fetch(request);
-}
-
 /**
- * The object's half: verify the bearer against this object's own name, then
- * stream the body into the vault.
+ * The object's half: verify the credential against this object's own name,
+ * then stream the body into the vault.
  *
- * `dir` and `name` ride in the QUERY rather than in headers so the preflight
- * stays the one the auth surface already allows; both are sanitized inside the
- * vault, which is the only place that decides where an asset may land.
+ * `dir` and `name` ride in the QUERY rather than in headers, and both are
+ * sanitized inside the vault — the only place that decides where an asset may
+ * land.
  */
 export async function handleAssetUpload(
   request: Request,
@@ -69,12 +42,17 @@ export async function handleAssetUpload(
   vault: UserVault,
   hostName: string | undefined,
 ): Promise<Response> {
-  const token = readBearer(request.headers);
-  if (token === null) return new Response("unauthorized", { status: 401 });
+  const credential = readCredential(request.headers);
+  if (credential === null) return new Response("unauthorized", { status: 401 });
   const url = new URL(request.url);
-  const session = await verifyHostSession(env, url.origin, token, hostName);
+  const session = await verifyHostSession(env, url.origin, credential, hostName);
   if (session === null) return new Response("unauthorized", { status: 401 });
-  if (!mayInvoke(SESSION_CLIENT_CLASS, "writeVaultAsset")) {
+  const clientClass = clientClassFor(
+    credential,
+    request.headers.get("origin"),
+    allowedOrigins(env),
+  );
+  if (clientClass === null || !mayInvoke(clientClass, "writeVaultAsset")) {
     return new Response("forbidden", { status: 403 });
   }
 

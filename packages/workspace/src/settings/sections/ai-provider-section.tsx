@@ -12,7 +12,7 @@ import { useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
 // and the editor-AI gates update in the same frame. Switching applies to the
 // next reply — the host rolls the live sessions, no app restart. Disconnect
 // touches ONLY this provider's credentials (pi auth.json) — the app stays in
-// the workspace as a guest and the sync account is untouched.
+// the workspace and the user's own account is untouched.
 export function AiProviderSection() {
   const settings = useAiProviderStore((s) => s.settings);
   const init = useAiProviderStore((s) => s.init);

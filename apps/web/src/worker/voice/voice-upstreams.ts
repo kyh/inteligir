@@ -115,7 +115,7 @@ export function createWorkersAiTranscriber(
   env: Env,
   fetchImpl: typeof fetch,
 ): SttTranscriber | null {
-  const accountId = env.WORKERS_AI_ACCOUNT_ID;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
   const token = env.WORKERS_AI_API_TOKEN;
   if (accountId === undefined || token === undefined || accountId === "" || token === "") {
     return null;

@@ -45,7 +45,7 @@ Deploying it is owner-only, alongside the Worker (see `apps/web/README.md`).
   the previous boot's token in its environment.
 - Outbound reach for the provider API and the Worker's own host, both allowed by
   `AgentSandbox.allowedHosts`. The `browser` tool is registered only when the
-  boot carries Browser Run credentials (`BROWSER_RUN_ACCOUNT_ID` +
+  boot carries Browser Run credentials (`CLOUDFLARE_ACCOUNT_ID` +
   `BROWSER_RUN_API_TOKEN` on the Worker); it additionally needs
   `api.cloudflare.com` in `AGENT_EXTRA_ALLOWED_HOSTS`, and whether a `wss://`
   CDP upgrade escapes a Sandbox at all is unverified — the tool says so in its

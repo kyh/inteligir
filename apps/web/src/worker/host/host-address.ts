@@ -1,18 +1,10 @@
 // ---------------------------------------------------------------------------
-// The `/v1/host/:userId/<leaf>` addressing shape, in one place.
+// The name a user's Durable Object answers to, in one place.
 //
-// Two routes reach a UserHost — the Bridge socket and the asset upload — and
-// they must agree on what a userId segment is, because the object they address
-// re-derives the truth from the credential and refuses a name that does not
-// match it. A second, subtly different parser here would mean a path one route
-// reads as `a/b` and the other as `a%2Fb`, addressing two different objects for
-// the same user.
-//
-// The userId is an ADDRESS, never a credential. Nothing in this module
-// authenticates anything.
+// The name is DERIVED from a credential (see ./session's `addressedUserId`),
+// never read out of a path, so there is no userId segment anywhere for a caller
+// to supply and no way to bring an object into existence by naming one.
 // ---------------------------------------------------------------------------
-
-const HOST_PATH = /^\/v1\/host\/([^/]+)\/([^/]+)$/;
 
 /** Namespace prefix for the object name. The Durable Object namespace is
  * already the host class's own, so the prefix buys legibility in logs rather
@@ -32,21 +24,5 @@ export function userHostName(userId: string): string {
 export function userIdFromHostName(hostName: string | undefined): string | null {
   if (hostName === undefined || !hostName.startsWith(USER_HOST_PREFIX)) return null;
   const userId = hostName.slice(USER_HOST_PREFIX.length);
-  return userId === "" ? null : userId;
-}
-
-/** The userId a `/v1/host/:userId/<leaf>` path addresses, or `null` when
- * `pathname` is not one of this leaf's. */
-export function matchHostPath(pathname: string, leaf: string): string | null {
-  const match = HOST_PATH.exec(pathname);
-  if (match === null || match[2] !== leaf) return null;
-  const raw = match[1];
-  if (raw === undefined) return null;
-  let userId: string;
-  try {
-    userId = decodeURIComponent(raw);
-  } catch {
-    return null; // malformed percent-encoding in the id segment
-  }
   return userId === "" ? null : userId;
 }

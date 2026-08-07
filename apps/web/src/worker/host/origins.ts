@@ -1,28 +1,31 @@
 // ---------------------------------------------------------------------------
-// The Origin gate on the workspace's WebSocket upgrade.
+// The Origin allowlist — browser defence-in-depth on the ticket MINT.
 //
-// The node transport's rule was written for an Electron page and a paired
-// phone: an ABSENT Origin passed, `file://` passed, and anything whose
-// HOSTNAME was localhost passed. Every one of those branches is wrong once the
-// client is a browser, so this is the inversion:
+// It guards the one request a cross-site page could otherwise cause: a
+// cookie-authenticated POST that mints a socket ticket. A browser attaches
+// Origin to every POST, so an unrecognized one is a page that is not ours and
+// a cookie it made the browser send. Nothing else in the credential is
+// suspect, which is why this corroborates the cookie rather than standing on
+// its own (see ./client-class).
 //
-//   • Absent REJECTS. A browser always attaches Origin to a WebSocket
-//     handshake, so its absence means a non-browser caller — and admitting
-//     that silently is exactly the CSRF hole the check exists to close.
-//   • There is no `file://` client left to admit.
-//   • localhost is not a hostname comparison but ONE ENTRY in an exact-match
-//     allowlist of full origins. `http://localhost:5174` and
-//     `https://localhost:5174` are different origins, as are two ports on the
-//     same host; comparing hostnames admits every one of them, including a
-//     hostile page served off a dev server the user happens to be running.
+// It is NOT on the socket upgrade. A browser attaches Origin to a WebSocket
+// handshake and a native client cannot, so an upgrade gate would be a rule only
+// browsers can pass — and the upgrade is not where admission happens any more:
+// a socket opened without a ticket does nothing and is reaped at its deadline.
+// Turning the gate into a CLASSIFIER, where an absent Origin means "native",
+// would be worse than either: it derives a capability grant from a header a
+// caller omits for free.
 //
-// Nothing is normalized before the comparison. A browser emits an origin in
-// canonical form (lowercase scheme and host, default port omitted, no path),
-// so an origin that would need normalizing did not come from one.
+// Two properties of the comparison itself:
 //
-// The refusal is an HTTP 403 BEFORE the Upgrade, never a close code after it:
-// a close on a completed handshake tells an attacker their upgrade succeeded
-// and only policy turned them away.
+//   • Exact match on the full origin, never a hostname compare.
+//     `http://localhost:5174` and `https://localhost:5174` are different
+//     origins, as are two ports on one host; comparing hostnames admits every
+//     one of them, including a hostile page served off a dev server the user
+//     happens to be running.
+//   • Nothing is normalized first. A browser emits an origin in canonical form
+//     (lowercase scheme and host, default port omitted, no path), so an origin
+//     that would need normalizing did not come from one.
 // ---------------------------------------------------------------------------
 
 /** Origins the deployed Worker serves the workspace UI from — the same hosts
@@ -36,7 +39,7 @@ const DEPLOYED_ORIGINS = ["https://inteligir.com", "https://www.inteligir.com"] 
 export type OriginEnv = { readonly HOST_ALLOWED_ORIGINS?: string };
 
 /**
- * The full set of origins allowed to open a host socket: the deployed ones
+ * The full set of origins a browser may mint a ticket from: the deployed ones
  * plus whatever `HOST_ALLOWED_ORIGINS` names (comma-separated, exact origins).
  *
  * That var is how a dev origin — `http://localhost:5174`, the workspace vite
@@ -51,7 +54,7 @@ export function allowedOrigins(env: OriginEnv): ReadonlySet<string> {
   return new Set([...DEPLOYED_ORIGINS, ...(extra ?? [])]);
 }
 
-/** Whether `origin` (the raw header, `null` when absent) may open a socket. */
+/** Whether `origin` (the raw header, `null` when absent) may mint a ticket. */
 export function originAllowed(origin: string | null, allowed: ReadonlySet<string>): boolean {
   if (origin === null) return false;
   return allowed.has(origin);

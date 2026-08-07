@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
 // KnowledgeStore — the persistence port for projected vault knowledge. TYPES
-// ONLY (sync-port.ts precedent): platforms bind an implementation (desktop:
-// the Durable Object's own SQLite; the fixture bridge: SQLite wasm; a future
-// mobile client: expo-sqlite) and the host shell drives it, mirroring every
-// write into the in-memory LinkGraphIndex.
+// ONLY, because this package carries no SQLite dependency: platforms bind an
+// implementation (the host: the Durable Object's own SQLite; the fixture
+// bridge: SQLite wasm) and the shell around it drives the store, mirroring
+// every write into the in-memory LinkGraphIndex.
 //
 // THE STORE IS A CACHE. Nothing durable may ever live in it: recovery from any
 // corruption/version mismatch is delete-and-rebuild from the vault, which is

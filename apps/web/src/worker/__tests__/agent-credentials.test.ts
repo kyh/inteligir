@@ -28,7 +28,8 @@ import {
 } from "../agent/agent-crypto";
 import { EGRESS_IDENTITY_HEADER, injectProviderCredential } from "../agent/egress";
 import { providerEntry } from "../agent/provider-catalog";
-import { ProviderCredentials, type CredentialKv } from "../agent/provider-credentials";
+import { ProviderCredentials } from "../agent/provider-credentials";
+import type { DeletableDurableKv } from "../store/durable-kv";
 import { userHostName } from "../host/host-address";
 
 const SECRET = "test-better-auth-secret-000000000000";
@@ -227,7 +228,7 @@ describe("outbound credential injection", () => {
 });
 
 /** An in-memory stand-in for `ctx.storage.kv` — the same synchronous contract. */
-function memoryKv(): CredentialKv {
+function memoryKv(): DeletableDurableKv {
   const entries = new Map<string, unknown>();
   return {
     get: (key) => entries.get(key),

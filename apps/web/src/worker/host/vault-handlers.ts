@@ -9,13 +9,13 @@
 // would be a fail-OPEN answer).
 // ---------------------------------------------------------------------------
 
-import type { ReadVaultAssetResult } from "@repo/bridge/ipc-registry";
+import type { DeleteVaultEntryResult, ReadVaultAssetResult } from "@repo/bridge/ipc-registry";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import type { HandlerRegistrar } from "./handler-registry";
 import type { UserKnowledge } from "./knowledge/user-knowledge";
 import { base64ToBytes, bytesToBase64 } from "./vault/base64";
-import { heldDeletionMessage, VAULT_ROOT, type UserVault } from "./vault/user-vault";
+import { VAULT_ROOT, type UserVault } from "./vault/user-vault";
 import { renameWithLinkRewrite } from "./vault/vault-rename";
 
 /**
@@ -52,16 +52,12 @@ export function registerVaultHandlers(
 
   // Every user-initiated delete lands here. It is a TOMBSTONE, not a removal:
   // the file keeps its bytes for the retention window and the host's alarm
-  // purges it. `removed: false` means the path named no live file.
-  handle("deleteVaultEntry", async ({ path }) => {
+  // purges it. The gate holding is its OWN outcome, never `absent` and never a
+  // throw — the file is still there, and the caller has to be able to say so.
+  handle("deleteVaultEntry", async ({ path }): Promise<DeleteVaultEntryResult> => {
     const result = await vault.trash([path]);
-    // The deletion gate is a REFUSAL, and this channel's result type has no
-    // variant for one — `removed: false` already means "there was nothing
-    // there", and answering a held delete with it would report a file the user
-    // can still see as absent. So it surfaces as an error, which is the one
-    // shape the wire has for "no, and here is why".
-    if (!result.ok) throw new Error(heldDeletionMessage(result.held));
-    return { removed: result.trashed.length > 0 };
+    if (!result.ok) return { outcome: "held", held: result.held };
+    return { outcome: result.trashed.length > 0 ? "trashed" : "absent" };
   });
 
   handle("renameVaultEntry", ({ from, to }) => renameWithLinkRewrite(vault, knowledge, from, to));

@@ -6,10 +6,9 @@ Shared UI components (web-only): **vendored stock shadcn** on **Base UI**
 
 ## Why it exists
 
-The one visual system for both frontends — the desktop renderer
-(`apps/desktop/src/renderer`) and the marketing site (`apps/web`). Web-only
-and a workspace leaf (no `@repo/*` deps): mobile (NativeWind) and the node
-packages never import it. Its own package so components stay near-stock and
+The one visual system for both surfaces — the workspace
+(`packages/workspace`) and the marketing site (`apps/web`). Web-only and a
+leaf (no `@repo/*` deps): mobile (NativeWind) never imports it. Its own package so components stay near-stock and
 cheaply re-pullable from the shadcn registry — app-specific styling and
 motion live in the consuming app, not here.
 
@@ -127,10 +126,9 @@ enforced is coverage — see Testing.
 
 `ThemeProvider` is **controlled**: it owns OS-preference resolution, the
 `.dark` class on `<html>`, and the shared context; each app owns the state
-source and passes `theme` + `setTheme`. Binders: desktop
-`apps/desktop/src/renderer/lib/use-theme.tsx` (Bridge-persisted ui-state),
-web `apps/web/src/components/theme-provider.tsx` (localStorage + SSR
-no-flash script).
+source and passes `theme` + `setTheme`. The binder is
+`apps/web/src/components/theme-provider.tsx` (localStorage + an SSR no-flash
+script), which the workspace inherits by being served from that page.
 
 ## Testing
 

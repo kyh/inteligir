@@ -10,17 +10,16 @@
 // editor's AI (../ai/ai-handlers), voice (../voice/voice-handlers), deep-link
 // capture (../capture/capture-handlers) and skills (../skills/skills-handlers).
 //
-// The rest is registered as a SHIM that throws, and the two tables are not the
-// same kind of thing:
+// The rest is registered as a SHIM that throws. `CLOUD_SHIMS` is the BACKLOG —
+// a capability this host will have, grouped by the commit that will bring it —
+// and a group empties as that commit lands. A shim is never a silent `[]` (see
+// ShimRegistrar for why).
 //
-//   • `CLOUD_SHIMS` is the BACKLOG — a capability this host will have, grouped
-//     by the commit that will bring it. A group empties as that commit lands.
-//   • `CLOUD_RETIRED` is a set of DECISIONS. Each row says what does not exist
-//     here and why, and its refusal says so rather than promising "yet". A row
-//     moving from the backlog to this table is a design conclusion, not a
-//     deferral, so it carries its reason.
-//
-// Neither is ever a silent `[]` (see ShimRegistrar for why).
+// There is no second table for capabilities this host has DECIDED against, and
+// that is not an omission: retiring a capability means deleting its channel,
+// which the no-dead-channels guard already makes a complete operation. A shim
+// that says "this will never exist" would leave a name in the registry for the
+// sole purpose of refusing it.
 // ---------------------------------------------------------------------------
 
 import type { AppState } from "@repo/bridge/app-state";
@@ -90,15 +89,6 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
   },
 ];
 
-type RetiredGroup = ShimGroup & {
-  /** What replaced it, or why the question stopped making sense here. Rendered
-   * into the refusal, so a client's error names the decision. */
-  readonly why: string;
-};
-
-/** Capabilities this host will NOT have, each with the reason. */
-export const CLOUD_RETIRED: readonly RetiredGroup[] = [];
-
 export function registerCloudHandlers(
   handle: HandlerRegistrar,
   shim: ShimRegistrar,
@@ -161,11 +151,6 @@ export function registerCloudHandlers(
   registerSkillsHandlers(handle, services.vault);
 
   for (const group of CLOUD_SHIMS) {
-    for (const method of group.methods) shim(method, { kind: "pending", feature: group.feature });
-  }
-  for (const group of CLOUD_RETIRED) {
-    for (const method of group.methods) {
-      shim(method, { kind: "retired", feature: group.feature, why: group.why });
-    }
+    for (const method of group.methods) shim(method, group.feature);
   }
 }

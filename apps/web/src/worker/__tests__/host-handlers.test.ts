@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// The host's handler map, its capability policy, and its origin gate — the
-// pure halves, driven directly rather than over a socket.
+// The host's handler map, its capability policy, its origin allowlist and its
+// route shape — the pure halves, driven directly rather than over a socket.
 //
 // The load-bearing assertion is COMPLETENESS: every host method the registry
 // declares has an answer, and the ones with no backend answer by naming the
@@ -12,15 +12,14 @@ import { describe, expect, it } from "vitest";
 
 import type { HostMethod } from "@repo/bridge/ipc-registry";
 
-import { matchHostAssetPath } from "../host/asset-route";
 import { mayInvoke, mayReceive } from "../host/client-class";
 import { collectHandlers, HOST_METHODS } from "../host/handler-registry";
-import { CLOUD_RETIRED, CLOUD_SHIMS, registerCloudHandlers } from "../host/handlers";
+import { CLOUD_SHIMS, registerCloudHandlers } from "../host/handlers";
 import { userHostName } from "../host/host-address";
 import { HostEvents } from "../host/host-events";
 import { allowedOrigins, originAllowed } from "../host/origins";
 import { createCloudStores } from "../host/stores";
-import { matchHostSocketPath } from "../host/ws-route";
+import { matchHostLeaf } from "../host/host-route";
 
 /** The methods this host answers for real. Pinned as a list so a shim quietly
  * becoming an implementation (or the reverse) is a failing test, not a diff
@@ -153,9 +152,7 @@ function withHandlers<T>(
   });
 }
 
-const pendingMethods: readonly HostMethod[] = CLOUD_SHIMS.flatMap((group) => group.methods);
-const retiredMethods: readonly HostMethod[] = CLOUD_RETIRED.flatMap((group) => group.methods);
-const shimmedMethods: readonly HostMethod[] = [...pendingMethods, ...retiredMethods];
+const shimmedMethods: readonly HostMethod[] = CLOUD_SHIMS.flatMap((group) => group.methods);
 
 describe("cloud handler registry", () => {
   it("registers every host method the IPC registry declares", async () => {
@@ -166,35 +163,22 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("splits those methods into 63 implementations and 8 pending, with nothing retired", () => {
-    // The counts are the backlog's progress bar: 71 host methods (88 IPC
-    // entries minus 17 events). CLOUD_RETIRED is empty and that is the point —
-    // every capability a client can name, this host either answers or owes.
+  it("splits those methods into 63 implementations and 8 owed", () => {
+    // The counts are the backlog's progress bar, and the last line is the
+    // point: every capability a client can name, this host either answers or
+    // owes — there is no third pile.
     expect(HOST_METHODS).toHaveLength(71);
     expect(IMPLEMENTED).toHaveLength(63);
-    expect(pendingMethods).toHaveLength(8);
-    expect(retiredMethods).toHaveLength(0);
+    expect(shimmedMethods).toHaveLength(8);
     expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
     expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });
 
   it("answers a backlog shim by naming what it waits on", async () => {
     await withHandlers(async ({ handlers }) => {
-      for (const method of pendingMethods) {
+      for (const method of shimmedMethods) {
         await expect(async () => handlers[method](undefined)).rejects.toThrow(
           /is not available yet/,
-        );
-      }
-    });
-  });
-
-  // A retired capability says so rather than promising "yet": the two refusals
-  // are different sentences because they ask the user for different things.
-  it("answers a retired shim by naming the decision", async () => {
-    await withHandlers(async ({ handlers }) => {
-      for (const method of retiredMethods) {
-        await expect(async () => handlers[method](undefined)).rejects.toThrow(
-          /does not exist here — /,
         );
       }
     });
@@ -273,7 +257,8 @@ describe("origin allowlist", () => {
   });
 
   it("rejects an absent origin", () => {
-    // A browser always sends one, so absence means a non-browser caller.
+    // The allowlist only ever corroborates a cookie, and a browser always
+    // sends an origin with one — so absence is not a browser.
     expect(originAllowed(null, allowedOrigins({}))).toBe(false);
   });
 
@@ -293,20 +278,21 @@ describe("origin allowlist", () => {
 });
 
 describe("host routes", () => {
-  it("matches only a GET on /v1/host/:userId/ws", () => {
-    expect(matchHostSocketPath("GET", "/v1/host/user-123/ws")).toBe("user-123");
-    expect(matchHostSocketPath("GET", "/v1/host/a%2Fb/ws")).toBe("a/b");
-    expect(matchHostSocketPath("POST", "/v1/host/user-123/ws")).toBeNull();
-    expect(matchHostSocketPath("GET", "/v1/host//ws")).toBeNull();
-    expect(matchHostSocketPath("GET", "/v1/host/user-123")).toBeNull();
-    expect(matchHostSocketPath("GET", "/v1/vault/abc/manifest")).toBeNull();
+  it("matches one leaf, on one method, with no id segment to supply", () => {
+    expect(matchHostLeaf("POST", "/v1/host/ticket")).toBe("ticket");
+    expect(matchHostLeaf("GET", "/v1/host/ws")).toBe("ws");
+    expect(matchHostLeaf("POST", "/v1/host/assets")).toBe("assets");
+    expect(matchHostLeaf("POST", "/v1/host/link")).toBe("link");
   });
 
-  it("matches only a POST on /v1/host/:userId/assets", () => {
-    expect(matchHostAssetPath("POST", "/v1/host/user-123/assets")).toBe("user-123");
-    expect(matchHostAssetPath("GET", "/v1/host/user-123/assets")).toBeNull();
-    // The two leaves never answer for each other.
-    expect(matchHostAssetPath("POST", "/v1/host/user-123/ws")).toBeNull();
-    expect(matchHostSocketPath("GET", "/v1/host/user-123/assets")).toBeNull();
+  it("refuses the wrong method, an unknown leaf, and anything addressed", () => {
+    expect(matchHostLeaf("POST", "/v1/host/ws")).toBeNull();
+    expect(matchHostLeaf("GET", "/v1/host/assets")).toBeNull();
+    expect(matchHostLeaf("POST", "/v1/host/nosuch")).toBeNull();
+    // The shape that let a caller name an object is gone, so it matches
+    // nothing rather than addressing something.
+    expect(matchHostLeaf("GET", "/v1/host/user-123/ws")).toBeNull();
+    expect(matchHostLeaf("POST", "/v1/host/user-123/assets")).toBeNull();
+    expect(matchHostLeaf("GET", "/v1/host/")).toBeNull();
   });
 });

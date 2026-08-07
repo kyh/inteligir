@@ -27,7 +27,7 @@ import {
   serializeDoc,
   splitFrontmatter,
 } from "@repo/notes/markdown/frontmatter";
-import type { Bridge } from "@repo/bridge/ipc-registry";
+import { heldDeletionMessage, type Bridge } from "@repo/bridge/ipc-registry";
 
 /** The Bridge slice the broker uses — nothing more. */
 export type BrokerBridge = Pick<
@@ -216,7 +216,10 @@ export async function handleBrokerRequest(
       const confirmed = await deps.confirmRemove(path);
       if (!confirmed) return { removed: false };
       const result = await bridge.deleteVaultEntry({ path });
-      return { removed: result.removed };
+      // A held delete is a refusal with a reason, and an app that got
+      // `removed: false` for it would report a file it can still read as gone.
+      if (result.outcome === "held") throw new Error(heldDeletionMessage(result.held));
+      return { removed: result.outcome === "trashed" };
     }
     case "backlinks": {
       const path = requireSafePath(args[0]);

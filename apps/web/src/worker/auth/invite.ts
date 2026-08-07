@@ -2,6 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { createAuth } from "./auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
+import { isRecord } from "@repo/bridge/wire-helpers";
+
 import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
 
 // ---------------------------------------------------------------------------
@@ -42,10 +44,6 @@ const CODE_PATTERN = /^[A-Za-z0-9-]{6,64}$/;
  * message for "no such code" and "already used": a caller who is not the owner
  * learns only that this code will not work. */
 const INVITE_REFUSED = "That invite code isn't valid. Check it and try again.";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 /** Better Auth's own error envelope, so the sign-up page renders a refusal
  * from this route and one from Better Auth through the same code path. */

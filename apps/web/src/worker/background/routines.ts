@@ -60,10 +60,17 @@ import type {
 const MAX_ROUTINES = 50;
 const SUMMARY_LEN = 200;
 
-/** How long to wait before looking again when a slot has already passed and the
- * tick could not act on it (no provider connected, or the lane is busy). The
- * ONLY polling left in the scheduler, and it exists to stop the alarm being
- * armed in the past — which would wake the object in a tight loop. */
+/**
+ * How long to wait before looking again when a slot has already passed and the
+ * tick could not act on it (no provider connected, or the lane is busy).
+ *
+ * The ONLY polling left in the scheduler, and a CLAMP rather than an interval:
+ * a due-in-the-past slot would otherwise arm the alarm at a time already gone
+ * and wake the object in a tight loop. Sixty seconds is the floor on that
+ * retry, so it bounds how much a blocked routine costs — it is not how often
+ * routines are checked, which is event-driven. Lower it and a wedged lane
+ * spins; raise it and a routine waits that much longer after the lane frees.
+ */
 const SCHEDULER_RETRY_MS = 60 * 1000;
 
 type RoutineRow = {

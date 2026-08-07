@@ -11,10 +11,9 @@ import api, { ownsPath } from "./index";
 // SSR handler.
 //
 // The default export is a plain `ExportedHandler<Env>` rather than Start's
-// `createServerEntry(...)`: Cloudflare calls it with `(request, env, ctx)` and
-// the API half threads all three, while a `ServerEntry`'s `(request, opts?)`
-// signature has nowhere to put the bindings. Start's own default entry is
-// already a `{ fetch }`, so it composes here as-is.
+// `createServerEntry(...)`: Cloudflare calls it with the bindings, and a
+// `ServerEntry`'s `(request, opts?)` signature has nowhere to put them. Start's
+// own default entry is already a `{ fetch }`, so it composes here as-is.
 //
 // wrangler.jsonc's `main` must name THIS FILE by path. Pointing it at the
 // `@tanstack/react-start/server-entry` package export instead builds that
@@ -30,9 +29,7 @@ export { AgentSandbox } from "./agent/sandbox-class";
 export { ContainerProxy } from "@cloudflare/sandbox";
 
 export default {
-  fetch(request, env, ctx) {
-    return ownsPath(new URL(request.url).pathname)
-      ? api.fetch(request, env, ctx)
-      : site.fetch(request);
+  fetch(request, env) {
+    return ownsPath(new URL(request.url).pathname) ? api.fetch(request, env) : site.fetch(request);
   },
 } satisfies ExportedHandler<Env>;

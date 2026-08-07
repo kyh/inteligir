@@ -4,7 +4,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 // Drizzle schema for the auth D1 database (`DB` binding). The Better Auth core
 // tables (`user`, `session`, `account`, `verification`) are the SQLite shape
 // Better Auth's Drizzle adapter (`provider: "sqlite"`) expects; `rate_limit` and
-// `desktop_auth_code` below are ours, each documented at its declaration.
+// `invite` below are ours, each documented at its declaration.
 //
 // The core tables are hand-written: the COLUMN SET matches what
 // `@better-auth/cli generate` emits for the current plugin set (emailAndPassword
@@ -101,26 +101,6 @@ export const rateLimit = sqliteTable("rate_limit", {
   key: text("key").notNull().unique(),
   count: integer("count").notNull(),
   lastRequest: integer("last_request").notNull(),
-});
-
-/**
- * Desktop sign-in handoff codes (src/worker/auth/desktop-session.ts). Not a Better
- * Auth table; the desktop-callback surface owns it. Each row is one SHORT-LIVED
- * (~90s), SINGLE-USE authorization code minted at the social OAuth callback:
- * the `inteligir://session` deep link carries only the opaque code, and the
- * desktop exchanges it over HTTPS for the session bearer held here. The code
- * itself is never stored — only its sha-256 (`codeHash`, the PK), so a D1 read
- * can't yield redeemable codes. Rows are deleted on exchange (the burn) and
- * garbage-collected opportunistically on every mint.
- */
-export const desktopAuthCode = sqliteTable("desktop_auth_code", {
-  codeHash: text("code_hash").primaryKey(),
-  token: text("token").notNull(),
-  email: text("email").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .$defaultFn(() => new Date())
-    .notNull(),
 });
 
 /**

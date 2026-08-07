@@ -22,7 +22,7 @@ const BITS_PER_SAMPLE = 16;
 const CHANNELS = 1;
 
 /** Wrap `samples` (mono Float32 in [-1, 1]) in a 16-bit PCM WAVE file. */
-export function encodeWav(samples: Float32Array, sampleRate = STT_SAMPLE_RATE): Uint8Array {
+export function encodeWav(samples: Float32Array): Uint8Array {
   const dataBytes = samples.length * (BITS_PER_SAMPLE / 8);
   const buffer = new ArrayBuffer(HEADER_BYTES + dataBytes);
   const view = new DataView(buffer);
@@ -34,8 +34,8 @@ export function encodeWav(samples: Float32Array, sampleRate = STT_SAMPLE_RATE): 
   view.setUint32(16, 16, true); // PCM fmt chunk length
   view.setUint16(20, 1, true); // format: uncompressed PCM
   view.setUint16(22, CHANNELS, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, (sampleRate * CHANNELS * BITS_PER_SAMPLE) / 8, true); // byte rate
+  view.setUint32(24, STT_SAMPLE_RATE, true);
+  view.setUint32(28, (STT_SAMPLE_RATE * CHANNELS * BITS_PER_SAMPLE) / 8, true); // byte rate
   view.setUint16(32, (CHANNELS * BITS_PER_SAMPLE) / 8, true); // block align
   view.setUint16(34, BITS_PER_SAMPLE, true);
   writeAscii(view, 36, "data");

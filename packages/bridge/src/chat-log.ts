@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
 // The chat surface as a PURE value: ONE fold over the agent's event stream
 // (./agent-events) plus the persisted-history rehydration — shared by the
-// desktop renderer (which projects it into AI SDK UIMessages,
-// @renderer/stores/chat-log-view) and the mobile chat screen (which renders
-// the items directly). Iso like ./note-context: no react/node/platform
+// workspace (which projects it into AI SDK UIMessages,
+// @repo/workspace/stores/chat-log-view) and any companion chat screen that
+// renders the items directly. Iso like ./note-context: no react/node/platform
 // imports. Streaming deltas accumulate into one assistant bubble,
 // `message_end` replaces it with the final text (or drops a tool-only empty
 // bubble), tool rows are ephemeral turn decoration (still-running ones are

@@ -38,7 +38,7 @@ import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
-import type { VaultEntry } from "@repo/bridge/ipc-registry";
+import { heldDeletionMessage, type VaultEntry } from "@repo/bridge/ipc-registry";
 import { UI_STATE_OPEN_NOTE_KEY as OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 
 /** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,
@@ -327,14 +327,15 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         await runtime.remove();
         dropNote(path);
       } else {
-        // Surface the failure (siblings createFileAt/renameEntry toast
-        // theirs too) — a swallowed reject just silently reappears the row
-        // after refreshList.
-        const ok = await getBridge()
+        // Surface the failure (siblings createFileAt/renameEntry toast theirs
+        // too) — a swallowed reject just silently reappears the row after
+        // refreshList. A HELD delete is not a failure and not a success: the
+        // file is still there on purpose, and the gate's own sentence says why.
+        const outcome = await getBridge()
           .deleteVaultEntry({ path })
-          .then(() => true)
-          .catch(() => false);
-        if (!ok) toast.error(`Couldn't delete ${path}.`);
+          .catch(() => null);
+        if (outcome === null) toast.error(`Couldn't delete ${path}.`);
+        else if (outcome.outcome === "held") toast.warning(heldDeletionMessage(outcome.held));
       }
       refreshList();
     },
@@ -392,12 +393,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     });
   }, [applyOpenPath, disposeRuntime, refreshList]);
 
-  // External edits to files OTHER than the open note surface on window focus —
-  // the ephemeral model's "the user refocuses to look" trade (vault liveness —
-  // CLAUDE.md § Decisions). One
-  // debounced refresh per focus flurry rebuilds the snapshot (re-list + reindex
-  // + sync kick). The open note itself is covered live by the host's open-note
-  // watcher, so this is about the rest of the vault.
+  // The host is the vault's only writer and broadcasts every change, so this is
+  // NOT polling — it is what repairs a MISSED broadcast. A socket that dropped
+  // while the agent was writing comes back to a listing nobody re-announced:
+  // reconnect hydration replays the event getters, not the vault. One debounced
+  // re-query per focus flurry closes that window and costs nothing otherwise.
   useEffect(() => {
     const refresh = createDebouncer(refreshVault, FOCUS_REFRESH_DEBOUNCE_MS);
     const onFocus = () => refresh.schedule();

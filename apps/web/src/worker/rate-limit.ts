@@ -8,9 +8,9 @@ import { rateLimit } from "./db/schema";
 // credential-free route gets the treatment the auth routes already have without
 // a second store to reason about.
 //
-// The callers are the two surfaces that take input from an UNAUTHENTICATED
-// caller: `/v1/auth/exchange` (guessable codes) and `/v1/vault/:id/enroll`
-// (the offer secret is the auth, and the route names a Durable Object).
+// The caller is the one surface that takes input from an UNAUTHENTICATED
+// caller and decides something durable from it: `/v1/auth/sign-up`, where the
+// invite code IS the authorization and is short enough for a human to type.
 // ---------------------------------------------------------------------------
 
 /** A budget: at most `max` requests per `windowMs`, per key. */

@@ -8,8 +8,9 @@ import { currentSession } from "@/lib/session-guard";
 //
 // The Worker's link endpoint is a POST for a reason (deep-link-route.ts): a GET
 // a page can cause is a CSRF write. So the navigable half is here, in a client
-// that already holds the user's session: it reads the verb out of its own
-// query, calls the endpoint with the bearer, and then gets out of the way.
+// the user is already signed in on: it reads the verb out of its own query,
+// calls the endpoint same-origin so the session cookie rides along, and then
+// gets out of the way.
 //
 // The desktop shell forwards `inteligir://` here (apps/desktop
 // deep-link-route.ts) rather than acting on a link itself; a browser reaches
@@ -22,15 +23,12 @@ type LinkState = { done: false } | { done: true; error: string | null };
 
 export const Route = createFileRoute("/app/link")({
   beforeLoad: async () => {
-    const session = await currentSession();
-    if (session === null) throw redirect({ to: "/app/sign-in" });
-    return { session };
+    if ((await currentSession()) === null) throw redirect({ to: "/app/sign-in" });
   },
   component: LinkRoute,
 });
 
 function LinkRoute() {
-  const { session } = Route.useRouteContext();
   const router = useRouter();
   const [state, setState] = useState<LinkState>({ done: false });
 
@@ -41,10 +39,7 @@ function LinkRoute() {
       // URL its one parser already knows how to refuse, so narrowing it here
       // would only add a second grammar to keep in step.
       const query = new URL(window.location.href).search;
-      const response = await fetch(`/v1/host/${encodeURIComponent(session.userId)}/link${query}`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${session.token}` },
-      }).catch(() => null);
+      const response = await fetch(`/v1/host/link${query}`, { method: "POST" }).catch(() => null);
       if (cancelled) return;
       if (response === null || !response.ok) {
         setState({ done: true, error: "That link couldn't be opened." });
@@ -59,7 +54,7 @@ function LinkRoute() {
     return () => {
       cancelled = true;
     };
-  }, [router, session.token, session.userId]);
+  }, [router]);
 
   return (
     <main className="flex min-h-dvh items-center justify-center px-6 text-center">

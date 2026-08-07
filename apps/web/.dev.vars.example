@@ -46,8 +46,11 @@ AGENT_RUNTIME=scripted
 # OPENAI_OAUTH_CLIENT_ID=
 # OPENAI_OAUTH_CLIENT_SECRET=
 
-# Cloudflare Browser Run, for the agent's `browser` tool. Both or neither, and
-# `api.cloudflare.com` must be in AGENT_EXTRA_ALLOWED_HOSTS.
-# BROWSER_RUN_ACCOUNT_ID=
+# The Cloudflare account every REST-reached Cloudflare service below belongs to.
+# One id, one token per service — a token is scoped to the product it may reach.
+# CLOUDFLARE_ACCOUNT_ID=
+
+# Cloudflare Browser Run, for the agent's `browser` tool. Needs the account id
+# above, and `api.cloudflare.com` in AGENT_EXTRA_ALLOWED_HOSTS.
 # BROWSER_RUN_API_TOKEN=
 # AGENT_EXTRA_ALLOWED_HOSTS=

@@ -23,12 +23,12 @@ import { sendResetEmail } from "./reset-email";
 // preview, and prod all work with zero config.
 // ---------------------------------------------------------------------------
 
-/** Extra trusted origins for cross-origin clients (desktop Electron, Expo). */
+/** Extra trusted origins for the native clients' own schemes. */
 function trustedOrigins(env: Env): string[] {
-  // `expo://` covers the mobile app's deep-link scheme; `inteligir://` the
-  // desktop's (the social flow's browser→app handoff — the interstitial's
-  // deep link, see desktop-session.ts). More origins can be appended via a
-  // comma-separated `BETTER_AUTH_TRUSTED_ORIGINS` var without a code change.
+  // `expo://` is the mobile app's deep-link scheme and `inteligir://` the
+  // desktop shell's — the redirect targets a native social flow would have to
+  // name. More origins can be appended via a comma-separated
+  // `BETTER_AUTH_TRUSTED_ORIGINS` var without a code change.
   const extra = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin !== "");

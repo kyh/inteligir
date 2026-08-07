@@ -80,6 +80,7 @@ import type {
   SandboxVaultPush,
 } from "./sandbox-port";
 import type { VaultRevisions } from "./vault-revisions";
+import type { DurableKv } from "../store/durable-kv";
 
 /**
  * Which container a turn belongs to.
@@ -121,7 +122,7 @@ const BOOT_ID_KEY: Record<AgentLane, string> = {
  * browser and the container go away together.
  */
 function browserRun(env: Env): { cdpUrl: string; token: string } | null {
-  const accountId = env.BROWSER_RUN_ACCOUNT_ID;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
   const token = env.BROWSER_RUN_API_TOKEN;
   if (accountId === undefined || token === undefined || accountId === "" || token === "") {
     return null;
@@ -134,18 +135,10 @@ function browserRun(env: Env): { cdpUrl: string; token: string } | null {
   };
 }
 
-/** Synchronous key-value storage — the Durable Object's `ctx.storage.kv`.
- * `get` answers `unknown` for ./provider-credentials' reason: what comes back
- * is JSON an earlier version of this code wrote. */
-type RunnerKv = {
-  get(key: string): unknown;
-  put(key: string, value: unknown): void;
-};
-
 export type AgentRunnerDeps = {
   readonly env: Env;
   readonly userId: string;
-  readonly kv: RunnerKv;
+  readonly kv: DurableKv;
   readonly vault: UserVault;
   readonly knowledge: UserKnowledge;
   readonly chat: ChatStore;

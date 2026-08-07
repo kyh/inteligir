@@ -1,4 +1,4 @@
-// The correctness core of scheduled routines, tested like the sync guard:
+// The correctness core of scheduled routines, tested as a pure function:
 // slot computation per cadence, once-per-slot, missed-slots-collapse-to-one,
 // the createdAt floor, disabled, and local-time "HH:MM" semantics. All dates
 // are built with the LOCAL-time Date constructor on purpose — the schedule

@@ -73,7 +73,6 @@ interface Env {
    * whether the CDP `wss://` upgrade escapes a Sandbox's egress at all is
    * UNVERIFIED — the outbound documentation never names WebSocket upgrade.
    */
-  readonly BROWSER_RUN_ACCOUNT_ID?: string;
   readonly BROWSER_RUN_API_TOKEN?: string;
 
   /**
@@ -111,6 +110,19 @@ interface Env {
    * remote connection at startup and every test in this package would need a
    * Cloudflare credential (see voice/voice-upstreams.ts).
    */
-  readonly WORKERS_AI_ACCOUNT_ID?: string;
   readonly WORKERS_AI_API_TOKEN?: string;
+
+  /**
+   * The Cloudflare account every REST-reached Cloudflare service on this
+   * deployment belongs to.
+   *
+   * ONE id, many tokens. Both services below (Browser Run, Workers AI) are
+   * reached over `api.cloudflare.com/client/v4/accounts/<id>/…`, and both are
+   * this deployment's own account by construction — a per-service id could only
+   * ever hold the same value or a wrong one. The API TOKENS stay per service,
+   * because that is the axis where they genuinely differ: a token is scoped to
+   * the one product it may reach, so a leaked Workers AI token cannot drive a
+   * browser. A third Cloudflare service adds a token here, never a second id.
+   */
+  readonly CLOUDFLARE_ACCOUNT_ID?: string;
 }

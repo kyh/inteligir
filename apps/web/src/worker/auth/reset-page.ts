@@ -9,8 +9,7 @@
 // device without the app installed (and it spends no deep-link verb).
 //
 // The response is one STATIC self-contained document (inline CSS/JS, no
-// external requests — the same discipline as the desktop-session
-// interstitial): the token never touches the server-rendered markup — the
+// external requests): the token never touches the server-rendered markup — the
 // inline script reads it from `location.search` and submits it as JSON to
 // Better Auth's `POST /api/auth/reset-password` on this same origin. Static
 // markup = nothing reflected = nothing to escape. `no-store` because the URL

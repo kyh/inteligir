@@ -817,7 +817,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         removeEntry(path);
         touchVault();
       }
-      return { removed };
+      return { outcome: removed ? "trashed" : "absent" };
     },
     renameVaultEntry: async ({ from, to }) => {
       const content = vault.get(from);

@@ -7,7 +7,7 @@ import { App } from "@repo/workspace/app-root";
 import { setAccountPort } from "@repo/workspace/workspace/account-host";
 import { setHtmlAppRuntime } from "@repo/workspace/workspace/html-app-host";
 
-import { authClient } from "@/lib/auth-client";
+import { authClient, mintSocketTicket } from "@/lib/auth-client";
 import { HTML_APPS_DISABLED } from "@/app/html-apps-disabled";
 
 // ---------------------------------------------------------------------------
@@ -26,29 +26,22 @@ import { HTML_APPS_DISABLED } from "@/app/html-apps-disabled";
 // route's bundle, and not the SSR Worker's.
 // ---------------------------------------------------------------------------
 
-/** The user's host socket on this same origin. `wss:` follows the page's own
- * scheme so localhost dev over plain http still connects. */
-function hostSocketUrl(userId: string): string {
+/** The user's host socket on this same origin. There is no userId in the path:
+ * the host derives the object from the credential the handshake carries. `wss:`
+ * follows the page's own scheme so localhost dev over plain http connects. */
+function hostSocketUrl(): string {
   const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${scheme}//${location.host}/v1/host/${encodeURIComponent(userId)}/ws`;
+  return `${scheme}//${location.host}/v1/host/ws`;
 }
 
-export default function WorkspaceMount({
-  userId,
-  email,
-  token,
-}: {
-  userId: string;
-  email: string;
-  token: string;
-}) {
+export default function WorkspaceMount({ email }: { email: string }) {
   const [status, setStatus] = useState<WsBridgeStatus>("connecting");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const transport = createWsBridge({
-      url: hostSocketUrl(userId),
-      token,
+      url: hostSocketUrl(),
+      mintTicket: mintSocketTicket,
       onStatus: setStatus,
     });
     installBridge(transport.bridge);
@@ -66,11 +59,11 @@ export default function WorkspaceMount({
     });
     setReady(true);
     return transport.dispose;
-  }, [email, userId, token]);
+  }, [email]);
 
-  // Terminal: the host rejected this session (close 4401) and the bridge's
-  // supervisor has stopped, so a live UI would sit there hanging. Replace it
-  // with the one action that can help.
+  // Terminal: the session behind the ticket is gone and the bridge's supervisor
+  // has stopped, so a live UI would sit there hanging. Replace it with the one
+  // action that can help.
   if (status === "unauthorized") return <SessionRejected />;
   if (!ready) return <Connecting />;
 

@@ -1,19 +1,25 @@
 // ---------------------------------------------------------------------------
-// Wire types for executor's daemon HTTP API (pinned to executor 1.5.4),
-// shared between the main-process client wrapper and the renderer UI.
+// Wire types for the executor daemon, as the Bridge's connector channels carry
+// them.
 //
-// v1.5 model: an INTEGRATION is the catalog identity (one API surface, owned
-// by a plugin: mcp / openapi / graphql); a CONNECTION is the credential —
+// The model: an INTEGRATION is the catalog identity (one API surface, owned by
+// a plugin: mcp / openapi / graphql); a CONNECTION is the credential —
 // owner-scoped, bound to one integration, identified by (owner, integration,
-// name). Tools are addressed per connection:
-// `tools.<integration>.<owner>.<connection>.<tool>`. There are no standalone
-// secrets (a credential is a connection) and no Google plugin (Google is an
-// openapi integration built from a `googleDiscoveryBundle` spec).
+// name). There are no standalone secrets (a credential is a connection) and no
+// Google plugin (Google is an openapi integration built from a
+// `googleDiscoveryBundle` spec).
+//
+// WHAT IS HERE is what a Bridge channel carries, and nothing else. The
+// per-step daemon HTTP API — create-connection, execute, the per-plugin
+// add-integration payloads, the whole OAuth start/probe/await dance — has no
+// schemas here because it has no channels: the host owns an install as ONE
+// request (register the integration, mint the connection, run the browser
+// OAuth, roll back on failure), so those steps never cross the wire.
 //
 // Validation stance: request payloads we construct are exact
-// (additionalProperties: false); response schemas are tolerant of extra
-// fields, because executor adds response fields between patch releases and a
-// new field must not become a runtime "invalid response shape" failure.
+// (additionalProperties: false); response schemas are tolerant of extra fields,
+// because executor adds response fields between patch releases and a new field
+// must not become a runtime "invalid response shape" failure.
 // ---------------------------------------------------------------------------
 
 import { type Static, Type } from "@sinclair/typebox";
@@ -33,7 +39,6 @@ const StringMapSchema = Type.Record(Type.String(), Type.String());
 
 /** Who owns a connection / OAuth client: the org (tenant-shared) or the user. */
 const OwnerSchema = Type.Union([Type.Literal("org"), Type.Literal("user")]);
-export type ExecutorOwner = Static<typeof OwnerSchema>;
 
 // ---- integrations ----------------------------------------------------------
 
@@ -91,171 +96,11 @@ export const ExecutorConnectionSchema = Type.Object({
 });
 export type ExecutorConnection = Static<typeof ExecutorConnectionSchema>;
 
-export const CreateConnectionInputSchema = Type.Object(
-  {
-    owner: OwnerSchema,
-    name: Type.String({ minLength: 1 }),
-    integration: Type.String({ minLength: 1 }),
-    template: Type.String({ minLength: 1 }),
-    identityLabel: Type.Optional(Type.String({ minLength: 1 })),
-    // Exactly one credential origin (enforced server-side): `value` is sugar
-    // for the single `token` input; `values` maps named inputs. No-auth
-    // integrations use template "none" with `values: {}`.
-    value: Type.Optional(Type.String({ minLength: 1 })),
-    values: Type.Optional(StringMapSchema),
-  },
-  { additionalProperties: false },
-);
-export type CreateConnectionInput = Static<typeof CreateConnectionInputSchema>;
-
-/** A connection is identified by (owner, integration, name) — no ids. */
-export const ConnectionKeyInputSchema = Type.Object(
-  {
-    owner: OwnerSchema,
-    integration: Type.String({ minLength: 1 }),
-    name: Type.String({ minLength: 1 }),
-  },
-  { additionalProperties: false },
-);
-export type ConnectionKeyInput = Static<typeof ConnectionKeyInputSchema>;
-
-// ---- executions (code mode) ------------------------------------------------
-
-/** Result of POST /executions and /executions/:id/resume. */
-export const ExecutorExecuteResultSchema = Type.Union([
-  Type.Object({
-    status: Type.Literal("completed"),
-    text: Type.String(),
-    structured: Type.Unknown(),
-    isError: Type.Boolean(),
-  }),
-  Type.Object({
-    status: Type.Literal("paused"),
-    text: Type.String(),
-    structured: Type.Unknown(),
-  }),
-]);
-export type ExecutorExecuteResult = Static<typeof ExecutorExecuteResultSchema>;
-
-// ---- generic results --------------------------------------------------------
-
-export const ExecutorRemoveResultSchema = Type.Object({ removed: Type.Boolean() });
-
-export const AddMcpResultSchema = Type.Object({ slug: Type.String() });
-export type AddMcpResult = Static<typeof AddMcpResultSchema>;
-
-export const AddOpenApiResultSchema = Type.Object({
-  slug: Type.String(),
-  toolCount: Type.Number(),
-});
-export type AddOpenApiResult = Static<typeof AddOpenApiResultSchema>;
-
-export const AddGraphqlResultSchema = Type.Object({ slug: Type.String(), name: Type.String() });
-export type AddGraphqlResult = Static<typeof AddGraphqlResultSchema>;
-
-// ---- add-integration request payloads (per plugin) --------------------------
-
-/** mcp.addServer's single-method `auth` shorthand — the one auth input that
- * needs no separate placement declaration. `header` expands to an apikey
- * method with template slug "header"; `oauth2` to template "oauth2". */
-const McpAuthShorthandSchema = Type.Union([
-  Type.Object({ kind: Type.Literal("none") }, { additionalProperties: false }),
-  Type.Object(
-    {
-      kind: Type.Literal("header"),
-      headerName: Type.String({ minLength: 1 }),
-      prefix: Type.Optional(Type.String()),
-    },
-    { additionalProperties: false },
-  ),
-  Type.Object({ kind: Type.Literal("oauth2") }, { additionalProperties: false }),
-]);
-
-const AddMcpRemoteInputSchema = Type.Object(
-  {
-    transport: Type.Literal("remote"),
-    name: Type.String({ minLength: 1 }),
-    endpoint: Type.String({ minLength: 1 }),
-    remoteTransport: Type.Optional(
-      Type.Union([Type.Literal("streamable-http"), Type.Literal("sse"), Type.Literal("auto")]),
-    ),
-    slug: Type.Optional(Type.String({ minLength: 1 })),
-    // Static request config — literal values only; credentials belong on
-    // connections, never inlined here.
-    headers: Type.Optional(StringMapSchema),
-    queryParams: Type.Optional(StringMapSchema),
-    auth: Type.Optional(McpAuthShorthandSchema),
-  },
-  { additionalProperties: false },
-);
-
-const AddMcpStdioInputSchema = Type.Object(
-  {
-    transport: Type.Literal("stdio"),
-    name: Type.String({ minLength: 1 }),
-    command: Type.String({ minLength: 1 }),
-    args: Type.Optional(Type.Array(Type.String())),
-    env: Type.Optional(StringMapSchema),
-    cwd: Type.Optional(Type.String()),
-    slug: Type.Optional(Type.String({ minLength: 1 })),
-  },
-  { additionalProperties: false },
-);
-
-export const AddMcpInputSchema = Type.Union([AddMcpRemoteInputSchema, AddMcpStdioInputSchema]);
-export type AddMcpInput = Static<typeof AddMcpInputSchema>;
-
-const OpenApiSpecInputSchema = Type.Union([
-  Type.Object(
-    { kind: Type.Literal("url"), url: Type.String({ minLength: 1 }) },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    { kind: Type.Literal("blob"), value: Type.String({ minLength: 1 }) },
-    { additionalProperties: false },
-  ),
-  // Google Workspace: one integration from one or more Google API Discovery
-  // docs. The daemon derives a single `googleOAuth2` auth method with the
-  // union of per-API scopes.
-  Type.Object(
-    {
-      kind: Type.Literal("googleDiscoveryBundle"),
-      urls: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
-    },
-    { additionalProperties: false },
-  ),
-]);
-
-export const AddOpenApiInputSchema = Type.Object(
-  {
-    slug: Type.String({ minLength: 1 }),
-    spec: OpenApiSpecInputSchema,
-    description: Type.Optional(Type.String()),
-    baseUrl: Type.Optional(Type.String({ minLength: 1 })),
-    headers: Type.Optional(StringMapSchema),
-    queryParams: Type.Optional(StringMapSchema),
-  },
-  { additionalProperties: false },
-);
-export type AddOpenApiInput = Static<typeof AddOpenApiInputSchema>;
-
-export const AddGraphqlInputSchema = Type.Object(
-  {
-    endpoint: Type.String({ minLength: 1 }),
-    slug: Type.Optional(Type.String({ minLength: 1 })),
-    name: Type.Optional(Type.String({ minLength: 1 })),
-    introspectionJson: Type.Optional(Type.String()),
-    headers: Type.Optional(StringMapSchema),
-    queryParams: Type.Optional(StringMapSchema),
-  },
-  { additionalProperties: false },
-);
-export type AddGraphqlInput = Static<typeof AddGraphqlInputSchema>;
-
 // ---- OAuth ------------------------------------------------------------------
 
-/** Register an owner-scoped OAuth app (e.g. the user's Google OAuth client).
- * There is no DCR at Google — the user pastes their own client id/secret. */
+/** Register an owner-scoped OAuth app (the user's own Google OAuth client).
+ * There is no dynamic client registration at Google — the user pastes their
+ * own client id/secret. */
 export const CreateOAuthClientInputSchema = Type.Object(
   {
     owner: OwnerSchema,
@@ -268,106 +113,6 @@ export const CreateOAuthClientInputSchema = Type.Object(
   },
   { additionalProperties: false },
 );
-export type CreateOAuthClientInput = Static<typeof CreateOAuthClientInputSchema>;
-
-/** RFC 7591 dynamic client registration (MCP servers; not Google). The
- * redirect URI is injected main-side from the live daemon origin. */
-export const RegisterDynamicOAuthClientInputSchema = Type.Object(
-  {
-    owner: OwnerSchema,
-    slug: Type.String({ minLength: 1 }),
-    registrationEndpoint: Type.String({ minLength: 1 }),
-    authorizationUrl: Type.String({ minLength: 1 }),
-    tokenUrl: Type.String({ minLength: 1 }),
-    resource: Type.Optional(NullableString),
-    scopes: Type.Array(Type.String()),
-    tokenEndpointAuthMethodsSupported: Type.Optional(Type.Array(Type.String())),
-    clientName: Type.Optional(Type.String()),
-    originIntegration: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
-export type RegisterDynamicOAuthClientInput = Static<typeof RegisterDynamicOAuthClientInputSchema>;
-
-/** Metadata-only client summary (never carries the secret). */
-export const ExecutorOAuthClientSchema = Type.Object({
-  owner: OwnerSchema,
-  slug: Type.String(),
-  grant: Type.Union([Type.Literal("authorization_code"), Type.Literal("client_credentials")]),
-  authorizationUrl: Type.String(),
-  tokenUrl: Type.String(),
-  clientId: Type.String(),
-  origin: Type.Union([
-    Type.Object({ kind: Type.Literal("manual") }),
-    Type.Object({
-      kind: Type.Literal("dynamic_client_registration"),
-      integration: Type.Optional(NullableString),
-    }),
-  ]),
-});
-export type ExecutorOAuthClient = Static<typeof ExecutorOAuthClientSchema>;
-
-export const CreateOAuthClientResultSchema = Type.Object({ client: Type.String() });
-
-export const OAuthProbeResultSchema = Type.Object({
-  authorizationUrl: Type.String(),
-  tokenUrl: Type.String(),
-  resource: Type.Optional(NullableString),
-  scopesSupported: Type.Optional(Type.Array(Type.String())),
-  registrationEndpoint: Type.Optional(NullableString),
-  tokenEndpointAuthMethodsSupported: Type.Optional(Type.Array(Type.String())),
-});
-export type OAuthProbeResult = Static<typeof OAuthProbeResultSchema>;
-
-/** Run a client's flow to mint a connection for one integration. The redirect
- * URI is injected main-side from the live daemon origin. */
-export const OAuthStartInputSchema = Type.Object(
-  {
-    client: Type.String({ minLength: 1 }),
-    clientOwner: OwnerSchema,
-    owner: OwnerSchema,
-    name: Type.String({ minLength: 1 }),
-    integration: Type.String({ minLength: 1 }),
-    template: Type.String({ minLength: 1 }),
-    identityLabel: Type.Optional(Type.String({ minLength: 1 })),
-  },
-  { additionalProperties: false },
-);
-export type OAuthStartInput = Static<typeof OAuthStartInputSchema>;
-
-export const OAuthStartResultSchema = Type.Union([
-  // Inline completion (client_credentials grants).
-  Type.Object({ status: Type.Literal("connected"), connection: ExecutorConnectionSchema }),
-  // The user must visit authorizationUrl; `state` keys the await poll.
-  Type.Object({
-    status: Type.Literal("redirect"),
-    authorizationUrl: Type.String(),
-    state: Type.String(),
-  }),
-]);
-export type OAuthStartResult = Static<typeof OAuthStartResultSchema>;
-
-/** Result polled from the auth-exempt GET /api/oauth/await/:state once the
- * browser callback fires. One-shot: consumed on first non-null read. The ok
- * arm spreads the minted connection's fields; we only require what we use. */
-export const OAuthAwaitResultSchema = Type.Union([
-  Type.Object({
-    ok: Type.Literal(true),
-    sessionId: Type.String(),
-    integration: Type.Optional(Type.String()),
-    name: Type.Optional(Type.String()),
-    identityLabel: Type.Optional(NullableString),
-    expiresAt: Type.Optional(NullableNumber),
-    oauthScope: Type.Optional(NullableString),
-  }),
-  Type.Object({
-    ok: Type.Literal(false),
-    sessionId: NullableString,
-    error: Type.String(),
-    errorDetails: Type.Optional(Type.String()),
-  }),
-]);
-export type OAuthAwaitResult = Static<typeof OAuthAwaitResultSchema>;
 
 // ---- connector install (host-orchestrated) ----------------------------------
 // The renderer sends ONE install/uninstall request over the Bridge; the host

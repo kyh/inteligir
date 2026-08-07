@@ -32,7 +32,7 @@ function WorkspaceRoute() {
   const { session } = Route.useRouteContext();
   return (
     <Suspense fallback={<Loading />}>
-      <WorkspaceMount userId={session.userId} email={session.email} token={session.token} />
+      <WorkspaceMount email={session.email} />
     </Suspense>
   );
 }

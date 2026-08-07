@@ -30,9 +30,18 @@
  * watching. */
 export type BackgroundOwner = "delegation" | "routine";
 
-/** How long a background turn may hold the lane. Past this the sweep reclaims
- * it and the owner records a timeout — the same ten minutes the desktop's
- * `runTextTurn` allowed. */
+/**
+ * How long a background turn may hold the lane before the sweep reclaims it and
+ * the owner records a timeout.
+ *
+ * A BACKSTOP, not a budget: a turn that reports normally releases the lane the
+ * moment it ends, so this only ever fires for a container that died without
+ * saying so. Ten minutes is therefore chosen against the two failure modes it
+ * sits between — shorter, and a legitimately long turn is killed and its work
+ * lost; longer, and every queued delegation waits that much longer behind a
+ * lane nobody is running. Tune it if real turns start being reclaimed mid-run;
+ * that is the signal, not the wall-clock number.
+ */
 const BACKGROUND_RUN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** The lane's current holder, as its row. */

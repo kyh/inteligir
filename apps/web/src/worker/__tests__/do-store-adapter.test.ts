@@ -70,7 +70,7 @@ describe("createDoStoreAdapter", () => {
       "store.json",
       NumbersSchema,
       [],
-      { onRecovery: () => undefined },
+      {},
     );
 
     expect(store.read()).toEqual([]);
@@ -90,7 +90,7 @@ describe("createDoStoreAdapter", () => {
       "store.json",
       VersionedSchema,
       { version: 2, items: [] },
-      { onRecovery: () => undefined, versioning: { current: 2 } },
+      { versioning: { current: 2 } },
     );
 
     expect(store.read()).toEqual({ version: 2, items: [] });
