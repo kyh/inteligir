@@ -4,8 +4,8 @@
 //
 // The byte surgery is NOT reimplemented here: `computeRenameEdits` and
 // `addFrontmatterAlias` are pure and platform-neutral by package contract, so
-// the cloud rewrites exactly the spans the desktop rewrites. What this module
-// owns is the ORDER, and the order is the safety model:
+// the spans this host rewrites are the ones `@repo/notes` computes and tests.
+// What this module owns is the ORDER, and the order is the safety model:
 //
 //   1. ask the knowledge index which docs this rename can possibly touch, and
 //      snapshot THOSE before the move (edits are computed from those exact
@@ -13,8 +13,8 @@
 //   2. move the file — the source of truth. If it fails, nothing is rewritten;
 //   3. write each edit CONDITIONALLY, at the version its snapshot was read at.
 //      A doc that changed under the rename loses its rewrite rather than its
-//      content — the same verdict the desktop reaches by comparing bytes,
-//      reached here by comparing versions, because the manifest already knows.
+//      content, and the comparison is on VERSIONS rather than bytes because the
+//      manifest already knows them.
 //   4. record the old stem as a frontmatter alias on the moved doc.
 //
 // Step 4 is the fallback the surgery leans on, which is why it runs even when

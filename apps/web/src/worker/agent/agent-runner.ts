@@ -9,8 +9,8 @@
 // turn produces arrives later, as separate short requests into the report path
 // (`report`).
 //
-// That inverts the desktop's shape, where the agent was an in-process object
-// whose events arrived on a callback. Here the sequence is:
+// So the agent is never an in-process object whose events arrive on a callback.
+// The sequence is:
 //
 //     send   → wake the container if it is cold, push the vault, dispatch
 //     report → events fold into the transcript and broadcast to sockets
@@ -23,11 +23,10 @@
 // `ensureContainer` is not a first-run path — it is the ordinary one, and the
 // code says so rather than treating it as recovery.
 //
-// TWO LANES, TWO CONTAINERS. The desktop ran unattended work — delegation,
-// routines — on a SECOND pi session, so a background task could never see the
-// conversation and the conversation could never see it. Here the isolation unit
-// is the container, and the reason it has to be the container rather than a
-// second session inside one is the vault: the container reports the agent's
+// TWO LANES, TWO CONTAINERS. Unattended work — delegation, routines — is
+// isolated from the conversation so that neither can see the other, and the
+// isolation unit has to be the CONTAINER rather than a second pi session inside
+// one. The reason is the vault: the container reports the agent's
 // file writes from a filesystem WATCHER, which cannot say which session wrote a
 // file. Two sessions sharing one `./vault` would make every agent write
 // ambiguous between an attended edit the chat toast can undo and an unattended
@@ -819,8 +818,8 @@ export class AgentRunner {
 }
 
 /** How a background run ended, read off the run's own record. A stop the user
- * asked for wins over every other reading, exactly as it does on the desktop —
- * the interrupt is why the turn ended at all. */
+ * asked for wins over every other reading — the interrupt is why the turn
+ * ended at all. */
 function backgroundOutcome(run: BackgroundRun, reportError: string | null): BackgroundOutcome {
   if (run.stopRequested) return { kind: "stopped" };
   if (reportError !== null) return { kind: "failed", error: reportError };

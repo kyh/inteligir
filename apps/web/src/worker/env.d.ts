@@ -14,7 +14,7 @@ interface Env {
   /** Better Auth's signing key. The one REQUIRED secret: without it every
    * /api/auth/* request fails. */
   readonly BETTER_AUTH_SECRET: string;
-  /** Optional extra trusted origins, comma-separated (e.g. a desktop protocol). */
+  /** Optional extra trusted origins, comma-separated (e.g. a custom scheme). */
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string;
   /**
    * Optional extra origins allowed to open a host WebSocket, comma-separated
@@ -93,9 +93,9 @@ interface Env {
   readonly OPENAI_OAUTH_CLIENT_SECRET?: string;
 
   /**
-   * The ElevenLabs voice text-to-speech speaks with. Optional: unset uses the
-   * one the desktop shipped, so a hosted account sounds like the app the user
-   * already knows. The API KEY is not here — it is per USER (Settings → Voice),
+   * The ElevenLabs voice text-to-speech speaks with. Optional: unset falls back
+   * to the product's default voice, so every account sounds the same without
+   * configuration. The API KEY is not here — it is per USER (Settings → Voice),
    * sealed in their own Durable Object, never a deployment secret.
    */
   readonly ELEVENLABS_VOICE_ID?: string;

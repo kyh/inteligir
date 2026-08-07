@@ -1,4 +1,4 @@
-// The renderer's half of the task-ordinal counting contract, React-free so
+// The editor's half of the task-ordinal counting contract, React-free so
 // the lockstep test (todo-ordinal-lockstep.test.ts) can pin it headless
 // against core's `scanTaskItems` — the counting authority the host's
 // find-task-line and the guarded toggle already share.
@@ -12,7 +12,7 @@ import { PathApi, type SlateEditor, type TElement } from "platejs";
 // FOLLOWING a todo inherits `listStyleType: "todo"` but WITHOUT a `checked`
 // field. A real todo always carries `checked: boolean` (false for `[ ]`, true
 // for `[x]`); a phantom plain bullet has `checked: undefined`. Requiring
-// `checked` keeps the renderer's delegation ordinal (`todoIndex` below) in
+// `checked` keeps the editor's delegation ordinal (`todoIndex` below) in
 // lockstep with core's count (scanTaskItems), which reads the same markdown
 // under the same grammar (the canonical flavor's no-indented-code reading)
 // — so delegation never targets a checkbox that isn't on disk.

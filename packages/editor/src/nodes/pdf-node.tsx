@@ -29,12 +29,11 @@ export function FileElement(props: PlateElementProps) {
         {PDF_RE.test(url) && isHttpUrl(url) ? (
           // Scheme-gated above (http/https only — never javascript:/data:/
           // file:). No sandbox attr: Chromium blocks the native PDF viewer (a
-          // MimeHandler document) inside ANY sandboxed frame — verified in
-          // this repo's Electron 43: every token set, including
-          // `allow-scripts allow-same-origin`, yields ERR_BLOCKED_BY_CLIENT
-          // and a blank pane, which defeats the embed. The un-sandboxed frame
-          // hosts only the http(s) URL the note author wrote — same trust as
-          // clicking the link (main gates will-navigate + window.open).
+          // MimeHandler document) inside ANY sandboxed frame — every token set,
+          // including `allow-scripts allow-same-origin`, yields
+          // ERR_BLOCKED_BY_CLIENT and a blank pane, which defeats the embed.
+          // The un-sandboxed frame hosts only the http(s) URL the note author
+          // wrote — the same trust as clicking the link.
           // oxlint-disable-next-line react/iframe-missing-sandbox
           <iframe
             className={cn(

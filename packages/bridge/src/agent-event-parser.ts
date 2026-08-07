@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // Parse raw pi-agent-core events into typed AppAgentEvent at the IPC boundary.
-// Pure function — no Electron dependency. Testable in plain Node.
+// Pure — no platform dependency, so it is testable anywhere this package
+// loads.
 // ---------------------------------------------------------------------------
 
 import { Type } from "@sinclair/typebox";
@@ -82,7 +83,7 @@ export function parseAgentEvent(raw: unknown): AppAgentEvent | null {
     case "message_update": {
       if (!Value.Check(MessageUpdateSchema, raw)) return null;
       const ame = raw.assistantMessageEvent;
-      // Only text_delta events carry meaningful content for the renderer
+      // Only text_delta events carry meaningful content for a client
       if (ame.type !== "text_delta" || !ame.delta) return null;
       return { type: "message_update", delta: ame.delta };
     }

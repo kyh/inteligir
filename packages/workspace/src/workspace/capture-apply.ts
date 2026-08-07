@@ -1,5 +1,5 @@
 // Applies a deep-link capture line to the OPEN note through the live editor
-// machinery — the renderer half of the no-clobber design. A host disk write
+// machinery — the client half of the no-clobber design. A host write
 // to an open DIRTY note would be skipped by reloadOpen (vault-editor's
 // dirty-skip) and then overwritten by the next whole-buffer autosave flush,
 // losing the capture; routing the line INTO the live buffer makes it part of

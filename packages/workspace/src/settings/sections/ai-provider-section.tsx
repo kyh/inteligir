@@ -14,12 +14,19 @@ import { useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
 // next reply — the host rolls the live sessions, no app restart. Disconnect
 // touches ONLY this provider's credential; the user's own account is
 // untouched.
+//
+// Connecting is the one action that outlives this dialog: the user leaves for
+// the provider's consent page and the host completes the exchange on its own
+// callback, so the waiting state lives in the store and this section only
+// renders it.
 export function AiProviderSection() {
   const settings = useAiProviderStore((s) => s.settings);
   const init = useAiProviderStore((s) => s.init);
   const refresh = useAiProviderStore((s) => s.refresh);
   const setConfig = useAiProviderStore((s) => s.setConfig);
   const connect = useAiProviderStore((s) => s.connect);
+  const startConnect = useAiProviderStore((s) => s.startConnect);
+  const dismissConnect = useAiProviderStore((s) => s.dismissConnect);
   const disconnect = useAiProviderStore((s) => s.disconnect);
 
   const [busy, setBusy] = useState(false);
@@ -46,19 +53,9 @@ export function AiProviderSection() {
     [setConfig],
   );
 
-  const handleConnect = useCallback(async () => {
-    if (!selected) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await connect(selected.id);
-      if (!result.ok) setError(result.error);
-    } catch {
-      setError("Failed to connect.");
-    } finally {
-      setBusy(false);
-    }
-  }, [selected, connect]);
+  const handleConnect = useCallback(() => {
+    if (selected) void startConnect(selected.id);
+  }, [selected, startConnect]);
 
   const handleDisconnect = useCallback(async () => {
     if (!selected) return;
@@ -73,9 +70,10 @@ export function AiProviderSection() {
     }
   }, [selected, disconnect]);
 
-  // Re-run the OAuth flow for the SELECTED provider + roll a fresh session
-  // (the existing agent:reauthenticate path — for expired credentials, which
-  // still read as "Connected" until a turn fails).
+  // Force a token refresh for the SELECTED provider — the failure this link
+  // recovers from is a credential the provider expired or revoked, which still
+  // reads as "Connected" until a turn fails. A refresh that fails says to
+  // connect again, which is the only thing left to do.
   const handleReauthenticate = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -87,6 +85,8 @@ export function AiProviderSection() {
       setBusy(false);
     }
   }, [refresh]);
+
+  const connecting = connect.phase === "starting" || connect.phase === "awaiting";
 
   return (
     <div className="flex flex-col gap-2">
@@ -134,15 +134,26 @@ export function AiProviderSection() {
         {selected && (
           <div className="flex items-center justify-between border-t border-border/50 px-3 py-2">
             <span className="text-xs text-foreground">
-              {selected.requiresAuth
-                ? selected.connected
-                  ? "Connected"
-                  : "Not connected"
-                : "No login needed"}
+              {!selected.requiresAuth
+                ? "No login needed"
+                : connecting
+                  ? "Waiting for the provider…"
+                  : selected.connected
+                    ? "Connected"
+                    : "Not connected"}
             </span>
             {selected.requiresAuth && (
               <div className="flex items-center gap-1">
-                {selected.connected ? (
+                {connecting ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={dismissConnect}
+                    className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+                  >
+                    Cancel
+                  </Button>
+                ) : selected.connected ? (
                   <>
                     <Button
                       variant="ghost"
@@ -151,7 +162,7 @@ export function AiProviderSection() {
                       disabled={busy}
                       className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
                     >
-                      {busy ? "Opening…" : "Re-authenticate"}
+                      {busy ? "Working…" : "Re-authenticate"}
                     </Button>
                     <Button
                       variant="ghost"
@@ -167,16 +178,33 @@ export function AiProviderSection() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => void handleConnect()}
+                    onClick={handleConnect}
                     disabled={busy}
                     className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
                   >
-                    {busy ? "Opening…" : "Connect"}
+                    {connect.phase === "failed" ? "Try again" : "Connect"}
                   </Button>
                 )}
               </div>
             )}
           </div>
+        )}
+        {connect.phase === "awaiting" && (
+          <p className="px-3 pb-2 text-[10px] text-muted-foreground">
+            Finish in the tab that opened, or{" "}
+            <a
+              href={connect.authorizeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              open the consent page
+            </a>
+            . This page updates on its own.
+          </p>
+        )}
+        {connect.phase === "failed" && (
+          <p className="px-3 pb-2 text-[10px] text-destructive">{connect.error}</p>
         )}
         {error && <p className="px-3 pb-2 text-[10px] text-destructive">{error}</p>}
         <p className="px-3 pb-2 text-[10px] text-muted-foreground">

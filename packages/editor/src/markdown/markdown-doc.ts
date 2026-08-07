@@ -61,8 +61,8 @@ export function describeRawReason(reason: RawReason): string {
 
 /** Why the open gate refuses Rich: a pipeline RawReason, or `roundtrip-loss` —
  * the file parses within the vocabulary but re-serializing it would silently
- * drop content (a serializer bug, never user error). Desktop-gate-only: core's
- * RawReason can't produce it because only this pipeline serializes. */
+ * drop content (a serializer bug, never user error). This gate's alone: core's
+ * RawReason cannot produce it, because only this pipeline serializes. */
 export type GateReason = RawReason | { kind: "roundtrip-loss" };
 
 /** Map a DocAnalysis to the open gate's verdict: the analysis's own reason

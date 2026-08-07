@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Persisted renderer UI state — a generic key→JSON map saved to disk in the
 // host (the user's own ui-state store). Backs panel layout, open panels,
-// and any other view preference the renderer wants to survive restarts.
+// and any other view preference a client wants to survive restarts.
 // ---------------------------------------------------------------------------
 
 import { type Static, Type } from "@sinclair/typebox";

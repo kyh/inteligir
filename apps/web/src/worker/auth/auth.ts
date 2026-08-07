@@ -27,8 +27,8 @@ import { sendResetEmail } from "./reset-email";
 /** Extra trusted origins for the native clients' own schemes. */
 function trustedOrigins(env: Env): string[] {
   // `expo://` is the mobile app's deep-link scheme and `inteligir://` the
-  // desktop shell's — the redirect targets a native social flow would have to
-  // name. More origins can be appended via a comma-separated
+  // shell's — the redirect targets a native social flow would have to name.
+  // More origins can be appended via a comma-separated
   // `BETTER_AUTH_TRUSTED_ORIGINS` var without a code change.
   const extra = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
@@ -78,7 +78,7 @@ export function createAuth(env: Env, baseURL: string) {
       enabled: true,
       // Password reset: Better Auth mints the token + URL and calls
       // this to deliver it (Cloudflare Email Sending; absorbs its own
-      // failures — see reset-email.ts). The desktop requests with
+      // failures — see reset-email.ts). A client requests with
       // `redirectTo: "/auth/reset"`, so the URL's GET leg redirects to the
       // Worker-hosted reset page (see ./reset-page.ts) with `?token=`.
       sendResetPassword: ({ user, url }) => sendResetEmail(env, user.email, url),

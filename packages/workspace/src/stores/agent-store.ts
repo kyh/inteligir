@@ -296,7 +296,7 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
     if (cmdType === "user_message") {
       flushed = await flushOpenNote();
       // A private note's PATH is a leak too — omit the context hint entirely
-      // (the date-only prefix still rides). Fail-closed on the renderer buffer
+      // (the date-only prefix still rides). Fail-closed on the client buffer
       // (openNoteIsPrivate — true when unregistered or unreadable), which
       // honors a just-typed `private: true` before any save. That buffer is the
       // only gate: the host does not model note privacy, so a flip that landed

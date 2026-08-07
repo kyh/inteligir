@@ -1,4 +1,4 @@
-// Deep-link capture apply — the renderer half of the no-clobber design. The
+// Deep-link capture apply — the client half of the no-clobber design. The
 // load-bearing invariant (the workstream's central one): a capture arriving
 // while the user is TYPING in today's note must survive alongside the typing.
 // The applier inserts through the live Plate editor (so the capture becomes

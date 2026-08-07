@@ -2,16 +2,15 @@
 // Restore points for agent writes — the ONE module every AI-edit undo goes
 // through.
 //
-// The rule the desktop set stands: a mutation the agent makes captures a
-// restore point BEFORE it touches the file, and a capture that fails BLOCKS the
-// write. An AI edit with no undo point must never happen, so the capture is
-// fail-closed and its failure is the tool's refusal — or, for a background run,
-// the reason it never dispatched.
+// THE RULE: a mutation the agent makes captures a restore point BEFORE it
+// touches the file, and a capture that fails BLOCKS the write. An AI edit with
+// no undo point must never happen, so the capture is fail-closed and its
+// failure is the tool's refusal — or, for a background run, the reason it never
+// dispatched.
 //
-// The mechanics differ because the storage does. There is no `~/.inteligir` to
-// copy bytes into; there is R2, which already holds the file's current bytes
-// under a content-addressed manifest. So a capture is an R2 copy to a snapshot
-// key plus a row here, and a restore is a write of those bytes back through the
+// The bytes go where the vault's already are. R2 holds the file's current bytes
+// under a content-addressed manifest, so a capture is an R2 copy to a snapshot
+// key plus a row here, and a restore is a write of those bytes back THROUGH the
 // vault — which means the manifest, the knowledge index and the deletion gate
 // all see an ordinary write and stay authoritative.
 //
@@ -33,10 +32,10 @@
 // delete.
 // ---------------------------------------------------------------------------
 
-/** Snapshots kept PER ORIGIN. A count cap rather than an age window, for the
- * desktop's reason: snapshots are whole-file copies, so "50 × a note" is a
- * bounded footprint, while an idle vault never loses its recent undo points to
- * a calendar. Per origin, so a long chat cannot evict a background run's. */
+/** Snapshots kept PER ORIGIN. A count cap rather than an age window: snapshots
+ * are whole-file copies, so "50 × a note" is a bounded footprint, while an idle
+ * vault never loses its recent undo points to a calendar. Per origin, so a long
+ * chat cannot evict a background run's. */
 const SNAPSHOT_RETENTION = 50;
 
 /** Which surface captured a snapshot — and the retention bucket it counts

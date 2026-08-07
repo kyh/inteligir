@@ -2,7 +2,7 @@
 // items. The item lookup IS core's `scanTaskItems` — the projection's counting
 // authority, the same counter behind the guarded toggle
 // (guarded-line-edit's `toggleTaskAtOrdinal`) — so this locator can never
-// drift from the index or the toggle. The renderer's `todoIndex`
+// drift from the index or the toggle. The editor's `todoIndex`
 // (todo-item.ts) counts the same items over the editor's parse of the same
 // markdown (scanTaskItems reads the canonical flavor's grammar — no indented
 // code, matching MDX), so ordinals agree by position with no text matching,

@@ -57,7 +57,7 @@ export type ExtractedLink = {
 
 /** One GFM task item (`- [ ]` checkbox), as the projection records it. The
  * ordinal is the item's position among the doc's task items — the SAME
- * pre-order counting find-task-line and the renderer's todoIndex use, so it
+ * pre-order counting find-task-line and the editor's todoIndex use, so it
  * doubles as delegation's anchor key. `raw` is the exact untrimmed source
  * line EXCLUDING its terminator (`\r\n`/`\r`/`\n`) — the guarded-write input. */
 export type ExtractedTask = {
@@ -103,7 +103,7 @@ export type DocScan = {
 // indented code DOES NOT EXIST — micromark-extension-mdx-md disables
 // `codeIndented`, so the editor renders a 4-space-indented `- [ ]` as a live
 // task and an indented `[[link]]` as a live link. The scan must read the SAME
-// grammar or its task count desyncs from the renderer's todoIndex (the
+// grammar or its task count desyncs from the editor's todoIndex (the
 // Delegate/toggle anchor is (sourceFile, ordinal)). Only this ONE disable is
 // adopted: the full MDX pipeline throws on out-of-vocabulary docs (the scan
 // stays total — Raw-mode docs keep indexing), and mdx-md's other disables

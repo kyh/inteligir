@@ -7,7 +7,7 @@
 // `tag:` typed by a user resolves exactly like a `tag` the model passed.
 //
 // Pure: privacy scoping lives in the primitives the caller binds (the agent
-// binds private-excluding ones, the renderer's host does not), so nothing here
+// binds private-excluding ones, a client's host does not), so nothing here
 // has to know which surface it is serving.
 // ---------------------------------------------------------------------------
 

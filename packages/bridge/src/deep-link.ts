@@ -2,16 +2,16 @@
 // inteligir:// deep-link grammar — the pure parser + sanitizer behind the
 // world-invokable URL scheme (any web page can launch it, so every guard
 // lives here where both the host and tests can drive it). Isomorphic: no
-// node/electron imports; loads in the renderer, the fixture bridge, and the
-// node host alike.
+// platform imports, so it loads unchanged in a browser, in the fixture Bridge
+// and in the Worker.
 //
 // Exactly six verbs (verb = URL hostname): writes `append?text=` / `task?text=` (one sanitized
 // plain-text line onto TODAY's daily note — the path is computed host-side,
 // NEVER taken from the URL), nav `today` / `note/<target>` / `search?q=`, and
 // `session?code=…&state=…` (the social sign-in callback: an OPAQUE single-use
-// exchange code — never a raw token — plus the state nonce the desktop minted
-// at initiation; both are only ever handed onward, the code to the cloud
-// exchange endpoint and the state to the host's pending-sign-in check).
+// exchange code — never a raw token — plus the state nonce the client minted at
+// initiation; both are only ever handed onward, the code to the exchange
+// endpoint and the state to the host's pending-sign-in check).
 // Anything else parses to null. Oversize input is REJECTED, never truncated.
 // ---------------------------------------------------------------------------
 
@@ -40,8 +40,8 @@ export type DeepLinkNav =
   | { kind: "note"; target: string }
   | { kind: "search"; query: string };
 
-/** A nav delivery, id-stamped so the renderer can dedupe the cold-launch
- * overlap between the pushed event and the pulled pending nav. */
+/** A nav delivery, id-stamped so a client can dedupe the cold-launch overlap
+ * between the pushed event and the pulled pending nav. */
 export type DeepLinkNavEvent = { id: string; nav: DeepLinkNav };
 
 export type DeepLinkAction =
@@ -133,7 +133,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkAction | null {
       }
       if (target === "" || target.length > MAX_NOTE_TARGET_LENGTH) return null;
       // Only doc paths may be addressed directly. An extensionless target is
-      // a wiki title (the renderer resolves + re-guards it); anything with an
+      // a wiki title (the client resolves + re-guards it); anything with an
       // extension must be an editable doc — nav must never open an HTML App.
       if (extnamePath(target) !== "" && !isDocPath(target)) return null;
       return { kind: "nav", nav: { kind: "note", target } };

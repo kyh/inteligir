@@ -1,22 +1,19 @@
 // ---------------------------------------------------------------------------
 // Text-to-speech, buffered and synthesized PER DURABLE OBJECT.
 //
-// THE BUG THIS SHAPE EXISTS TO PREVENT. The desktop's proxy held ONE upstream
-// socket and ONE text buffer at module scope, which is correct for a
-// single-user process and catastrophic in a Worker isolate: one isolate serves
+// THE BUG THIS SHAPE EXISTS TO PREVENT. An upstream socket or a text buffer at
+// MODULE scope would be catastrophic in a Worker isolate: one isolate serves
 // many tenants' objects, so a module-level buffer would stream one user's note
 // text into another user's headphones. Everything here is instance state,
 // constructed with the object it belongs to — the same rule ../host/host-events
-// states for the event bus, and the reason it is restated is that this one
-// carries note CONTENT.
+// states for the event bus, restated because this one carries note CONTENT.
 //
-// THE TRANSPORT CHANGES, THE CONTRACT DOES NOT. The desktop kept a persistent
-// WebSocket to ElevenLabs and pushed deltas into it. A Durable Object that held
-// one would be pinned for the whole conversation and would hit the
-// fifteen-minute outbound ceiling mid-sentence, so this buffers text and
-// synthesizes over ONE request per speakable chunk. The renderer is unaffected:
-// it still receives `onTtsAudio` frames of raw PCM at the same rate and plays
-// them the same way.
+// ONE REQUEST PER CHUNK, not a persistent upstream. A Durable Object holding a
+// long-lived WebSocket to ElevenLabs would be pinned for the whole conversation
+// and would hit the fifteen-minute outbound ceiling mid-sentence. So text is
+// buffered here and synthesized over one HTTP request per speakable chunk; the
+// client still receives `onTtsAudio` frames of raw PCM and plays them frame by
+// frame.
 //
 // SPEAKABLE CHUNKS, NOT DELTAS. `ttsSend` arrives once per streamed assistant
 // delta — a few characters — and one request per delta would be absurd. So
@@ -115,8 +112,8 @@ export class TtsSession {
   /** Text received but not yet long enough (or terminated enough) to speak. */
   private buffer = "";
 
-  /** Serializes synthesis so PCM reaches the renderer in the order the text
-   * arrived. The renderer schedules each frame after the previous one's
+  /** Serializes synthesis so PCM reaches the client in the order the text
+   * arrived. The client schedules each frame after the previous one's
    * duration, so out-of-order audio is not a glitch — it is a different
    * sentence. */
   private tail: Promise<void> = Promise.resolve();

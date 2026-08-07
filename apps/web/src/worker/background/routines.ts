@@ -2,18 +2,12 @@
 // Scheduled routines — delegation's sibling, on the same background lane and
 // the same durable lock (./background-runs).
 //
-// THE SCHEDULER IS AN ALARM, not an interval, and that is the one thing this
-// host does strictly better than the desktop. There, a `setInterval` asked
-// every minute whether anything was due, which meant a laptop asleep at 09:00
-// simply missed the slot until it woke. A Durable Object can be woken AT an
-// instant, so the routine's next slot is computed (`nextRoutineDueAt`) and
-// folded into the object's ONE alarm — the object sleeps until then, costs
-// nothing in between, and fires on time.
-//
-// (The desktop's manager also calls `this.schedulerTimer.unref()`
-// unconditionally. Workers' `setInterval` answers a number, so a direct port
-// would throw on the first wiring. It is not carried over because the whole
-// timer is not carried over.)
+// THE SCHEDULER IS AN ALARM, not an interval. A polling timer would have to ask
+// every minute whether anything is due, would PIN the object for the whole
+// wait, and would die with the eviction the transport exists to get. A Durable
+// Object can be woken AT an instant instead, so the routine's next slot is
+// computed (`nextRoutineDueAt`) and folded into the object's ONE alarm — the
+// object sleeps until then, costs nothing in between, and fires on time.
 //
 // THE RISK SHAPE DIFFERS FROM DELEGATION ON PURPOSE, and the code leans on it.
 // Nobody is watching when a routine fires, so:

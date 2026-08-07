@@ -1,5 +1,5 @@
-// deriveOpenDoc — pins the reachable state map of the open document. The old
-// flat view fields allowed illegal combinations (rich mode on a non-markdown
+// deriveOpenDoc — pins the reachable state map of the open document. A flat set
+// of view fields would allow illegal combinations (rich mode on a non-markdown
 // file, a gate reason without a note); the union must cover exactly the
 // reachable states and nothing else:
 //   none                  — nothing open

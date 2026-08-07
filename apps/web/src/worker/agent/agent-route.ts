@@ -22,7 +22,7 @@
 import { tokenAddress } from "./agent-crypto";
 import { readBearer } from "../host/session";
 import { userHostName } from "../host/host-address";
-import { OAUTH_CALLBACK_PATH, oauthResultPage } from "./provider-oauth";
+import { OAUTH_CALLBACK_PATH, oauthResultPage, providerRefusalMessage } from "./provider-oauth";
 
 const REPORT_PATH = /^\/v1\/agent\/([^/]+)\/report$/;
 
@@ -71,7 +71,14 @@ export async function routeAgentReport(
   return env.UserHost.getByName(userHostName(addressed)).fetch(request);
 }
 
-/** Answer the provider OAuth redirect, or `null` when this request is not one. */
+/**
+ * Answer the provider OAuth redirect, or `null` when this request is not one.
+ *
+ * A REFUSAL is forwarded like a grant. Answering it here would be quicker and
+ * would leave the object holding a dead verifier and the workspace holding a
+ * "waiting" state nothing ever ends — the object is the only party that can
+ * clear either, so the only decision this route makes is which object.
+ */
 export async function routeOAuthCallback(
   request: Request,
   env: Env,
@@ -80,25 +87,22 @@ export async function routeOAuthCallback(
   if (request.method !== "GET" || pathname !== OAUTH_CALLBACK_PATH) return null;
   const url = new URL(request.url);
 
-  const providerError = url.searchParams.get("error");
-  if (providerError !== null) {
-    return oauthResultPage(`The provider refused the connection (${providerError}).`, false);
-  }
   const state = url.searchParams.get("state");
-  const code = url.searchParams.get("code");
-  if (state === null || code === null) {
-    return oauthResultPage(
-      "That sign-in link is missing something and cannot be completed.",
-      false,
-    );
+  const addressed = state === null ? null : tokenAddress(state);
+  if (addressed !== null) {
+    // Forwarded as a request the object can verify from scratch: the state token
+    // is the credential, and it is the object that decides whether it holds.
+    return env.UserHost.getByName(userHostName(addressed)).fetch(request);
   }
-  const addressed = tokenAddress(state);
-  if (addressed === null) {
-    return oauthResultPage("That sign-in link was not issued by this app.", false);
-  }
-  // Forwarded to the object as a request it can verify from scratch: the state
-  // token is the credential, and it is the object that decides whether it holds.
-  return env.UserHost.getByName(userHostName(addressed)).fetch(request);
+  // Nothing to address, so nothing to clear. A refusal that lost its state is
+  // still worth naming; anything else is a link this app did not issue.
+  const refused = url.searchParams.get("error");
+  return oauthResultPage(
+    refused === null
+      ? "That sign-in link was not issued by this app."
+      : providerRefusalMessage(refused),
+    false,
+  );
 }
 
 /** Whether `pathname` is the OAuth callback, for the object's own routing. */

@@ -1,13 +1,11 @@
 // ---------------------------------------------------------------------------
 // The editor's AI: no-tools text turns, run DIRECTLY from the Durable Object.
 //
-// WHY NOT THE CONTAINER. The desktop ran these as two extra pi sessions in the
-// same process, which cost nothing because the process was already there. Here
-// the agent lives in a container whose ordinary state is asleep, so routing a
-// ghost completion through it would pay a cold start, a whole-vault
-// materialization and a pi boot for a request that needs no filesystem and no
-// tools. The container is for TOOL-USING turns; this is a text call over the
-// same credential the container never gets to hold.
+// WHY NOT THE CONTAINER. The agent lives in a container whose ordinary state is
+// asleep, so routing a ghost completion through it would pay a cold start, a
+// whole-vault materialization and a pi boot for a request that needs no
+// filesystem and no tools. The container is for TOOL-USING turns; this is a
+// text call over the same credential the container never gets to hold.
 //
 // WHAT IT COSTS, stated rather than discovered. An outbound `fetch` PINS the
 // Durable Object: it cannot hibernate while one is open, and the wall-clock
@@ -59,10 +57,9 @@ const INLINE_TIMEOUT_MS = 60_000;
 /** Intent classification. It answers one word. */
 const CLASSIFY_TIMEOUT_MS = 15_000;
 /**
- * A ghost completion. Deliberately far shorter than the desktop's twenty
- * seconds: there, a slow completion cost a background promise; here it costs a
- * resident Durable Object, and a suggestion that arrives after the user has
- * typed past it is worthless anyway.
+ * A ghost completion. Deliberately tight: a slow one costs a RESIDENT Durable
+ * Object, and a suggestion that arrives after the user has typed past it is
+ * worthless anyway.
  */
 const GHOST_TIMEOUT_MS = 8_000;
 
@@ -130,10 +127,9 @@ export class TextGenerator {
   /**
    * Classify a free-form AI-menu prompt as generate vs edit.
    *
-   * Every failure falls back to `generate`, the non-destructive branch — the
-   * same trade the desktop makes, and the reason this one never reports an
-   * error: inserting text the user can discard beats rewriting their selection
-   * because a classifier timed out.
+   * Every failure falls back to `generate`, the non-destructive branch, which
+   * is also why this one never reports an error: inserting text the user can
+   * discard beats rewriting their selection because a classifier timed out.
    */
   async classify(prompt: string, hasSelection: boolean): Promise<AiIntentResult> {
     const result = await this.run("ghost", `classify:${crypto.randomUUID()}`, {
@@ -334,7 +330,7 @@ async function readStream(
  * What the no-account provider answers.
  *
  * Deterministic and derived from the prompt, so a headless drive can assert an
- * exact string — the cloud twin of the desktop's faux provider echo.
+ * exact string.
  */
 function scriptedCompletion(prompt: string, maxTokens: number): string {
   const tail = prompt.slice(-120).replaceAll(/\s+/g, " ").trim();

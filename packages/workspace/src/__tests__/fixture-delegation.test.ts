@@ -1,5 +1,5 @@
 // The fixture bridge's simulated delegation lifecycle must be REALLY
-// cancelable: the renderer's delegation-store fires cancelDelegation
+// cancelable: the client's delegation-store fires cancelDelegation
 // fire-and-forget and swallows rejections (.catch(() => {})), so a throwing
 // stub — or a canned { ok: false } — is byte-identical to silent failure in
 // the harness UI. Cancel has to pull the pending simulated run and flip the

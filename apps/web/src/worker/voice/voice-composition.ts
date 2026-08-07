@@ -56,7 +56,7 @@ export function composeVoice(deps: VoiceCompositionDeps): VoiceComposition {
 
   // A deployment with no Workers AI account gets a transcriber that refuses
   // rather than a session that swallows audio: `startStt` answers the sentence
-  // and the renderer never opens a microphone.
+  // and the client never opens a microphone.
   const transcriber = createWorkersAiTranscriber(deps.env, (input, init) => fetch(input, init));
   const stt = new SttSession({
     transcribe:

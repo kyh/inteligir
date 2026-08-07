@@ -3,14 +3,14 @@ import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
 import type { ChatItem, ChatItemDetail, ChatLog } from "@repo/bridge/chat-log";
 
 // ---------------------------------------------------------------------------
-// The desktop VIEW over the shared chat log (@repo/bridge/chat-log): the
+// The workspace's VIEW over the shared chat log (@repo/bridge/chat-log): the
 // fold itself is platform-neutral; this module projects its items into the AI
-// SDK UIMessage shape the renderer components consume. Each message carries a
-// single content part: user/assistant turns hold a TextUIPart; tool rows hold
-// a DynamicToolUIPart whose state mirrors the agent's run-time status. The
-// "steer" UX concept (a steering nudge sent mid-turn) rides on a user-role
-// message via metadata.steer so the renderer can style it differently without
-// inventing a new role outside the SDK shape.
+// SDK UIMessage shape the chat components consume. Each message carries a
+// single content part: user/assistant turns hold a TextUIPart; tool rows hold a
+// DynamicToolUIPart whose state mirrors the agent's run-time status. The "steer"
+// UX concept (a steering nudge sent mid-turn) rides on a user-role message via
+// metadata.steer so the components can style it differently without inventing a
+// new role outside the SDK shape.
 // ---------------------------------------------------------------------------
 
 export type ChatMessageMetadata = {

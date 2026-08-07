@@ -1,5 +1,5 @@
 // Isomorphic helpers for the templates + periodic-note conventions: the host
-// (deep-link capture drain) and the renderer (⌘D, palette, Settings → Notes)
+// (deep-link capture drain) and the client (⌘D, palette, Settings → Notes)
 // share one source of truth.
 // No bridge, no React, no node — just string math; the pure date→path fns
 // live in @repo/notes/daily-path. Template application substitutes ONLY
@@ -35,7 +35,7 @@ export type Cadence = "daily" | "weekly" | "monthly";
  * cadence's folder key, filename format, template path and command label are
  * defined once rather than spread across parallel constant sets.
  *
- * Adding "quarterly" is still more than editing the table below: the renderer
+ * Adding "quarterly" is still more than editing the table below: the client
  * keeps its own per-cadence records (the palette's command map, the Settings
  * rows, the open-periodic hook). Every one of them is keyed
  * `Record<Cadence, …>`, so the compiler names each site that needs the new

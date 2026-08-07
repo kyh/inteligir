@@ -5,7 +5,7 @@
 // injected lexical `search` port, so the ranking brain exists once
 // while each composition brings its own text engine — the in-memory tiered
 // SearchIndex (the core reference composition) or the SQL store's FTS5 bm25
-// (desktop host). No ML, no embeddings (that's a v2, separately).
+// (what the host runs). No ML, no embeddings (that's a v2, separately).
 //
 // Signals, cheapest-first over what the knowledge engine already holds:
 //   - shared link targets (bibliographic coupling): the candidate links to

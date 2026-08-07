@@ -51,9 +51,9 @@ export function MediaEmbedElement(props: PlateElementProps) {
         ) : isHttpUrl(url) ? (
           // Minimal sandbox, mirroring the vault-.html app frame's discipline:
           // scripts only, NO allow-same-origin (the frame gets an opaque
-          // origin and can never reach the app). allow-popups is gone — a
-          // note embed must not spawn windows — and allow-presentation too
-          // (cast/presentation isn't compiled into Electron).
+          // origin and can never reach the app). allow-popups is withheld — a
+          // note embed must not spawn windows — and allow-presentation with
+          // it: casting a note's iframe is not a capability an embed needs.
           <iframe
             className={cn(
               "aspect-video w-full rounded-md border border-border",

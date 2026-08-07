@@ -1,17 +1,15 @@
 // ---------------------------------------------------------------------------
 // The durable inbox behind the capture verbs — `append` and `task`.
 //
-// The grammar is unchanged and DELIBERATELY so: `@repo/bridge/deep-link` is
+// The grammar is `@repo/bridge/deep-link`'s and DELIBERATELY so: that module is
 // pure, and this host reuses its parser, its sanitizer, its line formatter, its
-// append rule and its exact-line dedupe verbatim. The scheme in front of it is
-// what moved — `inteligir://append?text=` was an OS-delivered URL and here it
-// is an HTTP request — but the RULE that survived both is the one that matters:
-// the target path is computed HOST-side from today's date and the user's
-// Settings, never taken from the URL.
+// append rule and its exact-line dedupe verbatim. The rule that matters most is
+// the one it enforces — the target path is computed HOST-side from today's date
+// and the user's Settings, never taken from the URL, whatever launched it.
 //
-// The shape is the desktop's: enqueue durably, OFFER the line to the open
-// editor (`onCaptureApply`), and drain to the note when the editor is not the
-// right owner. Two things about it are different here and both are forced:
+// The shape: enqueue durably, OFFER the line to the open editor
+// (`onCaptureApply`), and drain to the note when the editor is not the right
+// owner. Two things about it are forced by this host:
 //
 //   • THE ACK DEADLINE IS THE HOST'S ALARM, not a `setTimeout`. A pending timer
 //     pins the Durable Object, which is the hibernation the whole transport
@@ -19,12 +17,11 @@
 //     offer and then closed its laptop still has its capture drained. It joins
 //     the object's ONE alarm through `nextDueAt` — a second alarm concept would
 //     silently cancel whatever the first had armed.
-//   • THE COMPARE-AND-SWAP IS ON THE MANIFEST VERSION, not on file bytes. The
-//     desktop compared bytes because its vault IO was synchronous and a version
-//     was not available; here `UserVault.writeText` takes a `baseVersion` and
-//     answers a conflict as a VALUE, which is the same guarantee with none of
-//     the read-compare-read dance. The exact-line dedupe still runs first, so
-//     every retry — and every re-drain after a crash — is idempotent.
+//   • THE COMPARE-AND-SWAP IS ON THE MANIFEST VERSION, not on file bytes.
+//     `UserVault.writeText` takes a `baseVersion` and answers a conflict as a
+//     VALUE, so the guard needs no read-compare-read dance over bytes. The
+//     exact-line dedupe still runs first, so every retry — and every re-drain
+//     after a crash — is idempotent.
 //
 // The INBOX itself stays a synchronous JsonStore (over the object's KV, through
 // the DO adapter). That is a contract, not a preference: `json-store-core`
@@ -58,8 +55,7 @@ const INBOX_KEY = "capture-inbox";
 const MAX_INBOX_ENTRIES = 200;
 
 /** How long the host waits for a client's verdict before draining to the note.
- * Two seconds on the desktop, and longer here because the round trip crosses a
- * network rather than an IPC channel. */
+ * Generous, because the round trip crosses a network. */
 const ACK_TIMEOUT_MS = 5_000;
 
 /** Version-conflict retries. Every retry re-reads, so looping means a

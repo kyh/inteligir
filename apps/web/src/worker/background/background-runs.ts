@@ -2,16 +2,14 @@
 // The background lane — one unattended turn at a time, and the record of the
 // one that is running.
 //
-// This is the desktop's BackgroundTurnLock, and the reason it is a TABLE rather
-// than a field is the execution model, not the tenancy. On the desktop a run
-// was an awaited in-process call, so "a turn is in flight" could live in a
-// closure for exactly as long as the call did. Here a run spans MANY
-// invocations: the object dispatches, returns, is evicted, and the turn's
-// progress arrives minutes later as separate requests. An in-memory lock would
-// read as FREE on the very next invocation and let a routine start on top of a
-// running delegation. So the lock is durable, and the row that holds it is the
-// run it is holding the lane for — the lock and the thing it protects are one
-// fact rather than two that can disagree.
+// THE LOCK IS A TABLE, not a field, and the reason is the execution model
+// rather than the tenancy. A run spans MANY invocations: the object dispatches,
+// returns, is evicted, and the turn's progress arrives minutes later as
+// separate requests. An in-memory lock would read as FREE on the very next
+// invocation and let a routine start on top of a running delegation. So the
+// lock is durable, and the row that holds it IS the run it is holding the lane
+// for — the lock and the thing it protects are one fact rather than two that
+// can disagree.
 //
 // (Module scope would be worse still: one isolate serves many tenants' objects,
 // so a module-level lock would serialize one user's delegations against
@@ -103,10 +101,10 @@ export type BackgroundDispatchOutcome =
  * Take the lane, resolve the run against it, and hand the turn to the
  * container.
  *
- * `prepare` runs AFTER the lane is claimed and BEFORE the dispatch — which is
- * the whole ordering the desktop's managers keep: the checkbox is re-resolved
- * and the restore point captured while nothing else can start a turn, and a
- * failure at either step releases the lane instead of stranding it.
+ * `prepare` runs AFTER the lane is claimed and BEFORE the dispatch, and that
+ * ordering is the point: the checkbox is re-resolved and the restore point
+ * captured while nothing else can start a turn, and a failure at either step
+ * releases the lane instead of stranding it.
  */
 export type BackgroundDispatch = (
   owner: BackgroundOwner,
@@ -159,9 +157,9 @@ export class BackgroundRuns {
    * Take the lane for `owner`/`ref`, or answer null because another turn holds
    * it.
    *
-   * Non-blocking, exactly as the desktop's `tryAcquire` is: both owners already
-   * have a queue and a pump, so contention re-uses them. A waiter queue here
-   * would add an ordering problem and a deadlock surface to buy nothing.
+   * Non-blocking: both owners already have a queue and a pump, so contention
+   * re-uses them. A waiter queue here would add an ordering problem and a
+   * deadlock surface to buy nothing.
    *
    * SQLite's synchronous API is what makes the read-then-insert atomic — no
    * other caller can interleave inside one JS turn.

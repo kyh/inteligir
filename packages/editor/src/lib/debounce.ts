@@ -1,5 +1,5 @@
 // Cancellable trailing debounce with a synchronous flush — the one timer
-// shape the renderer keeps needing (serialize coalescing, autosave, focus
+// shape the editor keeps needing (serialize coalescing, autosave, focus
 // refresh). Callers state their delay explicitly; policy constants live at
 // the call site, not here.
 

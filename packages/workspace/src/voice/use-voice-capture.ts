@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// useVoiceCapture — the renderer's push-to-talk STT lifecycle as a hook.
+// useVoiceCapture — the client's push-to-talk STT lifecycle as a hook.
 // Wraps startSTT (which owns getUserMedia + the worklet + the IPC session)
 // with the state a capture UI needs: a phase, the live transcript, and
 // start/cancel/confirm. Extracted from the composer so the race handling is

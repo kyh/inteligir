@@ -5,7 +5,7 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { ErrorBoundary } from "@repo/workspace/components/error-boundary";
 import { ReauthDialog } from "@repo/workspace/components/reauth-dialog";
-import { DesktopThemeProvider } from "@repo/workspace/lib/use-theme";
+import { WorkspaceThemeProvider } from "@repo/workspace/lib/use-theme";
 import { OnboardingPage } from "@repo/workspace/onboarding/onboarding-page";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
 import { installVoiceNarration } from "@repo/workspace/voice/narration";
@@ -71,9 +71,9 @@ export function App() {
   return (
     <StrictMode>
       <ErrorBoundary>
-        <DesktopThemeProvider>
+        <WorkspaceThemeProvider>
           <RootLayout />
-        </DesktopThemeProvider>
+        </WorkspaceThemeProvider>
       </ErrorBoundary>
     </StrictMode>
   );

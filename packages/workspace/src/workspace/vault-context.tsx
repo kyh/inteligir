@@ -486,7 +486,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [root]);
 
   // Alias entries for the local resolver: the host's knowledge index owns
-  // alias extraction; the renderer pulls WikiTargets (path + aliases) over
+  // alias extraction; the client pulls WikiTargets (path + aliases) over
   // the Bridge so chips, transclusion, and autocomplete resolve `[[alias]]`
   // exactly like backlinks do. Refreshed with every listing refresh and on
   // knowledge updates — the index lags saves ~100-300ms, so a just-added

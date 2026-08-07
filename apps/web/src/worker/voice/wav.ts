@@ -8,7 +8,7 @@
 // a dependency.
 //
 // Pure and allocation-explicit: this runs once per utterance over a few hundred
-// kilobytes, and it is the one place the sample rate the renderer captures at
+// kilobytes, and it is the one place the sample rate the client captures at
 // and the sample rate the model is told about have to agree.
 // ---------------------------------------------------------------------------
 

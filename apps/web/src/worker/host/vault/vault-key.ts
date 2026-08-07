@@ -41,9 +41,10 @@ export type VaultKey = {
  * a file inside the vault (empty, or climbing out through `..`).
  *
  * Confinement is LEXICAL and total, which is the whole story here: there are no
- * symlinks in an R2 bucket, so the desktop's second, symlink-resolving layer
- * has nothing to resolve. `normalizePath` keeps leading `..` segments precisely
- * so an escape is detectable rather than silently clamped to the root.
+ * symlinks in an R2 bucket, so nothing a second, path-resolving layer could
+ * catch survives this one. `normalizePath` keeps leading `..` segments
+ * precisely so an escape is detectable rather than silently clamped to the
+ * root.
  */
 export function parseVaultPath(raw: string): VaultKey | null {
   const path = normalizePath(raw).normalize("NFC");

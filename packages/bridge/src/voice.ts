@@ -9,7 +9,7 @@
  * puts the plaintext in the host's encrypted secret store and keeps only a
  * `true` presence
  * marker under this same key in ui-state.json, which is what getUiState
- * exposes to the renderer. The TTS proxy reads the secret through its
+ * exposes to a client. The TTS proxy reads the secret through its
  * injected getApiKey source. The ELEVENLABS_API_KEY env var remains a
  * dev-only fallback — packaged builds launched from Finder/Dock inherit no
  * shell env, so this persisted entry is the only configuration path for

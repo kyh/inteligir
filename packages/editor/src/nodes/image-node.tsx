@@ -1,8 +1,8 @@
 // `img` node (markdown `![alt](src)`). Two rendering paths: an external
 // `http(s)` src renders as a plain `<img>` (no bytes cross the Bridge); a
 // vault-relative path is fetched lazily through the Bridge (readVaultAsset →
-// base64 → object URL) because the renderer is sandboxed and can't read files
-// itself. A path that doesn't resolve renders a broken-file placeholder rather
+// base64 → object URL), the page having no filesystem of its own to read from.
+// A path that doesn't resolve renders a broken-file placeholder rather
 // than a crash. No resize/align/caption chrome — the canonical byte form stays
 // bare `![alt](path)`.
 

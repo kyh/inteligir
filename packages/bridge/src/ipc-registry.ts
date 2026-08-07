@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // IPC registry — single source of truth for every channel that crosses the
-// host <-> renderer boundary. Each entry pairs a TypeBox payload schema (for
+// host <-> client boundary. Each entry pairs a TypeBox payload schema (for
 // runtime validation) with a TypeScript result/event type (for compile-time
 // inference); the registry KEY is the method name on the wire. The Bridge type
 // and the ws transport's dispatch are both derived from this registry, so a
@@ -104,7 +104,7 @@ export type SkillInfo = {
   filePath: string;
   source: SkillSource;
   /** SKILL.md mtime as epoch MILLISECONDS, or null when it can't be stat'd.
-   * A number on purpose: formatting a date is the renderer's job and the wire
+   * A number on purpose: formatting a date is the client's job and the wire
    * stays locale-free. */
   updatedAt: number | null;
   budget: SkillBudgetState;
@@ -181,10 +181,10 @@ export type FauxAgentScript = Static<typeof FauxAgentScriptSchema>;
  * (already sanitized) line to append. */
 export type CaptureApplyEvent = { id: string; path: string; line: string };
 
-/** The renderer's verdict on a capture-apply: `applied` (persisted through
+/** The client's verdict on a capture-apply: `applied` (persisted through
  * the live buffer — remove the inbox entry), `not-open` (host drains it to
  * disk now), or `deferred` (a transient AI session blocks the buffer — keep
- * the entry, cancel the host's timeout drain, the renderer re-acks when the
+ * the entry, cancel the host's timeout drain, the client re-acks when the
  * session settles). */
 const AckCaptureSchema = Type.Object(
   {
@@ -198,7 +198,7 @@ const AckCaptureSchema = Type.Object(
   { additionalProperties: false },
 );
 
-/** The capture-apply verdict — the ONE declaration; the renderer applier and
+/** The capture-apply verdict — the ONE declaration; the client applier and
  * the host CaptureManager both import it, so the ack contract can't fork. */
 export type CaptureAckOutcome = Static<typeof AckCaptureSchema>["outcome"];
 
@@ -209,7 +209,7 @@ export type CaptureAckOutcome = Static<typeof AckCaptureSchema>["outcome"];
 // ---------------------------------------------------------------------------
 
 /** A chat-agent edit/write on a vault note was checkpointed: the host copied
- * the pre-write bytes before the tool executed. Fired mid-turn; the renderer
+ * the pre-write bytes before the tool executed. Fired mid-turn; the client
  * collects them per turn (first capture per path = the pre-turn bytes) and
  * offers one undo toast when the turn settles. `create` = the write made a
  * new file, so undo deletes it. */
@@ -402,7 +402,7 @@ const ToggleTaskSchema = Type.Object(
 );
 
 /** toggleVaultTask's verdict. Failures are VALUES, never throws: the host has
- * already kicked an index refresh, so the renderer refetches + toasts. */
+ * already kicked an index refresh, so the client refetches + toasts. */
 export type ToggleTaskResult =
   | { ok: true; checked: boolean }
   | { ok: false; reason: "line-missing" | "line-changed" | "not-a-checkbox"; error: string };
@@ -510,14 +510,20 @@ export const IPC = {
   // credential is sealed in the host object and never crosses the Bridge.
   /** Selection + every offered provider with connected state and model menu. */
   getAiProviderSettings: invokeVoid<AiProviderSettings>(),
+  /** The same snapshot, pushed when it changed WITHOUT a client asking — the
+   * OAuth round-trip finishing on the host's callback, which is a different
+   * tab. Paired with the getter in HYDRATED_EVENTS, so a reconnect lands on
+   * the truth rather than on whatever the last mutating call returned. */
+  onAiProviderChanged: event<AiProviderSettings>(),
   /** Patch the selection (partial; a provider switch defaults the model).
    * Rolls the live sessions so the next turn runs the new provider+model. */
   setAiProviderConfig: invoke<typeof AiProviderSetConfigSchema, AiProviderSettings>(
     AiProviderSetConfigSchema,
   ),
-  /** Run the interactive OAuth connect flow for one provider (opens the
-   * host cannot open one, `authorizeUrl` comes back for the client to send
-   * the user to and the connection completes on the host's OAuth callback). */
+  /** START the OAuth connect flow for one provider. The host parks a PKCE
+   * verifier and answers with the provider's consent URL; the CLIENT must send
+   * the user there, and the connection completes on the host's own OAuth
+   * callback, arriving back as `onAiProviderChanged`. */
   connectAiProvider: invoke<typeof AiProviderRefSchema, AiConnectResult>(AiProviderRefSchema),
   /** Drop the host's sealed credential for one provider. */
   disconnectAiProvider: invoke<typeof AiProviderRefSchema, AiProviderSettings>(AiProviderRefSchema),
@@ -608,7 +614,7 @@ export const IPC = {
   /** Guarded checkbox toggle: re-read the file, locate the ordinal-th task
    * item, require its current line to equal `expectedRaw` byte-for-byte, and
    * flip only the marker char (atomic write; the host broadcasts). On ANY
-   * {ok:false} the host refreshes the index (self-heal) and the renderer
+   * {ok:false} the host refreshes the index (self-heal) and the client
    * refetches + toasts — refuse loudly, never write wrong. Invalidation rides
    * the existing onKnowledgeUpdated event. */
   toggleVaultTask: invoke<typeof ToggleTaskSchema, ToggleTaskResult>(ToggleTaskSchema),
@@ -684,17 +690,17 @@ export const IPC = {
   ),
 
   // Deep-link capture — inteligir://append|task. The host enqueues to a
-  // durable inbox and offers the line to the renderer; only the OPEN note is
+  // durable inbox and offers the line to the client; only the OPEN note is
   // ever applied through the live buffer (the no-clobber path) — everything
   // else drains host-side onto today's note.
   /** A capture targets the open note: apply `line` through the live editor
    * buffer so the next autosave persists it (a host disk write to an open
    * DIRTY note would be overwritten by the next whole-buffer flush). */
   onCaptureApply: event<CaptureApplyEvent>(),
-  /** The renderer's capture-apply verdict — see AckCaptureSchema. */
+  /** The client's capture-apply verdict — see AckCaptureSchema. */
   ackCapture: invoke<typeof AckCaptureSchema, void>(AckCaptureSchema),
   /** A deep-link nav verb arrived (inteligir://today | note/<target> |
-   * search?q=). Id-stamped so the renderer can dedupe the cold-launch
+   * search?q=). Id-stamped so a client can dedupe the cold-launch
    * overlap between this push and the takePendingDeepLinkNav pull. */
   onDeepLinkNav: event<DeepLinkNavEvent>(),
   /** Pull-and-clear the parked nav on mount — a cold launch delivers the URL
@@ -852,6 +858,7 @@ export const HYDRATED_EVENTS = {
   onAppState: "getAppState",
   onDelegationsUpdated: "listDelegations",
   onRoutinesUpdated: "listRoutines",
+  onAiProviderChanged: "getAiProviderSettings",
 } as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
 
 // Object.keys returns string[]; the predicate re-proves membership so the

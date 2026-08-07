@@ -115,7 +115,7 @@ export type Delegation = Static<typeof DelegationSchema>;
 // IPC params/results
 // ---------------------------------------------------------------------------
 
-/** The renderer sends the file + the checkbox's ordinal (its position among all
+/** A client sends the file + the checkbox's ordinal (its position among all
  * todo checkboxes in the document); main resolves the line, text + section. */
 export const CreateDelegationParamsSchema = Type.Object(
   {

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Local STT — captures mic audio in the renderer, pushes 16kHz Float32 PCM
+// Local STT — captures mic audio in the page, pushes 16kHz Float32 PCM
 // chunks to the main process where sherpa-onnx + streaming Parakeet runs.
 // ---------------------------------------------------------------------------
 

@@ -136,6 +136,7 @@ function withHandlers<T>(
           credentials: host.agent.credentials,
           origin: () => "https://inteligir.com",
           scripted: host.agent.scripted,
+          announce: () => {},
         },
         background: {
           delegations: host.agent.delegations,

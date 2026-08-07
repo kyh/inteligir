@@ -1,13 +1,12 @@
 // ---------------------------------------------------------------------------
 // `inteligir://` as an HTTPS route, with the grammar untouched.
 //
-// The desktop's scheme was world-invokable: any page could launch it, so every
-// guard lived in the pure parser (`@repo/bridge/deep-link`) where both the host
-// and its tests could drive it. On the web the launcher is a URL bar and the
-// same sentence holds — anyone can link to `/capture?…` — so the parser is
-// reused VERBATIM rather than re-expressed for a new shape. This module's whole
-// job is to turn the query the browser carried into the URL that parser
-// already knows how to refuse.
+// This scheme is WORLD-INVOKABLE: anyone can link to `/capture?…`, exactly as
+// anyone can launch an `inteligir://` URL. So every guard lives in the pure
+// parser (`@repo/bridge/deep-link`), where both the host and its tests can
+// drive it, and this module's whole job is to turn the query a browser carried
+// into the URL that parser already knows how to refuse — reusing it VERBATIM
+// rather than re-expressing it for a second shape.
 //
 // The six verbs are unchanged, and so are their answers here:
 //

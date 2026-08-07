@@ -24,7 +24,7 @@ import { generateDoc } from "./markdown-doc-generator";
 // loop) so per-seed vitest bookkeeping doesn't dominate the ~10s budget — only
 // the parse/serialize work does. On failure the message includes every
 // failing seed + a truncated doc excerpt, so it's replayable in isolation:
-// `ROUNDTRIP_SEED=<n> pnpm --filter @repo/desktop test markdown-roundtrip-property`.
+// `ROUNDTRIP_SEED=<n> pnpm --filter @repo/editor test markdown-roundtrip-property`.
 //
 // N: each seed pays a full parse+serialize (createSlateEditor is not cheap),
 // so 200 seeds run ~25s against a ~10s suite-time budget. Coverage lives in

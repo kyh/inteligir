@@ -4,9 +4,9 @@
 // `AGENTS.md` at the vault root is the ONE user-facing agent-config surface:
 // a regular markdown note the user owns and edits directly, loaded into the
 // chat + delegation sessions at start, with a `## Memory` section the agent
-// appends durable facts to (the personalization loop). Shared here because
-// both the renderer (the "Open agent instructions" palette command) and the
-// host (seed + session load) need the same path and skeleton bytes.
+// appends durable facts to (the personalization loop). Shared here because both
+// the client (the "Open agent instructions" palette command) and the host (seed
+// + session load) need the same path and skeleton bytes.
 //
 // It is NOT a private note and gets no special privacy handling — it's just
 // a vault file the agent reads (a `private: true` frontmatter mark on it is

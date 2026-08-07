@@ -151,7 +151,7 @@ function AssistantMessage({ text }: { text: string }) {
 
 // Best-effort one-line preview of the tool's input. Shape varies by tool —
 // some pass `{ command, args }` (agent-browser), some pass `{ path }` (read),
-// some pass arbitrary JSON. Keep it short; the renderer truncates wider lines.
+// some pass arbitrary JSON. Keep it short; the view truncates wider lines.
 const MAX_ARGS_LEN = 120;
 function formatToolArgs(input: unknown): string | null {
   if (input === null || input === undefined) return null;

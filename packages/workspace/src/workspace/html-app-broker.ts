@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// HTML-App broker — the renderer-side half of the runtime bridge. The app runs
+// HTML-App broker — the client-side half of the runtime bridge. The app runs
 // in a sandboxed iframe (no allow-same-origin) and talks to us ONLY by
 // postMessage; this module turns a validated `inteligir.files.*` request into
 // Bridge calls. It is a NEW capability surface — keep it strictly markdown-file
@@ -11,7 +11,7 @@
 //     calls in here (a spoofed frame or stale token is dropped silently).
 //  2. Payload validation: every method's args are TypeBox-checked here, and
 //     paths are re-rejected for `..` / absolute / scheme-looking shapes BEFORE
-//     the Bridge — defense in depth over main's own confinement.
+//     the Bridge — defense in depth over the host's own confinement.
 //
 // Pure over its deps (no React, no window) so it unit-tests against a fake
 // Bridge.
@@ -80,7 +80,7 @@ const DocInput = Type.Object(
   { additionalProperties: false },
 );
 
-// ---- Path safety (defense in depth over main's confinement) ----------------
+// ---- Path safety (defense in depth over the host's confinement) ------------
 
 function isSafeVaultPath(path: string): boolean {
   if (path.length === 0) return false;

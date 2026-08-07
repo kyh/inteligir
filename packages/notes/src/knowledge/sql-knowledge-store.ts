@@ -184,7 +184,7 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 // SearchIndex's TITLE_WEIGHT/HEADING_WEIGHT/BODY_WEIGHT so a title hit beats a
 // body-only hit. Path tiebreak keeps ordering deterministic.
 //
-// The renderer's search and the agent's differ by ONE extra WHERE term, so both
+// A client's search and the agent's differ by ONE extra WHERE term, so both
 // are cut from this template: the bm25 weights and the snippet config MUST
 // agree between them, or the agent ranks and quotes hits differently from what
 // the user sees. That term is the only interpolation and both call sites pass a
@@ -212,7 +212,7 @@ const SEARCH_SQL = searchSql("");
 // row) — at 4k docs a term appearing in every note took 1.1s, at 50k it took
 // 198s, against ~77ms for the same query unfiltered. As a stored column the
 // filter is a residual test on rows the cursor already produced, so the
-// agent-facing search costs what the renderer's does.
+// agent-facing search costs what a client's does.
 const SEARCH_PUBLIC_SQL = searchSql(" AND is_private = 0");
 
 // Hydration reads. Both `files` pages are keyset-paginated (`path > ?` against

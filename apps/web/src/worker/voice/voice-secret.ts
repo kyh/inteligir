@@ -1,16 +1,15 @@
 // ---------------------------------------------------------------------------
 // The user's ElevenLabs key — sealed, in their own Durable Object.
 //
-// The desktop kept it in an encrypted `SecretStore` under `~/.inteligir` with a
-// `true` presence marker in ui-state, and the shape survives the move
-// unchanged: the plaintext never crosses back over the Bridge, and Settings
-// renders "a key is stored" off the marker alone.
+// THE PLAINTEXT NEVER CROSSES BACK over the Bridge. What Settings renders is a
+// `true` presence marker in ui-state — "a key is stored" — and nothing else
+// leaves this object.
 //
-// What changes is the cipher. There is no per-machine key here and no
-// filesystem to protect one with, so the key rides the SAME AES-GCM seal the
-// provider refresh token does (../agent/agent-crypto) — HKDF-derived from the
-// deployment secret, salted with the user id, so one user's sealed blob cannot
-// be replayed into another's object.
+// The seal is the SAME AES-GCM one the provider refresh token rides
+// (../agent/agent-crypto): HKDF-derived from the deployment secret, salted with
+// the user id, so one user's sealed blob cannot be replayed into another's
+// object. There is no per-machine key to protect it with instead, and no
+// filesystem to hold one.
 // ---------------------------------------------------------------------------
 
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";

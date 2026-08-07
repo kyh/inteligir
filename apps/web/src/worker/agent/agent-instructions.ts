@@ -11,8 +11,7 @@
 // in every turn's system prompt, so their bytes are a recurring per-turn cost —
 // and this is the one file the agent writes to unattended, so its growth is not
 // the user's decision. The head (standing instructions) is kept and the tail
-// (accumulated memory) is shed, which is the same trade the desktop's loader
-// makes for the same reason.
+// (accumulated memory) is shed.
 // ---------------------------------------------------------------------------
 
 import {

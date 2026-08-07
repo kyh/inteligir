@@ -76,7 +76,7 @@ A nested archive note exercising deep folders in the sidebar tree.
 
 ## 2026-07-01
 
-Started the harness. _Everything_ renders without Electron.
+Opened the workspace. _Everything_ renders from plain markdown.
 
 1. First ordered item
 2. Second ordered item

@@ -1,11 +1,9 @@
 // ---------------------------------------------------------------------------
 // Speech-to-text over a REQUEST/RESPONSE model, and what that changes.
 //
-// The desktop ran sherpa-onnx with a streaming Parakeet model in-process: a
-// native binary plus a downloaded model directory, both of which are simply
-// gone here — there is no per-user writable disk and no local inference. The
-// replacement is Workers AI, and the model choice is
-// `@cf/openai/whisper-large-v3-turbo`.
+// LOCAL INFERENCE IS NOT AVAILABLE to this host: there is no per-user writable
+// disk to hold a model directory and nowhere to run a native decoder. So
+// dictation is Workers AI, on `@cf/openai/whisper-large-v3-turbo`.
 //
 // WHY WHISPER RATHER THAN `@cf/deepgram/flux`. Flux is the better fit on
 // paper — it is built for voice agents, speaks a realtime WebSocket, and does
@@ -16,14 +14,12 @@
 // exactly such a field. Whisper is one request per transcription, which is the
 // shape everything else in this host already has.
 //
-// WHAT THAT COSTS, and it is a real regression rather than a wash. The desktop
-// emitted a partial transcript every ~128 ms frame, straight out of a streaming
-// decoder, and the renderer's voice machine was tuned against that cadence.
-// Request/response has no decoder state to read, so a partial can only be a
-// FULL RE-TRANSCRIPTION of the audio so far. Partials therefore arrive on a
-// duration cadence (`PARTIAL_INTERVAL_MS`) rather than per frame, they cost a
-// model call each, and the count is capped — so a long utterance degrades to
-// "the final transcript arrives at stop", which is the honest floor of this
+// WHAT THAT COSTS, stated rather than discovered. Request/response has no
+// decoder state to read, so a partial transcript can only be a FULL
+// RE-TRANSCRIPTION of the audio so far: partials arrive on a duration cadence
+// (`PARTIAL_INTERVAL_MS`) rather than per audio frame, they cost a model call
+// each, and the count is capped. A long utterance therefore degrades to "the
+// final transcript arrives at stop", which is the honest floor of this
 // transport.
 // ---------------------------------------------------------------------------
 
@@ -73,7 +69,7 @@ export class SttSession {
   private readonly deps: SttSessionDeps;
 
   /** The utterance so far. In memory, and that is what a session IS: an
-   * eviction mid-dictation loses the audio, and the renderer's own stop path
+   * eviction mid-dictation loses the audio, and the client's own stop path
    * reports the failure rather than pretending silence was speech. */
   private samples: Float32Array[] = [];
   private sampleCount = 0;
@@ -90,7 +86,7 @@ export class SttSession {
   }
 
   /** Open a dictation session. Idempotent: a second start on a live session
-   * resets it, which is what a renderer that lost its stop ack means by it. */
+   * resets it, which is what a client that lost its stop ack means by it. */
   start(): { ok: true } | { ok: false; error: string } {
     if (!this.deps.available()) {
       return { ok: false, error: "Speech recognition is not configured on this deployment." };
@@ -113,7 +109,7 @@ export class SttSession {
   /**
    * End the session and answer the final transcript.
    *
-   * Returned rather than emitted, because the renderer stops listening to
+   * Returned rather than emitted, because the client stops listening to
    * `onSttTranscript` before it calls this — the tail events are the return
    * value by contract, and an emission here would be dropped on the floor.
    */

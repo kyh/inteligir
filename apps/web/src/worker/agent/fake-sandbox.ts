@@ -2,14 +2,12 @@
 // The scripted sandbox — an agent that needs no container, no Workers Paid
 // plan, and no provider account.
 //
-// It is the cloud twin of the desktop's faux provider, and it exists for the
-// same reason: a deterministic, login-free way to drive a whole agent flow. The
-// desktop scripted the MODEL and kept everything else real. This scripts the
-// CONTAINER and keeps everything else real, which is the same bargain one level
-// out — the runner, the transcript, the tool executor, the confirmation broker,
-// the vault write-back and the event broadcast are the production ones, reached
-// through the production report path. Only the process that would have produced
-// the reports is fake.
+// It exists so a whole agent flow can be driven deterministically and
+// login-free. It scripts the CONTAINER and keeps everything else real — the
+// runner, the transcript, the tool executor, the confirmation broker, the vault
+// write-back and the event broadcast are the production ones, reached through
+// the production report path. Only the process that would have produced the
+// reports is fake.
 //
 // That is deliberately not a mock universe. `report` here is the SAME function
 // the Worker's report route calls after it verifies a container's bearer, so a

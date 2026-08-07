@@ -57,7 +57,7 @@ function expectSubsetOf(bounded: BoundedLinkGraph, full: LinkGraph): void {
   for (const node of bounded.nodes) expect(full.nodes).toContainEqual(node);
   for (const edge of bounded.edges) {
     expect(full.edges).toContainEqual(edge);
-    // No half-drawn edge: an endpoint the renderer can't place is a line to
+    // No half-drawn edge: an endpoint the view can't place is a line to
     // nowhere.
     expect(kept.has(edge.source) && kept.has(edge.target)).toBe(true);
   }
@@ -187,7 +187,7 @@ describe("boundGraph", () => {
 // corpus, so this belongs in the always-on gate (the repo's no-wall-clock rule
 // costs nothing here). Measured against the 50k-doc query-perf
 // corpus — 55,000 nodes / 400,000 edges: 42,020,060 bytes unbounded,
-// 937,138 bytes under the renderer's 2,000 / 8,000 caps.
+// 937,138 bytes under the view's 2,000 / 8,000 caps.
 
 const benchPath = (i: number): string => `notes/note-${String(i).padStart(6, "0")}.md`;
 

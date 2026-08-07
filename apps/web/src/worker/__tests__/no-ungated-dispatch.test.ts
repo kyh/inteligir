@@ -16,7 +16,7 @@
 // If you are here because this test failed: do not add your call site to an
 // allowlist. Route it through resolveHandler/sendEvent — that is the fix.
 //
-// The socket is no longer the only way in: the asset upload arrives as an HTTP
+// The socket is not the only way in: the asset upload arrives as an HTTP
 // request, reaches the same vault, and cannot pass through either chokepoint
 // (there is no frame to resolve and no socket to push to). So it carries the
 // gate itself, and the last case below is what keeps it carrying one — an HTTP

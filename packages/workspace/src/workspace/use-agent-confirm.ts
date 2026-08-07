@@ -2,7 +2,7 @@
 // (@repo/bridge/agent-grants): the host raises a proposal, this shows it, and
 // the answer goes back on the reply channel.
 //
-// Every word on screen comes from the host's request — the renderer adds none
+// Every word on screen comes from the host's request — the client adds none
 // of its own, so a note's contents can never write the dialog the user is
 // agreeing to. Anything that goes wrong (a closed window, a thrown reply)
 // leaves the proposal unanswered, and the host expires it as a decline.

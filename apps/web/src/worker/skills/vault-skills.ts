@@ -1,12 +1,11 @@
 // ---------------------------------------------------------------------------
 // Skills live in the VAULT, at `skills/<slug>/SKILL.md`.
 //
-// THE DECISION, and the alternative it rejects. The desktop kept them under
-// `<agentDir>/skills` — a folder the app owned, beside pi's own state. The
-// cloud analogue would be the container's filesystem, and that is not a store
-// at all: it is DELETED every time the container sleeps, which for an agent
-// nobody is talking to is most of the time. A skill written there would be gone
-// before the user finished reading the confirmation.
+// THE DECISION, and the alternative it rejects. The obvious home is beside pi's
+// own state on the container's filesystem, which is not a store at all: it is
+// DELETED every time the container sleeps, which for an agent nobody is talking
+// to is most of the time. A skill written there would be gone before the user
+// finished reading the confirmation.
 //
 // The vault is the only durable, user-owned store this host has, and three
 // things make it the right one rather than merely the available one:
@@ -51,8 +50,7 @@ const MAX_SLUG_CHARS = 64;
  *
  * Every loaded skill's name and description reach the model in EVERY turn's
  * system prompt, so this is a recurring per-turn cost paid on a folder the user
- * (and the agent) can grow without limit. Same numbers the desktop's budget
- * uses, because the thing being bounded — prompt characters — is the same.
+ * (and the agent) can grow without limit.
  */
 const MAX_SKILL_DESCRIPTION_CHARS = 1_536;
 const MAX_TOTAL_SKILL_DESCRIPTION_CHARS = 16_000;

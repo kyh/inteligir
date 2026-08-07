@@ -109,7 +109,7 @@ export type BoundedLinkGraph = LinkGraph & { totalNodes: number; totalEdges: num
 /** A `[[` picker entry: notes AND attachments suggest (Obsidian-style); the
  * `type` flag lets the picker group them and insert `![[..]]` for assets.
  * `aliases` (docs only, when non-empty) feed the picker's match keywords and
- * the renderer's local resolver. */
+ * a client's local resolver. */
 export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; aliases?: string[] };
 
 /** One vault task for the Tasks view: an ExtractedTask flattened with its
@@ -456,7 +456,7 @@ export class LinkGraphIndex {
     if (current !== null && this.applyPending(current)) return current;
     // Alias entries feed the resolver's below-path tiers, so `[[alias]]`
     // links resolve in backlinks/forward-links/graph exactly like the
-    // renderer's local resolver (which pulls the same aliases via
+    // client's local resolver (which pulls the same aliases via
     // listWikiTargets).
     const aliasEntries: Array<readonly [string, string]> = [];
     for (const [path, record] of this.docs) {

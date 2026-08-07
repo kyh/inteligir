@@ -108,9 +108,10 @@ describe("first-frame auth", () => {
     ws.send(JSON.stringify({ t: "auth", ticket }));
     expect(await frames.next()).toEqual({ t: "welcome" });
 
-    // One push per HYDRATED_EVENTS getter — the app phase, the delegation dock
-    // and the routines list. The index broadcast that follows is the seed being
-    // projected, which happens after the welcome by design.
+    // One push per HYDRATED_EVENTS getter — the app phase, the delegation dock,
+    // the routines list and the AI provider snapshot. The index broadcast that
+    // follows is the seed being projected, which happens after the welcome by
+    // design.
     ws.send(JSON.stringify({ t: "req", id: 1, method: "getAppState" }));
     const events: string[] = [];
     for (;;) {
@@ -126,6 +127,7 @@ describe("first-frame auth", () => {
       "onAppState",
       "onDelegationsUpdated",
       "onRoutinesUpdated",
+      "onAiProviderChanged",
     ]);
     ws.close(1000, "done");
   });

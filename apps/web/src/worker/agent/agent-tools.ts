@@ -7,8 +7,7 @@
 //
 //   • the grant table (@repo/bridge/agent-grants) stays the one declaration of
 //     what the agent may do, and every tool's model-facing sentence comes FROM
-//     it (`grantedDescription`) — a tool with no row throws at manifest time,
-//     exactly as it does on the desktop.
+//     it (`grantedDescription`) — a tool with no row throws at manifest time.
 //   • the destructive tier raises its confirmation INSIDE the executor, so no
 //     tool can skip it. A container that decided not to ask would still be
 //     asking, because the asking is not in the container.
@@ -21,8 +20,7 @@
 // unattended turn may not use, so the model never sees a tool it cannot call;
 // the executor refuses them anyway, so a container running a stale boot cannot
 // reach one. Which tiers those are comes from the grant table's own `tier`
-// field rather than a second list here — the same rule the desktop states as
-// "`AgentPorts.actions` is null in the background session".
+// field rather than a second list here, so widening a tier is one edit.
 //
 // RESULT ENCODING: every listing is a JSON array (`rows`), never
 // newline-joined prose. A note body can contain any prose delimiter, so prose
@@ -76,10 +74,10 @@ const GRAPH_SAMPLE = 12;
 /** Background tasks `list_delegations` hands back, newest first. */
 const DELEGATIONS_MAX = 50;
 
-/** Delegations one interactive turn may queue. Small on purpose, and the same
- * number the desktop's action port uses: a turn that genuinely needs a fourth
- * background task is a turn that should be reporting back instead. It is the
- * one tier that manufactures agent TURNS, so it is the one with a budget. */
+/** Delegations one interactive turn may queue. Small on purpose: a turn that
+ * genuinely needs a fourth background task is a turn that should be reporting
+ * back instead. It is the one tier that manufactures agent TURNS, so it is the
+ * one with a budget. */
 const MAX_DELEGATIONS_PER_TURN = 3;
 
 export type AgentToolResult = { readonly isError: boolean; readonly text: string };
@@ -130,9 +128,9 @@ type ToolDefinition = {
  * Why a tier is absent from an UNATTENDED turn, or null when it is granted
  * there.
  *
- * Both refusals are the desktop's own reasoning, said to the model rather than
- * met with silence: a proposal has no conversation to be confirmed in, and a
- * background agent that could delegate would queue its own successors.
+ * Both refusals are said to the model rather than met with silence: a proposal
+ * has no conversation to be confirmed in, and a background agent that could
+ * delegate would queue its own successors.
  */
 function unattendedRefusal(tier: AgentGrantTier): string | null {
   switch (tier) {

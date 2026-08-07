@@ -16,12 +16,12 @@ export function useOrbBaseColor(): string {
 const THEME_KEY = "theme";
 
 /**
- * Desktop's binding of the shared theme primitive: the theme is persisted to
- * the host's ui-state store through the Bridge and fed into
+ * The workspace's binding of the shared theme primitive: the theme is persisted
+ * to the host's ui-state store through the Bridge and fed into
  * `@repo/ui`'s controlled `ThemeProvider`. Defaults to light to match the
  * Ophelias-style canvas. Wrap the app once; consumers read `useTheme()`.
  */
-export function DesktopThemeProvider({
+export function WorkspaceThemeProvider({
   children,
 }: {
   children: React.ReactNode;

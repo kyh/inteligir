@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // The knowledge index's seven Bridge handlers, over this object's own index.
 //
-// Every one of them is a thin await around ./knowledge/user-knowledge: the
-// composition that could differ between hosts — text ∧ tag search, the guarded
-// toggle — is core's, called here exactly as the node host calls it, so the
-// cloud cannot rank or refuse differently from the client.
+// Every one of them is a thin await around ./knowledge/user-knowledge. The
+// composition a host could get wrong — text ∧ tag search, the guarded toggle —
+// is core's and is called unmodified, so the host cannot rank or refuse
+// differently from the client reading the same index.
 // ---------------------------------------------------------------------------
 
 import type { ToggleTaskResult } from "@repo/bridge/ipc-registry";

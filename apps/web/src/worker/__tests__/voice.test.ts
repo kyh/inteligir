@@ -184,7 +184,7 @@ describe("the stt session", () => {
   });
 
   it("RETURNS the final transcript rather than emitting it", async () => {
-    // The renderer stops listening to onSttTranscript before it calls stop, so
+    // The client stops listening to onSttTranscript before it calls stop, so
     // the tail events are the return value by contract.
     const emitted: SttTranscript[] = [];
     const session = new SttSession({

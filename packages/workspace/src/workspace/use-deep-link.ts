@@ -1,5 +1,5 @@
-// Renderer wiring for the inteligir:// nav verbs (today / note/<target> /
-// search?q=). Bridge-only — no electron/node (lint-enforced). The connection
+// Client wiring for the inteligir:// nav verbs (today / note/<target> /
+// search?q=). Bridge-only, like everything in this package. The connection
 // order is load-bearing: subscribe onDeepLinkNav FIRST, then pull the parked
 // nav — pulling first drops a nav that lands in the gap on cold launch; the
 // id dedupe collapses the overlap where the same nav arrives on both

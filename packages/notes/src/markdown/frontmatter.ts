@@ -7,7 +7,7 @@
 // properties. It touches only the leading `---` fenced block and preserves the
 // body verbatim — no markdown reparse, no byte surgery on the body.
 //
-// Platform-neutral (pure `yaml`, no node/dom), so it runs in the renderer,
+// Platform-neutral (pure `yaml`, no node/dom), so it runs in a client,
 // worker, or RN like the rest of @repo/notes.
 // ---------------------------------------------------------------------------
 

@@ -2,20 +2,18 @@
 // The user's provider credentials — sealed, in their own Durable Object,
 // never in the container.
 //
-// This is what replaces pi's `auth.json`. That file was pi-owned and
-// plaintext-at-0600 by design: pi read it directly during OAuth refresh, so
-// there was no cipher seam to inject one at, and on one person's machine
-// plaintext behind file permissions was an honest trade. Multi-tenant it is
-// not — the credential would sit on a filesystem the user's own agent runs
-// `bash` against, and the filesystem is wiped every ten minutes anyway.
+// pi would keep this in its own `auth.json`, plaintext behind file permissions,
+// and read it directly during an OAuth refresh — which is why there is no
+// cipher seam inside pi to inject one at. That is not a multi-tenant answer:
+// the credential would sit on a filesystem the user's own agent runs `bash`
+// against, and one that is wiped every ten minutes anyway.
 //
-// So the flow inverts. The WORKER owns the OAuth round-trip
-// (./provider-oauth), the refresh token is sealed at rest here
-// (./agent-crypto), and the container is handed a placeholder. Per request, the
-// sandbox's outbound interception mints a short-lived access token from the
-// refresh token and puts it on the wire (./egress). pi keeps working because pi
-// never needed to own the credential — it needed a key-shaped string and a base
-// URL, and it gets both.
+// So the WORKER owns the OAuth round-trip (./provider-oauth), the refresh token
+// is sealed at rest here (./agent-crypto), and the container is handed a
+// placeholder. Per request, the sandbox's outbound interception mints a
+// short-lived access token from the refresh token and puts it on the wire
+// (./egress). pi keeps working because pi never needed to OWN the credential —
+// it needs a key-shaped string and a base URL, and it gets both.
 //
 // ONE THING IS STILL IN THE CONTAINER and it is worth naming rather than
 // burying: the report bearer. The interceptor has to know whose credential to

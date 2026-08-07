@@ -1,17 +1,16 @@
 // ---------------------------------------------------------------------------
-// Desktop parity: the shared @repo/bridge/chat-log fold + the UIMessage
-// projection (@repo/workspace/stores/chat-log-view) must reproduce what the
-// renderer's OLD inline fold produced. `foldOldDesktop` below is a verbatim
-// transcription of agent-store.ts's pre-extraction subscribeAgentEvents /
-// historyToChatMessages (main @ bc097a1e), reduced to a pure fold (voice +
-// queue side effects dropped — they never touched messages). It is FROZEN
-// history — do not "fix" it; if the shared reducer's semantics change on
-// purpose, pin the difference like the history-isError divergence below.
+// A FROZEN ORACLE for the shared @repo/bridge/chat-log fold + the UIMessage
+// projection (@repo/workspace/stores/chat-log-view). `makeOldFold` and
+// `oldHistoryToChatMessages` below are an independent, hand-written
+// reimplementation of the projection the chat surface is contractually required
+// to produce, and they are frozen on purpose: do not "fix" them. A shared
+// reducer whose semantics change deliberately pins the difference instead, the
+// way the history-isError divergence below does.
 //
-// Messages are compared modulo `id` (the old fold allocated m_N from a global
-// counter, the shared log allocates c_N per log; ids are ephemeral render
-// keys, never persisted), and parity is asserted after EVERY event, not just
-// at rest.
+// Messages are compared modulo `id` (the oracle allocates m_N from a global
+// counter, the shared log allocates c_N per log; ids are ephemeral render keys,
+// never persisted), and parity is asserted after EVERY event, not just at
+// rest.
 // ---------------------------------------------------------------------------
 
 import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
@@ -30,9 +29,8 @@ import { projectChatLog, type ChatMessageMetadata } from "@repo/workspace/stores
 
 type OldChatMessage = UIMessage<ChatMessageMetadata>;
 
-// ---- the frozen pre-extraction fold ----------------------------------------
-// Helpers transcribed verbatim (hoisted to module scope for lint — none
-// capture fold state).
+// ---- the frozen oracle -----------------------------------------------------
+// Helpers hoisted to module scope for lint — none capture fold state.
 
 function textPart(text: string, state?: TextUIPart["state"]): TextUIPart {
   return state ? { type: "text", text, state } : { type: "text", text };
@@ -196,7 +194,7 @@ function makeOldFold(): (event: AppAgentEvent) => OldChatMessage[] {
   };
 }
 
-/** Verbatim pre-extraction history conversion (note: it DROPPED isError). */
+/** The oracle's history conversion (note: it DROPS isError — see the pin). */
 function oldHistoryToChatMessages(history: readonly ChatHistoryEntry[]): OldChatMessage[] {
   let nextMsgId = 0;
   const out: OldChatMessage[] = [];
@@ -237,7 +235,7 @@ function stripIds(messages: readonly OldChatMessage[]): IdlessMessage[] {
 
 const noMeta: ReadonlyMap<string, ChatMessageMetadata> = new Map();
 
-describe("desktop parity — shared fold + projection vs the old inline fold", () => {
+describe("parity — shared fold + projection vs the frozen oracle", () => {
   for (const fixture of chatEventFixtures) {
     it(`matches after every event: ${fixture.name}`, () => {
       const oldStep = makeOldFold();
@@ -258,13 +256,12 @@ describe("desktop parity — shared fold + projection vs the old inline fold", (
     );
   });
 
-  // KNOWN, INTENTIONAL divergence — the one place the two platform folds
-  // disagreed: ChatHistoryEntry.isError. Mobile preserved it on rehydrate
-  // (error styling survives a reload); the desktop inline fold silently
-  // dropped it, so an errored turn reloaded as a normal bubble even though
-  // the live path had just rendered it red. The shared fold unifies on
-  // preserving it. This test pins the delta so the change is loud.
-  it("DIVERGENCE PIN: rehydrated error turns now keep errorKind (old fold dropped it)", () => {
+  // KNOWN, INTENTIONAL divergence from the oracle: ChatHistoryEntry.isError.
+  // The oracle drops it on rehydrate, so an errored turn reloads as a normal
+  // bubble even though the live path had just rendered it red. The shared fold
+  // PRESERVES it, which is the behaviour the product wants. This test pins the
+  // delta so the difference is loud rather than assumed.
+  it("DIVERGENCE PIN: rehydrated error turns keep errorKind where the oracle drops it", () => {
     const oldMessages = oldHistoryToChatMessages(historyWithErrorFixture);
     const newMessages = projectChatLog(logFromHistory(historyWithErrorFixture), noMeta);
 

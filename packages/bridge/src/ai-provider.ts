@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
 // AI-provider contract — the isomorphic shapes the Bridge/IPC registry, the
-// host handlers, and the renderer Settings → AI section share. The provider
-// CATALOG and credential handling live in server/provider/*; this module is
-// only the wire contract (selection + per-provider status), so it stays
-// node-free and loads in the renderer too. Credentials never cross this
-// boundary: `connected` is a boolean, and the credential itself stays sealed
-// in the host object.
+// host handlers and the Settings → AI section share. The provider CATALOG and
+// the credential handling are the host's (apps/web/src/worker/agent/*); this
+// module is only the wire contract (selection + per-provider status), so it
+// stays platform-free and loads in a client too. Credentials never cross this
+// boundary: `connected` is a boolean, and the credential itself stays sealed in
+// the host object.
 // ---------------------------------------------------------------------------
 
 import { Type } from "@sinclair/typebox";
@@ -58,11 +58,16 @@ export type AiProviderSettings = {
 };
 
 /**
- * `authorizeUrl` is present only where the HOST cannot open a browser for the
- * user — a cloud host serving a client it has no screen in common with. When it
- * is there, the connection is NOT yet made: the client must send the user to
- * that URL, and the host completes the exchange on the callback. A host that
- * owns the machine (the desktop, which opens the system browser itself) omits
- * it, and `{ ok: true }` alone means connected.
+ * What starting a connection answers with.
+ *
+ * `ok: true` means the authorization STARTED, never that it finished: the host
+ * has no screen in common with its user, so it parks a PKCE verifier and hands
+ * back the provider's consent URL for the client to send them to. The exchange
+ * completes later, on the host's own OAuth callback, and reaches the client as
+ * an `onAiProviderChanged` snapshot.
+ *
+ * `authorizeUrl` is therefore REQUIRED rather than optional — a caller that
+ * receives `ok: true` and navigates nowhere has silently dropped the flow, and
+ * the type is what stops that from typechecking.
  */
-export type AiConnectResult = { ok: true; authorizeUrl?: string } | { ok: false; error: string };
+export type AiConnectResult = { ok: true; authorizeUrl: string } | { ok: false; error: string };

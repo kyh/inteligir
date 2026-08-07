@@ -4,13 +4,13 @@
 // THE DECISION THIS MODULE IS: the Durable Object owns the transcript, and pi's
 // session files are disposable working state.
 //
-// The desktop read `sessions/*.jsonl` off local disk with `readdirSync` and
-// `statSync` — the files pi wrote were the record. That cannot survive the
-// move: the container filesystem is deleted on every sleep, so a transcript
-// living there would vanish between two messages in the same conversation.
-// Something has to be authoritative, and there are only two candidates.
+// The obvious authority would be the files pi already writes — `sessions/
+// *.jsonl` on the container's own disk. It cannot be one here: that filesystem
+// is deleted on every sleep, so a transcript living there would vanish between
+// two messages in the same conversation. Something has to be authoritative, and
+// there are only two candidates.
 //
-// REHYDRATING pi's session directory on wake was the alternative. It was
+// REHYDRATING pi's session directory on wake is the alternative, and it is
 // rejected: the jsonl is pi's private format, so writing it from the Worker
 // would mean this repo hand-authoring a third party's on-disk representation
 // and keeping step with it across upgrades — precisely the coupling the pi

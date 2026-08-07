@@ -77,7 +77,7 @@ describe("findTaskLine", () => {
     // The MDX vocabulary has no indented-code construct, so the editor renders
     // this line as a live task — scanTaskItems reads the same grammar and the
     // ordinal counts it. A parser that treated the indent as a code block
-    // would skip the line and desync every later ordinal from the renderer.
+    // would skip the line and desync every later ordinal from the editor.
     const md = ["Notes", "", "    - [ ] alpha", "", "- [ ] real"].join("\n");
     expect(findTaskLine(md, 0)?.text).toBe("alpha");
     expect(findTaskLine(md, 1)?.text).toBe("real");
@@ -102,7 +102,7 @@ describe("findTaskLine", () => {
 
   it("doesn't count an empty checkbox (Plate renders `- [ ] ` as a plain bullet)", () => {
     // A bare checkbox with no text deserializes to a non-todo in Plate, so the
-    // renderer's todoIndex skips it — main must too, or the ordinals desync.
+    // editor's todoIndex skips it — the host must too, or the ordinals desync.
     const md = ["- [ ] ", "- [ ] real task"].join("\n");
     expect(findTaskLine(md, 0)?.text).toBe("real task");
     expect(findTaskLine(md, 1)).toBeNull();

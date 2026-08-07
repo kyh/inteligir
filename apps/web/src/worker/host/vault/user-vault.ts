@@ -5,14 +5,12 @@
 // name. One object, one lock, one transaction domain — there is no second
 // object to coordinate with, so there is no distributed write to get wrong.
 //
-// It stands where VaultManager stood, and the LIVENESS MODEL inverts with it.
-// The desktop crawled a folder it did not own, so its listing was an ephemeral
-// snapshot refreshed on window focus with a single watcher on the open note.
-// Here the Durable Object is the ONLY writer: the manifest IS the listing, it
-// is always current, and every mutation fires `onChanged` for the host to
-// broadcast. There is nothing to crawl and nothing to watch.
+// LIVENESS NEEDS NO WATCHER. The Durable Object is the ONLY writer: the
+// manifest IS the listing, it is always current, and every mutation fires
+// `onChanged` for the host to broadcast. There is nothing to crawl and nothing
+// to watch.
 //
-// CONCURRENCY, taken whole from the vault coordinator because it is correct:
+// CONCURRENCY:
 // mutations run through `runExclusive`, an in-memory promise-chain mutex, and
 // SQLite's synchronous API makes a version read + bump atomic inside it. Reads
 // stay concurrent, and no storage gate is ever held across R2 I/O.
@@ -22,11 +20,11 @@
 // Either way the manifest never points at a missing blob — the tolerable
 // failure is an orphan blob, never a dangling pointer.
 //
-// DELETE IS A TOMBSTONE, not a removal. "Delete = OS trash" cannot survive the
-// move (there is no OS), and something has to take its place: undoing an
-// agent-CREATED note is a delete, so with no trash tier every such undo would
-// be permanent. A tombstoned row keeps its bytes for `TRASH_RETENTION_MS` and
-// is purged by the host's alarm.
+// DELETE IS A TOMBSTONE, not a removal. There is no OS trash to hand a file to,
+// and something has to take its place: undoing an agent-CREATED note is a
+// delete, so with no trash tier every such undo would be permanent. A
+// tombstoned row keeps its bytes for `TRASH_RETENTION_MS` and is purged by the
+// host's alarm.
 // ---------------------------------------------------------------------------
 
 import type { HeldDeletions, VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
@@ -39,10 +37,9 @@ import { parseVaultPath, type VaultKey } from "./vault-key";
 /**
  * What `getVaultRoot` answers, and what rides on every `onVaultChanged`.
  *
- * The desktop's root was a real absolute path the user picked; here there is
- * one vault per account and no folder to choose, so this is a LABEL. The
- * workspace derives the sidebar's folder name from its last segment, which is
- * the only thing it has ever done with the value.
+ * There is one vault per account and no folder to choose, so this is a LABEL
+ * rather than a path. The workspace derives the sidebar's folder name from its
+ * last segment, which is the only thing it does with the value.
  */
 export const VAULT_ROOT = "/Vault";
 
@@ -52,26 +49,18 @@ export const VAULT_ROOT = "/Vault";
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
-// Deletion gate — the desktop's third guard, moved server-side.
+// Deletion gate — ONE guard, in the object every writer goes through.
 //
-// The desktop had three independent deletion guards. Two of them recognized a
-// broken LISTING, and neither survives the move: there is no crawl here, and
-// the manifest cannot be truncated by a flaky mount. The third asked a
-// different question, one no listing can answer wrongly — is the SIZE of this
-// deletion consistent with a human having asked for it? — and that one is
-// exactly as valuable here, so it lives on.
+// It asks the one question no listing can answer wrongly: is the SIZE of this
+// deletion consistent with a human having asked for it? Because it sits in the
+// object rather than on a device, the browser, the agent and the HTTP upload
+// route are all held by one gate with one number, and a confirmation is one act
+// rather than one per client.
 //
-// What changes is WHERE it stands. On the desktop each device gated its own
-// plan against its own anchor, so a confirmation on one device caused the hold
-// on every other. Here it sits in the object every writer goes through, so the
-// browser, the agent and the HTTP upload route are all held by one gate with
-// one number.
-//
-// What does NOT change is its honesty. It reads a COUNT, never a cause. A bug
-// that sheds one path per call sits far below the floor and passes straight
-// through — that is the listing rules' job, and there are no listing rules left
-// to do it. This layer BOUNDS the blast radius of a mass delete; it does not
-// detect one.
+// It reads a COUNT, never a cause. A bug that sheds one path per call sits far
+// below the floor and passes straight through. This layer BOUNDS the blast
+// radius of a mass delete; it does not detect one — say it that way and never
+// as detection.
 //
 // The count is accumulated over a rolling window rather than judged per call,
 // because a caller deleting one file at a time in a loop is the shape this

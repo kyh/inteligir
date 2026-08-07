@@ -1,9 +1,8 @@
 // ---------------------------------------------------------------------------
-// The shared chat-log fold over the recorded event corpus. Mobile's
-// chat-log tests (apps/mobile …/chat-log.test.ts) pin the per-transition
-// behavior it always had; this suite pins the END STATE of whole recorded
-// turns — including the `detail` side-table (tool args/results, error kind)
-// the desktop UIMessage projection consumes.
+// The shared chat-log fold over the recorded event corpus. This suite pins the
+// END STATE of whole recorded turns — including the `detail` side-table (tool
+// args/results, error kind) the workspace's UIMessage projection consumes;
+// the per-transition behaviour is pinned beside the reducer itself.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";

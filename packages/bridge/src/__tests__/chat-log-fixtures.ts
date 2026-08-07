@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// Recorded AppAgentEvent sequences (+ persisted-history samples) for the
-// shared chat-log fold. ONE corpus, two consumers: the reducer unit tests
-// here, and the desktop parity test (apps/desktop …/chat-log-parity.test.ts)
-// that proves the shared fold + UIMessage projection reproduce the renderer's
-// pre-extraction inline fold. Extend here and both sides pick it up.
+// Recorded AppAgentEvent sequences (+ persisted-history samples) for the shared
+// chat-log fold. ONE corpus, two consumers: the reducer unit tests here, and
+// the parity test (packages/workspace …/chat-log-parity.test.ts) that drives
+// the fold + UIMessage projection against a frozen oracle. Extend here and both
+// sides pick it up.
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "../agent-events";
@@ -146,9 +146,9 @@ export const historyFixture: readonly ChatHistoryEntry[] = [
 ];
 
 /** A persisted thread whose last assistant turn errored (isError). This is the
- * spot where desktop and mobile are easiest to drift apart on: a rehydrated
- * error turn MUST keep its error styling on both, and the shared fold is what
- * guarantees it (see the parity test's divergence pin). */
+ * spot two chat surfaces are easiest to drift apart on: a rehydrated error turn
+ * MUST keep its error styling on both, and the shared fold is what guarantees
+ * it (see the parity test's divergence pin). */
 export const historyWithErrorFixture: readonly ChatHistoryEntry[] = [
   { role: "user", text: "hello" },
   { role: "assistant", text: "upstream exploded", isError: true },

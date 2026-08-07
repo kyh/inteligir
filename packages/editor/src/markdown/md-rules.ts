@@ -371,7 +371,7 @@ export const MD_RULES: MdRules = {
   },
 
   // GitHub-alert-aware blockquote. Alerts stay plain blockquotes in the model
-  // (the renderer keys off the `[!TYPE]` text) — only serialization changes:
+  // (the view keys off the `[!TYPE]` text) — only serialization changes:
   // remark-stringify unconditionally escapes `[` at phrasing start, which would
   // re-emit the marker as `> \[!NOTE]`, so alerts emit as a raw `html` node
   // with self-managed `> ` prefixes. The body is produced by a nested

@@ -1,4 +1,4 @@
-// The task-ordinal LOCKSTEP test — pins the renderer's `todoIndex` (the
+// The task-ordinal LOCKSTEP test — pins the editor's `todoIndex` (the
 // Plate-tree counter behind the editor's Delegate button, todo-item.ts)
 // against core's `scanTaskItems` (the source-side authority behind
 // find-task-line and the guarded toggle). The delegation/toggle anchor is

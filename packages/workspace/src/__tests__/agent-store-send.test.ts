@@ -4,7 +4,7 @@
 // while the message silently never reached the agent — plus the note-context
 // privacy contract: the open note's PATH only rides a turn when the host's
 // LIVE-disk probe says "public" (an external `private: true` flip lands on
-// disk before the renderer buffer hears about it).
+// disk before the client buffer hears about it).
 // ---------------------------------------------------------------------------
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

@@ -16,15 +16,14 @@
 // deployment nobody configured must offer nothing rather than a button that
 // dead-ends. Registering those apps is owner-only work (see apps/web/README.md).
 //
-// `sandbox` is the third entry and it needs no credential at all. It is the
-// cloud twin of the desktop's faux provider: it exists so a chat turn, a tool
-// call and a vault write can be driven end to end with no provider account and
-// no container — the fake sandbox port answers it (./fake-sandbox). It is
-// offered only where there is no real Sandbox binding, so a provisioned
-// deployment never shows it.
+// `sandbox` is the third entry and it needs no credential at all. It exists so
+// a chat turn, a tool call and a vault write can be driven end to end with no
+// provider account and no container — the fake sandbox port answers it
+// (./fake-sandbox). It is offered only where there is no real Sandbox binding,
+// so a provisioned deployment never shows it.
 // ---------------------------------------------------------------------------
 
-import type { AiProviderInfo, AiProviderModel } from "@repo/bridge/ai-provider";
+import type { AiProviderInfo, AiProviderModel, AiProviderSettings } from "@repo/bridge/ai-provider";
 
 /** How a provider expects its bearer to be presented on an API request. */
 type ProviderAuthStyle =
@@ -56,10 +55,10 @@ export type ProviderEntry = {
    * The model the latency-sensitive editor surfaces run on — ghost text, and
    * the AI menu's intent classification.
    *
-   * DECLARED per provider rather than derived from a price list: the desktop
-   * picked the cheapest model in pi's registry by output cost, and this catalog
-   * carries no cost column, so a derivation here would be a guess dressed as a
-   * rule. Naming it is one line per provider and cannot be wrong.
+   * DECLARED per provider rather than derived: this catalog carries no cost
+   * column and no latency column, so picking "the cheap one" here would be a
+   * guess dressed as a rule. Naming it is one line per provider and cannot be
+   * wrong.
    */
   readonly fastModelId: string;
   readonly models: readonly AiProviderModel[];
@@ -240,12 +239,12 @@ function providerOffered(env: ProviderEnv, entry: ProviderEntry): boolean {
 }
 
 /** The providers this deployment offers, in menu order. */
-export function offeredProviders(env: ProviderEnv): readonly ProviderEntry[] {
+function offeredProviders(env: ProviderEnv): readonly ProviderEntry[] {
   return ALL.filter((entry) => providerOffered(env, entry));
 }
 
 /** Project one entry into the Settings wire shape. */
-export function providerInfo(entry: ProviderEntry, connected: boolean): AiProviderInfo {
+function providerInfo(entry: ProviderEntry, connected: boolean): AiProviderInfo {
   return {
     id: entry.id,
     label: entry.label,
@@ -253,6 +252,28 @@ export function providerInfo(entry: ProviderEntry, connected: boolean): AiProvid
     connected,
     defaultModelId: entry.defaultModelId,
     models: entry.models,
+  };
+}
+
+/**
+ * The whole Settings snapshot, or `null` when this deployment offers no
+ * provider at all.
+ *
+ * TOTAL rather than throwing, because two callers want it and only one of them
+ * is a Bridge handler: the other is the OAuth callback, which pushes the
+ * snapshot to whatever sockets are open and must not turn a browser redirect
+ * into a 500 on a deployment that offers nothing.
+ */
+export function providerSettings(
+  env: ProviderEnv,
+  stored: { readonly provider: string; readonly modelId: string } | null,
+  connected: (provider: string) => boolean,
+): AiProviderSettings | null {
+  const selected = effectiveSelection(env, stored);
+  if (selected === null) return null;
+  return {
+    selected,
+    providers: offeredProviders(env).map((entry) => providerInfo(entry, connected(entry.id))),
   };
 }
 
@@ -289,7 +310,7 @@ function effectiveProvider(
 }
 
 /** That entry projected back into the wire shape Settings renders. */
-export function effectiveSelection(
+function effectiveSelection(
   env: ProviderEnv,
   stored: { readonly provider: string; readonly modelId: string } | null,
 ): { readonly provider: string; readonly modelId: string } | null {

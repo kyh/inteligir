@@ -66,8 +66,8 @@ export function TableOfContents() {
   const [activeIndex, setActiveIndex] = useState(0);
 
   // Scrollspy: the last heading scrolled above the header line is "active". A
-  // scroll listener on the workspace scroller (IntersectionObserver never fires
-  // with a custom root in this Electron renderer).
+  // scroll listener rather than an IntersectionObserver, which never fires
+  // against this scroller as a custom root.
   useEffect(() => {
     const scroller = document.querySelector("main");
     if (!scroller || headings.length === 0) return;
@@ -86,9 +86,9 @@ export function TableOfContents() {
 
   if (headings.length === 0) return null;
 
-  // Smooth scrolling is a no-op in this Electron renderer (both scrollIntoView
-  // and scrollTo ignore `behavior: "smooth"`), so tween the offset by hand:
-  // a short rAF ease-out to the target, leaving room for the sticky header.
+  // `behavior: "smooth"` is ignored by both scrollIntoView and scrollTo on this
+  // scroller, so the offset is tweened by hand: a short rAF ease-out to the
+  // target, leaving room for the sticky header.
   const scrollTo = (index: number) => {
     const el = editorHeadingEls(editor)[index];
     const scroller = document.querySelector("main");

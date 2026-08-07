@@ -20,6 +20,7 @@ import {
 
 import { composeAgent, type AgentComposition } from "../agent/agent-composition";
 import { isOAuthCallbackPath, matchAgentReportPath } from "../agent/agent-route";
+import { providerSettings } from "../agent/provider-catalog";
 import { TextGenerator } from "../ai/text-generator";
 import { CaptureInbox } from "../capture/capture-inbox";
 import { CaptureService } from "../capture/capture-service";
@@ -81,8 +82,7 @@ import type { DurableKv } from "../store/durable-kv";
 //
 // The URL carries NO userId. The Worker derives the object name from the
 // caller's own credential (./host-route), so naming an object is not something
-// a request can do, and the empty-host residual that shape used to leave behind
-// is gone with it.
+// a request can do — and an object nobody can name serves nobody.
 // ---------------------------------------------------------------------------
 
 /**
@@ -105,7 +105,7 @@ const PRE_AUTH_MAX_FRAME_CHARS = 4096;
 
 /** Immutable at accept time, so only facts already settled belong here — which
  * is precisely why the auth state does not. It marks the wire protocol this
- * socket speaks, so a future frame vocabulary can enumerate the old ones. */
+ * socket speaks, so a second frame vocabulary can enumerate its predecessors. */
 const SOCKET_TAG_V1 = "v1";
 
 /** Where the last authenticated socket's origin is kept — the OAuth redirect
@@ -356,6 +356,7 @@ export class UserHost extends DurableObject<Env> {
           credentials: this.agent.credentials,
           origin: () => this.publicOrigin(),
           scripted: this.agent.scripted,
+          announce: () => this.announceProviders(),
         },
         background: {
           delegations: this.agent.delegations,
@@ -433,6 +434,21 @@ export class UserHost extends DurableObject<Env> {
     this.purged = true;
   }
 
+  /**
+   * Push the provider snapshot to whatever sockets are open.
+   *
+   * The OAuth round-trip finishes on a REDIRECT — a different tab, arriving as
+   * an HTTP request rather than a frame — so the workspace has no other way to
+   * learn that the connect it started is over. A deployment that offers no
+   * provider at all has nothing to say, and says nothing.
+   */
+  private announceProviders(): void {
+    const snapshot = providerSettings(this.env, this.agent.credentials.selection(), (provider) =>
+      this.agent.credentials.connected(provider),
+    );
+    if (snapshot !== null) this.events.emit("onAiProviderChanged", snapshot);
+  }
+
   /** The origin this deployment is reached on: the declared public host, else
    * the last origin an authenticated socket arrived on. */
   private publicOrigin(): string {
@@ -463,7 +479,9 @@ export class UserHost extends DurableObject<Env> {
         return response;
       }
       if (isOAuthCallbackPath(pathname)) {
-        return await handleOAuthCallback(request, this.env, this.agent.credentials);
+        return await handleOAuthCallback(request, this.env, this.agent.credentials, () => {
+          this.announceProviders();
+        });
       }
       return new Response("not found", { status: 404 });
     } catch (error) {
@@ -637,13 +655,12 @@ export class UserHost extends DurableObject<Env> {
     this.reapPendingSockets(now);
     this.tickets.sweep(now);
     await this.vault.sweepTrash(now);
-    // A capture whose offer nobody answered lands on today's note HERE, which
-    // is what a Durable Object's alarm is for and what the desktop's
-    // `setTimeout` could not do through an evicted process.
+    // A capture whose offer nobody answered lands on today's note HERE — a
+    // `setTimeout` would pin the object and die with the eviction this deadline
+    // has to survive.
     await this.captureInbox.sweep(now);
-    // The unattended half: a routine whose slot has passed fires HERE, which is
-    // what a Durable Object's alarm is for and what the desktop's `setInterval`
-    // could not do through a closed laptop.
+    // The unattended half: a routine whose slot has passed fires HERE, on a
+    // schedule nobody has to be online to keep.
     await this.agent.sweepBackground(now);
     await this.knowledge.flush();
     const next = this.nextDueAt(Date.now());

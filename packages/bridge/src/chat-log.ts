@@ -11,8 +11,9 @@
 //
 // Items are the minimal RENDER list every surface shows; `detail` carries the
 // per-item payload only some surfaces consume (tool args + result text, the
-// turn_error kind that drives desktop's inline Re-authenticate link). Mobile
-// ignores it; the desktop projection joins it back onto the item by id.
+// turn_error kind that drives the workspace's inline Re-authenticate link). A
+// surface that wants none of it ignores `detail`; the workspace's projection
+// joins it back onto the item by id.
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "./agent-events";

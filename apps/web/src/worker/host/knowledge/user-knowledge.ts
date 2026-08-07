@@ -4,16 +4,13 @@
 // SQLite (./do-sql-driver) mirrored into core's in-memory LinkGraphIndex, and
 // `onKnowledgeUpdated` after every effective pass.
 //
-// It stands where the desktop's KnowledgeManager stood, and TWO of that
-// design's load-bearing decisions invert here.
+// TWO decisions carry this design.
 //
-// PROJECTION IS A WRITE, not a diff. The desktop watched a folder it did not
-// own, so it had to notice changes after the fact: crawl, stat, compare
-// fingerprints, re-read, re-project. This object is the ONLY writer — every
+// PROJECTION IS A WRITE, not a diff. This object is the ONLY writer — every
 // byte that reaches the vault passes through UserVault first — so a mutation
 // hands the index the doc's text along with the hash it was stored under, and
-// the projection happens at write time with no read of any kind. The
-// fingerprint diff has nothing left to detect.
+// the projection happens at write time with no read of any kind. There is no
+// folder to crawl, nothing to stat, and no fingerprint diff to run.
 //
 // HYDRATION IS THE NORMAL PATH, not a boot optimization. The object hibernates
 // with its sockets open, so the in-memory graph is gone by the next message
@@ -32,11 +29,12 @@
 //     never held its bytes, a move carries none, and an R2 read can fail — all
 //     three leave the index behind, and only a diff notices.
 //
-// What it is NOT is the desktop's stat sweep. The manifest already stores a
-// sha-256 of every file's bytes, so the diff is an exact content comparison
-// against the hash each projection recorded — no crawl, no stat heuristics, and
-// zero reads when nothing moved. It runs once per wake (and on demand after a
-// guarded write refuses), not per mutation.
+// It is NOT a stat sweep, and must never become one — there is no filesystem to
+// stat. The manifest already stores a sha-256 of every file's bytes, so the
+// diff is an exact content comparison against the hash each projection
+// recorded: no crawl, no heuristics, and zero reads when nothing moved. It runs
+// once per wake (and on demand after a guarded write refuses), not per
+// mutation.
 // ---------------------------------------------------------------------------
 
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -139,7 +137,7 @@ export class UserKnowledge {
     this.onUpdated = deps.onUpdated;
     // The root is a LABEL here (one vault per account), so the store's
     // moved-vault guard is satisfied by construction — it stays wired because
-    // it is the same guard the desktop runs, not because it can trip.
+    // it is core's own guard, not because it can trip.
     this.store = createSqlKnowledgeStore(createDoSqlDriver(deps.storage), VAULT_ROOT);
   }
 

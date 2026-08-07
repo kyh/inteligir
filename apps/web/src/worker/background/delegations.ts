@@ -6,8 +6,8 @@
 // on the background lane (./background-runs) — which the routines manager
 // shares, so an unattended turn never interleaves with another one.
 //
-// THREE THINGS FROM THE DESKTOP ARE PRESERVED BECAUSE THEY ENCODE PRODUCT
-// MEANING, not because they were there:
+// THREE RULES CARRY THE PRODUCT MEANING, and none of them is an implementation
+// detail:
 //
 //   • The checkbox is re-resolved against the file's CURRENT bytes at dispatch
 //     and refused when the anchor text no longer matches. The ordinal is a
@@ -398,8 +398,8 @@ export class Delegations {
    * store rather than stored.
    *
    * Computed, because retention prunes bytes out from under a record: a stored
-   * flag would offer a restore whose bytes are gone, which is the thing the
-   * desktop needed a whole prune-fanout pass to avoid.
+   * flag would offer a restore whose bytes are gone, and keeping one true would
+   * cost a fanout pass over every record the prune touched.
    */
   private toDelegation(row: DelegationRow): Delegation {
     const parsed: unknown = JSON.parse(row.record);

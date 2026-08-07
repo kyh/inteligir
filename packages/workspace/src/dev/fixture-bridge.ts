@@ -471,10 +471,9 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
   ];
 
-  // AI provider — an in-memory mirror of the host's provider-service so the
-  // Settings AI section is fully drivable: switch (defaults the model like
-  // applySelectionPatch), connect (simulates a COMPLETED OAuth round-trip —
-  // the real host opens the system browser here), disconnect.
+  // AI provider — an in-memory mirror of the host's catalog so the Settings AI
+  // section is fully drivable: switch (defaults the model the way the host's
+  // selection patch does), connect, disconnect.
   const aiProviderCatalog = [
     {
       id: "openai-codex",
@@ -516,6 +515,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     if (!entry) throw new Error(`Unknown AI provider "${provider}"`);
     return entry;
   };
+  const aiProviderEvents = new Emitter<AiProviderSettings>();
 
   const agentEvents = new Emitter<AppAgentEvent>();
   const appStateEvents = new Emitter<AppState>();
@@ -524,7 +524,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   let sttFinalPending = false;
   const ttsAudioEvents = new Emitter<{ audio: ArrayBuffer }>();
   // Mirrors the host TTS proxy's pending-text model: sends queue text (each
-  // emitting a silent PCM chunk so the renderer's playback path runs), flush
+  // emitting a silent PCM chunk so the client's playback path runs), flush
   // finalizes the queued utterance into `spoken`, interrupt discards it; the
   // "secret" half of setVoiceApiKey lands in `apiKey` (ui-state gets only the
   // presence marker, like the host). Inspectable from harness devtools.
@@ -555,10 +555,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     }));
 
   // The REAL knowledge engine over the in-memory vault, in the SAME
-  // composition the desktop host runs (knowledge-manager.ts): the pure
-  // LinkGraphIndex resolves links/tags/graph in memory, and the injected SQL
-  // KnowledgeStore (wasm-backed here, node:sqlite on desktop) owns FTS5 bm25
-  // search — so harness search ranks exactly like the product.
+  // composition the host runs: the pure LinkGraphIndex resolves links, tags and
+  // the graph in memory, and the injected SQL KnowledgeStore (wasm-backed here,
+  // the Durable Object's own SQLite in the host) owns FTS5 bm25 search — so a
+  // fixture search ranks exactly like the product's.
   const linkGraph = new LinkGraphIndex();
   const knowledgeStore = openKnowledgeStore(FIXTURE_ROOT);
   // Stat identity is fabricated (no filesystem behind the Map): a fresh
@@ -695,16 +695,25 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       aiSelection = { provider, modelId };
       return aiProviderSettings();
     },
+    // Two steps, like the host: an authorize URL comes back and the connection
+    // lands later. There is no provider and no consent page here, so the
+    // callback the host would answer is simulated on the next tick — which is
+    // what makes the waiting state and the pushed snapshot exercisable.
     connectAiProvider: async ({ provider }) => {
-      aiProviderEntry(provider);
-      aiConnected.set(provider, true);
-      return { ok: true };
+      const entry = aiProviderEntry(provider);
+      if (!entry.requiresAuth) return { ok: false, error: `${entry.label} needs no connection.` };
+      setTimeout(() => {
+        aiConnected.set(provider, true);
+        aiProviderEvents.emit(aiProviderSettings());
+      }, 0);
+      return { ok: true, authorizeUrl: `https://consent.invalid/authorize?provider=${provider}` };
     },
     disconnectAiProvider: async ({ provider }) => {
       aiProviderEntry(provider);
       aiConnected.set(provider, false);
       return aiProviderSettings();
     },
+    onAiProviderChanged: aiProviderEvents.subscribe,
 
     // Voice — TTS is REAL against in-memory state: always "configured", the
     // API key mirrors the host (secret held here, `true` presence marker in
@@ -725,7 +734,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
     ttsSend: ({ text }) => {
       ttsState.pending.push(text);
-      // ~50ms of 24kHz Int16 silence per chunk — the renderer schedules and
+      // ~50ms of 24kHz Int16 silence per chunk — the client schedules and
       // "plays" it, so the audio path runs without real synthesis.
       ttsAudioEvents.emit({ audio: new Int16Array(1200).buffer });
     },
@@ -1222,7 +1231,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     // deterministic edit rewrite, so the whole AI menu is drivable.
     generateInlineAi: async ({ prompt, requestId }) => {
       const edited = cannedEditResponse(prompt);
-      // Edit prompts return the rewritten markdown whole (the renderer
+      // Edit prompts return the rewritten markdown whole (the editor
       // diffs it into suggestions); generate prompts stream deltas.
       if (edited !== null) {
         return new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: edited }), 400));

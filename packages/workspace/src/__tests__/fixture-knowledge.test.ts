@@ -1,7 +1,7 @@
 // The dev-harness fixture bridge must serve the knowledge channels from the
 // REAL core engine over its in-memory vault — live queries, not canned data —
 // so backlink/graph/search UI is exercisable (and honest) in the harness.
-// Knowledge runs the harness's real composition: LinkGraphIndex + the SQL
+// Knowledge runs the real composition: LinkGraphIndex + the SQL
 // store over the wasm driver (the module loads once, up front).
 import { describe, expect, it } from "vitest";
 

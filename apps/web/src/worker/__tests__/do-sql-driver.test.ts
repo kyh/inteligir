@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
-// The Durable Object SqlDriver, driven through core's SQL knowledge store —
-// the same store the desktop's node:sqlite driver and the harness's wasm driver
-// run, so what is under test here is ONLY whether this binding can carry it.
+// The Durable Object SqlDriver, driven through core's SQL knowledge store. The
+// store's own behaviour is @repo/notes' to test, so what is under test HERE is
+// only whether this binding can carry it.
 //
 // Three of these are the reason the driver has members the other two do not:
 // Durable Object storage refuses `BEGIN`, refuses `PRAGMA user_version`, and

@@ -2,7 +2,7 @@
 // What a deep link DOES once it has been parsed: a capture goes to the durable
 // inbox, a nav is pushed and parked.
 //
-// The parking is the cold-start half of the same contract the desktop had. A
+// The parking is the cold-start half of the contract. A
 // link can arrive while nobody is connected — a phone opening the URL before
 // the workspace tab has finished authenticating — and an event pushed to zero
 // sockets is a nav the user asked for and never got. So it is also written to

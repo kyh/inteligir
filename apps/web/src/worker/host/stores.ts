@@ -1,10 +1,9 @@
 // ---------------------------------------------------------------------------
 // The user's durable host state, as JsonStores over the Durable Object's KV.
 //
-// Same engine as the desktop's `~/.inteligir/*.json` stores — TypeBox
-// validation on read and write, quarantine-and-reset on drift — bound to
-// `ctx.storage.kv` instead of a filesystem through the DO adapter. The KV API
-// is SYNCHRONOUS, which is what makes the engine usable at all: its
+// TypeBox validation on read and write, quarantine-and-reset on drift, bound to
+// `ctx.storage.kv` through the DO adapter (../store/do-store-adapter). The KV
+// API is SYNCHRONOUS, which is what makes the engine usable at all: its
 // read-modify-write completes in one JS turn, so no other caller can interleave
 // on an update.
 // ---------------------------------------------------------------------------
@@ -20,9 +19,9 @@ import { Type } from "@sinclair/typebox";
 const UI_STATE_KEY = "ui-state";
 const NOTIFICATIONS_KEY = "notifications";
 
-// Unversioned, both for the reason the desktop stores are: UiStateSchema is a
-// fully permissive record, so a schema-mismatch wipe cannot occur, and the
-// notification setting is one boolean whose reset to the default is harmless.
+// Both unversioned, and safely: UiStateSchema is a fully permissive record, so
+// a schema-mismatch wipe cannot occur, and the notification setting is one
+// boolean whose reset to the default is harmless.
 const NotificationSettingsSchema = Type.Object(
   { enabled: Type.Boolean() },
   { additionalProperties: false },

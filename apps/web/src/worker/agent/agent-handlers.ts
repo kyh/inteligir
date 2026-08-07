@@ -7,10 +7,11 @@
 // refusals are values and which are throws, and what a client sees when a
 // capability this deployment cannot offer is asked for.
 //
-// `connectAiProvider` is the one channel whose meaning genuinely differs from
-// the desktop's, and the registry now says so: a host with no screen in common
-// with its user cannot open a browser, so it answers with the URL the client
-// must send them to. The desktop opens the browser itself and omits it.
+// `connectAiProvider` is the one channel that does not finish what it starts.
+// A host with no screen in common with its user cannot open a browser, so it
+// parks a PKCE verifier and answers with the URL the client must send them to;
+// the exchange lands later on ../host/agent-endpoints, and the resulting
+// snapshot is pushed as `onAiProviderChanged`.
 // ---------------------------------------------------------------------------
 
 import type { AiProviderSettings } from "@repo/bridge/ai-provider";
@@ -20,13 +21,7 @@ import { unavailable } from "../host/handler-registry";
 import type { AgentLane, AgentRunner } from "./agent-runner";
 import type { ChatStore } from "./chat-store";
 import type { FakeSandbox } from "./fake-sandbox";
-import {
-  effectiveSelection,
-  offeredProviders,
-  providerEntry,
-  providerInfo,
-  resolveModelId,
-} from "./provider-catalog";
+import { providerEntry, providerSettings, resolveModelId } from "./provider-catalog";
 import type { ProviderCredentials } from "./provider-credentials";
 import { startAuthorization } from "./provider-oauth";
 
@@ -43,12 +38,16 @@ export type AgentServices = {
   /** A lane's scripted container, where one is running. `null` on the real
    * runtime, which is what makes the script channel fail closed. */
   readonly scripted: (lane: AgentLane) => FakeSandbox | null;
+  /** Push the provider snapshot to every socket. A selection is per ACCOUNT,
+   * not per tab, so returning it only to the caller leaves a second tab
+   * rendering a provider the next turn will not run on. */
+  readonly announce: () => void;
 };
 
 export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentServices): void {
-  // Rejections surface in the composer inline (the desktop's
-  // sendCommandSurfacingFailure), so the promise is returned rather than
-  // swallowed — a message the host could not run must not render as sent.
+  // Rejections surface inline in the composer, so the promise is returned
+  // rather than swallowed — a message the host could not run must not render
+  // as sent.
   handle("sendAgentCommand", (command) => services.runner.send(command));
 
   handle("getAgentHistory", () => services.chat.history());
@@ -77,9 +76,8 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
     };
   });
 
-  // The scripted runtime's response queue — the cloud twin of the desktop's
-  // faux-agent script channel, and fail-closed the same way: a deployment
-  // running a real container has no queue to script.
+  // The scripted runtime's response queue, fail-closed: a deployment running a
+  // real container has no queue to script.
   //
   // BOTH lanes take the script. A drive that delegates a checkbox needs the
   // unattended container to answer too, and the caller has no way to name a
@@ -99,7 +97,7 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
 
   // ---- the AI provider ------------------------------------------------------
 
-  handle("getAiProviderSettings", () => providerSettings(services));
+  handle("getAiProviderSettings", () => settingsSnapshot(services));
 
   handle("setAiProviderConfig", (patch) => {
     const current = currentSelection(services);
@@ -115,14 +113,15 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
       provider: entry.id,
       modelId: resolveModelId(entry, requested),
     });
-    return providerSettings(services);
+    services.announce();
+    return settingsSnapshot(services);
   });
 
+  // Every refusal `startAuthorization` can reach — an unknown provider, one
+  // that has nothing to connect to, one this deployment configured no OAuth app
+  // for — comes back as a VALUE the client renders. `ok: true` therefore means
+  // exactly one thing: a verifier is parked and the user has somewhere to go.
   handle("connectAiProvider", async ({ provider }) => {
-    const entry = providerEntry(provider);
-    if (entry === null)
-      return { ok: false as const, error: `There is no provider called ${provider}.` };
-    if (!entry.requiresAuth) return { ok: true as const };
     const started = await startAuthorization(
       services.env,
       services.userId,
@@ -131,41 +130,37 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
     );
     if ("error" in started) return { ok: false as const, error: started.error };
     services.credentials.putPending(started.pending);
-    // Not connected YET: the client sends the user here, and the callback
-    // completes the exchange inside this object.
     return { ok: true as const, authorizeUrl: started.authorizeUrl };
   });
 
   handle("disconnectAiProvider", ({ provider }) => {
     services.credentials.disconnect(provider);
-    return providerSettings(services);
+    services.announce();
+    return settingsSnapshot(services);
   });
 }
 
-/** The Settings AI section renders exclusively from this snapshot. */
-function providerSettings(services: AgentServices): AiProviderSettings {
-  return {
-    selected: currentSelection(services),
-    providers: offeredProviders(services.env).map((entry) =>
-      providerInfo(entry, services.credentials.connected(entry.id)),
-    ),
-  };
-}
-
 /**
- * The selection this host will actually run — `effectiveSelection`, which is
- * the same resolution a turn goes through, so what Settings shows and what a
- * message runs on can never disagree.
+ * The Settings AI section renders exclusively from this snapshot, built by the
+ * catalog's `providerSettings` — the same resolution a turn goes through, so
+ * what Settings shows and what a message runs on can never disagree.
  *
  * A deployment that configured no OAuth app and runs the real container offers
  * NOTHING, and that is where the refusal belongs — an empty menu with a
  * selection pointing at a provider that is not in it would render as a broken
  * Settings page rather than an unconfigured one.
  */
-function currentSelection(services: AgentServices): { provider: string; modelId: string } {
-  const selected = effectiveSelection(services.env, services.credentials.selection());
-  if (selected === null) {
+function settingsSnapshot(services: AgentServices): AiProviderSettings {
+  const snapshot = providerSettings(services.env, services.credentials.selection(), (provider) =>
+    services.credentials.connected(provider),
+  );
+  if (snapshot === null) {
     unavailable("any AI provider (none is configured on this deployment)");
   }
-  return { provider: selected.provider, modelId: selected.modelId };
+  return snapshot;
+}
+
+/** The selection this host will actually run. */
+function currentSelection(services: AgentServices): { provider: string; modelId: string } {
+  return settingsSnapshot(services).selected;
 }

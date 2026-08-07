@@ -283,7 +283,7 @@ describe("open-note-store publishEditor", () => {
       // content change" — only holds if the superseded passes drop themselves
       // instead of re-deriving a verdict that is already correct. Observable
       // as store updates: a redundant pass is a redundant re-render of every
-      // editor consumer, on the heaviest function in the renderer.
+      // editor consumer, on the heaviest function in the editor.
       const controller = openNote(RICH_PATH, RICH_MD);
 
       controller.emit({ content: GATED_MD, dirty: false });

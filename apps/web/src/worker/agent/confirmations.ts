@@ -6,8 +6,8 @@
 // unknown reply id and a client that closed its socket all resolve to DECLINED.
 // The only path to `true` is a live reply carrying the id this object minted.
 //
-// Held in memory ON PURPOSE, which is the one thing that differs from the
-// desktop's broker and the thing worth being precise about. The object is
+// Held in memory ON PURPOSE, which is worth being precise about in an object
+// whose every other in-memory field is a bug. The object is
 // resident for the whole time a proposal is pending — the container's tool call
 // is an in-flight request into it, and an in-flight request is what keeps a
 // Durable Object from being evicted. So a pending map cannot outlive the
@@ -15,9 +15,9 @@
 // user is still looking at: the tool call would have to fail first, and the
 // agent sees that as a refusal.
 //
-// The timeout is shorter than the desktop's for a reason that is also the cost:
-// a pending proposal pins a Durable Object, and an unanswered dialog should not
-// bill for three minutes of one.
+// The timeout is short for a reason that is also the cost: a pending proposal
+// pins a Durable Object, and an unanswered dialog should not bill for minutes
+// of one.
 //
 // POLICY, NOT ENFORCEMENT (CLAUDE.md § Decisions): this asks a human, it does
 // not stop a model. The agent has a shell inside the container and can reach

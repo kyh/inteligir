@@ -7,13 +7,13 @@
 // is here is purely "how the vendor's wire looks", the same split
 // ../agent/cf-sandbox keeps against ../agent/fake-sandbox.
 //
-// TTS stayed on ELEVENLABS deliberately. Workers AI offers `@cf/deepgram/aura-1`
-// and it would be one fewer credential, but the desktop's voice already sounds
-// the way it does and the key is already a thing users configure — a hosted
-// deployment silently changing the voice is not an implementation detail. The
-// choice is explicit rather than defaulted: a deployment with no ElevenLabs key
-// has NO text-to-speech (`isTtsAvailable` answers false and the read-aloud
-// command hides), rather than a different one nobody asked for.
+// TTS IS ELEVENLABS deliberately. Workers AI offers `@cf/deepgram/aura-1` and it
+// would be one fewer credential, but which voice the product speaks with is a
+// product decision rather than an implementation detail, and the key is already
+// a thing users configure. So the choice is explicit rather than defaulted: a
+// deployment with no ElevenLabs key has NO text-to-speech (`isTtsAvailable`
+// answers false and the read-aloud command hides), rather than a different
+// voice nobody asked for.
 // ---------------------------------------------------------------------------
 
 import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
@@ -25,15 +25,15 @@ import type { TtsSynthesizer } from "./tts-session";
 /** The voice the deployment speaks with when it names none. */
 const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 
-/** ElevenLabs' lowest-latency model — the one the desktop proxy used, kept so
- * the hosted voice matches the desktop's. */
+/** ElevenLabs' lowest-latency model. Latency is the whole constraint here: the
+ * first audio has to arrive while the user is still reading the sentence. */
 const TTS_MODEL_ID = "eleven_flash_v2_5";
 
 /**
- * The audio format asked for, and the one contract the renderer depends on:
+ * The audio format asked for, and the one contract the client depends on:
  * raw 24 kHz signed 16-bit little-endian PCM, which its AudioContext plays
  * frame by frame with no decoding. Changing it here without changing the
- * renderer produces noise, not an error.
+ * client produces noise, not an error.
  */
 const TTS_OUTPUT_FORMAT = "pcm_24000";
 
@@ -51,9 +51,9 @@ export type ElevenLabsDeps = {
 };
 
 /** Synthesize over ElevenLabs' streaming HTTP endpoint. The response body is
- * read incrementally so the first audio reaches the renderer before the last
- * word has been generated — the streaming the desktop's WebSocket bought,
- * without an upstream socket pinning the object between utterances. */
+ * read incrementally so the first audio reaches the client before the last word
+ * has been generated, and it is one REQUEST — an upstream socket would pin the
+ * object between utterances. */
 export function createElevenLabsSynthesizer(deps: ElevenLabsDeps): TtsSynthesizer {
   return async (text, signal, onAudio) => {
     const apiKey = await deps.apiKey();

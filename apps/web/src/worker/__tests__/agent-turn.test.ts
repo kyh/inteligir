@@ -30,8 +30,8 @@ function withHost<T>(name: string, run: (host: UserHost) => Promise<T> | T): Pro
   return runInDurableObject(stub, (host) => run(host));
 }
 
-/** Select the credential-free provider — the cloud twin of the desktop's faux
- * agent: no account, no OAuth app, no container. */
+/** Select the credential-free provider: no account, no OAuth app, no
+ * container. */
 function connect(host: UserHost): void {
   host.agent.credentials.setSelection({ provider: SANDBOX_PROVIDER_ID, modelId: "sandbox-1" });
 }
