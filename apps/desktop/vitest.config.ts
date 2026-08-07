@@ -20,11 +20,12 @@ const plugins = [react()];
 
 export default defineConfig({
   test: {
-    // Worker caps are budgeted across the monorepo: turbo runs all five
-    // package suites in parallel, and uncapped pools (10 threads each)
-    // exhaust the machine and kill workers mid-run. Budget sums to ~9 on a
-    // 10-core machine: desktop 3 (largest suite), features/core 2,
-    // mobile/cloud 1.
+    // Worker caps are budgeted against the machine, not this suite: turbo runs
+    // the package suites in parallel and uncapped pools exhaust a 10-core box
+    // and kill workers mid-run. The budget has two halves and BOTH are load
+    // bearing — this per-package cap, and `--concurrency` on the root `test`
+    // script, which bounds how many packages hold pools at once. Raising
+    // either alone reintroduces the flake.
     maxWorkers: 3,
     projects: [
       {

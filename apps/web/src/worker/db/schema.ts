@@ -122,3 +122,25 @@ export const desktopAuthCode = sqliteTable("desktop_auth_code", {
     .$defaultFn(() => new Date())
     .notNull(),
 });
+
+/**
+ * Sign-up invites (src/worker/auth/invite.ts). Not a Better Auth table: sign-up
+ * on this deployment goes through `POST /v1/auth/sign-up`, which claims a row
+ * here before it forwards to Better Auth at all.
+ *
+ * The code IS the primary key and is stored in the clear, unlike the handoff
+ * codes above: an invite is a low-entropy string a human types from an email,
+ * it authorizes only the creation of an ordinary account, and the owner needs
+ * to be able to read back which codes are still open. Guessing is bounded by
+ * the route's own rate window rather than by entropy.
+ *
+ * `redeemedAt` non-null IS the redeemed marker, and the claim is one atomic
+ * `UPDATE … WHERE code = ? AND redeemed_at IS NULL`, so two simultaneous
+ * sign-ups on one code settle on exactly one winner. There is no admin UI —
+ * rows are minted with `wrangler d1 execute` (see README).
+ */
+export const inviteCode = sqliteTable("invite_code", {
+  code: text("code").primaryKey(),
+  redeemedBy: text("redeemed_by"),
+  redeemedAt: integer("redeemed_at", { mode: "timestamp" }),
+});

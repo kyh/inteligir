@@ -6,6 +6,7 @@ import {
   HYDRATED_EVENTS,
   type EventMethod,
 } from "@repo/bridge/ipc-registry";
+import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
 import {
   decodeBinaryFrame,
@@ -43,9 +44,9 @@ import {
   type AuthedSocketState,
   type PendingSocketState,
 } from "./socket-state";
-import { createCloudStores } from "./stores";
+import { createCloudStores, type CloudStores } from "./stores";
 import { resolveDailyNotePath } from "./daily-note";
-import { seedVault } from "./vault/seed";
+import { SEED_OPEN_NOTE, seedVault } from "./vault/seed";
 import { UserVault, VAULT_ROOT } from "./vault/user-vault";
 
 // ---------------------------------------------------------------------------
@@ -198,10 +199,15 @@ export class UserHost extends DurableObject<Env> {
    * it and the connect that needs it. */
   private readonly kv: SyncKvStorage;
 
+  /** This user's durable host state (./stores). Held because the seed decides
+   * which note a brand-new workspace lands on, and that is ui-state. */
+  private readonly stores: CloudStores;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.kv = ctx.storage.kv;
     const stores = createCloudStores(ctx.storage.kv);
+    this.stores = stores;
     this.vault = new UserVault({
       sql: ctx.storage.sql,
       bucket: env.VAULT_FILES,
@@ -640,7 +646,15 @@ export class UserHost extends DurableObject<Env> {
     // Before this socket is marked authed, so the seed's own change events
     // never arrive ahead of its `welcome` — a client that has not been welcomed
     // has not subscribed to anything yet.
-    await seedVault(this.vault);
+    if (await seedVault(this.vault)) {
+      // A seeded vault opens ON something. Written here rather than in the UI
+      // because only the writer of those files knows which one is the landing
+      // note, and the workspace restores this key on boot like any session.
+      this.stores.uiState.update((current) => ({
+        ...current,
+        [UI_STATE_OPEN_NOTE_KEY]: SEED_OPEN_NOTE,
+      }));
+    }
     // The origin an AUTHENTICATED socket arrived on — never a pending one, so
     // an unauthenticated caller cannot set the origin a later OAuth redirect
     // URI is built from.

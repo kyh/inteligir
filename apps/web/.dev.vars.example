@@ -7,6 +7,11 @@
 # fails. Any value works locally: `openssl rand -base64 32`.
 BETTER_AUTH_SECRET=
 
+# Origins allowed to open the workspace host WebSocket — EXACT (scheme + host +
+# port), comma-separated. The deployed origins are built in; a dev server has to
+# be named here or /app connects to nothing but a 403.
+HOST_ALLOWED_ORIGINS=http://localhost:5174
+
 # Optional social OAuth. A provider is live only when BOTH halves are set —
 # otherwise it is absent from /v1/capabilities and no client renders its button.
 # GITHUB_CLIENT_ID=

@@ -1,18 +1,19 @@
-// The OPTIONAL runtime vars — declaration-merged into the generated `Env` from
+// The runtime vars — declaration-merged into the generated `Env` from
 // worker-configuration.d.ts. Values are set with `wrangler secret put` (prod) or
 // .dev.vars (local) and are never committed.
 //
-// The one REQUIRED secret, BETTER_AUTH_SECRET, is not here: wrangler.jsonc's
-// `secrets.required` names it, so `wrangler types` emits it onto `Env` itself
-// (non-optional) and warns in dev when it's missing. Everything below stays
-// hand-declared because it is genuinely optional — listing an optional key in
-// `secrets.required` would type it as always-present and turn a missing OAuth
-// pair into a dev warning, when absence is the documented default.
+// They are hand-declared rather than named in wrangler.jsonc's `secrets` field,
+// which would type them for free: that field also FILTERS `.dev.vars` down to
+// the names it lists, so declaring one of them silently drops all the others in
+// `vite dev`. See the comment where that field would go.
 //
 // There is no `BETTER_AUTH_URL` — the auth baseURL is derived per-request from
 // the request origin, so it needs no env at all.
 
 interface Env {
+  /** Better Auth's signing key. The one REQUIRED secret: without it every
+   * /api/auth/* request fails. */
+  readonly BETTER_AUTH_SECRET: string;
   /** Optional extra trusted origins, comma-separated (e.g. a desktop protocol). */
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string;
   /**

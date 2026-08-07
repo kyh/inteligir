@@ -60,9 +60,20 @@ Date: {{date}}
 - [ ]
 `;
 
+/**
+ * The note a freshly seeded workspace lands on.
+ *
+ * A first screen that says "select a note to edit" in front of a vault the user
+ * did not create is a puzzle, not an empty state — so the seed decides what is
+ * open, the same way it decides what exists. The host writes it into ui-state
+ * under `UI_STATE_OPEN_NOTE_KEY` and the workspace restores it on boot like any
+ * other session.
+ */
+export const SEED_OPEN_NOTE = "Welcome.md";
+
 /** The files a brand-new vault starts with, in the order they are written. */
 const SEED_FILES: ReadonlyArray<{ readonly path: string; readonly content: string }> = [
-  { path: "Welcome.md", content: WELCOME },
+  { path: SEED_OPEN_NOTE, content: WELCOME },
   { path: AGENT_INSTRUCTIONS_PATH, content: AGENT_INSTRUCTIONS_SKELETON },
   { path: "templates/Meeting notes.md", content: MEETING_TEMPLATE },
 ];

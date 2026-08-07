@@ -260,19 +260,24 @@ describe("capability classes", () => {
 });
 
 describe("origin allowlist", () => {
+  // The env is stated, never inherited: `allowedOrigins` takes the one var it
+  // reads (OriginEnv), so "nothing is configured" below means an unconfigured
+  // DEPLOYMENT rather than whatever the developer happens to have in .dev.vars.
+  const DEV_ORIGIN = "http://localhost:5174";
+
   it("admits the deployed origins and whatever config names", () => {
-    const configured = allowedOrigins({ ...env, HOST_ALLOWED_ORIGINS: "http://localhost:5174" });
+    const configured = allowedOrigins({ HOST_ALLOWED_ORIGINS: DEV_ORIGIN });
     expect(originAllowed("https://inteligir.com", configured)).toBe(true);
     expect(originAllowed("http://localhost:5174", configured)).toBe(true);
   });
 
   it("rejects an absent origin", () => {
     // A browser always sends one, so absence means a non-browser caller.
-    expect(originAllowed(null, allowedOrigins(env))).toBe(false);
+    expect(originAllowed(null, allowedOrigins({}))).toBe(false);
   });
 
   it("matches the WHOLE origin, not the hostname", () => {
-    const configured = allowedOrigins({ ...env, HOST_ALLOWED_ORIGINS: "http://localhost:5174" });
+    const configured = allowedOrigins({ HOST_ALLOWED_ORIGINS: DEV_ORIGIN });
     expect(originAllowed("http://localhost:5173", configured)).toBe(false);
     expect(originAllowed("https://localhost:5174", configured)).toBe(false);
     expect(originAllowed("https://inteligir.com.evil.example", configured)).toBe(false);
@@ -280,8 +285,8 @@ describe("origin allowlist", () => {
   });
 
   it("admits nothing extra when nothing is configured", () => {
-    const bare = allowedOrigins(env);
-    expect(originAllowed("http://localhost:5174", bare)).toBe(false);
+    const bare = allowedOrigins({});
+    expect(originAllowed(DEV_ORIGIN, bare)).toBe(false);
     expect([...bare]).toEqual(["https://inteligir.com", "https://www.inteligir.com"]);
   });
 });

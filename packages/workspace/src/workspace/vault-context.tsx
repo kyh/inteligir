@@ -39,9 +39,7 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
 import type { VaultEntry } from "@repo/bridge/ipc-registry";
-
-/** ui-state key the open note persists under (restored on boot). */
-const OPEN_NOTE_KEY = "workspace.openNote";
+import { UI_STATE_OPEN_NOTE_KEY as OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 
 /** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,
  * dialogs) coalesces into one snapshot rebuild (vault liveness — CLAUDE.md

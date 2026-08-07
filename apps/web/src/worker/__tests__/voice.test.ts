@@ -11,9 +11,11 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
+import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 
 import { userHostName } from "../host/host-address";
+import { SEED_OPEN_NOTE } from "../host/vault/seed";
 import { authenticated, invoke, signUp } from "./host-helpers";
 import { SttSession, type SttTranscript } from "../voice/stt-session";
 import { cutSpeakable, TtsSession, type TtsSynthesizer } from "../voice/tts-session";
@@ -250,9 +252,14 @@ describe("the voice secret", () => {
     await invoke(ws, frames, 2, "setVoiceApiKey", { value: "el-key" });
     expect(await invoke(ws, frames, 3, "isTtsAvailable")).toMatchObject({ ok: true, result: true });
 
-    // Presence ONLY — the plaintext never crosses back over the Bridge.
+    // Presence ONLY — the plaintext never crosses back over the Bridge. The
+    // other key is the seed's landing note, written when this account first
+    // authenticated (../host/vault/seed).
     const state = await invoke(ws, frames, 4, "getUiState");
-    expect(state.ok && state.result).toEqual({ [ELEVENLABS_API_KEY_UI_STATE]: true });
+    expect(state.ok && state.result).toEqual({
+      [ELEVENLABS_API_KEY_UI_STATE]: true,
+      [UI_STATE_OPEN_NOTE_KEY]: SEED_OPEN_NOTE,
+    });
 
     await invoke(ws, frames, 5, "setVoiceApiKey", {});
     expect(await invoke(ws, frames, 6, "isTtsAvailable")).toMatchObject({

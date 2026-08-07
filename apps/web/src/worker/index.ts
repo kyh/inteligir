@@ -3,6 +3,7 @@ import { AgentSandbox } from "./agent/sandbox-class";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { routeDeepLink } from "./capture/deep-link-route";
 import { handleDesktopCallback, handleSessionExchange } from "./auth/desktop-session";
+import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
 import { routeHostAsset } from "./host/asset-route";
 import { UserHost } from "./host/user-host";
@@ -120,6 +121,13 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   // wouldn't.
   if (request.method === "GET" && url.pathname === "/v1/capabilities") {
     return withCors(request, Response.json({ socialProviders: enabledSocialProviders(env) }));
+  }
+
+  // Sign-up, invite-gated (see src/worker/auth/invite.ts). It claims a code and
+  // then forwards to Better Auth's own sign-up, so what comes back — cookie,
+  // bearer, validation errors — is Better Auth's response untouched.
+  if (request.method === "POST" && url.pathname === "/v1/auth/sign-up") {
+    return withCors(request, await handleInviteSignUp(request, env));
   }
 
   // Desktop social-login handoff (see src/worker/auth/desktop-session.ts): the

@@ -23,6 +23,7 @@
     "@repo/notes": "workspace:*",
     "@repo/storage": "workspace:*",
     "@repo/ui": "workspace:*",
+    "@repo/workspace": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",

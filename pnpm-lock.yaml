@@ -379,6 +379,9 @@ importers:
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@repo/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.52

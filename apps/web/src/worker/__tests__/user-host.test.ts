@@ -6,6 +6,7 @@
 // set from attachments rather than from memory it no longer has.
 // ---------------------------------------------------------------------------
 
+import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import { WS_CLOSE_UNAUTHORIZED } from "@repo/bridge/ws-protocol";
 import {
   env,
@@ -16,6 +17,7 @@ import {
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { userHostName } from "../host/host-address";
+import { SEED_OPEN_NOTE } from "../host/vault/seed";
 import {
   accepted,
   authenticated,
@@ -224,8 +226,15 @@ describe("hibernation", () => {
     await evictDurableObject(stub);
 
     // The session survived: it was read back out of the socket's attachment.
+    // The one key present is the seed's landing note (./vault/seed) — this
+    // account authenticated here for the first time, which is what seeds it.
     ws.send(JSON.stringify({ t: "req", id: 5, method: "getUiState" }));
-    expect(await frames.next()).toEqual({ t: "res", id: 5, ok: true, result: {} });
+    expect(await frames.next()).toEqual({
+      t: "res",
+      id: 5,
+      ok: true,
+      result: { [UI_STATE_OPEN_NOTE_KEY]: SEED_OPEN_NOTE },
+    });
 
     // And the BROADCAST set survived, which a held Map could not have: the
     // transition handler emits onAppState, and it still reaches this socket.

@@ -30,6 +30,11 @@
  * to the API half. */
 const DEPLOYED_ORIGINS = ["https://inteligir.com", "https://www.inteligir.com"] as const;
 
+/** The one env member this module reads. Narrower than `Env` so a test can
+ * state the configuration it is testing — passing the ambient env makes
+ * "nothing is configured" mean "nothing is in the developer's .dev.vars". */
+export type OriginEnv = { readonly HOST_ALLOWED_ORIGINS?: string };
+
 /**
  * The full set of origins allowed to open a host socket: the deployed ones
  * plus whatever `HOST_ALLOWED_ORIGINS` names (comma-separated, exact origins).
@@ -39,7 +44,7 @@ const DEPLOYED_ORIGINS = ["https://inteligir.com", "https://www.inteligir.com"] 
  * committed. Fail-closed by construction: a deployment nobody configured
  * admits the deployed origins and nothing else.
  */
-export function allowedOrigins(env: Env): ReadonlySet<string> {
+export function allowedOrigins(env: OriginEnv): ReadonlySet<string> {
   const extra = env.HOST_ALLOWED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin !== "");

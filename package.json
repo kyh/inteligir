@@ -15,7 +15,7 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "prepare": "git config core.hooksPath .githooks || true",
-    "test": "turbo run test",
+    "test": "turbo run test --concurrency=4",
     "typecheck": "turbo run typecheck",
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
   },

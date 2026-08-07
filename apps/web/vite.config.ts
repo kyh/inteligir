@@ -6,16 +6,31 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const src = fileURLToPath(new URL("./src", import.meta.url));
+const workspaceSrc = fileURLToPath(new URL("../../packages/workspace/src", import.meta.url));
+const editorSrc = fileURLToPath(new URL("../../packages/editor/src", import.meta.url));
 
 export default defineConfig({
-  // Pin the dev port. Vite's default is 5173 — which is also the desktop
-  // harness (`pnpm -F @repo/desktop dev:harness`), so `pnpm dev` silently
-  // bumped one of the two and nothing could name the web app's URL.
-  server: { port: 5174 },
+  // Pin the dev port, and REFUSE to drift off it. Vite's default is 5173,
+  // which is also the desktop harness (`pnpm -F @repo/desktop dev:harness`).
+  // strictPort matters more than the number: the host socket's Origin
+  // allowlist is exact, so a silent bump to 5175 produces a 403 on the
+  // upgrade and a workspace that renders but cannot reach its own host.
+  // Failing to bind is the loud version of that.
+  server: { port: 5174, strictPort: true },
   // `@/*` is declared in tsconfig paths only. `vite build` resolves it (the
   // start plugin reads tsconfig), but the dev SSR runner does not — `vite dev`
   // 500'd with "Cannot find module '@/lib/site-config'". Declare it for both.
-  resolve: { alias: { "@": src } },
+  //
+  // The two UI packages are aliased to their SOURCE, as the desktop harness
+  // does. Their exports maps spell the extension fallback as an ARRAY
+  // (`"./*": ["./src/*.tsx", "./src/*.ts"]`), which the client environment's
+  // resolver walks and the workerd environment's does not — so a `.ts` module
+  // under either package resolves in one build and fails the other. Pointing
+  // both at the directory makes it ordinary extension resolution in every
+  // environment.
+  resolve: {
+    alias: { "@": src, "@repo/workspace": workspaceSrc, "@repo/editor": editorSrc },
+  },
   plugins: [
     cloudflare({ viteEnvironment: { name: "ssr" } }),
     // Start would otherwise take `src/server.ts` as the server entry. The entry

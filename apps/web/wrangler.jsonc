@@ -112,14 +112,18 @@
   // before the send and the request response is always neutral.
   "send_email": [{ "name": "EMAIL" }],
 
-  // Declaring the required secret NAMES here (values still live only in
-  // `wrangler secret put` / `.dev.vars`) buys two things: `wrangler types`
-  // emits it onto `Env` so src/worker/env.d.ts doesn't have to hand-declare it,
-  // and dev warns when it's missing instead of failing at the first
-  // /api/auth/* request. The OAuth pairs stay OUT — they are optional by
-  // design (a provider is live only when both halves are set), and listing
-  // them here would type them as always-present.
-  "secrets": { "required": ["BETTER_AUTH_SECRET"] },
+  // NO `secrets` BLOCK, and it must stay that way. Declaring the required
+  // secret NAMES is tempting — `wrangler types` would emit them onto `Env` and
+  // dev would warn when one is missing — but the field is not additive: the
+  // moment `secrets` exists, `.dev.vars` is FILTERED DOWN TO THE NAMES IN IT
+  // (@cloudflare/vite-plugin's getLocalDevVarsForPreview → wrangler's
+  // `unstable_getVarsForDev(..., config.secrets)`). Every other key in that
+  // file — HOST_ALLOWED_ORIGINS, AGENT_RUNTIME, the provider OAuth trios,
+  // RATE_LIMIT_DISABLED — then reads back `undefined` in `vite dev`, silently,
+  // with the file still on disk and "Using secrets defined in .dev.vars" still
+  // in the log. The schema offers only `required`, so there is no way to name
+  // one secret without disowning the rest. src/worker/env.d.ts hand-declares
+  // what the generated types would have carried.
 
   // No `vars`: the Better Auth baseURL is derived per-request from the incoming
   // request origin (so localhost/preview/prod all work with no config), and
