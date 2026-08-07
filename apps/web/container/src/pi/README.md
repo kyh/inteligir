@@ -6,10 +6,9 @@ in `src/` — the daemon, the reporter, the vault watcher, the browser tool —
 speaks the image's own vocabulary (`ContainerTool`, `AgentReport`,
 `ContainerTurn`) and never names a pi type.
 
-Why: pi is a fast-moving framework, and this image is one of two harnesses the
-project runs it under. When pi moves an export, changes a session's lifecycle or
-renames a runtime hook, exactly two files here change and nothing else does. The
-desktop keeps the same rule in `packages/agent/src/pi/` for the same reason.
+Why: pi is a fast-moving framework and this image is the only place in the repo
+that runs it. When pi moves an export, changes a session's lifecycle or renames
+a runtime hook, exactly two files here change and nothing else does.
 
 What lives here:
 
@@ -19,6 +18,12 @@ What lives here:
 - `session.ts` — the session's lifecycle: resources, tools, seeding, one turn
   from prompt to end.
 
-The rule is a boundary, not a preference. If a new capability needs a pi type,
-add a file here and export the image's own shape from it — do not import pi
-upward.
+The rule is a boundary, not a preference, and it is enforced:
+`tools/repo-guards/src/pi-quarantine.test.ts` walks `container/src` and fails on
+a `@earendil-works/pi-*` import specifier outside this folder. It matches
+imports only — `../tools.ts` names pi in prose, describing the vocabulary this
+quarantine exists to keep. This package has no test script of its own, so the
+guard lives with the repo-wide ones.
+
+If a new capability needs a pi type, add a file here and export the image's own
+shape from it — do not import pi upward.

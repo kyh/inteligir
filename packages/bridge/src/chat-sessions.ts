@@ -22,7 +22,10 @@ export type ChatSessionSummary = {
   messageCount: number;
 };
 
-export const ReadChatSessionSchema = Type.Object({ id: Type.String() });
+export const ReadChatSessionSchema = Type.Object(
+  { id: Type.String() },
+  { additionalProperties: false },
+);
 
 /** Reading an unknown/malformed id is an error VALUE, not a throw — the
  * browser surfaces it inline instead of crashing the Bridge call. */

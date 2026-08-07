@@ -646,8 +646,12 @@ export class UserHost extends DurableObject<Env> {
    * armed. The multiplex is therefore structural rather than conventional:
    * every concern runs its own sweep here, every concern answers `nextDueAt`
    * with when it next needs waking, and the alarm is re-armed at the earliest
-   * of them. Adding a third concern is a sweep plus a row in `nextDueAt`;
-   * `setAlarm` appears in exactly one place below.
+   * of them. Adding a third concern is a sweep plus a row in `nextDueAt`.
+   *
+   * `setAlarm` is confined to this class and to two call sites that both arm at
+   * `nextDueAt(now)` — the tail of this method, and `armAlarm` behind
+   * `refreshAlarm`. No concern arms for itself; that is the invariant, not the
+   * call count.
    */
   override async alarm(): Promise<void> {
     if (this.purged) return;

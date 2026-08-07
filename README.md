@@ -41,6 +41,7 @@ Workspace `README.md`s:
 | `packages/ui`        | [shared design system](./packages/ui/README.md)                            |
 | `packages/editor`    | [the note editor](./packages/editor/README.md)                             |
 | `packages/workspace` | [the product UI](./packages/workspace/README.md)                           |
+| `tools/repo-guards`  | [the derived fitness tests](./tools/repo-guards/README.md)                 |
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — quickstart, the
 platform matrix of what is headlessly verifiable, and the runtime recipes.
@@ -54,8 +55,8 @@ durable decisions.
 ## Common commands
 
 ```bash
-pnpm dev:web          # The product — localhost:5174
-pnpm dev:desktop      # The Electron shell
+pnpm dev:web          # The product — localhost:5174 (needs Docker + .dev.vars)
+INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop   # The Electron shell
 pnpm dev              # All workspaces
 pnpm build
 pnpm typecheck

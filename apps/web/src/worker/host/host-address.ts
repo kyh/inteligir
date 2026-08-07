@@ -1,9 +1,14 @@
 // ---------------------------------------------------------------------------
 // The name a user's Durable Object answers to, in one place.
 //
-// The name is DERIVED from a credential (see ./session's `addressedUserId`),
-// never read out of a path, so there is no userId segment anywhere for a caller
-// to supply and no way to bring an object into existence by naming one.
+// Across `/v1/host/*` the name is DERIVED from a credential (see ./session's
+// `addressedUserId`) and never read out of a path, so a caller cannot bring an
+// object into existence by naming one.
+//
+// The container's report route is the one exception, and it is not a hole:
+// `POST /v1/agent/:userId/report` carries the id in its path because the
+// container holds no session, so ../agent/agent-route.ts requires the segment
+// to AGREE with the token's own claim before it names anything here.
 // ---------------------------------------------------------------------------
 
 /** Namespace prefix for the object name. The Durable Object namespace is

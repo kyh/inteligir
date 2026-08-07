@@ -75,10 +75,12 @@ default is worse than either answer above.
 Expo's native CSS transform prescribes `lightningcss: 1.30.1` verbatim — without
 it the transform hits deserialization errors. JSON carries no comments, so the
 reason lives here: the pin exists **for the mobile CSS pipeline**, nothing else.
-Keep the override SCOPED to that pipeline's consumers (`react-native-css`, which
-peers `lightningcss >=1.27.0`, and `@expo/metro-config`, which depends on
-`^1.30.1`). An unscoped `"lightningcss": "1.30.1"` also rewrites
-`@tailwindcss/node`'s **exact** `1.32.0` and `@tanstack/start-plugin-core`'s
-`^1.32.0` — both below their declared minimum — in the web build, which has
-nothing to do with it. Go back to a bare `lightningcss` key only if a Metro build
-proves the scoped form is insufficient.
+Keep the override SCOPED to that pipeline's consumer —
+`@expo/metro-config>lightningcss`, which is the one edge in this graph
+(`@expo/metro-config` depends on `^1.30.1`). An unscoped `"lightningcss":
+"1.30.1"` also rewrites `@tailwindcss/node`'s **exact** `1.32.0` and
+`@tanstack/start-plugin-core`'s `^1.32.0` — both below their declared minimum —
+in the web build, which has nothing to do with it. A second scoped key is only
+warranted when a second consumer actually appears in the lockfile; go back to a
+bare `lightningcss` key only if a Metro build proves the scoped form is
+insufficient.

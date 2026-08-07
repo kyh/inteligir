@@ -34,7 +34,6 @@
   "pnpm": {
     "overrides": {
       "@types/react": "catalog:",
-      "react-native-css>lightningcss": "1.30.1",
       "@expo/metro-config>lightningcss": "1.30.1"
     }
   }

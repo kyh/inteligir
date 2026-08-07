@@ -27,8 +27,12 @@ src/
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
                        # in-memory tiered lexical index (behavior pin)
+    find-task-line.ts  # the pure content-addressed task locator; its ORDINAL
+                       # counting is the contract guarded-line-edit and
+                       # link-extract are both pinned against
     guarded-line-edit.ts # raw-byte-guarded line splice (task toggles)
-    crawl-exclusions.ts  # the ONE set a vault crawl leaves out entirely
+    vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
+                       # command palette and the agent's search_vault
     task-schedule.ts, tag-index.ts, related-notes.ts, note-name.ts,
     doc-file.ts, vault-path.ts  # task-date association, tags, related-notes
                        # scorer, name validation, doc test, posix path helpers
@@ -37,8 +41,9 @@ src/
     vocabulary.ts      # post-parse gate: outside the fixed vocabulary → Raw
     remark-wiki-link.ts, remark-mdx-agnostic.ts  # own wiki-link tokenizer
                        # (byte-exact round-trip); MDX without acorn
-    frontmatter.ts     # split/recombine + typed properties + notePrivacy
-                       # (unparseable frontmatter counts as private)
+    frontmatter.ts     # split/recombine + typed properties + the ONE privacy
+                       # kernel (privacyOfParsed answers indeterminate for
+                       # frontmatter it can't type; AI callers fail closed)
 ```
 
 ## Invariants
@@ -53,9 +58,10 @@ src/
   drift — never a silent wrong write.
 - **One parse per doc** (`projectDoc`); link extraction reuses the editor's
   own remark-wiki-link tokenizer, so index and editor never disagree.
-- **A crawl exclusion makes a file unreachable**, not merely hidden
-  (`knowledge/crawl-exclusions.ts`). Per-vault or per-user hiding is a VIEW
-  filter the consumer applies over a complete crawl.
+- **There is no crawl to exclude anything from.** The host is the only writer
+  of its own manifest, so this package sees a document and its hash, never a
+  directory. Per-vault or per-user hiding is a VIEW filter a consumer applies
+  over the listing.
 
 ## Seams
 
@@ -68,6 +74,4 @@ src/
 
 `pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
 knowledge engine: resolver tiers, rename byte surgery, guarded edits,
-daily-path round-trips, a perf oracle. `knowledge/__tests__/crawl-fixture.ts`
-is exported so a host can pin its real walk against the same tree this
-package's pure predicate is pinned against.
+daily-path round-trips, a perf oracle.

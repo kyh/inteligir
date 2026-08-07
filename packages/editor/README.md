@@ -34,11 +34,20 @@ src/
     open-note-store.ts # the high-cadence open-note slice (zustand)
     note-runtime.ts    # controller + autosave debounce + vanish watcher
     open-doc.ts, open-note-flush.ts  # opening, flushing, the privacy read
+  note-privacy.ts      # the OTHER privacy read — off the live Plate document,
+                       # gating ⌘J and ghost text (see docs/privacy.md)
   ai/                  # the ⌘J menu, intent, suggestions, ghost text,
                        # and the transient state that must never reach disk
   properties/          # the typed frontmatter panel
   stores/              # AI settings, AI provider snapshot, delegation badges
+  delegation/          # the inline delegation badge on a checkbox
+  lib/                 # debounce, the dark-class hook
   host.tsx             # the injected EditorHost: vault actions + listing
+  slash-menu.tsx, selection-toolbar.tsx, block-menu.tsx, block-*.tsx,
+  toc.tsx, transclusion*.ts(x), todo-*.ts(x), embed-url-dialog.tsx,
+  emoji-input.tsx, inline-combobox.tsx, cursor-overlay.tsx, insert-void.ts
+                       # the in-document affordances — every surface a node can
+                       # be inserted from, and the transforms behind them
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
 ```
@@ -64,9 +73,13 @@ src/
 - **AI state is transient.** Generation marks and accept/reject suggestions are
   editor-only; `ai/transient*.ts` settles them before any flush, so no AI
   artifact can reach a file.
-- **The privacy read is the live buffer**, not the last save
-  (`note/open-note-flush.ts`), so a `private: true` typed a second ago already
-  counts. Fail-closed: unreadable or unregistered reads as private.
+- **The privacy read is the live buffer**, not the last save, so a
+  `private: true` typed a second ago already counts. Two reads over one kernel
+  (`@repo/notes/markdown/frontmatter`'s `privacyOfParsed`):
+  `note/open-note-flush.ts::openNoteIsPrivate` for the chat context hint and
+  read-aloud, `note-privacy.ts::isEditorNotePrivate` off the live Plate document
+  for ⌘J and ghost text. Harden both or the guarantee is half true. Fail-closed
+  in each: unreadable, untypeable or unregistered reads as private.
 
 ## Seams
 

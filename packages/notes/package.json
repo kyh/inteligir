@@ -6,8 +6,6 @@
   "type": "module",
   "exports": {
     "./daily-path": "./src/daily-path.ts",
-    "./knowledge/crawl-exclusions": "./src/knowledge/crawl-exclusions.ts",
-    "./knowledge/testing/crawl-fixture": "./src/knowledge/__tests__/crawl-fixture.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
     "./knowledge/link-extract": "./src/knowledge/link-extract.ts",

@@ -18,22 +18,27 @@ whole agent suite runs this way.
 ## Setup
 
 ```bash
-# apps/web/.dev.vars (gitignored) — append, don't overwrite.
-printf 'AGENT_RUNTIME=scripted\n' >> apps/web/.dev.vars
-pnpm dev:web
+# .dev.vars is gitignored, so a fresh checkout has none. The example already
+# ships AGENT_RUNTIME=scripted (plus the two vars without which nothing works:
+# BETTER_AUTH_SECRET and HOST_ALLOWED_ORIGINS).
+cp apps/web/.dev.vars.example apps/web/.dev.vars    # then set BETTER_AUTH_SECRET
+pnpm dev:web                                        # needs a running Docker daemon
 agent-browser open http://localhost:5174/app
 ```
 
-Sign-up is invite-only and there is no seeded account — `apps/web/README.md`
-§ Dev has the commands to materialize the local D1 file, push the schema, mint
-an invite and create one. Do that once; the browser keeps the session.
+Sign-up is invite-only and there is no seeded account — `AGENTS.md` § "There is
+no seeded login" has the commands to materialize the local D1 file, push the
+schema and mint an invite; the account itself is made in the browser at
+`/app/sign-up`. Do that once; the browser keeps the session.
 
 ## Drive it
 
-Call ANY Bridge method from `agent-browser eval` on the signed-in page: read the
-session from `/api/auth/get-session`, open
-`wss://<host>/v1/host/<userId>/ws`, send `{t:"auth",token}`, then
-`{t:"req",id,method,payload}`. The exact snippet is in `docs/e2e-driving.md`.
+Call ANY Bridge method from `agent-browser eval` on the signed-in page.
+**Use the snippet in `docs/e2e-driving.md` verbatim** — the credential is a
+single-use ticket minted at `POST /v1/host/ticket` against the session cookie,
+spent as `{t:"auth", ticket}` in the socket's first frame on
+`wss://<host>/v1/host/ws`. There is no userId in the URL, no session token in
+the page, and `/api/auth/get-session` yields nothing the socket accepts.
 
 - **Chat**: `setFauxAgentScript({steps:[{text:"MARKER"}]})` → type in the
   composer, press Enter → assert `MARKER` in the UI.
@@ -43,10 +48,16 @@ session from `/api/auth/get-session`, open
   `listDelegations` for `status:"done"`, then `readVaultDoc` to confirm the box
   is checked.
 
-The scripted queue is SHARED by chat and the background lane — one step per
+Both lanes are seeded with the same steps — two independent queues, one step per
 assistant turn — so script, then drive exactly one flow before re-scripting.
 `agentToolManifest` in `apps/web/src/worker/agent/agent-tools.ts` is the list of
 tool names and argument shapes a step may call.
+
+**The queue dies with hibernation.** It is an in-memory field on the Durable
+Object, and an idle object with open sockets is evicted — a minute of clicking
+between scripting and sending loses it. Script IMMEDIATELY before the turn, and
+read an echoed reply (`[scripted] <your message>`) as "re-script and retry",
+never as a bug in what you changed.
 
 ## Teardown (always)
 

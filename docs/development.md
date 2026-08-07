@@ -7,8 +7,17 @@ own protocol and deploy, and this holds the dev loop across the three clients.
 ## Prerequisites
 
 - Node ≥ 24 (repo developed on 24.x), pnpm 10 (`corepack enable`)
-- `pnpm install` at the repo root (workspace-wide). That's all — the Worker and
-  its tests run anywhere; only packaging the Electron shell wants macOS.
+- `pnpm install` at the repo root (workspace-wide)
+- `cp apps/web/.dev.vars.example apps/web/.dev.vars`, then set
+  `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*` request
+  fails; without the example's `HOST_ALLOWED_ORIGINS=http://localhost:5174` the
+  ticket mint refuses the dev origin and `/app` cannot reach its host.
+- **Docker, for `pnpm dev:web` only.** `wrangler.jsonc` declares a `containers`
+  block, so the vite plugin builds the agent image at server-start time —
+  before any Worker code reads `AGENT_RUNTIME`, which is why `scripted` does not
+  excuse it. Without a running daemon the start exits with "The Docker CLI is
+  needed to build the configured image before running dev". Every test suite
+  runs without it, and so does packaging; only the Electron shell wants macOS.
 
 ## Running the product
 
@@ -20,8 +29,10 @@ One command runs the whole product: the marketing site, `/api/auth/*` over a
 local D1 file, and `/app` — the workspace over a real `UserHost` Durable Object
 with the real vault (SQLite manifest + local R2), the real knowledge index, and
 the real agent path. Nothing is stubbed except the agent's container, which is
-the in-memory one unless a built image and the Workers Paid plan are present
-(`AGENT_RUNTIME=scripted` in `.dev.vars`).
+the in-memory one when `AGENT_RUNTIME=scripted` is set in `.dev.vars` — which
+`.dev.vars.example` does. The variable is the ONLY switch: unset, you get the
+real Cloudflare Sandbox, which wants the Workers Paid plan and a built image and
+fails at container boot without them.
 
 Sign-up is invite-only and there is no seeded account. `AGENTS.md` § "There is no
 seeded login" has the exact commands to materialize the local D1 file, push the
@@ -39,7 +50,11 @@ INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop   # electron-vite, CDP 
 
 `apps/desktop` is a window on whatever origin `INTELIGIR_APP_URL` names,
 falling back to the origin baked in at build time and then to
-`https://inteligir.com`. It owns no vault and no agent: the window, the
+`https://inteligir.com` — so dropping the variable points the shell at
+PRODUCTION rather than at a local Worker. It reaches the task because
+`apps/desktop/turbo.json` names it in `dev`'s `passThroughEnv`; turbo runs in
+strict env mode and strips anything unnamed. It owns no vault and no agent: the
+window, the
 `inteligir://` scheme, a tray, a summon shortcut, the navigation pin and shell
 auto-update, and nothing else. Change it when you're changing THOSE; everything
 else is `pnpm dev:web`.
@@ -138,7 +153,10 @@ rotting in prose here:
 - `pnpm --filter @repo/desktop test` — the shell's pure policy: the navigation
   guard, the deep-link translation, the app origin, the updater.
 - `pnpm --filter @repo/repo-guards test` — the repo-level guards: the dep-DAG
-  paragraph against the manifests, and no dead Bridge channels.
+  paragraph against the manifests, `packages/` shipped source free of
+  node/electron, no dead Bridge channels, and the pi quarantine
+  (`tools/repo-guards/README.md` says what each one pins and how to re-anchor
+  it).
 - `pnpm --filter @repo/mobile test` — the pure mobile modules on node.
 
 ## Releasing the desktop shell

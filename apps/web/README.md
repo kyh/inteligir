@@ -32,6 +32,7 @@ src/
     app/sign-in.tsx      Email + password
     app/sign-up.tsx      Invite-gated (POSTs /v1/auth/sign-up)
     app/forgot-password.tsx  Requests the emailed reset link
+    app/link.tsx         Where a deep link lands — POSTs /v1/host/link same-origin
   app/
     workspace-mount.tsx  Dials the host socket, installs the Bridge, renders App
     html-apps-disabled.ts The HTML-app runtime seam, refusing (see below)
@@ -72,7 +73,8 @@ src/
       vault/             THE VAULT — manifest in DO SQLite, bytes in R2
       knowledge/         THE INDEX — core's SQL store over DO SQLite + FTS5
     agent/               THE AGENT — the container, and everything around it
-      sandbox-port.ts    the five verbs the DO may ask of a container
+      sandbox-port.ts    the six verbs the DO may ask of a container (five over
+                         HTTP; shutdown has no daemon leg)
       cf-sandbox.ts      that port over @cloudflare/sandbox
       fake-sandbox.ts    that port in memory, scripted (AGENT_RUNTIME=scripted)
       sandbox-class.ts   the Sandbox subclass: enableInternet=false + the egress seam
@@ -95,7 +97,8 @@ src/
       background-runs.ts the DURABLE one-turn lock, and the run holding it
       delegations.ts     a checkbox handed to the background agent
       routines.ts        a saved prompt on a schedule, fired by the alarm
-      background-handlers.ts the eight delegation/routine channels
+      background-handlers.ts the ten delegation/routine/restore channels
+                         (restoreAgentEdits — the chat-undo — lives here too)
     store/               THE JSONSTORE — versioned, validated, over DO KV
       json-store-core.ts the engine: TypeBox on read AND write, quarantine
       do-store-adapter.ts that engine bound to the object's synchronous KV
@@ -110,6 +113,7 @@ src/
       stt-session.ts     the utterance buffer + the partial budget
       voice-upstreams.ts ElevenLabs (streamed HTTP) + Workers AI (REST)
       voice-secret.ts    the user's ElevenLabs key, sealed like the provider one
+      voice-composition.ts where the sessions are assembled (the seal's key, the voice id)
       voice-handlers.ts  the eight voice channels
     capture/             DEEP-LINK CAPTURE — `inteligir://` as an HTTPS route
       deep-link.ts       the web→scheme translation over the pure grammar
@@ -145,12 +149,17 @@ src/
       agent-tools.test.ts    the granted capabilities over a real vault + index
       agent-credentials.test.ts sealing, token scoping, egress injection
       agent-report.test.ts   the report route: its gate, and what it applies
+      provider-connect.test.ts the OAuth round-trip and the selection resolution
+      background-work.test.ts the unattended lane: the durable lock, both owners
+      data-lifecycle.test.ts export, retention, and the account purge
+      do-store-adapter.test.ts the JsonStore engine over the object's sync KV
       editor-ai.test.ts      both provider wires + the lane bounds and supersede
       voice.test.ts          the WAV, the speakable cut, both sessions, the seal
       deep-link.test.ts      the grammar, the route's gate, the exactly-once drain
       skills.test.ts         the slug, the budget, and the prompt the agent gets
       invite-signup.test.ts  the invite claim, its release, and the double-spend
       apply-schema.ts        applies the exported schema DDL to each test file's D1
+      host-helpers.ts        the shared object/session setup the suites build on
       env.d.ts               types cloudflare:test's env (+ TEST_SCHEMA)
 public/                  Static assets
 wrangler.jsonc           Worker config: routes + DO + R2 + D1 + email bindings
@@ -207,9 +216,9 @@ HTML-app runtime — and nothing else.
   last and overwrites the inner one's decision. The workspace mounts its own
   (fed from the user's server-side ui-state); the marketing page mounts its own
   (localStorage). The document shell mounts neither.
-- **HTML apps are OFF** (`src/app/html-apps-disabled.ts`): `protocolUrl` is
-  `null` — there is no `vault-app://` scheme in a browser — and `injectRuntime`
-  **throws** rather than assembling the blob the fallback would otherwise load.
+- **HTML apps are OFF** (`src/app/html-apps-disabled.ts`): the seam has one
+  member, `injectRuntime`, and it **throws** rather than assembling the blob the
+  view would otherwise load.
   See "What is deliberately not here yet" for the two things that must close
   first. The refusal is the seam saying no, rather than the capability merely
   being absent — an absent seam quietly becomes a working exfiltration path the
@@ -367,7 +376,7 @@ four halves of it live in the host object, because the object is the account.
 ### Workspace host (`/v1/host/*`)
 
 **One Durable Object per user** (`env.UserHost.getByName("user:" + userId)`)
-serving that user’s Bridge — the 63 host methods and 15 event channels
+serving that user’s Bridge — the 63 host methods and 16 event channels
 `@repo/bridge/ipc-registry` declares — over one hibernatable WebSocket per
 client.
 
@@ -379,12 +388,16 @@ client.
   structured-clone types), and the broadcast set is rebuilt from
   `ctx.getWebSockets()` on every push rather than tracked in a `Map`. Tags are
   fixed at accept time, so auth state cannot be one.
-- **There is NO userId in any path.** `host-route.ts` derives the object name
-  from the credential the request carries, so a caller holding no session
-  cannot bring a Durable Object into existence by naming one, and a caller
-  holding one can only ever address their own. The Worker still ADDRESSES and
-  the object still VERIFIES — nothing but the request itself is forwarded, so
-  there is no verdict to forge.
+- **There is NO userId in a `/v1/host/*` path.** `host-route.ts` derives the
+  object name from the credential the request carries, so a caller holding no
+  session cannot bring a Durable Object into existence by naming one, and a
+  caller holding one can only ever address their own. The Worker still ADDRESSES
+  and the object still VERIFIES — nothing but the request itself is forwarded,
+  so there is no verdict to forge. The container's
+  `POST /v1/agent/:userId/report` is the one route that does carry the id,
+  because the container has no session to derive it from; `agent-route.ts`
+  requires the segment to AGREE with the token's own claim before naming
+  anything, so the id is a cross-check rather than an input.
 - **The socket authenticates with a TICKET, in the first frame.** `POST
 /v1/host/ticket` mints one against the session; the object stores it in its
   own SQLite and the first `{t:"auth"}` frame spends it. Single-use (a
@@ -485,8 +498,10 @@ Worker; the image is `container/`, built from this repo.
   (`fake-sandbox.ts`). The runner, the transcript, the tool executor, the
   confirmation broker and the vault write-back are the production ones either
   way; only the process that would have produced the reports is fake. The whole
-  test suite runs this way, and so does any deployment without the Workers Paid
-  plan.
+  test suite runs this way. It is opt-in rather than a fallback:
+  `sandboxRuntimeEnabled` reads this variable and nothing else, so a deployment
+  with no plan and no image that leaves it unset still gets the real port and
+  fails at container boot.
 
 ### The unattended lane (`src/worker/background/`)
 
@@ -677,6 +692,11 @@ improvement, and not one of the two blockers above.
   header on sign-in/up). Email+password is enabled; the `socialProviders` seam
   turns on GitHub/Google when the matching `*_CLIENT_ID` + `*_CLIENT_SECRET` pair
   is set.
+- **`GET /v1/capabilities` is how a client learns which of those are live**
+  (`{socialProviders: [...]}`, unauthenticated by design — it reveals nothing a
+  sign-in page would not). It is the observable half of the both-or-nothing
+  gate: a half-configured provider is absent here, so no client renders a button
+  that cannot work.
 - The auth tables live in **D1** (`DB` binding) via the Drizzle adapter
   (`provider: "sqlite"`). Schema in `src/worker/db/schema.ts`, applied with
   `drizzle-kit push` — no migration files (`pnpm db:push:local` / `db:push`).
@@ -722,7 +742,11 @@ pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --local \
   --command "INSERT INTO invite_code (code) VALUES ('DEV-INVITE-001')"
 ```
 
-Then open `http://localhost:5174/app`, which redirects to `/app/sign-up`.
+Then open `http://localhost:5174/app`, which redirects to `/app/sign-in`; the
+sign-up link is on that page, and `/app/sign-up` is what takes the invite code.
+
+`code` is the invite table's primary key, so re-running the mint above with the
+same literal fails on the constraint — pick a fresh string per account.
 
 Other scripts:
 
@@ -735,8 +759,14 @@ pnpm --filter @repo/web build           # vite build (dist/client + dist/server)
 
 `HOST_ALLOWED_ORIGINS=http://localhost:5174` in `.dev.vars` is what admits the
 dev server to the host socket — the allowlist is exact origins and ships with
-only the deployed ones, so without it `/app` loads and then sits on
-"Reconnecting…" forever while the upgrade 403s.
+only the deployed ones. Without it the **ticket mint** 403s (the gate is on the
+mint, not the upgrade), the bridge treats that as terminal, and `/app` replaces
+itself with the "Your session has expired / Sign in again" surface. It is not a
+reconnect loop, and it is not the session: look at the origin allowlist.
+
+The first `dev` start also builds the agent container image, so a running Docker
+daemon is a hard prerequisite of this command — the plugin builds before the
+server binds, which is why `AGENT_RUNTIME=scripted` does not excuse it.
 
 > **`.dev.vars` only works because wrangler.jsonc declares no `secrets` block.**
 > Naming a secret there filters the file down to the names listed, and every
@@ -762,10 +792,14 @@ pnpm --filter @repo/web deploy    # build + wrangler deploy (needs CF auth)
 A deployment serves no accounts until at least one invite code exists — see
 "Auth surfaces" for the one INSERT that mints one.
 
-Deploys run automatically from `.github/workflows/deploy.yml` on push to main
-(requires the `CLOUDFLARE_API_TOKEN` repo secret) — and that now publishes the
-API and the Durable Object alongside the landing page, so the token needs
-Workers Scripts: Edit on the account and Workers Routes: Edit on the zone.
+Deploys run from `.github/workflows/deploy.yml` AFTER CI succeeds on main — a
+`workflow_run` gate rather than a `push` trigger, so a red tree never publishes,
+and both jobs check out the tested SHA rather than whatever main has moved to.
+It runs through the `production` GitHub environment, which is where a required
+reviewer or a wait timer would be configured. It publishes the API and the
+Durable Object alongside the landing page, so the `CLOUDFLARE_API_TOKEN` repo
+secret needs Workers Scripts: Edit on the account and Workers Routes: Edit on
+the zone.
 
 > **Already provisioned.** The R2 bucket and D1 (`database_id` in
 > wrangler.jsonc) exist, the schema is pushed and `BETTER_AUTH_SECRET` is set.
@@ -803,6 +837,17 @@ wrangler secret put BETTER_AUTH_SECRET                 # e.g. `openssl rand -bas
 
 #    (No BETTER_AUTH_URL to set — the auth baseURL is derived per-request from
 #    the request origin, so localhost/preview/prod all work with no config.)
+#
+#    Two more optional vars the code reads:
+# wrangler secret put BETTER_AUTH_TRUSTED_ORIGINS  # comma-separated extras
+#    RATE_LIMIT_DISABLED=true is tests/local-scripts only — never a deployment.
+
+# 5b. Password reset. Until the sending domain is onboarded, every reset email
+#     fails server-side and is only logged — the request response stays neutral
+#     on purpose, so nothing surfaces it. Onboard it, then set the sender if the
+#     verified domain is not the default `inteligir.app`:
+wrangler email sending enable <verified-domain>   # then the DKIM/SPF DNS
+# wrangler secret put RESET_FROM_ADDRESS          # e.g. no-reply@<verified-domain>
 
 # 6. Deploy the Worker + Durable Object
 pnpm --filter @repo/web deploy       # == vite build && wrangler deploy
@@ -864,12 +909,15 @@ points at whatever their own registered app uses.
 **5. Optional — the `browser` tool.** It connects to Cloudflare Browser Run over
 CDP, which is a `wss://` upgrade, and **whether a WebSocket upgrade escapes a
 Sandbox's egress is unverified** — the outbound documentation never names it.
-The tool is not registered at all unless all three are set:
+
+TWO secrets decide whether the tool is registered; the third is what lets a
+registered tool reach the endpoint, and without it the tool is in the model's
+menu and fails at connect:
 
 ```bash
-wrangler secret put CLOUDFLARE_ACCOUNT_ID       # shared by every CF service
-wrangler secret put BROWSER_RUN_API_TOKEN       # Browser Rendering: Edit
-wrangler secret put AGENT_EXTRA_ALLOWED_HOSTS   # api.cloudflare.com
+wrangler secret put CLOUDFLARE_ACCOUNT_ID       # registers  — shared by every CF service
+wrangler secret put BROWSER_RUN_API_TOKEN       # registers  — Browser Rendering: Edit
+wrangler secret put AGENT_EXTRA_ALLOWED_HOSTS   # egress     — api.cloudflare.com
 ```
 
 The tool bounds its connect and reports a named diagnostic rather than hanging,

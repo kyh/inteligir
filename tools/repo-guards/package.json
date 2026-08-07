@@ -2,7 +2,7 @@
   "name": "@repo/repo-guards",
   "version": "0.1.0",
   "private": true,
-  "description": "Derived fitness tests over the repository itself — the checks that belong to no product package because they read the whole tree: the CLAUDE.md dep-DAG paragraph against the real manifests, the client packages' freedom from node/electron, and the Bridge registry's freedom from dead channels. Ships nothing.",
+  "description": "Derived fitness tests over the repository itself — the checks that belong to no product package because they read the whole tree: the CLAUDE.md dep-DAG paragraph against the real manifests (which also pins packages/ shipped source free of node/electron), the Bridge registry's freedom from dead channels, and the pi harness quarantine. Ships nothing. See README.md.",
   "type": "module",
   "scripts": {
     "clean": "git clean -xdf .cache .turbo node_modules",

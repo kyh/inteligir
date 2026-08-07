@@ -78,7 +78,8 @@ into a browser, and `notes`+`bridge` also into workerd and React Native. That
 is lint-enforced for those two and enforced over shipped source (tests
 excluded) by `dep-dag.test.ts` for the rest. `@repo/notes` is the sharing seam:
 no node/electron/react imports at all, and platforms inject their capabilities
-(the SQL driver, the clock, the hasher).
+(the SQL driver, the clock). Content hashes arrive as VALUES the host already
+computed (`apps/web/src/worker/hash.ts`), not through an injected hasher.
 
 The UI packages reach the backend through `@repo/bridge` ONLY. That is a
 package fact rather than a lint rule: neither `@repo/workspace` nor
@@ -126,8 +127,12 @@ Use the **agent-browser** skill to drive a running app. Don't claim a UI change
 works without driving it; type/test passing isn't feature-correct.
 
 - `pnpm dev:web` then `agent-browser open http://localhost:5174/app`.
-- `pnpm dev:desktop` exposes CDP on 9222; `agent-browser connect 9222` attaches
-  to the shell's window.
+- `INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop` exposes CDP on
+  9222; `agent-browser connect 9222` attaches to the shell's window. The
+  variable is not optional: without it the shell loads `https://inteligir.com`
+  and a change gets "verified" against production. (It reaches the task because
+  `apps/desktop/turbo.json` names it in the `dev` task's `passThroughEnv` —
+  turbo runs in strict env mode and strips anything unnamed.)
 - From a signed-in `/app` page you can open a second Bridge socket and call any
   host method directly — far faster than clicking. The exact snippet is in
   `docs/e2e-driving.md`.
@@ -166,7 +171,11 @@ the whole Worker — entry, routes, tests — lives under one directory.
 ### `UserHost` — one Durable Object per user
 
 Addressed `env.UserHost.getByName("user:" + userId)`, where the userId is
-derived from the caller's own credential and never appears in a path. It serves
+derived from the caller's own credential: no `/v1/host/*` path carries one, so a
+caller holding no session cannot bring an object into existence by naming one.
+(`POST /v1/agent/:userId/report` is the one route with the id in its path — the
+container holds no session — and there the segment must AGREE with the token's
+own claim before an object is named.) It serves
 that user's whole Bridge — every host method and event channel the registry
 declares — over one hibernatable WebSocket per client, and it owns everything
 that user has: the vault manifest, the JsonStores, the knowledge index, the
@@ -193,9 +202,10 @@ chat transcript, the background lane, the tickets and the budgets.
   channel is the LAST step of building a capability; retiring one deletes it.
 - **Six ways in besides the socket**, split by transport or credential, never by
   capability: the ticket mint, the asset upload too large for a frame, the deep
-  link that arrives as a navigation, the vault export, the container's report,
-  and the provider's OAuth redirect. The last two carry a token this Worker
-  minted, because neither caller has a session.
+  link the `/app/link` page POSTs, the vault export that arrives as a
+  navigation, the container's report, and the provider's OAuth redirect. The
+  last two carry a token this Worker minted, because neither caller has a
+  session.
 
 ### The vault
 
@@ -403,10 +413,13 @@ command palette.
   is `@repo/notes/knowledge/vault-search`, shared verbatim with the agent's
   `search_vault`, so there is no separate tag browser to drift from it. "New
   note from template…" applies `templates/*.md` with `{{date}}`/`{{title}}`
-  substitution; ⌘D opens or creates today's `journal/YYYY-MM-DD.md` (Settings →
-  Notes configures folder and format); "Read page aloud" speaks the open note
-  over the TTS path (hidden for private notes, fail-closed re-check before
-  sending).
+  substitution. **Three periodic cadences** (`@repo/bridge/daily-notes`'s
+  `CADENCES` — daily, weekly, monthly), each a palette command that opens or
+  creates the current one, each with its own folder, filename format and
+  `templates/<cadence>.md`, all configured in Settings → Notes; `CADENCE_ORDER`
+  is the display order every surface iterates. ⌘D is the daily one specifically.
+  "Read page aloud" speaks the open note over the TTS path (hidden for private
+  notes, fail-closed re-check before sending).
 - **Tasks view**: a palette-launched alternate main surface like the graph, over
   the projection's per-doc task extraction (every GFM `- [ ]` is a task;
   per-note `tasks: false` opts out). Scheduling is association — first
@@ -419,6 +432,15 @@ command palette.
 - **HTML apps are OFF** (§ Decisions). The workspace still opens a vault
   `.html` as an app, and the host's injected runtime REFUSES with a sentence the
   user can act on — "Open as text" reads the source.
+- **Settings → Notifications is STORED AND UNWIRED**, and it is the one live
+  violation of the rule two sections up. "Notify when idle" persists through
+  `getNotificationSettings`/`updateNotificationSettings` into the host's
+  `notifications` JsonStore, and nothing reads it back: there is no
+  `new Notification(...)` anywhere, in the workspace or in the shell. The switch
+  therefore promises an OS notification no surface delivers. Building the
+  capability or deleting the section, the two channels and the store are both
+  answers; leaving it is not, because "adding a channel is the LAST step" exists
+  to stop exactly this.
 
 ## IPC / Bridge
 
@@ -540,8 +562,11 @@ record for the decisions code comments cite.
   Durable Object has exactly one pending alarm, so a second concern that calls
   `setAlarm` for itself silently cancels whatever was already armed. The
   multiplex is therefore structural: every concern runs its sweep in `alarm()`,
-  every concern answers `nextDueAt` with when it next needs waking, the alarm is
-  re-armed at the earliest of them, and `setAlarm` appears in exactly one place.
+  every concern answers `nextDueAt` with when it next needs waking, and the
+  alarm is re-armed at the earliest of them. `setAlarm` is confined to
+  `UserHost` and to two call sites that both arm at `nextDueAt(now)` — the tail
+  of `alarm()`, and `armAlarm` behind the post-mutation `refreshAlarm`. No
+  concern arms for itself; that is the invariant, not the call count.
   Adding a concern is a sweep plus a row in `nextDueAt`. A `setTimeout` is never
   the answer either — a pending timer PINS the object in memory, which is the
   hibernation the whole transport exists to get, and it dies with the eviction
@@ -819,7 +844,8 @@ export` over `src/worker/db/schema.ts`, so the suite always runs the schema the
 - **No coverage tooling, on purpose** (no provider in any vitest config, no CI
   step). This repo enforces targeted invariants STRUCTURALLY — no-dead-channels,
   no-ungated-dispatch, handler completeness, kit-parity, no-orphan-components,
-  the dep-DAG paragraph, agent-grant parity — rather than via a global
+  the dep-DAG paragraph, agent-grant parity, exact payload schemas, the pi
+  quarantine — rather than via a global
   percentage that would be satisfied by tests asserting nothing. A derived
   fitness test that fails when a THIRD dispatch path appears is worth more than
   a coverage number. If coverage is ever added: `coverage.include` is MANDATORY

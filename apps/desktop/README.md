@@ -51,7 +51,8 @@ never acts on a link. It validates the URL against the scheme's one grammar
 (`@repo/bridge/deep-link`, the same parser the Worker runs) and re-emits it as
 `/app/link?verb=…`, built from the parsed verb with a named parameter each,
 never by forwarding the query whole. The client page at that route reads it and
-calls the Worker with the user's own bearer.
+calls the Worker same-origin, so the session cookie authenticates it — that page
+holds no token, deliberately (`apps/web/src/lib/auth-client.ts` says why).
 
 `session` is dropped rather than translated: it completed a social sign-in for a
 host that had minted the state nonce, and this shell holds no session.
@@ -64,6 +65,13 @@ INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop
 
 Opens the window with CDP on 9222 — `agent-browser connect 9222` attaches to it.
 F12 toggles devtools in a dev build.
+
+Drop the variable and the window loads `https://inteligir.com`: the fallback is
+production, and a change "verified" there was verified against the live product.
+It reaches `electron-vite` because `turbo.json` here names it in `dev`'s
+`passThroughEnv` — turbo runs in strict env mode and strips anything unnamed, so
+a variable that works from a bare `pnpm --filter @repo/desktop dev` can still be
+missing under `pnpm dev:desktop`.
 
 ## Packaging
 

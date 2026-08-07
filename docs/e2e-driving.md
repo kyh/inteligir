@@ -21,9 +21,9 @@ in `apps/web/.dev.vars`:
 AGENT_RUNTIME=scripted
 ```
 
-A deployment without the Workers Paid plan or a built image gets it anyway —
-there is nothing to fail closed, because a scripted container cannot reach a
-provider at all.
+It is opt-in, not a fallback. `sandboxRuntimeEnabled` keys entirely off this one
+variable, so a deployment with no Workers Paid plan and no image still gets the
+real port unless it sets this, and fails at container boot.
 
 ## Getting a signed-in page
 
@@ -31,9 +31,11 @@ provider at all.
 pnpm dev:web
 ```
 
-Then sign in — `apps/web/README.md` § Dev has the four commands that materialize
-the local D1 file, push the schema, mint an invite and create an account.
-`agent-browser open http://localhost:5174/app` lands you on the workspace.
+Then sign in — `AGENTS.md` § "There is no seeded login" has the commands that
+materialize the local D1 file, push the schema and mint an invite; the account
+itself is made in the browser at `/app/sign-up`, which the sign-in page links
+to. `agent-browser open http://localhost:5174/app` then lands you on the
+workspace.
 
 ## Driving the Bridge directly
 
@@ -47,6 +49,11 @@ cookie. There is no userId in the URL and no session token in the page: the
 object is derived from the cookie the mint carries, and the socket spends the
 ticket in its first frame. Pipe the script in with `agent-browser eval --stdin`
 — a top-level `await` is not available, so wrap it in an async IIFE.
+
+`call` is scoped to that IIFE and does NOT survive to the next `agent-browser
+eval`. The snippet's last line parks it on `window`, so the flows below can run
+as their own evals against the same socket until the page reloads; drop that
+line and each eval has to re-mint and re-dial inside its own IIFE.
 
 ```js
 (async () => {
@@ -76,6 +83,8 @@ ticket in its first frame. Pipe the script in with `agent-browser eval --stdin`
     });
   ws.onopen = () => ws.send(JSON.stringify({ t: "auth", ticket: minted.ticket }));
   await welcomed;
+  // Parked so the flows below can be their own evals against this same socket.
+  window.call = call;
   return await call("readVaultDoc", { path: "Welcome.md" });
 })();
 ```
@@ -83,15 +92,24 @@ ticket in its first frame. Pipe the script in with `agent-browser eval --stdin`
 ## Flow 1 — a chat turn
 
 `setFauxAgentScript` replaces the scripted container's response queue; one step
-is consumed per assistant turn, and the queue is SHARED by chat and the
-background lane — script, then drive exactly one flow before re-scripting. Empty
-`steps` restores the self-refilling echo. It throws unless the runtime is
-scripted, so it does nothing on a real deployment.
+is consumed per assistant turn, and BOTH lanes are seeded with the same steps —
+two independent queues, each drained on its own, so a stray chat turn does not
+eat the background lane's step. Script, then drive exactly one flow before
+re-scripting. Empty `steps` restores the self-refilling echo. It throws unless
+the runtime is scripted, so it does nothing on a real deployment.
 
-`getAgentSystemPrompt` is the assertion seam beside it: a payload-free call
-returning the live chat agent's system prompt (`string`, or `null` before a turn
-has composed one), so a prompt-shaping change can be asserted byte-for-byte
-instead of inferred from model behavior.
+**The queue does not survive hibernation.** It lives in an in-memory field on
+the Durable Object, and an idle object with open sockets is evicted — a minute
+of clicking around between scripting and sending is enough to lose it. Script
+IMMEDIATELY before the turn, and read an echoed reply (`[scripted] <your
+message>`) as "the script was dropped, re-script and retry", never as a bug in
+whatever you just changed.
+
+`getAgentSystemPrompt` is the assertion seam beside it: a payload-free call that
+composes and returns the chat agent's system prompt from the current vault
+(always a `string`, on any runtime, before any turn has run), so a
+prompt-shaping change can be asserted byte-for-byte instead of inferred from
+model behavior.
 
 1. Script the reply, over the Bridge:
    `call("setFauxAgentScript", { steps: [{ text: "SCRIPTED_CHAT_REPLY_42" }] })`
@@ -105,6 +123,9 @@ instead of inferred from model behavior.
 The background lane runs the same scripted container, so a scripted tool call
 performs the checkbox write-back. The delegation completes when the turn ends
 AND the file is edited, so seed the note with known content first.
+
+The body below still needs its own `async () => { … }` wrapper per eval (top-
+level `await` is unavailable); `call` is the one the snippet parked on `window`.
 
 ```js
 const file = "scripted-delegation-test.md";

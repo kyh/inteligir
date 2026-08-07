@@ -26,7 +26,7 @@ turns that premise into CI.
 - `packages/notes/src/markdown/vocabulary.ts` — the whole gate, ~100 lines.
 - `packages/editor/src/__tests__/markdown-roundtrip.test.ts` — the fixture
   matrix contract, stated at the top of the file.
-- CLAUDE.md § "UI — one fixed workspace" for where the pipeline sits.
+- CLAUDE.md § "The workspace UI" for where the pipeline sits.
 
 ## Decide first: does the node have bytes, and in what syntax?
 
@@ -115,10 +115,11 @@ plugin key must also join `VOCABULARY_PLUGIN_KEYS` in that test.
 ### 4. The markdown rule — `editor/markdown/md-rules.ts`
 
 Only if the node has bytes. Check whether `@platejs/markdown`'s `defaultRules`
-already handles it: `column`, `column_group`, `date`, `equation`,
-`inline_equation` are free from defaults (fixture-test them, do NOT redefine).
-Some defaults are wrong for this repo and get wrapped with delegation (`a`,
-`table`, `blockquote`), and some ship a type-table entry with no rule at all:
+already handles it: `column_group`, `equation` and `inline_equation` are free
+from defaults (fixture-test them, do NOT redefine). `column` and `date` needed
+one-directional overrides — see below for both traps. Some defaults are wrong
+for this repo and get wrapped with delegation (`a`, `table`, `blockquote`), and
+some ship a type-table entry with no rule at all:
 
 ```ts
   // Plate maps `toggle` in its type table but ships NO rule — serializing a
@@ -215,9 +216,10 @@ serialized as expanded blank content re-parsed to zero children and re-emitted
 self-closed, a non-idempotent first pass that knocks the file to Raw on the
 next autosave.
 
-`canonical/kitchen-sink.md` is also the dev harness's full-vocabulary sample
-note (`fixture-bridge.ts` imports it) — a vocabulary addition belongs there so
-the harness exercises it.
+`canonical/kitchen-sink.md` is also the fixture vault's full-vocabulary sample
+note (`__tests__/sample-notes.ts` imports it; `dev/fixture-bridge.ts` serves it
+to the UI suites) — a vocabulary addition belongs there so the corpus test
+covers it.
 
 ## Rules
 
@@ -227,7 +229,9 @@ the harness exercises it.
 - `deserializeMd` from `@platejs/markdown` is BANNED in app code — its regex
   `htmlToJsx` pre-pass is fence-unaware and rewrites HTML inside fenced blocks.
   Parse through `parseMdast` + `scanVocabulary` + `mdastToSlate`
-  (`markdown-kit.ts` replaces the stock paste parser for this reason).
+  (`markdown-kit.ts` replaces the stock paste parser for this reason). Nothing
+  lints for this and no test greps for it: the ban is convention, and
+  `markdown-kit.ts` replacing the stock parser is its only structural reminder.
 - Transient state (AI marks, combobox inputs, open/collapsed) never touches the
   node or the bytes. `toggle`'s open state lives in the plugin's `openIds`
   store precisely so a collapse cannot dirty the document.
@@ -245,7 +249,7 @@ pnpm --filter @repo/notes test      # vocabulary + remark stack, if you touched 
 pnpm --filter @repo/editor typecheck
 ```
 
-The desktop suite is the gate. What each part catches:
+The `@repo/editor` suite is the gate. What each part catches:
 
 - `__tests__/markdown-roundtrip.test.ts` — the canonical/churn/raw matrix.
 - `__tests__/kit-parity.test.ts` — shared `MarkdownPlugin` by reference, the
@@ -255,7 +259,7 @@ The desktop suite is the gate. What each part catches:
   `markdown-adversarial.test.ts` — generated and hostile inputs; a new node
   reaches them for free.
 - `__tests__/markdown-corpus.test.ts` — real markdown from this repo plus every
-  harness sample note, each pinned to an explicit expected classification, so a
+  fixture-vault sample note, each pinned to an explicit expected classification, so a
   pipeline change that moves a file between classes is a red diff.
 - `__tests__/editor-kits.test.ts` — the live-editor transforms (insert,
   normalize) that feed serialization.

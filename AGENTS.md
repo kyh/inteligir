@@ -16,19 +16,35 @@ excuse for leaving a UI change "unverified".
 
 ```sh
 pnpm install
+cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET
 pnpm dev:web        # → the real Worker on miniflare, http://localhost:5174
 ```
 
 That's the whole setup. `pnpm dev:web` runs the product: the site, the auth API,
 the Durable Object, the vault, the index and the agent path — all in-process, no
-deploy, no cloud account. (Driving it at runtime also wants the `agent-browser`
-binary — one `npm i -g`, see below.)
+deploy, no cloud account. Two prerequisites it does not announce:
+
+- **`.dev.vars` must exist first.** `BETTER_AUTH_SECRET` is what makes
+  `/api/auth/*` answer at all, and `HOST_ALLOWED_ORIGINS=http://localhost:5174`
+  is what admits the dev origin to the ticket mint. The example file carries
+  both, plus `AGENT_RUNTIME=scripted`.
+- **A running Docker daemon.** `wrangler.jsonc` declares a `containers` block,
+  so the vite plugin builds the agent image before the server binds — before any
+  Worker code reads `AGENT_RUNTIME`. Without Docker the start exits with "The
+  Docker CLI is needed to build the configured image before running dev". The
+  test suites need none of it.
+
+(Driving it at runtime also wants the `agent-browser` binary — one `npm i -g`,
+see below.)
 
 The shell around it, when you're changing the shell:
 
 ```sh
 INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop   # Electron, CDP :9222
 ```
+
+The variable is load-bearing, not decoration: without it the window loads
+`https://inteligir.com` and a change gets "verified" against production.
 
 There is no backend-free UI harness. `packages/workspace/src/dev/fixture-bridge.ts`
 is an in-memory Bridge that the workspace's own tests drive; nothing serves it as
@@ -39,8 +55,8 @@ an app. To see the UI, run the Worker.
 `pnpm install` is the only provisioning step — there is no bootstrap script and
 nothing else to stand up. (`.codex/environments/environment.toml` runs `pnpm i`
 for cloud runners.) Requirements: **Node ≥ 24** and **pnpm 10**
-(`corepack enable`). The Worker and its tests run anywhere; only the Electron
-shell wants macOS to package.
+(`corepack enable`), plus **Docker** for `pnpm dev:web` only. Every test suite
+runs anywhere; only the Electron shell wants macOS to package.
 
 One footgun that bites fresh checkouts:
 
@@ -63,7 +79,9 @@ pnpm dev:web                                       # vite dev on :5174
 curl -s -o /dev/null localhost:5174/api/auth/get-session
 pnpm --filter @repo/web db:push:local
 
-# Sign-up is invite-gated and there is no self-serve issuance. Mint one:
+# Sign-up is invite-gated and there is no self-serve issuance. Mint one.
+# `code` is the primary key, so re-running this literal command after a code has
+# been minted fails on the constraint — pick a fresh string each time:
 pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --local \
   --command "INSERT INTO invite_code (code) VALUES ('DEV-INVITE-001')"
 ```
@@ -110,8 +128,8 @@ agent-browser get text                      # assert what changed
 agent-browser screenshot /tmp/after.png
 ```
 
-For the shell, `pnpm dev:desktop` then `agent-browser connect 9222` attaches to
-its window over CDP.
+For the shell, `INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop` then
+`agent-browser connect 9222` attaches to its window over CDP.
 
 Two things worth knowing before you reach for the UI:
 
@@ -128,11 +146,11 @@ Two things worth knowing before you reach for the UI:
 
 ## Platform matrix
 
-| Surface       | Dev command                      | Where     | Agent-verifiable at runtime?                                                    |
-| ------------- | -------------------------------- | --------- | ------------------------------------------------------------------------------- |
-| Web (product) | `pnpm dev:web`                   | :5174     | **Yes** — `agent-browser open`; API by curl; `-F @repo/web test` runs miniflare |
-| Desktop shell | `pnpm dev:desktop`               | CDP :9222 | **Yes** — `agent-browser connect 9222`                                          |
-| Mobile (Expo) | `pnpm --filter @repo/mobile dev` | simulator | **No** — verify with `typecheck` + `test`                                       |
+| Surface       | Dev command                            | Where     | Agent-verifiable at runtime?                                                    |
+| ------------- | -------------------------------------- | --------- | ------------------------------------------------------------------------------- |
+| Web (product) | `pnpm dev:web`                         | :5174     | **Yes** — `agent-browser open`; API by curl; `-F @repo/web test` runs miniflare |
+| Desktop shell | `INTELIGIR_APP_URL=… pnpm dev:desktop` | CDP :9222 | **Yes** — `agent-browser connect 9222`                                          |
+| Mobile (Expo) | `pnpm --filter @repo/mobile dev`       | simulator | **No** — verify with `typecheck` + `test`                                       |
 
 5174 is PINNED (`strictPort`), so a stale process holding it fails the start
 rather than moving the app somewhere the docs don't name. It matters more than

@@ -15,9 +15,11 @@ transport and an HTML-app runtime, and that is the whole contract.
 
 ```
 src/
-  app-root.tsx         # App: providers, the boot splash, the workspace
+  app-root.tsx         # App: providers, and the switch between the two surfaces
+  onboarding/
+    onboarding-page.tsx # the pre-ready surface (starting / setting_up), with Retry
   workspace/
-    workspace-page.tsx # THE surface: sidebar | editor | bottom composer
+    workspace-page.tsx # the ready surface: sidebar | editor | bottom composer
     vault-context.tsx  # the cadence-split VaultProvider (see Invariants)
     connections-panel.tsx, graph-view.tsx, tasks-view.tsx
                        # backlinks under the editor; the two lazy alt surfaces
@@ -37,6 +39,12 @@ src/
   voice/               # dictation + read-aloud + the narration wiring
   stores/              # agent (chat), ui-state, view, voice
   ai-elements/         # the chat message primitives
+  components/          # app-wide chrome app-root mounts: error boundary,
+                       # reauth dialog, theme toggle, the orb
+  layout/header.tsx    # the title row, breadcrumb and Page details popover
+  lib/                 # use-disk-state (ui-state through the Bridge) +
+                       # use-theme (the workspace's own ThemeProvider binding)
+  styles/globals.css   # the app's Tailwind entry over @repo/ui/globals.css
   dev/
     fixture-bridge.ts  # the in-memory Bridge the suites mount against
     wasm-sql-driver.ts # SQLite wasm behind it, so the REAL knowledge engine runs
@@ -44,9 +52,13 @@ src/
 
 ## Invariants
 
-- **The Bridge is the only way out.** No fetch, no transport, no host import.
-  `getBridge()` throws until a host installs one, which is what keeps the
-  package honest.
+- **The Bridge is the only way out.** "No host import" is ENFORCED — a package
+  fact (`@repo/web` is not a dep) that `tools/repo-guards`' dep-DAG suite pins.
+  "No fetch, no transport of its own" is CONVENTION: nothing lints for it, and
+  it holds today (zero `fetch(` in `src`). The deliberate exceptions live in
+  `apps/web` — the export URL the account section renders is a same-origin path
+  handed in, not a request made here. `getBridge()` throws until a host installs
+  one, which enforces install ORDER rather than exclusivity.
 - **`vault-context.tsx`'s three seams are a CONTRACT, not an optimization.**
   Actions have fixed identity so action-only consumers never re-render; the
   listing changes only on a structural refresh; the open note lives in a zustand

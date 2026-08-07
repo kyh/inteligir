@@ -495,15 +495,18 @@ export const IPC = {
   reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>(),
   /** Dev-only (AGENT_RUNTIME=scripted; throws otherwise): replace the scripted
    * container's queued responses so a headless E2E drive scripts exact agent
-   * turns. One step is consumed per assistant turn, and BOTH lanes share one
-   * queue (chat + background — script, then drive exactly one flow). Empty
-   * `steps` restores the self-refilling echo. */
+   * turns. One step is consumed per assistant turn, and BOTH lanes are seeded
+   * with the same steps — two independent queues, each drained on its own, so a
+   * chat turn does not eat the background lane's step. The queues live in the
+   * container's memory and do not survive hibernation: script immediately
+   * before the turn, and read an echoed reply as "the script was dropped".
+   * Empty `steps` restores the self-refilling echo. */
   setFauxAgentScript: invoke<typeof FauxAgentScriptSchema, void>(FauxAgentScriptSchema),
-  /** Dev-only (AGENT_RUNTIME=scripted; throws otherwise): the chat session's
-   * composed system prompt, or null before the agent starts. Lets a headless
+  /** The chat agent's system prompt, composed from the vault on every call —
+   * so it answers before any turn has run, and on any runtime. Lets a headless
    * E2E drive assert injected context (e.g. vault/AGENTS.md instructions)
-   * actually reached the constructed session. */
-  getAgentSystemPrompt: invokeVoid<string | null>(),
+   * byte-for-byte instead of inferring it from model behavior. */
+  getAgentSystemPrompt: invokeVoid<string>(),
 
   // AI provider — WHICH provider+model the agent surfaces run on. These
   // channels move only the SELECTION and per-provider connected booleans; the

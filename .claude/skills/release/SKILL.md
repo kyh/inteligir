@@ -1,6 +1,6 @@
 ---
 name: release
-description: Bump, build, notarize, and ship a new version of the Inteligir Electron desktop app to GitHub Releases (the electron-updater feed — installed clients check it but do not yet auto-download). Use when the user wants to cut/ship a desktop release. Args optional: bump type, e.g. "release patch", "release minor".
+description: Bump, build, notarize, and ship a new version of the Inteligir Electron desktop app to GitHub Releases — the electron-updater feed installed clients auto-download from. Use when the user wants to cut/ship a desktop release. Args optional: bump type, e.g. "release patch", "release minor".
 allowed-tools: Bash(*), Read, Edit, Write
 ---
 
@@ -8,17 +8,15 @@ allowed-tools: Bash(*), Read, Edit, Write
 
 Cut a new version of the Inteligir desktop app and publish it to GitHub Releases.
 
-**Publishing is not yet distribution.** `apps/desktop/src/main/updater.ts` sets
-`autoDownload = false` and `autoInstallOnAppQuit = false` — a deliberate deferral until a UI
-consumes update state — so today an installed client only _checks_ the feed (on a 15s startup
-delay and from "Check for Updates…") and logs the result. Nothing downloads, nothing installs,
-nobody is notified. Users get a new version by downloading it themselves. Step 7's report block
-says the same thing; keep the two in agreement.
+**Publishing IS distribution.** `apps/desktop/src/main/updater.ts` sets
+`autoDownload = true` and `autoInstallOnAppQuit = true`: an installed client checks the feed on a
+15s startup delay and from "Check for Updates…", downloads what it finds, and offers "Restart
+now" / "Later" — and a declined restart still installs on the next quit. So a release reaches
+users on its own. Step 7's report block says the same thing; keep the two in agreement.
 
-What this runbook does buy is the **precondition** for auto-update once the download path is
-turned on: electron-updater installs only from the **zip** listed in `latest-mac.yml` (the dmg is
-first-install only), so a release is only useful later if the zip ships and is listed — which is
-what step 6 verifies.
+That makes step 6 the load-bearing check rather than a formality: electron-updater installs only
+from the **zip** listed in `latest-mac.yml` (the dmg is first-install only), so a release whose
+zip is missing or unlisted strands every install on its current version.
 
 ## Context
 
@@ -74,7 +72,7 @@ Edit `version` in `apps/desktop/package.json`. Keep semver. If a published relea
 
 ### 3. Changelog
 
-Prepend a new entry to `apps/desktop/CHANGELOG.md` (create if missing). Source bullets from `git log --pretty='- %s' ${LAST:+$LAST..}HEAD`, dropping merge commits, previous `release:` commits, and pure dependency bumps. The whole repo bundles into the app, so repo-wide log is correct here. Format:
+Prepend a new entry to `apps/desktop/CHANGELOG.md` (create if missing). Source bullets from `git log --pretty='- %s' ${LAST:+$LAST..}HEAD -- apps/desktop packages/bridge`, dropping merge commits, previous `release:` commits, and pure dependency bumps. Scope it that way rather than repo-wide: this artifact is the main process alone (`electron.vite.config.ts` declares only a `main` build, and `.output/app/main/index.js` is the whole bundle), whose one workspace dep is `@repo/bridge`. An `apps/web` change ships by deploying the Worker and is not in this build. Format:
 
 ```markdown
 # Changelog
@@ -124,12 +122,11 @@ Released: Inteligir v<version>
   assets: dmg + zip (+ blockmap) + latest-mac.yml (zip listed: yes/no)
 Commit: <sha> (pushed to origin/<branch>)
 Tag: v<version> (created by electron-builder, fetched locally)
-Auto-update: zip is in latest-mac.yml — the precondition for electron-updater.
-  Clients do NOT pick this up on their own: autoDownload/autoInstallOnAppQuit
-  are both off (updater.ts), so an installed app only checks and logs. Users
-  update by downloading this release themselves.
+Auto-update: zip is in latest-mac.yml, so installed clients pick this up on
+  their own — they check within 15s of launch, download, and prompt to restart
+  (declining installs it on the next quit).
   End-to-end update (installed older build → this one) is NOT yet verified;
-  don't claim clients will pick it up until that's been run once.
+  say "should" rather than "will" until that's been run once.
   Note: installs of v0.3.0 and earlier shipped from dmg-only releases and
   cannot self-update — they need a manual reinstall.
 ```

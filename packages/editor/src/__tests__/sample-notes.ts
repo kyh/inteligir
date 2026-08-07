@@ -1,4 +1,5 @@
-// The dev harness vault, shared with the editor's legacy-corpus tripwire:
+// The fixture vault the UI suites mount (dev/fixture-bridge.ts serves it),
+// shared with the editor's legacy-corpus tripwire:
 // every sample note carries an expected canonical/raw class as the markdown
 // pipeline evolves, so a plugin change that silently reclassifies prose is a
 // red diff rather than a surprise.

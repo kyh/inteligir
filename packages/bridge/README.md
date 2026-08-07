@@ -22,8 +22,12 @@ src/
                         # auth/req/send → welcome/res/evt; close codes; binary tags
   ws-bridge.ts          # the Bridge over a WebSocket (browser + React Native);
                         # ticket minter, reconnect supervisor, request queue
+  client.ts             # installBridge / getBridge — the module-level Bridge
+                        # slot a host fills before first render; getBridge()
+                        # throws until it does
   backoff.ts            # the ONE capped-exponential retry-delay policy (schedule injected)
-  wire-helpers.ts       # isRecord (re-export from notes), toErrorMessage, isHttpUrl
+  wire-helpers.ts       # isRecord (THE definition — every wire boundary parses
+                        # through it), toErrorMessage, isHttpUrl, extractText
   deep-link.ts          # inteligir:// pure parser + sanitizer — exactly six verbs
   agent-grants.ts       # the agent's capability policy: granted tiers + the
                         # never-granted set, each with a reason written for a model
@@ -38,7 +42,10 @@ src/
   delegation.ts, routines.ts, routine-schedule.ts
                         # delegation wire shapes; routine model + pure due-math
   ui-state.ts, daily-notes.ts
-                        # ui-state keys, daily-note/template conventions
+                        # ui-state keys; the three periodic cadences (daily,
+                        # weekly, monthly) with their folders/formats/templates,
+                        # plus the template substitution rules
+  voice.ts              # the voice constants both ends share
 ```
 
 ## Invariants
@@ -61,8 +68,11 @@ src/
 - The ws-bridge reconnect supervisor is the ONLY retry owner; `unauthorized`
   (close 4401) is terminal. `HYDRATED_EVENTS` re-pushes stateful event
   channels on reconnect — full event replay is deliberately not provided.
-- Payload schemas we construct are exact (`additionalProperties: false`), so a
-  field the host does not know about is a refusal rather than a silent drop.
+- Payload schemas are exact (`additionalProperties: false`), so a field the host
+  does not know about is a refusal rather than a silent drop — union members
+  included, since a loose member admits excess fields exactly as a loose
+  top-level object would. Pinned by `src/__tests__/payload-schemas.test.ts`,
+  which found `readChatSession` the first time it ran.
 
 ## Seams
 
@@ -81,4 +91,5 @@ caps; `ws-protocol.test.ts` pins frame parsing (malformed → null);
 `routine-schedule.test.ts` pins the one-comparison due rule;
 `chat-log.test.ts` folds the shared fixture stream (`chat-log-fixtures.ts`,
 also exported to the workspace's suites); `agent-grants.test.ts` pins that the
-grant table weighs every non-event channel exactly once.
+grant table weighs every non-event channel exactly once;
+`payload-schemas.test.ts` pins schema exactness.

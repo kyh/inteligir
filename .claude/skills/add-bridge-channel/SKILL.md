@@ -9,9 +9,11 @@ allowed-tools: Bash(*), Read, Edit, Write
 The Bridge is the ONLY way the workspace reaches the host.
 `packages/bridge/src/ipc-registry.ts` is its single source of truth: each entry
 pairs a TypeBox payload schema with a result/event type, and the `Bridge` type,
-the socket's dispatch, and the host handler map are all DERIVED from it. A
-channel is not "wired up" until three files agree, and the compiler enforces all
-three.
+the socket's dispatch, and the host handler map are all DERIVED from it.
+
+A channel takes **five** edits. The compiler catches three of them (registry,
+handler, fixture); the other two are tests that go red with no type error to
+point at — the agent grant table (§7) and the pinned `IMPLEMENTED` list (§8).
 
 ## Read first
 
@@ -21,7 +23,7 @@ three.
 - `apps/web/src/worker/host/handler-registry.ts` — `collectHandlers`, which
   validates payloads and throws at boot on a missing or duplicate handler.
 - `packages/workspace/src/dev/fixture-bridge.ts` — the header's stub convention.
-- CLAUDE.md § "Client capability is an ALLOWLIST, never a blocklist".
+- CLAUDE.md § "The companion capability set is an ALLOWLIST, never a blocklist".
 
 ## The four entry kinds
 
@@ -29,7 +31,7 @@ three.
 invoke<Schema, Result>(schema); // UI → host, payload, awaited result
 invokeVoid<Result>(); // UI → host, no payload, awaited result
 send<Schema>(schema); // UI → host, fire-and-forget (throws are swallowed + logged)
-event<Payload>(); // host → UI push; no handler, emitted via emitEvent
+event<Payload>(); // host → UI push; no handler, emitted via services.events.emit
 ```
 
 Pick `invoke` unless the call genuinely has nothing to say back. Failure that
@@ -84,6 +86,12 @@ One `register<Domain>Handlers(handle, services)` per domain file, all called
 from `host/handlers.ts`. The registrar is per-method typed: the payload and
 result types come from the registry, so a typo'd method name is a compile error.
 
+The path holds for `agent/`, `ai/`, `background/`, `capture/`, `skills/` and
+`voice/`. Vault and knowledge are the exception: `host/vault-handlers.ts` and
+`host/knowledge-handlers.ts` sit beside the objects that own them.
+
+Every vault read on this host is async, so most handlers are too:
+
 ```ts
 export function registerKnowledgeHandlers(
   handle: HandlerRegistrar,
@@ -91,7 +99,8 @@ export function registerKnowledgeHandlers(
   vault: UserVault,
 ): void {
   handle("listVaultTasks", () => knowledge.tasks());
-  handle("toggleVaultTask", ({ path, ordinal, expectedRaw }): ToggleTaskResult => {
+  handle("toggleVaultTask", async ({ path, ordinal, expectedRaw }): Promise<ToggleTaskResult> => {
+    const text = await vault.readText(path);
     ...
   });
 }
@@ -99,8 +108,8 @@ export function registerKnowledgeHandlers(
 
 Services arrive as ARGUMENTS, from the Durable Object that constructed them.
 There are no `getX()` singletons here and there must not be: one isolate serves
-many users, so a module-level instance is a cross-tenant bug (CLAUDE.md § "One
-host per user is a Durable Object").
+many users, so a module-level instance is a cross-tenant bug (CLAUDE.md
+§ "Nothing is module scope. Ever.").
 
 **Every channel is answered for real.** There is no shim table and no "not
 available yet" registration: a method that answers only by refusing passes both
@@ -110,8 +119,9 @@ Retiring one deletes the channel.
 
 ### 3. Fixture stub — `packages/workspace/src/dev/fixture-bridge.ts`
 
-The harness's Bridge is typed `: Bridge`, so this file **fails typecheck until
-the channel is covered**. The convention from its header:
+The UI suites' fixture Bridge is typed `: Bridge`, so this file **fails
+typecheck until the channel is covered**. Nothing serves it as an app — to see
+the UI you run the real Worker. The convention from its header:
 
 > Make the stub DO something real against the in-memory state, or throw
 > `unavailable("<feature>")` naming the gap. Never silently return
@@ -149,11 +159,13 @@ const result = await getBridge()
 
 ### 5. Events only — emit, and decide about hydration
 
-Host code emits through `host/host-events.ts`; the object subscribes and fans
-out to every socket the class gate allows.
+Host code emits through the `HostEvents` bus in `host/host-events.ts`; the
+object subscribes and fans out to every socket the class gate allows. The bus is
+an INSTANCE handed in with the services, never a free function — a module-level
+listener set would fan one user's events onto another user's sockets.
 
 ```ts
-      () => emitEvent("onKnowledgeUpdated", {}),
+      () => services.events.emit("onKnowledgeUpdated", {}),
 ```
 
 If the event carries **state a late-joining client must not be stale about**,
@@ -161,8 +173,8 @@ pair it with the getter that answers the same shape in `HYDRATED_EVENTS`:
 
 ```ts
 export const HYDRATED_EVENTS = {
-  onAccountStateChanged: "getAccountState",
   onAppState: "getAppState",
+  onDelegationsUpdated: "listDelegations",
   ...
 } as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
 ```
@@ -190,6 +202,14 @@ never-granted group whose `why` already fits. A GRANT is a separate
 implementation host-side in `agent-tools.ts` — never the handler you just
 wrote, which is written for a person looking at their own vault.
 
+### 8. The pinned implemented list — the edit no compiler asks for
+
+`apps/web/src/worker/__tests__/host-handlers.test.ts` holds `IMPLEMENTED` as a
+literal array, "pinned as a list rather than derived, so a channel arriving or
+leaving is a diff someone had to write down". Append the method AND bump the two
+`toHaveLength(63)` counts beside it; both go red otherwise, with no type error
+to point at the cause. This is the step people miss.
+
 ## Rules
 
 - Never widen a payload with `Type.Any()`. `Type.Unknown()` emits the same wire
@@ -201,11 +221,13 @@ wrote, which is written for a person looking at their own vault.
 - Don't add a `dispatch.get(...)` or a fresh socket loop in `user-host.ts`.
   Route through `resolveHandler()` / `sendEvent()`; a second gate call site is
   how holes appear, and `no-ungated-dispatch.test.ts` fails when one shows up.
-- Deleting a channel is also three files plus its callers — leave no orphan
-  registry entry.
-- Naming a channel in prose (a doc, this skill) counts as a CALLER to the
-  dead-channel guard, which scans `docs/` and `.claude/` too. Don't write a
-  channel's name into documentation to keep a test green.
+- Deleting a channel is the same five edits in reverse, plus its callers — leave
+  no orphan registry entry and no stale `IMPLEMENTED` row.
+- Naming a channel in prose counts as a CALLER to the dead-channel guard, which
+  scans `docs/` and `.claude/` too — so don't write a channel's name into
+  documentation to keep a test green. The two blueprint skills (this one and
+  `add-editor-node`) are the exception: the guard excludes them as SUPPLY,
+  precisely so a worked example cannot prop a dead channel up.
 
 ## Verify
 
@@ -215,14 +237,14 @@ Static, narrow first:
 pnpm --filter @repo/bridge typecheck      # registry compiles, derived Bridge type is sound
 pnpm --filter @repo/workspace typecheck   # the fixture Bridge covers the channel
 pnpm --filter @repo/web test              # handler completeness + gate guards
-pnpm --filter @repo/bridge test           # ws protocol + grant-table completeness
+pnpm --filter @repo/bridge test           # ws protocol, grant table, schema exactness
 pnpm --filter @repo/repo-guards test      # no dead channels
 ```
 
 `pnpm --filter @repo/web test` is the one that matters. It runs:
 
 - `src/worker/__tests__/host-handlers.test.ts` — the registered map is exactly
-  `HOST_METHODS`, and the pinned implemented list still covers all of it.
+  `HOST_METHODS`, and the pinned `IMPLEMENTED` list (§8) still covers all of it.
 - `src/worker/__tests__/no-ungated-dispatch.test.ts` — the class gate still has
   exactly two chokepoints.
 - `src/worker/__tests__/user-host.test.ts` — a real client over the real object.
