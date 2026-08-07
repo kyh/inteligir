@@ -42,7 +42,7 @@ import type { IpcMethod } from "./ipc-registry";
  * window has ever asked, so there is no method to name after. */
 export const KNOWLEDGE_ONLY_CAPABILITIES = ["listTags", "relatedNotes"] as const;
 
-export type AgentCapability = IpcMethod | (typeof KNOWLEDGE_ONLY_CAPABILITIES)[number];
+type AgentCapability = IpcMethod | (typeof KNOWLEDGE_ONLY_CAPABILITIES)[number];
 
 /**
  * - `read-projected` — reads over the user's own vault, answered from the
@@ -271,7 +271,7 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
  * - `already-in-the-file-tools` — the same effect already reaches the agent
  *   through a path that is gated and captured.
  */
-export type AgentDenialReason =
+type AgentDenialReason =
   | "needs-a-human-at-a-screen"
   | "window-bookkeeping"
   | "recursive"
@@ -303,10 +303,6 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "startStt",
       "sendSttAudio",
       "stopStt",
-      "installConnector",
-      "uninstallConnector",
-      "createExecutorOAuthClient",
-      "ensureGoogleOAuthClient",
     ],
   },
   {
@@ -351,8 +347,8 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
     reason: "configuration",
     why:
       "The user's settings and the status reads over them — AI provider, vault, account, " +
-      "notifications, voice, connectors, skills, window state. Configuration is theirs, and a " +
-      "setting you changed is one they never chose. Tell them which Settings section to open.",
+      "notifications, voice, skills, window state. Configuration is theirs, and a setting you " +
+      "changed is one they never chose. Tell them which Settings section to open.",
     capabilities: [
       "getAppState",
       "getAiProviderSettings",
@@ -364,10 +360,6 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "getUiState",
       "setUiState",
       "getVaultRoot",
-      "executorStatus",
-      "listExecutorIntegrations",
-      "detectExecutorIntegration",
-      "listExecutorConnections",
       "listSkills",
       "createSkill",
     ],

@@ -31,7 +31,7 @@ import {
 // Method shorthand keeps parameter checks bivariant across those libs; the
 // send parameter is exactly what this bridge emits (text frames + framed
 // binary), the intersection every implementation accepts.
-export type WsLike = {
+type WsLike = {
   binaryType: string;
   send(data: string | Uint8Array<ArrayBuffer>): void;
   close(code?: number, reason?: string): void;
@@ -44,7 +44,7 @@ export type WsLike = {
   ): void;
 };
 
-export type WsConstructor = new (url: string) => WsLike;
+type WsConstructor = new (url: string) => WsLike;
 
 /** `unauthorized` is terminal: the session behind the ticket is gone, so the
  * supervisor stops — re-presenting a dead credential forever helps no one. */
@@ -65,7 +65,7 @@ export type MintedTicket =
 
 /** Mints the single-use ticket the next socket authenticates with. Called once
  * per connection ATTEMPT, because a ticket is spent by the socket it opens. */
-export type TicketMinter = () => Promise<MintedTicket>;
+type TicketMinter = () => Promise<MintedTicket>;
 
 export type WsBridgeOptions = {
   url: string;

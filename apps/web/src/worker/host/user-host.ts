@@ -32,6 +32,9 @@ import { mayInvoke, mayReceive } from "./client-class";
 import { collectHandlers, type WireHandler } from "./handler-registry";
 import { cloudAppState, registerCloudHandlers } from "./handlers";
 import { HostEvents } from "./host-events";
+import { HostLimits } from "./host-limits";
+import { purgeR2Prefix } from "./vault/r2-prefix";
+import { handleVaultExport } from "./vault-export";
 import { INDEX_CONTINUATION_MS, UserKnowledge } from "./knowledge/user-knowledge";
 import { userIdFromHostName } from "./host-address";
 import { matchHostLeaf, type HostLeaf } from "./host-route";
@@ -125,7 +128,8 @@ export class UserHost extends DurableObject<Env> {
 
   // ---- the composition ----------------------------------------------------
   //
-  // THE RPC SURFACE IS `fetch` AND `mintProviderAccessToken`, and nothing else.
+  // THE RPC SURFACE IS `fetch`, `mintProviderAccessToken` AND `purgeAccount`,
+  // and nothing else.
   // Every field below is this object's own composition; it is `readonly` and
   // public for exactly one reason, stated here rather than seven times: a
   // `runInDurableObject` test runs INSIDE the object and drives the real vault,
@@ -148,6 +152,10 @@ export class UserHost extends DurableObject<Env> {
    * at the end of the inbound path. In memory only, and never read across
    * one — it is set and cleared inside a single invocation. */
   private alarmDirty = false;
+
+  /** Set by `purgeAccount`. Every entry point refuses while it holds, because
+   * this instance's handles outlive the storage the purge dropped. */
+  private purged = false;
 
   /**
    * The one flat dispatch map.
@@ -197,20 +205,28 @@ export class UserHost extends DurableObject<Env> {
    * spent by the socket it opens. */
   private readonly tickets: SocketTickets;
 
+  /** This account's budgets for the HTTP leaves (./host-limits). */
+  private readonly limits: HostLimits;
+
+  /** This object's own R2 prefix — the namespace an account purge sweeps. */
+  private readonly prefix: string;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.kv = ctx.storage.kv;
+    // An object addressed by id rather than by name can never authenticate
+    // (the bind check compares against `userHostName`), so it can never write
+    // — the fallback keeps the prefix total without inventing a second
+    // namespace anyone can reach.
+    this.prefix = ctx.id.name ?? ctx.id.toString();
     const stores = createCloudStores(ctx.storage.kv);
     this.stores = stores;
     this.tickets = new SocketTickets(ctx.storage.sql);
+    this.limits = new HostLimits(ctx.storage.sql);
     this.vault = new UserVault({
       sql: ctx.storage.sql,
       bucket: env.VAULT_FILES,
-      // An object addressed by id rather than by name can never authenticate
-      // (the bind check compares against `userHostName`), so it can never
-      // write — the fallback keeps the prefix total without inventing a
-      // second namespace anyone can reach.
-      prefix: ctx.id.name ?? ctx.id.toString(),
+      prefix: this.prefix,
       onChanged: (change) => {
         // A mutation can create a deadline (a delete arms the retention
         // sweep), so the alarm is re-derived at the end of the inbound path
@@ -242,7 +258,7 @@ export class UserHost extends DurableObject<Env> {
       sql: ctx.storage.sql,
       kv: ctx.storage.kv,
       bucket: env.VAULT_FILES,
-      prefix: ctx.id.name ?? ctx.id.toString(),
+      prefix: this.prefix,
       vault: this.vault,
       knowledge: this.knowledge,
       dailyPath: (now) => resolveDailyNotePath(stores.uiState.read(), now),
@@ -325,8 +341,8 @@ export class UserHost extends DurableObject<Env> {
       },
     });
 
-    const handlers = collectHandlers((handle, shim) => {
-      registerCloudHandlers(handle, shim, {
+    const handlers = collectHandlers((handle) => {
+      registerCloudHandlers(handle, {
         stores,
         events: this.events,
         vault: this.vault,
@@ -369,7 +385,51 @@ export class UserHost extends DurableObject<Env> {
     identity: string,
     providerId: string,
   ): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+    if (this.purged) {
+      return Promise.resolve({ ok: false, error: "this account no longer exists" });
+    }
     return this.agent.runner.mintProviderAccessToken(identity, providerId);
+  }
+
+  /**
+   * Erase this account: its containers, its R2 bytes, and this object's whole
+   * storage. Called by Better Auth's user-deletion path (../auth/auth) BEFORE
+   * the D1 rows go.
+   *
+   * NO CREDENTIAL, and that is not the shortcut it looks like. The routes under
+   * `fetch` re-derive a session because a caller off the internet supplies the
+   * object name and a forwarded verdict would be forgeable. Nothing off the
+   * internet reaches here: no route forwards to this method, so the only caller
+   * is code in this Worker, after Better Auth has verified the session and the
+   * password. And the NAME is the authorization — purging the object called
+   * `user:<id>` erases exactly that account and can reach no other, so there is
+   * no verdict to forge and no tenant to cross.
+   *
+   * IDEMPOTENT, because a deletion that half-failed must be safe to retry: the
+   * container teardown accepts an absent container, the R2 sweep is driven by
+   * what is actually there, and `deleteAll` on empty storage is a no-op. It
+   * runs in that order on purpose — the R2 sweep needs no manifest, so a
+   * failure anywhere leaves the D1 rows intact and the user able to ask again.
+   */
+  async purgeAccount(): Promise<void> {
+    // Nothing may arrive on a socket after this: the handlers behind it read
+    // tables that are about to stop existing.
+    for (const ws of this.ctx.getWebSockets()) {
+      ws.close(WS_CLOSE_UNAUTHORIZED, "account deleted");
+    }
+    await this.agent.destroyContainers();
+    await purgeR2Prefix(this.env.VAULT_FILES, this.prefix);
+    // Deletes the SQLite tables, the KV keys AND the pending alarm in one
+    // atomic operation (compatibility_date is past the change that folded the
+    // alarm in), so nothing is left to wake an object with no account.
+    await this.ctx.storage.deleteAll();
+    // NOT `ctx.abort()`, tempting as it is: aborting would break this very RPC,
+    // so the caller would read "the data is gone" as a failure and leave the
+    // account behind. The instance stays resident instead, holding constructor
+    // handles to tables that no longer exist — which is what this flag is for.
+    // In memory only, and correct there: it needs to outlive nothing but the
+    // instance, and the next construction builds an ordinary empty object.
+    this.purged = true;
   }
 
   /** The origin this deployment is reached on: the declared public host, else
@@ -382,6 +442,7 @@ export class UserHost extends DurableObject<Env> {
   }
 
   override async fetch(request: Request): Promise<Response> {
+    if (this.purged) return new Response("gone", { status: 410 });
     try {
       // Six ways in, and the split is the transport or the CREDENTIAL, never
       // the capability: the ticket mint (./ticket-route), the Bridge socket,
@@ -411,6 +472,16 @@ export class UserHost extends DurableObject<Env> {
   }
 
   private async handleLeaf(leaf: HostLeaf, request: Request): Promise<Response> {
+    // Charged BEFORE the leaf runs, and after the Worker proved a session for
+    // this exact object — so the budget spent is always the account's own
+    // (./host-limits).
+    const now = Date.now();
+    if (!this.limits.charge(leaf, now)) {
+      return new Response("too many requests", {
+        status: 429,
+        headers: { "retry-after": String(this.limits.retryAfterSeconds(leaf, now)) },
+      });
+    }
     switch (leaf) {
       case "ticket":
         return await handleTicketMint(request, this.env, this.tickets, this.ctx.id.name);
@@ -434,6 +505,14 @@ export class UserHost extends DurableObject<Env> {
         await this.refreshAlarm();
         return response;
       }
+      case "export":
+        return await handleVaultExport(
+          request,
+          this.env,
+          this.vault,
+          this.ctx.id.name,
+          () => new Date(),
+        );
     }
   }
 
@@ -552,6 +631,7 @@ export class UserHost extends DurableObject<Env> {
    * `setAlarm` appears in exactly one place below.
    */
   override async alarm(): Promise<void> {
+    if (this.purged) return;
     const now = Date.now();
     this.reapPendingSockets(now);
     this.tickets.sweep(now);
@@ -778,10 +858,6 @@ export class UserHost extends DurableObject<Env> {
    * Gated by BOTH chokepoints: the getter must be callable by this client AND
    * the event deliverable to it. A hydration push is a read the client never
    * asked for, so it clears the same bar as asking.
-   *
-   * Most of the set no-ops here, and that is the design working: the sync and
-   * remote-access getters are shims that throw, so their events simply are not
-   * pushed. Only `onAppState` has a real getter today.
    */
   private async hydrate(ws: WebSocket, state: AuthedSocketState): Promise<void> {
     for (const [event, getter] of Object.entries(HYDRATED_EVENTS)) {

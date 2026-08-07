@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins";
 import { createDb } from "../db/client";
+import { userHostName } from "../host/host-address";
 import { sendResetEmail } from "./reset-email";
 
 // ---------------------------------------------------------------------------
@@ -97,6 +98,24 @@ export function createAuth(env: Env, baseURL: string) {
       storage: "database",
       window: 60,
       max: 10,
+    },
+    user: {
+      deleteUser: {
+        enabled: true,
+        // BEFORE, not after. D1 holds only the account row; everything the user
+        // made is in their Durable Object and under their R2 prefix, and
+        // `afterDelete` runs once those rows are already gone — so a purge that
+        // failed there would leave data with no account to ask for it again.
+        // Here a failure aborts the whole deletion: the account survives, the
+        // purge is idempotent, and pressing the button again resumes it.
+        //
+        // Better Auth has already checked the password (or the session's
+        // freshness) by the time this runs, which is what makes naming the
+        // object safe — see UserHost.purgeAccount.
+        beforeDelete: async (user) => {
+          await env.UserHost.getByName(userHostName(user.id)).purgeAccount();
+        },
+      },
     },
     trustedOrigins: trustedOrigins(env),
     ...socialProviders(env),

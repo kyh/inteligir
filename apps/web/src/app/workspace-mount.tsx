@@ -7,7 +7,7 @@ import { App } from "@repo/workspace/app-root";
 import { setAccountPort } from "@repo/workspace/workspace/account-host";
 import { setHtmlAppRuntime } from "@repo/workspace/workspace/html-app-host";
 
-import { authClient, mintSocketTicket } from "@/lib/auth-client";
+import { authClient, authErrorMessage, mintSocketTicket } from "@/lib/auth-client";
 import { HTML_APPS_DISABLED } from "@/app/html-apps-disabled";
 
 // ---------------------------------------------------------------------------
@@ -55,6 +55,19 @@ export default function WorkspaceMount({ email }: { email: string }) {
       signOut: async () => {
         await authClient.signOut();
         window.location.assign("/app/sign-in");
+      },
+      // A same-origin path, not a fetch: the host streams a zip of the whole
+      // vault and the browser writes it straight to disk.
+      exportVaultUrl: "/v1/host/export",
+      // Also not a Bridge call — deleting the account destroys the very object
+      // that socket talks to, so the request belongs to the surface holding the
+      // credential. Better Auth's own hook is what purges the host (see the
+      // Worker's auth.ts).
+      deleteAccount: async (password) => {
+        const { error } = await authClient.deleteUser(password === null ? {} : { password });
+        if (error !== null) return { ok: false, error: authErrorMessage(error) };
+        window.location.assign("/app/sign-in");
+        return { ok: true };
       },
     });
     setReady(true);

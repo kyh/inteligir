@@ -4,7 +4,7 @@
 // Bridge, so when the IPC registry changes this file fails typecheck until it
 // is covered. Vault reads/writes hit a Map seeded with sample notes; agent
 // chat streams a canned reply; STT streams a canned transcript; TTS queues
-// text and emits silent PCM; the executor reports unavailable.
+// text and emits silent PCM.
 //
 // Stub convention for new channels: make the stub DO something real against
 // the in-memory state, or throw `unavailable("<feature>")` naming the gap.
@@ -1279,30 +1279,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       ],
       defaultId: "canned-fast",
     }),
-
-    // Executor — reports running (fake callback origin) so the connectors
-    // grid + dialogs render and are drivable in the harness; there's no
-    // daemon, so the read lists are empty and every mutating flow rejects
-    // loudly (the dialogs/cards surface the message).
-    executorStatus: async () => ({
-      running: true,
-      redirectUri: "http://127.0.0.1:47888/oauth/callback",
-    }),
-    listExecutorIntegrations: async () => [],
-    detectExecutorIntegration: async () => [],
-    listExecutorConnections: async () => [],
-    createExecutorOAuthClient: async () => {
-      throw unavailable("executor");
-    },
-    ensureGoogleOAuthClient: async () => ({ status: "unavailable" }),
-    // Host-orchestrated install/uninstall (register integration → mint
-    // connection → browser OAuth server-side).
-    installConnector: async () => {
-      throw unavailable("executor");
-    },
-    uninstallConnector: async () => {
-      throw unavailable("executor");
-    },
 
     // Skills — seeded rows so the Settings panel renders its POPULATED state
     // ("zero installed" is a legitimate state, but the harness should demo

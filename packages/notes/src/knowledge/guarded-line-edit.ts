@@ -22,7 +22,7 @@ import { scanTaskItems } from "./link-extract";
 
 export type LineEditResult = { ok: true; content: string } | LineEditFailure;
 
-export type LineEditFailure = {
+type LineEditFailure = {
   ok: false;
   reason: "line-missing" | "line-changed";
 };
@@ -31,7 +31,7 @@ export type CheckboxToggleResult =
   | { ok: true; content: string; checked: boolean }
   | CheckboxToggleFailure;
 
-export type CheckboxToggleFailure = {
+type CheckboxToggleFailure = {
   ok: false;
   reason: "line-missing" | "line-changed" | "not-a-checkbox";
 };

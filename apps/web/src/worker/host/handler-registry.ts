@@ -35,20 +35,17 @@ type HostHandlers = Readonly<Record<HostMethod, WireHandler>>;
 export type HandlerRegistrar = <K extends HostMethod>(method: K, fn: IpcHandler<K>) => void;
 
 /**
- * Register `method` as present-but-unimplemented: it answers by throwing a
- * message naming `feature`.
+ * The one refusal a handler answers a gap with — the single message format, so
+ * every gap reads the same in a res frame and in a log.
  *
- * A shim is a first-class registration rather than a handler that happens to
- * throw, because a method with no backend has no payload contract to validate
- * and no result type to honour — only a gap to name. It is deliberately NOT a
- * silent `[]` or `undefined`: a caller cannot tell an empty vault from an
- * absent one, so a plausible answer renders a confidently wrong world where a
- * throw names itself in the res frame.
+ * It is for a CONDITION a real handler can be in (no AI provider configured on
+ * this deployment; a reset with nothing to reset), never for a whole channel:
+ * a method with no implementation has no payload contract to validate and no
+ * result type to honour, so it has no place in the registry at all. And it is
+ * deliberately never a silent `[]` or `undefined` — a caller cannot tell an
+ * empty vault from an absent one, so a plausible answer renders a confidently
+ * wrong world where a throw names itself.
  */
-export type ShimRegistrar = (method: HostMethod, feature: string) => void;
-
-/** The one refusal an unimplemented capability answers with — the single
- * message format, so every gap reads the same in a res frame and in a log. */
 export function unavailable(feature: string): never {
   throw new Error(`${feature} is not available yet`);
 }
@@ -75,9 +72,7 @@ function parsePayload(method: IpcMethod, schema: TSchema, raw: unknown): unknown
  * method left unhandled — an unanswered method is a Bridge call that hangs
  * forever, so construction fails loudly instead.
  */
-export function collectHandlers(
-  register: (handle: HandlerRegistrar, shim: ShimRegistrar) => void,
-): HostHandlers {
+export function collectHandlers(register: (handle: HandlerRegistrar) => void): HostHandlers {
   const map = new Map<HostMethod, WireHandler>();
 
   const claim = (method: HostMethod, handler: WireHandler): void => {
@@ -113,11 +108,7 @@ export function collectHandlers(
     }
   };
 
-  const shim: ShimRegistrar = (method, feature) => {
-    claim(method, () => unavailable(feature));
-  };
-
-  register(handle, shim);
+  register(handle);
 
   const missing = HOST_METHODS.filter((method) => !map.has(method));
   if (missing.length > 0) {

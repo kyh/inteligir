@@ -14,8 +14,8 @@
 // for the socket, from a ticket only it could have minted) and refuses anything
 // that does not bind to its own name.
 //
-// One leg for four leaves, because the alternative is four copies of the same
-// six lines and one of them eventually skips the check the others make.
+// One leg for every leaf, because the alternative is a copy of the same six
+// lines apiece and one of them eventually skips the check the others make.
 // ---------------------------------------------------------------------------
 
 import { userHostName } from "./host-address";
@@ -37,6 +37,8 @@ const HOST_LEAVES = {
   assets: "POST",
   /** The web scheme's front door. */
   link: "POST",
+  /** The whole vault as a streamed zip — a navigation, so it is a GET. */
+  export: "GET",
 } as const;
 
 export type HostLeaf = keyof typeof HOST_LEAVES;

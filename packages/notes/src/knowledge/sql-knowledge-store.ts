@@ -42,7 +42,7 @@ import { tokenize } from "./search-index";
 export const KNOWLEDGE_SCHEMA_VERSION = 7;
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
-export type SqlValue = null | number | string;
+type SqlValue = null | number | string;
 
 export type SqlRow = Record<string, unknown>;
 
@@ -79,7 +79,7 @@ export type SqlDriver = {
 /** One bounded slice of the persisted projection. Docs come first, in path
  * order, then the non-doc files — a page is one or the other, never a mix, so
  * a consumer replaying pages sees exactly `loadAll()`'s ordering. */
-export type HydrationPage =
+type HydrationPage =
   | { kind: "docs"; docs: StoredDocRow[] }
   | { kind: "others"; others: { path: string }[] }
   | { kind: "done" };
@@ -88,7 +88,7 @@ export type HydrationPage =
  * unit of work — call it until it answers `done`, yielding in between. A
  * cursor reads through the live DB, so it must be abandoned (not resumed)
  * after a write, a `nuke()`, or a `dispose()`. */
-export type HydrationCursor = {
+type HydrationCursor = {
   next(): HydrationPage;
 };
 
@@ -256,7 +256,7 @@ const HYDRATION_DRAIN_PAGE_DOCS = 1000;
 
 /** Core tokenize() → an FTS5 MATCH expression: quoted tokens ANDed, the last
  * one prefix-matched (search-as-you-type). Null when the query has no tokens. */
-export function buildFtsMatchQuery(query: string): string | null {
+function buildFtsMatchQuery(query: string): string | null {
   const tokens = [...new Set(tokenize(query))];
   if (tokens.length === 0) return null;
   return tokens

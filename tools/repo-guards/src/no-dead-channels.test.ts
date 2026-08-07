@@ -47,9 +47,7 @@ const SUPPLY = new Set(
 
 /** The host's handler registrations. They are spread across the worker's
  * feature folders rather than gathered under one, so the exclusion is by NAME:
- * a file that registers handlers mentions its methods by construction. The
- * bare `handlers.ts` is in for the sharper reason — it holds the shim tables,
- * which name a method precisely because nothing implements it. */
+ * a file that registers handlers mentions its methods by construction. */
 const SUPPLY_FILE = /(?:[a-z-]*handlers|handler-registry)\.ts$/;
 
 const SKIP_DIR_NAMES = new Set([

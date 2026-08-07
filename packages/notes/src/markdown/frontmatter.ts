@@ -50,7 +50,7 @@ function isPlainRecord(value: unknown): value is Properties {
  * `null` when the doc has no frontmatter block. The one place besides
  * `splitFrontmatter` allowed to know the fence grammar, so consumers that need
  * the header's SOURCE (the sync merge ladder) never fork the regex. */
-export function frontmatterYaml(text: string): string | null {
+function frontmatterYaml(text: string): string | null {
   const match = FRONTMATTER_RE.exec(text);
   if (!match) return null;
   return match[1] ?? "";
@@ -298,7 +298,7 @@ function typedValue(prop: TypedProperty): unknown {
 
 /** Property-value equality as the panel (and the sync merge ladder) define it:
  * strict for scalars, element-wise for the flat string arrays `tags` carries. */
-export function valueEqual(a: unknown, b: unknown): boolean {
+function valueEqual(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => item === b[i]);
   }

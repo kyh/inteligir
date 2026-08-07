@@ -102,9 +102,11 @@ There are no `getX()` singletons here and there must not be: one isolate serves
 many users, so a module-level instance is a cross-tenant bug (CLAUDE.md § "One
 host per user is a Durable Object").
 
-A method with no implementation yet is registered as a SHIM naming the gap
-(`CLOUD_SHIMS`, the backlog) — never a silent `[]`. There is no table for a
-capability decided against: retiring one means deleting its channel.
+**Every channel is answered for real.** There is no shim table and no "not
+available yet" registration: a method that answers only by refusing passes both
+`collectHandlers`' completeness check and no-dead-channels while failing at
+runtime, so adding the channel is the LAST step of building the capability.
+Retiring one deletes the channel.
 
 ### 3. Fixture stub — `packages/workspace/src/dev/fixture-bridge.ts`
 
@@ -220,8 +222,7 @@ pnpm --filter @repo/repo-guards test      # no dead channels
 `pnpm --filter @repo/web test` is the one that matters. It runs:
 
 - `src/worker/__tests__/host-handlers.test.ts` — the registered map is exactly
-  `HOST_METHODS`, the implemented/pending/retired split adds up, and every shim
-  refuses by naming its gap.
+  `HOST_METHODS`, and the pinned implemented list still covers all of it.
 - `src/worker/__tests__/no-ungated-dispatch.test.ts` — the class gate still has
   exactly two chokepoints.
 - `src/worker/__tests__/user-host.test.ts` — a real client over the real object.

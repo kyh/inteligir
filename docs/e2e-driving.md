@@ -37,21 +37,33 @@ the local D1 file, push the schema, mint an invite and create an account.
 
 ## Driving the Bridge directly
 
-The page holds a live socket to its own `UserHost`, and the session token is
-what authorizes it. From `agent-browser eval` on a signed-in `/app` page you can
-open a SECOND socket and call any Bridge method — which is far faster than
-clicking, and is how you set a fixture up before driving the UI over it.
+The page holds a live socket to its own `UserHost`. From `agent-browser eval`
+on a signed-in `/app` page you can open a SECOND socket and call any Bridge
+method — far faster than clicking, and how you set a fixture up before driving
+the UI over it.
+
+The credential is a single-use TICKET, minted same-origin against the session
+cookie. There is no userId in the URL and no session token in the page: the
+object is derived from the cookie the mint carries, and the socket spends the
+ticket in its first frame. Pipe the script in with `agent-browser eval --stdin`
+— a top-level `await` is not available, so wrap it in an async IIFE.
 
 ```js
-// In the page. `authClient` is not on window, so take the token from the API.
-await (async () => {
-  const session = await fetch("/api/auth/get-session").then((r) => r.json());
-  const url = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/v1/host/${encodeURIComponent(session.user.id)}/ws`;
-  const ws = new WebSocket(url);
+(async () => {
+  const minted = await fetch("/v1/host/ticket", { method: "POST" }).then((r) => r.json());
+  const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${scheme}//${location.host}/v1/host/ws`);
   let id = 0;
   const pending = new Map();
-  ws.onmessage = (e) => {
-    const frame = JSON.parse(e.data);
+  let welcome;
+  const welcomed = new Promise((resolve) => {
+    welcome = resolve;
+  });
+  // Installed from the start and never replaced, so an event arriving between
+  // the welcome and the first call cannot land on a handler that isn't there.
+  ws.onmessage = (event) => {
+    const frame = JSON.parse(event.data);
+    if (frame.t === "welcome") welcome();
     if (frame.t === "res") pending.get(frame.id)?.(frame);
   };
   const call = (method, payload) =>
@@ -62,18 +74,11 @@ await (async () => {
       );
       ws.send(JSON.stringify({ t: "req", id: at, method, payload }));
     });
-  await new Promise((res) => {
-    ws.onopen = () => ws.send(JSON.stringify({ t: "auth", token: session.session.token }));
-    ws.onmessage = (e) => {
-      if (JSON.parse(e.data).t === "welcome") res();
-    };
-  });
-  return await call("readVaultDoc", { path: "some-note.md" });
+  ws.onopen = () => ws.send(JSON.stringify({ t: "auth", ticket: minted.ticket }));
+  await welcomed;
+  return await call("readVaultDoc", { path: "Welcome.md" });
 })();
 ```
-
-(The `onmessage` above is replaced once the welcome lands — for a multi-call
-script keep the `pending`-map handler installed from the start.)
 
 ## Flow 1 — a chat turn
 

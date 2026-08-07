@@ -21,7 +21,7 @@ const TimeOfDaySchema = Type.String({ pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
 // Cadence-correlated fields are typed per variant (a daily schedule with a
 // dayOfMonth cannot be constructed). dayOfMonth is capped at 28 so a monthly
 // slot exists in EVERY month — no silent Feb-skips-the-run surprise.
-export const RoutineScheduleSchema = Type.Union([
+const RoutineScheduleSchema = Type.Union([
   Type.Object(
     { cadence: Type.Literal("daily"), timeOfDay: TimeOfDaySchema },
     { additionalProperties: false },
@@ -51,7 +51,7 @@ export type RoutineSchedule = Static<typeof RoutineScheduleSchema>;
 /** Where the run's result lands. `daily` = TODAY's daily note (resolved
  * host-side from the Settings → Notes folder/format at run time); `note` = a
  * fixed vault-relative path. */
-export const RoutineTargetSchema = Type.Union([
+const RoutineTargetSchema = Type.Union([
   Type.Object({ kind: Type.Literal("daily") }, { additionalProperties: false }),
   Type.Object(
     { kind: Type.Literal("note"), path: Type.String({ minLength: 1 }) },
@@ -81,7 +81,7 @@ const lastRunBaseFields = {
 // Terminal-only by construction: "running" is deliberately NOT a persisted
 // state (ListRoutinesResult.runningId is in-memory), so a crash mid-run can
 // never leave a routine wedged "running" on disk.
-export const RoutineLastRunSchema = Type.Union([
+const RoutineLastRunSchema = Type.Union([
   Type.Object(
     { ...lastRunBaseFields, status: Type.Literal("done"), summary: Type.String() },
     { additionalProperties: false },

@@ -1,12 +1,5 @@
 // ---------------------------------------------------------------------------
-// The vault's ten Bridge handlers, over the Durable Object's own vault.
-//
-// Three of the registry's vault channels are deliberately NOT here and stay
-// shimmed: `chooseVaultRoot` (there is one vault per account and no folder
-// picker), `setWatchedNote` (nothing to watch — the DO is the only writer, so
-// the manifest is never stale), and `probeNotePrivacy` (the privacy gate
-// arrives with the agent, and a probe that answered "public" before it exists
-// would be a fail-OPEN answer).
+// The vault's Bridge handlers, over the Durable Object's own vault.
 // ---------------------------------------------------------------------------
 
 import type { DeleteVaultEntryResult, ReadVaultAssetResult } from "@repo/bridge/ipc-registry";

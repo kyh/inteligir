@@ -20,7 +20,6 @@
     "./daily-notes": "./src/daily-notes.ts",
     "./deep-link": "./src/deep-link.ts",
     "./delegation": "./src/delegation.ts",
-    "./executor": "./src/executor.ts",
     "./inline-ai": "./src/inline-ai.ts",
     "./ipc-registry": "./src/ipc-registry.ts",
     "./note-context": "./src/note-context.ts",

@@ -25,14 +25,6 @@ import {
 } from "./chat-sessions";
 import type { DeepLinkNavEvent } from "./deep-link";
 import {
-  ConnectorInstallRequestSchema,
-  ConnectorUninstallRequestSchema,
-  CreateOAuthClientInputSchema,
-  ExecutorConnectionSchema,
-  ExecutorDetectResultSchema,
-  ExecutorIntegrationSchema,
-} from "./executor";
-import {
   CreateDelegationParamsSchema,
   type CreateDelegationResult,
   type ListDelegationsResult,
@@ -73,17 +65,6 @@ export type SetupProgress = {
   step: string;
   percent: number | null;
 };
-
-export type ExecutorStatus =
-  | { running: false }
-  // redirectUri is the daemon's browser-facing OAuth callback — surfaced so
-  // the Google client dialog can show the exact URI to whitelist in GCP.
-  | { running: true; redirectUri: string };
-
-/** Result of ensureGoogleOAuthClient: "ready" means the shared "google"
- * client exists in executor and consent can start; "unavailable" means it
- * doesn't — the renderer falls back to the paste-your-own-GCP-app dialog. */
-export type EnsureGoogleClientResult = { status: "ready" } | { status: "unavailable" };
 
 export type NotificationSettings = {
   enabled: boolean;
@@ -743,33 +724,6 @@ export const IPC = {
   /** Models the ghost-text session can run (for the settings picker). */
   listGhostModels: invokeVoid<GhostModelsResult>(),
 
-  // Executor (v1.5 model: integrations = catalog, connections = credentials).
-  // There are no sources/secrets channels — a secret is a connection
-  // credential value; Google goes through add-openapi (googleDiscoveryBundle).
-  // There are no per-step integration/connection/OAuth channels either:
-  // install/uninstall is host-orchestrated, so the renderer needs only
-  // status + the read lists + the Google-client dialogs' create/ensure.
-  executorStatus: invokeVoid<ExecutorStatus>(),
-  listExecutorIntegrations: invokeVoid<Static<typeof ExecutorIntegrationSchema>[]>(),
-  detectExecutorIntegration: invoke<TString, Static<typeof ExecutorDetectResultSchema>[]>(
-    Type.String(),
-  ),
-  listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionSchema>[]>(),
-  createExecutorOAuthClient: invoke<typeof CreateOAuthClientInputSchema, { client: string }>(
-    CreateOAuthClientInputSchema,
-  ),
-  ensureGoogleOAuthClient: invokeVoid<EnsureGoogleClientResult>(),
-  // Connector install/uninstall — host-orchestrated (register integration →
-  // mint connection → browser OAuth → rollback on failure) in
-  // host-side; the client sends ONE request per user action and surfaces the
-  // rejection message on failure.
-  installConnector: invoke<typeof ConnectorInstallRequestSchema, void>(
-    ConnectorInstallRequestSchema,
-  ),
-  uninstallConnector: invoke<typeof ConnectorUninstallRequestSchema, void>(
-    ConnectorUninstallRequestSchema,
-  ),
-
   // Skills
   listSkills: invokeVoid<SkillsList>(),
   /** Scaffold a new skill: `<agentDir>/skills/<slug>/SKILL.md` with valid
@@ -855,12 +809,12 @@ export const REMOTE_ALLOWED_EVENTS = [
 // Tags are wire values — never renumber one; retire it and take the next.
 // ---------------------------------------------------------------------------
 
-export const BINARY_CHANNELS = [
+const BINARY_CHANNELS = [
   { method: "sendSttAudio", tag: 1 },
   { method: "onTtsAudio", tag: 2, field: "audio" },
 ] as const satisfies readonly { method: IpcMethod; tag: number; field?: string }[];
 
-export type BinaryChannel = (typeof BINARY_CHANNELS)[number];
+type BinaryChannel = (typeof BINARY_CHANNELS)[number];
 
 /** Binary-channel descriptor for `method`, or undefined for a JSON channel. */
 export function binaryChannelFor(method: string): BinaryChannel | undefined {

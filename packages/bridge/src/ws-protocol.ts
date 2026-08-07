@@ -26,7 +26,7 @@ export const WS_CLOSE_UNAUTHORIZED = 4401;
 // ---------------------------------------------------------------------------
 
 /** First frame on connect: spend the single-use ticket the host minted. */
-export type AuthFrame = { t: "auth"; ticket: string };
+type AuthFrame = { t: "auth"; ticket: string };
 /** Invoke / invoke-void request (invoke-void carries no payload). */
 export type ReqFrame = { t: "req"; id: number; method: string; payload?: unknown };
 /** Fire-and-forget send (except BINARY_CHANNELS sends, which go binary). */
@@ -34,12 +34,12 @@ export type SendFrame = { t: "send"; method: string; payload?: unknown };
 export type ClientFrame = AuthFrame | ReqFrame | SendFrame;
 
 /** Auth accepted; requests may flow. */
-export type WelcomeFrame = { t: "welcome" };
+type WelcomeFrame = { t: "welcome" };
 export type ResFrame =
   | { t: "res"; id: number; ok: true; result?: unknown }
   | { t: "res"; id: number; ok: false; error: string };
 /** Host event push. */
-export type EvtFrame = { t: "evt"; method: string; payload?: unknown };
+type EvtFrame = { t: "evt"; method: string; payload?: unknown };
 export type ServerFrame = WelcomeFrame | ResFrame | EvtFrame;
 
 export function encodeFrame(frame: ClientFrame | ServerFrame): string {

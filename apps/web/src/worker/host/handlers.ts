@@ -1,29 +1,27 @@
 // ---------------------------------------------------------------------------
-// The host's handler map: what is implemented, and — in two tables — what is
-// not.
+// The host's handler map. EVERY registry method is answered here for real:
+// the app phase and the two JsonStores over the Durable Object's KV, the vault
+// (./vault-handlers) whose manifest and bytes this object owns, the knowledge
+// index (./knowledge-handlers) over that vault, the agent
+// (../agent/agent-handlers) and the background work over it
+// (../background/background-handlers), the editor's AI (../ai/ai-handlers),
+// voice (../voice/voice-handlers), deep-link capture
+// (../capture/capture-handlers) and skills (../skills/skills-handlers).
 //
-// Everything this host owns is answered for real: the app phase and the two
-// JsonStores over the Durable Object's KV, the vault (./vault-handlers) whose
-// manifest and bytes this object owns, the knowledge index
-// (./knowledge-handlers) over that vault, the agent (../agent/agent-handlers)
-// and the background work over it (../background/background-handlers), the
-// editor's AI (../ai/ai-handlers), voice (../voice/voice-handlers), deep-link
-// capture (../capture/capture-handlers) and skills (../skills/skills-handlers).
+// There is no table of methods this host answers by refusing, and that is not
+// an omission. A channel exists to be called; one nothing implements is a
+// call that fails at runtime while typechecking everywhere, and the two guards
+// that would catch it — collectHandlers' completeness check and
+// no-dead-channels — are both satisfied by a refusal. So a capability this
+// host does not have has no channel: adding one is the last step of building
+// it, and retiring one deletes it.
 //
-// The rest is registered as a SHIM that throws. `CLOUD_SHIMS` is the BACKLOG —
-// a capability this host will have, grouped by the commit that will bring it —
-// and a group empties as that commit lands. A shim is never a silent `[]` (see
-// ShimRegistrar for why).
-//
-// There is no second table for capabilities this host has DECIDED against, and
-// that is not an omission: retiring a capability means deleting its channel,
-// which the no-dead-channels guard already makes a complete operation. A shim
-// that says "this will never exist" would leave a name in the registry for the
-// sole purpose of refusing it.
+// `unavailable()` still names the gaps that are conditions rather than
+// channels — an app-data reset with nothing to reset, a deployment with no AI
+// provider configured — because those are states a real handler can be in.
 // ---------------------------------------------------------------------------
 
 import type { AppState } from "@repo/bridge/app-state";
-import type { HostMethod } from "@repo/bridge/ipc-registry";
 import { registerAgentHandlers, type AgentServices } from "../agent/agent-handlers";
 import { registerAiHandlers } from "../ai/ai-handlers";
 import type { TextGenerator } from "../ai/text-generator";
@@ -35,7 +33,7 @@ import { registerCaptureHandlers, type CaptureServices } from "../capture/captur
 import { registerSkillsHandlers } from "../skills/skills-handlers";
 import { registerVoiceHandlers } from "../voice/voice-handlers";
 import type { VoiceComposition } from "../voice/voice-composition";
-import { unavailable, type HandlerRegistrar, type ShimRegistrar } from "./handler-registry";
+import { unavailable, type HandlerRegistrar } from "./handler-registry";
 import type { HostEvents } from "./host-events";
 import { registerKnowledgeHandlers } from "./knowledge-handlers";
 import type { UserKnowledge } from "./knowledge/user-knowledge";
@@ -66,34 +64,7 @@ export function cloudAppState(agentBusy: boolean): AppState {
   return { phase: "ready", agent: agentBusy ? "busy" : "idle" };
 }
 
-type ShimGroup = {
-  /** Names the gap in the thrown message — keep it the feature, not the file. */
-  readonly feature: string;
-  readonly methods: readonly HostMethod[];
-};
-
-/** The migration backlog: every host method with no cloud implementation yet. */
-export const CLOUD_SHIMS: readonly ShimGroup[] = [
-  {
-    feature: "connectors",
-    methods: [
-      "executorStatus",
-      "listExecutorIntegrations",
-      "detectExecutorIntegration",
-      "listExecutorConnections",
-      "createExecutorOAuthClient",
-      "ensureGoogleOAuthClient",
-      "installConnector",
-      "uninstallConnector",
-    ],
-  },
-];
-
-export function registerCloudHandlers(
-  handle: HandlerRegistrar,
-  shim: ShimRegistrar,
-  services: CloudHostServices,
-): void {
+export function registerCloudHandlers(handle: HandlerRegistrar, services: CloudHostServices): void {
   const appState = (): AppState => cloudAppState(services.agent.runner.agentBusy());
 
   handle("getAppState", appState);
@@ -149,8 +120,4 @@ export function registerCloudHandlers(
   registerVoiceHandlers(handle, services.voice);
   registerCaptureHandlers(handle, services.capture);
   registerSkillsHandlers(handle, services.vault);
-
-  for (const group of CLOUD_SHIMS) {
-    for (const method of group.methods) shim(method, group.feature);
-  }
 }

@@ -1,6 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": [".design-sync/**"],
+  // `includeEntryExports: true` on every `packages/*` workspace, and it is
+  // load-bearing rather than a preference. These packages publish each source
+  // file as its own subpath export (some through a `./*` wildcard), so knip
+  // reads EVERY file as an entry — and knip's default is to trust an entry's
+  // exports as the public API. The combination turned unused-export reporting
+  // off across the whole of `packages/`, which is how a module can keep a dead
+  // half for months with a green gate. A workspace package's consumers are all
+  // in this repo, so "no importer" is a fact knip can prove; nothing needs to
+  // be taken on trust.
   "workspaces": {
     ".": {},
     "apps/desktop": {
@@ -39,23 +48,37 @@
     // field; `src/protocol.ts` is the pure wire contract @repo/web imports.
     "apps/web/container": {
       "project": ["src/**/*.ts"],
-      "includeEntryExports": false
+      "includeEntryExports": true
     },
     "packages/bridge": {
       "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
-      "includeEntryExports": false
+      "includeEntryExports": true
     },
     "packages/editor": {
       "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
-      "includeEntryExports": false
+      "includeEntryExports": true
     },
     "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
-      "includeEntryExports": false
+      "includeEntryExports": true
     },
+    // The ONE package that keeps knip's default `includeEntryExports: false`,
+    // and the reason is the package rather than the findings. `src/components`
+    // is VENDORED shadcn: each file is copied from the registry, recorded in
+    // components.provenance.json, and re-pullable with one command — so its
+    // exports are the UPSTREAM component's surface, not this repo's. Deleting
+    // `DialogClose` because nothing calls it today makes the next re-pull a
+    // conflict and the provenance record a lie.
+    //
+    // The invariant that actually has teeth here is coarser and lives as a
+    // test: src/__tests__/no-orphan-components.test.ts fails when a whole
+    // component file has no consumer (a real failure knip cannot see either,
+    // since the `./components/*` wildcard export makes every file an entry).
+    // Turning this on would only ever report members of files that guard
+    // already proves are in use.
     "packages/ui": {
       "entry": [],
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
@@ -64,7 +87,7 @@
     "packages/workspace": {
       "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
-      "includeEntryExports": false
+      "includeEntryExports": true
     },
     "tools/repo-guards": {
       "entry": ["src/**/*.test.ts"],

@@ -3,8 +3,8 @@
 // route shape — the pure halves, driven directly rather than over a socket.
 //
 // The load-bearing assertion is COMPLETENESS: every host method the registry
-// declares has an answer, and the ones with no backend answer by naming the
-// gap. A method left unregistered is a Bridge call that hangs forever.
+// declares is implemented here. A method left unregistered is a Bridge call
+// that hangs forever.
 // ---------------------------------------------------------------------------
 
 import { env, runInDurableObject } from "cloudflare:test";
@@ -14,16 +14,15 @@ import type { HostMethod } from "@repo/bridge/ipc-registry";
 
 import { mayInvoke, mayReceive } from "../host/client-class";
 import { collectHandlers, HOST_METHODS } from "../host/handler-registry";
-import { CLOUD_SHIMS, registerCloudHandlers } from "../host/handlers";
+import { registerCloudHandlers } from "../host/handlers";
 import { userHostName } from "../host/host-address";
 import { HostEvents } from "../host/host-events";
 import { allowedOrigins, originAllowed } from "../host/origins";
 import { createCloudStores } from "../host/stores";
 import { matchHostLeaf } from "../host/host-route";
 
-/** The methods this host answers for real. Pinned as a list so a shim quietly
- * becoming an implementation (or the reverse) is a failing test, not a diff
- * nobody read. */
+/** The methods this host answers. Pinned as a list rather than derived, so a
+ * channel arriving or leaving is a diff someone had to write down. */
 const IMPLEMENTED: readonly HostMethod[] = [
   "getAppState",
   "transition",
@@ -120,8 +119,8 @@ function withHandlers<T>(
   return runInDurableObject(stub, (host) => {
     const events = new HostEvents();
     const stores = createCloudStores(memoryKv());
-    const handlers = collectHandlers((handle, shim) => {
-      registerCloudHandlers(handle, shim, {
+    const handlers = collectHandlers((handle) => {
+      registerCloudHandlers(handle, {
         stores,
         events,
         vault: host.vault,
@@ -152,8 +151,6 @@ function withHandlers<T>(
   });
 }
 
-const shimmedMethods: readonly HostMethod[] = CLOUD_SHIMS.flatMap((group) => group.methods);
-
 describe("cloud handler registry", () => {
   it("registers every host method the IPC registry declares", async () => {
     await withHandlers(({ handlers }) => {
@@ -163,25 +160,11 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("splits those methods into 63 implementations and 8 owed", () => {
-    // The counts are the backlog's progress bar, and the last line is the
-    // point: every capability a client can name, this host either answers or
-    // owes — there is no third pile.
-    expect(HOST_METHODS).toHaveLength(71);
+  it("implements every one of them — there is no second pile", () => {
+    expect(HOST_METHODS).toHaveLength(63);
     expect(IMPLEMENTED).toHaveLength(63);
-    expect(shimmedMethods).toHaveLength(8);
-    expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
-    expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
-  });
-
-  it("answers a backlog shim by naming what it waits on", async () => {
-    await withHandlers(async ({ handlers }) => {
-      for (const method of shimmedMethods) {
-        await expect(async () => handlers[method](undefined)).rejects.toThrow(
-          /is not available yet/,
-        );
-      }
-    });
+    expect(new Set(IMPLEMENTED).size, "a method is listed twice").toBe(IMPLEMENTED.length);
+    expect([...IMPLEMENTED].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });
 
   it("persists ui state and notification settings through the store", async () => {
@@ -283,6 +266,7 @@ describe("host routes", () => {
     expect(matchHostLeaf("GET", "/v1/host/ws")).toBe("ws");
     expect(matchHostLeaf("POST", "/v1/host/assets")).toBe("assets");
     expect(matchHostLeaf("POST", "/v1/host/link")).toBe("link");
+    expect(matchHostLeaf("GET", "/v1/host/export")).toBe("export");
   });
 
   it("refuses the wrong method, an unknown leaf, and anything addressed", () => {

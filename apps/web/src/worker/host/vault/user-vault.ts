@@ -322,6 +322,23 @@ export class UserVault {
     return new Uint8Array(await object.arrayBuffer());
   }
 
+  /**
+   * A live file's bytes as a STREAM, or `null` when the path names nothing
+   * live and when the blob behind a live row is gone.
+   *
+   * The export's read: it walks the whole vault, so a method that resolved a
+   * body into memory would put the isolate's 128 MiB between the user and
+   * their own notes. Missing bytes are a value rather than a throw here
+   * because the caller is mid-archive and dropping one member beats aborting
+   * a download in flight.
+   */
+  async openStream(rawPath: string): Promise<ReadableStream<Uint8Array> | null> {
+    const file = this.lookup(rawPath);
+    if (file === null || file.state !== "live") return null;
+    const object = await this.bucket.get(this.objectKey(file.key));
+    return object === null ? null : object.body;
+  }
+
   /** A live file's text — what the editor reads. */
   async readText(rawPath: string): Promise<string> {
     const file = this.lookup(rawPath);

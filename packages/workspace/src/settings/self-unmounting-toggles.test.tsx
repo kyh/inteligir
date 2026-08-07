@@ -33,8 +33,8 @@ import { ThemeProvider } from "@repo/ui/lib/theme";
 import { createFixtureBridge } from "@repo/workspace/dev/fixture-bridge";
 import { createWasmSqlDriver, loadSqlite3 } from "@repo/workspace/dev/wasm-sql-driver";
 import { installBridge } from "@repo/bridge/client";
-import { SkillsSection } from "./extensions/skills-section";
 import { RoutinesSection } from "./sections/routines-section";
+import { SkillsSection } from "./sections/skills-section";
 
 const sqlite3 = await loadSqlite3();
 const newBridge = (): Bridge =>

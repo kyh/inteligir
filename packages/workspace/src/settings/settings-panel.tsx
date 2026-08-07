@@ -13,6 +13,7 @@ import { EditorAiSection } from "@repo/workspace/settings/sections/editor-ai-sec
 import { NotesSection } from "@repo/workspace/settings/sections/notes-section";
 import { RoutinesSection } from "@repo/workspace/settings/sections/routines-section";
 import { SettingSwitchRow } from "@repo/workspace/settings/sections/setting-switch-row";
+import { SkillsSection } from "@repo/workspace/settings/sections/skills-section";
 import { VoiceSection } from "@repo/workspace/settings/sections/voice-section";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
 import type { NotificationSettings } from "@repo/bridge/ipc-registry";
@@ -131,6 +132,8 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
       <NotesSection />
 
       <RoutinesSection />
+
+      <SkillsSection />
 
       <AccountSection />
 

@@ -33,7 +33,7 @@ export function isHttpUrl(url: string): boolean {
 
 /** Concatenated text blocks of a message `content` value — a plain string, or
  * an array of pi-ai content blocks (only `{type:"text"}` blocks contribute). */
-export function extractTextFromContent(content: unknown): string {
+function extractTextFromContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   const parts: string[] = [];

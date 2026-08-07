@@ -94,6 +94,15 @@ export type AgentComposition = {
    * and a pump on a busy lane does nothing.
    */
   readonly sweepBackground: (now: number) => Promise<void>;
+  /**
+   * Destroy both lanes' containers — the agent's half of an account purge.
+   *
+   * Both, because a lane IS a container (see the header): a purge that took
+   * only the chat one would leave a running image holding a scratch copy of a
+   * vault whose owner no longer exists. Idempotent, because the port's
+   * `shutdown` treats an already-gone container as the state it was asked for.
+   */
+  readonly destroyContainers: () => Promise<void>;
   /** When this host must next wake for background work, or null. */
   readonly backgroundDueAt: (now: number) => number | null;
   /** A lane's scripted container, or `null` on the real runtime. */
@@ -278,6 +287,9 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
       // Delegation first: it is work someone asked for and is waiting on.
       await delegations.pump();
       await routines.tick();
+    },
+    destroyContainers: async () => {
+      await Promise.all([sandbox("chat").shutdown(), sandbox("background").shutdown()]);
     },
     backgroundDueAt: (now) => {
       const due = [runs.nextDueAt(), routines.nextDueAt(now)].filter(

@@ -58,8 +58,10 @@ src/
       client-class.ts    ClientClass, how it is decided, + the two capability gates
       socket-state.ts    The socket attachment: the only state a wake can read
       host-events.ts     The per-instance event bus (never module scope)
-      handler-registry.ts collectHandlers(): the completeness guard + shims
-      handlers.ts        the implementations + CLOUD_SHIMS (the backlog)
+      handler-registry.ts collectHandlers(): the completeness guard
+      handlers.ts        every channel's implementation, grouped by feature
+      host-limits.ts     the per-account budget each HTTP leaf charges
+      vault-export.ts    GET /v1/host/export: the whole vault as a streamed zip
       vault-handlers.ts  the vault's ten channels
       knowledge-handlers.ts the index's seven channels, incl. the guarded toggle
       stores.ts          ui-state + notifications as JsonStores over DO KV
@@ -270,6 +272,54 @@ Three pages over the existing Better Auth routes, sharing one card
   rolling window are held whole until a human confirms. It reads a COUNT, never
   a cause — it bounds the blast radius of a mass delete, it does not detect one.
 
+### The data lifecycle (export, retention, deletion)
+
+Hosted, "your notes are markdown you own" is a claim the code has to keep. All
+four halves of it live in the host object, because the object is the account.
+
+- **Export is a streamed zip** (`host/vault-export.ts` over
+  `host/vault/zip-stream.ts`): `GET /v1/host/export`, one R2 body at a time,
+  deflated and handed to the browser with nothing gathered. A vault is allowed
+  to exceed the isolate's 128 MiB, so the buffering version of this route would
+  pass every test and fail exactly the users who need it. It is a plain
+  navigation rather than a `fetch`, so the browser writes to disk as bytes
+  arrive; the cost of that is that a top-level GET carries no `Origin`, so the
+  leaf is gated on the session alone and its budget is what bounds a cross-site
+  page provoking downloads it cannot read. The archive is classic 32-bit ZIP,
+  and the two ceilings that implies are checked against the MANIFEST before a
+  byte is sent — a refusal the user reads beats an archive that truncates.
+- **There is no import**, and that is a decision rather than a gap. Zipping
+  streams because the writer chooses the order; UNzipping does not — the
+  central directory is at the END, so a streaming reader has to parse local
+  headers whose sizes are deferred to a descriptor that has no length prefix,
+  which is exactly the ambiguity the format's own tools avoid by seeking. Then
+  every member is a vault mutation: a hash, an R2 put and a manifest row, times
+  thousands, inside one request. It is a Workflow or a queue-backed job, not a
+  route, and it is worth building when someone actually arrives with a vault to
+  bring. Until then the agent's file tools will happily write files a user
+  pastes.
+- **Retention deletes BYTES, not just rows.** A tombstone keeps its blob for 30
+  days and the host's alarm purges both (`vault.sweepTrash` → row first, then
+  the R2 object). Snapshots keep the newest 50 PER ORIGIN and the prune drops
+  each evicted row's blob with it (`agent/agent-snapshots.ts`). There is no
+  bucket-level R2 lifecycle rule and there must not be one: the manifest is the
+  authority for which bytes are live, and a second expiry policy that cannot
+  read it would delete a note whose row still points at it.
+- **Deleting the account deletes the account's data.** Better Auth's
+  `deleteUser` is enabled with a `beforeDelete` hook that calls
+  `UserHost.purgeAccount()` — both containers destroyed, the whole R2 prefix
+  swept, `ctx.storage.deleteAll()` for the SQLite tables, the KV keys and the
+  alarm together. BEFORE, so a purge that fails aborts the deletion and leaves
+  the account able to ask again; idempotent, so asking again resumes. The R2
+  sweep is driven by the LISTING rather than the manifest, which is what
+  catches blobs the manifest has already forgotten.
+- **Every HTTP leaf charges a per-account budget** (`host/host-limits.ts`), in
+  the object's own SQLite rather than in D1: these callers are authenticated
+  and already resolved to one object, so a shared store would cost two D1
+  operations per request to protect one. Budgets are proportionate to what each
+  leaf does — a ticket mint is one local row, an export is the whole vault out
+  of R2.
+
 ### The knowledge index (inside the same DO)
 
 - **Core's SQL `KnowledgeStore`, unforked**, over a third `SqlDriver` bound to
@@ -304,7 +354,7 @@ Three pages over the existing Better Auth routes, sharing one card
 ### Workspace host (`/v1/host/*`)
 
 **One Durable Object per user** (`env.UserHost.getByName("user:" + userId)`)
-serving that user’s Bridge — the 71 host methods and 15 event channels
+serving that user’s Bridge — the 63 host methods and 15 event channels
 `@repo/bridge/ipc-registry` declares — over one hibernatable WebSocket per
 client.
 
@@ -358,13 +408,12 @@ client.
   server-side and would otherwise volunteer state the method gate forbids
   asking for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a
   third path appears.
-- **Sixty-three of the 71 host methods are implemented; 8 are owed.**
-  `collectHandlers` throws at construction if any is unregistered.
-  `host/handlers.ts` keeps ONE table — `CLOUD_SHIMS`, the migration backlog
-  (connectors, and only connectors) — and a shim says "not available yet"
-  rather than returning a plausible empty value. There is no second table for
-  capabilities decided against: retiring one means deleting its channel, which
-  the no-dead-channels guard already makes complete.
+- **All 63 host methods are implemented, and there is no second pile.**
+  `collectHandlers` throws at construction if any is unregistered. A capability
+  this host does not have has no channel either: a method that answers only by
+  refusing satisfies both the completeness guard and no-dead-channels while
+  failing at runtime, so adding a channel is the last step of building a
+  capability and retiring one deletes it.
 
 ### The agent (`src/worker/agent/`)
 
@@ -527,29 +576,39 @@ Skills live in the VAULT, at `skills/<slug>/SKILL.md`.
 
 ### What is deliberately not here yet
 
-**Connectors / MCP** is the whole remaining `CLOUD_SHIMS` group, and it is
-shimmed rather than half-built because the executor's own persistence is what
-does not survive the move. The daemon is a pinned GitHub-release binary that
-keeps its integration catalog AND its OAuth connection credentials in a local
-SQLite database, and it would run in the agent container — whose filesystem is
-DELETED on every sleep. Carrying it across a wake means externalizing and
-restoring a third party's private on-disk format on the Worker's side, which is
-exactly the coupling the pi quarantine exists to prevent and which this host
-already refuses for pi's own session files. The Google OAuth leg has the same
-shape from the other end: the daemon's redirect URI has to be publicly
-reachable, the container has no ingress and `enableInternet = false`, and moving
-the redirect to the Worker means the Worker completing the exchange and then
-WRITING a credential into executor's connection store — the same format
-coupling. Reaching MCP servers from this host is a real capability worth having;
-it is a different design (the Worker owning the connection credentials and
-speaking MCP itself over the `ExecutorPort` seam the agent already injects),
-not this one ported.
+**Connectors / MCP** is absent, and the analysis behind that is worth keeping
+so nobody redoes it.
+
+The obvious implementation is the one a desktop app uses: a local **executor
+daemon** — a pinned binary that holds its integration catalog AND its OAuth
+connection credentials in a SQLite file on disk, with a loopback redirect URI
+for the browser consent leg. None of that shape works on this host. The only
+place a daemon could run is the agent container, whose filesystem is DELETED on
+every sleep, so carrying it across a wake means externalizing and restoring a
+third party's private on-disk format from the Worker — precisely the coupling
+the pi quarantine exists to prevent. The OAuth leg fails from the other end too:
+the container has no ingress and `enableInternet = false`, so the redirect has
+to land on the Worker, which then has to WRITE a credential into the daemon's
+own store. Same coupling, other direction.
+
+Reaching MCP servers is still worth having. It is a **different design**: the
+Worker holds the connection credentials (sealed the way provider refresh tokens
+already are in `agent/provider-credentials.ts`), completes the OAuth leg on its
+own public origin the way `agent/agent-route.ts` already does, and speaks MCP
+itself. The seam that survives is the one the agent already has — **the host
+implements every tool** (`agent/agent-tools.ts`, declared in
+`@repo/bridge/agent-grants`), and the container receives them as a manifest at
+boot. An MCP server's tools join that manifest; the container needs no new
+capability, no credential and no code. What a new surface would need is a place
+to name servers and consent to them, and that is a Settings section over
+Worker-held state, sized to what MCP actually needs — a server URL and a
+consent — rather than to a daemon's per-step catalog/connection API.
 
 **HTML apps** are not served. The cloud client now exists — `/app` mounts the
 same workspace, which opens a vault `.html` as an app — so the group is
 refused rather than merely absent: `src/app/html-apps-disabled.ts` installs a
 runtime whose `injectRuntime` throws (`mintHtmlAppToken` and
-`revokeHtmlAppToken` are `DESKTOP_SHELL_METHODS`, outside this host's 89, so
+`revokeHtmlAppToken` are `DESKTOP_SHELL_METHODS`, outside this host's 78, so
 the view already fails a step earlier; the refusal is the seam saying no).
 The standing requirement in the root `CLAUDE.md` is that the postMessage
 broker's capability set be **re-audited before a meaningful `event.origin`

@@ -37,7 +37,6 @@ src/
   ai-provider.ts, inline-ai.ts  # provider settings + editor-AI/ghost-text params
   delegation.ts, routines.ts, routine-schedule.ts
                         # delegation wire shapes; routine model + pure due-math
-  executor.ts           # wire types the connector channels carry
   ui-state.ts, daily-notes.ts
                         # ui-state keys, daily-note/template conventions
 ```

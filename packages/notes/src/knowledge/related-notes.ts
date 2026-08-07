@@ -63,7 +63,7 @@ export type LexicalSearch = (
   limit: number,
 ) => ReadonlyArray<{ path: string; score: number }>;
 
-export const RELATED_DEFAULT_LIMIT = 8;
+const RELATED_DEFAULT_LIMIT = 8;
 
 // Weights: one shared link (either direction of indirection) outranks one
 // shared tag; the whole lexical signal is capped below two shared links so
