@@ -7,10 +7,9 @@ The pure, platform-neutral domain core: the knowledge engine
 
 This is the sharing seam. ZERO node/electron/react/workspace imports — lint-
 (`.oxlintrc.json` `no-restricted-imports`) and tsconfig-enforced (`lib:
-["ES2023", "WebWorker"]`, `types: []`) — so the same code runs unchanged in
-the Cloudflare Worker (apps/web), React Native (apps/mobile), and the
-desktop renderer. Platforms inject capabilities (SQL driver, clock).
-Everything above it (bridge, vault, server, agent, all three apps)
+["ES2023", "WebWorker"]`, `types: []`) — so the same code runs unchanged inside
+the Cloudflare Worker's Durable Object, in the browser workspace, and in React
+Native. Platforms inject capabilities (SQL driver, clock). Everything above it
 depends on it; it depends on nothing in the workspace.
 
 ## Layout
@@ -18,7 +17,7 @@ depends on it; it depends on nothing in the workspace.
 ```
 src/
   daily-path.ts        # pure date↔path math for daily notes, both directions
-                       # in ONE module so desktop/capture-drain/mobile agree
+                       # in ONE module so the UI and the capture drain agree
   knowledge/           # derived-index engine
     projection.ts      # projectDoc — the ONE parse per doc (PROJECTION_VERSION)
     link-graph-index.ts  # pure link/tag/title/graph resolution, fed projections
@@ -47,7 +46,7 @@ src/
 - **Purity is the law.** No I/O, clock, or crypto anywhere; callers supply
   the driver and the timestamps.
 - **The knowledge index is a wipe-and-rebuild cache** (repo Decisions).
-  Nothing durable may ever live in it; per-device, rebuilt from the vault.
+  Nothing durable may ever live in it; it is rebuilt from the vault.
 - **Frontmatter is the ONLY property store** (repo Decisions). YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **Refusals are values.** A guarded line edit refuses (a VALUE) on any byte
@@ -60,9 +59,9 @@ src/
 
 ## Seams
 
-- `SqlDriver` (`knowledge/sql-knowledge-store.ts`): desktop binds node:sqlite
-  in `packages/server/src/knowledge/sqlite-knowledge-store.ts`; the dev
-  harness binds SQLite wasm.
+- `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds the Durable
+  Object's own SQLite in `apps/web/src/worker/host/knowledge/do-sql-driver.ts`;
+  the fixture Bridge binds SQLite wasm.
 - `task-schedule.ts`: injected daily-note config and a `todayIso` clock.
 
 ## Testing
@@ -70,5 +69,5 @@ src/
 `pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
 knowledge engine: resolver tiers, rename byte surgery, guarded edits,
 daily-path round-trips, a perf oracle. `knowledge/__tests__/crawl-fixture.ts`
-is exported so `@repo/vault` pins its real filesystem walk against the same
-tree this package's pure predicate is pinned against.
+is exported so a host can pin its real walk against the same tree this
+package's pure predicate is pinned against.

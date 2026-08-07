@@ -16,12 +16,16 @@ export const authClient = createAuthClient();
 
 /** The signed-in user and the session token their socket authenticates with,
  * or `null` when nobody is signed in. */
-export type ActiveSession = { readonly userId: string; readonly token: string };
+export type ActiveSession = {
+  readonly userId: string;
+  readonly email: string;
+  readonly token: string;
+};
 
 export async function activeSession(): Promise<ActiveSession | null> {
   const { data } = await authClient.getSession();
   if (data === null) return null;
-  return { userId: data.user.id, token: data.session.token };
+  return { userId: data.user.id, email: data.user.email, token: data.session.token };
 }
 
 /** The message an auth failure should show. Better Auth answers a rejected

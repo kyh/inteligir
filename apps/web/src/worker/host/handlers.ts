@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// The cloud host's handler map: what is implemented, and — in two tables —
-// what is not.
+// The host's handler map: what is implemented, and — in two tables — what is
+// not.
 //
 // Everything this host owns is answered for real: the app phase and the two
 // JsonStores over the Durable Object's KV, the vault (./vault-handlers) whose
@@ -13,9 +13,8 @@
 // The rest is registered as a SHIM that throws, and the two tables are not the
 // same kind of thing:
 //
-//   • `CLOUD_SHIMS` is the migration BACKLOG — a capability this host will
-//     have, grouped by the commit that will bring it. A group empties as that
-//     commit lands.
+//   • `CLOUD_SHIMS` is the BACKLOG — a capability this host will have, grouped
+//     by the commit that will bring it. A group empties as that commit lands.
 //   • `CLOUD_RETIRED` is a set of DECISIONS. Each row says what does not exist
 //     here and why, and its refusal says so rather than promising "yet". A row
 //     moving from the backlog to this table is a design conclusion, not a
@@ -87,7 +86,6 @@ export const CLOUD_SHIMS: readonly ShimGroup[] = [
       "ensureGoogleOAuthClient",
       "installConnector",
       "uninstallConnector",
-      "getPendingConnectorAuth",
     ],
   },
 ];
@@ -99,52 +97,7 @@ type RetiredGroup = ShimGroup & {
 };
 
 /** Capabilities this host will NOT have, each with the reason. */
-export const CLOUD_RETIRED: readonly RetiredGroup[] = [
-  {
-    feature: "choosing a vault folder",
-    why: "there is one vault per account and no folder to pick",
-    methods: ["chooseVaultRoot"],
-  },
-  {
-    feature: "the open-note watcher",
-    why: "this object is the only writer, so the manifest is never stale",
-    methods: ["setWatchedNote"],
-  },
-  {
-    feature: "the note privacy probe",
-    why: "`private: true` is not a feature of this host, so a probe would answer a question nothing here asks",
-    methods: ["probeNotePrivacy"],
-  },
-  {
-    feature: "the account channels",
-    why: "a client is already signed in — the session is what named this object",
-    methods: [
-      "getAccountState",
-      "setAccountServerUrl",
-      "syncSignIn",
-      "syncRequestPasswordReset",
-      "syncSignUp",
-      "syncSocialSignIn",
-      "getAccountCapabilities",
-      "syncSignOut",
-    ],
-  },
-  {
-    feature: "remote access",
-    why: "there is no home machine for a phone to pair with; every client already reaches this object over the network",
-    methods: [
-      "getRemoteAccessState",
-      "setRemoteAccessConfig",
-      "createPairingToken",
-      "revokeRemoteDevice",
-    ],
-  },
-  {
-    feature: "CLI integrations",
-    why: "they reported installed-vs-pinned versions of local binaries, and this host installs none",
-    methods: ["listIntegrations", "repairIntegrations"],
-  },
-];
+export const CLOUD_RETIRED: readonly RetiredGroup[] = [];
 
 export function registerCloudHandlers(
   handle: HandlerRegistrar,

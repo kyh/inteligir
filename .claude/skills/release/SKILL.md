@@ -23,14 +23,14 @@ what step 6 verifies.
 ## Context
 
 - Repo root: `/Users/kyh/Documents/Projects/inteligir`
-- The only shipping artifact is the Electron app at `apps/desktop` (`@repo/desktop`). The whole monorepo (packages + app) bundles into it.
+- The shipping artifact is the Electron SHELL at `apps/desktop` (`@repo/desktop`) — a window on the hosted product. It carries no vault, no agent and no index, so what a bump changes is the window and its update feed. The product itself ships by deploying `apps/web`, which is a different act.
 - Version of record: `version` in `apps/desktop/package.json`. The repo root has no version field.
 - Tag scheme: `v<version>` (e.g. `v0.3.0`) — electron-builder creates this tag + GitHub release.
 - Build chain: `electron-vite build` → `electron-builder --mac` (targets `dmg` + `zip` from `electron-builder.yml`; the zip is the auto-update artifact) → publishes to `github:kyh/inteligir` as a live release.
 - **macOS only.** electron-builder notarizes (`notarize: true`) — needs Apple creds from `apps/desktop/.env` (loaded via `with-env`/dotenv) and must run on a Mac. No Windows/Linux targets.
 - Existing scripts in `apps/desktop`:
   - `release` — build + package locally, `--publish never` (dry run, no upload)
-  - `release:publish` — build + package + `--publish always` (uploads to GitHub), wraps `GH_TOKEN=$(gh auth token)` and the `verify:release`/`verify:packaged` guards
+  - `release:publish` — build + package + `--publish always` (uploads to GitHub), wraps `GH_TOKEN=$(gh auth token)` and the `verify:release` guard
 - Current branch: !`git -C /Users/kyh/Documents/Projects/inteligir rev-parse --abbrev-ref HEAD`
 - Working tree: !`git -C /Users/kyh/Documents/Projects/inteligir status --short`
 
@@ -52,14 +52,14 @@ Run in parallel:
 - `gh auth status` — must be authenticated (the publish step pulls `GH_TOKEN` from `gh auth token`). If not, stop and tell the user to `gh auth login`.
 - `git status --porcelain` — if dirty in unrelated files, surface and ask whether to proceed.
 - `pnpm format:fix && pnpm verify` on the exact commit being cut. `release`/`release:publish` run the full gate through `verify:release`, so a red gate stops the build rather than shipping past it — but run it HERE anyway: finding out after `electron-vite build` wastes a notarization cycle. Keep `verify:release` wired to the whole gate: anything narrower lets a release be cut while `main` is red.
-- Electron fuses + entitlements are only exercised by a real packaged build. `verify:packaged` reads the fuse wire off the shipped binary, so a launch failure in a packaged build points at `enableEmbeddedAsarIntegrityValidation` / `onlyLoadAppFromAsar` — see the comment in `electron-builder.yml`.
+- Electron fuses + entitlements are only exercised by a real packaged build, so a launch failure in a packaged build points at `enableEmbeddedAsarIntegrityValidation` / `onlyLoadAppFromAsar` — see the comment in `electron-builder.yml`.
 - `uname -s` — must be `Darwin`. If not, stop: notarized mac builds require macOS.
 - `test -f apps/desktop/.env` — notarization creds live here. If missing, stop and say so.
-- Bundled Google OAuth client — release builds bake `INTELIGIR_GOOGLE_OAUTH_CLIENT_ID` + `INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET` from `.env` into the main bundle (electron-vite `define`; see `apps/desktop/.env.example`):
+- The bundled app origin — a release bakes `INTELIGIR_APP_URL` from `.env` into the main bundle (electron-vite `define`). Absent, the shell ships pointing at `https://inteligir.com`, which is usually what you want; a release meant for a different deployment MUST set it:
   ```
-  grep -E '^INTELIGIR_GOOGLE_OAUTH_CLIENT_(ID|SECRET)=.+' apps/desktop/.env | wc -l
+  grep -E '^INTELIGIR_APP_URL=.+' apps/desktop/.env | wc -l
   ```
-  Must print `2`. If not, the artifact ships WITHOUT a bundled Google client — every user gets the paste-your-own-GCP-app dialog on Google connect. Surface this and ask whether to proceed before building.
+  Prints `1` when set. `0` is fine for a production release and WRONG for any other target — surface which one this is before building.
 - `gh release view v<current-version>` — sanity check the current version isn't already released.
 - Last release + changes since:
   ```
@@ -102,7 +102,7 @@ Pushing to `main` may trigger other GitHub Actions — fine, releases are intent
 ### 5. Build + publish
 
 ```
-pnpm install            # defensive — native deps (sherpa-onnx) may be unlinked after a pull
+pnpm install            # defensive — deps may be unlinked after a pull
 pnpm -F @repo/desktop release:publish
 ```
 

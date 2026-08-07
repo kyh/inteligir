@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// The cloud host's handler map, its capability policy, and its origin gate —
-// the pure halves, driven directly rather than over a socket.
+// The host's handler map, its capability policy, and its origin gate — the
+// pure halves, driven directly rather than over a socket.
 //
 // The load-bearing assertion is COMPLETENESS: every host method the registry
 // declares has an answer, and the ones with no backend answer by naming the
@@ -166,13 +166,14 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("splits those methods into 63 implementations, 9 pending and 17 retired", () => {
-    // The counts are the migration's progress bar: 89 host methods (110 IPC
-    // entries minus 19 events and the 2 desktop-shell methods).
-    expect(HOST_METHODS).toHaveLength(89);
+  it("splits those methods into 63 implementations and 8 pending, with nothing retired", () => {
+    // The counts are the backlog's progress bar: 71 host methods (88 IPC
+    // entries minus 17 events). CLOUD_RETIRED is empty and that is the point —
+    // every capability a client can name, this host either answers or owes.
+    expect(HOST_METHODS).toHaveLength(71);
     expect(IMPLEMENTED).toHaveLength(63);
-    expect(pendingMethods).toHaveLength(9);
-    expect(retiredMethods).toHaveLength(17);
+    expect(pendingMethods).toHaveLength(8);
+    expect(retiredMethods).toHaveLength(0);
     expect(new Set(shimmedMethods).size, "a method is shimmed twice").toBe(shimmedMethods.length);
     expect([...IMPLEMENTED, ...shimmedMethods].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });
@@ -181,7 +182,7 @@ describe("cloud handler registry", () => {
     await withHandlers(async ({ handlers }) => {
       for (const method of pendingMethods) {
         await expect(async () => handlers[method](undefined)).rejects.toThrow(
-          /is not available on the cloud host yet/,
+          /is not available yet/,
         );
       }
     });
@@ -193,7 +194,7 @@ describe("cloud handler registry", () => {
     await withHandlers(async ({ handlers }) => {
       for (const method of retiredMethods) {
         await expect(async () => handlers[method](undefined)).rejects.toThrow(
-          /does not exist on the cloud host — /,
+          /does not exist here — /,
         );
       }
     });
@@ -240,10 +241,10 @@ describe("capability classes", () => {
   it("grants the web workspace the whole host surface", () => {
     for (const method of HOST_METHODS) expect(mayInvoke("web", method)).toBe(true);
     expect(mayReceive("web", "onAppState")).toBe(true);
-    expect(mayReceive("web", "onRemoteAccessChanged")).toBe(true);
+    expect(mayReceive("web", "onKnowledgeUpdated")).toBe(true);
   });
 
-  it("holds mobile to the companion surface", () => {
+  it("holds a companion client to the companion surface", () => {
     expect(mayInvoke("mobile", "listDelegations")).toBe(true);
     expect(mayInvoke("mobile", "sendAgentCommand")).toBe(true);
     expect(mayInvoke("mobile", "getUiState")).toBe(false);

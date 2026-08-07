@@ -1,18 +1,18 @@
 // ---------------------------------------------------------------------------
-// SQLite-wasm binding for the shared SQL knowledge store — the dev harness's
-// twin of the node:sqlite driver in @repo/server (sqlite-knowledge-
-// store.ts). The schema, guards, and every query live in @repo/notes
+// SQLite-wasm binding for the shared SQL knowledge store — the browser's
+// twin of the Durable Object's driver (host/knowledge/do-sql-driver.ts).
+// The schema, guards, and every query live in @repo/notes
 // (sql-knowledge-store.ts, driver-injected); this module only supplies the
-// browser byte-level driver, so harness search runs the IDENTICAL FTS5 bm25
-// ranking the product ships.
+// browser byte-level driver, so a fixture-backed search runs the IDENTICAL
+// FTS5 bm25 ranking the product ships.
 //
 // The binding is @sqlite.org/sqlite-wasm — the official SQLite build (stock
 // sql.js does not compile FTS5, which would defeat the whole point). Its oo1
 // API is fully synchronous once the wasm module has loaded, so the async
-// load happens ONCE at harness bootstrap (loadSqlite3) and the driver itself
-// honors the synchronous SqlDriver contract. The DB is in-memory: the harness
+// load happens ONCE (loadSqlite3) and the driver itself honors the
+// synchronous SqlDriver contract. The DB is in-memory: the fixture
 // vault is an in-memory Map that reseeds on reload, so a persistent index
-// would only ever serve stale rows. Dev-harness-only — never part of the
+// would only ever serve stale rows. Fixture-only — never part of the
 // product build (only dev/ imports it).
 // ---------------------------------------------------------------------------
 

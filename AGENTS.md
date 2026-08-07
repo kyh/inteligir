@@ -1,85 +1,69 @@
 # AGENTS.md
 
 **inteligir** is an AI-native notes app — Obsidian with an agent. The product is
-an **Electron desktop app** over a local Node host; a Cloudflare Worker serves
-auth and the server-side vault, an Expo app is a remote control for a paired
-desktop, and a TanStack Start site is marketing. This is the tool-agnostic guide for coding agents —
-it's meant to be **run**, not just read. `CLAUDE.md` holds the architecture and
-the durable decisions; `docs/development.md` the full dev loop. Both point back
-here.
+a **Cloudflare Worker** (`apps/web`): the marketing site, Better Auth on D1, and
+`/app` — the workspace UI over a `UserHost` Durable Object per account that
+holds the vault, the knowledge index, the agent and the background work. An
+Electron shell and an Expo app wrap it. This is the tool-agnostic guide for
+coding agents — it's meant to be **run**, not just read. `CLAUDE.md` holds the
+architecture and the durable decisions; `apps/web/README.md` the product's own
+protocol and dev recipe. Both point back here.
 
-Unusually for a desktop product, **every surface except mobile is headlessly
-agent-verifiable** — the dev script already exposes Electron's remote-debugging
-port. There is no excuse for leaving a UI change "unverified".
+**Every surface except mobile is headlessly agent-verifiable.** There is no
+excuse for leaving a UI change "unverified".
 
-## Quickstart (headless)
+## Quickstart
 
 ```sh
 pnpm install
-pnpm --filter @repo/desktop dev:harness    # → http://localhost:5173
+pnpm dev:web        # → the real Worker on miniflare, http://localhost:5174
 ```
 
-That's the whole setup for writing code. (Driving the app at runtime also wants
-the `agent-browser` binary — one `npm i -g`, see below.) The harness is a plain
-browser page running the **real
-renderer UI** over an in-memory fixture Bridge (`apps/desktop/dev/`) with a
-sample vault and the real knowledge engine. No Electron, no backend, no auth,
-no vault on disk. Use it for all UI and editor work — it is the fastest loop by
-a wide margin.
+That's the whole setup. `pnpm dev:web` runs the product: the site, the auth API,
+the Durable Object, the vault, the index and the agent path — all in-process, no
+deploy, no cloud account. (Driving it at runtime also wants the `agent-browser`
+binary — one `npm i -g`, see below.)
 
-The real product:
+The shell around it, when you're changing the shell:
 
 ```sh
-pnpm dev:desktop     # Electron + the @repo/server host, HMR, CDP :9222, executor :47888
+INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop   # Electron, CDP :9222
 ```
 
 ## Fresh clone / remote session
 
-`pnpm install` is the only provisioning step for the repo itself — there is no
-bootstrap script and nothing else to stand up. (Runtime verification also needs
-the global `agent-browser` binary — see § Verify a change end-to-end.) (`.codex/environments/environment.toml` runs `pnpm i`
-for cloud runners.) Requirements: **Node ≥ 24**, **pnpm 10** (`corepack
-enable`), and **macOS** for the Electron app + voice; the browser harness runs
-anywhere.
+`pnpm install` is the only provisioning step — there is no bootstrap script and
+nothing else to stand up. (`.codex/environments/environment.toml` runs `pnpm i`
+for cloud runners.) Requirements: **Node ≥ 24** and **pnpm 10**
+(`corepack enable`). The Worker and its tests run anywhere; only the Electron
+shell wants macOS to package.
 
-Two footguns that only bite fresh checkouts:
+One footgun that bites fresh checkouts:
 
 ```sh
 # `pnpm dev:desktop` dies with `Error: Electron uninstall` after a fresh
-# checkout or `git worktree` — Electron is unpacked but not downloaded:
+# checkout — Electron is unpacked but not downloaded:
 node apps/desktop/node_modules/electron/install.js
-
-# Stale processes hold 9222 / 47888 and the next launch can't bind them:
-pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"
 ```
 
-**No login is needed for the product.** The desktop app is guest by default, so
-chat, the editor, delegation, knowledge and the vault all work with zero
-provisioning.
+## There is no seeded login, and sign-up is invite-only
 
-## There is no seeded login — provision one only for the account surface
-
-This repo ships **no seed script and no test account**. Notes live in the
-user's local vault, never in a server database, so there is nothing to seed
-beyond a user row. If you actually need an account (Settings → Account), stand
-up the local Worker — four commands:
+This repo ships no seed script and no test account. To get one locally — four
+commands, and the full version with the invite step is in `apps/web/README.md`
+§ Dev:
 
 ```sh
 cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET to anything
-pnpm dev:web                                       # vite dev → http://localhost:5174
+pnpm dev:web                                       # vite dev on :5174
 
 curl -s -o /dev/null localhost:5174/api/auth/get-session   # materializes the local D1 file
 pnpm --filter @repo/web db:push:local                      # apply the schema to it
-
-# Better Auth refuses a state-changing request with no Origin (MISSING_OR_NULL_ORIGIN).
-curl -s -X POST localhost:5174/api/auth/sign-up/email \
-  -H 'content-type: application/json' -H 'origin: http://localhost:5174' \
-  -d '{"email":"dev@inteligir.local","password":"password","name":"Dev"}'
 ```
 
-The sign-up returns 200 with a `set-auth-token` header — that bearer is the
-session credential every client carries. To drive it through a UI instead, put
-`http://localhost:5174` in the desktop's Settings → Account server URL.
+Then mint an invite and sign up against it (`apps/web/README.md` § Dev has the
+exact two calls). The sign-up returns 200 with a `set-auth-token` header — that
+bearer is the session credential every client carries, including the socket's
+first frame.
 
 Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
@@ -109,51 +93,51 @@ with [agent-browser](https://github.com/vercel-labs/agent-browser):
 
 ```sh
 npm i -g agent-browser && agent-browser install   # once, if missing
-pnpm --filter @repo/desktop dev:harness
-agent-browser open http://localhost:5173
+pnpm dev:web
+agent-browser open http://localhost:5174/app
 agent-browser snapshot                      # accessibility tree with @eN refs
 agent-browser click @e1
 agent-browser get text                      # assert what changed
 agent-browser screenshot /tmp/after.png
 ```
 
-For the real product, `pnpm dev:desktop` then `agent-browser connect 9222`
-attaches to the Electron renderer over CDP.
+For the shell, `pnpm dev:desktop` then `agent-browser connect 9222` attaches to
+its window over CDP.
 
 Two things worth knowing before you reach for the UI:
 
-- **Drive the Bridge directly.** The renderer holds `{ url, token }` at
-  `window.bridgeBootstrap`; from `agent-browser eval` you can open that
-  WebSocket and call ANY Bridge method (`readVaultDoc`, `writeVaultDoc`,
-  `createDelegation`, …). Exact snippet in `docs/e2e-driving.md`.
-- **Agent, delegation and connector flows are login-free.** Two fail-closed
-  dev flags (`INTELIGIR_FAUX_AGENT=1`, `INTELIGIR_EMULATE_CONNECTORS=1` in
-  `apps/desktop/.env`) script the pi provider and point Google OAuth at a local
-  `emulate` stub. See `.claude/skills/e2e-drive` and `docs/e2e-driving.md` —
-  including the mandatory teardown.
+- **Drive the Bridge directly.** From `agent-browser eval` on a signed-in `/app`
+  page you can open the host socket and call ANY Bridge method (`readVaultDoc`,
+  `writeVaultDoc`, `createDelegation`, …) — the credential is the session token
+  the page already holds. Exact snippet in `docs/e2e-driving.md`.
+- **The agent runs headlessly in tests.** `AGENT_RUNTIME=scripted` swaps the
+  Cloudflare Sandbox for an in-memory container while keeping the production
+  runner, tool executor, transcript, confirmation broker and vault write-back —
+  which is how the whole agent suite runs with no provider account and no image.
 
 ## Platform matrix
 
-| Surface           | Dev command                               | Where     | Agent-verifiable at runtime?                                                                      |
-| ----------------- | ----------------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
-| Desktop harness   | `pnpm --filter @repo/desktop dev:harness` | :5173     | **Yes** — `agent-browser open`                                                                    |
-| Desktop (product) | `pnpm dev:desktop`                        | CDP :9222 | **Yes** — `agent-browser connect 9222`                                                            |
-| Web (site + API)  | `pnpm dev:web`                            | :5174     | **Yes** — `agent-browser open`; API by curl. Also `-F @repo/web test` (real in-process miniflare) |
-| Mobile (Expo)     | `pnpm --filter @repo/mobile dev`          | simulator | **No** — verify with `typecheck` + `test`                                                         |
+| Surface       | Dev command                      | Where     | Agent-verifiable at runtime?                                                    |
+| ------------- | -------------------------------- | --------- | ------------------------------------------------------------------------------- |
+| Web (product) | `pnpm dev:web`                   | :5174     | **Yes** — `agent-browser open`; API by curl; `-F @repo/web test` runs miniflare |
+| Desktop shell | `pnpm dev:desktop`               | CDP :9222 | **Yes** — `agent-browser connect 9222`                                          |
+| Mobile (Expo) | `pnpm --filter @repo/mobile dev` | simulator | **No** — verify with `typecheck` + `test`                                       |
 
-Ports auto-increment if taken, so read the dev server's own output before
-assuming a URL.
+5174 is PINNED (`strictPort`), so a stale process holding it fails the start
+rather than moving the app somewhere the docs don't name.
 
 ## Rules that matter
 
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
-- **Never hand-edit or format `apps/desktop/src/renderer/__tests__/fixtures/`** —
+- **Never hand-edit or format `packages/editor/src/__tests__/fixtures/`** —
   those bytes _are_ the test contract (trailing spaces, indentation, line
   endings). Generate them through the `roundTrip` pipeline itself.
 - **No `any`, no non-null `!`, no `as` casts** (lint-enforced). Kebab-case
   filenames. Make illegal states unrepresentable.
-- **The renderer never imports electron/node/`@repo/server`** — that's a package
-  fact (no dep edge), not a lint opinion. `@repo/notes` stays platform-neutral.
+- **Nothing under `packages/` may import `node:*` or `electron`.** Every one of
+  them is bundled into a browser; `notes` and `bridge` also into React Native.
+  Lint enforces it for those two and `tools/repo-guards` enforces it for the
+  rest, over shipped source only — their tests walk the filesystem on purpose.
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip `entry`
   glob in `knip.json` or it reads as unused and CI goes red. A tooling dep may
   pass for a non-obvious reason — `@libsql/client` survives because it is an
@@ -168,22 +152,24 @@ assuming a URL.
 ## Map
 
 ```
-apps/desktop    Electron shell + the product UI (renderer)      @repo/desktop
-apps/mobile     Expo companion — remote control, no agent       @repo/mobile
-apps/web        ONE CF Worker — marketing site + Better Auth (D1)
-                + the UserHost DO holding the vault, one origin  @repo/web
+apps/web            THE PRODUCT — one CF Worker: marketing site,
+                    Better Auth (D1), and /app over a UserHost
+                    Durable Object per account                     @repo/web
 apps/web/container  The agent image: pi in a per-user Cloudflare
-                Sandbox, driven by that UserHost       @repo/agent-container
-packages/notes  Pure domain — knowledge + markdown              @repo/notes
-packages/bridge Iso wire contract — IPC registry, ws, schemas   @repo/bridge
-packages/server Node host — the composition root                @repo/server
-packages/{agent,vault,storage,voice,connectors,sync,installer,ui}
+                    Sandbox, driven by that UserHost     @repo/agent-container
+apps/desktop        Electron SHELL — a window on the hosted app    @repo/desktop
+apps/mobile         Expo — a signed-in shell                       @repo/mobile
+packages/notes      Pure domain — knowledge + markdown             @repo/notes
+packages/bridge     Iso wire contract — IPC registry, ws, grants   @repo/bridge
+packages/ui         Shared components                              @repo/ui
+packages/editor     The note editor — Plate kits, round-trip       @repo/editor
+packages/workspace  The product UI + the fixture Bridge            @repo/workspace
+tools/repo-guards   Derived fitness tests over the repo itself
 ```
 
 - `CLAUDE.md` — architecture, the dep DAG, and § Decisions.
-- `docs/development.md` — the two run modes, ports + `~/.inteligir` shared
-  state, change checklists, per-package test commands.
-- `docs/e2e-driving.md` — login-free chat / delegation / connector recipes.
-- `docs/privacy.md` — the `private: true` guarantee and its holes.
-- `apps/web/README.md` — the Worker's protocol, local loop, and owner-only
-  deploy.
+- `apps/web/README.md` — the Worker's routes and protocol, the local loop, the
+  owner-only deploy.
+- `docs/development.md` — the run modes, per-package test commands, the change
+  checklists.
+- `docs/e2e-driving.md` — driving the Bridge and the agent headlessly.

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Renderer-side TTS client. The WebSocket + API key live in the host (see
-// @repo/voice/tts-proxy); the renderer's job is just to push outgoing text
+// the host's TTS proxy); the client's job is just to push outgoing text
 // through the bridge and play the PCM chunks the host streams back.
 // ---------------------------------------------------------------------------
 

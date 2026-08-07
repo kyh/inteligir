@@ -1,8 +1,7 @@
-# NOTE: package only via `release`/`release:publish` — they run
-# `electron-vite build` under `pnpm with-env` (dotenv -e .env) so the bundled
-# Google OAuth client (INTELIGIR_GOOGLE_OAUTH_CLIENT_ID/_SECRET, see
-# .env.example) bakes into .output/app/main. Building without those vars
-# ships an artifact whose Google connect falls back to the GCP dialog.
+# NOTE: package only via `release`/`release:publish`. They run `electron-vite
+# build` under `pnpm with-env` (dotenv -e .env), which is what bakes
+# INTELIGIR_APP_URL into the shell — a build without it ships pointing at the
+# production default.
 appId: com.inteligir.desktop
 productName: Inteligir
 # inteligir:// deep links (capture + nav verbs). CFBundleURLTypes on macOS —
@@ -18,25 +17,10 @@ directories:
 files:
   - .output/app/**/*
   - package.json
-  # The main process bundles all JS deps (tree-shaken), so node_modules would
-  # otherwise be dead weight duplicated into the asar. Exclude it wholesale,
-  # then re-include only the native modules that CAN'T be bundled and must sit
-  # on disk: sherpa-onnx-node + its per-platform binary package (sherpa-onnx-*).
-  # (koffi is bundled but only invoked on Windows — dead on mac, so not shipped.)
+  - resources/icon.png
+  # The main process bundles all its JS deps (tree-shaken), so node_modules is
+  # dead weight duplicated into the asar.
   - "!node_modules/**"
-  - node_modules/sherpa-onnx-*/**/*
-# Bundled agent assets (skills/, AGENTS.md) — canonical copy lives in
-# packages/agent/resources/agent; copied to Contents/Resources/agent, which is
-# where the electron platform's resourcesDir points in packaged builds.
-extraResources:
-  - from: ../../packages/agent/resources/agent
-    to: agent
-asarUnpack:
-  # sherpa-onnx-node ships native .node binaries (split into per-platform
-  # optional deps like sherpa-onnx-darwin-arm64 — note: no "-node" infix).
-  # .node files can't be require()'d from inside an asar, so unpack the whole
-  # sherpa-onnx-* tree (main package + the platform binary package).
-  - node_modules/sherpa-onnx-*/**/*
 mac:
   # electron-updater's MacUpdater can only install from a zip (Squirrel.Mac
   # format) listed in latest-mac.yml — the dmg is first-install only. Dropping
@@ -51,23 +35,17 @@ mac:
   entitlementsInherit: resources/entitlements.mac.plist
   hardenedRuntime: true
   notarize: true
-  extendInfo:
-    NSMicrophoneUsageDescription: Inteligir uses the microphone for voice dictation (on-device speech-to-text).
-    NSAppleEventsUsageDescription: Inteligir uses Apple Events to control other applications when you ask the agent to act on them.
-    NSScreenCaptureUsageDescription: Inteligir captures the screen so the agent can see and interact with native applications.
 dmg:
   artifactName: Inteligir-${version}-${arch}.${ext}
 # Electron fuses — flipped in the binary pre-signing (app-builder-lib
-# platformPackager). Defence in depth on a notarized, TCC-granted app: without
-# these the shipped binary will happily run arbitrary JS as node
-# (ELECTRON_RUN_AS_NODE), accept --inspect, and honour NODE_OPTIONS. Safe to
-# disable for this app: nothing in first-party source reads ELECTRON_RUN_AS_NODE
-# or NODE_OPTIONS, and there is no process.fork/utilityProcess (the executor is
-# a separate spawned binary, unaffected).
+# platformPackager). Defence in depth on a notarized app: without these the
+# shipped binary will happily run arbitrary JS as node (ELECTRON_RUN_AS_NODE),
+# accept --inspect, and honour NODE_OPTIONS. Safe to disable for this app:
+# nothing in first-party source reads ELECTRON_RUN_AS_NODE or NODE_OPTIONS, and
+# there is no process.fork/utilityProcess.
 #
-# grantFileProtocolExtraPrivileges is deliberately LEFT ALONE — the packaged
-# renderer still loads over file:// (main/index.ts), so revoking it breaks the
-# app. Revisit together with an app:// migration.
+# The window loads an https origin, so `grantFileProtocolExtraPrivileges` no
+# longer has anything to grant and is revoked.
 #
 # MUST be validated with a real packaged build before shipping — hardened
 # runtime is not applied by `pnpm dev:desktop`, so this cannot be exercised in
@@ -80,6 +58,7 @@ electronFuses:
   enableCookieEncryption: true
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
 npmRebuild: false
 publish:
   provider: github

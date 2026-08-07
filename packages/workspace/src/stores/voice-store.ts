@@ -28,7 +28,6 @@ type VoiceStore = {
 
 const machine = new VoiceMachine();
 let pipeline: VoicePipeline | null = null;
-let unsubscribeModelState: (() => void) | null = null;
 let unsubscribeMachine: (() => void) | null = null;
 // In-flight pipeline teardown promise. runConnect awaits this before sending
 // a fresh startStt, so a rapid stop/start can't let the prior session's
@@ -61,8 +60,6 @@ function trackTeardown(p: Promise<void>): Promise<void> {
 }
 
 function teardown(): void {
-  unsubscribeModelState?.();
-  unsubscribeModelState = null;
   if (pipeline) {
     void trackTeardown(pipeline.disconnect());
     pipeline = null;
@@ -93,13 +90,6 @@ async function runConnect(): Promise<void> {
     }
     if (gen !== machine.generation) return;
   }
-
-  // The model probe/download channels are gone: app setup fires the sherpa
-  // model download host-side, off the critical path, and streams progress via
-  // onVoiceModelState (the model_progress dispatches below). There is nothing
-  // to await here — mark the model stage passed and let connect() surface a
-  // still-missing model as its error; the mic toggle is the retry.
-  machine.dispatch({ type: "model_status_received", status: "ready" });
 
   // pipeline.connect (mic + recognizer).
   try {
@@ -135,11 +125,6 @@ export const useVoiceStore = create<VoiceStore>()((set, _get) => ({
     // state into zustand now so a re-mount after a stale callback (e.g. a
     // late pipeline_error pushed the machine off idle) doesn't show stale UI.
     set({ state: machine.state });
-
-    unsubscribeModelState?.();
-    unsubscribeModelState = bridge.onVoiceModelState((event) => {
-      machine.dispatch({ type: "model_progress", progress: event });
-    });
 
     void bridge
       .isTtsAvailable()
@@ -184,7 +169,7 @@ export const useVoiceStore = create<VoiceStore>()((set, _get) => ({
       machine.dispatch({ type: "pipeline_disconnected" });
       return;
     }
-    if (state.kind === "downloading_model" || state.kind === "connecting") return;
+    if (state.kind === "connecting") return;
     // idle | error → start the dance. runConnect awaits pendingTeardown so
     // a rapid stop/start can't interleave on the main side.
     machine.dispatch({ type: "user_toggle_on" });

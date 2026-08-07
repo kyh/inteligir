@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
-// In-memory fixture Bridge for the browser dev harness. Fully typed against
-// the real Bridge contract — when the IPC registry changes, this file fails
-// typecheck. Vault reads/writes hit a Map seeded with sample notes; agent
+// In-memory fixture Bridge — the backend the UI suites mount against, and the
+// completeness device for the whole contract. Fully typed against the real
+// Bridge, so when the IPC registry changes this file fails typecheck until it
+// is covered. Vault reads/writes hit a Map seeded with sample notes; agent
 // chat streams a canned reply; STT streams a canned transcript; TTS queues
 // text and emits silent PCM; the executor reports unavailable.
 //
@@ -19,12 +20,6 @@ import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/bridge/inline-
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import type { ChatSessionSummary } from "@repo/bridge/chat-sessions";
 import type { Bridge, SkillInfo, VaultEntry } from "@repo/bridge/ipc-registry";
-import {
-  BIND_ALL_ADDRESS,
-  endpointAddress,
-  type RemoteAccessState,
-  type RemoteEndpoint,
-} from "@repo/bridge/remote-access";
 import type { ListRoutinesResult, Routine } from "@repo/bridge/routines";
 import {
   DAILY_FOLDER_KEY,
@@ -33,7 +28,6 @@ import {
   DEFAULT_DAILY_FORMAT,
 } from "@repo/bridge/daily-notes";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
-import type { AccountState, SyncSignInResult } from "@repo/bridge/sync";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
@@ -186,9 +180,8 @@ date: {{date}}
 
 ## Log
 `,
-  // An HTML App fixture so the sandboxed-app surface is drivable in the harness
-  // (which has no vault-app:// protocol — the view falls back to a blob URL with
-  // the same runtime injected). Exercises Alpine (the counter) + the injected
+  // An HTML App fixture so the sandboxed-app surface is drivable over the
+  // fixture Bridge. Exercises Alpine (the counter) + the injected
   // window.inteligir.files bridge (the note list). Not in SAMPLE_NOTES: it's not
   // a doc, so the markdown-corpus contract doesn't apply.
   // Project cluster — typed frontmatter so the dashboard HTML app can query
@@ -406,7 +399,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   ];
   const delegations: Delegation[] = [];
   // Pre-run copies keyed by delegation id — the in-memory twin of the host's
-  // ~/.inteligir/snapshots store, so "Restore original" is exercisable.
+  // snapshot store, so "Restore original" is exercisable.
   const snapshots = new Map<string, { path: string; content: string }>();
   // The pending simulated-run timer per delegation id, so cancelDelegation
   // can really pull a "running" run back (clearTimeout = the harness twin of
@@ -437,79 +430,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   };
   let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
-  // Account — an in-memory stand-in so the settings Account section is
-  // demoable without a server: sign-in always succeeds.
-  let accountState: AccountState = { signedIn: false, email: null, serverUrl: "" };
-  // Remote access — no ws server runs in a browser tab, so enabling simulates
-  // the listening state; one endpoint of each reachability makes the bind
-  // picker (and its encrypted/cleartext copy) exercisable, and one pre-paired
-  // device does the same for the device list + Revoke.
-  const fixtureEndpoints: readonly RemoteEndpoint[] = [
-    {
-      wsUrl: "ws://100.101.102.103:47890",
-      reachability: "private-network",
-      encrypted: true,
-      virtual: false,
-      label: "Tailscale",
-    },
-    {
-      wsUrl: "ws://192.168.1.24:47890",
-      reachability: "lan",
-      encrypted: false,
-      virtual: false,
-      label: "en0 192.168.1.24",
-    },
-    {
-      wsUrl: "ws://172.17.0.1:47890",
-      reachability: "lan",
-      encrypted: false,
-      virtual: true,
-      label: "docker0 172.17.0.1 (virtual)",
-    },
-    {
-      wsUrl: "ws://127.0.0.1:47890",
-      reachability: "loopback",
-      encrypted: false,
-      virtual: false,
-      label: "This computer",
-    },
-  ];
-  const FIXTURE_LOOPBACK = "127.0.0.1";
-  // The overlay address stands in for the one that is not up yet when the app
-  // starts listening — the whole reason a pinned address can be reported by
-  // the interface table and still be bound by nothing. Pinning to it binds
-  // nothing; re-selecting it ("Listen on it now") does, which is the recovery
-  // the host buys with the config revision.
-  const FIXTURE_LATE_ADDRESS = "100.101.102.103";
-  let lateAddressBound = false;
-
-  // What a host would report binding for a given config — loopback always, the
-  // pin only when it actually came up. Modelled rather than derived from the
-  // config at read time, which is the disagreement the whole surface turns on.
-  const fixtureBoundAddresses = (enabled: boolean, bindAddress: string): readonly string[] => {
-    if (!enabled || bindAddress === FIXTURE_LOOPBACK) return [FIXTURE_LOOPBACK];
-    if (bindAddress === BIND_ALL_ADDRESS) return [BIND_ALL_ADDRESS];
-    if (bindAddress === FIXTURE_LATE_ADDRESS && !lateAddressBound) return [FIXTURE_LOOPBACK];
-    const held = fixtureEndpoints.some((endpoint) => endpointAddress(endpoint) === bindAddress);
-    return held ? [FIXTURE_LOOPBACK, bindAddress] : [FIXTURE_LOOPBACK];
-  };
-  let remoteAccessState: RemoteAccessState = {
-    enabled: false,
-    port: 47890,
-    listening: false,
-    endpoints: fixtureEndpoints,
-    bindAddress: BIND_ALL_ADDRESS,
-    boundAddresses: fixtureBoundAddresses(false, BIND_ALL_ADDRESS),
-    devices: [
-      {
-        id: "fixture-device",
-        name: "Fixture Phone",
-        createdAt: "2026-07-01T09:00:00.000Z",
-        lastSeenAt: "2026-07-09T18:30:00.000Z",
-      },
-    ],
-  };
-
   // Skills — one bundled row and two added rows so the listing renders both
   // sources and all three budget outcomes (a real vault would have to hold 50+
   // skills to produce the `not-loaded` one, which is why it is seeded here
@@ -620,11 +540,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   const delegationEvents = new Emitter<ListDelegationsResult>();
   const routineEvents = new Emitter<ListRoutinesResult>();
   const knowledgeEvents = new Emitter<Record<string, never>>();
-  const accountEvents = new Emitter<AccountState>();
-  const emitAccount = () => accountEvents.emit(accountState);
-  const socialResultEvents = new Emitter<SyncSignInResult>();
-  const remoteAccessEvents = new Emitter<RemoteAccessState>();
-  const emitRemoteAccess = () => remoteAccessEvents.emit(remoteAccessState);
 
   const setAppState = (next: AppState) => {
     appState = next;
@@ -720,15 +635,12 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
           setAppState({ phase: "ready", agent: "idle" });
           return;
         case "RESET_APP_DATA":
-          // The harness twin of the host's full ~/.inteligir wipe + re-setup:
-          // clear chat history, sign the account out, and drop every
-          // simulated provider connection. Phase mimics the real
+          // The fixture twin of the host's full app-data wipe + re-setup:
+          // clear chat history and drop every simulated provider connection. Phase mimics the real
           // machine — setting_up first, ready after a beat — because renderer
           // consumers key refreshes off the setting_up→ready transition (the
           // ai-provider store re-snapshots there).
           history.length = 0;
-          accountState = { signedIn: false, email: null, serverUrl: "" };
-          emitAccount();
           for (const id of aiConnected.keys()) aiConnected.set(id, false);
           setAppState({ phase: "setting_up" });
           setTimeout(() => setAppState({ phase: "ready", agent: "idle" }), 400);
@@ -865,7 +777,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       return [{ text: STT_CANNED_TRANSCRIPT, isFinal: true }];
     },
     onSttTranscript: sttEvents.subscribe,
-    onVoiceModelState: () => () => {},
 
     // Notifications
     getNotificationSettings: async () => notifications,
@@ -882,7 +793,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
 
     // Vault — an in-memory Map seeded with sample notes.
     getVaultRoot: async () => FIXTURE_ROOT,
-    chooseVaultRoot: async () => ({ ok: false, reason: "canceled" }),
     listVault: async () => listEntries(),
     readVaultDoc: async ({ path }) => {
       const content = vault.get(path);
@@ -971,21 +881,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       if (bytesBase64 === undefined) return { ok: false, error: `no bytes for: ${path}` };
       return { ok: true, bytesBase64 };
     },
-    // No vault-app:// protocol in the browser harness — the HTML-App view falls
-    // back to a blob: URL, so the token is unused. Return a stable stub.
-    mintHtmlAppToken: async () => "harness-html-app-token",
-    // No live token store in the harness (no vault-app:// protocol) — the
-    // revoke call is a no-op, matching the mint stub above.
-    revokeHtmlAppToken: async () => {},
-    // The real probe reads live disk; the harness's "disk" is the Map — same
-    // fail-closed verdict shape (notePrivacy + absent) as the host handler.
-    probeNotePrivacy: async ({ path }) => {
-      const content = vault.get(path);
-      return content === undefined ? "absent" : notePrivacy(content);
-    },
-    // No filesystem to watch in the harness — the in-memory Map fires touchVault
-    // directly on every write, so there is no external-edit channel to arm.
-    setWatchedNote: async () => {},
     // The harness has no external mutations to discover, but re-emitting keeps
     // the "Refresh vault" command exercisable (sidebar re-lists, panes re-query).
     refreshVault: async () => touchVault(),
@@ -1408,117 +1303,10 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     uninstallConnector: async () => {
       throw unavailable("executor");
     },
-    // Dev-only emulate seam — no daemon, no OAuth flow in the harness.
-    getPendingConnectorAuth: async () => {
-      throw unavailable("executor");
-    },
 
-    // Account — an in-memory session so the settings Account section is
-    // drivable: set a URL, sign in (always succeeds), sign out.
-    // onAccountStateChanged makes the section reactive.
-    getAccountState: async () => accountState,
-    setAccountServerUrl: async ({ serverUrl }) => {
-      accountState = { ...accountState, serverUrl };
-      emitAccount();
-      return accountState;
-    },
-    syncSignIn: async ({ email }) => {
-      accountState = { ...accountState, signedIn: true, email };
-      emitAccount();
-      return { ok: true };
-    },
-    // Sign-up = sign-in in the harness (no real user table): the section's
-    // create-account flow lands signed in, like the host's signUp does.
-    syncSignUp: async ({ email }) => {
-      accountState = { ...accountState, signedIn: true, email };
-      emitAccount();
-      return { ok: true };
-    },
-    // Host parity: initiation returns ok (browser opened) with no state
-    // change; the harness then plays the browser+deep-link leg itself — a
-    // short beat later the "user" completes consent, the session is adopted,
-    // and onSocialSignInResult resolves the pending UI. Keeps the account
-    // section's full social flow drivable with no real OAuth.
-    syncSocialSignIn: async ({ provider }) => {
-      setTimeout(() => {
-        accountState = { ...accountState, signedIn: true, email: `${provider}-user@example.com` };
-        emitAccount();
-        socialResultEvents.emit({ ok: true });
-      }, 800);
-      return { ok: true };
-    },
-    // Neutral by CONTRACT (see the registry entry): the real server answers
-    // identically whether or not the email has an account, so an unconditional
-    // `ok` IS host parity — the section's "if that email has an account…"
-    // confirmation is drivable for any input.
-    syncRequestPasswordReset: async () => ({ ok: true }),
-    // Both providers listed so the Account section's social buttons render and
-    // are drivable in the harness.
-    getAccountCapabilities: async () => ({ socialProviders: ["github", "google"] }),
-    syncSignOut: async () => {
-      accountState = { ...accountState, signedIn: false, email: null };
-      emitAccount();
-    },
-    onAccountStateChanged: accountEvents.subscribe,
-    onSocialSignInResult: socialResultEvents.subscribe,
-
-    // Remote access — simulated ws-server state so the settings section is
-    // drivable: toggling flips listening, the bind selection round-trips
-    // through the same bound-address model the host reports, pairing hands
-    // back every URL those bound addresses can reach (encrypted first, virtual
-    // adapters dropped, like the host does), revoking drops the pre-paired
-    // fixture device.
-    getRemoteAccessState: async () => remoteAccessState,
-    setRemoteAccessConfig: async (patch) => {
-      const enabled = patch.enabled ?? remoteAccessState.enabled;
-      const bindAddress = patch.bindAddress ?? remoteAccessState.bindAddress;
-      // Asking for the address already selected is the forced rebind, and it
-      // is what brings the late address up.
-      lateAddressBound = enabled && bindAddress === remoteAccessState.bindAddress;
-      remoteAccessState = {
-        ...remoteAccessState,
-        enabled,
-        listening: enabled,
-        bindAddress,
-        boundAddresses: fixtureBoundAddresses(enabled, bindAddress),
-      };
-      emitRemoteAccess();
-      return remoteAccessState;
-    },
-    createPairingToken: async () => {
-      const { boundAddresses, endpoints } = remoteAccessState;
-      const offered = endpoints
-        .filter(
-          (endpoint) =>
-            endpoint.reachability !== "loopback" &&
-            !endpoint.virtual &&
-            (boundAddresses.includes(BIND_ALL_ADDRESS) ||
-              boundAddresses.includes(endpointAddress(endpoint))),
-        )
-        .toSorted((a, b) => Number(b.encrypted) - Number(a.encrypted));
-      return {
-        token: "fixture-pairing-token",
-        urls:
-          offered.length > 0
-            ? offered.map((endpoint) => ({ wsUrl: endpoint.wsUrl, label: endpoint.label }))
-            : [{ wsUrl: "ws://127.0.0.1:47890", label: "This computer" }],
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      };
-    },
-    revokeRemoteDevice: async ({ id }) => {
-      remoteAccessState = {
-        ...remoteAccessState,
-        devices: remoteAccessState.devices.filter((device) => device.id !== id),
-      };
-      emitRemoteAccess();
-      return remoteAccessState;
-    },
-    onRemoteAccessChanged: remoteAccessEvents.subscribe,
-
-    // Skills / integrations — seeded rows so the Settings panels render their
-    // POPULATED state ("zero installed" is a legitimate state, but the harness
-    // should demo rows). Repair mutates real binaries on the host, so it
-    // rejects loudly instead of pretending to succeed.
+    // Skills — seeded rows so the Settings panel renders its POPULATED state
+    // ("zero installed" is a legitimate state, but the harness should demo
+    // rows).
     listSkills: async () => ({ skills: [...fixtureSkills] }),
     createSkill: async ({ name, description }) => {
       const slug = name
@@ -1557,10 +1345,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         (a, b) => a.name.localeCompare(b.name) || a.filePath.localeCompare(b.filePath),
       );
       return { skill, skills: [...fixtureSkills] };
-    },
-    listIntegrations: async () => [{ name: "fixture-cli", expected: "1.2.3", installed: "1.2.3" }],
-    repairIntegrations: async () => {
-      throw unavailable("integrations repair");
     },
   };
 }

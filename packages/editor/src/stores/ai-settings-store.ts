@@ -1,5 +1,5 @@
 // Editor-AI settings — ghost-text feature flag + fast-model choice, persisted
-// through the generic ui-state channel (host-side ~/.inteligir/ui-state.json;
+// through the generic ui-state channel (host-side ui-state store;
 // the host's ghost session reads the same keys). The store is the live copy
 // both the settings panel and the ghost-text kit subscribe to.
 

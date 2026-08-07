@@ -56,42 +56,18 @@ import type {
   VaultTaskEntry,
   WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
-import type { NotePrivacy } from "@repo/notes/markdown/frontmatter";
-import {
-  RemoteAccessSetConfigSchema,
-  RevokeDeviceSchema,
-  type PairingInfo,
-  type RemoteAccessState,
-} from "./remote-access";
 import {
   UpsertRoutineParamsSchema,
   type ListRoutinesResult,
   type RunRoutineNowResult,
   type UpsertRoutineResult,
 } from "./routines";
-import {
-  SetAccountServerUrlSchema,
-  SyncRequestPasswordResetSchema,
-  SyncSignInSchema,
-  SyncSignUpSchema,
-  SyncSocialSignInSchema,
-  type AccountCapabilities,
-  type AccountState,
-  type SyncSignInResult,
-} from "./sync";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./chat-message";
 
 // ---------------------------------------------------------------------------
 // Shared shapes referenced by registry entries
 // ---------------------------------------------------------------------------
-
-export type VoiceModelStateEvent =
-  | { status: "idle" }
-  | { status: "downloading"; percent: number; receivedBytes: number; totalBytes: number }
-  | { status: "extracting" }
-  | { status: "ready" }
-  | { status: "error"; message: string };
 
 export type SetupProgress = {
   step: string;
@@ -111,15 +87,6 @@ export type EnsureGoogleClientResult = { status: "ready" } | { status: "unavaila
 
 export type NotificationSettings = {
   enabled: boolean;
-};
-
-/** Installed-vs-pinned version of a CLI binary an extension installs. */
-export type IntegrationInfo = {
-  name: string;
-  /** Version the app pins / ships. */
-  expected: string;
-  /** Version currently installed on disk, or null if missing/unreadable. */
-  installed: string | null;
 };
 
 /** Where pi discovered a skill. */
@@ -178,10 +145,8 @@ export type SkillCreated = {
 // `name` is a display name, not a path — the host slugifies it and refuses
 // anything that doesn't reduce to a `[a-z0-9-]` folder name, so no traversal
 // can cross this schema. `description` is capped at the Agent Skills
-// description limit, which is also @repo/agent's MAX_SKILL_DESCRIPTION_CHARS
-// (skill-budget.test.ts pins the two together — @repo/bridge cannot import
-// @repo/agent, and a description written over the cap would be clipped back
-// out on the very next listing).
+// description limit — a description written over the cap would be clipped
+// back out on the very next listing.
 const CreateSkillSchema = Type.Object(
   {
     name: Type.String({ minLength: 1, maxLength: 64 }),
@@ -228,13 +193,6 @@ const FauxAgentScriptSchema = Type.Object(
   { additionalProperties: false },
 );
 export type FauxAgentScript = Static<typeof FauxAgentScriptSchema>;
-
-/** Dev-only: the in-flight connector OAuth consent — the authorize URL
- * (state/PKCE ride in its query string) a headless E2E drive completes
- * against emulate instead of spelunking the daemon's SQLite. Held host-side
- * (connector-install.ts) only under INTELIGIR_EMULATE_CONNECTORS=1; the
- * handler throws otherwise, so production never exposes it. */
-export type PendingConnectorAuth = { authorizationUrl: string; state: string };
 
 // ---------------------------------------------------------------------------
 // Deep-link capture — inteligir://append|task landing on today's daily note.
@@ -346,18 +304,10 @@ const VaultPathSchema = Type.Object(
   },
   { additionalProperties: false },
 );
-// The currently open note the host should watch for external edits (null clears
-// it). Only this ONE file is watched — the rest of the vault is an ephemeral
-// snapshot refreshed on demand (vault liveness — CLAUDE.md § Decisions).
-const WatchedNoteSchema = Type.Object(
-  { path: Type.Union([Type.String(), Type.Null()]) },
-  { additionalProperties: false },
-);
 const VaultWriteDocSchema = Type.Object(
   { path: Type.String(), content: Type.String() },
   { additionalProperties: false },
 );
-const HtmlAppTokenSchema = Type.Object({ token: Type.String() }, { additionalProperties: false });
 
 /** One file in the vault, relative to the vault root. `kind` splits editable
  * markdown docs (md/markdown/txt) from everything else (images, pdfs, …). */
@@ -373,13 +323,6 @@ export type VaultEntry = {
  * per-file question — asked about the note a user is looking at, never swept.
  * `null` when the file can't be stat'd (missing, escaping the vault). */
 export type VaultFileFacts = { sizeBytes: number; modifiedMs: number };
-
-/** chooseVaultRoot's verdict — tagged so consumers switch instead of probing
- * properties. `canceled` is the user dismissing the picker, not a failure. */
-export type ChooseVaultResult =
-  | { ok: true; root: string }
-  | { ok: false; reason: "canceled" }
-  | { ok: false; reason: "error"; error: string };
 
 const VaultRenameSchema = Type.Object(
   { from: Type.String(), to: Type.String() },
@@ -397,11 +340,6 @@ const VaultWriteAssetSchema = Type.Object(
  * file is missing, escapes the vault, or exceeds the transfer cap). Rendering
  * a broken image is a UI state, not an exception — hence a Result, not a throw. */
 export type ReadVaultAssetResult = { ok: true; bytesBase64: string } | { ok: false; error: string };
-
-/** probeNotePrivacy result: notePrivacy's verdict from a LIVE disk read, plus
- * "absent" when no file exists at the path. Callers treat everything except
- * "public" as private (fail-closed). */
-export type NotePrivacyProbe = NotePrivacy | "absent";
 
 // ---------------------------------------------------------------------------
 // Knowledge — the host's link + lexical search indexes over the vault
@@ -585,7 +523,6 @@ export const IPC = {
   sendSttAudio: send<typeof BinaryAudioSchema>(BinaryAudioSchema),
   stopStt: invokeVoid<Array<{ text: string; isFinal: boolean }>>(),
   onSttTranscript: event<{ text: string; isFinal: boolean }>(),
-  onVoiceModelState: event<VoiceModelStateEvent>(),
 
   // Notifications
   getNotificationSettings: invokeVoid<NotificationSettings>(),
@@ -599,7 +536,6 @@ export const IPC = {
 
   // Vault (knowledge folder) — trusted renderer surface for the editor.
   getVaultRoot: invokeVoid<string>(),
-  chooseVaultRoot: invokeVoid<ChooseVaultResult>(),
   listVault: invokeVoid<VaultEntry[]>(),
   readVaultDoc: invoke<typeof VaultPathSchema, string>(VaultPathSchema),
   /** Size + last-modified for one vault file, or null when it can't be stat'd.
@@ -620,29 +556,9 @@ export const IPC = {
   /** Read an in-vault asset's bytes as base64 (image rendering). Capped; a
    * missing/oversized file returns `{ ok: false }` rather than throwing. */
   readVaultAsset: invoke<typeof VaultPathSchema, ReadVaultAssetResult>(VaultPathSchema),
-  /** Mint a per-open token authorizing `vault-app://` reads for one HTML-App
-   * open. Desktop-shell-only: the token lives in the main-process token store
-   * the protocol handler checks, so this can't be a platform-neutral host
-   * handler (see DESKTOP_SHELL_METHODS). */
-  mintHtmlAppToken: invokeVoid<string>(),
-  /** Revoke a per-open token when its HTML-App closes/unmounts, so a captured
-   * or leaked token can't keep reading the vault. The FIFO bound in
-   * vault-app-protocol.ts is a backstop, not a substitute — this is the normal
-   * path. Desktop-shell-only, same reasoning as `mintHtmlAppToken`. */
-  revokeHtmlAppToken: invoke<typeof HtmlAppTokenSchema, void>(HtmlAppTokenSchema),
-  /** LIVE-disk privacy probe for one note — the SAME probe the agent tool
-   * gate runs (never an index, never the renderer buffer). The context-hint
-   * path needs it: an external or agent write can flip a note `private: true`
-   * on disk before the open-note watcher refreshes the editor buffer, and a
-   * private note's PATH must not reach the model either. */
-  probeNotePrivacy: invoke<typeof NotePathSchema, NotePrivacyProbe>(NotePathSchema),
-  /** Tell the host which note is open so it watches that single file for
-   * external edits (vault liveness — CLAUDE.md § Decisions). Pass
-   * `{ path: null }` when no note is open. */
-  setWatchedNote: invoke<typeof WatchedNoteSchema, void>(WatchedNoteSchema),
-  /** Rebuild the ephemeral snapshot now: re-list + reindex. The
-   * renderer calls this on window focus (debounced) and from the "Refresh vault"
-   * command; the host also calls it internally on delegation completion. */
+  /** Re-read the vault listing now: re-list + reindex. The client calls this
+   * on window focus (debounced) and from the "Refresh vault" command; the host
+   * also calls it internally on background-work completion. */
   refreshVault: invokeVoid<void>(),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
@@ -806,80 +722,14 @@ export const IPC = {
   ensureGoogleOAuthClient: invokeVoid<EnsureGoogleClientResult>(),
   // Connector install/uninstall — host-orchestrated (register integration →
   // mint connection → browser OAuth → rollback on failure) in
-  // @repo/connectors/connector-install.ts; the renderer sends ONE request per
-  // user action and surfaces the rejection message on failure.
+  // host-side; the client sends ONE request per user action and surfaces the
+  // rejection message on failure.
   installConnector: invoke<typeof ConnectorInstallRequestSchema, void>(
     ConnectorInstallRequestSchema,
   ),
   uninstallConnector: invoke<typeof ConnectorUninstallRequestSchema, void>(
     ConnectorUninstallRequestSchema,
   ),
-  /** Dev-only (INTELIGIR_EMULATE_CONNECTORS=1; throws otherwise): the
-   * in-flight connector OAuth consent, or null when none is pending. */
-  getPendingConnectorAuth: invokeVoid<PendingConnectorAuth | null>(),
-
-  // Account — the optional Better Auth session against the configured server.
-  // Guest is the default; the account gates cloud saves and nothing else.
-  /** Current account state (signed-in / email / server URL). */
-  getAccountState: invokeVoid<AccountState>(),
-  /** Point this install at a server (the URL identifies the service an account
-   * belongs to). Returns the resulting state. */
-  setAccountServerUrl: invoke<typeof SetAccountServerUrlSchema, AccountState>(
-    SetAccountServerUrlSchema,
-  ),
-  /** Fired on every config / auth change so the Account settings UI is
-   * reactive. Same shape as getAccountState. */
-  onAccountStateChanged: event<AccountState>(),
-  /** Email+password sign-in against the configured server. */
-  syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>(SyncSignInSchema),
-  /** Ask the server to email a password-reset link. NEUTRAL by
-   * contract: `ok` means "request accepted", NEVER "that email exists" — the
-   * server answers identically for known and unknown emails, and the
-   * UI shows the same "if that email has an account…" copy either way.
-   * `ok:false` carries only transport/config failures (no server URL,
-   * network down), which reveal nothing about any account. */
-  syncRequestPasswordReset: invoke<typeof SyncRequestPasswordResetSchema, SyncSignInResult>(
-    SyncRequestPasswordResetSchema,
-  ),
-  /** Email+password sign-UP (guest→account upgrade); success signs in. */
-  syncSignUp: invoke<typeof SyncSignUpSchema, SyncSignInResult>(SyncSignUpSchema),
-  /** INITIATE social OAuth for a capability-listed provider: opens the system
-   * browser at the server's authorization URL. ok = browser opened —
-   * the session lands on-device when the `inteligir://session` deep link
-   * completes the exchange (see onSocialSignInResult). */
-  syncSocialSignIn: invoke<typeof SyncSocialSignInSchema, SyncSignInResult>(SyncSocialSignInSchema),
-  /** The RESULT of a social sign-in's deep-link completion (the
-   * `inteligir://session` callback → HTTPS code exchange → session adoption).
-   * Deep-link-driven — there is no request to respond to — so the account
-   * UI's "finish in your browser…" pending state resolves on this event: ok
-   * clears it (onAccountStateChanged flips signedIn too), an error carries the
-   * user-facing message (expired/replayed link, exchange failure). */
-  onSocialSignInResult: event<SyncSignInResult>(),
-  /** Which social providers the configured server serves (env-gated
-   * server-side) — drives the Account section's social buttons. */
-  getAccountCapabilities: invokeVoid<AccountCapabilities>(),
-  /** Clear the local session (best-effort remote revoke). */
-  syncSignOut: invokeVoid<void>(),
-
-  // Remote access — the WS transport's device-pairing surface: an enable
-  // toggle, the classified endpoints and the one the server binds, paired
-  // devices, and one-time pairing tokens. All state reads/writes go through
-  // the remote-access manager.
-  /** Current remote-access state (enabled/port/listening/endpoints/
-   * bindAddress/devices). */
-  getRemoteAccessState: invokeVoid<RemoteAccessState>(),
-  /** Patch the remote-access config (enable toggle + bind selection; the port
-   * stays fixed). */
-  setRemoteAccessConfig: invoke<typeof RemoteAccessSetConfigSchema, RemoteAccessState>(
-    RemoteAccessSetConfigSchema,
-  ),
-  /** Mint a one-time pairing token (10-minute TTL) for another device to
-   * redeem over the ws transport's `pair` frame. */
-  createPairingToken: invokeVoid<PairingInfo>(),
-  /** Forget a paired device — its token stops validating immediately. */
-  revokeRemoteDevice: invoke<typeof RevokeDeviceSchema, RemoteAccessState>(RevokeDeviceSchema),
-  /** Fired on every remote-access config / device / listen change. */
-  onRemoteAccessChanged: event<RemoteAccessState>(),
 
   // Skills
   listSkills: invokeVoid<SkillsList>(),
@@ -888,19 +738,14 @@ export const IPC = {
    * picks it up on its next start. Rejects when the slug is empty or already
    * taken — never overwrites an existing skill. */
   createSkill: invoke<typeof CreateSkillSchema, SkillCreated>(CreateSkillSchema),
-
-  // Integrations
-  listIntegrations: invokeVoid<IntegrationInfo[]>(),
-  repairIntegrations: invokeVoid<void>(),
 } as const satisfies Record<string, IpcEntry>;
 
 type IpcRegistry = typeof IPC;
 export type IpcMethod = keyof IpcRegistry;
 
 // ---------------------------------------------------------------------------
-// Method partitions — hosts and transports slice the registry along these
-// lines: events are host → UI pushes (no handler), the desktop-shell methods
-// are implemented by the Electron shell, everything else is a host-owned
+// Method partitions — hosts and transports slice the registry along one line:
+// events are host → UI pushes with no handler, everything else is a host-owned
 // handler.
 // ---------------------------------------------------------------------------
 
@@ -909,44 +754,34 @@ export type EventMethod = {
   [K in IpcMethod]: IpcRegistry[K] extends { kind: "event" } ? K : never;
 }[IpcMethod];
 
-/** Desktop-shell-only methods: `mintHtmlAppToken` and `revokeHtmlAppToken`
- * touch the main-process token store the `vault-app://` protocol checks, so
- * the platform-agnostic host has no handler for them and a non-desktop
- * transport must stub them. */
-export const DESKTOP_SHELL_METHODS = ["mintHtmlAppToken", "revokeHtmlAppToken"] as const;
-export type DesktopShellMethod = (typeof DESKTOP_SHELL_METHODS)[number];
-
 // ---------------------------------------------------------------------------
-// Remote-device capability allowlists.
+// Client-class capability allowlists.
 //
-// A paired remote device (the Expo companion) is NOT the desktop renderer: it
-// authenticates with a revocable device token over the network, so it must
-// reach only the narrow companion surface, never the host machine.
+// A companion app is NOT the workspace: it holds the same account, but on a
+// device with a much larger loss surface, so it reaches only the narrow
+// companion surface.
 //
 // These are ALLOWLISTS, not blocklists, and that direction is the point: a new
-// channel is unreachable from a paired device until someone adds it here on
-// purpose. The previous shape — a LOCAL_ONLY_METHODS blocklist naming four
-// remote-access channels — silently exposed every channel added after it,
-// including `transition` (RESET_APP_DATA wipes ~/.inteligir), `chooseVaultRoot`
-// and `connectAiProvider` (native dialogs on the host's screen),
-// `repairIntegrations` (rewrites host binaries) and `setVoiceApiKey`.
+// channel is unreachable from a companion client until someone adds it here on
+// purpose. A blocklist would silently expose every channel written after it,
+// including `transition` (RESET_APP_DATA), `connectAiProvider` and
+// `setVoiceApiKey`.
 //
-// The ws host enforces all three of these per-session: invoke/send at dispatch,
+// The host enforces all three of these per-socket: invoke/send at dispatch,
 // events at broadcast, and the reconnect hydration push (which resolves through
-// the same dispatch map and would otherwise hand a remote device the state of a
+// the same dispatch map and would otherwise hand a companion the state of a
 // getter it is forbidden to call).
 // ---------------------------------------------------------------------------
 
-// The LOCAL agent's capability policy is NOT here: it is agent-grants.ts, a
-// table of rows rather than a list of names. A remote device reaches these
-// handlers unmodified, so naming them is a complete policy; the agent reaches
+// The AGENT's capability policy is NOT here: it is agent-grants.ts, a table of
+// rows rather than a list of names. A companion client reaches these handlers
+// unmodified, so naming them is a complete policy; the agent reaches
 // privacy-projecting ports instead, so a name says nothing about what it can
 // see. Never grant the agent a capability by adding a method here.
 
-/** The ONLY methods a paired remote device may invoke. Everything else — the
- * whole vault/knowledge/settings/provider/account/remote-access surface and
- * the desktop-shell methods — is local-session-only. A paired phone drives
- * chat + the delegation dock and nothing else. */
+/** The ONLY methods a companion client may invoke. Everything else — the whole
+ * vault/knowledge/settings/provider surface — is workspace-only. A companion
+ * drives chat + the delegation dock and nothing else. */
 export const REMOTE_ALLOWED_METHODS = [
   "getAgentHistory",
   "sendAgentCommand",
@@ -955,10 +790,9 @@ export const REMOTE_ALLOWED_METHODS = [
   "restoreDelegationSnapshot",
 ] as const satisfies readonly IpcMethod[];
 
-/** The ONLY events pushed to a paired remote device, at broadcast AND at
- * reconnect hydration. Notably excluded: `onRemoteAccessChanged` (pairing
- * tokens + the device roster — the admin plane the method gate protects) and
- * `onTtsAudio` (spoken note content as raw PCM). */
+/** The ONLY events pushed to a companion client, at broadcast AND at reconnect
+ * hydration. Notably excluded: `onTtsAudio` (spoken note content as raw
+ * PCM). */
 export const REMOTE_ALLOWED_EVENTS = [
   "onAgentEvent",
   "onDelegationsUpdated",
@@ -999,8 +833,8 @@ export function binaryChannelForTag(tag: number): BinaryChannel | undefined {
   return BINARY_CHANNELS.find((channel) => channel.tag === tag);
 }
 
-/** Methods the platform-agnostic host implements. */
-export type HostMethod = Exclude<IpcMethod, EventMethod | DesktopShellMethod>;
+/** Methods the host implements. */
+export type HostMethod = Exclude<IpcMethod, EventMethod>;
 
 /** A method's invoke result type (never for sends/events). */
 type ResultOf<K extends IpcMethod> =
@@ -1021,13 +855,10 @@ type HydrationGetter<E extends EventMethod> = {
  * that answers its current state. A transport pushes every getter's result as
  * an evt frame right after welcome, so a client that missed events while
  * disconnected never sits on stale panels across a rebind (full event replay
- * is deliberately not provided — see the transport design's accepted
- * limitations). Getters resolve through the transport's merged dispatch map
- * (host handlers + shell handlers), so shell-owned stateful channels hydrate
- * too; a getter missing on a given host simply skips its push. */
+ * is deliberately not provided). Getters resolve through the same class gate as
+ * an ordinary call, so hydration can never volunteer state a client is
+ * forbidden to ask for; a getter this host does not answer skips its push. */
 export const HYDRATED_EVENTS = {
-  onRemoteAccessChanged: "getRemoteAccessState",
-  onAccountStateChanged: "getAccountState",
   onAppState: "getAppState",
   onDelegationsUpdated: "listDelegations",
   onRoutinesUpdated: "listRoutines",

@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import type { UiState } from "@repo/bridge/ui-state";
-import type { JsonStoreCore } from "@repo/storage/json-store-core";
+import type { JsonStoreCore } from "../store/json-store-core";
 
 import { SttSession, type SttTranscript } from "./stt-session";
 import { TtsSession } from "./tts-session";

@@ -11,8 +11,8 @@
 
 import type { NotificationSettings } from "@repo/bridge/ipc-registry";
 import { UiStateSchema, type UiState } from "@repo/bridge/ui-state";
-import { createDoStoreAdapter, type SyncKv } from "@repo/storage/do-store-adapter";
-import { JsonStoreCore } from "@repo/storage/json-store-core";
+import { createDoStoreAdapter, type SyncKv } from "../store/do-store-adapter";
+import { JsonStoreCore } from "../store/json-store-core";
 import { Type } from "@sinclair/typebox";
 
 /** Storage keys. Opaque to the engine, which only ever suffixes them when it

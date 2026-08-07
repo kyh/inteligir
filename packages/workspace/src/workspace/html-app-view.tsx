@@ -1,17 +1,15 @@
 // ---------------------------------------------------------------------------
 // HTML-App view — renders a vault `.html` file as a sandboxed app. The iframe
 // is `sandbox="allow-scripts allow-forms"` with NO allow-same-origin, so the
-// app gets an opaque origin and can NEVER reach the parent's Bridge (or its
-// `window.bridgeBootstrap` ws token) or the parent DOM. Its only channel to the vault is postMessage to this parent,
+// app gets an opaque origin and can NEVER reach the parent's Bridge or the
+// parent DOM. Its only channel to the vault is postMessage to this parent,
 // brokered (validated + confined) by html-app-broker.
 //
-// Two URL strategies:
-//   • Electron — the vault-app:// protocol serves the file (with the runtime
-//     injected main-side) at a per-open token URL; the frame's `name` carries
-//     the token so the broker can authenticate messages.
-//   • Harness (plain browser) — no protocol, so we read the bytes over the
-//     fixture Bridge, inject the SAME runtime, and load a blob: URL. The broker
-//     is identical either way (parent-window postMessage).
+// The bytes are read over the Bridge, the runtime is injected here, and the
+// result loads as a `blob:` URL. The per-open token rides the frame's `name`
+// so the broker can tell this frame's messages from anything else on the page;
+// the frame learns it only because we put it there, which is what makes it a
+// capability handle rather than a secret.
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
@@ -56,6 +54,7 @@ export function HtmlAppView() {
   // from this exact frame. The ref is what the broker reads synchronously.
   const [token, setToken] = useState<string | null>(null);
   const tokenRef = useRef<string>("");
+
   // Last-seen file text, so a vault change only reloads when THIS app changed
   // (onVaultChanged fires for any vault edit, and carries no path).
   const lastTextRef = useRef<string | null>(null);
@@ -64,43 +63,19 @@ export function HtmlAppView() {
 
   // Mint the token once per open. Re-minting on every reload raced the
   // remount (a blank frame): the token is stable for the lifetime of the open.
-  // On close/unmount (dep change or teardown), revoke it — the FIFO bound in
-  // vault-app-protocol.ts is only a backstop for tokens whose view never got
-  // the chance to revoke (crash, hard reload).
   useEffect(() => {
     if (openPath === null) return;
-    const bridge = getBridge();
-    let cancelled = false;
-    let mintedToken: string | null = null;
-    void (async () => {
-      try {
-        const minted = await bridge.mintHtmlAppToken();
-        if (cancelled) return;
-        mintedToken = minted;
-        tokenRef.current = minted;
-        setToken(minted);
-        setError(null);
-      } catch (err) {
-        if (!cancelled) setError(toErrorMessage(err));
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (mintedToken !== null) void bridge.revokeHtmlAppToken({ token: mintedToken });
-    };
+    const minted = crypto.randomUUID();
+    tokenRef.current = minted;
+    setToken(minted);
+    setError(null);
   }, [openPath]);
 
-  // Build the iframe source. With a protocol host: a stable URL (the protocol
-  // re-serves fresh bytes on each load — reload is just the `key` remount).
-  // Without one: a blob URL rebuilt from the file bytes, so `reloadKey`
-  // re-fetches.
+  // Build the iframe source: a blob URL rebuilt from the file bytes, so
+  // `reloadKey` re-fetches.
   useEffect(() => {
     if (openPath === null || token === null) return;
-    const { protocolUrl, injectRuntime } = htmlAppRuntime();
-    if (protocolUrl !== null) {
-      setSrc(protocolUrl(openPath, token));
-      return;
-    }
+    const { injectRuntime } = htmlAppRuntime();
     const bridge = getBridge();
     let cancelled = false;
     let objectUrl: string | null = null;

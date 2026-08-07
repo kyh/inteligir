@@ -33,7 +33,6 @@ import { ThemeProvider } from "@repo/ui/lib/theme";
 import { createFixtureBridge } from "@repo/workspace/dev/fixture-bridge";
 import { createWasmSqlDriver, loadSqlite3 } from "@repo/workspace/dev/wasm-sql-driver";
 import { installBridge } from "@repo/bridge/client";
-import { AccountSection } from "./sections/account-section";
 import { SkillsSection } from "./extensions/skills-section";
 import { RoutinesSection } from "./sections/routines-section";
 
@@ -56,42 +55,6 @@ function expectSurvivesOwnClick(button: HTMLElement): void {
   fireEvent.click(button);
   expect(button.isConnected).toBe(true);
 }
-
-describe("account section toggles stay mounted through their own click", () => {
-  it("the sign-in ↔ sign-up toggle swaps its label in place", async () => {
-    renderSection(<AccountSection />);
-    const toggle = await screen.findByRole("button", { name: "New here? Create account" });
-
-    expectSurvivesOwnClick(toggle);
-    await waitFor(() => expect(toggle.textContent).toBe("Have an account? Sign in"));
-
-    // …and back again, on the same node.
-    expectSurvivesOwnClick(toggle);
-    await waitFor(() => expect(toggle.textContent).toBe("New here? Create account"));
-  });
-
-  it("'Forgot password?' hides rather than unmounting", async () => {
-    renderSection(<AccountSection />);
-    const forgot = await screen.findByRole("button", { name: "Forgot password?" });
-
-    expectSurvivesOwnClick(forgot);
-    // Still in the tree, just not shown — the mode switched to reset.
-    await waitFor(() => expect(forgot.className).toContain("hidden"));
-    expect(forgot.isConnected).toBe(true);
-  });
-
-  it("the reset mode's way back reuses the same toggle node", async () => {
-    renderSection(<AccountSection />);
-    const forgot = await screen.findByRole("button", { name: "Forgot password?" });
-    const toggle = await screen.findByRole("button", { name: "New here? Create account" });
-
-    fireEvent.click(forgot);
-    await waitFor(() => expect(toggle.textContent).toBe("Back to sign in"));
-
-    expectSurvivesOwnClick(toggle);
-    await waitFor(() => expect(toggle.textContent).toBe("New here? Create account"));
-  });
-});
 
 describe("routines section", () => {
   it("'Add routine…' hides rather than unmounting when the form opens", async () => {

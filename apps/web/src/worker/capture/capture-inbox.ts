@@ -43,8 +43,8 @@ import { DAILY_TEMPLATE_PATH, applyTemplate } from "@repo/bridge/daily-notes";
 import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/bridge/ipc-registry";
 import { formatIsoDate } from "@repo/notes/daily-path";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
-import { createDoStoreAdapter, type SyncKv } from "@repo/storage/do-store-adapter";
-import { JsonStoreCore } from "@repo/storage/json-store-core";
+import { createDoStoreAdapter, type SyncKv } from "../store/do-store-adapter";
+import { JsonStoreCore } from "../store/json-store-core";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 

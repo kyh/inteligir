@@ -627,8 +627,10 @@ export class UserHost extends DurableObject<Env> {
     }
     const frame = parseClientFrame(message);
     if (frame === null || frame.t !== "auth") {
-      // `pair` is a desktop remote-access frame with no counterpart here: a
-      // cloud client has an account, not a pairing token.
+      // The FIRST frame must be the auth frame. Anything else — a req a client
+      // sent optimistically, a malformed frame — closes rather than waiting:
+      // there is no state here worth keeping for a peer that did not say who
+      // it is.
       ws.close(WS_CLOSE_UNAUTHORIZED, "not authenticated");
       return;
     }

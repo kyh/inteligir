@@ -38,7 +38,7 @@ function structureOf(schema: TSchema): unknown {
   return stripDescriptions(json);
 }
 
-const NOTE_PATH_CHANNELS = [IPC.probeNotePrivacy, IPC.getBacklinks, IPC.getForwardLinks];
+const NOTE_PATH_CHANNELS = [IPC.getBacklinks, IPC.getForwardLinks];
 
 const VAULT_PATH_CHANNELS = [
   IPC.readVaultDoc,

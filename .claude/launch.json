@@ -2,12 +2,6 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "desktop harness",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@repo/desktop", "dev:harness"],
-      "port": 5173
-    },
-    {
       "name": "web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:web"],

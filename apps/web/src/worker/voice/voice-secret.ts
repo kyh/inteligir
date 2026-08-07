@@ -15,7 +15,7 @@
 
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 import type { UiState } from "@repo/bridge/ui-state";
-import type { JsonStoreCore } from "@repo/storage/json-store-core";
+import type { JsonStoreCore } from "../store/json-store-core";
 
 import { openCredential, sealCredential } from "../agent/agent-crypto";
 

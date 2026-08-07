@@ -8,21 +8,14 @@
 // transitions bump, so callers can't forget.
 // ---------------------------------------------------------------------------
 
-import type { VoiceModelStateEvent } from "@repo/bridge/ipc-registry";
-
 export type VoiceState =
   | { kind: "idle" }
-  | { kind: "downloading_model"; progress: VoiceModelStateEvent | null }
   | { kind: "connecting" }
   | { kind: "listening"; currentTranscript: string }
   | { kind: "error"; message: string };
 
 export type VoiceEvent =
   | { type: "user_toggle_on" }
-  | { type: "model_status_received"; status: "ready" | "missing" }
-  | { type: "model_progress"; progress: VoiceModelStateEvent }
-  | { type: "model_download_ok" }
-  | { type: "model_download_failed"; message: string }
   | { type: "connect_ok" }
   | { type: "connect_failed"; message: string }
   | { type: "transcript_partial"; text: string }
@@ -54,27 +47,8 @@ function reduce(state: VoiceState, event: VoiceEvent): Transition {
   switch (state.kind) {
     case "idle":
     case "error":
-      if (event.type === "user_toggle_on") {
-        return { state: { kind: "downloading_model", progress: null } };
-      }
+      if (event.type === "user_toggle_on") return { state: { kind: "connecting" } };
       return { state };
-
-    case "downloading_model":
-      switch (event.type) {
-        case "model_status_received":
-          return event.status === "ready" ? { state: { kind: "connecting" } } : { state };
-        case "model_progress":
-          return { state: { kind: "downloading_model", progress: event.progress } };
-        case "model_download_ok":
-          return { state: { kind: "connecting" } };
-        case "model_download_failed":
-          return {
-            state: { kind: "error", message: event.message },
-            cancelInFlight: true,
-          };
-        default:
-          return { state };
-      }
 
     case "connecting":
       switch (event.type) {

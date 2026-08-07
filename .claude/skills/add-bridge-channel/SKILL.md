@@ -1,27 +1,27 @@
 ---
 name: add-bridge-channel
-description: Add a channel to the Bridge — the host↔UI IPC contract behind every renderer and mobile call. Covers the registry entry in @repo/bridge, the host handler in @repo/server, the dev-harness fixture stub, event emission + reconnect hydration, and the remote-device allowlist decision. Use when a UI surface needs data or an action the host owns, or when host-side state must push to the UI.
+description: Add a channel to the Bridge — the host↔UI contract behind every workspace call. Covers the registry entry in @repo/bridge, the handler in the UserHost Durable Object, the fixture-Bridge stub, event emission + reconnect hydration, and the client-class allowlist decision. Use when a UI surface needs data or an action the host owns, or when host-side state must push to the UI.
 allowed-tools: Bash(*), Read, Edit, Write
 ---
 
 # Add a Bridge channel
 
-The Bridge is the ONLY way the renderer (and the Expo companion) reaches the
-host. `packages/bridge/src/ipc-registry.ts` is its single source of truth: each
-entry pairs a TypeBox payload schema with a result/event type, and the `Bridge`
-type, the ws transport's dispatch, and the host handler map are all DERIVED from
-it. A channel is not "wired up" until three files agree, and the compiler
-enforces all three.
+The Bridge is the ONLY way the workspace reaches the host.
+`packages/bridge/src/ipc-registry.ts` is its single source of truth: each entry
+pairs a TypeBox payload schema with a result/event type, and the `Bridge` type,
+the socket's dispatch, and the host handler map are all DERIVED from it. A
+channel is not "wired up" until three files agree, and the compiler enforces all
+three.
 
 ## Read first
 
 - `packages/bridge/src/ipc-registry.ts` — the registry, the entry helpers
   (`invoke` / `invokeVoid` / `send` / `event`), the method partitions, and the
-  remote allowlists.
-- `packages/server/src/handlers/handler-registry.ts` — `collectHandlers`, which
+  client-class allowlists.
+- `apps/web/src/worker/host/handler-registry.ts` — `collectHandlers`, which
   validates payloads and throws at boot on a missing or duplicate handler.
 - `packages/workspace/src/dev/fixture-bridge.ts` — the header's stub convention.
-- CLAUDE.md § "Remote-device capability is an ALLOWLIST, never a blocklist".
+- CLAUDE.md § "Client capability is an ALLOWLIST, never a blocklist".
 
 ## The four entry kinds
 
@@ -34,7 +34,7 @@ event<Payload>(); // host → UI push; no handler, emitted via emitEvent
 
 Pick `invoke` unless the call genuinely has nothing to say back. Failure that
 the UI must branch on is a **VALUE, not a throw** — `toggleVaultTask` returns
-`{ok:false, reason}` because the host has already self-healed and the renderer
+`{ok:false, reason}` because the host has already self-healed and the UI
 needs to know which refusal it hit. Reserve throws for programmer error.
 
 ## Files to touch
@@ -64,7 +64,7 @@ const ToggleTaskSchema = Type.Object(
 );
 
 /** toggleVaultTask's verdict. Failures are VALUES, never throws: the host has
- * already kicked an index refresh, so the renderer refetches + toasts. */
+ * already kicked an index refresh, so the client refetches + toasts. */
 export type ToggleTaskResult =
   | { ok: true; checked: boolean }
   | { ok: false; reason: "line-missing" | "line-changed" | "not-a-checkbox"; error: string };
@@ -74,36 +74,37 @@ export type ToggleTaskResult =
   toggleVaultTask: invoke<typeof ToggleTaskSchema, ToggleTaskResult>(ToggleTaskSchema),
 ```
 
-The doc comment on the entry is the channel's contract — the renderer author
+The doc comment on the entry is the channel's contract — the UI author
 reads it instead of the handler. Say what the host guarantees and what a
 failure means.
 
-### 2. Host handler — `packages/server/src/handlers/<domain>-handlers.ts`
+### 2. Host handler — `apps/web/src/worker/<domain>/<domain>-handlers.ts`
 
-One `register<Domain>Handlers(handle)` per domain file, all called from
-`register-handlers.ts`. The registrar is per-method typed: the payload and
+One `register<Domain>Handlers(handle, services)` per domain file, all called
+from `host/handlers.ts`. The registrar is per-method typed: the payload and
 result types come from the registry, so a typo'd method name is a compile error.
 
 ```ts
-export function registerKnowledgeHandlers(handle: HandlerRegistrar): void {
-  handle("listVaultTasks", () => getKnowledgeManager().tasks());
+export function registerKnowledgeHandlers(
+  handle: HandlerRegistrar,
+  knowledge: UserKnowledge,
+  vault: UserVault,
+): void {
+  handle("listVaultTasks", () => knowledge.tasks());
   handle("toggleVaultTask", ({ path, ordinal, expectedRaw }): ToggleTaskResult => {
     ...
   });
 }
 ```
 
-Adding a whole new domain = a new `*-handlers.ts` plus one line in
-`registerAllHandlers`. Reach host services through their `getX()` singletons
-(`getVaultManager()`, `getKnowledgeManager()`) — that is the deliberate model,
-not an omission (CLAUDE.md § "Host services are process-global `getX()`
-singletons ON PURPOSE").
+Services arrive as ARGUMENTS, from the Durable Object that constructed them.
+There are no `getX()` singletons here and there must not be: one isolate serves
+many users, so a module-level instance is a cross-tenant bug (CLAUDE.md § "One
+host per user is a Durable Object").
 
-Two channels are NOT host-owned: `DESKTOP_SHELL_METHODS` (the `vault-app://`
-token mint/revoke) are implemented by the Electron shell and passed to
-`startWsHost` as `shellHandlers` (`apps/desktop/src/main/index.ts`). Only add
-to that set when the handler must touch main-process state the host package
-cannot see.
+A method with no implementation yet is registered as a SHIM naming the gap
+(`CLOUD_SHIMS` for the backlog, `CLOUD_RETIRED` for a decision) — never a silent
+`[]`.
 
 ### 3. Fixture stub — `packages/workspace/src/dev/fixture-bridge.ts`
 
@@ -132,11 +133,11 @@ in-memory vault:
 Events subscribe through the file's `Emitter`: `onKnowledgeUpdated:
 knowledgeEvents.subscribe`.
 
-### 4. The caller — renderer or mobile
+### 4. The caller — the workspace
 
-Renderer code reaches the Bridge only through `getBridge()`
-(`apps/desktop/src/renderer/lib/bridge.ts`); it never imports electron, node, or
-`@repo/server` (lint-enforced, and the dep edge does not exist).
+UI code reaches the Bridge only through `getBridge()` (`@repo/bridge/client`);
+nothing under `packages/` may import node or electron at all, which is what
+keeps the same code running in a browser and in React Native.
 
 ```ts
 const result = await getBridge()
@@ -144,14 +145,10 @@ const result = await getBridge()
   .catch(() => null);
 ```
 
-Mobile needs no per-channel work: `apps/mobile` dials the same host through the
-generic `createWsBridge`, so the derived `Bridge` type carries the new method
-automatically — subject to the allowlist in step 6.
-
 ### 5. Events only — emit, and decide about hydration
 
-Host code emits through `packages/server/src/events.ts`; the ws host subscribes
-and fans out.
+Host code emits through `host/host-events.ts`; the object subscribes and fans
+out to every socket the class gate allows.
 
 ```ts
       () => emitEvent("onKnowledgeUpdated", {}),
@@ -162,8 +159,8 @@ pair it with the getter that answers the same shape in `HYDRATED_EVENTS`:
 
 ```ts
 export const HYDRATED_EVENTS = {
-  onRemoteAccessChanged: "getRemoteAccessState",
   onAccountStateChanged: "getAccountState",
+  onAppState: "getAppState",
   ...
 } as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
 ```
@@ -172,14 +169,24 @@ export const HYDRATED_EVENTS = {
 both directions, so the pair cannot drift. Pure invalidation pings
 (`onKnowledgeUpdated`) need no entry — the client refetches anyway.
 
-### 6. Remote-device allowlist — decide, and default to NO
+### 6. Client-class allowlist — decide, and default to NO
 
-`REMOTE_ALLOWED_METHODS` / `REMOTE_ALLOWED_EVENTS` are the ONLY things a paired
-phone may reach. They are allowlists so a new channel is unreachable until
-someone names it on purpose. **The default answer is: do not add it.** Adding
-one is a deliberate act with a threat model attached — say in the PR why a
-network-reachable device needs it, and remember the ws host enforces the lists at
-three points (invoke/send dispatch, event broadcast, reconnect hydration).
+`REMOTE_ALLOWED_METHODS` / `REMOTE_ALLOWED_EVENTS` are the ONLY things a
+companion client may reach. They are allowlists so a new channel is unreachable
+until someone names it on purpose. **The default answer is: do not add it.**
+Adding one is a deliberate act with a threat model attached — say in the PR why
+a companion needs it, and remember the host enforces the lists at three points
+(invoke/send dispatch, event broadcast, reconnect hydration).
+
+### 7. The agent grant table — mandatory, and usually a denial
+
+Every non-event channel must appear exactly once across `AGENT_GRANTS` ∪
+`AGENT_NEVER_GRANTED` (`packages/bridge/src/agent-grants.ts`), enforced by
+`packages/bridge/src/__tests__/agent-grants.test.ts`. Adding the row is the
+moment "may the agent do this?" gets asked, and the usual answer is a
+never-granted group whose `why` already fits. A GRANT is a separate
+implementation host-side in `agent-tools.ts` — never the handler you just
+wrote, which is written for a person looking at their own vault.
 
 ## Rules
 
@@ -189,9 +196,9 @@ three points (invoke/send dispatch, event broadcast, reconnect hydration).
   See `BinaryAudioSchema` for the one place `unknown` is correct and why.
 - Never renumber a `BINARY_CHANNELS` tag — those are wire values. Retire and
   take the next.
-- Don't add a `dispatch.get(...)` or a fresh `authedSockets` loop in
-  `ws-host.ts`. Route through `resolveHandler()` / `sendEvent()`; a second gate
-  call site is how holes appear.
+- Don't add a `dispatch.get(...)` or a fresh socket loop in `user-host.ts`.
+  Route through `resolveHandler()` / `sendEvent()`; a second gate call site is
+  how holes appear, and `no-ungated-dispatch.test.ts` fails when one shows up.
 - Deleting a channel is also three files plus its callers — leave no orphan
   registry entry.
 - Naming a channel in prose (a doc, this skill) counts as a CALLER to the
@@ -203,35 +210,24 @@ three points (invoke/send dispatch, event broadcast, reconnect hydration).
 Static, narrow first:
 
 ```bash
-pnpm --filter @repo/bridge typecheck    # registry compiles, derived Bridge type is sound
-pnpm --filter @repo/desktop typecheck   # fixture-bridge covers the channel (dev/ is in tsconfig)
-pnpm --filter @repo/server test         # handler completeness + gate guards
-pnpm --filter @repo/bridge test         # ws protocol
+pnpm --filter @repo/bridge typecheck      # registry compiles, derived Bridge type is sound
+pnpm --filter @repo/workspace typecheck   # the fixture Bridge covers the channel
+pnpm --filter @repo/web test              # handler completeness + gate guards
+pnpm --filter @repo/bridge test           # ws protocol + grant-table completeness
+pnpm --filter @repo/repo-guards test      # no dead channels
 ```
 
-`pnpm --filter @repo/server test` is the one that matters. It runs:
+`pnpm --filter @repo/web test` is the one that matters. It runs:
 
-- `src/__tests__/register-handlers.test.ts` — the real handler groups cover
-  exactly `HOST_METHODS`.
-- `src/__tests__/handler-registry.test.ts` — the partitions add up
-  (host + desktop-shell = every non-event method) and `collectHandlers` throws
-  by name on a gap.
-- `src/__tests__/no-dead-channels.test.ts` — every registry method has a caller
-  outside the registry, the handlers dir, and the fixture.
-- `src/transport/__tests__/no-ungated-dispatch.test.ts` — the remote gate still
-  has exactly two chokepoints.
-- `src/transport/__tests__/ws-transport.test.ts` — a real client over the real
-  host.
+- `src/worker/__tests__/host-handlers.test.ts` — the registered map is exactly
+  `HOST_METHODS`, the implemented/pending/retired split adds up, and every shim
+  refuses by naming its gap.
+- `src/worker/__tests__/no-ungated-dispatch.test.ts` — the class gate still has
+  exactly two chokepoints.
+- `src/worker/__tests__/user-host.test.ts` — a real client over the real object.
 
-Then drive it. Type-checks are not feature-correct:
-
-```bash
-pnpm --filter @repo/desktop dev:harness   # localhost:5173, fixture Bridge
-```
-
-…and for anything the fixture can only approximate, the real app —
-`pnpm dev:desktop` then `agent-browser connect 9222`. Any Bridge method can be
-called directly from `agent-browser eval` via `window.bridgeBootstrap`; see the
-`e2e-drive` skill.
+Then drive it. Type-checks are not feature-correct: `pnpm dev:web`, then
+`agent-browser open http://localhost:5174/app`. Any Bridge method can be called
+straight from `agent-browser eval` — the snippet is in `docs/e2e-driving.md`.
 
 Before committing: `pnpm format:fix && pnpm verify` (format FIRST, never after).

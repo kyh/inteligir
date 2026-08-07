@@ -1,7 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
-  ChevronsUpDownIcon,
   FileIcon,
   FilePlusIcon,
   FileTextIcon,
@@ -57,7 +56,7 @@ function rowPadding(depth: number): number {
 
 export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const { entries, folderName } = useVaultListing();
-  const { openFile, createFile, renameEntry, deleteEntry, changeFolder } = useVaultActions();
+  const { openFile, createFile, renameEntry, deleteEntry } = useVaultActions();
   // The tree re-renders on navigation + structural refresh — never on typing
   // (the open note's CONTENT is not a subscription here, only its path).
   const selectedPath = useOpenNote((s) => s.editor.path);
@@ -159,18 +158,12 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <Sidebar collapsible="offcanvas" className="border-r border-border">
       {/* `pt-8` reserves a draggable strip for the macOS traffic lights, which
-       * sit at window (16,16) and would otherwise overlap the folder switcher. */}
+       * sit at window (16,16) and would otherwise overlap the vault name. */}
       <SidebarHeader className="app-drag gap-1.5 px-2 pt-9 pb-1">
-        <button
-          type="button"
-          onClick={() => void changeFolder()}
-          title={`${folderName || "Choose folder"} — click to switch vault`}
-          className="app-no-drag flex w-full min-w-0 items-center gap-2 rounded-lg p-1.5 text-left transition-colors hover:bg-sidebar-accent"
-        >
+        <div className="flex w-full min-w-0 items-center gap-2 p-1.5">
           <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-semibold">{folderName || "Choose folder…"}</span>
-          <ChevronsUpDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
-        </button>
+          <span className="truncate text-sm font-semibold">{folderName}</span>
+        </div>
         <button
           type="button"
           onClick={onOpenPalette}

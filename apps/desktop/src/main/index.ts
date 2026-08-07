@@ -1,96 +1,72 @@
-import { spawn } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+// ---------------------------------------------------------------------------
+// The Inteligir desktop shell.
+//
+// This process owns no vault, no agent and no index — the product runs at the
+// deployment this shell wraps (app-url.ts), and everything below is the OS
+// affordances a browser tab cannot give it: a dedicated window, the
+// `inteligir://` scheme, a tray, a global shortcut to summon the window, and
+// updates OF THE SHELL.
+//
+// What it must not become is a browser. The window loads exactly one origin
+// and is pinned to it, and no popup is ever granted: a shell that can be
+// navigated anywhere is a browser with the user's credentials in it, wearing
+// the product's chrome. Those two rules (navigation-guard.ts) are the whole
+// security surface of this process.
+// ---------------------------------------------------------------------------
 
-const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  globalShortcut,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  shell,
+  Tray,
+} from "electron";
 
 import type { MenuItemConstructorOptions } from "electron";
 
-declare const PROJECT_ROOT: string;
-declare const BUNDLED_GOOGLE_OAUTH_CLIENT_ID: string | undefined;
-declare const BUNDLED_GOOGLE_OAUTH_CLIENT_SECRET: string | undefined;
-
-// Dev-only .env loader. In packaged builds PROJECT_ROOT points to a path that
-// no longer exists on the user's machine, so loadEnvFile would always fail.
-// Production reads from process.env directly (set by launcher/system).
-if (!app.isPackaged) {
-  try {
-    process.loadEnvFile(path.resolve(PROJECT_ROOT, ".env"));
-  } catch {
-    // .env is optional in dev
-  }
-}
-
-// Belt-and-suspenders (the host already refuses these flags in packaged
-// builds — see @repo/bridge/dev-flags.ts): a PACKAGED build launched
-// with a dev-only flag in its environment is a misconfiguration at best and
-// an attempt to force scripted-agent / fake-OAuth mode at worst. Fail loud
-// and refuse to start rather than run with the flags silently ignored.
-if (app.isPackaged) {
-  const devOnlyFlags = ["INTELIGIR_FAUX_AGENT", "INTELIGIR_EMULATE_CONNECTORS"];
-  const set = devOnlyFlags.filter((name) => (process.env[name] ?? "") !== "");
-  if (set.length > 0) {
-    const message = `Refusing to start: dev-only flag(s) set in a packaged build: ${set.join(", ")}`;
-    console.error(`[desktop] ${message}`);
-    dialog.showErrorBox("Inteligir refused to start", message);
-    app.exit(1);
-  }
-}
-
-import { deliverDeepLink, setDeepLinkFocusHandler } from "@repo/server/capture/deep-link-service";
-import { createHost, type Host } from "@repo/server/boot/create-host";
-import type { HostOptions } from "@repo/server/platform";
-import {
-  getRemoteAccessManager,
-  type RemoteAccessManager,
-} from "@repo/server/transport/remote-access-manager";
-import { startWsHost, type WsHost } from "@repo/server/transport/ws-host";
-import { isRecord, toErrorMessage } from "@repo/bridge/wire-helpers";
-
-import {
-  extractDeepLinkFromArgv,
-  handleDeepLinkUrl,
-  installDeepLinks,
-  markDeepLinksReady,
-} from "@/main/deep-link";
-import { createElectronPlatform } from "@/main/electron-platform";
+import { resolveAppOrigin, workspaceUrl } from "@/main/app-url";
+import { handleDeepLinkUrl, installDeepLinks, markDeepLinksReady } from "@/main/deep-link";
+import { extractDeepLinkFromArgv } from "@/main/deep-link-route";
 import {
   classifyNavigation,
   classifyWindowOpen,
   isPdfFrameMismatch,
 } from "@/main/navigation-guard";
 import { setupAutoUpdater, type Updater } from "@/main/updater";
-import {
-  mintHtmlAppToken,
-  registerVaultAppProtocol,
-  registerVaultAppScheme,
-  revokeHtmlAppToken,
-} from "@/main/vault-app-protocol";
+
+declare const BUNDLED_APP_URL: string | undefined;
+
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 const isDevelopment = !app.isPackaged;
 const APP_DISPLAY_NAME = isDevelopment ? "Inteligir (Dev)" : "Inteligir";
 
-// The vault-app:// scheme's privileges MUST be registered before app `ready`,
-// so this runs at module load (the handler itself installs after ready, in
-// onAppReady). See vault-app-protocol.ts.
-registerVaultAppScheme();
+/** Summons the window from anywhere. Registration is best-effort — another app
+ * may already hold it, and a shell that refused to start over a taken hotkey
+ * would be trading the product for an accelerator. */
+const SUMMON_SHORTCUT = "CommandOrControl+Alt+I";
+
+// `typeof` guarded: the define does not exist when vitest runs this module's
+// siblings from raw source.
+const APP_ORIGIN = resolveAppOrigin({
+  env: process.env["INTELIGIR_APP_URL"],
+  bundled: typeof BUNDLED_APP_URL === "string" ? BUNDLED_APP_URL : undefined,
+});
 
 // inteligir:// deep links: the open-url listener must exist before `ready`
-// (macOS delivers a cold launch's URL early); raw URLs buffer until the host
-// starts (markDeepLinksReady in onAppReady). See deep-link.ts.
+// (macOS delivers a cold launch's URL early); paths buffer until the window
+// exists (markDeepLinksReady in onAppReady). See deep-link.ts.
 installDeepLinks();
 
 let mainWindow: BrowserWindow | null = null;
-let host: Host | null = null;
-let wsHost: WsHost | null = null;
+let tray: Tray | null = null;
 let updater: Updater | null = null;
-
-// ---------------------------------------------------------------------------
-// Crash visibility — global error hooks before anything else can fail. The
-// agent.log console mirror is wired inside createHost() (first thing in
-// onAppReady), so startup crashes after that point land on disk too.
-// ---------------------------------------------------------------------------
 
 process.on("uncaughtException", (error) => {
   console.error("[desktop] uncaught exception:", error);
@@ -107,52 +83,7 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // ---------------------------------------------------------------------------
-// Graceful shutdown — the single path every quit trigger funnels through:
-// cmd+Q / window close (before-quit) and SIGINT/SIGTERM. Disposes the host
-// (agent + executor daemon + vault watcher) with a hard timeout so a hung
-// teardown can't wedge quit. Idempotent: concurrent triggers share one
-// promise.
-// ---------------------------------------------------------------------------
-
-const SHUTDOWN_TIMEOUT_MS = 5_000;
-let shutdownPromise: Promise<void> | null = null;
-let shutdownFinished = false;
-
-function runGracefulShutdown(): Promise<void> {
-  if (shutdownPromise) return shutdownPromise;
-  shutdownPromise = (async () => {
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<void>((resolve) => {
-      timer = setTimeout(() => {
-        console.error(
-          `[desktop] graceful shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms — quitting anyway`,
-        );
-        resolve();
-      }, SHUTDOWN_TIMEOUT_MS);
-    });
-    try {
-      await Promise.race([
-        (async () => {
-          // Transport first: no client can invoke into a disposing host.
-          await (wsHost?.close() ?? Promise.resolve()).catch((error: unknown) => {
-            console.error("[desktop] ws transport close failed:", error);
-          });
-          await (host?.dispose() ?? Promise.resolve()).catch((error: unknown) => {
-            console.error("[desktop] shutdown failed:", error);
-          });
-        })(),
-        timeout,
-      ]);
-    } finally {
-      clearTimeout(timer);
-      shutdownFinished = true;
-    }
-  })();
-  return shutdownPromise;
-}
-
-// ---------------------------------------------------------------------------
-// App identity & menu
+// App identity, menu and tray
 // ---------------------------------------------------------------------------
 
 function configureAppIdentity(): void {
@@ -195,63 +126,53 @@ function configureApplicationMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-// ---------------------------------------------------------------------------
-// Host composition
-// ---------------------------------------------------------------------------
-
-/** The Google OAuth "Desktop app" client baked into this build by
- * electron-vite `define` (see electron.vite.config.ts for why shipping it is
- * fine). Declared `| undefined` and read behind `typeof` guards so the module
- * stays loadable where the defines don't exist (vitest runs the raw source);
- * the host falls back to INTELIGIR_GOOGLE_OAUTH_CLIENT_* env at call time. */
-function hostOptionsFromDefines(): HostOptions {
-  const clientId =
-    typeof BUNDLED_GOOGLE_OAUTH_CLIENT_ID === "string" ? BUNDLED_GOOGLE_OAUTH_CLIENT_ID.trim() : "";
-  const clientSecret =
-    typeof BUNDLED_GOOGLE_OAUTH_CLIENT_SECRET === "string"
-      ? BUNDLED_GOOGLE_OAUTH_CLIENT_SECRET.trim()
-      : "";
-  if (!clientId || !clientSecret) return {};
-  return { bundledGoogleClient: { clientId, clientSecret } };
+/** Tray icon, sized and marked as a template so macOS tints it for the menu
+ * bar's own appearance instead of rendering the full-colour app icon. */
+function createTray(): Tray | null {
+  const icon = nativeImage
+    .createFromPath(path.join(moduleDir, "../../../resources/icon.png"))
+    .resize({ width: 16, height: 16 });
+  if (icon.isEmpty()) {
+    console.error("[desktop] tray icon missing — skipping the tray");
+    return null;
+  }
+  icon.setTemplateImage(true);
+  const created = new Tray(icon);
+  created.setToolTip(APP_DISPLAY_NAME);
+  created.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: `Open ${APP_DISPLAY_NAME}`, click: () => showMainWindow() },
+      {
+        label: "Check for Updates...",
+        click: () => void updater?.checkForUpdates(),
+      },
+      { type: "separator" },
+      { role: "quit" },
+    ]),
+  );
+  created.on("click", () => showMainWindow());
+  return created;
 }
 
 // ---------------------------------------------------------------------------
-// Window creation
+// The window
 // ---------------------------------------------------------------------------
 
-/**
- * Pick the window chrome color from the persisted theme so the pre-paint
- * background matches what the renderer will render (no dark flash in light
- * mode). Mirrors the renderer's default-to-light behaviour for unset/invalid.
- */
-async function startupBackgroundColor(theHost: Host): Promise<string> {
-  const uiState = await Promise.resolve(theHost.handlers.getUiState(undefined));
-  const stored = isRecord(uiState) ? uiState["theme"] : undefined;
-  const theme = stored === "dark" || stored === "system" ? stored : "light";
-  const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
-  return dark ? "#141415" : "#f0f2f2";
-}
-
-/** The ws endpoint + per-boot local token the renderer's Bridge dials with.
- * The preload fetches it over the one-shot `inteligir:bootstrap` sendSync
- * channel (registered in onAppReady), keeping the token out of the page URL,
- * navigation history, and the renderer's OS command line. */
-type BridgeBootstrap = { url: string; token: string };
-
-function createWindow(backgroundColor: string): BrowserWindow {
+function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor,
+    // Pre-paint chrome, so the frame does not flash the wrong shade before the
+    // page paints its own. The page owns the theme; this only guesses.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#141415" : "#f0f2f2",
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
-      preload: path.join(moduleDir, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -266,14 +187,11 @@ function createWindow(backgroundColor: string): BrowserWindow {
     return { action: "deny" };
   });
 
-  // Top-level navigation is pinned to the loaded origin (the electron-vite
-  // dev server in dev, the packaged file:// bundle in production) — the
+  // Top-level navigation is pinned to the deployment's origin — the
   // allow/block policy lives in navigation-guard.ts (pure and unit-tested);
   // these closures only wire its verdicts to webContents.
-  // `loadedUrlPrefix` is set at load time below.
-  let loadedUrlPrefix = "";
   const guardNavigation = (event: Electron.Event, url: string): void => {
-    const verdict = classifyNavigation(url, loadedUrlPrefix);
+    const verdict = classifyNavigation(url, APP_ORIGIN);
     if (verdict === "allow") return;
     event.preventDefault();
     if (verdict === "block-and-open-external") {
@@ -284,9 +202,9 @@ function createWindow(backgroundColor: string): BrowserWindow {
   window.webContents.on("will-redirect", guardNavigation);
 
   // A `.pdf` sub-frame that answers with something other than a PDF is
-  // attacker markup in the one frame the editor cannot sandbox. Main
-  // sees the real Content-Type, so it can confirm what the renderer could only
-  // guess from the URL; the verdict itself is pure + unit-tested.
+  // attacker markup in the one frame the editor cannot sandbox. Main sees the
+  // real Content-Type, so it can confirm what the page could only guess from
+  // the URL; the verdict itself is pure + unit-tested.
   window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     const headers = details.responseHeaders ?? {};
     const contentTypeKey = Object.keys(headers).find((key) => key.toLowerCase() === "content-type");
@@ -312,9 +230,9 @@ function createWindow(backgroundColor: string): BrowserWindow {
     window.setTitle(APP_DISPLAY_NAME);
   });
 
-  // Renderer crash recovery: log the reason (it lands in agent.log) and
-  // reload. Deliberate teardowns aren't crashes; the reload cap stops a
-  // crash-on-boot loop from spinning forever.
+  // Renderer crash recovery: log the reason and reload. Deliberate teardowns
+  // aren't crashes; the reload cap stops a crash-on-boot loop from spinning
+  // forever.
   let crashReloads = 0;
   window.webContents.on("render-process-gone", (_event, details) => {
     console.error(
@@ -329,19 +247,28 @@ function createWindow(backgroundColor: string): BrowserWindow {
     window.webContents.reload();
   });
 
+  // A deployment that is down leaves an empty frame with no way back, so the
+  // failure names itself and offers the one action that helps.
+  window.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, url, isMainFrame) => {
+      if (!isMainFrame) return;
+      // -3 is ERR_ABORTED, which a navigation the guard cancelled reports too.
+      if (errorCode === -3) return;
+      console.error(`[desktop] failed to load ${url}: ${errorDescription} (${errorCode})`);
+      void window.webContents.executeJavaScript(
+        `document.body.textContent = ${JSON.stringify(
+          `Inteligir couldn't reach ${APP_ORIGIN}. Check your connection, then reload (⌘R).`,
+        )}`,
+      );
+    },
+  );
+
   window.once("ready-to-show", () => {
     window.show();
   });
 
-  if (isDevelopment && process.env["ELECTRON_RENDERER_URL"]) {
-    const rendererUrl = process.env["ELECTRON_RENDERER_URL"];
-    loadedUrlPrefix = rendererUrl;
-    void window.loadURL(rendererUrl);
-  } else {
-    const indexPath = path.join(moduleDir, "../renderer/index.html");
-    loadedUrlPrefix = pathToFileURL(indexPath).href;
-    void window.loadFile(indexPath);
-  }
+  void window.loadURL(workspaceUrl(APP_ORIGIN));
 
   if (isDevelopment) {
     window.webContents.on("before-input-event", (_event, input) => {
@@ -360,172 +287,70 @@ function createWindow(backgroundColor: string): BrowserWindow {
   return window;
 }
 
+/** Bring the window forward, recreating it if the user closed it (the tray and
+ * the global shortcut both have to work after that). */
+function showMainWindow(): BrowserWindow {
+  const existing = mainWindow;
+  if (existing === null) {
+    mainWindow = createWindow();
+    return mainWindow;
+  }
+  if (existing.isMinimized()) existing.restore();
+  existing.show();
+  existing.focus();
+  app.focus();
+  return existing;
+}
+
+/** Open a translated deep-link path in the window. Nav and capture both want
+ * the window in front — unlike the local host, this shell cannot apply a
+ * capture in the background, so there is nothing to do quietly. */
+function openDeepLinkPath(linkPath: string): void {
+  const window = showMainWindow();
+  void window.loadURL(`${APP_ORIGIN}${linkPath}`);
+}
+
 // ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-// Re-drives quit after a graceful shutdown, with an external watchdog.
-// Chromium intercepts SIGTERM/SIGINT on its shutdown-detector thread (the
-// Node-level signal handlers never fire) and starts its own quit; our
-// before-quit preventDefault wedges that signal-initiated quit sequence, and
-// the follow-up app.quit() then BLOCKS the main thread indefinitely inside
-// Chromium (observed via `sample`: main thread parked in mach_msg deep in
-// the quit call, windows and helpers already gone). A blocked JS thread can
-// never run a setTimeout fallback, so the watchdog must live outside the
-// process: a detached shell that re-signals us. A second SIGTERM is known to
-// complete the wedged quit immediately; SIGKILL is the last resort. On a
-// normal quit (cmd+Q) the process exits in milliseconds and the watchdog's
-// signals hit a dead pid — a no-op.
-function quitNow(): void {
-  console.log("[desktop] graceful shutdown complete — quitting");
-  if (process.platform !== "win32") {
-    try {
-      const watchdog = spawn(
-        "/bin/sh",
-        [
-          "-c",
-          `sleep 3; kill -TERM ${process.pid} 2>/dev/null; sleep 5; kill -KILL ${process.pid} 2>/dev/null`,
-        ],
-        { detached: true, stdio: "ignore" },
-      );
-      watchdog.unref();
-    } catch (error) {
-      console.error("[desktop] failed to start quit watchdog:", error);
-    }
-  }
-  app.quit();
-}
-
-app.on("before-quit", (event) => {
-  if (shutdownFinished) return;
-  event.preventDefault();
-  void runGracefulShutdown().then(() => quitNow());
-});
-
-// The renderer's first act is dialing the Bridge, so the ws server must be
-// accepting connections before any window exists. Resolves with the bound
-// port; rejects (→ the fatal-startup dialog) as soon as the bind FAILS — the
-// server's error event lands in milliseconds, e.g. a stale instance still
-// holding the port — with the timeout kept only as a backstop.
-const WS_LISTEN_TIMEOUT_MS = 10_000;
-
-function bindFailure(reason: string): Error {
-  return new Error(
-    `the WebSocket transport failed to bind (${reason}) — is another Inteligir instance running?`,
-  );
-}
-
-function waitForWsPort(theWsHost: WsHost, manager: RemoteAccessManager): Promise<number> {
-  const bound = theWsHost.port();
-  if (bound !== null) return Promise.resolve(bound);
-  const failed = manager.getListenError();
-  if (failed !== null) return Promise.reject(bindFailure(failed));
-  return new Promise<number>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      unsubscribe();
-      reject(bindFailure(`no bind within ${WS_LISTEN_TIMEOUT_MS}ms`));
-    }, WS_LISTEN_TIMEOUT_MS);
-    const unsubscribe = manager.onChange(() => {
-      const port = theWsHost.port();
-      if (port !== null) {
-        clearTimeout(timer);
-        unsubscribe();
-        resolve(port);
-        return;
-      }
-      const error = manager.getListenError();
-      if (error === null) return;
-      clearTimeout(timer);
-      unsubscribe();
-      reject(bindFailure(error));
-    });
-  });
-}
-
-async function onAppReady(): Promise<void> {
-  const electronPlatform = createElectronPlatform();
-  const theHost = createHost(electronPlatform.platform, hostOptionsFromDefines());
-  host = theHost;
-
+function onAppReady(): void {
   configureAppIdentity();
   configureApplicationMenu();
-
-  // Transport fold: ONE WebSocket server carries the whole Bridge, before any
-  // renderer can invoke a channel. The html-app token mint/revoke
-  // (DESKTOP_SHELL_METHODS — deliberately absent from the platform-agnostic
-  // host handler map) ride along as shellHandlers.
-  const remoteAccess = getRemoteAccessManager();
   updater = setupAutoUpdater({ isDevelopment });
-  const theWsHost = startWsHost({
-    host: theHost,
-    validator: remoteAccess.validator,
-    manager: remoteAccess,
-    shellHandlers: {
-      mintHtmlAppToken: () => mintHtmlAppToken(),
-      revokeHtmlAppToken: (raw: unknown) => {
-        if (isRecord(raw) && typeof raw.token === "string") revokeHtmlAppToken(raw.token);
-      },
-    },
-  });
-  wsHost = theWsHost;
+  tray = createTray();
 
-  registerVaultAppProtocol();
+  if (!globalShortcut.register(SUMMON_SHORTCUT, () => showMainWindow())) {
+    console.warn(`[desktop] ${SUMMON_SHORTCUT} is taken — the summon shortcut is unavailable`);
+  }
 
-  // Independent awaits — the ws bind and the ui-state read overlap.
-  const [port, backgroundColor] = await Promise.all([
-    waitForWsPort(theWsHost, remoteAccess),
-    startupBackgroundColor(theHost),
-  ]);
-  const bootstrap: BridgeBootstrap = {
-    url: `ws://127.0.0.1:${port}`,
-    token: remoteAccess.getLocalToken(),
-  };
+  mainWindow = createWindow();
 
-  // One-shot BOOTSTRAP shell channel — NOT a Bridge data channel (the Bridge
-  // data plane stays WS-only). The preload sendSync's the ws endpoint +
-  // per-boot local token here; passing them via additionalArguments instead
-  // would put the token on the renderer's OS command line, readable by every
-  // local user via `ps`.
-  ipcMain.on("inteligir:bootstrap", (event) => {
-    event.returnValue = bootstrap;
-  });
-
-  mainWindow = createWindow(backgroundColor);
-  electronPlatform.setTargetWindow(mainWindow);
-
-  theHost.start();
-
-  // Deep links: the host (vault + capture inbox) is up — flush every URL that
-  // arrived during boot into the dispatcher, and wire how nav verbs surface
-  // the window. Captures deliberately never steal focus (background capture
-  // is the point); nav exists to be looked at.
-  setDeepLinkFocusHandler(() => focusMainWindow());
-  markDeepLinksReady(deliverDeepLink);
+  markDeepLinksReady(openDeepLinkPath);
   // win/linux cold launch: the URL rides our own argv (macOS uses open-url).
   const launchUrl = extractDeepLinkFromArgv(process.argv);
   if (launchUrl !== null) handleDeepLinkUrl(launchUrl);
 }
 
-function focusMainWindow(): void {
-  const window = mainWindow;
-  if (window === null) return;
-  if (window.isMinimized()) window.restore();
-  window.show();
-  window.focus();
-  app.focus();
-}
+app.on("activate", () => {
+  showMainWindow();
+});
 
-// Single instance: deep links demand it — macOS routes open-url to the
-// running instance, and win/linux deliver the URL on the SECOND instance's
-// argv, which must be forwarded here and the duplicate quit. This also
-// upgrades the stale-instance UX: the launch now focuses the existing window
-// instead of dying on the ws-port bind (that failure stays as backstop).
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+  tray?.destroy();
+  tray = null;
+});
+
+// Single instance: deep links demand it — macOS routes open-url to the running
+// instance, and win/linux deliver the URL on the SECOND instance's argv, which
+// must be forwarded here and the duplicate quit.
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on("second-instance", (_event, argv) => {
-    focusMainWindow();
+    showMainWindow();
     const url = extractDeepLinkFromArgv(argv);
     if (url !== null) handleDeepLinkUrl(url);
   });
@@ -535,19 +360,10 @@ if (!gotSingleInstanceLock) {
     .then(onAppReady)
     .catch((error: unknown) => {
       console.error("[desktop] fatal startup error", error);
-      dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
+      dialog.showErrorBox(
+        "Inteligir failed to start",
+        error instanceof Error ? error.message : String(error),
+      );
       app.quit();
     });
 }
-
-// POSIX signals must take the same graceful path as before-quit. In practice
-// Chromium's shutdown-detector thread usually catches SIGTERM/SIGINT before
-// Node does (so these handlers rarely fire and quit arrives via before-quit
-// above); they remain as a belt-and-braces path for environments where
-// Chromium does not install its detectors.
-const handleSignal = (signal: NodeJS.Signals) => {
-  console.log(`[desktop] received ${signal} — shutting down`);
-  void runGracefulShutdown().then(() => quitNow());
-};
-process.on("SIGINT", handleSignal);
-process.on("SIGTERM", handleSignal);

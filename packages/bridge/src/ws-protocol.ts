@@ -15,7 +15,7 @@ import { isRecord } from "./wire-helpers";
 // Close codes + binary tags
 // ---------------------------------------------------------------------------
 
-/** Auth failed (bad token, bad pairing token, or the 10s deadline elapsed). */
+/** Auth failed (bad token, or the auth deadline elapsed before one arrived). */
 export const WS_CLOSE_UNAUTHORIZED = 4401;
 /** The connection came from a disallowed HTTP Origin — rejected before auth. */
 export const WS_CLOSE_FORBIDDEN_ORIGIN = 4403;
@@ -29,25 +29,20 @@ export const WS_CLOSE_FORBIDDEN_ORIGIN = 4403;
 
 /** First frame on connect: present a device (or local-renderer) token. */
 export type AuthFrame = { t: "auth"; token: string };
-/** Alternative first frame: exchange a one-time pairing token for a device
- * token. On success the connection is authed (paired frame, then welcome). */
-export type PairFrame = { t: "pair"; pairingToken: string; deviceName: string };
 /** Invoke / invoke-void request (invoke-void carries no payload). */
 export type ReqFrame = { t: "req"; id: number; method: string; payload?: unknown };
 /** Fire-and-forget send (except BINARY_CHANNELS sends, which go binary). */
 export type SendFrame = { t: "send"; method: string; payload?: unknown };
-export type ClientFrame = AuthFrame | PairFrame | ReqFrame | SendFrame;
+export type ClientFrame = AuthFrame | ReqFrame | SendFrame;
 
 /** Auth accepted; requests may flow. */
 export type WelcomeFrame = { t: "welcome" };
-/** Pairing success — the durable device token the client stores. */
-export type PairedFrame = { t: "paired"; deviceToken: string; deviceId: string };
 export type ResFrame =
   | { t: "res"; id: number; ok: true; result?: unknown }
   | { t: "res"; id: number; ok: false; error: string };
 /** Host event push. */
 export type EvtFrame = { t: "evt"; method: string; payload?: unknown };
-export type ServerFrame = WelcomeFrame | PairedFrame | ResFrame | EvtFrame;
+export type ServerFrame = WelcomeFrame | ResFrame | EvtFrame;
 
 export function encodeFrame(frame: ClientFrame | ServerFrame): string {
   return JSON.stringify(frame);
@@ -69,10 +64,6 @@ export function parseClientFrame(text: string): ClientFrame | null {
   switch (raw["t"]) {
     case "auth":
       return typeof raw["token"] === "string" ? { t: "auth", token: raw["token"] } : null;
-    case "pair":
-      return typeof raw["pairingToken"] === "string" && typeof raw["deviceName"] === "string"
-        ? { t: "pair", pairingToken: raw["pairingToken"], deviceName: raw["deviceName"] }
-        : null;
     case "req":
       return typeof raw["id"] === "number" && typeof raw["method"] === "string"
         ? { t: "req", id: raw["id"], method: raw["method"], payload: raw["payload"] }
@@ -92,10 +83,6 @@ export function parseServerFrame(text: string): ServerFrame | null {
   switch (raw["t"]) {
     case "welcome":
       return { t: "welcome" };
-    case "paired":
-      return typeof raw["deviceToken"] === "string" && typeof raw["deviceId"] === "string"
-        ? { t: "paired", deviceToken: raw["deviceToken"], deviceId: raw["deviceId"] }
-        : null;
     case "res": {
       if (typeof raw["id"] !== "number") return null;
       if (raw["ok"] === true) return { t: "res", id: raw["id"], ok: true, result: raw["result"] };

@@ -303,11 +303,9 @@ Three pages over the existing Better Auth routes, sharing one card
 ### Workspace host (`GET /v1/host/:userId/ws`)
 
 **One Durable Object per user** (`env.UserHost.getByName("user:" + userId)`)
-serving that user’s Bridge — the 89 host methods and 19 event channels
+serving that user’s Bridge — the 71 host methods and 17 event channels
 `@repo/bridge/ipc-registry` declares — over one hibernatable WebSocket per
-client. It is the cloud counterpart of the desktop's local ws host, written
-fresh rather than shared: `@repo/server` reaches node through half its
-dependency graph.
+client.
 
 - **Hibernation is the point.** Sockets are accepted with
   `ctx.acceptWebSocket` and served through the `webSocket*` handler methods, so
@@ -651,10 +649,6 @@ only the deployed ones, so without it `/app` loads and then sits on
 `db:push:local` prompts (and therefore fails without a TTY) when it cannot tell
 a new table from a rename — which happens when the local D1 still holds a table
 the schema has since dropped. Drop the stale table and re-run.
-
-The fixture-bridge harness is still the fastest loop for pure UI work, and it
-does not need any of the above: `pnpm --filter @repo/desktop dev:harness` runs
-the same `@repo/workspace` UI in a plain browser over an in-memory Bridge.
 
 > **Never run `db:push` or `db:studio`.** Both go through `drizzle.config.ts`
 > (`driver: "d1-http"`) at the PRODUCTION D1 — `db:studio` is a read/write UI

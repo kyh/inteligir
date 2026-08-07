@@ -4,8 +4,10 @@ import { Link } from "@tanstack/react-router";
 import { installBridge } from "@repo/bridge/client";
 import { createWsBridge, type WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import { App } from "@repo/workspace/app-root";
+import { setAccountPort } from "@repo/workspace/workspace/account-host";
 import { setHtmlAppRuntime } from "@repo/workspace/workspace/html-app-host";
 
+import { authClient } from "@/lib/auth-client";
 import { HTML_APPS_DISABLED } from "@/app/html-apps-disabled";
 
 // ---------------------------------------------------------------------------
@@ -31,7 +33,15 @@ function hostSocketUrl(userId: string): string {
   return `${scheme}//${location.host}/v1/host/${encodeURIComponent(userId)}/ws`;
 }
 
-export default function WorkspaceMount({ userId, token }: { userId: string; token: string }) {
+export default function WorkspaceMount({
+  userId,
+  email,
+  token,
+}: {
+  userId: string;
+  email: string;
+  token: string;
+}) {
   const [status, setStatus] = useState<WsBridgeStatus>("connecting");
   const [ready, setReady] = useState(false);
 
@@ -43,9 +53,20 @@ export default function WorkspaceMount({ userId, token }: { userId: string; toke
     });
     installBridge(transport.bridge);
     setHtmlAppRuntime(HTML_APPS_DISABLED);
+    // Sign-out is deliberately NOT a Bridge call: it invalidates the very
+    // credential that socket authenticated with, so it belongs to the surface
+    // holding it. A full reload rather than a router navigate — every store in
+    // the workspace is scoped to the account that just ended.
+    setAccountPort({
+      email,
+      signOut: async () => {
+        await authClient.signOut();
+        window.location.assign("/app/sign-in");
+      },
+    });
     setReady(true);
     return transport.dispose;
-  }, [userId, token]);
+  }, [email, userId, token]);
 
   // Terminal: the host rejected this session (close 4401) and the bridge's
   // supervisor has stopped, so a live UI would sit there hanging. Replace it

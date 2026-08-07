@@ -17,14 +17,12 @@ const helpers = vi.hoisted(
     pipelineInstances: PipelineInstance[];
     bridgeMock: {
       isTtsAvailable: ReturnType<typeof vi.fn<() => Promise<boolean>>>;
-      onVoiceModelState: ReturnType<typeof vi.fn<() => () => void>>;
       sendAgentCommand: ReturnType<typeof vi.fn>;
     };
   } => ({
     pipelineInstances: [],
     bridgeMock: {
       isTtsAvailable: vi.fn<() => Promise<boolean>>(),
-      onVoiceModelState: vi.fn(() => () => {}),
       sendAgentCommand: vi.fn(),
     },
   }),
@@ -298,30 +296,6 @@ describe("voice-store", () => {
 
       expect(useVoiceStore.getState().ttsConfigured).toBe(false);
       expect(helpers.pipelineInstances).toHaveLength(0);
-    });
-  });
-
-  describe("model-state listener cleanup", () => {
-    it("init cleanup unsubscribes the onVoiceModelState listener", async () => {
-      const unsub = vi.fn();
-      helpers.bridgeMock.onVoiceModelState.mockReturnValue(unsub);
-
-      const cleanup = useVoiceStore.getState().init();
-      await flushMicrotasks();
-      cleanup();
-
-      expect(unsub).toHaveBeenCalledOnce();
-    });
-
-    it("reset() also unsubscribes the listener", async () => {
-      const unsub = vi.fn();
-      helpers.bridgeMock.onVoiceModelState.mockReturnValue(unsub);
-
-      useVoiceStore.getState().init();
-      await flushMicrotasks();
-      useVoiceStore.getState().reset();
-
-      expect(unsub).toHaveBeenCalledOnce();
     });
   });
 });

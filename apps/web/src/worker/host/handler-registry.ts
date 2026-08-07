@@ -1,20 +1,14 @@
 // ---------------------------------------------------------------------------
-// Typed handler collection for the cloud host.
+// Typed handler collection for the host.
 //
-// The node host has the same fold, and this is deliberately not a copy that
-// drifts: both derive the REQUIRED SET from `@repo/bridge/ipc-registry`, which
-// is the single source of truth, so a channel added there fails BOTH hosts'
-// boot until it is answered. It cannot be shared as code — `@repo/server`
-// reaches node through half its dependency graph and cannot be imported on
-// workerd.
+// The REQUIRED SET is derived from `@repo/bridge/ipc-registry` rather than
+// listed: a channel added there fails this object's boot until it is answered.
 //
 // Payloads are validated HERE, against the registry's own TypeBox schema, so
-// the transport passes raw wire values straight in and every host validates
-// identically.
+// the transport passes raw wire values straight in.
 // ---------------------------------------------------------------------------
 
 import {
-  DESKTOP_SHELL_METHODS,
   IPC,
   IPC_METHODS,
   type HostMethod,
@@ -24,12 +18,8 @@ import {
 import type { TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-// The html-app token mint/revoke touch the Electron main process's token store,
-// so no non-desktop host owns them.
-const shellMethods = new Set<string>(DESKTOP_SHELL_METHODS);
-
 function isHostMethod(method: IpcMethod): method is HostMethod {
-  return IPC[method].kind !== "event" && !shellMethods.has(method);
+  return IPC[method].kind !== "event";
 }
 
 /** Every method a host must implement, as a runtime list. */
@@ -73,13 +63,13 @@ type Gap =
 /** The one refusal an unimplemented capability answers with — the single
  * message format, so every gap reads the same in a res frame and in a log. */
 export function unavailable(feature: string): never {
-  throw new Error(`${feature} is not available on the cloud host yet`);
+  throw new Error(`${feature} is not available yet`);
 }
 
 /** What a shimmed method throws. */
 function refuse(gap: Gap): never {
   if (gap.kind === "pending") unavailable(gap.feature);
-  throw new Error(`${gap.feature} does not exist on the cloud host — ${gap.why}`);
+  throw new Error(`${gap.feature} does not exist here — ${gap.why}`);
 }
 
 function parsePayload(method: IpcMethod, schema: TSchema, raw: unknown): unknown {

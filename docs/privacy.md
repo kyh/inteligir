@@ -1,129 +1,62 @@
 # Private notes (`private: true`)
 
-Add `private: true` to a note's YAML frontmatter (Page details → the
-`private` checkbox, or the palette's "Mark note as private") and the note is
-**excluded from AI features on this device**. A lock badge in the header
-shows the state.
+Add `private: true` to a note's YAML frontmatter (Page details → the `private`
+checkbox, or the palette's "Mark note as private") and **the app's own AI
+surfaces skip it**. A lock badge in the header shows the state.
 
-This is a **leak-prevention boundary for AI features, not a security
-boundary**. Read the "What it does NOT do" list before relying on it.
+Read this whole page before relying on it. The guarantee is narrow, it is
+enforced entirely in the client, and **the agent is not part of it**.
 
 ## What it does
 
-- **Agent file tools refuse it.** `read`, `edit`, and `write` on a private
-  note are blocked before they run (pi's `tool_call` hook,
-  `packages/agent/src/privacy/`) with a structured "this note
-  is private" error the model sees. The check probes the file's frontmatter
-  on disk **per call** — never a cached index — and applies to both the chat
-  agent and the background delegation agent. `grep`/`find`/`ls` (not active
-  today) are gated defensively: a scan of any folder containing a private
-  note refuses entirely. The gate resolves the tool's path argument through
-  the **same normalization pi's own tools apply** (leading `@` stripped,
-  unicode spaces mapped to ASCII, `~` expanded, macOS filename-variant
-  fallbacks — `packages/agent/src/privacy/pi-path-parity.ts`), so an alias spelling of a
-  private path probes the file pi will actually open; a drift-guard test
-  pins our resolver against pi's installed one so a pi upgrade can't
-  silently reopen the gap. A second guard drives the refusal through pi's
-  own extension runner and agent loop, so an upgrade that stopped honouring
-  a block — or started swallowing the fail-closed throw — fails a test
-  rather than quietly turning the gate into a no-op.
-- **`search_vault` / `get_backlinks` / `get_links` / `related_notes` drop it entirely.**
-  Private notes are excluded inside the index query and every surviving hit
-  is re-probed against live disk — no path, no title, no snippet ever
-  reaches the model. A private note's backlinks come back as an empty JSON
-  array, indistinguishable from a note that has none; a private subject's
-  related notes come back the same way.
-- **Every other vault tool drops it too.** The whole-vault reads the agent
-  gets (`list_vault`, `read_note`, `get_note_facts`, `list_tasks`,
-  `list_tags`, `list_wiki_targets`, `get_link_graph`, `list_delegations`) run
-  through the same projection: excluded at the index,
-  every survivor re-probed against live disk, dropped silently rather than
-  annotated. Counts are recomputed over the notes that survive, so no number
-  disagrees with the list beside it. The mutating ones (`toggle_task`,
-  `delete_note`, `undo_my_edits`, and the two keyed by a delegation id —
-  `cancel_delegation`, `restore_delegation`, which resolve the task's source
-  note and probe that) refuse a private target outright, the way delegation
-  already does.
-- **Editor AI is hard-off.** Ghost-text stops and the ⌘J menu (prompts,
-  canned actions, translate) refuses with a toast, derived live from the
-  document — the instant you type `private: true`, before any save. This
-  wins over the ghost-text on/off setting.
-- **Read aloud refuses it.** The palette's "Read page aloud" sends the note's
-  text to ElevenLabs for synthesis, so the command is hidden for private
-  notes and the controller re-checks fail-closed before sending a byte —
-  unparseable frontmatter and "no note open" refuse the same way.
-- **The chat context hint omits it.** A fresh chat turn normally tells the
-  agent which note is open; for a private note even the path is withheld.
-  Checked twice at send time, fail-closed: the live editor buffer (so a
-  just-typed `private: true` counts before any save) AND a host-side
-  live-disk probe (so an external flip — an agent write or an outside editor
-  that landed `private: true` on disk before the editor reloaded — suppresses
-  the path too).
-- **Delegation refuses it.** "Delegate" on a checkbox inside a private note
-  fails with an explicit error, at creation and re-checked at dispatch.
-- **Fail-closed defaults.** Frontmatter that can't be parsed (malformed
-  YAML, duplicate keys) is treated as private by every AI path; an
-  unreadable file, an unresolvable vault root, or a crashing privacy probe
-  all block rather than allow. (The UI shows no lock for malformed
-  frontmatter — only a real `private: true` does.)
+Everything below runs in the workspace, on the open note, against the live
+editor buffer — so a `private: true` you just typed takes effect on the next
+action, before any save.
+
+- **Editor AI and ghost text refuse.** The ⌘J menu's generate/edit flows and
+  the inline completion both funnel through the same check and do nothing on a
+  private note.
+- **Read aloud refuses.** The palette hides "Read page aloud" for a private
+  note, and `start()` re-checks before sending any bytes to the synthesizer.
+- **The chat turn withholds even the PATH.** A fresh user message normally
+  carries the open note's path as a context hint; for a private note it carries
+  the date-only prefix instead, so the model is not told which file you are
+  looking at.
+
+Fail-closed in each case: unparseable frontmatter, an unreadable buffer, and
+"nothing registered yet" all read as private.
 
 ## What it does NOT do
 
-- **`bash` can still read it.** The agent keeps raw shell access by design.
-  We block a command that literally names a private note's path, and
-  AGENTS.md instructs the model never to work around a privacy refusal — but
-  `cat ./vault/*.md`, pipes, and subshells are not (and cannot soundly be)
-  parsed. This is instruction, not enforcement, and it stays that way: a
-  filesystem sandbox was considered and DECLINED, because the agent's real
-  machine access is the product. The same applies to `execute` (TypeScript
-  with fs access via the executor), `browser`, and `peekaboo` — and peekaboo
-  can screenshot a private note that is open on your screen.
-- **Filenames still leak to the shell.** `bash ls vault/` shows private
-  notes' names; only the knowledge tools hide paths.
-- **Chat paste is not covered.** Content you paste into the chat composer,
-  or copy into a public note, is out of scope by definition.
-- **HTML Apps can read it.** The `window.inteligir.files` broker does not
-  filter private notes (single-user vault; apps are user/agent-authored).
-  Re-audit before any sharing feature ships.
-- **Transcripts record refusals.** A blocked tool call persists the path the
-  model typed plus the refusal string in `~/.inteligir/sessions/*.jsonl` —
-  never the note's content. Content a `bash` bypass obtained WOULD land in
-  the transcript (the hole above).
-- **Whole-vault COUNTS are not partitioned (accepted).** The vault listing
-  covers every file, private ones included, so a total differenced against a
-  count taken over the public notes alone yields how many private notes exist.
-  A count, never a name or a byte — and the alternative, a listing that hides
-  private files, loses them silently.
-- **A refusal is an existence oracle (accepted).** The block reason tells
-  the model that the path it named exists and is private, so an agent could
-  guess filenames and learn which exist-and-are-private — paths only, never
-  content. This is near-inherent to per-path gating and already available
-  through `bash ls` (above), so we keep the honest, actionable refusal
-  message rather than degrade it into a misleading generic error.
+- **The agent can still read the note.** Its file tools operate on its own copy
+  of the vault, and nothing filters them. Ask it to read the file and it will.
+- **Search and the knowledge tools still return it.** `search_vault`,
+  `get_backlinks`, `get_links`, `related_notes`, `list_vault` and the rest are
+  privacy-blind: a private note's path, title and snippet can all come back.
+- **Nothing on the host knows about it.** There is no privacy probe, no
+  index-level filter and no channel that answers a privacy question. The
+  frontmatter key is note content like any other, synced and indexed like any
+  other.
+- **Delegation and routines do not refuse it.** A background run on a private
+  note runs.
+- **It is not encryption and not access control.** Anyone with your account has
+  the note.
 
-## Mechanics
+## So what is it for
 
-- The flag is plain frontmatter — the file is the only store, and any editor
-  can set it. Strict typing per the properties panel:
-  **only a top-level, lowercase `private: true` (a plain YAML boolean) marks
-  a note private.** `private: yes`, `private: "true"`, a capitalized
-  `Private: true` (different key), or `private` nested under another key all
-  parse as text/other keys and read PUBLIC. Use the Page-details checkbox or
-  the palette toggle and the syntax is always right.
-- The knowledge index persists an `is_private` column (default 1 = private
-  until parsed) and agent-facing search filters inside the SQL query; the
-  gate and the knowledge port still re-probe live disk on every call, so the
-  index is only ever a prefilter.
-- Enforcement points, for review — they span three workspaces, so these are
-  repo-relative:
-  - `packages/agent/src/privacy/gate.ts` (tool gate) with
-    `packages/agent/src/privacy/pi-path-parity.ts` (path normalization, pinned
-    against pi by `packages/agent/src/__tests__/pi-path-parity.test.ts`)
-  - `packages/server/src/boot/agent-knowledge-port.ts` (search/backlinks/related)
-  - `packages/server/src/delegation/delegation-manager.ts` (delegation)
-  - `apps/desktop/src/renderer/editor/note-privacy.ts` with
-    `editor/ai/ghost-text-kit.tsx` and `editor/ai/ai-session.ts` (editor AI)
-  - `apps/desktop/src/renderer/stores/agent-store.ts` (context hint, over the
-    `vault:probe-note-privacy` live-disk probe)
-  - `apps/desktop/src/renderer/voice/read-aloud.ts` (read aloud, over the same
-    registered fail-closed buffer read the context hint uses)
+Keeping a note out of the AI features you did not ask to involve it in — the
+completions that fire as you type, the menu you open by accident, the turn that
+would have mentioned the file you happen to have open. That is a real and
+useful thing, and it is all this is.
+
+It is **not** a boundary. If a note must not reach a model, do not put it in
+the vault.
+
+## If you change this
+
+The check is `notePrivacy` in `@repo/notes/markdown/frontmatter` (which treats
+unparseable frontmatter as private) reached through `openNoteIsPrivate` in
+`@repo/editor/note/open-note-flush`. Adding a host-side guarantee means
+designing what enforces it — a host that filters an index is not the same
+promise as one that filters the agent's own file reads, and the copy in the
+header badge must say whichever one is true.

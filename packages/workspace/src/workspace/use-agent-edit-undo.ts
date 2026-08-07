@@ -5,7 +5,7 @@
 // permanent chrome in the one-fixed-workspace UI, and decays with its own
 // usefulness — once the user edits on top, restoring pre-turn bytes stops
 // being what "undo" means. The checkpoints themselves outlive the toast
-// (newest 50, ~/.inteligir/snapshots); a durable browsing surface over them
+// (newest 50, host-side); a durable browsing surface over them
 // is the deliberately-cut version-history feature, not this.
 //
 // Undo flow (Wave 5 flush-first pattern, same as the tasks-view toggle): the

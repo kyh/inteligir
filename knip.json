@@ -1,16 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["pkill", "spctl", "tasklist"],
   "ignore": [".design-sync/**"],
   "workspaces": {
     ".": {},
     "apps/desktop": {
-      "entry": ["src/renderer/index.html", "src/__tests__/**/*.test.ts", "scripts/**/*.mjs"],
-      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["sherpa-onnx-node"]
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
     },
     "apps/mobile": {
-      "entry": ["src/app/**/*.tsx", "src/lib/**/__tests__/**/*.test.ts"],
+      "entry": ["src/app/**/*.tsx", "src/lib/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"]
       // No `ignoreDependencies` here on purpose. knip's Expo plugin SYNTHESIZES
       // an `expo-updates` dependency for any app config that doesn't say
@@ -43,17 +41,7 @@
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
-    "packages/agent": {
-      "entry": ["src/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
     "packages/bridge": {
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
-    "packages/connectors": {
       "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
@@ -63,28 +51,8 @@
       "project": ["src/**/*.{ts,tsx}"],
       "includeEntryExports": false
     },
-    "packages/installer": {
-      "entry": ["src/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
     "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
-    "packages/server": {
-      "entry": ["src/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
-    "packages/storage": {
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
-    "packages/sync": {
-      "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
@@ -93,20 +61,14 @@
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": false
     },
-    "packages/vault": {
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
     "packages/workspace": {
       "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": false
     },
-    "packages/voice": {
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
+    "tools/repo-guards": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
     }
   }
 }

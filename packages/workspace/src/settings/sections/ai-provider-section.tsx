@@ -179,7 +179,7 @@ export function AiProviderSection() {
         )}
         {error && <p className="px-3 pb-2 text-[10px] text-destructive">{error}</p>}
         <p className="px-3 pb-2 text-[10px] text-muted-foreground">
-          Switching applies to the next reply. Provider tokens stay on this device.
+          Switching applies to the next reply. Provider tokens never reach the agent.
         </p>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { cloudPlaceholderTarget, isExcludedFileName, isPrunedName } from "../cra
 import { CRAWL_FIXTURE_FILES, CRAWL_FIXTURE_LISTING } from "./crawl-fixture";
 
 /** The predicate applied the way the real walk applies it: prune whole
- * directories by segment, then exclude by file name. VaultManager.walk does
+ * directories by segment, then exclude by file name. A host's walk does
  * exactly this and pins ITSELF against the same fixture in its own package —
  * this is the pure oracle it agrees with. */
 function crawledPaths(files: readonly string[]): string[] {

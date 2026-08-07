@@ -27,7 +27,7 @@ import { useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
 // ---------------------------------------------------------------------------
 // Assistant-stream taps. Voice narration is an OPTIONAL capability, so it
 // subscribes here instead of the core chat store importing its store and
-// poking at it — deleting @repo/voice must not touch this file. The wiring in
+// poking at it — deleting the voice surface must not touch this file. The wiring in
 // the other direction (a finished transcript becoming a user turn) lives with
 // voice too: @repo/workspace/voice/narration.ts, installed once by app-root.
 // ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ type AgentStore = {
   interrupt: () => void;
   newSession: () => Promise<void>;
   /** "Reset app data" (Settings): clear the chat surface locally, then ask the
-   * host for the full ~/.inteligir wipe + re-setup (RESET_APP_DATA). */
+   * host for the full app-data wipe + re-setup (RESET_APP_DATA). */
   resetAppData: () => Promise<void>;
 };
 
@@ -236,18 +236,6 @@ async function loadInitialHistory(bridge: Bridge, set: SetFn): Promise<void> {
   }
 }
 
-/** LIVE host-side disk probe for the context hint — the same fail-closed
- * probe the agent tool gate uses (vault:probe-note-privacy). Only a note
- * that reads "public" on disk RIGHT NOW may have its path attached;
- * absent, indeterminate, private, and a failed probe all suppress it. */
-async function noteIsPublicOnDisk(bridge: Bridge, path: string): Promise<boolean> {
-  try {
-    return (await bridge.probeNotePrivacy({ path })) === "public";
-  } catch {
-    return false;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Store factory
 // ---------------------------------------------------------------------------
@@ -312,18 +300,13 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
     if (cmdType === "user_message") {
       flushed = await flushOpenNote();
       // A private note's PATH is a leak too — omit the context hint entirely
-      // (the date-only prefix still rides). Fail-closed twice over: the
-      // renderer-buffer check (openNoteIsPrivate — true when unregistered or
-      // unreadable) honors a just-typed `private: true` before any save, and
-      // the host-side LIVE-disk probe catches an EXTERNAL flip (sync pull,
-      // agent write, second editor) the stale buffer can't see — the
-      // open-note watcher reloads asynchronously, and flush is a no-op on a
-      // clean buffer, so neither would notice the flip in time.
-      const bufferPublicPath = flushed && !openNoteIsPrivate() ? openNotePath() : null;
+      // (the date-only prefix still rides). Fail-closed on the renderer buffer
+      // (openNoteIsPrivate — true when unregistered or unreadable), which
+      // honors a just-typed `private: true` before any save. That buffer is the
+      // only gate: the host does not model note privacy, so a flip that landed
+      // somewhere else is not seen here.
       const activeNote =
-        bufferPublicPath !== null && (await noteIsPublicOnDisk(bridge, bufferPublicPath))
-          ? bufferPublicPath
-          : undefined;
+        flushed && !openNoteIsPrivate() ? (openNotePath() ?? undefined) : undefined;
       sentText = buildNoteContext(text, activeNote);
       // The flush may have awaited a moment — bail if the world is being torn
       // down/rebuilt meanwhile (a reset or retry kicked in while a voice turn

@@ -5,8 +5,7 @@
 // node/electron imports; loads in the renderer, the fixture bridge, and the
 // node host alike.
 //
-// Exactly six verbs (verb = URL hostname, the same parse trick as
-// vault-app://): writes `append?text=` / `task?text=` (one sanitized
+// Exactly six verbs (verb = URL hostname): writes `append?text=` / `task?text=` (one sanitized
 // plain-text line onto TODAY's daily note — the path is computed host-side,
 // NEVER taken from the URL), nav `today` / `note/<target>` / `search?q=`, and
 // `session?code=…&state=…` (the social sign-in callback: an OPAQUE single-use

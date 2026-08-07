@@ -6,7 +6,6 @@ import {
   CalendarRangeIcon,
   FilePlusIcon,
   FileTextIcon,
-  FolderIcon,
   HistoryIcon,
   LayoutTemplateIcon,
   ListTodoIcon,
@@ -125,7 +124,7 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void;
 }) {
   const { entries } = useVaultListing();
-  const { openFile, createFile, changeFolder, refreshVault, editNote } = useVaultActions();
+  const { openFile, createFile, refreshVault, editNote } = useVaultActions();
   // Narrow subscriptions: only the private-toggle action's PRESENCE and
   // LABEL are render inputs; the live content is read imperatively at action
   // time (togglePrivate below), so typing never re-renders the palette.
@@ -480,13 +479,6 @@ export function CommandPalette({
       icon: <RefreshCwIcon />,
       label: "Refresh vault",
       onSelect: () => refreshVault(),
-    },
-    {
-      value: "vault",
-      keywords: "switch vault folder change directory",
-      icon: <FolderIcon />,
-      label: "Switch vault folder…",
-      onSelect: () => void changeFolder(),
     },
   ].filter(
     (action) =>

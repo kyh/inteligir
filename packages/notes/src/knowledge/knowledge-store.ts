@@ -1,14 +1,14 @@
 // ---------------------------------------------------------------------------
 // KnowledgeStore — the persistence port for projected vault knowledge. TYPES
 // ONLY (sync-port.ts precedent): platforms bind an implementation (desktop:
-// node:sqlite in @repo/server; dev harness: SQLite wasm; a future
+// the Durable Object's own SQLite; the fixture bridge: SQLite wasm; a future
 // mobile client: expo-sqlite) and the host shell drives it, mirroring every
 // write into the in-memory LinkGraphIndex.
 //
 // THE STORE IS A CACHE. Nothing durable may ever live in it: recovery from any
 // corruption/version mismatch is delete-and-rebuild from the vault, which is
 // only safe while that invariant holds. Durable state belongs in the platform
-// state stores (desktop: ~/.inteligir JsonStores), never here.
+// state stores (the manifest, the host's JsonStores), never here.
 //
 // All methods are synchronous — SQLite bindings on every target platform are
 // synchronous, and the host shell owns chunking/yielding around batches.

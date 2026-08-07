@@ -6,6 +6,7 @@ packages:
   # `pnpm deploy` produce the image's node_modules.
   - apps/web/container
   - packages/*
+  - tools/*
 
 catalog:
   "@base-ui/react": ^1.6.0
@@ -28,9 +29,7 @@ catalog:
   drizzle-orm: ^0.45.2
   expo: ~57.0.8
   expo-constants: ~57.0.7
-  expo-crypto: ~57.0.1
   expo-dev-client: ~57.0.9
-  expo-file-system: ~57.0.1
   expo-linking: ~57.0.4
   expo-router: ~57.0.8
   expo-secure-store: ~57.0.1
@@ -42,7 +41,6 @@ catalog:
   react-dom: ^19.2.8
   react-native: ~0.86.0
   react-native-gesture-handler: ~2.32.0
-  react-native-markdown-display: ^7.0.2
   react-native-reanimated: 4.5.1
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
@@ -50,7 +48,6 @@ catalog:
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
-  sherpa-onnx-node: ^1.13.4
   tailwindcss: ^4.3.3
   typescript: ^7.0.2
   unified: ^11.0.5

@@ -2,60 +2,32 @@
   "name": "@repo/desktop",
   "version": "0.3.0",
   "private": true,
-  "description": "Inteligir desktop app",
+  "description": "Inteligir desktop shell",
   "author": "kyh",
   "type": "module",
   "main": "./.output/app/main/index.js",
   "scripts": {
     "build": "electron-vite build",
-    "release": "pnpm verify:release && pnpm with-env electron-vite build && pnpm with-env electron-builder --mac --publish never && pnpm verify:packaged",
-    "release:publish": "pnpm verify:release && GH_TOKEN=$(gh auth token) pnpm with-env electron-vite build && GH_TOKEN=$(gh auth token) pnpm with-env electron-builder --mac --publish always && pnpm verify:packaged",
+    "release": "pnpm verify:release && pnpm with-env electron-vite build && pnpm with-env electron-builder --mac --publish never",
+    "release:publish": "pnpm verify:release && GH_TOKEN=$(gh auth token) pnpm with-env electron-vite build && GH_TOKEN=$(gh auth token) pnpm with-env electron-builder --mac --publish always",
     "with-env": "dotenv -e .env --",
     "clean": "rm -rf .cache .output",
-    "dev": "electron-vite dev --remoteDebuggingPort ${INTELIGIR_DEBUG_PORT:-9222}",
-    "dev:harness": "vite --config vite.harness.config.ts",
+    "dev": "electron-vite dev --remoteDebuggingPort 9222",
     "start": "electron-vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify:runtime-model-registry": "node scripts/verify-runtime-model-registry.mjs",
-    "verify:packaged-runtime-deps": "node scripts/verify-packaged-runtime-deps.mjs",
-    "verify:release": "pnpm -w verify && pnpm verify:runtime-model-registry",
-    "verify:packaged": "pnpm verify:packaged-runtime-deps"
+    "verify:release": "pnpm -w verify"
   },
   "dependencies": {
     "@repo/bridge": "workspace:*",
-    "@repo/editor": "workspace:*",
-    "@repo/notes": "workspace:*",
-    "@repo/server": "workspace:*",
-    "@repo/vault": "workspace:*",
-    "@repo/workspace": "workspace:*",
-    "electron-updater": "^6.8.9",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "sherpa-onnx-node": "catalog:"
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "catalog:",
-    "@electron/fuses": "1.8.0",
-    "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
-    "jsdom": "^29.1.1",
     "typescript": "catalog:",
-    "vite": "catalog:",
     "vitest": "catalog:"
-  },
-  "optionalDependencies": {
-    "sherpa-onnx-darwin-arm64": "^1.13.4",
-    "sherpa-onnx-darwin-x64": "^1.13.4",
-    "sherpa-onnx-linux-arm64": "^1.13.4",
-    "sherpa-onnx-linux-x64": "^1.13.4",
-    "sherpa-onnx-win-ia32": "^1.13.4",
-    "sherpa-onnx-win-x64": "^1.13.4"
   }
 }

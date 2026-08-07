@@ -1,11 +1,10 @@
 // ---------------------------------------------------------------------------
-// inteligir:// — the Electron-only OS glue for the deep-link scheme. NO
-// parsing or policy here: raw URL strings are buffered until the host is up,
-// then handed to @repo/server' deliverDeepLink (which owns the rate limit,
-// the grammar, and every security guard). Three OS delivery paths funnel
-// through handleDeepLinkUrl:
+// inteligir:// — the Electron-only OS glue. No grammar here: raw URLs go
+// straight to deep-link-route.ts, and the resulting hosted path is buffered
+// until a window exists. Three OS delivery paths funnel through
+// handleDeepLinkUrl:
 //   - macOS: app.on("open-url") — can fire BEFORE `ready`, so the listener
-//     installs at module load (like registerVaultAppScheme).
+//     installs at module load.
 //   - win/linux, app running: the URL rides the SECOND instance's argv,
 //     forwarded by the second-instance handler in index.ts.
 //   - win/linux, cold launch: the URL rides OUR OWN argv, scanned in
@@ -16,18 +15,20 @@
 
 import { app } from "electron";
 
-const DEEP_LINK_SCHEME = "inteligir";
+import { deepLinkPath, DEEP_LINK_SCHEME } from "@/main/deep-link-route";
 
-// URLs that arrived before markDeepLinksReady (cold launch: open-url fires
-// while the host is still booting). Flushed in arrival order.
-const pendingUrls: string[] = [];
-let deliver: ((url: string) => void) | null = null;
+// Paths that arrived before markDeepLinksReady (cold launch: open-url fires
+// while the window is still being created). Flushed in arrival order.
+const pendingPaths: string[] = [];
+let deliver: ((path: string) => void) | null = null;
 
 /** Buffer-or-deliver one raw deep-link URL. Safe to call at any lifecycle
  * point — that's the whole reason it exists. */
 export function handleDeepLinkUrl(url: string): void {
-  if (deliver !== null) deliver(url);
-  else pendingUrls.push(url);
+  const path = deepLinkPath(url);
+  if (path === null) return;
+  if (deliver !== null) deliver(path);
+  else pendingPaths.push(path);
 }
 
 /** Install the open-url listener + (packaged only) the OS registration.
@@ -43,15 +44,9 @@ export function installDeepLinks(): void {
   }
 }
 
-/** Wire the real dispatcher once the host has started, flushing everything
- * that arrived during boot. */
-export function markDeepLinksReady(deliverFn: (url: string) => void): void {
+/** Wire the real dispatcher once the window exists, flushing everything that
+ * arrived during boot. */
+export function markDeepLinksReady(deliverFn: (path: string) => void): void {
   deliver = deliverFn;
-  for (const url of pendingUrls.splice(0)) deliverFn(url);
-}
-
-/** The first inteligir:// URL on an argv, or null — the win/linux delivery
- * (second-instance and cold-launch argv both carry it). */
-export function extractDeepLinkFromArgv(argv: string[]): string | null {
-  return argv.find((arg) => arg.startsWith(`${DEEP_LINK_SCHEME}://`)) ?? null;
+  for (const path of pendingPaths.splice(0)) deliverFn(path);
 }

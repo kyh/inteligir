@@ -6,7 +6,7 @@
 // is not showing — a silent truncation reads as "these notes are unconnected").
 //
 // The last block is an OPT-IN payload measurement, not a wall-clock assertion:
-// set KNOWLEDGE_BENCH_DOCS (the same knob @repo/server's knowledge-query-perf
+// set KNOWLEDGE_BENCH_DOCS (the same knob the knowledge-query-perf
 // bench uses) to print the bytes at 50k notes.
 // ---------------------------------------------------------------------------
 
@@ -185,7 +185,7 @@ describe("boundGraph", () => {
 //
 // BYTES, not milliseconds: the wire payload is deterministic for a fixed
 // corpus, so this belongs in the always-on gate (the repo's no-wall-clock rule
-// costs nothing here). Measured against @repo/server's 50k-doc query-perf
+// costs nothing here). Measured against the 50k-doc query-perf
 // corpus — 55,000 nodes / 400,000 edges: 42,020,060 bytes unbounded,
 // 937,138 bytes under the renderer's 2,000 / 8,000 caps.
 

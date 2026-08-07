@@ -1,16 +1,15 @@
 # @repo/bridge
 
-The isomorphic wire contract between UIs and the backend: the Bridge/IPC
-registry, the ws client + protocol, and the shared domain schemas.
+The isomorphic wire contract between clients and the host: the Bridge/IPC
+registry, the ws client + protocol, the agent grant table, and the shared
+domain schemas.
 
 ## Why it exists
 
-Loads in the desktop renderer (browser), React Native, and node alike — no
-node/electron/react imports, ever. That boundary is a package fact: deps are
-`@repo/notes` + typebox only. The renderer and mobile depend on @repo/bridge
-(+notes/ui) ONLY — never `@repo/server` — so "no node in the UI's contract"
-is an unresolvable-import fact, not a lint opinion. Host packages below
-server (agent, connectors, vault, account, voice) import it for the same shapes.
+Loads in a browser, in React Native and on workerd alike — no node/electron/
+react imports, ever. That boundary is a package fact: deps are `@repo/notes` +
+typebox only. Both ends of the wire read the same registry, so the host's
+handler map and the client's `Bridge` type cannot drift.
 
 ## Layout
 
@@ -26,7 +25,8 @@ src/
   backoff.ts            # the ONE capped-exponential retry-delay policy (schedule injected)
   wire-helpers.ts       # isRecord (re-export from notes), toErrorMessage, isHttpUrl
   deep-link.ts          # inteligir:// pure parser + sanitizer — exactly six verbs
-  dev-flags.ts          # fail-closed gate for dev-only env switches
+  agent-grants.ts       # the agent's capability policy: granted tiers + the
+                        # never-granted set, each with a reason written for a model
   agent-events.ts       # AppAgentEvent — the typed agent event vocabulary
   agent-event-parser.ts # raw pi events → AppAgentEvent at the IPC boundary (pure)
   chat-log.ts           # chat surface as a pure fold over agent events + history
@@ -38,9 +38,9 @@ src/
   delegation.ts, routines.ts, routine-schedule.ts
                         # delegation wire shapes; routine model + pure due-math
   executor.ts           # wire types for the connectors daemon HTTP API (executor 1.5.4)
-  sync.ts, remote-access.ts, ui-state.ts, daily-notes.ts
-                        # account + device-pairing contracts, ui-state keys,
-                        # daily-note/template conventions
+  sync.ts, ui-state.ts, daily-notes.ts
+                        # account contracts, ui-state keys, daily-note/template
+                        # conventions
 ```
 
 ## Invariants
@@ -49,8 +49,10 @@ src/
   TypeBox payload schema (runtime validation) with a result/event type
   (compile-time inference); `Bridge` and the ws dispatch derive from it, so a
   rename is a compile error everywhere. Add a channel = registry entry + host
-  handler + a real fixture-bridge line — checklist in `docs/development.md`
-  ("Adding a Bridge channel").
+  handler + a real fixture-bridge line — checklist in
+  `.claude/skills/add-bridge-channel`. A channel with no CALLER is caught by
+  `tools/repo-guards`, and one the grant table has not weighed by
+  `src/__tests__/agent-grants.test.ts`.
 - **All inbound frame parsing is a type guard**: a malformed frame is `null`,
   never a throw (`ws-protocol.ts` parse functions).
 - **deep-link.ts is world-invokable**, so every guard lives in the pure
@@ -58,10 +60,6 @@ src/
   oversize input REJECTED never truncated, capture target paths computed
   host-side never taken from the URL, `session` carries an opaque single-use
   exchange code + state nonce — never a raw token.
-- **dev-flags is fail-closed**: until `createHost` sets the bit from
-  `!platform.isPackaged`, the dev-only env switches (faux agent, emulated
-  connectors) are refused. It lives here because both consumers sit below
-  @repo/server and already depend on bridge.
 - The ws-bridge reconnect supervisor is the ONLY retry owner; `unauthorized`
   (close 4401) is terminal. `HYDRATED_EVENTS` re-pushes stateful event
   channels on reconnect — full event replay is deliberately not provided.
@@ -71,11 +69,8 @@ src/
 ## Seams
 
 - `ws-bridge.ts` takes a `WebSocket` implementation (`webSocketImpl`; browser
-  default) — dialed in `apps/desktop/src/renderer/main.tsx` and
-  `apps/mobile/src/lib/host/connection.ts`.
+  default) — dialed in `apps/web/src/app/workspace-mount.tsx`.
 - `backoff.ts` takes a `schedule` fn (`setTimeout` in prod, fake in tests).
-- `dev-flags.ts` is SET only by node-side hosts — `createHost`
-  (`packages/server/src/boot/`) computes it once at boot.
 
 ## Testing
 
@@ -87,4 +82,5 @@ Notable suites: `deep-link.test.ts` pins the six-verb grammar + rejection
 caps; `ws-protocol.test.ts` pins frame parsing (malformed → null);
 `routine-schedule.test.ts` pins the one-comparison due rule;
 `chat-log.test.ts` folds the shared fixture stream (`chat-log-fixtures.ts`,
-also exported to desktop/mobile suites); `dev-flags.test.ts` pins fail-closed.
+also exported to the workspace's suites); `agent-grants.test.ts` pins that the
+grant table weighs every non-event channel exactly once.

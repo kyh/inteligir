@@ -17,7 +17,7 @@ const THEME_KEY = "theme";
 
 /**
  * Desktop's binding of the shared theme primitive: the theme is persisted to
- * disk (~/.inteligir/ui-state.json) through the Bridge and fed into
+ * the host's ui-state store through the Bridge and fed into
  * `@repo/ui`'s controlled `ThemeProvider`. Defaults to light to match the
  * Ophelias-style canvas. Wrap the app once; consumers read `useTheme()`.
  */

@@ -1,13 +1,12 @@
 // Built-in Extensions panel. Connectors lead — they're the only place to
 // connect a server, so they're always visible and first. Skills follow. The
-// developer surface (bundled CLI binaries, overriding the Google OAuth client)
-// lives behind a "Developer tools" toggle persisted in ui-state.
+// developer surface (overriding the Google OAuth client) lives behind a
+// "Developer tools" toggle persisted in ui-state.
 
 import { useState } from "react";
 
 import { useDiskState } from "@repo/workspace/lib/use-disk-state";
 import { ConnectorStatusSection } from "@repo/workspace/settings/extensions/connector-status-section";
-import { CliBinariesSection } from "@repo/workspace/settings/cli-binaries-section";
 import { SkillsSection } from "@repo/workspace/settings/extensions/skills-section";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
 
@@ -33,7 +32,6 @@ export function ConnectorsPanel() {
       {error && <div className="text-[10px] text-destructive">{error}</div>}
       <ConnectorStatusSection onError={setError} showAdvanced={showDevTools} />
       <SkillsSection />
-      {showDevTools && <CliBinariesSection />}
       <button
         type="button"
         onClick={() => setShowDevTools(!showDevTools)}

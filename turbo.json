@@ -20,10 +20,13 @@
       // not here — declaring it as a build output caches the wrong artifact.
       "outputs": ["dist/**", ".output/**"]
     },
+    // The shell bakes its target origin in at build time, so that variable is a
+    // real input: without it here, a build with a different origin would restore
+    // a cached bundle pointing at the previous one.
     "@repo/desktop#build": {
       "dependsOn": ["^build"],
       "outputs": [".output/**"],
-      "env": ["INTELIGIR_GOOGLE_OAUTH_CLIENT_ID", "INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET"]
+      "env": ["INTELIGIR_APP_URL"]
     },
     // `dev` never exits (vite/electron-vite/expo/wrangler watchers), so it is
     // declared persistent. This changes nothing under `turbo watch dev` — a

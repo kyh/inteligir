@@ -5,7 +5,7 @@ import { CADENCE_ORDER, CADENCES, type CadenceConfig } from "@repo/bridge/daily-
 import { parseStoredString, useDiskState } from "@repo/workspace/lib/use-disk-state";
 
 // Periodic-note locations, one group per cadence. Every field persists through
-// the generic ui-state channel (~/.inteligir/ui-state.json) via useDiskState —
+// the generic ui-state channel via useDiskState —
 // the same lightweight store the palette + ⌘D read to build the note's path.
 // Templates themselves are a vault-folder convention (`templates/`), so
 // there's nothing to configure for them here.

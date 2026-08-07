@@ -23,7 +23,6 @@ const TTS_TAG = binaryChannelFor("onTtsAudio")?.tag ?? -1;
 describe("client frames", () => {
   const frames: ClientFrame[] = [
     { t: "auth", token: "tok" },
-    { t: "pair", pairingToken: "pt", deviceName: "Pixel" },
     { t: "req", id: 1, method: "getVaultRoot" },
     { t: "req", id: 2, method: "readVaultDoc", payload: { path: "a.md" } },
     { t: "send", method: "sendSttAudio", payload: [0.25, -0.5] },
@@ -54,7 +53,6 @@ describe("client frames", () => {
 describe("server frames", () => {
   const frames: ServerFrame[] = [
     { t: "welcome" },
-    { t: "paired", deviceToken: "dt", deviceId: "id" },
     { t: "res", id: 3, ok: true, result: { root: "/v" } },
     { t: "res", id: 4, ok: true },
     { t: "res", id: 5, ok: false, error: "boom" },

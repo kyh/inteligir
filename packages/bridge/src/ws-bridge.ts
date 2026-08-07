@@ -192,9 +192,6 @@ export function createWsBridge(options: WsBridgeOptions): { bridge: Bridge; disp
         setStatus("connected");
         flushQueue();
         return;
-      case "paired":
-        // Pairing is driven by a dedicated flow, not this bridge — ignore.
-        return;
       case "res": {
         const pending = inflight.get(frame.id);
         if (pending === undefined) return;

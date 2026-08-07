@@ -200,8 +200,8 @@ export function RoutinesSection() {
       <div className="flex flex-col gap-2 rounded-[12px] bg-muted px-3 py-2">
         <p className="text-[10px] text-muted-foreground">
           Scheduled agent tasks — the agent runs the prompt on a cadence and appends its result to
-          the target note. Runs share the background agent with delegated tasks (one at a time), are
-          snapshotted before they write (Restore undoes the last run), and refuse private notes.
+          the target note. Runs share the background agent with delegated tasks (one at a time) and
+          are snapshotted before they write, so Restore undoes the last run.
         </p>
 
         {error !== null && (

@@ -6,6 +6,6 @@ name = "inteligir"
 script = "pnpm i"
 
 [[actions]]
-name = "dev:desktop"
+name = "dev:web"
 icon = "run"
-command = "pnpm dev:desktop"
+command = "pnpm dev:web"

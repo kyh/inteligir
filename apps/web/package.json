@@ -21,7 +21,6 @@
     "@repo/agent-container": "workspace:*",
     "@repo/bridge": "workspace:*",
     "@repo/notes": "workspace:*",
-    "@repo/storage": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/workspace": "workspace:*",
     "@sinclair/typebox": "catalog:",

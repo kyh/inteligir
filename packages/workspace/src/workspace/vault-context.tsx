@@ -117,12 +117,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       openPathRef.current = next;
       publishOpenPath(next);
       setUiState(OPEN_NOTE_KEY, next);
-      // Point the host's single open-note watcher at the new file (or clear it).
-      // This is the only file watched for external edits (vault liveness —
-      // CLAUDE.md § Decisions).
-      getBridge()
-        .setWatchedNote({ path: next })
-        .catch(() => {});
     },
     [setUiState],
   );
@@ -347,26 +341,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [dropNote, refreshList],
   );
 
-  const changeFolder = useCallback(async () => {
-    if (!(await flushCurrent())) {
-      toast.error("Couldn't save the open file — resolve that before switching folders.");
-      return;
-    }
-    const result = await getBridge()
-      .chooseVaultRoot()
-      .catch(() => null);
-    if (!result) return;
-    if (!result.ok) {
-      if (result.reason === "error") toast.error(result.error);
-      return;
-    }
-    rootRef.current = result.root;
-    setRoot(result.root);
-    disposeRuntime();
-    applyOpenPath(null);
-    refreshList();
-  }, [applyOpenPath, disposeRuntime, flushCurrent, refreshList]);
-
   const refreshVault = useCallback(() => {
     getBridge()
       .refreshVault()
@@ -492,10 +466,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     // AI-path privacy read (fail-closed: indeterminate counts as private) —
     // agent-store omits the note-context hint for a private note. Reads the
     // live buffer, not the saved file, so a just-typed `private: true` is
-    // honored on the very next send. The OTHER staleness direction — disk
-    // flipped private by a sync pull / agent write while this buffer still
-    // holds the public text — is covered host-side: agent-store re-probes
-    // live disk (probeNotePrivacy) before attaching the path.
+    // honored on the very next send, and the buffer is the ONLY gate: this is a
+    // leak-prevention gesture on the client, not a boundary the host enforces.
     registerOpenNotePrivacy(() => {
       const state = runtimeRef.current?.controller.getState();
       if (!state || state.path === null) return true; // no note → nothing to attach anyway
@@ -568,7 +540,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       createFileAt,
       renameEntry,
       deleteEntry,
-      changeFolder,
       flush: flushCurrent,
       refreshVault,
       setMode: setOpenNoteMode,
@@ -583,7 +554,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       createFileAt,
       renameEntry,
       deleteEntry,
-      changeFolder,
       flushCurrent,
       refreshVault,
     ],

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Persisted renderer UI state — a generic key→JSON map saved to disk in the
-// main process (~/.inteligir/ui-state.json). Backs panel layout, open panels,
+// host (the user's own ui-state store). Backs panel layout, open panels,
 // and any other view preference the renderer wants to survive restarts.
 // ---------------------------------------------------------------------------
 

@@ -102,7 +102,7 @@ export function Header() {
             <Badge
               variant="outline"
               className="text-muted-foreground"
-              title="Private — excluded from AI features on this device"
+              title="Private — the editor's AI, ghost text and read-aloud skip this note. The agent can still read it."
             >
               <LockIcon className="size-3" />
               Private

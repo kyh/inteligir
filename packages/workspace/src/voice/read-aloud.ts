@@ -7,12 +7,13 @@
 // switch/vanish, or voice-conversation mode starting (two live TTS handles
 // would both play every chunk).
 //
-// PRIVACY (fail-closed): a private note's bytes would leave the device for
-// ElevenLabs, so start() refuses through the SAME openNoteIsPrivate funnel
-// the chat context hint uses — `private: true`, unparseable frontmatter, and
-// "no provider registered" all read private. The palette hides the command
-// for private notes; this re-check is the defense-in-depth layer, same
-// pattern as the editor-AI funnels.
+// PRIVATE NOTES (fail-closed): a note marked `private: true` is one the user
+// asked the client's AI surfaces to skip, and speaking it aloud sends its bytes
+// to a synthesizer, so start() refuses through the SAME openNoteIsPrivate
+// funnel the chat context hint uses — `private: true`, unparseable
+// frontmatter, and "no provider registered" all read private. The palette hides
+// the command; this re-check is the second layer, same pattern as the
+// editor-AI funnels. See docs/privacy.md for the narrow thing this promises.
 // ---------------------------------------------------------------------------
 
 import { create } from "zustand";

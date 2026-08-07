@@ -11,7 +11,6 @@ import { AccountSection } from "@repo/workspace/settings/sections/account-sectio
 import { AiProviderSection } from "@repo/workspace/settings/sections/ai-provider-section";
 import { EditorAiSection } from "@repo/workspace/settings/sections/editor-ai-section";
 import { NotesSection } from "@repo/workspace/settings/sections/notes-section";
-import { RemoteAccessSection } from "@repo/workspace/settings/sections/remote-access-section";
 import { RoutinesSection } from "@repo/workspace/settings/sections/routines-section";
 import { SettingSwitchRow } from "@repo/workspace/settings/sections/setting-switch-row";
 import { VoiceSection } from "@repo/workspace/settings/sections/voice-section";
@@ -53,15 +52,14 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
     );
   }, []);
 
-  // The ONLY full teardown: provider disconnect and
-  // account sign-out are independent actions in their own sections; this one
-  // wipes ~/.inteligir (chat history, provider credentials, account session,
-  // app settings) and re-runs setup. The vault — the user's notes — is
-  // untouched: it lives outside ~/.inteligir by design.
+  // The ONLY full teardown: provider disconnect and account sign-out are
+  // independent actions in their own sections; this one wipes the app state
+  // (chat history, provider credentials, app settings) and re-runs setup. The
+  // vault — the user's notes — is untouched.
   const handleResetAppData = useCallback(async () => {
     const confirmed = await confirm({
       title: "Reset app data?",
-      body: "Chat history, AI provider connections, your account session, and app settings on this device will be erased, then the app sets itself up again fresh. Your notes are NOT touched — the vault stays exactly where it is.",
+      body: "Chat history, AI provider connections and app settings will be erased, then the app sets itself up again fresh. Your notes are NOT touched — the vault stays exactly as it is.",
       confirmLabel: "Reset app data",
       destructive: true,
     });
@@ -136,8 +134,6 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
 
       <AccountSection />
 
-      <RemoteAccessSection />
-
       <EditorAiSection />
 
       <VoiceSection />
@@ -148,7 +144,7 @@ export function SettingsPanel({ onRequestClose }: { onRequestClose?: () => void 
           <span className="flex flex-col">
             <span className="text-xs text-foreground">Reset app data</span>
             <span className="text-[10px] text-muted-foreground">
-              Erase chat history, connections, and settings on this device. Notes are not touched.
+              Erase chat history, connections and settings. Notes are not touched.
             </span>
           </span>
           <Button

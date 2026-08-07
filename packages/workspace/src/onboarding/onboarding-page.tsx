@@ -1,37 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 
 import { Button } from "@repo/ui/components/button";
 
 import { InitialOrb } from "@repo/workspace/components/initial-orb";
 import { getBridge } from "@repo/bridge/client";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
-import type { VoiceModelStateEvent } from "@repo/bridge/ipc-registry";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function modelStatusLabel(state: VoiceModelStateEvent | null): string | null {
-  if (!state) return null;
-  switch (state.status) {
-    case "downloading":
-      return `Downloading speech model… ${String(state.percent)}% (${formatBytes(state.receivedBytes)} / ${formatBytes(state.totalBytes)})`;
-    case "extracting":
-      return "Extracting speech model…";
-    case "ready":
-      return null;
-    case "error":
-      return `Speech model failed: ${state.message}`;
-    case "idle":
-      return null;
-  }
-}
 
 export function OnboardingPage() {
   const appState = useAgentStore((s) => s.appState);
   const setupProgress = useAgentStore((s) => s.setupProgress);
-  const [modelState, setModelState] = useState<VoiceModelStateEvent | null>(null);
 
   // Setup AND reset failures both land here (the reset error keeps its own
   // prev so the host's RETRY re-runs the RESET — app-reducer.ts).
@@ -63,14 +40,6 @@ export function OnboardingPage() {
     return () => clearInterval(timer);
   }, [appState.phase]);
 
-  // Subscribe to model-download progress events so we can show progress
-  // while seedResources/startAgent hold us in the setting_up phase.
-  useEffect(() => {
-    return getBridge().onVoiceModelState((event) => {
-      setModelState(event);
-    });
-  }, []);
-
   // Same shape as the SETUP dispatch above: a rejection means the transition
   // never reached the host, the error text and this button stay put, and
   // pressing again IS the retry.
@@ -80,12 +49,8 @@ export function OnboardingPage() {
       .catch(() => {});
   }, []);
 
-  // Prefer the granular model-download progress when the voice model step is
-  // active; otherwise fall back to the generic setup-step text + bar.
-  const modelLabel = modelStatusLabel(modelState);
-  const modelDownloading = modelState?.status === "downloading";
-  const label = modelLabel ?? setupProgress?.step ?? "Setting up...";
-  const percent = modelDownloading ? modelState.percent : (setupProgress?.percent ?? null);
+  const label = setupProgress?.step ?? "Setting up...";
+  const percent = setupProgress?.percent ?? null;
   const isIndeterminate = percent === null;
 
   return (

@@ -9,44 +9,17 @@ describe("VoiceMachine", () => {
     expect(m.generation).toBe(0);
   });
 
-  it("user_toggle_on transitions idle → downloading_model", () => {
+  it("user_toggle_on transitions idle → connecting", () => {
     const m = new VoiceMachine();
     m.dispatch({ type: "user_toggle_on" });
-    expect(m.state.kind).toBe("downloading_model");
-  });
-
-  it("model_status_received(ready) transitions to connecting", () => {
-    const m = new VoiceMachine();
-    m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_status_received", status: "ready" });
     expect(m.state.kind).toBe("connecting");
   });
 
-  it("model_status_received(missing) stays in downloading_model", () => {
-    const m = new VoiceMachine();
-    m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_status_received", status: "missing" });
-    expect(m.state.kind).toBe("downloading_model");
-  });
-
-  it("model_progress updates progress field without changing kind", () => {
-    const m = new VoiceMachine();
-    m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({
-      type: "model_progress",
-      progress: { status: "downloading", percent: 42, receivedBytes: 1, totalBytes: 100 },
-    });
-    expect(m.state.kind).toBe("downloading_model");
-    if (m.state.kind === "downloading_model") {
-      expect(m.state.progress?.status).toBe("downloading");
-    }
-  });
-
-  it("model_download_failed transitions to error and bumps generation", () => {
+  it("connect_failed transitions to error and bumps generation", () => {
     const m = new VoiceMachine();
     const initialGen = m.generation;
     m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_download_failed", message: "boom" });
+    m.dispatch({ type: "connect_failed", message: "boom" });
     expect(m.state.kind).toBe("error");
     expect(m.generation).toBeGreaterThan(initialGen);
   });
@@ -54,7 +27,6 @@ describe("VoiceMachine", () => {
   it("connect_ok transitions to listening", () => {
     const m = new VoiceMachine();
     m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_status_received", status: "ready" });
     m.dispatch({ type: "connect_ok" });
     expect(m.state.kind).toBe("listening");
   });
@@ -62,7 +34,6 @@ describe("VoiceMachine", () => {
   it("transcript_partial updates currentTranscript", () => {
     const m = new VoiceMachine();
     m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_status_received", status: "ready" });
     m.dispatch({ type: "connect_ok" });
     m.dispatch({ type: "transcript_partial", text: "hello" });
     expect(m.state.kind).toBe("listening");
@@ -72,7 +43,6 @@ describe("VoiceMachine", () => {
   it("transcript_final clears partial", () => {
     const m = new VoiceMachine();
     m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_status_received", status: "ready" });
     m.dispatch({ type: "connect_ok" });
     m.dispatch({ type: "transcript_partial", text: "hello" });
     m.dispatch({ type: "transcript_final", text: "hello world" });
@@ -91,7 +61,6 @@ describe("VoiceMachine", () => {
   it("pipeline_error from listening transitions to error and bumps generation", () => {
     const m = new VoiceMachine();
     m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_status_received", status: "ready" });
     m.dispatch({ type: "connect_ok" });
     const genBefore = m.generation;
     m.dispatch({ type: "pipeline_error", message: "audio device gone" });
@@ -104,9 +73,8 @@ describe("VoiceMachine", () => {
     const states: string[] = [];
     m.subscribe((s) => states.push(s.kind));
     m.dispatch({ type: "user_toggle_on" });
-    m.dispatch({ type: "model_status_received", status: "ready" });
     m.dispatch({ type: "connect_ok" });
-    expect(states).toEqual(["downloading_model", "connecting", "listening"]);
+    expect(states).toEqual(["connecting", "listening"]);
   });
 
   it("no-op transitions don't notify subscribers", () => {

@@ -18,13 +18,13 @@ turns that premise into CI.
 
 ## Read first
 
-- `apps/desktop/src/renderer/editor/kits/base-kit.ts` and `editor-kit.ts` — the
+- `packages/editor/src/kits/base-kit.ts` and `editor-kit.ts` — the
   two compositions and the comments explaining why they mirror.
-- `apps/desktop/src/renderer/editor/markdown/md-rules.ts` — the header's rule
+- `packages/editor/src/markdown/md-rules.ts` — the header's rule
   dispatch note: **deserialize routes by mdast type (JSX by tag name), serialize
   by the Slate node's plugin key.** That asymmetry explains half the file.
 - `packages/notes/src/markdown/vocabulary.ts` — the whole gate, ~100 lines.
-- `apps/desktop/src/renderer/__tests__/markdown-roundtrip.test.ts` — the fixture
+- `packages/editor/src/__tests__/markdown-roundtrip.test.ts` — the fixture
   matrix contract, stated at the top of the file.
 - CLAUDE.md § "UI — one fixed workspace" for where the pipeline sits.
 
@@ -102,7 +102,7 @@ export function CalloutElement(props: PlateElementProps) {
 a kit or its component.** `base-kit.ts` composes the kits, so an eager reach-back
 closes an import cycle whose failure mode is an `undefined` kit export at module
 init. Use `React.lazy(() => import(...))` — `wiki-link-kit.tsx` is the pattern —
-and `apps/desktop/src/__tests__/editor-import-cycles.test.ts` enforces it (oxlint
+and `packages/editor/src/__tests__/editor-import-cycles.test.ts` enforces it (oxlint
 and knip do not detect cycles).
 
 ### 3. Compose — `base-kit.ts` AND `editor-kit.ts`
@@ -192,7 +192,7 @@ export function insertDate(editor: PlateEditor): void {
 Block menu / turn-into and the floating toolbar are separate surfaces — wire
 only the ones the node actually needs.
 
-### 7. Fixtures — `apps/desktop/src/renderer/__tests__/fixtures/roundtrip/`
+### 7. Fixtures — `packages/editor/src/__tests__/fixtures/roundtrip/`
 
 **Their bytes ARE the test contract** (trailing spaces, indentation, line
 endings). oxfmt ignores the directory (`.oxfmtrc.json` `ignorePatterns`) and so
@@ -240,9 +240,9 @@ the harness exercises it.
 ## Verify
 
 ```bash
-pnpm --filter @repo/desktop test    # the whole pipeline: fixtures, parity, adversarial, corpus
+pnpm --filter @repo/editor test    # the whole pipeline: fixtures, parity, adversarial, corpus
 pnpm --filter @repo/notes test      # vocabulary + remark stack, if you touched packages/notes
-pnpm --filter @repo/desktop typecheck
+pnpm --filter @repo/editor typecheck
 ```
 
 The desktop suite is the gate. What each part catches:
@@ -264,7 +264,7 @@ The desktop suite is the gate. What each part catches:
 Then drive it, because passing tests are not feature-correct:
 
 ```bash
-pnpm --filter @repo/desktop dev:harness    # localhost:5173
+pnpm dev:web                               # then /app
 ```
 
 Insert the node from its surface, type around it, and **toggle Raw mode** to
