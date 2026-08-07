@@ -23,6 +23,7 @@ import { SEED_OPEN_NOTE } from "../host/vault/seed";
 import {
   accepted,
   authenticated,
+  invoke,
   mintTicket,
   ORIGIN,
   signUp,
@@ -142,6 +143,33 @@ describe("first-frame auth", () => {
     second.ws.send(JSON.stringify({ t: "auth", ticket }));
     expect(await second.frames.closed).toBe(WS_CLOSE_UNAUTHORIZED);
     first.ws.close(1000, "done");
+  });
+
+  it("fans a provider change to every socket, not just the caller", async () => {
+    // The selection is per ACCOUNT, so a second tab that only ever read the
+    // snapshot would keep rendering a provider the next turn will not run on.
+    const a = await authenticated(owner);
+    const b = await authenticated(owner);
+
+    const changed = b.frames.next();
+    const res = await invoke(a.ws, a.frames, 10, "setAiProviderConfig", {
+      provider: "sandbox",
+    });
+    expect(res.ok).toBe(true);
+
+    const frame = await changed;
+    expect(frame.t).toBe("evt");
+    if (frame.t !== "evt") throw new Error("expected an event frame");
+    expect(frame.method).toBe("onAiProviderChanged");
+
+    // Disconnect is the other mutating half and would drift on its own.
+    const disconnected = b.frames.next();
+    await invoke(a.ws, a.frames, 11, "disconnectAiProvider", { provider: "sandbox" });
+    const second = await disconnected;
+    expect(second.t === "evt" && second.method).toBe("onAiProviderChanged");
+
+    a.ws.close(1000, "done");
+    b.ws.close(1000, "done");
   });
 
   it("refuses a ticket another user's host minted", async () => {
