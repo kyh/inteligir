@@ -762,7 +762,7 @@ export class AgentRunner {
   }
 
   private chooseProvider(): ProviderChoice {
-    return chooseProvider(this.deps.credentials.selection(), (provider) =>
+    return chooseProvider(this.deps.env, this.deps.credentials.selection(), (provider) =>
       this.deps.credentials.connected(provider),
     );
   }

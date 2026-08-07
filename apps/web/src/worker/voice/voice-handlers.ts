@@ -6,10 +6,9 @@
 // dispatcher — the sessions answer with values and the deferral seam owns the
 // work that outlives the frame.
 //
-// `onVoiceModelState` has no handler and never will: it reported a local model
-// DOWNLOAD, and there is no per-user writable disk and no local inference here.
-// It stays in the registry (the desktop still pushes it) and simply is never
-// emitted by this host.
+// There is no channel for a local speech MODEL, and there never will be: both
+// upstreams are services this object calls over HTTP, and there is no per-user
+// writable disk and no local inference to report the state of.
 // ---------------------------------------------------------------------------
 
 import type { HandlerRegistrar } from "../host/handler-registry";

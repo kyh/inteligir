@@ -17,16 +17,15 @@ import "./styles/globals.css";
 type Phase = AppState["phase"];
 type ErrorPrev = Extract<AppState, { phase: "error" }>["prev"];
 
-// No login surface: the app boots as a guest. Pre-ready phases show the
-// onboarding/setup surface (a brief splash on warm boots, the seeding
-// progress on a first run); ready is the workspace. An error routes by its
-// prev so a setup OR reset failure surfaces on the setup screen (with Retry)
-// and an agent failure surfaces in the workspace banner.
+// The route is already signed in, so the pre-ready phases are a boot splash:
+// the client opens on `starting` and leaves it the moment the host's hydration
+// push lands. `ready` is the workspace. An error routes by its prev, so a setup
+// failure surfaces on the splash (with Retry) and a failure after ready
+// surfaces in the workspace banner.
 function phaseSurface(phase: Phase | ErrorPrev): "workspace" | "onboarding" {
   switch (phase) {
     case "starting":
     case "setting_up":
-    case "resetting":
       return "onboarding";
     case "ready":
     case "error":

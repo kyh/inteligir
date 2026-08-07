@@ -30,6 +30,10 @@ The shell around it, when you're changing the shell:
 INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop   # Electron, CDP :9222
 ```
 
+There is no backend-free UI harness. `packages/workspace/src/dev/fixture-bridge.ts`
+is an in-memory Bridge that the workspace's own tests drive; nothing serves it as
+an app. To see the UI, run the Worker.
+
 ## Fresh clone / remote session
 
 `pnpm install` is the only provisioning step — there is no bootstrap script and
@@ -48,22 +52,27 @@ node apps/desktop/node_modules/electron/install.js
 
 ## There is no seeded login, and sign-up is invite-only
 
-This repo ships no seed script and no test account. To get one locally — four
-commands, and the full version with the invite step is in `apps/web/README.md`
-§ Dev:
+This repo ships no seed script and no test account. To get one locally:
 
 ```sh
 cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET to anything
 pnpm dev:web                                       # vite dev on :5174
 
-curl -s -o /dev/null localhost:5174/api/auth/get-session   # materializes the local D1 file
-pnpm --filter @repo/web db:push:local                      # apply the schema to it
+# The local D1 file is materialized lazily, on the first request that touches
+# the binding — `dev` alone does not create it. So hit one, THEN push:
+curl -s -o /dev/null localhost:5174/api/auth/get-session
+pnpm --filter @repo/web db:push:local
+
+# Sign-up is invite-gated and there is no self-serve issuance. Mint one:
+pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --local \
+  --command "INSERT INTO invite_code (code) VALUES ('DEV-INVITE-001')"
 ```
 
-Then mint an invite and sign up against it (`apps/web/README.md` § Dev has the
-exact two calls). The sign-up returns 200 with a `set-auth-token` header — that
-bearer is the session credential every client carries, including the socket's
-first frame.
+Then open `http://localhost:5174/app`, which redirects to sign-in; `/app/sign-up`
+takes the invite code. Signing up returns 200 with a `set-auth-token` header —
+that bearer is what a NON-browser client carries. A browser carries the session
+cookie instead, and the Bridge socket authenticates with neither: it spends a
+single-use ticket minted at `POST /v1/host/ticket`.
 
 Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
@@ -107,13 +116,15 @@ its window over CDP.
 Two things worth knowing before you reach for the UI:
 
 - **Drive the Bridge directly.** From `agent-browser eval` on a signed-in `/app`
-  page you can open the host socket and call ANY Bridge method (`readVaultDoc`,
-  `writeVaultDoc`, `createDelegation`, …) — the credential is the session token
-  the page already holds. Exact snippet in `docs/e2e-driving.md`.
-- **The agent runs headlessly in tests.** `AGENT_RUNTIME=scripted` swaps the
-  Cloudflare Sandbox for an in-memory container while keeping the production
-  runner, tool executor, transcript, confirmation broker and vault write-back —
-  which is how the whole agent suite runs with no provider account and no image.
+  page you can open a second host socket and call ANY Bridge method
+  (`readVaultDoc`, `writeVaultDoc`, `createDelegation`, …). The credential is a
+  ticket the page mints same-origin against its own session cookie — there is no
+  userId in the URL and no session token in the page. Exact snippet in
+  `docs/e2e-driving.md`.
+- **The agent runs headlessly.** `AGENT_RUNTIME=scripted` swaps the Cloudflare
+  Sandbox for an in-memory container while keeping the production runner, tool
+  executor, transcript, confirmation broker and vault write-back — which is how
+  the whole agent suite runs with no provider account and no image.
 
 ## Platform matrix
 
@@ -124,7 +135,9 @@ Two things worth knowing before you reach for the UI:
 | Mobile (Expo) | `pnpm --filter @repo/mobile dev` | simulator | **No** — verify with `typecheck` + `test`                                       |
 
 5174 is PINNED (`strictPort`), so a stale process holding it fails the start
-rather than moving the app somewhere the docs don't name.
+rather than moving the app somewhere the docs don't name. It matters more than
+the number: the ticket mint's Origin allowlist is exact, so a silent bump to
+5175 renders a workspace that cannot reach its own host.
 
 ## Rules that matter
 
@@ -135,9 +148,14 @@ rather than moving the app somewhere the docs don't name.
 - **No `any`, no non-null `!`, no `as` casts** (lint-enforced). Kebab-case
   filenames. Make illegal states unrepresentable.
 - **Nothing under `packages/` may import `node:*` or `electron`.** Every one of
-  them is bundled into a browser; `notes` and `bridge` also into React Native.
-  Lint enforces it for those two and `tools/repo-guards` enforces it for the
-  rest, over shipped source only — their tests walk the filesystem on purpose.
+  them is bundled into a browser; `notes` and `bridge` also into workerd and
+  React Native. Lint enforces it for those two and `tools/repo-guards` enforces
+  it for the rest, over shipped source only — their tests walk the filesystem on
+  purpose.
+- **A capability this host does not have has no Bridge channel.** A handler that
+  answers only by refusing typechecks, satisfies the completeness guard AND
+  `no-dead-channels`, and fails at runtime. Adding a channel is the LAST step of
+  building a capability; retiring one deletes it.
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip `entry`
   glob in `knip.json` or it reads as unused and CI goes red. A tooling dep may
   pass for a non-obvious reason — `@libsql/client` survives because it is an
@@ -147,7 +165,7 @@ rather than moving the app somewhere the docs don't name.
   `ignoreDependencies` is the escape hatch for the ones it genuinely can't see,
   not a blanket rule. Run it rather than guess.
 - Plan files and ADR docs are deleted on purpose — `CLAUDE.md` § Decisions plus
-  the PR history is the record. Don't add `plans/` or `*_GAPS.md`.
+  GitHub Issues are the record. Don't add `plans/` or `*_GAPS.md`.
 
 ## Map
 
@@ -173,3 +191,4 @@ tools/repo-guards   Derived fitness tests over the repo itself
 - `docs/development.md` — the run modes, per-package test commands, the change
   checklists.
 - `docs/e2e-driving.md` — driving the Bridge and the agent headlessly.
+- `docs/privacy.md` — where notes actually live, and what `private: true` is not.

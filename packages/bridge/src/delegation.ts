@@ -2,10 +2,10 @@ import { type Static, Type } from "@sinclair/typebox";
 
 // ---------------------------------------------------------------------------
 // Delegation — one checkbox a user handed to a background agent. The agent does
-// the task against the vault (./vault file tools + executor MCP), checks the
-// box off, and appends a short result under it; the watcher then refreshes the
-// editor. Status is tracked here purely so the UI can render an inline badge on
-// the delegated line.
+// the task against its materialized copy of the vault, checks the box off, and
+// appends a short result under it; the write lands back in the vault of record
+// and onVaultChanged refreshes the editor. Status is tracked here purely so the
+// UI can render an inline badge on the delegated line.
 // ---------------------------------------------------------------------------
 
 /** Positional locator for the checkbox. `ordinal` is its position among ALL

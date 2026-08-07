@@ -295,6 +295,7 @@ export class UserHost extends DurableObject<Env> {
       },
     });
     this.ai = new TextGenerator({
+      env,
       credentials: this.agent.credentials,
       // Bound rather than passed bare: `fetch` on workerd is an unbound global,
       // and a method-shaped reference to it throws on call.

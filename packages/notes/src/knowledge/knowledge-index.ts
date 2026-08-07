@@ -3,9 +3,9 @@
 // vault knowledge engine: LinkGraphIndex (links/tags/graph, fed projections)
 // plus the pure in-memory SearchIndex, driven directly from doc content.
 //
-// Production surfaces (desktop host, dev harness) compose LinkGraphIndex with
-// a persistent KnowledgeStore instead — FTS5 search, projections hydrated from
-// disk. This class remains the zero-install reference composition: it pins the
+// Production composes LinkGraphIndex with a persistent KnowledgeStore instead —
+// FTS5 search, projections hydrated from storage. This class remains the
+// zero-install reference composition: it pins the
 // engine's behavior in core tests and stays the drop-in for any future surface
 // (React Native) that can't carry a SQLite binding.
 //

@@ -17,7 +17,6 @@ import { type Static, Type } from "@sinclair/typebox";
 
 export const AppEventSchema = Type.Union([
   Type.Object({ type: Type.Literal("SETUP") }, { additionalProperties: false }),
-  Type.Object({ type: Type.Literal("RESET_APP_DATA") }, { additionalProperties: false }),
   Type.Object({ type: Type.Literal("RETRY") }, { additionalProperties: false }),
   Type.Object({ type: Type.Literal("NEW_SESSION") }, { additionalProperties: false }),
 ]);
@@ -40,15 +39,11 @@ export const AppStateSchema = Type.Union([
     { additionalProperties: false },
   ),
   // `prev` records what FAILED (the effect's provenance), not just where to
-  // route the error UI: "resetting" makes RETRY re-run the RESET itself.
+  // route the error UI: RETRY re-runs that effect.
   Type.Object(
     {
       phase: Type.Literal("error"),
-      prev: Type.Union([
-        Type.Literal("setting_up"),
-        Type.Literal("resetting"),
-        Type.Literal("ready"),
-      ]),
+      prev: Type.Union([Type.Literal("setting_up"), Type.Literal("ready")]),
       message: Type.String(),
     },
     { additionalProperties: false },

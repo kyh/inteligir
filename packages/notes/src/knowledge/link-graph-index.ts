@@ -2,7 +2,7 @@
 // LinkGraphIndex — the pure link/tag/title/graph engine, fed DocProjections
 // (never raw content, never retaining bodies or line arrays — snippets ride on
 // StoredLink). This is the resolution brain both platforms share: the host
-// hydrates it from persisted projection rows, the dev harness feeds it
+// hydrates it from persisted projection rows, the fixture Bridge feeds it
 // directly, so the subtle resolver semantics (link-resolve's basename buckets,
 // ambiguity, shadowing) exist exactly once and never fork into SQL.
 //

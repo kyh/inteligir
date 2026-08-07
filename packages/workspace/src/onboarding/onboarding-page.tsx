@@ -10,24 +10,18 @@ export function OnboardingPage() {
   const appState = useAgentStore((s) => s.appState);
   const setupProgress = useAgentStore((s) => s.setupProgress);
 
-  // Setup AND reset failures both land here (the reset error keeps its own
-  // prev so the host's RETRY re-runs the RESET — app-reducer.ts).
   const setupError =
-    appState.phase === "error" && (appState.prev === "setting_up" || appState.prev === "resetting")
-      ? appState.message
-      : null;
+    appState.phase === "error" && appState.prev === "setting_up" ? appState.message : null;
 
-  // First-run only: warm boots auto-fire SETUP host-side (initMachine) and
-  // never linger in "starting" — a lingering "starting" means the workspace
-  // has never been seeded, so this surface drives the setup and shows its
-  // progress. Setup is a vault/workspace concern, not identity: the guest
-  // lands in the workspace either way.
+  // `starting` is the client's own opening state, not something the host
+  // reports: it holds until the connect's hydration push delivers a real
+  // phase. SETUP asks for that phase directly, so a socket that came up after
+  // the push is not stranded on the splash.
   //
-  // Re-dispatched on an interval while the host still reports "starting": the
-  // dispatch rides the local WS, so a one-shot fire-and-forget would wedge
-  // first-run setup until restart if that single send failed transiently. A
-  // duplicate SETUP is harmless by construction — the reducer accepts it only
-  // in "starting" — so retrying needs no latch.
+  // Re-dispatched on an interval while it holds, because the dispatch rides the
+  // socket: a one-shot fire-and-forget would leave the splash up until reload
+  // if that single send failed transiently. SETUP is idempotent host-side, so
+  // retrying needs no latch.
   useEffect(() => {
     if (appState.phase !== "starting") return;
     const dispatch = () => {

@@ -69,7 +69,8 @@ export function VoiceSection() {
       // An absent value clears the secret store entry + presence marker.
       await bridge.setVoiceApiKey({});
       setHasStoredKey(false);
-      // The env fallback (dev) can keep TTS available with no stored key.
+      // Re-asked rather than assumed false: availability is the host's answer
+      // about the stored key, and this row renders nothing else.
       const available = await bridge.isTtsAvailable().catch(() => false);
       setTtsConfigured(available);
       if (!available) useVoiceStore.getState().reset();

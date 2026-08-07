@@ -39,21 +39,24 @@ Workspace `README.md`s:
 | `packages/notes`     | [pure domain — knowledge + markdown](./packages/notes/README.md)           |
 | `packages/bridge`    | [iso wire contract — IPC registry, ws](./packages/bridge/README.md)        |
 | `packages/ui`        | [shared design system](./packages/ui/README.md)                            |
+| `packages/editor`    | [the note editor](./packages/editor/README.md)                             |
+| `packages/workspace` | [the product UI](./packages/workspace/README.md)                           |
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — quickstart, the
 platform matrix of what is headlessly verifiable, and the runtime recipes.
 **[`apps/web/README.md`](./apps/web/README.md) is the product's own guide** —
 every route, the Durable Object, the local loop and the owner-only deploy.
 [`docs/development.md`](./docs/development.md) is the shorter cross-client dev
-loop. `CLAUDE.md` (root) holds the architecture summary, conventions, and the
+loop, and [`docs/privacy.md`](./docs/privacy.md) states where notes actually
+live. `CLAUDE.md` (root) holds the architecture summary, conventions, and the
 durable decisions.
 
 ## Common commands
 
 ```bash
-pnpm dev              # All workspaces
-pnpm dev:web          # The product
+pnpm dev:web          # The product — localhost:5174
 pnpm dev:desktop      # The Electron shell
+pnpm dev              # All workspaces
 pnpm build
 pnpm typecheck
 pnpm lint             # oxlint

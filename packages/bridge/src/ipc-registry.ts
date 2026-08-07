@@ -70,16 +70,14 @@ export type NotificationSettings = {
   enabled: boolean;
 };
 
-/** Where pi discovered a skill. */
+/** How widely a skill applies. Skills live in the vault, so every one of them
+ * is the user's own and this host only ever answers `user`. */
 export type SkillScope = "user" | "project" | "temporary";
 
 /** Where a skill came from, as far as the app can honestly tell. There is no
- * publisher or author concept here: "bundled" means the app ships that skill
- * and seeded it into `<agentDir>/skills` on first run, "added" means someone
- * else put it there (the user, an agent, an installer). Seeding COPIES, so the
- * copy's path cannot reveal its origin — the shipped folder names are the only
- * honest signal, and anything outside `<agentDir>/skills` is "added" by
- * definition. */
+ * publisher or author concept here: "added" means someone put the folder in
+ * the vault (the user, or an agent). Nothing is shipped into a vault after the
+ * seed, so this host only ever answers `added`. */
 export type SkillSource = "bundled" | "added";
 
 /** What the agent's system prompt actually received for a skill.
@@ -96,7 +94,7 @@ export type SkillBudgetState =
   /** Nothing reached the prompt — the agent cannot invoke this skill. */
   | { kind: "not-loaded"; reason: "skill-count" };
 
-/** Plain projection of pi's `Skill` so callers can serialize it over IPC. */
+/** One `skills/<slug>/SKILL.md` in the vault, as the listing reports it. */
 export type SkillInfo = {
   name: string;
   /** The description as the prompt received it — already clamped by the
@@ -144,11 +142,10 @@ const NotificationsPatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
-// Dev-only faux-agent scripting: one step per assistant turn
-// — optional text plus optional tool calls (e.g. pi's `edit` performing a
-// delegation's write-back), mapped host-side onto pi-ai's faux helpers. The
-// handler throws unless INTELIGIR_FAUX_AGENT=1, so the channel never does
-// anything in production.
+// Dev-only scripted-agent responses: one step per assistant turn — optional
+// text plus optional tool calls (e.g. the write-back a delegation performs),
+// answered by the in-memory container. The handler throws unless
+// AGENT_RUNTIME=scripted, so the channel never does anything in production.
 const FauxAgentScriptSchema = Type.Object(
   {
     steps: Type.Array(
@@ -496,21 +493,21 @@ export const IPC = {
     ReadChatSessionSchema,
   ),
   reauthenticate: invokeVoid<{ ok: true } | { ok: false; error: string }>(),
-  /** Dev-only (INTELIGIR_FAUX_AGENT=1; throws otherwise): replace the faux
-   * provider's queued responses so a headless E2E drive scripts exact agent
-   * turns. One step is consumed per assistant turn across EVERY faux-backed
-   * agent (chat + background delegation share one queue — script, then drive
-   * exactly one flow). Empty `steps` restores the self-refilling echo. */
+  /** Dev-only (AGENT_RUNTIME=scripted; throws otherwise): replace the scripted
+   * container's queued responses so a headless E2E drive scripts exact agent
+   * turns. One step is consumed per assistant turn, and BOTH lanes share one
+   * queue (chat + background — script, then drive exactly one flow). Empty
+   * `steps` restores the self-refilling echo. */
   setFauxAgentScript: invoke<typeof FauxAgentScriptSchema, void>(FauxAgentScriptSchema),
-  /** Dev-only (INTELIGIR_FAUX_AGENT=1; throws otherwise): the chat session's
+  /** Dev-only (AGENT_RUNTIME=scripted; throws otherwise): the chat session's
    * composed system prompt, or null before the agent starts. Lets a headless
    * E2E drive assert injected context (e.g. vault/AGENTS.md instructions)
    * actually reached the constructed session. */
   getAgentSystemPrompt: invokeVoid<string | null>(),
 
-  // AI provider — WHICH pi provider+model the agent surfaces run on. These
-  // channels move only the SELECTION and per-provider connected booleans;
-  // tokens stay on-device in pi's auth.json and never cross the Bridge.
+  // AI provider — WHICH provider+model the agent surfaces run on. These
+  // channels move only the SELECTION and per-provider connected booleans; the
+  // credential is sealed in the host object and never crosses the Bridge.
   /** Selection + every offered provider with connected state and model menu. */
   getAiProviderSettings: invokeVoid<AiProviderSettings>(),
   /** Patch the selection (partial; a provider switch defaults the model).
@@ -519,9 +516,10 @@ export const IPC = {
     AiProviderSetConfigSchema,
   ),
   /** Run the interactive OAuth connect flow for one provider (opens the
-   * system browser; resolves when credentials land in pi's auth.json). */
+   * host cannot open one, `authorizeUrl` comes back for the client to send
+   * the user to and the connection completes on the host's OAuth callback). */
   connectAiProvider: invoke<typeof AiProviderRefSchema, AiConnectResult>(AiProviderRefSchema),
-  /** Drop one provider's on-device credentials. */
+  /** Drop the host's sealed credential for one provider. */
   disconnectAiProvider: invoke<typeof AiProviderRefSchema, AiProviderSettings>(AiProviderRefSchema),
 
   // Voice
@@ -609,7 +607,7 @@ export const IPC = {
   listVaultTasks: invokeVoid<VaultTaskEntry[]>(),
   /** Guarded checkbox toggle: re-read the file, locate the ordinal-th task
    * item, require its current line to equal `expectedRaw` byte-for-byte, and
-   * flip only the marker char (atomic write; the watcher broadcasts). On ANY
+   * flip only the marker char (atomic write; the host broadcasts). On ANY
    * {ok:false} the host refreshes the index (self-heal) and the renderer
    * refetches + toasts — refuse loudly, never write wrong. Invalidation rides
    * the existing onKnowledgeUpdated event. */
@@ -625,9 +623,9 @@ export const IPC = {
   listDelegations: invokeVoid<ListDelegationsResult>(),
   cancelDelegation: invoke<TString, { ok: boolean }>(Type.String({ minLength: 1 })),
   /** Restore the target file's pre-run bytes (captured before the background
-   * agent dispatched). Writes atomically through the vault, so the watcher's
-   * standard onVaultChanged refreshes editors; no-op success when the file
-   * already matches the snapshot. Records `restoredAt` on the delegation. */
+   * agent dispatched). Writes atomically through the vault, so the standard
+   * onVaultChanged refreshes editors; no-op success when the file already
+   * matches the snapshot. Records `restoredAt` on the delegation. */
   restoreDelegationSnapshot: invoke<TString, RestoreSnapshotResult>(Type.String({ minLength: 1 })),
   /** Fired on every delegation status change so the editor's inline badges
    * stay live. */
@@ -661,10 +659,10 @@ export const IPC = {
    * post-turn undo toast. */
   onAgentEditCaptured: event<AgentEditCaptured>(),
   /** Undo a set of chat checkpoints: each `edit` writes its pre-write bytes
-   * back atomically through the vault (no-op when already matching; the
-   * open-note watcher refreshes editors), each `create` moves the created
-   * file to the OS trash. The renderer flushes the open note FIRST so the
-   * restore never fights a dirty buffer. */
+   * back atomically through the vault (no-op when already matching;
+   * onVaultChanged refreshes editors), each `create` tombstones the created
+   * file. The client flushes the open note FIRST so the restore never fights
+   * a dirty buffer. */
   restoreAgentEdits: invoke<typeof RestoreAgentEditsSchema, RestoreAgentEditsResult>(
     RestoreAgentEditsSchema,
   ),
@@ -757,8 +755,7 @@ export type EventMethod = {
 // These are ALLOWLISTS, not blocklists, and that direction is the point: a new
 // channel is unreachable from a companion client until someone adds it here on
 // purpose. A blocklist would silently expose every channel written after it,
-// including `transition` (RESET_APP_DATA), `connectAiProvider` and
-// `setVoiceApiKey`.
+// including `deleteVaultEntry`, `connectAiProvider` and `setVoiceApiKey`.
 //
 // The host enforces all three of these per-socket: invoke/send at dispatch,
 // events at broadcast, and the reconnect hydration push (which resolves through
@@ -884,8 +881,8 @@ type MethodToFn<E extends IpcEntry> =
           : never;
 
 /** The transport-agnostic host contract the UI consumes. Derived from the
- * registry; each host (the ws bridge on desktop/mobile, the dev harness's
- * fixture Bridge) implements it. */
+ * registry; the ws bridge and the workspace's fixture Bridge both implement
+ * it. */
 export type Bridge = {
   [K in IpcMethod]: MethodToFn<IpcRegistry[K]>;
 };

@@ -19,7 +19,12 @@ import {
   readCompletionText,
   readStreamDelta,
 } from "../ai/provider-wire";
-import { allProviders, chooseProvider, providerEntry } from "../agent/provider-catalog";
+import {
+  allProviders,
+  chooseProvider,
+  providerEntry,
+  type ProviderEnv,
+} from "../agent/provider-catalog";
 import { userHostName } from "../host/host-address";
 
 function entry(id: string) {
@@ -117,20 +122,64 @@ describe("provider wire", () => {
 });
 
 describe("provider choice", () => {
-  it("names the one sentence every surface refuses with", () => {
-    expect(chooseProvider(null, () => true)).toEqual({
-      ok: false,
-      error: "No AI provider is selected. Choose one in Settings → AI.",
+  // Whole deployment configurations, STATED rather than inherited: a provider
+  // is offered only when its entire OAuth trio is set, and `sandbox` only where
+  // the real runtime is not. Passing the ambient env would make "offers
+  // nothing" mean "nothing is in the developer's .dev.vars".
+  const BOTH_REAL: ProviderEnv = {
+    ANTHROPIC_OAUTH_AUTHORIZE_URL: "https://auth.example/a",
+    ANTHROPIC_OAUTH_TOKEN_URL: "https://auth.example/at",
+    ANTHROPIC_OAUTH_CLIENT_ID: "a",
+    OPENAI_OAUTH_AUTHORIZE_URL: "https://auth.example/o",
+    OPENAI_OAUTH_TOKEN_URL: "https://auth.example/ot",
+    OPENAI_OAUTH_CLIENT_ID: "o",
+  };
+
+  it("resolves an unset selection to what Settings shows, not to a refusal", () => {
+    // The regression this pins: Settings normalized a null selection to the
+    // first offered provider while a turn read the stored null and refused — so
+    // a fresh account was SHOWN a provider and then told none was chosen the
+    // moment it sent a message.
+    expect(chooseProvider(BOTH_REAL, null, () => true)).toEqual({
+      ok: true,
+      entry: ANTHROPIC,
+      modelId: ANTHROPIC.defaultModelId,
     });
-    expect(chooseProvider({ provider: "anthropic", modelId: "x" }, () => false)).toEqual({
+  });
+
+  it("falls back off a provider this deployment stopped offering", () => {
+    const { ANTHROPIC_OAUTH_CLIENT_ID: _dropped, ...withoutAnthropic } = BOTH_REAL;
+    expect(
+      chooseProvider(withoutAnthropic, { provider: "anthropic", modelId: "x" }, () => true),
+    ).toEqual({ ok: true, entry: OPENAI, modelId: OPENAI.defaultModelId });
+  });
+
+  it("offers the no-account provider only on the scripted runtime", () => {
+    const choice = chooseProvider({ AGENT_RUNTIME: "scripted" }, null, () => true);
+    expect(choice.ok && choice.entry.requiresAuth).toBe(false);
+  });
+
+  it("names the one sentence every surface refuses with", () => {
+    expect(chooseProvider(BOTH_REAL, { provider: "anthropic", modelId: "x" }, () => false)).toEqual(
+      {
+        ok: false,
+        error: "Claude is not connected. Connect it in Settings → AI.",
+      },
+    );
+  });
+
+  it("refuses a deployment that offers nothing at all", () => {
+    // No OAuth trio and the REAL runtime, so `sandbox` is not offered either.
+    expect(chooseProvider({}, null, () => true)).toEqual({
       ok: false,
-      error: "Claude is not connected. Connect it in Settings → AI.",
+      error: "No AI provider is configured on this deployment.",
     });
   });
 
   it("falls back to the provider's default when the stored model is gone", () => {
-    const choice = chooseProvider({ provider: "openai", modelId: "gpt-3" }, () => true);
-    expect(choice).toEqual({ ok: true, entry: OPENAI, modelId: OPENAI.defaultModelId });
+    expect(chooseProvider(BOTH_REAL, { provider: "openai", modelId: "gpt-3" }, () => true)).toEqual(
+      { ok: true, entry: OPENAI, modelId: OPENAI.defaultModelId },
+    );
   });
 });
 

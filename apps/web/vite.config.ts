@@ -10,19 +10,17 @@ const workspaceSrc = fileURLToPath(new URL("../../packages/workspace/src", impor
 const editorSrc = fileURLToPath(new URL("../../packages/editor/src", import.meta.url));
 
 export default defineConfig({
-  // Pin the dev port, and REFUSE to drift off it. Vite's default is 5173,
-  // which is also the desktop harness (`pnpm -F @repo/desktop dev:harness`).
-  // strictPort matters more than the number: the host socket's Origin
-  // allowlist is exact, so a silent bump to 5175 produces a 403 on the
-  // upgrade and a workspace that renders but cannot reach its own host.
-  // Failing to bind is the loud version of that.
+  // Pin the dev port, and REFUSE to drift off it. strictPort matters more than
+  // the number: the ticket mint's Origin allowlist is exact, so a silent bump
+  // to 5175 mints nothing and produces a workspace that renders but cannot
+  // reach its own host. Failing to bind is the loud version of that.
   server: { port: 5174, strictPort: true },
   // `@/*` is declared in tsconfig paths only. `vite build` resolves it (the
   // start plugin reads tsconfig), but the dev SSR runner does not — `vite dev`
   // 500'd with "Cannot find module '@/lib/site-config'". Declare it for both.
   //
-  // The two UI packages are aliased to their SOURCE, as the desktop harness
-  // does. Their exports maps spell the extension fallback as an ARRAY
+  // The two UI packages are aliased to their SOURCE. Their exports maps spell
+  // the extension fallback as an ARRAY
   // (`"./*": ["./src/*.tsx", "./src/*.ts"]`), which the client environment's
   // resolver walks and the workerd environment's does not — so a `.ts` module
   // under either package resolves in one build and fails the other. Pointing

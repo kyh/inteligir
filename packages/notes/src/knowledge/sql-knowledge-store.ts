@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // The SQL KnowledgeStore — schema, guards, and queries written ONCE over an
-// injected SqlDriver (engine.ts's injected-port precedent), so desktop
-// (node:sqlite), the dev harness (SQLite wasm) and the cloud host (Durable
-// Object storage) run the IDENTICAL migrations and bm25 search. Only the
+// injected SqlDriver, so the wasm binding the workspace's suites drive and the
+// host's Durable Object storage run the IDENTICAL migrations and bm25 search.
+// Only the
 // byte-level binding is per-platform — plus the two statements a platform may
 // refuse to accept as SQL at all, which the driver may own instead
 // (SqlDriver.transaction / .schemaVersion).

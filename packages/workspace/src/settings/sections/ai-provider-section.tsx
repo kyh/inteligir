@@ -6,13 +6,14 @@ import { getBridge } from "@repo/bridge/client";
 import { useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
 
 // AI provider — pick which provider+model the agent runs on, and manage the
-// per-provider connection (pi's interactive OAuth; tokens stay on-device).
+// per-provider connection (the host's OAuth round-trip; the credential is
+// sealed in the host object and never reaches a client or the container).
 // Everything renders from the shared ai-provider-store snapshot: every
 // mutating call routes through the store so the composer's connect affordance
 // and the editor-AI gates update in the same frame. Switching applies to the
 // next reply — the host rolls the live sessions, no app restart. Disconnect
-// touches ONLY this provider's credentials (pi auth.json) — the app stays in
-// the workspace and the user's own account is untouched.
+// touches ONLY this provider's credential; the user's own account is
+// untouched.
 export function AiProviderSection() {
   const settings = useAiProviderStore((s) => s.settings);
   const init = useAiProviderStore((s) => s.init);

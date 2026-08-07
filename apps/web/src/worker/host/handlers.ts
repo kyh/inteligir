@@ -16,9 +16,9 @@
 // host does not have has no channel: adding one is the last step of building
 // it, and retiring one deletes it.
 //
-// `unavailable()` still names the gaps that are conditions rather than
-// channels — an app-data reset with nothing to reset, a deployment with no AI
-// provider configured — because those are states a real handler can be in.
+// `unavailable()` still names the gaps that are CONDITIONS rather than
+// channels — a deployment with no AI provider configured — because those are
+// states a real handler can be in.
 // ---------------------------------------------------------------------------
 
 import type { AppState } from "@repo/bridge/app-state";
@@ -33,7 +33,7 @@ import { registerCaptureHandlers, type CaptureServices } from "../capture/captur
 import { registerSkillsHandlers } from "../skills/skills-handlers";
 import { registerVoiceHandlers } from "../voice/voice-handlers";
 import type { VoiceComposition } from "../voice/voice-composition";
-import { unavailable, type HandlerRegistrar } from "./handler-registry";
+import type { HandlerRegistrar } from "./handler-registry";
 import type { HostEvents } from "./host-events";
 import { registerKnowledgeHandlers } from "./knowledge-handlers";
 import type { UserKnowledge } from "./knowledge/user-knowledge";
@@ -82,8 +82,6 @@ export function registerCloudHandlers(handle: HandlerRegistrar, services: CloudH
         services.agent.runner.newSession();
         services.events.emit("onAppState", appState());
         return;
-      case "RESET_APP_DATA":
-        return unavailable("app-data reset");
     }
   });
 

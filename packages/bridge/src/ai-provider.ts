@@ -4,8 +4,8 @@
 // CATALOG and credential handling live in server/provider/*; this module is
 // only the wire contract (selection + per-provider status), so it stays
 // node-free and loads in the renderer too. Credentials never cross this
-// boundary: `connected` is a boolean, tokens stay in pi's on-device
-// auth.json.
+// boundary: `connected` is a boolean, and the credential itself stays sealed
+// in the host object.
 // ---------------------------------------------------------------------------
 
 import { Type } from "@sinclair/typebox";
@@ -44,7 +44,7 @@ export type AiProviderInfo = {
   readonly label: string;
   /** False for providers that need no login (the dev faux provider). */
   readonly requiresAuth: boolean;
-  /** Credentials cached on-device for this provider right now. */
+  /** Whether the host holds a live credential for this provider right now. */
   readonly connected: boolean;
   readonly defaultModelId: string;
   readonly models: readonly AiProviderModel[];

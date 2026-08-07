@@ -57,6 +57,7 @@ src/
       origins.ts         The exact-match origin allowlist (on the mint)
       client-class.ts    ClientClass, how it is decided, + the two capability gates
       socket-state.ts    The socket attachment: the only state a wake can read
+      session.ts         readCredential + verifyHostSession — the one auth read
       host-events.ts     The per-instance event bus (never module scope)
       handler-registry.ts collectHandlers(): the completeness guard
       handlers.ts        every channel's implementation, grouped by feature
@@ -65,6 +66,8 @@ src/
       vault-handlers.ts  the vault's ten channels
       knowledge-handlers.ts the index's seven channels, incl. the guarded toggle
       stores.ts          ui-state + notifications as JsonStores over DO KV
+      daily-note.ts      TODAY's note path, resolved from the ui-state keys
+      asset-route.ts     POST /v1/host/assets: attachment bytes off the socket
       agent-endpoints.ts the object's half of the report + OAuth-callback routes
       vault/             THE VAULT — manifest in DO SQLite, bytes in R2
       knowledge/         THE INDEX — core's SQL store over DO SQLite + FTS5
@@ -85,8 +88,18 @@ src/
       provider-credentials.ts sealed refresh tokens + short-lived access tokens
       provider-oauth.ts  the PKCE round-trip the Worker owns
       vault-revisions.ts a bounded change log, so a wake pushes a delta
+      agent-crypto.ts    the scoped tokens the report + OAuth legs carry
       agent-route.ts     the Worker leg of both agent routes
       agent-handlers.ts  the agent's twelve Bridge channels
+    background/          THE UNATTENDED LANE — delegation + routines
+      background-runs.ts the DURABLE one-turn lock, and the run holding it
+      delegations.ts     a checkbox handed to the background agent
+      routines.ts        a saved prompt on a schedule, fired by the alarm
+      background-handlers.ts the eight delegation/routine channels
+    store/               THE JSONSTORE — versioned, validated, over DO KV
+      json-store-core.ts the engine: TypeBox on read AND write, quarantine
+      do-store-adapter.ts that engine bound to the object's synchronous KV
+      durable-kv.ts      the synchronous KV shape, declared once
     ai/                  THE EDITOR'S AI — no-tools turns, straight from the DO
       provider-wire.ts   the two provider HTTP shapes, as pure functions
       text-generator.ts  two lanes, one request each, every one cancellable
@@ -105,7 +118,7 @@ src/
       deep-link-route.ts the object's half of POST /v1/host/link
       capture-handlers.ts the two capture channels
     skills/              SKILLS — `skills/<slug>/SKILL.md` in the VAULT
-      vault-skills.ts    the slug, the renderer, the listing's prompt budget
+      vault-skills.ts    the slug, the SKILL.md render, the prompt budget
       skills-handlers.ts the two skills channels
     rate-limit.ts        fixed-window budget over the shared rate_limit D1 table
     hash.ts              sha256Hex() — authoritative content hashing
@@ -198,10 +211,9 @@ HTML-app runtime — and nothing else.
   `null` — there is no `vault-app://` scheme in a browser — and `injectRuntime`
   **throws** rather than assembling the blob the fallback would otherwise load.
   See "What is deliberately not here yet" for the two things that must close
-  first. Nothing reaches the seam today, because `mintHtmlAppToken` is a
-  desktop-shell method this host does not register and the view fails one step
-  earlier; the refusal is there so the seam cannot quietly become a working
-  exfiltration path the day that method is registered.
+  first. The refusal is the seam saying no, rather than the capability merely
+  being absent — an absent seam quietly becomes a working exfiltration path the
+  day someone builds the route that serves the file.
 
 ### Auth surfaces (`/app/sign-in`, `/app/sign-up`, `/app/forgot-password`)
 
@@ -230,8 +242,8 @@ Three pages over the existing Better Auth routes, sharing one card
   (`src/worker/auth/reset-page.ts`). `/app/forgot-password` only REQUESTS the
   link; the page that sets a new password stays server-rendered, static and
   `no-store`, because a reset has to work from an email client on any device
-  with no app bundle to download. The desktop asks for the same
-  `redirectTo: "/auth/reset"`, so the two clients share it.
+  with no app bundle to download. Every client asks for the same
+  `redirectTo: "/auth/reset"`, so they all land on that one page.
 - **Minting invites is `wrangler d1 execute`**, deliberately — there is no admin
   UI and no self-serve issuance:
 
@@ -262,10 +274,10 @@ Three pages over the existing Better Auth routes, sharing one card
 - **Write ordering is crash-consistent**: bytes reach R2 BEFORE the manifest row
   commits, and a permanent purge removes the manifest row BEFORE the R2 object.
   The tolerable failure is an orphan blob, never a dangling pointer.
-- **Delete is a TOMBSTONE.** "Delete = OS trash" cannot survive the move (there
-  is no OS), and undoing an agent-CREATED note is a delete — with no trash tier
-  every such undo would be permanent. A tombstoned row keeps its bytes for a
-  retention window and is purged by the host's alarm.
+- **Delete is a TOMBSTONE.** There is no OS trash to hand a file to, and
+  undoing an agent-CREATED note is a delete — with no trash tier every such undo
+  would be permanent. A tombstoned row keeps its bytes for a retention window
+  and both halves are purged by the host's alarm.
 - **The deletion gate** (CLAUDE.md § Decisions) sits here, in the object every
   writer goes through, so the workspace, the agent and the upload route are all
   held by one number: deletions past `max(25, 5% of the manifest)` inside a
@@ -322,10 +334,11 @@ four halves of it live in the host object, because the object is the account.
 
 ### The knowledge index (inside the same DO)
 
-- **Core's SQL `KnowledgeStore`, unforked**, over a third `SqlDriver` bound to
+- **Core's SQL `KnowledgeStore`, unforked**, over a `SqlDriver` bound to
   `ctx.storage.sql` (`knowledge/do-sql-driver.ts`). The schema, the guards and
-  the FTS5 bm25 ranking are `@repo/notes`'s, so cloud search ranks the way the
-  desktop's node:sqlite one does. Durable Object SQLite refuses `BEGIN` and
+  the FTS5 bm25 ranking are `@repo/notes`'s, so production search ranks exactly
+  like the wasm-driven one the workspace's own suites drive. Durable Object
+  SQLite refuses `BEGIN` and
   `PRAGMA user_version`, so the driver binds core's two optional seams
   (`transaction` over `ctx.storage.transactionSync`, `schemaVersion` over a row
   it owns).
@@ -456,13 +469,12 @@ Worker; the image is `container/`, built from this repo.
   somewhere no test could see it. The cost is real: pi's own view of the
   conversation restarts, so anything not in the transcript does not come back.
 - **The granted tools are implemented HOST-SIDE** (`agent-tools.ts`), and the
-  container forwards calls to them. So the grant table (`@repo/bridge/agent-grants`)
-  stays the one declaration of what the agent may do, every tool's model-facing
-  sentence comes from it, and the destructive tier's confirmation is raised
-  inside the executor where no container can skip it. Capabilities this host does
-  not implement are DECLARED (`CLOUD_UNGRANTED`) and rendered into the prompt —
-  delegation has no backend here yet, so `delegate_task` says so rather than
-  going silently missing.
+  container forwards calls to them. So the grant table
+  (`@repo/bridge/agent-grants`) stays the one declaration of what the agent may
+  do, every tool's model-facing sentence comes from it, and the destructive
+  tier's confirmation is raised inside the executor where no container can skip
+  it. The never-granted groups' reasons are rendered into the prompt too, so a
+  denial is stated to the model rather than met with silence.
 - **The agent's file writes come back through the vault of record**, so the
   manifest, the knowledge index and the deletion gate all stay authoritative.
   Reported REMOVALS are refused: deletion is the destructive tier's, so a
@@ -470,31 +482,50 @@ Worker; the image is `container/`, built from this repo.
 - **`private: true` is not a feature of this host.** There is no privacy
   filtering anywhere in the agent path; the whole vault materializes.
 - **`AGENT_RUNTIME=scripted`** replaces the container with an in-memory one
-  (`fake-sandbox.ts`) — the cloud twin of the desktop's `INTELIGIR_FAUX_AGENT=1`.
-  The runner, the transcript, the tool executor, the confirmation broker and the
-  vault write-back are the production ones either way; only the process that
-  would have produced the reports is fake. The whole test suite runs this way,
-  and so does any deployment without the Workers Paid plan.
+  (`fake-sandbox.ts`). The runner, the transcript, the tool executor, the
+  confirmation broker and the vault write-back are the production ones either
+  way; only the process that would have produced the reports is fake. The whole
+  test suite runs this way, and so does any deployment without the Workers Paid
+  plan.
+
+### The unattended lane (`src/worker/background/`)
+
+Delegation (a checkbox handed to the agent) and routines (a saved prompt on a
+schedule) are two owners of ONE lane, on the second container.
+
+- **The lane's lock is a TABLE, not a field**, and the row that holds it IS the
+  run it is holding for — the lock and the thing it protects are one fact rather
+  than two that can disagree. It has to be durable: a run spans many
+  invocations, so an in-memory lock reads as FREE on the very next one and lets
+  a routine start on top of a running delegation.
+- **Every lease expires.** A container that dies mid-turn never reports
+  `turn_end`, and a lane held by a turn nobody is running is a lane no
+  delegation ever leaves the queue for. The row carries a deadline the host's
+  alarm sweeps, which is also why the lane answers `nextDueAt`.
+- **A routine's write path is HOST-owned**, unlike delegation's. Nobody is
+  watching when a routine fires, so the manager appends the result rather than
+  asking the agent to, and an epoch guard bails mid-run if the routine was
+  disabled or deleted while the turn was in flight.
+- **Both capture a pre-run snapshot**, fail-closed: no restore point, no
+  dispatch. That is what "Restore original" and "Restore last run" read back.
 
 ### The editor's AI (`src/worker/ai/`)
 
 The ⌘J menu, its intent classifier and ghost text are **direct provider calls
 from the Durable Object**, not container turns.
 
-- **Why not the container.** The desktop ran these as two extra pi sessions in
-  the same process, which cost nothing because the process was there. Here the
-  agent lives in a container whose ordinary state is asleep, so a ghost
-  completion would pay a cold start, a whole-vault materialization and a pi
-  boot for a request that needs no filesystem and no tools. The container is for
-  TOOL-USING turns; this is a text call over the same sealed credential the
-  container never gets to hold.
+- **Why not the container.** The agent lives in a container whose ordinary
+  state is asleep, so a ghost completion routed through it would pay a cold
+  start, a whole-vault materialization and a pi boot for a request that needs no
+  filesystem and no tools. The container is for TOOL-USING turns; this is a text
+  call over the same sealed credential the container never gets to hold.
 - **An outbound `fetch` PINS the object** — it cannot hibernate while one is
   open, and the wall clock is billed as duration. Ghost text fires per typing
   pause, so the bounds are the cost story: ONE request in flight per lane and
   exactly two lanes (`inline`, `ghost`), a new request ABORTS the one it
-  supersedes before it starts, and every request has a deadline (8s for ghost —
-  far shorter than the desktop's 20s, because there a slow completion cost a
-  promise and here it costs a resident object).
+  supersedes before it starts, and every request has a deadline (8s for ghost,
+  because a slow completion here costs a resident object rather than a
+  promise).
 - **The lane state is in memory, and that is not a hibernation violation.** An
   `AbortController` is only meaningful while its request is open, and a request
   is only open while the object is pinned. A cancel that finds an empty lane is
@@ -506,54 +537,53 @@ from the Durable Object**, not container turns.
 
 ### Voice (`src/worker/voice/`)
 
-- **Every field is per OBJECT.** The desktop's proxy held one upstream socket
-  and one text buffer at MODULE scope — correct in a single-user process and a
-  cross-tenant leak in a Worker isolate, where a shared buffer would stream one
+- **Every field is per OBJECT, never module scope.** One isolate serves many
+  tenants' objects in one module scope, so a shared text buffer would stream one
   user's note text to another user.
-- **TTS stays ElevenLabs**, moved into the Worker and reshaped from a persistent
-  WebSocket to one streamed HTTP request per speakable chunk (a socket would pin
-  the object for the whole conversation and hit the 15-minute outbound ceiling
-  mid-sentence). The renderer is unaffected: the same raw 24 kHz PCM frames
-  arrive on `onTtsAudio`. `@cf/deepgram/aura-1` was considered and NOT taken —
-  changing the voice a user already knows is not an implementation detail.
+- **TTS is ElevenLabs**, one streamed HTTP request per speakable chunk rather
+  than a persistent WebSocket (a socket would pin the object for the whole
+  conversation and hit the 15-minute outbound ceiling mid-sentence). Raw 24 kHz
+  PCM frames arrive on `onTtsAudio`. `@cf/deepgram/aura-1` was considered and
+  NOT taken — changing the voice a user already knows is not an implementation
+  detail.
 - **STT is `@cf/openai/whisper-large-v3-turbo`**, request/response.
-  `@cf/deepgram/flux` is the better model on paper and the wrong fit here: a
-  live upstream WebSocket pins the object for the whole utterance. The cost is
-  a real cadence regression, stated rather than hidden — the desktop emitted a
-  partial every ~128 ms frame from a streaming decoder, and request/response has
-  no decoder state, so a partial can only be a full re-transcription. Partials
+  `@cf/deepgram/flux` is the better model on paper and the wrong fit here: a live
+  upstream WebSocket pins the object for the whole utterance. The cost is stated
+  rather than hidden — request/response has no decoder state, so **a partial can
+  only be a full re-transcription** of everything spoken so far. Partials
   therefore arrive every ~5 s of speech, cost a model call each, and are capped
   at six; the final transcript is the RETURN value of `stopStt`, which is what
-  the renderer's stop path already reads.
+  the client's stop path reads.
 - **Workers AI over REST, not the `ai` binding.** A declared binding has no
   local implementation, so the vitest pool opens a remote connection at startup
   and every test in this package would need a Cloudflare credential. Configured
   as `CLOUDFLARE_ACCOUNT_ID` + `WORKERS_AI_API_TOKEN`, both-or-nothing, exactly
   like Browser Run — which shares the account id and brings its own token.
-- **`onVoiceModelState` is dead here** and stays unemitted: it reported a local
-  model download, and there is no per-user writable disk and no local inference.
+- **There is no local-model channel** and there must not be one: both upstreams
+  are services this object calls over HTTP, and there is no per-user writable
+  disk and no local inference whose state could be reported.
 
 ### Deep-link capture (`src/worker/capture/`)
 
 `inteligir://` becomes `POST /v1/host/link?verb=…`.
 
-- **The grammar is reused VERBATIM.** `@repo/bridge/deep-link` is pure, so the
+- **The grammar is one pure module.** `@repo/bridge/deep-link` holds the
   parser, the sanitizer, the line formatter, the append rule and the exact-line
-  dedupe are the desktop's. A POST rather than the GET a page would navigate to:
-  a GET a page can cause is a CSRF write, and the Worker half addresses while
-  the object half verifies, like every other host route.
-- **`session` is refused.** It completed a DESKTOP social sign-in; a web client
-  is already signed in — the session is what named its object — so accepting it
-  would be a second, weaker way to authenticate.
+  dedupe, and the Electron shell runs the same one. A POST rather than the GET a
+  page would navigate to: a GET a page can cause is a CSRF write, and the Worker
+  half addresses while the object half verifies, like every other host route.
+- **`session` is refused.** A client reaching this route is already signed in —
+  the session is what named its object — so accepting a sign-in exchange here
+  would be a second, weaker way to authenticate. The shell drops the verb too,
+  so nothing in the repo can construct one that reaches a consumer.
 - **The ack deadline is the host's ONE alarm**, not a `setTimeout`: a pending
   timer pins the object the transport exists to let sleep, and an alarm survives
   eviction. It joins `nextDueAt` rather than arming a second alarm.
-- **The compare-and-swap is on the manifest VERSION**, not on file bytes. The
-  desktop compared bytes because its vault IO was synchronous;
+- **The compare-and-swap is on the manifest VERSION**, not on file bytes:
   `UserVault.writeText` takes a `baseVersion` and answers a conflict as a value.
-  The inbox itself stays a synchronous JsonStore over the object's KV — that is
-  the contract `json-store-core` documents, and the exactly-once apply depends
-  on it.
+  The inbox itself is a SYNCHRONOUS JsonStore over the object's KV — that is the
+  contract `json-store-core` documents, and the exactly-once apply depends on
+  it.
 
 ### Skills (`src/worker/skills/`)
 
@@ -564,12 +594,16 @@ Skills live in the VAULT, at `skills/<slug>/SKILL.md`.
   rendering. The vault is the only durable, user-owned store this host has; it
   is already materialized into the container on every wake, so the agent can
   open a skill with its own `read` tool; and a skill is a markdown file in a
-  folder, which is what a skill is.
+  folder, which is what a skill is. `scope` and `source` on the wire are
+  therefore constants here — every skill is the user's own and was added to the
+  vault.
 - **The listing is what reaches the model**, rendered into the agent's
-  instructions with each skill's path — the same thing pi's own skill loading
-  does (name + description in the prompt, body read on demand). It carries a
-  prompt budget for the reason `AGENTS.md` does: those bytes are a recurring
-  per-turn cost on a folder the user and the agent can both grow.
+  instructions with each skill's path — the same shape pi's own skill loading
+  has (name + description in the prompt, body read on demand); pi does not
+  discover these, because its own skills directory is inside a container that is
+  wiped on every sleep. The listing carries a prompt budget for the reason
+  `AGENTS.md` does: those bytes are a recurring per-turn cost on a folder the
+  user and the agent can both grow.
 - **The name never reaches a path.** A slug is derived through a character class
   that cannot express a separator or a `..`, and an existing skill is never
   overwritten.
@@ -579,7 +613,7 @@ Skills live in the VAULT, at `skills/<slug>/SKILL.md`.
 **Connectors / MCP** is absent, and the analysis behind that is worth keeping
 so nobody redoes it.
 
-The obvious implementation is the one a desktop app uses: a local **executor
+The obvious implementation is the one a local app uses: an **executor
 daemon** — a pinned binary that holds its integration catalog AND its OAuth
 connection credentials in a SQLite file on disk, with a loopback redirect URI
 for the browser consent leg. None of that shape works on this host. The only
@@ -604,25 +638,22 @@ to name servers and consent to them, and that is a Settings section over
 Worker-held state, sized to what MCP actually needs — a server URL and a
 consent — rather than to a daemon's per-step catalog/connection API.
 
-**HTML apps** are not served. The cloud client now exists — `/app` mounts the
-same workspace, which opens a vault `.html` as an app — so the group is
-refused rather than merely absent: `src/app/html-apps-disabled.ts` installs a
-runtime whose `injectRuntime` throws (`mintHtmlAppToken` and
-`revokeHtmlAppToken` are `DESKTOP_SHELL_METHODS`, outside this host's 78, so
-the view already fails a step earlier; the refusal is the seam saying no).
-The standing requirement in the root `CLAUDE.md` is that the postMessage
-broker's capability set be **re-audited before a meaningful `event.origin`
-ships**. That audit found two things that must be closed first:
+**HTML apps** are not served. The workspace still opens a vault `.html` as an
+app, so the group is REFUSED rather than merely absent:
+`src/app/html-apps-disabled.ts` installs a runtime whose `injectRuntime` throws
+a sentence the user can act on, and the view's "Open as text" button reads the
+source. An absent seam would quietly become a working exfiltration path the day
+someone builds the serving route. The postMessage broker's capability set was
+audited, and two things must close first:
 
 1. **`read` + network is an unbounded exfiltration path.** The broker grants
    `list`/`read` over every doc in the vault, and the frame's `allow-scripts`
-   sandbox does not restrain `fetch` — the injected runtime ships no CSP, and
-   the desktop's `vault-app://` handler sets only `content-type` and
-   `cache-control`. On one machine, with `.html` the user's own agent wrote,
-   that is the accepted bargain. A hosted deployment makes "the agent wrote it
-   after reading a note" a live path, so the fix is a `connect-src 'none'` CSP
-   on the served document — which the cloud host would have to inject, and which
-   should land WITH the serving route rather than after it.
+   sandbox does not restrain `fetch`, and nothing injects a CSP. On one
+   person's machine, with `.html` their own agent wrote, that is the accepted
+   bargain. Hosted, "the agent wrote it after reading a note" is a live path, so
+   the fix is a `connect-src 'none'` CSP on the served document — which whatever
+   serves it has to inject, and which should land WITH the serving route rather
+   than after it.
 2. **A second hostname reaching this Worker collides with a standing
    decision.** Better Auth's `baseURL` is derived from the request origin, and
    that is safe only because the deployment's own hostnames are the only ones
@@ -633,9 +664,8 @@ The rest of the audit is clean and worth recording: `create`/`update` are
 unconfirmed whole-file writes to any doc path (`remove` is confirmed), `open`
 navigates the workspace, `backlinks` leaks only link structure, every path is
 re-rejected for `..`/absolute/scheme shapes before the Bridge, and the listing
-pipeline caps before it reads so `withProperties` cannot fan out. On the web the
-token check gains a real `event.origin` to pin against, which is strictly better
-than the opaque `null` both window and frame report over `file://` — an
+pipeline caps before it reads so `withProperties` cannot fan out. A served frame
+would also give the token check a real `event.origin` to pin against — an
 improvement, and not one of the two blockers above.
 
 ### Auth (`/api/auth/*`) — Better Auth on the Worker
@@ -754,7 +784,7 @@ wrangler r2 bucket create inteligir-vault-files
 wrangler d1 create inteligir-auth
 
 # 4. Push the schema (user/session/account/verification + the rate-limit and
-#    handoff tables) to the remote D1. No migration files — put the three creds in the root
+#    invite tables) to the remote D1. No migration files — put the three creds in the root
 #    .env.production.local (see .env.example), then push:
 #      CLOUDFLARE_ACCOUNT_ID  CLOUDFLARE_DATABASE_ID  CLOUDFLARE_D1_TOKEN
 #    (D1_TOKEN = a Cloudflare API token with D1 edit; DATABASE_ID = the id above)
@@ -853,8 +883,7 @@ Voice is two independent halves and neither blocks the other.
 **Text-to-speech** needs no deployment secret at all: the ElevenLabs key is
 PER USER (Settings → Voice), sealed in that user's own Durable Object under the
 same HKDF-derived key the provider refresh token uses. `ELEVENLABS_VOICE_ID` is
-an optional var if the deployment wants a voice other than the one the desktop
-shipped.
+an optional var if the deployment wants a voice other than the default.
 
 **Speech-to-text** needs a Workers AI account — both or neither, so dictation
 refuses with a sentence rather than half-working:

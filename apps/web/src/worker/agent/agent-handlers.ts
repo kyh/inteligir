@@ -20,7 +20,13 @@ import { unavailable } from "../host/handler-registry";
 import type { AgentLane, AgentRunner } from "./agent-runner";
 import type { ChatStore } from "./chat-store";
 import type { FakeSandbox } from "./fake-sandbox";
-import { offeredProviders, providerEntry, providerInfo, resolveModelId } from "./provider-catalog";
+import {
+  effectiveSelection,
+  offeredProviders,
+  providerEntry,
+  providerInfo,
+  resolveModelId,
+} from "./provider-catalog";
 import type { ProviderCredentials } from "./provider-credentials";
 import { startAuthorization } from "./provider-oauth";
 
@@ -147,13 +153,9 @@ function providerSettings(services: AgentServices): AiProviderSettings {
 }
 
 /**
- * The selection this host will actually run, defaulting to the first offered
- * provider.
- *
- * Normalized on READ rather than written back: a stored selection naming a
- * provider this deployment stopped offering is a configuration change, not a
- * user action, and overwriting their choice would lose it if the configuration
- * came back.
+ * The selection this host will actually run — `effectiveSelection`, which is
+ * the same resolution a turn goes through, so what Settings shows and what a
+ * message runs on can never disagree.
  *
  * A deployment that configured no OAuth app and runs the real container offers
  * NOTHING, and that is where the refusal belongs — an empty menu with a
@@ -161,11 +163,9 @@ function providerSettings(services: AgentServices): AiProviderSettings {
  * Settings page rather than an unconfigured one.
  */
 function currentSelection(services: AgentServices): { provider: string; modelId: string } {
-  const offered = offeredProviders(services.env);
-  const stored = services.credentials.selection();
-  const entry =
-    (stored === null ? null : offered.find((candidate) => candidate.id === stored.provider)) ??
-    offered[0];
-  if (entry === undefined) unavailable("any AI provider (none is configured on this deployment)");
-  return { provider: entry.id, modelId: resolveModelId(entry, stored?.modelId) };
+  const selected = effectiveSelection(services.env, services.credentials.selection());
+  if (selected === null) {
+    unavailable("any AI provider (none is configured on this deployment)");
+  }
+  return { provider: selected.provider, modelId: selected.modelId };
 }

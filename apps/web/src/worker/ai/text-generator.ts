@@ -86,6 +86,7 @@ type CompletionOutcome =
 type InFlight = { readonly requestId: string; readonly controller: AbortController };
 
 export type TextGeneratorDeps = {
+  readonly env: Env;
   readonly credentials: ProviderCredentials;
   /** Bound rather than passed bare: `fetch` on workerd is an unbound global,
    * and a method-shaped reference to it throws on call. */
@@ -280,7 +281,7 @@ export class TextGenerator {
   }
 
   private choose(): ProviderChoice {
-    return chooseProvider(this.deps.credentials.selection(), (provider) =>
+    return chooseProvider(this.deps.env, this.deps.credentials.selection(), (provider) =>
       this.deps.credentials.connected(provider),
     );
   }

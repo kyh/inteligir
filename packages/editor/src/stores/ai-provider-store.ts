@@ -47,8 +47,8 @@ type AiProviderStore = {
   setConfig: (patch: { provider?: string; modelId?: string }) => Promise<void>;
   /** Run the OAuth connect flow for `provider`; resolves when it completes. */
   connect: (provider: string) => Promise<{ ok: true } | { ok: false; error: string }>;
-  /** Drop `provider`'s on-device credentials. Touches ONLY pi's auth.json —
-   * the app stays in the workspace, the user's own account untouched. */
+  /** Drop the host's sealed credential for `provider`. Touches ONLY that
+   * credential — the user's own account is untouched. */
   disconnect: (provider: string) => Promise<void>;
 };
 

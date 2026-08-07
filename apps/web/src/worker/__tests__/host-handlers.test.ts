@@ -196,10 +196,6 @@ describe("cloud handler registry", () => {
       });
       await handlers.transition({ type: "SETUP" });
       expect(seen).toEqual([{ phase: "ready", agent: "idle" }]);
-
-      await expect(async () => handlers.transition({ type: "RESET_APP_DATA" })).rejects.toThrow(
-        /app-data reset is not available/,
-      );
     });
   });
 });

@@ -13,9 +13,8 @@ import { SettingsPanel } from "@repo/workspace/settings/settings-panel";
 import { useViewStore } from "@repo/workspace/stores/view-store";
 
 /**
- * Settings, reachable from the workspace gear. Controlled so panel actions that
- * navigate the workspace can close it first, and so a notice raised elsewhere in
- * the app can open it.
+ * Settings, reachable from the workspace gear. Controlled so a notice raised
+ * elsewhere in the app can open it.
  */
 export function SettingsDialog() {
   const open = useViewStore((s) => s.settingsOpen);
@@ -39,7 +38,7 @@ export function SettingsDialog() {
           <DialogTitle className="text-sm">Settings</DialogTitle>
         </DialogHeader>
         <div className="max-h-[70vh] min-h-0 flex-1 overflow-auto">
-          <SettingsPanel onRequestClose={() => setOpen(false)} />
+          <SettingsPanel />
         </div>
       </DialogContent>
     </Dialog>

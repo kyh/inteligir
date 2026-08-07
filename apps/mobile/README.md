@@ -20,21 +20,21 @@ src/
     __tests__/    Vitest over the pure modules (no native runtime)
 ```
 
-## Why it cannot drive the Bridge yet
+## What is missing is the SURFACE, not the admission
 
-The workspace reaches the host over `GET /v1/host/:userId/ws`, and that upgrade
-**requires an allowlisted `Origin` header** — an absent one is refused with a
-403 before the handshake completes. That is a deliberate decision, not an
-oversight (`CLAUDE.md` § Decisions): a browser always sends Origin, so its
-absence means a non-browser caller, and admitting that silently is the CSRF hole
-the check exists to close.
+The host's half of a companion is built and tested. `POST /v1/host/ticket` with
+a **bearer token and no browser `Origin`** mints a ticket for the `mobile`
+client class, and every socket that spends one reaches exactly
+`REMOTE_ALLOWED_METHODS`/`_EVENTS` (`@repo/bridge/ipc-registry`) — chat plus the
+delegation dock — enforced at invoke, at broadcast and at reconnect hydration.
+React Native's `WebSocket` sends no Origin, which is what makes a bearer the
+right credential and the absent Origin merely corroborating: the class comes
+from which credential carried the session, never from a header a caller omits
+for free (`CLAUDE.md` § Decisions).
 
-React Native's `WebSocket` sends no Origin. So making this app a real client
-needs a design for how a NATIVE client proves itself — and, separately, for what
-makes a socket the narrower `mobile` client class the host already defines
-(`REMOTE_ALLOWED_METHODS`/`_EVENTS` in `@repo/bridge/ipc-registry`), since a
-class the client simply declares is a self-limitation rather than a boundary.
-Until both exist, this app does the honest half: the account.
+What does not exist is the app half — a chat screen, a delegation list, and the
+`@repo/bridge/ws-bridge` client dialled at them. Until it does, this app does
+the honest half: the account, and a sentence about where the product is.
 
 ## What it holds
 

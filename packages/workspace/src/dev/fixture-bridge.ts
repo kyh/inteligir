@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // In-memory fixture Bridge — the backend the UI suites mount against, and the
-// completeness device for the whole contract. Fully typed against the real
+// completeness device for the whole contract. Nothing serves it as an app: the
+// only way to see the UI is the real Worker. Fully typed against the real
 // Bridge, so when the IPC registry changes this file fails typecheck until it
 // is covered. Vault reads/writes hit a Map seeded with sample notes; agent
 // chat streams a canned reply; STT streams a canned transcript; TTS queues
@@ -101,7 +102,7 @@ class Emitter<T> {
 }
 
 const unavailable = (feature: string) =>
-  new Error(`${feature} is not available in the dev harness`);
+  new Error(`${feature} is not available in the fixture Bridge`);
 
 // Canned STT transcript, streamed partial → partial → final (harness stub —
 // no recognizer runs) so the composer's listening capsule is demoable in a
@@ -634,17 +635,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
           history.length = 0;
           setAppState({ phase: "ready", agent: "idle" });
           return;
-        case "RESET_APP_DATA":
-          // The fixture twin of the host's full app-data wipe + re-setup:
-          // clear chat history and drop every simulated provider connection. Phase mimics the real
-          // machine — setting_up first, ready after a beat — because renderer
-          // consumers key refreshes off the setting_up→ready transition (the
-          // ai-provider store re-snapshots there).
-          history.length = 0;
-          for (const id of aiConnected.keys()) aiConnected.set(id, false);
-          setAppState({ phase: "setting_up" });
-          setTimeout(() => setAppState({ phase: "ready", agent: "idle" }), 400);
-          return;
       }
     },
     onAppState: appStateEvents.subscribe,
@@ -681,12 +671,12 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     reauthenticate: async () => ({ ok: true }),
     setFauxAgentScript: async () => {
       throw unavailable(
-        "faux agent scripting (run the real host: pnpm dev:desktop with INTELIGIR_FAUX_AGENT=1)",
+        "agent scripting (run the real host: pnpm dev:web with AGENT_RUNTIME=scripted)",
       );
     },
     getAgentSystemPrompt: async () => {
       throw unavailable(
-        "agent system-prompt inspection (run the real host: pnpm dev:desktop with INTELIGIR_FAUX_AGENT=1)",
+        "agent system-prompt inspection (run the real host: pnpm dev:web with AGENT_RUNTIME=scripted)",
       );
     },
 

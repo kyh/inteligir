@@ -61,8 +61,8 @@ src/
 - The ws-bridge reconnect supervisor is the ONLY retry owner; `unauthorized`
   (close 4401) is terminal. `HYDRATED_EVENTS` re-pushes stateful event
   channels on reconnect — full event replay is deliberately not provided.
-- Executor schemas: requests we construct are exact
-  (`additionalProperties: false`); responses are tolerant of extra fields.
+- Payload schemas we construct are exact (`additionalProperties: false`), so a
+  field the host does not know about is a refusal rather than a silent drop.
 
 ## Seams
 

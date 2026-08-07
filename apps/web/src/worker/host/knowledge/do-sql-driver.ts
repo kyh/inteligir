@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// Durable Object storage binding for the shared SQL knowledge store — the third
-// SqlDriver, beside the desktop's node:sqlite one and the dev harness's wasm
-// one. The schema, the guards, the FTS5 bm25 ranking and every query live in
-// @repo/notes (sql-knowledge-store.ts, driver-injected); this module supplies
-// only the byte-level binding, so cloud search ranks exactly like the client's.
+// Durable Object storage binding for the shared SQL knowledge store. The
+// schema, the guards, the FTS5 bm25 ranking and every query live in @repo/notes
+// (sql-knowledge-store.ts, driver-injected); this module supplies only the
+// byte-level binding, so production search ranks exactly like the wasm-driven
+// one the workspace's own tests drive.
 //
 // Three things about `ctx.storage.sql` shape it, and each one is why a member
 // below exists rather than being inherited:

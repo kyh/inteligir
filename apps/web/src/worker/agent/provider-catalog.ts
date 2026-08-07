@@ -142,6 +142,27 @@ export function allProviders(): readonly ProviderEntry[] {
   return ALL;
 }
 
+/**
+ * The env members this module reads.
+ *
+ * Narrower than `Env` on purpose, the way `host/origins.ts` narrows its own:
+ * a test can then state the configuration it is testing, instead of "nothing is
+ * configured" quietly meaning "nothing is in the developer's .dev.vars". Every
+ * member is explicitly `| undefined` so an unset one can be WRITTEN as unset
+ * under `exactOptionalPropertyTypes`.
+ */
+export type ProviderEnv = {
+  readonly AGENT_RUNTIME?: string | undefined;
+  readonly ANTHROPIC_OAUTH_AUTHORIZE_URL?: string | undefined;
+  readonly ANTHROPIC_OAUTH_TOKEN_URL?: string | undefined;
+  readonly ANTHROPIC_OAUTH_CLIENT_ID?: string | undefined;
+  readonly ANTHROPIC_OAUTH_CLIENT_SECRET?: string | undefined;
+  readonly OPENAI_OAUTH_AUTHORIZE_URL?: string | undefined;
+  readonly OPENAI_OAUTH_TOKEN_URL?: string | undefined;
+  readonly OPENAI_OAUTH_CLIENT_ID?: string | undefined;
+  readonly OPENAI_OAUTH_CLIENT_SECRET?: string | undefined;
+};
+
 /** One provider's OAuth app, as this deployment configured it. */
 export type ProviderOAuthApp = {
   readonly authorizeUrl: string;
@@ -158,7 +179,7 @@ export type ProviderOAuthApp = {
  * because `Env` has no index signature — and a lookup that cannot be spelled is
  * a variable nobody declared.
  */
-export function providerOAuthApp(env: Env, id: string): ProviderOAuthApp | null {
+export function providerOAuthApp(env: ProviderEnv, id: string): ProviderOAuthApp | null {
   const trio =
     id === ANTHROPIC.id
       ? {
@@ -190,7 +211,7 @@ export function providerOAuthApp(env: Env, id: string): ProviderOAuthApp | null 
 
 /** The optional client secret for `id`. Absent is normal: a public client uses
  * PKCE alone, and sending an empty secret is worse than sending none. */
-export function providerOAuthSecret(env: Env, id: string): string | null {
+export function providerOAuthSecret(env: ProviderEnv, id: string): string | null {
   const value =
     id === ANTHROPIC.id
       ? env.ANTHROPIC_OAUTH_CLIENT_SECRET
@@ -203,7 +224,7 @@ export function providerOAuthSecret(env: Env, id: string): string | null {
 /** Whether this deployment runs the agent in a real Cloudflare Sandbox. The
  * alternative is the scripted in-memory one (./fake-sandbox), which is what a
  * deployment with no Workers Paid plan — and every test — runs. */
-export function sandboxRuntimeEnabled(env: Env): boolean {
+export function sandboxRuntimeEnabled(env: ProviderEnv): boolean {
   return env.AGENT_RUNTIME !== "scripted";
 }
 
@@ -213,13 +234,13 @@ export function sandboxRuntimeEnabled(env: Env): boolean {
  * not — offering a scripted agent beside a real one would be a menu entry
  * nobody could tell apart from a broken provider.
  */
-function providerOffered(env: Env, entry: ProviderEntry): boolean {
+function providerOffered(env: ProviderEnv, entry: ProviderEntry): boolean {
   if (!entry.requiresAuth) return !sandboxRuntimeEnabled(env);
   return providerOAuthApp(env, entry.id) !== null;
 }
 
 /** The providers this deployment offers, in menu order. */
-export function offeredProviders(env: Env): readonly ProviderEntry[] {
+export function offeredProviders(env: ProviderEnv): readonly ProviderEntry[] {
   return ALL.filter((entry) => providerOffered(env, entry));
 }
 
@@ -244,6 +265,39 @@ export function resolveModelId(entry: ProviderEntry, requested: string | undefin
   return entry.defaultModelId;
 }
 
+/**
+ * The provider entry a stored selection resolves to, defaulting to the first
+ * one this deployment offers. `null` only when it offers none.
+ *
+ * ONE resolution for every reader, and that is the point rather than a tidiness
+ * preference: Settings renders what this answers, and a turn runs what this
+ * answers. Two defaults for the same question is a fresh account being SHOWN a
+ * selected provider and then told none is selected when it sends a message.
+ *
+ * Normalized on READ rather than written back: a stored selection naming a
+ * provider this deployment stopped offering is a configuration change, not a
+ * user action, and overwriting their choice would lose it if the configuration
+ * came back.
+ */
+function effectiveProvider(
+  env: ProviderEnv,
+  stored: { readonly provider: string; readonly modelId: string } | null,
+): ProviderEntry | null {
+  const offered = offeredProviders(env);
+  const chosen = stored === null ? null : offered.find((entry) => entry.id === stored.provider);
+  return chosen ?? offered[0] ?? null;
+}
+
+/** That entry projected back into the wire shape Settings renders. */
+export function effectiveSelection(
+  env: ProviderEnv,
+  stored: { readonly provider: string; readonly modelId: string } | null,
+): { readonly provider: string; readonly modelId: string } | null {
+  const entry = effectiveProvider(env, stored);
+  if (entry === null) return null;
+  return { provider: entry.id, modelId: resolveModelId(entry, stored?.modelId) };
+}
+
 /** The provider a turn will run on, or the ONE sentence saying why none can. */
 export type ProviderChoice =
   | { readonly ok: true; readonly entry: ProviderEntry; readonly modelId: string }
@@ -257,12 +311,16 @@ export type ProviderChoice =
  * of them and a second phrasing would only be a second thing to keep true.
  */
 export function chooseProvider(
+  env: ProviderEnv,
   selection: { readonly provider: string; readonly modelId: string } | null,
   connected: (provider: string) => boolean,
 ): ProviderChoice {
-  const entry = selection === null ? null : providerEntry(selection.provider);
+  const entry = effectiveProvider(env, selection);
   if (entry === null) {
-    return { ok: false, error: "No AI provider is selected. Choose one in Settings → AI." };
+    return {
+      ok: false,
+      error: "No AI provider is configured on this deployment.",
+    };
   }
   if (!connected(entry.id)) {
     return { ok: false, error: `${entry.label} is not connected. Connect it in Settings → AI.` };

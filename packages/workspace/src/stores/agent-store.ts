@@ -33,7 +33,7 @@ import { useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
 // ---------------------------------------------------------------------------
 
 /** `delta`/`end` track a streaming assistant reply; `reset` means the chat was
- * wiped (RESET_APP_DATA) and any dependent surface should drop its state. */
+ * wiped (a new session) and any dependent surface should drop its state. */
 export type AssistantStreamEvent =
   | { kind: "delta"; text: string }
   | { kind: "end" }
@@ -54,11 +54,10 @@ function emitAssistantStream(event: AssistantStreamEvent): void {
 }
 
 // ---------------------------------------------------------------------------
-// The chat surface is the SHARED @repo/bridge/chat-log fold (the same
-// reducer the mobile app renders), projected into AI SDK UIMessages by
-// @repo/workspace/stores/chat-log-view. This store owns the desktop-only halves:
-// the per-item metadata (steer, image count), queue state, voice side
-// effects, and the IPC command routing.
+// The chat surface is the SHARED @repo/bridge/chat-log fold, projected into AI
+// SDK UIMessages by @repo/workspace/stores/chat-log-view. This store owns the
+// workspace-only halves: the per-item metadata (steer, image count), queue
+// state, voice side effects, and the Bridge command routing.
 // ---------------------------------------------------------------------------
 
 type SendOptions = {
@@ -79,13 +78,13 @@ type GetFn = StoreApi<AgentStore>["getState"];
 type AgentStore = {
   /** The shared platform-neutral chat log — source of truth for the surface. */
   log: ChatLog;
-  /** Desktop-only per-item metadata (steer flag, image count), by item id.
-   * Written once when the item is appended; reset with the log. */
+  /** Per-item surface metadata (steer flag, image count), by item id. Written
+   * once when the item is appended; reset with the log. */
   chatMeta: ReadonlyMap<string, ChatMessageMetadata>;
   /** Derived: `log` projected into UIMessages (identity-stable per item). */
   messages: ChatMessage[];
   appState: AppState;
-  /** Latest onboarding setup progress, or null before the first event arrives. */
+  /** Latest setup progress, or null before any event arrives. */
   setupProgress: SetupProgress | null;
   /** Queued messages reported by pi (steer + followUp). Cleared on agent_end. */
   queuedFollowUp: string[];
@@ -104,9 +103,6 @@ type AgentStore = {
   ) => Promise<{ flushed: boolean }>;
   interrupt: () => void;
   newSession: () => Promise<void>;
-  /** "Reset app data" (Settings): clear the chat surface locally, then ask the
-   * host for the full app-data wipe + re-setup (RESET_APP_DATA). */
-  resetAppData: () => Promise<void>;
 };
 
 function sameStrings(a: readonly string[], b: readonly string[]): boolean {
@@ -161,7 +157,7 @@ function subscribeAgentEvents(bridge: Bridge, set: SetFn, get: GetFn): () => voi
     set((s) => {
       const log = applyAgentEvent(s.log, event);
       const chat = log === s.log ? null : chatState(log, s.chatMeta);
-      // Desktop-only state riding the same update: queue bookkeeping.
+      // Surface-only state riding the same update: queue bookkeeping.
       if (event.type === "agent_end") {
         return { ...chat, queuedFollowUp: [], queuedSteering: [] };
       }
@@ -334,18 +330,9 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
   newSession: async () => {
     chatGeneration++; // invalidate any in-flight history load
     set({ ...chatState(emptyChatLog, new Map()), queuedFollowUp: [], queuedSteering: [] });
-    await getBridge().transition({ type: "NEW_SESSION" });
-  },
-
-  resetAppData: async () => {
-    chatGeneration++; // invalidate any in-flight history load
-    set({
-      ...chatState(emptyChatLog, new Map()),
-      queuedFollowUp: [],
-      queuedSteering: [],
-      setupProgress: null,
-    });
+    // Announced before the host is asked: a narration buffer holding the tail
+    // of the thread being replaced must not speak into the new one.
     emitAssistantStream({ kind: "reset" });
-    await getBridge().transition({ type: "RESET_APP_DATA" });
+    await getBridge().transition({ type: "NEW_SESSION" });
   },
 }));

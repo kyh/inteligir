@@ -4,7 +4,7 @@
 // minimal structural view (LinkGraphIndex satisfies it directly) plus an
 // injected lexical `search` port, so the ranking brain exists once
 // while each composition brings its own text engine — the in-memory tiered
-// SearchIndex (core reference, dev harness) or the SQL store's FTS5 bm25
+// SearchIndex (the core reference composition) or the SQL store's FTS5 bm25
 // (desktop host). No ML, no embeddings (that's a v2, separately).
 //
 // Signals, cheapest-first over what the knowledge engine already holds:

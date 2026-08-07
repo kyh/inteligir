@@ -37,9 +37,9 @@ export type ClientClass = "web" | "mobile";
  *
  * DELIBERATE, and the decision this module exists to make: `web` is
  * blanket-granted the whole host surface rather than an allowlist of its own.
- * That exposes `transition` (whose RESET_APP_DATA event wipes app state),
- * `connectAiProvider`, `setVoiceApiKey` and every other admin-plane channel to
- * anything holding this user's session cookie.
+ * That exposes `deleteVaultEntry`, `connectAiProvider`, `setVoiceApiKey` and
+ * every other admin-plane channel to anything holding this user's session
+ * cookie.
  *
  * It is defensible only because of the tenancy: one Durable Object per user,
  * every handler scoped to that object's own storage, and a session that already

@@ -19,13 +19,17 @@ pnpm dev:web        # vite + miniflare — the real Worker, in-process
 One command runs the whole product: the marketing site, `/api/auth/*` over a
 local D1 file, and `/app` — the workspace over a real `UserHost` Durable Object
 with the real vault (SQLite manifest + local R2), the real knowledge index, and
-the real agent path. Nothing is stubbed except the agent's container, which
-falls back to an in-memory one unless a built image and the Workers Paid plan
-are present (`AGENT_RUNTIME=scripted`).
+the real agent path. Nothing is stubbed except the agent's container, which is
+the in-memory one unless a built image and the Workers Paid plan are present
+(`AGENT_RUNTIME=scripted` in `.dev.vars`).
 
-Sign-up is invite-only and there is no seeded account. `apps/web/README.md`
-§ Dev has the exact commands to materialize the local D1 file, push the schema,
-mint an invite and sign up against it.
+Sign-up is invite-only and there is no seeded account. `AGENTS.md` § "There is no
+seeded login" has the exact commands to materialize the local D1 file, push the
+schema, mint an invite and sign up against it.
+
+There is no backend-free UI harness. `packages/workspace/src/dev/fixture-bridge.ts`
+is an in-memory Bridge, but only the workspace's own tests drive it — to see the
+UI, run the Worker.
 
 ### The shell
 
@@ -48,10 +52,10 @@ pnpm --filter @repo/mobile dev     # Expo, needs a device/simulator
 
 A signed-in shell: it holds a Better Auth session against the deployment
 (`EXPO_PUBLIC_INTELIGIR_URL`, default production) and says plainly that the
-notes, the agent and background work live in the web app. It cannot drive the
-Bridge — the host's socket upgrade requires an `Origin` header and React Native
-sends none (`CLAUDE.md` § Decisions), so admitting a native client is a design
-decision, not a config change.
+notes, the agent and background work live in the web app. The host's server-side
+half of a companion already exists — a bearer credential with no browser
+`Origin` mints a ticket for the `mobile` client class, whose reach is
+`REMOTE_ALLOWED_METHODS`/`_EVENTS` — but no companion surface is built on it.
 
 ## Where state lives
 
@@ -59,13 +63,15 @@ decision, not a config change.
 | -------------------------------------- | ----------------------------------------------- |
 | Site + product Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                    |
 | Electron CDP debugging                 | 9222                                            |
-| A user's vault manifest + ui state     | their `UserHost` Durable Object's SQLite and KV |
+| A user's vault manifest + app state    | their `UserHost` Durable Object's SQLite and KV |
 | A user's file bytes                    | R2, under that user's prefix                    |
+| A user's chat transcript + snapshots   | the same Durable Object (snapshot bytes in R2)  |
 | Accounts, sessions, invites            | D1 (local file under `apps/web/.wrangler`)      |
 
 **The knowledge index is a cache.** It persists into the same Durable Object's
 SQLite purely to make a wake cheap; corruption or a version mismatch drops the
-tables and rebuilds from the manifest. Never put durable state in it. Search is
+store's own tables and rebuilds from the manifest. Never put durable state in
+it — that database also holds the manifest, whose law is the opposite. Search is
 FTS5 bm25 (title/heading/body weighted 10/4/1) through that store.
 
 ## Quality gates
@@ -98,6 +104,8 @@ Type-checks passing isn't feature-correct. Drive the running app:
 - **Web**: `agent-browser open http://localhost:5174/app` (the agent-browser
   skill), or raw CDP if the daemon misbehaves.
 - **Shell**: `agent-browser connect 9222` attaches to its window.
+- **The Bridge directly**: from a signed-in `/app` page you can open a second
+  host socket and call any method — `docs/e2e-driving.md` has the snippet.
 - Byte-level checks: toggle Raw mode in the editor, or read the file back over
   the Bridge — the byte-stability invariant (`roundTrip(raw) === raw` for
   canonical files) is the thing most UI regressions break.

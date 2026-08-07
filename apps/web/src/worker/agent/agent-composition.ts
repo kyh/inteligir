@@ -10,9 +10,8 @@
 // The scripted branch is not a test double bolted on the side. It is how this
 // repo is developed: `@cloudflare/sandbox` needs the Workers Paid plan and a
 // built image, and the entire test suite — plus anyone running `wrangler dev`
-// without Docker — has neither. Carrying the desktop's login-free agent flow
-// (`INTELIGIR_FAUX_AGENT=1`) over meant making the login-free path a first-class
-// runtime rather than a mock.
+// without Docker — has neither. So the login-free path is a first-class runtime
+// rather than a mock, chosen once here and identical downstream.
 //
 // TWO LANES ARE TWO CONTAINERS (see ./agent-runner's header for why the split
 // has to be at the container). Everything else is shared and must be: one
