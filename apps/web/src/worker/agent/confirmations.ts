@@ -31,7 +31,7 @@
 // ---------------------------------------------------------------------------
 
 import { AGENT_CONFIRMATION_TIMEOUT_MS } from "@repo/agent-container/protocol";
-import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
+import type { AgentConfirmationRequest } from "@repo/bridge/agent-actions";
 
 export type ConfirmationProposal = Omit<AgentConfirmationRequest, "id">;
 

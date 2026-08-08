@@ -69,28 +69,11 @@ export class TagIndex {
   }
 
   /** Every tag with its note count, most-used first (ties broken alphabetically,
-   * case-insensitively) — the palette's tag list ordering.
-   *
-   * `includes` scopes the whole answer to the notes it accepts: the count is
-   * RECOMPUTED over them and a tag no accepted note carries disappears. A caller
-   * cannot get this by filtering the result — the tag list is keyed by tag, so
-   * every surviving count would still be totalling the excluded notes, and the
-   * display case would still be whichever of them was indexed first. */
-  all(includes?: (path: string) => boolean): TagCount[] {
+   * case-insensitively) — the palette's tag list ordering. */
+  all(): TagCount[] {
     const counts: TagCount[] = [];
     for (const entry of this.tags.values()) {
-      if (includes === undefined) {
-        counts.push({ tag: entry.display, count: entry.paths.size });
-        continue;
-      }
-      let count = 0;
-      let display = "";
-      for (const [path, written] of entry.paths) {
-        if (!includes(path)) continue;
-        if (count === 0) display = written;
-        count += 1;
-      }
-      if (count > 0) counts.push({ tag: display, count });
+      counts.push({ tag: entry.display, count: entry.paths.size });
     }
     return counts.toSorted(
       (a, b) => b.count - a.count || (a.tag.toLowerCase() < b.tag.toLowerCase() ? -1 : 1),

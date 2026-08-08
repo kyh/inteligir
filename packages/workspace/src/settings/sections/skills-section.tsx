@@ -14,12 +14,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@repo/bridge/client";
-import type {
-  SkillBudgetState,
-  SkillInfo,
-  SkillScope,
-  SkillSource,
-} from "@repo/bridge/ipc-registry";
+import type { SkillBudgetState, SkillInfo, SkillScope, SkillSource } from "@repo/bridge/skills";
 
 /** Mirrors the `description` cap in the createSkill wire schema — a longer one
  * is rejected host-side, so the form refuses it before the round trip. */

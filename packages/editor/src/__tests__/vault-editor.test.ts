@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+import type { DeleteVaultEntryResult } from "@repo/bridge/vault";
 
 import { VaultEditorController, type VaultIO } from "@repo/editor/vault-editor";
 

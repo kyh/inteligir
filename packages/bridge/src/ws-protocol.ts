@@ -2,7 +2,7 @@
 // WS Bridge wire protocol — the frame vocabulary shared by the UserHost Durable
 // Object and the ws client (ws-bridge.ts). Text frames are JSON; binary frames
 // are [1-byte tag][payload bytes], and WHICH channels use them is declared in
-// ipc-registry's BINARY_CHANNELS — this module only knows how to frame bytes,
+// channel-policy's BINARY_CHANNELS — this module only knows how to frame bytes,
 // never which feature owns them. Isomorphic: no node imports, so it loads in
 // the browser and React Native alike. All inbound parsing goes through the
 // type-guard parse functions so a malformed frame is a `null`, never a throw.
@@ -18,7 +18,7 @@ import { isRecord } from "./wire-helpers";
  * before one arrived). */
 export const WS_CLOSE_UNAUTHORIZED = 4401;
 
-// Binary tag values live in ipc-registry's BINARY_CHANNELS, beside every other
+// Binary tag values live in channel-policy's BINARY_CHANNELS, beside every other
 // channel declaration.
 
 // ---------------------------------------------------------------------------

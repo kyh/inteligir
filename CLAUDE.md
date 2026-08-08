@@ -464,21 +464,37 @@ command palette.
 
 ## IPC / Bridge
 
-`packages/bridge/src/ipc-registry.ts` is the single source of truth: each
-channel pairs a TypeBox payload schema with a result/event type, and the
-transport-agnostic `Bridge` type is derived from it. The host's schema-validated
-handler map (`apps/web/src/worker/host/`) is derived from the same registry, so
-the two ends cannot drift. Add a channel = registry entry + host handler + one
-line in the fixture Bridge (`packages/workspace/src/dev/fixture-bridge.ts`),
-which fails typecheck until covered. The fixture stub must do something real
-against the in-memory state or throw an error naming the gap — never silently
-return `[]`/undefined.
+**The IPC seam is four files, split so a reader can tell the list from the
+machinery.** `ipc-entry.ts` is the vocabulary — four channel kinds, four
+one-line constructors. `ipc-registry.ts` is THE TABLE: one row per channel,
+grouped by domain, naming channels and nothing else. `ipc-contract.ts` is the
+machinery every row derives — `Bridge`, `HostMethod`, `EventMethod`,
+`IpcHandler`, `IpcEvent` — and names no channel. `channel-policy.ts` is what
+is left over: the three per-channel opt-ins the compiler cannot ask for.
 
-A couple of channels carry raw PCM and cross as binary frames instead of
-base64-in-JSON; `BINARY_CHANNELS` is the only place that mapping lives.
-`HYDRATED_EVENTS` pairs each stateful event with the getter that answers its
-current state, re-pushed after every connect — full event replay is deliberately
-not provided.
+Payload schemas and result types live with their DOMAIN (`vault.ts`,
+`knowledge.ts`, `skills.ts`, `delegation.ts`, `agent-actions.ts`, …), never in
+the registry — a table you read one row at a time is worth more than a file
+that holds everything a row mentions.
+
+**Adding a channel is four COMPILE errors and one test.** Registry entry, host
+handler (`collectHandlers` refuses to construct without it), fixture-Bridge line
+(`packages/workspace/src/dev/fixture-bridge.ts`), and a grant-table row
+(`EVERY_METHOD_IS_WEIGHED` in `agent-grants.ts` stops compiling, naming the
+method). Nothing is pinned by hand — no written-down method list, no asserted
+count. The test that remains is the one no type can see: `no-dead-channels`
+proves a real CALLER exists. The fixture stub must do something real against the
+in-memory state or throw an error naming the gap — never silently return
+`[]`/undefined.
+
+The three opt-ins in `channel-policy.ts` stay lists rather than an exhaustive
+per-method table, because the default answer to each is NO and the default is
+the safe one: unnamed means unreachable from a companion, never re-pushed on
+reconnect, framed as JSON. An exhaustive table would force sixty rows of "no"
+and make the wrong answer as cheap to write as the right one. `BINARY_CHANNELS`
+is the only place the raw-PCM tag mapping lives; `HYDRATED_EVENTS` pairs each
+stateful event with the getter that answers its current state, re-pushed after
+every connect — full event replay is deliberately not provided.
 
 ## The shells
 
@@ -626,8 +642,8 @@ record for the decisions code comments cite.
   deletable. `@repo/notes` carries no sqlite dependency deliberately — it is the
   pure sharing seam, `SqlDriver` is platform-injected — so this in-memory
   composition is the ONLY way the package can test its own knowledge engine;
-  ~1,200 lines of tests for related-notes, tags, the link graph, the perf oracle
-  and the privacy gate drive production logic through it.
+  a thousand-odd lines of tests for related-notes, tags, the link graph and the
+  perf oracle drive production logic through it.
 
 - **Frontmatter is the ONLY property store.** No metadata table, ever. Typed
   properties parse and serialize against the file's own YAML

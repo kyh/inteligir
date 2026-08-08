@@ -24,7 +24,7 @@
 // it unset and never constructs this.
 // ---------------------------------------------------------------------------
 
-import type { FauxAgentScript } from "@repo/bridge/ipc-registry";
+import type { FauxAgentScript } from "@repo/bridge/agent-script";
 import {
   bytesToBase64,
   CONTAINER_REFUSAL,

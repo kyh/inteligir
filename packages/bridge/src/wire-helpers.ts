@@ -2,7 +2,7 @@
 // Small helpers shared across the IPC seam (host, transports, renderer,
 // mobile): error stringification, wire-value guards, message-text extraction.
 // The channel-and-schema registry — and every type that flows through it —
-// lives in ipc-registry.ts; import those from there directly.
+// lives with its domain module (./vault, ./knowledge, …); import those directly.
 // ---------------------------------------------------------------------------
 
 /**

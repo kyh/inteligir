@@ -10,8 +10,6 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-import type { HostMethod } from "@repo/bridge/ipc-registry";
-
 import { mayInvoke, mayReceive } from "../host/client-class";
 import { HOST_METHODS, type HostHandlers } from "../host/handler-registry";
 import { userHostName } from "../host/host-address";
@@ -19,74 +17,6 @@ import { composeHost } from "../host/host-composition";
 import { HostEvents } from "../host/host-events";
 import { allowedOrigins, originAllowed } from "../host/origins";
 import { matchHostLeaf } from "../host/host-route";
-
-/** The methods this host answers. Pinned as a list rather than derived, so a
- * channel arriving or leaving is a diff someone had to write down. */
-const IMPLEMENTED: readonly HostMethod[] = [
-  "getAppState",
-  "transition",
-  "getUiState",
-  "setUiState",
-  "getNotificationSettings",
-  "updateNotificationSettings",
-  "getWorkspaceBoot",
-  "listVault",
-  "readVaultDoc",
-  "getVaultFileFacts",
-  "writeVaultDoc",
-  "deleteVaultEntry",
-  "renameVaultEntry",
-  "writeVaultAsset",
-  "readVaultAsset",
-  "refreshVault",
-  "getBacklinks",
-  "getForwardLinks",
-  "getLinkGraph",
-  "searchVault",
-  "listWikiTargets",
-  "listVaultTasks",
-  "toggleVaultTask",
-  "sendAgentCommand",
-  "getAgentHistory",
-  "listChatSessions",
-  "readChatSession",
-  "reauthenticate",
-  "setFauxAgentScript",
-  "getAgentSystemPrompt",
-  "resolveAgentConfirmation",
-  "getAiProviderSettings",
-  "setAiProviderConfig",
-  "connectAiProvider",
-  "disconnectAiProvider",
-  "createDelegation",
-  "listDelegations",
-  "cancelDelegation",
-  "restoreDelegationSnapshot",
-  "listRoutines",
-  "upsertRoutine",
-  "deleteRoutine",
-  "runRoutineNow",
-  "restoreRoutineRun",
-  "restoreAgentEdits",
-  "generateInlineAi",
-  "cancelInlineAi",
-  "classifyAiIntent",
-  "generateGhostText",
-  "cancelGhostText",
-  "listGhostModels",
-  "isTtsAvailable",
-  "setVoiceApiKey",
-  "ttsSend",
-  "ttsFlush",
-  "ttsInterrupt",
-  "startStt",
-  "sendSttAudio",
-  "stopStt",
-  "ackCapture",
-  "takePendingDeepLinkNav",
-  "listSkills",
-  "createSkill",
-];
 
 /**
  * The handler map, built by the SAME `composeHost` the Durable Object's own
@@ -111,19 +41,13 @@ function withHandlers<T>(
 }
 
 describe("cloud handler registry", () => {
-  it("registers every host method the IPC registry declares", async () => {
+  // Against the registry, never against a written-down copy of it: a pinned
+  // list asserts what `collectHandlers` already refuses to construct without,
+  // and its only real effect is a hand-maintained count someone forgets to bump.
+  it("registers every host method the IPC registry declares, and nothing else", async () => {
     await withHandlers(({ handlers }) => {
-      const registered = Object.keys(handlers);
-      expect(registered).toHaveLength(HOST_METHODS.length);
-      expect(registered.toSorted()).toEqual([...HOST_METHODS].toSorted());
+      expect(Object.keys(handlers).toSorted()).toEqual([...HOST_METHODS].toSorted());
     });
-  });
-
-  it("implements every one of them — there is no second pile", () => {
-    expect(HOST_METHODS).toHaveLength(63);
-    expect(IMPLEMENTED).toHaveLength(63);
-    expect(new Set(IMPLEMENTED).size, "a method is listed twice").toBe(IMPLEMENTED.length);
-    expect([...IMPLEMENTED].toSorted()).toEqual([...HOST_METHODS].toSorted());
   });
 
   it("persists ui state and notification settings through the store", async () => {

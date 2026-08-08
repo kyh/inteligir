@@ -12,11 +12,11 @@
 // DO NOT DELETE it as "unused in production".
 // @repo/notes carries no sqlite dependency ON PURPOSE (it is the pure sharing
 // seam; SqlDriver is injected by each platform), so this is the ONLY way the
-// package can test its own knowledge engine. Roughly 1,200 lines of tests for
-// related-notes scoring, the tag index, the link graph, the perf oracle and the
-// privacy gate drive production logic THROUGH it. Removing it would force a
-// sqlite devDependency into the pure package or exile those tests to the node
-// host. Its ~230 lines are the cheap side of that trade.
+// package can test its own knowledge engine. Roughly a thousand lines of tests
+// for related-notes scoring, the tag index, the link graph and the perf oracle
+// drive production logic THROUGH it. Removing it would force a sqlite
+// devDependency into the pure package or exile those tests to the node host.
+// Its ~200 lines are the cheap side of that trade.
 // ---------------------------------------------------------------------------
 
 import { LinkGraphIndex } from "./link-graph-index";
@@ -24,7 +24,6 @@ import type {
   BacklinkEntry,
   ForwardLinkEntry,
   LinkGraph,
-  PrivacyOpts,
   VaultTaskEntry,
   WikiTarget,
 } from "./link-graph-index";
@@ -79,30 +78,25 @@ export class KnowledgeIndex {
 
   // ---- Queries ---------------------------------------------------------------
 
-  backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[] {
-    return this.linkGraph.backlinks(path, opts);
+  backlinks(path: string): BacklinkEntry[] {
+    return this.linkGraph.backlinks(path);
   }
 
   forwardLinks(path: string): ForwardLinkEntry[] {
     return this.linkGraph.forwardLinks(path);
   }
 
-  graph(opts?: PrivacyOpts): LinkGraph {
-    return this.linkGraph.graph(opts);
+  graph(): LinkGraph {
+    return this.linkGraph.graph();
   }
 
-  wikiTargets(opts?: PrivacyOpts): WikiTarget[] {
-    return this.linkGraph.wikiTargets(opts);
+  wikiTargets(): WikiTarget[] {
+    return this.linkGraph.wikiTargets();
   }
 
-  search(query: string, limit: number = SEARCH_DEFAULT_LIMIT, opts?: PrivacyOpts): SearchResult[] {
+  search(query: string, limit: number = SEARCH_DEFAULT_LIMIT): SearchResult[] {
     const tokens = tokenize(query);
-    let ranked = this.searchIndex.search(query, limit);
-    // Post-limit filter (the SQL store filters pre-limit via WHERE): fine for
-    // this reference composition — agent callers re-probe live disk anyway.
-    if (opts?.excludePrivate === true) {
-      ranked = ranked.filter(({ path }) => this.linkGraph.isPrivate(path) !== true);
-    }
+    const ranked = this.searchIndex.search(query, limit);
     return ranked.map(({ path, score }) => ({
       path,
       title: this.linkGraph.titleOf(path) ?? titleFromPath(path),
@@ -111,16 +105,16 @@ export class KnowledgeIndex {
     }));
   }
 
-  tags(opts?: PrivacyOpts): TagCount[] {
-    return this.linkGraph.tags(opts);
+  tags(): TagCount[] {
+    return this.linkGraph.tags();
   }
 
-  tasks(opts?: PrivacyOpts): VaultTaskEntry[] {
-    return this.linkGraph.tasks(opts);
+  tasks(): VaultTaskEntry[] {
+    return this.linkGraph.tasks();
   }
 
-  notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
-    return this.linkGraph.notesWithTag(tag, opts);
+  notesWithTag(tag: string): string[] {
+    return this.linkGraph.notesWithTag(tag);
   }
 
   /** Ranked related notes (shared links, co-citation, shared tags, lexical

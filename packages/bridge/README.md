@@ -13,11 +13,27 @@ handler map and the client's `Bridge` type cannot drift.
 
 ## Layout
 
+The IPC seam is four files, split so a reader can tell the list from the
+machinery — the table is flat and long, the derivations are short and deep, and
+the judgement calls are neither:
+
 ```
 src/
-  ipc-registry.ts       # THE single source of truth: every channel = TypeBox payload
-                        # schema + result/event type; Bridge, IpcHandler, IpcEvent,
-                        # IPC_METHODS, HYDRATED_EVENTS all derive from it
+  ipc-entry.ts          # the four channel kinds (invoke / invokeVoid / send / event)
+                        # and the phantom types that carry their wire shapes
+  ipc-registry.ts       # THE TABLE: every channel, one row, grouped by domain.
+                        # Names channels and nothing else — schemas and result
+                        # types live with their domain module
+  ipc-contract.ts       # THE MACHINERY, all derived from the table and naming no
+                        # channel: Bridge, HostMethod, EventMethod, IpcHandler,
+                        # IpcEvent
+  channel-policy.ts     # the three per-channel opt-ins the compiler cannot ask
+                        # for: REMOTE_ALLOWED_*, HYDRATED_EVENTS, BINARY_CHANNELS
+  vault.ts, knowledge.ts, skills.ts, notifications.ts
+                        # the payload schemas + result types those channels carry
+  agent-actions.ts, agent-script.ts
+                        # agent write checkpoints + destructive confirmations;
+                        # the scripted container's queued turns
   ws-protocol.ts        # frame vocabulary shared by the UserHost DO + client:
                         # auth/req/send → welcome/res/evt; close codes; binary tags
   ws-bridge.ts          # the Bridge over a WebSocket (browser + React Native);
@@ -54,10 +70,16 @@ src/
   TypeBox payload schema (runtime validation) with a result/event type
   (compile-time inference); `Bridge` and the ws dispatch derive from it, so a
   rename is a compile error everywhere. Add a channel = registry entry + host
-  handler + a real fixture-bridge line — checklist in
-  `.claude/skills/add-bridge-channel`. A channel with no CALLER is caught by
-  `tools/repo-guards`, and one the grant table has not weighed by
-  `src/__tests__/agent-grants.test.ts`.
+  handler + a real fixture-bridge line + a grant-table row — all four are
+  COMPILE errors until answered, which is why the skill
+  (`.claude/skills/add-bridge-channel`) is short. The one thing left to a test
+  is the one no type can see: a channel with no CALLER anywhere in the repo
+  (`tools/repo-guards`).
+- **The registry holds no domain types.** A payload schema or a result type
+  lives in the module that owns the concept (`vault.ts`, `knowledge.ts`,
+  `delegation.ts`, …) and the table imports it. That keeps the table readable
+  one row at a time, and keeps a type's consumers off the registry's import
+  graph.
 - **All inbound frame parsing is a type guard**: a malformed frame is `null`,
   never a throw (`ws-protocol.ts` parse functions).
 - **deep-link.ts is world-invokable**, so every guard lives in the pure

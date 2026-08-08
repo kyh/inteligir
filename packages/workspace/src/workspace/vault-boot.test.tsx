@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 import { installBridge } from "@repo/bridge/client";
-import type { Bridge } from "@repo/bridge/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-contract";
 import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import { publishEditor, publishOpenPath, useOpenNote } from "@repo/editor/note/open-note-store";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";

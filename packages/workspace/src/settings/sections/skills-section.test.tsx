@@ -11,7 +11,8 @@ import { afterEach, describe, expect, it } from "vitest";
 // No vitest globals in this repo, so testing-library can't auto-cleanup.
 afterEach(cleanup);
 
-import type { Bridge, SkillInfo } from "@repo/bridge/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-contract";
+import type { SkillInfo } from "@repo/bridge/skills";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { createFixtureBridge } from "@repo/workspace/dev/fixture-bridge";
 import { createWasmSqlDriver, loadSqlite3 } from "@repo/workspace/dev/wasm-sql-driver";

@@ -6,7 +6,7 @@ import type {
   DeleteVaultEntryResult,
   ReadVaultAssetResult,
   WorkspaceBoot,
-} from "@repo/bridge/ipc-registry";
+} from "@repo/bridge/vault";
 import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 

@@ -8,7 +8,7 @@
 // on an update.
 // ---------------------------------------------------------------------------
 
-import type { NotificationSettings } from "@repo/bridge/ipc-registry";
+import type { NotificationSettings } from "@repo/bridge/notifications";
 import { UiStateSchema, type UiState } from "@repo/bridge/ui-state";
 import { createDoStoreAdapter, type SyncKv } from "../store/do-store-adapter";
 import { JsonStoreCore } from "../store/json-store-core";

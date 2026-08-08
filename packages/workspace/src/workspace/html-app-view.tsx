@@ -22,7 +22,7 @@ import { Button } from "@repo/ui/components/button";
 
 import { confirmVaultDelete } from "@repo/workspace/components/confirm-vault-delete";
 import { getBridge } from "@repo/bridge/client";
-import { vaultChangeTouches } from "@repo/bridge/ipc-registry";
+import { vaultChangeTouches } from "@repo/bridge/vault";
 import { handleBrokerRequest } from "@repo/workspace/workspace/html-app-broker";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { htmlAppRuntime } from "@repo/workspace/workspace/html-app-host";

@@ -9,7 +9,7 @@
 // refusal a user can act on.
 // ---------------------------------------------------------------------------
 
-import type { RestoreAgentEditsResult } from "@repo/bridge/ipc-registry";
+import type { RestoreAgentEditsResult } from "@repo/bridge/agent-actions";
 
 import type { AgentSnapshots } from "../agent/agent-snapshots";
 import type { HandlerRegistrar } from "../host/handler-registry";

@@ -25,7 +25,7 @@ src/
 The host's half of a companion is built and tested. `POST /v1/host/ticket` with
 a **bearer token and no browser `Origin`** mints a ticket for the `mobile`
 client class, and every socket that spends one reaches exactly
-`REMOTE_ALLOWED_METHODS`/`_EVENTS` (`@repo/bridge/ipc-registry`) — chat plus the
+`REMOTE_ALLOWED_METHODS`/`_EVENTS` (`@repo/bridge/channel-policy`) — chat plus the
 delegation dock — enforced at invoke, at broadcast and at reconnect hydration.
 React Native's `WebSocket` sends no Origin, which is what makes a bearer the
 right credential and the absent Origin merely corroborating: the class comes

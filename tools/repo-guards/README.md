@@ -59,7 +59,7 @@ So `IPC_METHODS` is resolved from `@repo/bridge` and each name is searched for
 across `apps/`, `packages/`, `tools/`, `docs/` and `.claude/`, minus a SUPPLY
 set — files that mention every method by construction:
 
-- `ipc-registry.ts`, the fixture Bridge, and any file matching
+- `ipc-registry.ts`, `channel-policy.ts`, the fixture Bridge, and any file matching
   `/(?:[a-z-]*handlers|handler-registry)\.ts$/` (the host's registrations are
   spread across the Worker's feature folders, so the exclusion is by name).
 - **`agent-grants.ts`**, for the sharpest version of the same reason: it

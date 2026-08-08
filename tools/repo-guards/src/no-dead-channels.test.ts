@@ -37,6 +37,7 @@ const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 const SUPPLY = new Set(
   [
     "packages/bridge/src/ipc-registry.ts",
+    "packages/bridge/src/channel-policy.ts",
     "packages/bridge/src/agent-grants.ts",
     "packages/workspace/src/dev/fixture-bridge.ts",
     "tools/repo-guards/src/no-dead-channels.test.ts",

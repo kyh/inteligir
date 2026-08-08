@@ -27,7 +27,8 @@ import {
   serializeDoc,
   splitFrontmatter,
 } from "@repo/notes/markdown/frontmatter";
-import { heldDeletionMessage, type Bridge } from "@repo/bridge/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-contract";
+import { heldDeletionMessage } from "@repo/bridge/vault";
 
 /** The Bridge slice the broker uses — nothing more. */
 export type BrokerBridge = Pick<

@@ -13,7 +13,8 @@ import {
   type ChatLog,
 } from "@repo/bridge/chat-log";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import type { Bridge, SetupProgress } from "@repo/bridge/ipc-registry";
+import type { SetupProgress } from "@repo/bridge/app-state";
+import type { Bridge } from "@repo/bridge/ipc-contract";
 import { buildNoteContext } from "@repo/bridge/note-context";
 import type { ImageAttachment } from "@repo/bridge/chat-message";
 import { getBridge } from "@repo/bridge/client";

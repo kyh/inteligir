@@ -20,7 +20,7 @@ import {
 } from "@repo/bridge/agent-instructions";
 import { renderNeverGrantedSection } from "@repo/bridge/agent-grants";
 
-import type { SkillInfo } from "@repo/bridge/ipc-registry";
+import type { SkillInfo } from "@repo/bridge/skills";
 
 import { listVaultSkills, promptableSkills, SKILLS_DIR } from "../skills/vault-skills";
 import type { UserVault } from "../host/vault/user-vault";

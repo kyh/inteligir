@@ -15,7 +15,7 @@ import { SettingSwitchRow } from "@repo/workspace/settings/sections/setting-swit
 import { SkillsSection } from "@repo/workspace/settings/sections/skills-section";
 import { VoiceSection } from "@repo/workspace/settings/sections/voice-section";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
-import type { NotificationSettings } from "@repo/bridge/ipc-registry";
+import type { NotificationSettings } from "@repo/bridge/notifications";
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: typeof SunIcon }[] = [
   { value: "system", label: "System", icon: MonitorIcon },

@@ -8,13 +8,8 @@
 // the transport passes raw wire values straight in.
 // ---------------------------------------------------------------------------
 
-import {
-  IPC,
-  IPC_METHODS,
-  type HostMethod,
-  type IpcHandler,
-  type IpcMethod,
-} from "@repo/bridge/ipc-registry";
+import type { HostMethod, IpcHandler } from "@repo/bridge/ipc-contract";
+import { IPC, IPC_METHODS, type IpcMethod } from "@repo/bridge/ipc-registry";
 import type { TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 

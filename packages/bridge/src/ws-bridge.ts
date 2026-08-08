@@ -14,7 +14,9 @@
 // ---------------------------------------------------------------------------
 
 import { createBackoff, timeoutSchedule } from "./backoff";
-import { IPC, binaryChannelFor, binaryChannelForTag, type Bridge } from "./ipc-registry";
+import { binaryChannelFor, binaryChannelForTag } from "./channel-policy";
+import type { Bridge } from "./ipc-contract";
+import { IPC } from "./ipc-registry";
 import { isRecord } from "./wire-helpers";
 import {
   WS_CLOSE_UNAUTHORIZED,

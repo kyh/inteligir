@@ -13,7 +13,7 @@ import {
   type ClientFrame,
   type ServerFrame,
 } from "../ws-protocol";
-import { binaryChannelFor } from "../ipc-registry";
+import { binaryChannelFor } from "../channel-policy";
 
 // Derived from the registry rather than hardcoded, so a retagged channel fails
 // here instead of silently changing the wire.

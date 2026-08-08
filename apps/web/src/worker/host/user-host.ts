@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
-import { binaryChannelForTag } from "@repo/bridge/ipc-registry";
+import { binaryChannelForTag } from "@repo/bridge/channel-policy";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import {
   decodeBinaryFrame,

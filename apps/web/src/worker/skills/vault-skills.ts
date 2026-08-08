@@ -30,7 +30,7 @@
 // read on demand. Here the read is the agent's ordinary file tool.
 // ---------------------------------------------------------------------------
 
-import type { SkillBudgetState, SkillInfo } from "@repo/bridge/ipc-registry";
+import type { SkillBudgetState, SkillInfo } from "@repo/bridge/skills";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 
 import type { UserVault } from "../host/vault/user-vault";

@@ -25,7 +25,7 @@
 import type { SlateEditor } from "platejs";
 
 import { appendCaptureLine, hasExactCaptureLine } from "@repo/bridge/deep-link";
-import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/bridge/ipc-registry";
+import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/bridge/deep-link";
 
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 

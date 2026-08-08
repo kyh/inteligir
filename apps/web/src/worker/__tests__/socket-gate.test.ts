@@ -11,7 +11,7 @@
 // Invert `mayReceive` and this file turns red.
 // ---------------------------------------------------------------------------
 
-import { REMOTE_ALLOWED_EVENTS } from "@repo/bridge/ipc-registry";
+import { REMOTE_ALLOWED_EVENTS } from "@repo/bridge/channel-policy";
 import { parseServerFrame } from "@repo/bridge/ws-protocol";
 import { describe, expect, it } from "vitest";
 

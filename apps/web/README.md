@@ -377,7 +377,7 @@ four halves of it live in the host object, because the object is the account.
 ### Workspace host (`/v1/host/*`)
 
 **One Durable Object per user** (`env.UserHost.getByName("user:" + userId)`)
-serving that user’s Bridge — the 63 host methods and 16 event channels
+serving that user’s Bridge — every host method and event channel
 `@repo/bridge/ipc-registry` declares — over one hibernatable WebSocket per
 client.
 

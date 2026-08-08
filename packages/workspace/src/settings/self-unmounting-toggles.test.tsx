@@ -27,7 +27,7 @@ vi.stubGlobal(
   }),
 );
 
-import type { Bridge } from "@repo/bridge/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-contract";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import { createFixtureBridge } from "@repo/workspace/dev/fixture-bridge";

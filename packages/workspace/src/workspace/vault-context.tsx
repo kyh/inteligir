@@ -45,7 +45,7 @@ import {
   type DeleteVaultEntryResult,
   type VaultChangedEvent,
   type VaultEntry,
-} from "@repo/bridge/ipc-registry";
+} from "@repo/bridge/vault";
 import { UI_STATE_OPEN_NOTE_KEY as OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 
 /** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,

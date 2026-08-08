@@ -15,6 +15,8 @@
 // Anything else parses to null. Oversize input is REJECTED, never truncated.
 // ---------------------------------------------------------------------------
 
+import { type Static, Type } from "@sinclair/typebox";
+
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 
@@ -48,6 +50,39 @@ export type DeepLinkAction =
   | { kind: "capture"; capture: CaptureKind; text: string }
   | { kind: "nav"; nav: DeepLinkNav }
   | { kind: "session"; code: string; state: string };
+
+// ---- Applying a capture ------------------------------------------------------
+//
+// A capture verb lands on TODAY's daily note through a durable inbox with an
+// exactly-once apply. Only the OPEN note is ever applied through the client's
+// live buffer (a host write to an open DIRTY note would be overwritten by the
+// next whole-buffer flush); everything else drains host-side.
+
+/** A capture the host wants applied to the OPEN note's live buffer: the
+ * durable inbox entry's id, the daily-note path it targets, and the exact
+ * (already sanitized) line to append. */
+export type CaptureApplyEvent = { id: string; path: string; line: string };
+
+/** The client's verdict on a capture-apply: `applied` (persisted through
+ * the live buffer — remove the inbox entry), `not-open` (host drains it to
+ * disk now), or `deferred` (a transient AI session blocks the buffer — keep
+ * the entry, cancel the host's timeout drain, the client re-acks when the
+ * session settles). */
+export const AckCaptureSchema = Type.Object(
+  {
+    id: Type.String(),
+    outcome: Type.Union([
+      Type.Literal("applied"),
+      Type.Literal("not-open"),
+      Type.Literal("deferred"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+
+/** The capture-apply verdict — the ONE declaration; the client applier and the
+ * host's capture inbox both import it, so the ack contract can't fork. */
+export type CaptureAckOutcome = Static<typeof AckCaptureSchema>["outcome"];
 
 // The markdown/MDX-active characters a captured line must never smuggle in
 // live: `[` (wiki-links, transclusions, images, links), `<` (our MDX

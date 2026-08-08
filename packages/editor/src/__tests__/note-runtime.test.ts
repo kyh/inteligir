@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+import type { DeleteVaultEntryResult } from "@repo/bridge/vault";
 
 import { type VaultIO } from "@repo/editor/vault-editor";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";

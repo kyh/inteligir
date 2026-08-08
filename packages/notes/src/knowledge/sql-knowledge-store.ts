@@ -39,7 +39,7 @@ import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 7;
+export const KNOWLEDGE_SCHEMA_VERSION = 8;
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 type SqlValue = null | number | string;
@@ -129,8 +129,7 @@ CREATE TABLE files (
   content_hash TEXT,
   mtime_ms REAL,
   size INTEGER,
-  ino INTEGER,
-  is_private INTEGER NOT NULL DEFAULT 1
+  ino INTEGER
 );
 CREATE TABLE links (
   source_path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
@@ -175,7 +174,7 @@ CREATE TABLE tasks (
   PRIMARY KEY (path, ordinal)
 );
 CREATE VIRTUAL TABLE search_fts USING fts5(
-  title, headings, body, path UNINDEXED, is_private UNINDEXED,
+  title, headings, body, path UNINDEXED,
   tokenize='unicode61 tokenchars ''_'''
 );
 `;
@@ -183,37 +182,15 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 // bm25() returns lower-is-better (negative) ranks; weights mirror the pure
 // SearchIndex's TITLE_WEIGHT/HEADING_WEIGHT/BODY_WEIGHT so a title hit beats a
 // body-only hit. Path tiebreak keeps ordering deterministic.
-//
-// A client's search and the agent's differ by ONE extra WHERE term, so both
-// are cut from this template: the bm25 weights and the snippet config MUST
-// agree between them, or the agent ranks and quotes hits differently from what
-// the user sees. That term is the only interpolation and both call sites pass a
-// literal — every VALUE still binds through `?`.
-const searchSql = (privacyTerm: string): string => `
+const SEARCH_SQL = `
 SELECT path, title,
   snippet(search_fts, 2, '', '', '…', 12) AS snip,
   bm25(search_fts, 10.0, 4.0, 1.0) AS rank
 FROM search_fts
-WHERE search_fts MATCH ?${privacyTerm}
+WHERE search_fts MATCH ?
 ORDER BY rank, path
 LIMIT ?
 `;
-
-const SEARCH_SQL = searchSql("");
-
-// The agent-facing variant: `private: true` docs are excluded INSIDE the query,
-// so the limit applies to public hits and a private path/snippet can never even
-// transit the result set.
-//
-// The flag is carried as an UNINDEXED FTS5 column rather than joined from
-// `files`, which is correctness-neutral and a large cost difference: an
-// `IN (SELECT rowid FROM files WHERE is_private = 0)` term against a MATCH
-// query is QUADRATIC in corpus size (SQLite re-drives the row list per matched
-// row) — at 4k docs a term appearing in every note took 1.1s, at 50k it took
-// 198s, against ~77ms for the same query unfiltered. As a stored column the
-// filter is a residual test on rows the cursor already produced, so the
-// agent-facing search costs what a client's does.
-const SEARCH_PUBLIC_SQL = searchSql(" AND is_private = 0");
 
 // Hydration reads. Both `files` pages are keyset-paginated (`path > ?` against
 // the PK index) rather than OFFSET-paginated, so page N costs the same as page
@@ -221,7 +198,7 @@ const SEARCH_PUBLIC_SQL = searchSql(" AND is_private = 0");
 // child row in that window belongs to a doc in the page, because non-doc files
 // never keep child rows (upsertOther deletes them).
 const DOC_PAGE_SQL = `
-SELECT path, title, content_hash, mtime_ms, size, ino, is_private
+SELECT path, title, content_hash, mtime_ms, size, ino
 FROM files WHERE kind = 'doc' AND path > ? ORDER BY path LIMIT ?
 `;
 const OTHER_PAGE_SQL = `
@@ -470,7 +447,6 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         links: [],
         tags: [],
         aliases: [],
-        private: columnNumber(row, "is_private") !== 0,
         tasks: [],
       };
       docs.set(path, {
@@ -580,12 +556,11 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
       transaction(() => {
         const { projection } = row;
         driver.run(
-          `INSERT INTO files (path, kind, title, content_hash, mtime_ms, size, ino, is_private)
-           VALUES (?, 'doc', ?, ?, ?, ?, ?, ?)
+          `INSERT INTO files (path, kind, title, content_hash, mtime_ms, size, ino)
+           VALUES (?, 'doc', ?, ?, ?, ?, ?)
            ON CONFLICT(path) DO UPDATE SET
              kind = 'doc', title = excluded.title, content_hash = excluded.content_hash,
-             mtime_ms = excluded.mtime_ms, size = excluded.size, ino = excluded.ino,
-             is_private = excluded.is_private`,
+             mtime_ms = excluded.mtime_ms, size = excluded.size, ino = excluded.ino`,
           [
             row.path,
             projection.title,
@@ -593,7 +568,6 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
             row.fingerprint.mtimeMs,
             row.fingerprint.size,
             row.fingerprint.ino,
-            projection.private ? 1 : 0,
           ],
         );
         deleteChildren(row.path);
@@ -655,17 +629,14 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
           // Aliases ride the headings column — a ranking boost only (the alias
           // bytes already match via the body, which includes the frontmatter),
           // mirroring the pure SearchIndex composition in knowledge-index.ts.
-          // `is_private` is stored, not indexed: it is the agent-facing query's
-          // filter (see SEARCH_PUBLIC_SQL), never a search term.
-          `INSERT INTO search_fts (rowid, title, headings, body, path, is_private)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO search_fts (rowid, title, headings, body, path)
+           VALUES (?, ?, ?, ?, ?)`,
           [
             rowid,
             projection.title,
             [...projection.headings, ...projection.aliases].join("\n"),
             body,
             row.path,
-            projection.private ? 1 : 0,
           ],
         );
       });
@@ -681,7 +652,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
           `INSERT INTO files (path, kind) VALUES (?, 'other')
            ON CONFLICT(path) DO UPDATE SET
              kind = 'other', title = NULL, content_hash = NULL,
-             mtime_ms = NULL, size = NULL, ino = NULL, is_private = 1`,
+             mtime_ms = NULL, size = NULL, ino = NULL`,
           [path],
         );
         deleteChildren(path);
@@ -713,11 +684,10 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
       });
     },
 
-    search(query, limit, opts): SearchResult[] {
+    search(query, limit): SearchResult[] {
       const match = buildFtsMatchQuery(query);
       if (match === null || limit <= 0) return [];
-      const sql = opts?.excludePrivate === true ? SEARCH_PUBLIC_SQL : SEARCH_SQL;
-      return driver.all(sql, [match, limit]).map((row) => {
+      return driver.all(SEARCH_SQL, [match, limit]).map((row) => {
         const title = columnString(row, "title");
         const snippet = columnString(row, "snip").trim();
         return {

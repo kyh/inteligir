@@ -19,8 +19,8 @@ import { useEffect } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
 
-import type { Bridge } from "@repo/bridge/ipc-registry";
-import type { AgentEditCaptured } from "@repo/bridge/ipc-registry";
+import type { AgentEditCaptured } from "@repo/bridge/agent-actions";
+import type { Bridge } from "@repo/bridge/ipc-contract";
 import { getBridge } from "@repo/bridge/client";
 import {
   connectAgentEditUndo,

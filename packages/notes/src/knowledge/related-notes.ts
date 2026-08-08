@@ -18,14 +18,8 @@
 // DIRECT neighbors (notes this note links to / notes linking to it) are
 // excluded by design: the Links + Backlinks panels already surface them, and
 // the point of Related is the ring the user has NOT already wired up.
-//
-// Privacy mirrors backlinks() exactly (link-graph-index.ts): everything is
-// visible by default (a private note is the user's own screen), and under
-// `excludePrivate` a private SUBJECT yields [] silently while private
-// candidates drop entirely — never annotated, indistinguishable from absent.
 // ---------------------------------------------------------------------------
 
-import type { PrivacyOpts } from "./link-graph-index";
 import { tokenize } from "./search-index";
 
 /** One ranked related note. `reasons` is the explainability payload — short
@@ -38,7 +32,7 @@ export type RelatedNoteEntry = {
   reasons: string[];
 };
 
-export type RelatedNotesOpts = PrivacyOpts & {
+export type RelatedNotesOpts = {
   /** Max entries returned (default {@link RELATED_DEFAULT_LIMIT}). */
   limit?: number;
 };
@@ -52,7 +46,6 @@ export type RelatedNotesGraph = {
   tagsOf(path: string): readonly string[];
   notesWithTag(tag: string): readonly string[];
   titleOf(path: string): string | null;
-  isPrivate(path: string): boolean | undefined;
 };
 
 /** Ranked lexical hits for one query token; higher score = better (both
@@ -80,18 +73,13 @@ const LEXICAL_MAX_TOKENS = 8;
 const LEXICAL_MIN_TOKEN_LENGTH = 3;
 
 /** Rank the notes related to `path`, best-first, with `reasons`. Empty when
- * the note has no connections (or, under `excludePrivate`, is private). */
+ * the note has no connections. */
 export function relatedNotes(
   sources: RelatedNotesGraph,
   search: LexicalSearch,
   path: string,
   opts?: RelatedNotesOpts,
 ): RelatedNoteEntry[] {
-  const excludePrivate = opts?.excludePrivate === true;
-  // Private SUBJECT → silent [] (backlinks' rule): the response must be
-  // indistinguishable from "no related notes" so it never confirms the path.
-  if (excludePrivate && sources.isPrivate(path) === true) return [];
-
   const isDoc = (candidate: string): boolean => sources.titleOf(candidate) !== null;
 
   // The direct ring — resolved forward doc-targets and backlink sources —
@@ -165,9 +153,6 @@ export function relatedNotes(
 
   const entries: RelatedNoteEntry[] = [];
   for (const candidate of candidates) {
-    // Private CANDIDATES drop entirely under excludePrivate — same silent
-    // rule backlinks applies to private link sources.
-    if (excludePrivate && sources.isPrivate(candidate) === true) continue;
     const viaTargets = sharedTargets.get(candidate);
     const viaCiters = coCiters.get(candidate);
     const viaTags = sharedTags.get(candidate);

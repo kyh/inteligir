@@ -9,7 +9,8 @@ import { Value } from "@sinclair/typebox/value";
 import type { TSchema } from "@sinclair/typebox";
 
 import { isRecord } from "../wire-helpers";
-import { IPC, NotePathSchema } from "../ipc-registry";
+import { IPC } from "../ipc-registry";
+import { NotePathSchema } from "../vault";
 
 /** The wire shape every path channel emits. Descriptions are stripped before
  * the compare, so adding model-facing prose can never masquerade as a

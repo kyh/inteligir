@@ -1,4 +1,4 @@
-import type { VaultEntry } from "@repo/bridge/ipc-registry";
+import type { VaultEntry } from "@repo/bridge/vault";
 import { createContext, useContext, type ComponentType, type ReactNode } from "react";
 
 // ---------------------------------------------------------------------------

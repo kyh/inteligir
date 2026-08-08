@@ -20,7 +20,9 @@ import type { Delegation, ListDelegationsResult } from "@repo/bridge/delegation"
 import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/bridge/inline-ai";
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import type { ChatSessionSummary } from "@repo/bridge/chat-sessions";
-import type { Bridge, SkillInfo, VaultChangedEvent, VaultEntry } from "@repo/bridge/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-contract";
+import type { SkillInfo } from "@repo/bridge/skills";
+import type { VaultChangedEvent, VaultEntry } from "@repo/bridge/vault";
 import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import type { ListRoutinesResult, Routine } from "@repo/bridge/routines";
 import {

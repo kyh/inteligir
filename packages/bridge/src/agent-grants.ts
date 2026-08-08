@@ -2,7 +2,7 @@
 // The agent grant table — everything the agent may do to the vault and to host
 // state, and everything it may not.
 //
-// Its sibling is REMOTE_ALLOWED_METHODS (ipc-registry.ts), and the difference
+// Its sibling is REMOTE_ALLOWED_METHODS (channel-policy.ts), and the difference
 // in SHAPE is the whole point. A companion client reaches the identical handler
 // the workspace reaches: the same code, a narrower list of names, so an
 // allowlist of names is a complete policy. The agent cannot use one. It never
@@ -31,18 +31,22 @@
 // runs in the object rather than the image. `destructive-confirmed` is a prompt
 // for the human raised by that object, which is why a container cannot skip it.
 //
-// Events are absent by construction: they are host → UI pushes, and a tool is a
-// request/response with no subscriber to be. The partition below therefore
-// covers exactly the non-event methods.
+// Events are absent by construction: both tables are typed `HostMethod`, so a
+// host → UI push is unrepresentable in either — a tool is a request/response
+// with no subscriber to be. And the partition is TOTAL by construction too:
+// `EVERY_METHOD_IS_WEIGHED` at the foot of this file stops compiling when a
+// bridge method carries no row, naming it.
 // ---------------------------------------------------------------------------
 
-import type { IpcMethod } from "./ipc-registry";
+import type { HostMethod } from "./ipc-contract";
 
 /** Capabilities with no bridge twin: the knowledge index answers them and no
  * window has ever asked, so there is no method to name after. */
 export const KNOWLEDGE_ONLY_CAPABILITIES = ["listTags", "relatedNotes"] as const;
 
-type AgentCapability = IpcMethod | (typeof KNOWLEDGE_ONLY_CAPABILITIES)[number];
+/** `HostMethod`, not `IpcMethod`, so an event cannot be written into either
+ * table: a tool is a request/response with no subscriber to be. */
+type AgentCapability = HostMethod | (typeof KNOWLEDGE_ONLY_CAPABILITIES)[number];
 
 /**
  * - `read-projected` — reads over the user's own vault, answered from the
@@ -79,7 +83,7 @@ export type AgentGrant = {
   description: string;
 };
 
-export const AGENT_GRANTS: readonly AgentGrant[] = [
+export const AGENT_GRANTS = [
   // ---- read-projected ------------------------------------------------------
   {
     capability: "searchVault",
@@ -259,7 +263,7 @@ export const AGENT_GRANTS: readonly AgentGrant[] = [
       "everything written to that note since the run — the task's work, the user's, yours — " +
       "goes with it. The user is asked first, and a running task refuses.",
   },
-];
+] as const satisfies readonly AgentGrant[];
 
 /**
  * - `needs-a-human-at-a-screen` — the action only means anything when a person
@@ -282,10 +286,10 @@ export type AgentDenialGroup = {
   reason: AgentDenialReason;
   /** Also written for a model — it is the answer to "why can't I?". */
   why: string;
-  capabilities: readonly IpcMethod[];
+  capabilities: readonly HostMethod[];
 };
 
-export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
+export const AGENT_NEVER_GRANTED = [
   {
     reason: "needs-a-human-at-a-screen",
     why:
@@ -372,7 +376,30 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "is not one. Use `read`, `edit` and `write` under ./vault.",
     capabilities: ["writeVaultDoc", "writeVaultAsset", "readVaultAsset"],
   },
-];
+] as const satisfies readonly AgentDenialGroup[];
+
+/** Host methods this table neither grants nor declares never-granted. `never`
+ * when the table is complete — which is what the assertion below turns into a
+ * COMPILE error, in this file, naming the method that has no row. */
+type UnweighedCapability = Exclude<
+  HostMethod,
+  | (typeof AGENT_GRANTS)[number]["capability"]
+  | (typeof AGENT_NEVER_GRANTED)[number]["capabilities"][number]
+>;
+
+/**
+ * CLICKING ⇒ WEIGHED. Adding a bridge method stops this line compiling until
+ * it carries a row — which is the moment "may the agent do this?" gets asked.
+ * The usual answer is an AGENT_NEVER_GRANTED group whose `why` already fits; a
+ * grant is a separate implementation host-side, never the window handler.
+ *
+ * A witness rather than a bare type alias so the grant-table test can name it,
+ * and so an unweighed method reads as `Type 'true' is not assignable to type
+ * '"yourNewMethod"'` instead of passing silently.
+ */
+export const EVERY_METHOD_IS_WEIGHED: UnweighedCapability extends never
+  ? true
+  : UnweighedCapability = true;
 
 /**
  * The never-granted groups as the model reads them — the section the bundled

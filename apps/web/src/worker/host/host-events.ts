@@ -8,7 +8,7 @@
 // it.
 // ---------------------------------------------------------------------------
 
-import type { EventMethod, IpcEvent } from "@repo/bridge/ipc-registry";
+import type { EventMethod, IpcEvent } from "@repo/bridge/ipc-contract";
 
 type HostEventListener = (method: EventMethod, payload: unknown) => void;
 

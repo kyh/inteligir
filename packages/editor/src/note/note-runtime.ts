@@ -5,7 +5,7 @@
 // controller, the autosave debounce timer, and the vanish watcher that fires
 // when the file disappears out from under the open note.
 
-import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+import type { DeleteVaultEntryResult } from "@repo/bridge/vault";
 
 import { VaultEditorController, type VaultIO } from "@repo/editor/vault-editor";
 import { createDebouncer } from "@repo/editor/lib/debounce";

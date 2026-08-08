@@ -7,7 +7,7 @@
 // differently from the client reading the same index.
 // ---------------------------------------------------------------------------
 
-import type { ToggleTaskResult } from "@repo/bridge/ipc-registry";
+import type { ToggleTaskResult } from "@repo/bridge/knowledge";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
 

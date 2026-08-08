@@ -27,7 +27,7 @@
 // host's alarm.
 // ---------------------------------------------------------------------------
 
-import type { HeldDeletions, VaultEntry, VaultFileFacts } from "@repo/bridge/ipc-registry";
+import type { HeldDeletions, VaultEntry, VaultFileFacts } from "@repo/bridge/vault";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 

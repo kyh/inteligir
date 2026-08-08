@@ -26,7 +26,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { parseProperties, privacyOfParsed, type ParsedProperties } from "../markdown/frontmatter";
+import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange, remarkWikiLink } from "../markdown/remark-wiki-link";
 import { basenamePath, extnamePath } from "./vault-path";
 
@@ -90,12 +90,8 @@ export type DocScan = {
    * case-insensitively. The SINGLE extraction source for aliases — sibling
    * indexes consume this, never re-parse frontmatter. */
   aliases: string[];
-  /** Frontmatter `private: true` (strict boolean — `yes`/`"true"` stay text
-   * and read false). Malformed frontmatter reads TRUE: at the index level a
-   * doc we can't type is treated private, the fail-closed side. */
-  private: boolean;
   /** The doc's GFM task items, in ordinal order. Empty when the note opts out
-   * via frontmatter `tasks: false` (the checkbox property, like `private`). */
+   * via frontmatter `tasks: false`. */
   tasks: ExtractedTask[];
 };
 
@@ -132,7 +128,6 @@ export function scanDoc(source: string): DocScan {
     links: [],
     tags: extractTags(tree, frontmatter),
     aliases: frontmatterAliases(frontmatter),
-    private: frontmatterPrivate(frontmatter),
     tasks: frontmatterTasksDisabled(frontmatter) ? [] : collectTasks(tree, source),
   };
   walk(tree, (node) => {
@@ -299,15 +294,6 @@ function frontmatterAliases(parsed: ParsedProperties | null): string[] {
   return out;
 }
 
-/** The parsed frontmatter's strict-boolean `private` verdict for the index —
- * the shared privacyOfParsed kernel with the index's fail-closed mapping:
- * no frontmatter → false; indeterminate (malformed) → TRUE (a doc we can't
- * type is treated private at the index level). */
-function frontmatterPrivate(parsed: ParsedProperties | null): boolean {
-  if (parsed === null) return false;
-  return privacyOfParsed(parsed) !== "public";
-}
-
 /** Walk `text` nodes for `#tag` tokens; suppress link/image subtrees so a
  * `[label #not-a-tag](url)` label is never mistaken for a tag. */
 function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): void {
@@ -333,10 +319,10 @@ function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): voi
 // text. Kept in lockstep with find-task-line's MARKER.
 const TASK_MARKER_RE = /^\s*[-*+]\s+\[[ xX]\]\s+/;
 
-/** The parsed frontmatter's `tasks: false` opt-out — a strict-boolean
- * checkbox property like `private`, but defaulting OPEN: only an explicit
- * `tasks: false` suppresses extraction (malformed frontmatter changes
- * nothing — suppressing tasks is a preference, not a safety property). */
+/** The parsed frontmatter's `tasks: false` opt-out — a strict-boolean checkbox
+ * property defaulting OPEN: only an explicit `tasks: false` suppresses
+ * extraction (malformed frontmatter changes nothing — suppressing tasks is a
+ * preference, not a safety property). */
 function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
   if (parsed === null || parsed.kind !== "valid") return false;
   const prop = parsed.properties.find((p) => p.key === "tasks");

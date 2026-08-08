@@ -1,5 +1,6 @@
 import { getBridge } from "@repo/bridge/client";
-import type { Bridge, WorkspaceBoot } from "@repo/bridge/ipc-registry";
+import type { Bridge } from "@repo/bridge/ipc-contract";
+import type { WorkspaceBoot } from "@repo/bridge/vault";
 
 // ---------------------------------------------------------------------------
 // The workspace's ONE boot invoke.

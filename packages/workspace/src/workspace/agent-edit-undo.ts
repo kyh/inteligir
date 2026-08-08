@@ -18,7 +18,7 @@
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/bridge/ipc-registry";
+import type { AgentEditCaptured, RestoreAgentEditsResult } from "@repo/bridge/agent-actions";
 
 export type AgentEditUndoPorts = {
   /** Bridge onAgentEditCaptured. */

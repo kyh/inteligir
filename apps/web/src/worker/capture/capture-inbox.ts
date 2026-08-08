@@ -37,7 +37,7 @@ import {
   type CaptureKind,
 } from "@repo/bridge/deep-link";
 import { DAILY_TEMPLATE_PATH, applyTemplate } from "@repo/bridge/daily-notes";
-import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/bridge/ipc-registry";
+import type { CaptureAckOutcome, CaptureApplyEvent } from "@repo/bridge/deep-link";
 import { formatIsoDate } from "@repo/notes/daily-path";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
 import { createDoStoreAdapter, type SyncKv } from "../store/do-store-adapter";

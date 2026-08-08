@@ -19,7 +19,8 @@
 // mode a behavioural test cannot see.
 // ---------------------------------------------------------------------------
 
-import { binaryChannelFor, HYDRATED_EVENTS, type EventMethod } from "@repo/bridge/ipc-registry";
+import { binaryChannelFor, HYDRATED_EVENTS } from "@repo/bridge/channel-policy";
+import type { EventMethod } from "@repo/bridge/ipc-contract";
 import { isRecord } from "@repo/bridge/wire-helpers";
 import { encodeBinaryFrame, encodeFrame } from "@repo/bridge/ws-protocol";
 

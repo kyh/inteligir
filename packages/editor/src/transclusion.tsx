@@ -33,7 +33,7 @@ import { PlateStatic, SlateElement, type SlateElementProps } from "platejs/stati
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@repo/bridge/client";
-import { vaultChangeTouches } from "@repo/bridge/ipc-registry";
+import { vaultChangeTouches } from "@repo/bridge/vault";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";

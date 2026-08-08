@@ -21,7 +21,7 @@
 // would make the class an assertion again.
 // ---------------------------------------------------------------------------
 
-import { REMOTE_ALLOWED_EVENTS, REMOTE_ALLOWED_METHODS } from "@repo/bridge/ipc-registry";
+import { REMOTE_ALLOWED_EVENTS, REMOTE_ALLOWED_METHODS } from "@repo/bridge/channel-policy";
 
 import { originAllowed } from "./origins";
 import type { HostCredential } from "./session";

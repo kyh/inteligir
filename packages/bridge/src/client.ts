@@ -1,4 +1,4 @@
-import type { Bridge } from "@repo/bridge/ipc-registry";
+import type { Bridge } from "./ipc-contract";
 
 // Module-level slot, filled once by whatever mounts the app (the ws bridge, or
 // the fixture bridge a test drives) before the first render — the app never

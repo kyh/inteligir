@@ -4,7 +4,7 @@
 // sidebar re-renders identically for the same listing.
 
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
-import type { VaultEntry } from "@repo/bridge/ipc-registry";
+import type { VaultEntry } from "@repo/bridge/vault";
 
 export type VaultTreeNode =
   | { type: "folder"; name: string; path: string; children: VaultTreeNode[] }

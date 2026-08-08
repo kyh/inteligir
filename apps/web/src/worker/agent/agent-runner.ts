@@ -37,7 +37,7 @@
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import { parseAgentEvent } from "@repo/bridge/agent-event-parser";
-import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
+import type { AgentConfirmationRequest } from "@repo/bridge/agent-actions";
 import type { TextChatMessage } from "@repo/bridge/chat-message";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import {

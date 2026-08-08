@@ -16,7 +16,7 @@ import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
-import type { FauxAgentScript } from "@repo/bridge/ipc-registry";
+import type { FauxAgentScript } from "@repo/bridge/agent-script";
 import { CONTAINER_REFUSAL } from "@repo/agent-container/protocol";
 
 import type { FakeSandbox } from "../agent/fake-sandbox";

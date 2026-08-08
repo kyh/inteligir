@@ -13,7 +13,7 @@
 // The React component owns pure UI (file list, filter, raw/rich mode) and the
 // autosave debounce, calling controller methods and subscribing for renders.
 
-import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+import type { DeleteVaultEntryResult } from "@repo/bridge/vault";
 
 export type VaultIO = {
   read: (path: string) => Promise<string>;

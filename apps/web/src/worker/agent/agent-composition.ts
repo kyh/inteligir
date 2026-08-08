@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
-import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
+import type { AgentConfirmationRequest } from "@repo/bridge/agent-actions";
 import type { ListDelegationsResult } from "@repo/bridge/delegation";
 import type { ListRoutinesResult } from "@repo/bridge/routines";
 

@@ -15,7 +15,7 @@ import {
   SheetTrigger,
 } from "@repo/ui/components/sheet";
 
-import type { VaultFileFacts } from "@repo/bridge/ipc-registry";
+import type { VaultFileFacts } from "@repo/bridge/vault";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";

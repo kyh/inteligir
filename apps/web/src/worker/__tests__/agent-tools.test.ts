@@ -13,7 +13,7 @@ import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { AGENT_GRANTS } from "@repo/bridge/agent-grants";
-import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
+import type { AgentConfirmationRequest } from "@repo/bridge/agent-actions";
 
 import {
   agentToolManifest,
