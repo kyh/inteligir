@@ -110,7 +110,7 @@ export function registerCloudHandlers(handle: HandlerRegistrar, services: CloudH
     })),
   );
 
-  registerVaultHandlers(handle, services.vault, services.knowledge);
+  registerVaultHandlers(handle, services.vault, services.knowledge, services.stores);
   registerKnowledgeHandlers(handle, services.knowledge, services.vault);
   registerAgentHandlers(handle, services.agent);
   registerBackgroundHandlers(handle, services.background);

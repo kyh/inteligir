@@ -218,9 +218,10 @@ to point at the cause. This is the step people miss.
   See `BinaryAudioSchema` for the one place `unknown` is correct and why.
 - Never renumber a `BINARY_CHANNELS` tag — those are wire values. Retire and
   take the next.
-- Don't add a `dispatch.get(...)` or a fresh socket loop in `user-host.ts`.
-  Route through `resolveHandler()` / `sendEvent()`; a second gate call site is
-  how holes appear, and `no-ungated-dispatch.test.ts` fails when one shows up.
+- Don't add a `dispatch.get(...)` or a fresh socket loop anywhere. Route through
+  `SocketGate`'s `resolve()` / `push()` (`host/socket-gate.ts`); a second gate
+  call site is how holes appear, and `no-ungated-dispatch.test.ts` fails when
+  one shows up.
 - Deleting a channel is the same five edits in reverse, plus its callers — leave
   no orphan registry entry and no stale `IMPLEMENTED` row.
 - Naming a channel in prose counts as a CALLER to the dead-channel guard, which

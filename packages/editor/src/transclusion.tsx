@@ -33,6 +33,7 @@ import { PlateStatic, SlateElement, type SlateElementProps } from "platejs/stati
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@repo/bridge/client";
+import { vaultChangeTouches } from "@repo/bridge/ipc-registry";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
@@ -313,9 +314,11 @@ function useTargetContent(path: string | null): TargetContent {
         });
     };
     read();
-    // The vault event carries no path — re-read unconditionally (a cheap
-    // index-map/disk read) rather than tracking per-file freshness here.
-    const unsubscribe = bridge.onVaultChanged(read);
+    // Only when the change reached THIS target: a transcluding note re-reads
+    // every embedded file on every keystroke of its own otherwise.
+    const unsubscribe = bridge.onVaultChanged((event) => {
+      if (vaultChangeTouches(event, path)) read();
+    });
     return () => {
       live = false;
       unsubscribe();

@@ -20,7 +20,8 @@ import type { Delegation, ListDelegationsResult } from "@repo/bridge/delegation"
 import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/bridge/inline-ai";
 import type { ChatHistoryEntry } from "@repo/bridge/chat-log";
 import type { ChatSessionSummary } from "@repo/bridge/chat-sessions";
-import type { Bridge, SkillInfo, VaultEntry } from "@repo/bridge/ipc-registry";
+import type { Bridge, SkillInfo, VaultChangedEvent, VaultEntry } from "@repo/bridge/ipc-registry";
+import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import type { ListRoutinesResult, Routine } from "@repo/bridge/routines";
 import {
   DAILY_FOLDER_KEY,
@@ -345,6 +346,11 @@ function fnv1a(text: string): string {
   return (hash >>> 0).toString(16);
 }
 
+/** A content-only change, in the shape the host announces one. */
+function upserted(...paths: string[]): VaultChangedEvent["changed"] {
+  return { upserted: paths, removed: [] };
+}
+
 /** `openKnowledgeStore` injects the persistent search store (the harness
  * bootstrap passes core's SQL store over the wasm driver), mirroring how the
  * desktop shell injects the node:sqlite store into KnowledgeManager. */
@@ -536,7 +542,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   // Reachable from harness devtools/drivers on purpose: "what would the host
   // have spoken" assertions (voice narration, read-aloud) read this queue.
   Object.assign(globalThis, { __fixtureTts: ttsState });
-  const vaultEvents = new Emitter<{ root: string }>();
+  const vaultEvents = new Emitter<VaultChangedEvent>();
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();
   const routineEvents = new Emitter<ListRoutinesResult>();
@@ -596,8 +602,11 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   knowledgeStore.transaction(() => {
     for (const path of vault.keys()) indexEntry(path);
   });
-  const touchVault = (): void => {
-    vaultEvents.emit({ root: FIXTURE_ROOT });
+  /** Announce a mutation the way the host does: which paths moved, so the
+   * client re-reads only what it has to. `null` is the refresh case — it
+   * asserts nothing about the vault. */
+  const touchVault = (changed: VaultChangedEvent["changed"]): void => {
+    vaultEvents.emit({ root: FIXTURE_ROOT, changed });
     knowledgeEvents.emit({});
   };
 
@@ -791,7 +800,17 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
 
     // Vault — an in-memory Map seeded with sample notes.
-    getVaultRoot: async () => FIXTURE_ROOT,
+    getWorkspaceBoot: async () => {
+      const stored = uiState[UI_STATE_OPEN_NOTE_KEY];
+      const path = typeof stored === "string" && stored !== "" ? stored : null;
+      const content = path === null ? undefined : vault.get(path);
+      return {
+        root: FIXTURE_ROOT,
+        entries: listEntries(),
+        uiState: { ...uiState },
+        openNote: path === null || content === undefined ? null : { path, content },
+      };
+    },
     listVault: async () => listEntries(),
     readVaultDoc: async ({ path }) => {
       const content = vault.get(path);
@@ -808,13 +827,13 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     writeVaultDoc: async ({ path, content }) => {
       vault.set(path, content);
       indexEntry(path);
-      touchVault();
+      touchVault(upserted(path));
     },
     deleteVaultEntry: async ({ path }) => {
       const removed = vault.delete(path);
       if (removed) {
         removeEntry(path);
-        touchVault();
+        touchVault({ upserted: [], removed: [path] });
       }
       return { outcome: removed ? "trashed" : "absent" };
     },
@@ -858,7 +877,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       for (const path of edits.keys()) {
         if (path !== to) indexEntry(path);
       }
-      touchVault();
+      touchVault({ upserted: [...edits.keys(), to], removed: [from] });
       return { ok: true };
     },
     writeVaultAsset: async ({ dir, baseName, bytesBase64 }) => {
@@ -872,7 +891,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       vault.set(path, "asset-bytes (dev harness fixture)");
       assetBytes.set(path, bytesBase64);
       indexEntry(path);
-      touchVault();
+      touchVault(upserted(path));
       return { path };
     },
     readVaultAsset: async ({ path }) => {
@@ -882,7 +901,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     },
     // The harness has no external mutations to discover, but re-emitting keeps
     // the "Refresh vault" command exercisable (sidebar re-lists, panes re-query).
-    refreshVault: async () => touchVault(),
+    refreshVault: async () => touchVault(null),
     onVaultChanged: vaultEvents.subscribe,
 
     // Knowledge — live queries: link graph in memory, search through FTS5.
@@ -917,7 +936,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       }
       vault.set(path, result.content);
       indexEntry(path);
-      touchVault();
+      touchVault(upserted(path));
       return { ok: true, checked: result.checked };
     },
     onKnowledgeUpdated: knowledgeEvents.subscribe,
@@ -981,7 +1000,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         snapshots.set(id, { path: delegation.sourceFile, content });
         vault.set(delegation.sourceFile, edited.content);
         indexEntry(delegation.sourceFile);
-        touchVault();
+        touchVault(upserted(delegation.sourceFile));
         replaceDelegation({
           ...delegation,
           status: "done",
@@ -1032,7 +1051,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       // mirroring the host's restore semantics.
       if (vault.get(delegation.sourceFile) !== snapshot.content) {
         vault.set(delegation.sourceFile, snapshot.content);
-        vaultEvents.emit({ root: FIXTURE_ROOT });
+        touchVault(upserted(delegation.sourceFile));
       }
       replaceDelegation({ ...delegation, restoredAt: Date.now() });
       return { ok: true };
@@ -1151,7 +1170,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
                 : `${current}\n\n${block}`;
         vault.set(path, appended);
         indexEntry(path);
-        touchVault();
+        touchVault(upserted(path));
         settle({
           ...routine,
           lastRunAt: startedAt,
@@ -1185,12 +1204,12 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         // The run created the note — undo deletes it (host: OS trash).
         if (vault.delete(snapshot.path)) {
           removeEntry(snapshot.path);
-          touchVault();
+          touchVault({ upserted: [], removed: [snapshot.path] });
         }
       } else if (vault.get(snapshot.path) !== snapshot.content) {
         vault.set(snapshot.path, snapshot.content);
         indexEntry(snapshot.path);
-        touchVault();
+        touchVault(upserted(snapshot.path));
       }
       replaceRoutine({ ...routine, lastRun: { ...lastRun, restoredAt: Date.now() } });
       return { ok: true };

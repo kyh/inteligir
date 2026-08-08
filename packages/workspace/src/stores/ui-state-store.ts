@@ -1,13 +1,14 @@
 import { create } from "zustand";
 
 import { getBridge } from "@repo/bridge/client";
+import { workspaceBoot } from "@repo/workspace/stores/workspace-boot";
 
 // ---------------------------------------------------------------------------
-// Renderer mirror of the on-disk UI-state map (~/.inteligir/ui-state.json).
+// Client mirror of the host's UI-state map.
 //
-// The whole map is loaded once on init so components can read synchronously
-// via useDiskState; writes update the in-memory copy immediately and flush to
-// disk debounced (drag/resize fire many updates per second).
+// The whole map arrives with the boot bundle so components can read
+// synchronously via useDiskState; writes update the in-memory copy immediately
+// and flush to the host debounced (drag/resize fire many updates per second).
 // ---------------------------------------------------------------------------
 
 type UiStateStore = {
@@ -40,10 +41,9 @@ export const useUiStateStore = create<UiStateStore>()((set) => ({
 
   init: () => {
     if (initPromise) return initPromise;
-    initPromise = getBridge()
-      .getUiState()
-      .then((values) => set({ values: values ?? {}, loaded: true }))
-      .catch((err) => {
+    initPromise = workspaceBoot()
+      .then((boot) => set({ values: boot.uiState, loaded: true }))
+      .catch((err: unknown) => {
         console.warn("[ui-state] failed to load:", err);
         set({ loaded: true });
       });

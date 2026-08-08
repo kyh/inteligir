@@ -33,6 +33,7 @@ import {
 import { type VaultIO } from "@repo/editor/vault-editor";
 import { useUiStateStore } from "@repo/workspace/stores/ui-state-store";
 import { useViewStore } from "@repo/workspace/stores/view-store";
+import { workspaceBoot } from "@repo/workspace/stores/workspace-boot";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -40,7 +41,9 @@ import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
 import {
   heldDeletionMessage,
+  vaultChangeTouches,
   type DeleteVaultEntryResult,
+  type VaultChangedEvent,
   type VaultEntry,
 } from "@repo/bridge/ipc-registry";
 import { UI_STATE_OPEN_NOTE_KEY as OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
@@ -70,6 +73,16 @@ function validNotePath(path: string): string | null {
   }
   const dir = dirnamePath(path);
   return dir === "" ? verdict.name : `${dir}/${verdict.name}`;
+}
+
+/** Whether a vault broadcast changed the sidebar's own rows: a path arriving or
+ * leaving. A change the host could not describe moves it by definition. */
+function movesTheListing(event: VaultChangedEvent, entries: readonly VaultEntry[]): boolean {
+  const { changed } = event;
+  if (changed === null) return true;
+  if (changed.removed.length > 0) return true;
+  const known = new Set(entries.map((entry) => entry.path));
+  return changed.upserted.some((path) => !known.has(path));
 }
 
 // IO the editor controller acts through — thin wrappers over the bridge so the
@@ -110,7 +123,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // vanish watcher — dispose must clear both).
   const runtimeSubRef = useRef<(() => void) | null>(null);
   const setUiState = useUiStateStore((s) => s.set);
-  const uiLoaded = useUiStateStore((s) => s.loaded);
 
   const applyOpenPath = useCallback(
     (next: string | null) => {
@@ -141,14 +153,19 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   /** Create the runtime for a note and start loading its file. Any previous
-   * runtime must already be disposed (openFile owns that ordering). */
+   * runtime must already be disposed (openFile owns that ordering). `initial`
+   * opens the note from bytes the caller already has (the boot bundle). */
   const ensureRuntime = useCallback(
-    (path: string): NoteRuntime => {
+    (path: string, initial?: string): NoteRuntime => {
       const existing = runtimeRef.current;
       if (existing?.path === path) return existing;
-      const runtime = createNoteRuntime(path, rootRef.current, VAULT_IO, {
-        onVanished: dropNote,
-      });
+      const runtime = createNoteRuntime(
+        path,
+        rootRef.current,
+        VAULT_IO,
+        { onVanished: dropNote },
+        initial,
+      );
       runtimeRef.current = runtime;
       // Publish this runtime's controller emissions into the open-note store —
       // synchronously with each emission, so a keystroke's value lands in the
@@ -357,48 +374,58 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, []);
 
-  // Initial load: adopt the root + list files.
+  // The whole first paint in ONE invoke: the root, the listing, the persisted
+  // ui state and the open note's own bytes. The host resolves which note that
+  // is from ui-state, so the client never has to learn what it wants before it
+  // can ask for it.
   useEffect(() => {
-    getBridge()
-      .getVaultRoot()
-      .then((r) => {
-        rootRef.current = r;
-        setRoot(r);
-        runtimeRef.current?.controller.setRoot(r);
+    void workspaceBoot()
+      .then((boot) => {
+        rootRef.current = boot.root;
+        setRoot(boot.root);
+        runtimeRef.current?.controller.setRoot(boot.root);
+        lastEntriesRef.current = boot.entries;
+        setEntries(boot.entries);
+        // Never over a note already open: the user (or a deep link) can beat
+        // the boot, and a runtime that exists is one somebody chose.
+        if (boot.openNote !== null && runtimeRef.current === null) {
+          ensureRuntime(boot.openNote.path, boot.openNote.content);
+          applyOpenPath(boot.openNote.path);
+        }
         return undefined;
       })
-      .catch(() => {});
-    refreshList();
-  }, [refreshList]);
+      .catch(() => {
+        // The socket's supervisor reconnects and the next focus refresh
+        // re-lists; an empty sidebar is the honest interim state.
+      });
+  }, [applyOpenPath, ensureRuntime]);
 
-  // Restore the persisted open note once ui-state has loaded — but never over
-  // a note the user already opened while it was loading.
-  const restored = useRef(false);
+  // Live updates: hand a vault-changed broadcast to the open note's controller
+  // (reload or drop) and re-list the tree — but only when the change actually
+  // reached them. A real root switch drops the note: its relative path belongs
+  // to the old vault.
   useEffect(() => {
-    if (!uiLoaded || restored.current) return;
-    restored.current = true;
-    if (openPathRef.current !== null) return;
-    const stored = useUiStateStore.getState().values[OPEN_NOTE_KEY];
-    if (typeof stored !== "string" || stored === "") return;
-    ensureRuntime(stored);
-    applyOpenPath(stored);
-  }, [uiLoaded, ensureRuntime, applyOpenPath]);
-
-  // Live updates: hand every vault-changed broadcast to the open note's
-  // controller (reload or drop) and re-list the tree. A real root switch drops
-  // the note — its relative path belongs to the old vault.
-  useEffect(() => {
-    return getBridge().onVaultChanged(({ root: nextRoot }) => {
+    return getBridge().onVaultChanged((event) => {
+      const nextRoot = event.root;
       const switched = rootRef.current !== "" && nextRoot !== rootRef.current;
       rootRef.current = nextRoot;
       setRoot(nextRoot);
       if (switched) {
         disposeRuntime();
         applyOpenPath(null);
-      } else {
+        refreshList();
+        return;
+      }
+      // The root is adopted either way; only the RELOAD is conditional.
+      runtimeRef.current?.controller.setRoot(nextRoot);
+      const open = openPathRef.current;
+      if (open !== null && vaultChangeTouches(event, open)) {
         runtimeRef.current?.controller.externalChange(nextRoot);
       }
-      refreshList();
+      // A write that only changed a file's CONTENT leaves every sidebar row
+      // identical, and re-listing anyway costs a round trip per autosave on
+      // every open client.
+      if (movesTheListing(event, lastEntriesRef.current)) refreshList();
     });
   }, [applyOpenPath, disposeRuntime, refreshList]);
 

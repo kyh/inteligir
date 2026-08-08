@@ -88,13 +88,23 @@ export class VaultEditorController {
     void this.reloadOpen();
   }
 
-  /** Open a file, saving any pending edits to the current one first. Returns
+  /**
+   * Open a file, saving any pending edits to the current one first. Returns
    * false (without switching) when that save failed and the buffer is still
-   * dirty, so the caller can surface it rather than silently drop the edits. */
-  async open(path: string): Promise<boolean> {
+   * dirty, so the caller can surface it rather than silently drop the edits.
+   *
+   * `initial` is the file's bytes when the caller already holds them — the
+   * workspace's boot bundle carries the open note's text, which is what keeps a
+   * cold open from paying a second round trip for what it was just sent.
+   */
+  async open(path: string, initial?: string): Promise<boolean> {
     await this.flush();
     if (this.st.dirty) return false; // save failed — keep the current file open
     const seq = ++this.readSeq;
+    if (initial !== undefined) {
+      this.emit({ path, content: initial, dirty: false });
+      return true;
+    }
     try {
       const text = await this.io.read(path);
       if (this.readSeq !== seq) return true; // a newer read (open or reload) won

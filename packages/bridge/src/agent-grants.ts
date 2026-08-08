@@ -359,7 +359,7 @@ export const AGENT_NEVER_GRANTED: readonly AgentDenialGroup[] = [
       "updateNotificationSettings",
       "getUiState",
       "setUiState",
-      "getVaultRoot",
+      "getWorkspaceBoot",
       "listSkills",
       "createSkill",
     ],

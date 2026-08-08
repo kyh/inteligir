@@ -74,8 +74,11 @@ export function writeSocketState(ws: WebSocket, state: SocketState): void {
 
 /** Parse a socket's attachment, or `null` when it is missing or not this
  * version's shape. Every field is proven rather than assumed — the attachment
- * is the only thing standing between a woken host and a stranger. */
-export function readSocketState(ws: WebSocket): SocketState | null {
+ * is the only thing standing between a woken host and a stranger.
+ *
+ * Takes the attachment reader rather than a `WebSocket`, because that is the
+ * whole of what it needs and it is what lets the gate's suite drive a fake. */
+export function readSocketState(ws: { deserializeAttachment(): unknown }): SocketState | null {
   const raw: unknown = ws.deserializeAttachment();
   if (!isRecord(raw) || raw["v"] !== SOCKET_STATE_VERSION) return null;
   if (raw["phase"] === "pending") {

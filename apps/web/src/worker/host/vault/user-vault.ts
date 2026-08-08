@@ -35,7 +35,8 @@ import { sha256Hex } from "../../hash";
 import { parseVaultPath, type VaultKey } from "./vault-key";
 
 /**
- * What `getVaultRoot` answers, and what rides on every `onVaultChanged`.
+ * What the workspace boot bundle answers, and what rides on every
+ * `onVaultChanged`.
  *
  * There is one vault per account and no folder to choose, so this is a LABEL
  * rather than a path. The workspace derives the sidebar's folder name from its

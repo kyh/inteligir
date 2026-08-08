@@ -2,11 +2,17 @@
 // The vault's Bridge handlers, over the Durable Object's own vault.
 // ---------------------------------------------------------------------------
 
-import type { DeleteVaultEntryResult, ReadVaultAssetResult } from "@repo/bridge/ipc-registry";
+import type {
+  DeleteVaultEntryResult,
+  ReadVaultAssetResult,
+  WorkspaceBoot,
+} from "@repo/bridge/ipc-registry";
+import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
 import type { HandlerRegistrar } from "./handler-registry";
 import type { UserKnowledge } from "./knowledge/user-knowledge";
+import type { CloudStores } from "./stores";
 import { base64ToBytes, bytesToBase64 } from "./vault/base64";
 import { VAULT_ROOT, type UserVault } from "./vault/user-vault";
 import { renameWithLinkRewrite } from "./vault/vault-rename";
@@ -23,12 +29,36 @@ import { renameWithLinkRewrite } from "./vault/vault-rename";
  */
 const MAX_INLINE_ASSET_UPLOAD_BYTES = 4 * 1024 * 1024;
 
+/** The open note's bytes, or null when ui-state names nothing or the file it
+ * names is gone. A note that vanished must not fail a whole boot. */
+async function openNote(vault: UserVault, stored: unknown): Promise<WorkspaceBoot["openNote"]> {
+  if (typeof stored !== "string" || stored === "") return null;
+  try {
+    return { path: stored, content: await vault.readText(stored) };
+  } catch {
+    return null;
+  }
+}
+
 export function registerVaultHandlers(
   handle: HandlerRegistrar,
   vault: UserVault,
   knowledge: UserKnowledge,
+  stores: CloudStores,
 ): void {
-  handle("getVaultRoot", () => VAULT_ROOT);
+  // ONE round trip for the whole first paint (see WorkspaceBoot). Everything in
+  // it is already in this object: the listing is a manifest query, ui state is
+  // this object's KV, and the open note is the one R2 read a cold open needs.
+  handle("getWorkspaceBoot", async (): Promise<WorkspaceBoot> => {
+    const uiState = stores.uiState.read();
+    return {
+      root: VAULT_ROOT,
+      entries: vault.list(),
+      uiState,
+      openNote: await openNote(vault, uiState[UI_STATE_OPEN_NOTE_KEY]),
+    };
+  });
+
   handle("listVault", () => vault.list());
   handle("readVaultDoc", ({ path }) => vault.readText(path));
   handle("getVaultFileFacts", ({ path }) => vault.fileFacts(path));

@@ -180,7 +180,12 @@ describe("the index is a cache over a database it shares", () => {
       state.storage.sql.exec("UPDATE meta SET value = '9999' WHERE key = 'projection_version'");
 
       // A fresh index over the same storage discards the rows at open…
-      const rebuilt = new UserKnowledge({ storage: state.storage, vault, onUpdated: () => {} });
+      const rebuilt = new UserKnowledge({
+        storage: state.storage,
+        vault,
+        onUpdated: () => {},
+        onDeadlineChanged: () => {},
+      });
       // …and rebuilds from the manifest and R2, with no vault change to prompt it.
       expect((await rebuilt.backlinks("two.md")).map((entry) => entry.sourcePath)).toEqual([
         "one.md",
@@ -223,6 +228,51 @@ describe("the index is a cache over a database it shares", () => {
   });
 });
 
+describe("a rebuild larger than one pass", () => {
+  it("says a deadline moved, so the host's alarm comes back for the rest", async () => {
+    // Write-time projection cannot cover a wipe-and-rebuild, and a rebuild is
+    // capped at 100 body reads per pass. Whatever is left is only ever finished
+    // because the index ANNOUNCES that it is owed one — nothing else would wake
+    // an idle object, and the vault would stay half-indexed until the user
+    // happened to click.
+    const stub = env.UserHost.getByName(userHostName("knowledge-continuation"));
+    await runInDurableObject(stub, async (_host, state) => {
+      let deadlines = 0;
+      const vault = new UserVault({
+        sql: state.storage.sql,
+        bucket: env.VAULT_FILES,
+        prefix: "test:knowledge-continuation",
+        onChanged: () => {},
+      });
+      for (let index = 0; index < 101; index++) {
+        await vault.writeText(`bulk/note-${index}.md`, `# Note ${index}\n`);
+      }
+
+      // A FRESH index over a vault it has never seen: every doc is stale and
+      // none of their bytes are in hand, which is the rebuild shape.
+      const knowledge = new UserKnowledge({
+        storage: state.storage,
+        vault,
+        onUpdated: () => {},
+        onDeadlineChanged: () => {
+          deadlines += 1;
+        },
+      });
+
+      // Any query settles a pass, which is where the reconcile finds them.
+      await knowledge.wikiTargets();
+      expect(knowledge.hasPendingWork(), "the read budget should have held some back").toBe(true);
+      expect(deadlines).toBeGreaterThan(0);
+
+      // And the next pass finishes it, with nothing left to wake for.
+      deadlines = 0;
+      await knowledge.flush();
+      expect(knowledge.hasPendingWork()).toBe(false);
+      expect(deadlines).toBe(0);
+    });
+  });
+});
+
 /** The real bucket with `get` counted — an R2Bucket for the vault's purposes,
  * which only ever calls these five verbs. */
 function countGets(counter: { gets: number }): R2Bucket {
@@ -251,7 +301,12 @@ describe("rename reads what links, not the vault", () => {
         prefix: "test:knowledge-rename-scope",
         onChanged: (change) => knowledge?.record(change),
       });
-      knowledge = new UserKnowledge({ storage: state.storage, vault, onUpdated: () => {} });
+      knowledge = new UserKnowledge({
+        storage: state.storage,
+        vault,
+        onUpdated: () => {},
+        onDeadlineChanged: () => {},
+      });
 
       await vault.writeText("target.md", "# Target\n");
       await vault.writeText("linker.md", "# Linker\n\nSee [[Target]].\n");

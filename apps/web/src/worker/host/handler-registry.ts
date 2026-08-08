@@ -29,7 +29,8 @@ export const HOST_METHODS: readonly HostMethod[] = IPC_METHODS.filter(isHostMeth
  * and returns the result, or a promise of it; send-kind handlers return void. */
 export type WireHandler = (raw: unknown) => unknown;
 
-type HostHandlers = Readonly<Record<HostMethod, WireHandler>>;
+/** The complete handler map — every method the registry declares, answered. */
+export type HostHandlers = Readonly<Record<HostMethod, WireHandler>>;
 
 /** The registration callback handler groups receive. */
 export type HandlerRegistrar = <K extends HostMethod>(method: K, fn: IpcHandler<K>) => void;

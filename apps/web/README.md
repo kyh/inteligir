@@ -429,12 +429,15 @@ client.
   allowlist between a user's session and that user's own object protects
   nothing the session does not already own. A capability that ever reaches
   outside the tenancy needs its own class.
-- **Two chokepoints, and a test that keeps it at two.** `resolveHandler()` is
-  the only reader of the dispatch map and `sendEvent()` the only pusher of an
-  event frame — including the reconnect hydration, which resolves a getter
-  server-side and would otherwise volunteer state the method gate forbids
-  asking for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a
-  third path appears.
+- **Two chokepoints, in one module that owns both.** `SocketGate`
+  (`host/socket-gate.ts`) holds the dispatch map, the socket enumeration, the
+  broadcast fan-out and the reconnect hydration, so `resolve()` is the only
+  reader of the map and `push()` the only pusher of an event frame — hydration
+  included, which resolves a getter server-side and would otherwise volunteer
+  state the method gate forbids asking for. Its socket seam is structural, so
+  `__tests__/socket-gate.test.ts` drives both directions with a fake socket and
+  asserts what a client was NOT sent; `__tests__/no-ungated-dispatch.test.ts` is
+  the backstop that fails when a third path appears.
 - **All 63 host methods are implemented, and there is no second pile.**
   `collectHandlers` throws at construction if any is unregistered. A capability
   this host does not have has no channel either: a method that answers only by
@@ -539,7 +542,8 @@ schedule) are two owners of ONE lane, on the second container.
 - **Every lease expires.** A container that dies mid-turn never reports
   `turn_end`, and a lane held by a turn nobody is running is a lane no
   delegation ever leaves the queue for. The row carries a deadline the host's
-  alarm sweeps, which is also why the lane answers `nextDueAt`.
+  alarm sweeps, which is also why the lane answers a due time to the host's
+  alarm concerns (`host/host-alarm.ts`).
 - **A routine's write path is HOST-owned**, unlike delegation's. Nobody is
   watching when a routine fires, so the manager appends the result rather than
   asking the agent to, and an epoch guard bails mid-run if the routine was
@@ -616,7 +620,8 @@ from the Durable Object**, not container turns.
   so nothing in the repo can construct one that reaches a consumer.
 - **The ack deadline is the host's ONE alarm**, not a `setTimeout`: a pending
   timer pins the object the transport exists to let sleep, and an alarm survives
-  eviction. It joins `nextDueAt` rather than arming a second alarm.
+  eviction. It joins the host's alarm concerns rather than arming a second
+  alarm.
 - **The compare-and-swap is on the manifest VERSION**, not on file bytes:
   `UserVault.writeText` takes a `baseVersion` and answers a conflict as a value.
   The inbox itself is a SYNCHRONOUS JsonStore over the object's KV — that is the

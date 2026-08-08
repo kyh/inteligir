@@ -51,12 +51,15 @@ export type NoteRuntime = {
 /** Create the runtime for a note and start loading its file. The caller (the
  * provider) must have disposed any previous runtime first — it owns that
  * ordering. `root` is adopted before the load so controller state is correct
- * from the first emission. */
+ * from the first emission. `initial` is the file's bytes when the caller
+ * already holds them (the workspace's boot bundle), which opens the note with
+ * no read at all. */
 export function createNoteRuntime(
   path: string,
   root: string,
   io: VaultIO,
   cb: NoteRuntimeCallbacks,
+  initial?: string,
 ): NoteRuntime {
   const controller = new VaultEditorController(io);
   controller.setRoot(root);
@@ -85,7 +88,7 @@ export function createNoteRuntime(
     else if (opened && st.path === null) cb.onVanished(path);
   });
 
-  void controller.open(path).then(() => {
+  void controller.open(path, initial).then(() => {
     // Unreadable on first load (e.g. a restored note whose file is gone) — it
     // never held content, so it silently closes.
     if (!disposed && controller.getState().path !== path) cb.onVanished(path);

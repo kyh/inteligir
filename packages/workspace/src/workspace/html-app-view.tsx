@@ -22,6 +22,7 @@ import { Button } from "@repo/ui/components/button";
 
 import { confirmVaultDelete } from "@repo/workspace/components/confirm-vault-delete";
 import { getBridge } from "@repo/bridge/client";
+import { vaultChangeTouches } from "@repo/bridge/ipc-registry";
 import { handleBrokerRequest } from "@repo/workspace/workspace/html-app-broker";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { htmlAppRuntime } from "@repo/workspace/workspace/html-app-host";
@@ -55,8 +56,8 @@ export function HtmlAppView() {
   const [token, setToken] = useState<string | null>(null);
   const tokenRef = useRef<string>("");
 
-  // Last-seen file text, so a vault change only reloads when THIS app changed
-  // (onVaultChanged fires for any vault edit, and carries no path).
+  // Last-seen file text, so a change the host could not describe still only
+  // reloads when this app's own bytes moved.
   const lastTextRef = useRef<string | null>(null);
 
   const fileName = openPath === null ? "" : basenamePath(openPath);
@@ -96,13 +97,14 @@ export function HtmlAppView() {
     };
   }, [openPath, token, reloadKey]);
 
-  // Hot reload: on any vault change, re-read the file and bump only if the app's
-  // bytes actually changed (agent edit, on-disk edit, sync).
+  // Hot reload: on a change that reached THIS file, re-read it and bump only if
+  // its bytes actually changed (agent edit, on-disk edit, sync).
   useEffect(() => {
     if (openPath === null) return;
     const bridge = getBridge();
     lastTextRef.current = null;
-    const unsubscribe = bridge.onVaultChanged(() => {
+    const unsubscribe = bridge.onVaultChanged((event) => {
+      if (!vaultChangeTouches(event, openPath)) return;
       void (async () => {
         try {
           const text = await bridge.readVaultDoc({ path: openPath });

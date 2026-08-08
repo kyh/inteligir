@@ -305,6 +305,48 @@ export type VaultEntry = {
   kind: "doc" | "other";
 };
 
+/**
+ * What one vault broadcast says moved.
+ *
+ * `changed` is `null` when the host cannot say — a `refreshVault` re-announces
+ * the manifest without diffing it, so every client re-reads. Every real
+ * mutation names at least one path, which is what lets a client skip the work a
+ * change it can already see did not cause: re-listing on every autosave is a
+ * round trip per keystroke burst, on every open socket.
+ */
+export type VaultChangedEvent = {
+  readonly root: string;
+  readonly changed: {
+    readonly upserted: readonly string[];
+    readonly removed: readonly string[];
+  } | null;
+};
+
+/** Whether a vault broadcast may have changed `path` — true whenever the host
+ * could not say what moved, so a caller that re-reads on true is never stale. */
+export function vaultChangeTouches(event: VaultChangedEvent, path: string): boolean {
+  const { changed } = event;
+  if (changed === null) return true;
+  return changed.upserted.includes(path) || changed.removed.includes(path);
+}
+
+/**
+ * Everything the workspace's first paint needs, in ONE call.
+ *
+ * The listing, the persisted ui state and the open note's bytes are three
+ * questions with one answer — and asked separately they are three sequential
+ * round trips between a signed-in page and the object that holds all three.
+ * `openNote` is resolved HOST-side from ui-state's own open-note key, so the
+ * client never has to learn which note it wants before it can ask for it, and
+ * it is `null` when nothing is recorded or the file is gone.
+ */
+export type WorkspaceBoot = {
+  readonly root: string;
+  readonly entries: VaultEntry[];
+  readonly uiState: Record<string, unknown>;
+  readonly openNote: { readonly path: string; readonly content: string } | null;
+};
+
 /** The on-disk facts about ONE vault file that the listing deliberately does
  * not carry. `VaultEntry` is produced by a stat-free crawl (a stat per file is
  * the largest cost in a large vault), so size and mtime are a separate,
@@ -570,7 +612,8 @@ export const IPC = {
   setUiState: invoke<typeof UiStateSetSchema, void>(UiStateSetSchema),
 
   // Vault (knowledge folder) — trusted renderer surface for the editor.
-  getVaultRoot: invokeVoid<string>(),
+  /** The whole first paint in one round trip (see WorkspaceBoot). */
+  getWorkspaceBoot: invokeVoid<WorkspaceBoot>(),
   listVault: invokeVoid<VaultEntry[]>(),
   readVaultDoc: invoke<typeof VaultPathSchema, string>(VaultPathSchema),
   /** Size + last-modified for one vault file, or null when it can't be stat'd.
@@ -598,8 +641,9 @@ export const IPC = {
    * also calls it internally on background-work completion. */
   refreshVault: invokeVoid<void>(),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
-   * sidebar re-lists and the editor reloads. */
-  onVaultChanged: event<{ root: string }>(),
+   * sidebar re-lists and the editor reloads — carrying WHICH paths moved, so a
+   * client re-reads only what it has to. */
+  onVaultChanged: event<VaultChangedEvent>(),
 
   // Knowledge — link + search indexes over the vault, kept fresh from vault
   // change events. Queries are cheap index reads.

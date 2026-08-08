@@ -181,6 +181,12 @@ declares — over one hibernatable WebSocket per client, and it owns everything
 that user has: the vault manifest, the JsonStores, the knowledge index, the
 chat transcript, the background lane, the tickets and the budgets.
 
+- **The class is its ENTRY POINTS and nothing else.** `composeHost`
+  (`host/host-composition.ts`) is the one artifact holding the wiring graph —
+  vault, index, agent, editor AI, voice, capture, stores and the complete
+  handler map — so the object's constructor names parts rather than building
+  them, and `__tests__/host-handlers.test.ts` asserts completeness against the
+  composition production wires instead of a hand-copied twin of it.
 - **Hibernation is the point** (§ Decisions). Sockets are accepted with
   `ctx.acceptWebSocket`, per-socket identity lives in the socket's own
   attachment, and the broadcast set is rebuilt from `ctx.getWebSockets()` on
@@ -189,12 +195,16 @@ chat transcript, the background lane, the tickets and the budgets.
   (§ Decisions), minted at `POST /v1/host/ticket` against the session. The
   ticket is where the capability class is decided, once, from which credential
   carried the session.
-- **Two chokepoints, and a test that keeps it at two.** `resolveHandler()` is
-  the only reader of the dispatch map, `sendEvent()` the only pusher of an
-  event frame — including the reconnect hydration, which resolves a getter
-  host-side and would otherwise volunteer state the method gate forbids asking
-  for. `__tests__/no-ungated-dispatch.test.ts` fails the build when a third
-  path appears.
+- **Two chokepoints, in one module that owns both.** `SocketGate`
+  (`host/socket-gate.ts`) holds the dispatch map, the socket enumeration, the
+  broadcast fan-out and the reconnect hydration, so `resolve()` is the only
+  reader of the map and `push()` the only pusher of an event frame — hydration
+  included, which resolves a getter host-side and would otherwise volunteer
+  state the method gate forbids asking for. Its socket seam is structural
+  (attachment + readyState + send), so `__tests__/socket-gate.test.ts` drives
+  BOTH directions with a fake socket and asserts what was withheld;
+  `__tests__/no-ungated-dispatch.test.ts` is the backstop that fails when a
+  third path appears.
 - **Every registry method is implemented for real.** `collectHandlers` throws
   at construction if one is unregistered, and a capability this host does not
   have has no channel at all — a method that answers only by refusing satisfies
@@ -217,7 +227,14 @@ that object's prefix. The manifest is authoritative for versions and hashes.
 
 - **The manifest IS the listing.** The object is the only writer, so there is
   nothing to crawl and nothing to watch: every mutation fires `onChanged`, and
-  the host broadcasts `onVaultChanged` from it.
+  the host broadcasts `onVaultChanged` from it — NAMING the paths that moved, so
+  a client re-lists only when its own rows can have changed and re-reads a note
+  only when that note did. An EMPTY change is `refreshVault`'s own
+  announcement: it asserts nothing, so every client re-reads.
+- **A cold open is ONE round trip.** `getWorkspaceBoot` answers the root, the
+  listing, the persisted ui state and the open note's own bytes together — the
+  host resolves which note that is from ui-state, so the client never has to
+  learn what it wants before it can ask for it.
 - **Write ordering is crash-consistent**: bytes reach R2 BEFORE the manifest row
   commits, and a permanent purge removes the manifest row BEFORE the R2 object.
   The tolerable failure is an orphan blob, never a dangling pointer.
@@ -564,13 +581,14 @@ record for the decisions code comments cite.
 - **The object has ONE alarm, so every deadline MULTIPLEXES through it.** A
   Durable Object has exactly one pending alarm, so a second concern that calls
   `setAlarm` for itself silently cancels whatever was already armed. The
-  multiplex is therefore structural: every concern runs its sweep in `alarm()`,
-  every concern answers `nextDueAt` with when it next needs waking, and the
-  alarm is re-armed at the earliest of them. `setAlarm` is confined to
-  `UserHost` and to two call sites that both arm at `nextDueAt(now)` — the tail
-  of `alarm()`, and `armAlarm` behind the post-mutation `refreshAlarm`. No
-  concern arms for itself; that is the invariant, not the call count.
-  Adding a concern is a sweep plus a row in `nextDueAt`. A `setTimeout` is never
+  multiplex is therefore structural: `HostAlarm` (`host/host-alarm.ts`) holds
+  ONE list of concerns, each a `sweep` plus the `dueAt` it next needs waking
+  for, and re-arms at the earliest of them. Adding a concern is one ROW —
+  two halves that have to agree is how a concern ends up swept but never woken
+  for. `setAlarm` is confined to that class, which is what "no concern arms for
+  itself" means; the count of call sites is a consequence, not the rule, and
+  every concern that moves a deadline says so (`onDeadlineChanged`) rather than
+  arming. A `setTimeout` is never
   the answer either — a pending timer PINS the object in memory, which is the
   hibernation the whole transport exists to get, and it dies with the eviction
   that a socket's auth deadline, a capture's ack and a routine's schedule all

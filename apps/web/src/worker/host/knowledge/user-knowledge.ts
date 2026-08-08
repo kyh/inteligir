@@ -103,6 +103,11 @@ export type UserKnowledgeDeps = {
   /** Fired after any pass that changed what a query would answer. The host
    * turns it into one `onKnowledgeUpdated` broadcast. */
   readonly onUpdated: () => void;
+  /** Fired when a pass ends with work still queued — a rebuild larger than one
+   * pass's read budget. The host's alarm brings the object back for the next
+   * slice; nothing else would, and the index would finish only as far as the
+   * user happens to click. */
+  readonly onDeadlineChanged: () => void;
 };
 
 export class UserKnowledge {
@@ -110,6 +115,7 @@ export class UserKnowledge {
   private readonly store: SqlKnowledgeStore;
   private readonly vault: UserVault;
   private readonly onUpdated: () => void;
+  private readonly onDeadlineChanged: () => void;
 
   /** Content hash per indexed doc — always the hash of the bytes this index
    * actually projected, never merely the manifest's current one, so the
@@ -135,6 +141,7 @@ export class UserKnowledge {
   constructor(deps: UserKnowledgeDeps) {
     this.vault = deps.vault;
     this.onUpdated = deps.onUpdated;
+    this.onDeadlineChanged = deps.onDeadlineChanged;
     // The root is a LABEL here (one vault per account), so the store's
     // moved-vault guard is satisfied by construction — it stays wired because
     // it is core's own guard, not because it can trip.
@@ -318,6 +325,10 @@ export class UserKnowledge {
       console.warn("[knowledge] pass failed — rebuilding the index:", messageOf(err));
       this.recover();
     }
+    // Work the read budget left behind is a deadline like any other: the host
+    // arms its alarm for the next slice, or a large vault finishes only as far
+    // as the next message happens to carry it.
+    if (this.hasPendingWork()) this.onDeadlineChanged();
   }
 
   /** Replay the persisted projection into the in-memory mirrors, one bounded

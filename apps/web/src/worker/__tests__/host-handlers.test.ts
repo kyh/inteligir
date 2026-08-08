@@ -13,12 +13,11 @@ import { describe, expect, it } from "vitest";
 import type { HostMethod } from "@repo/bridge/ipc-registry";
 
 import { mayInvoke, mayReceive } from "../host/client-class";
-import { collectHandlers, HOST_METHODS } from "../host/handler-registry";
-import { registerCloudHandlers } from "../host/handlers";
+import { HOST_METHODS, type HostHandlers } from "../host/handler-registry";
 import { userHostName } from "../host/host-address";
+import { composeHost } from "../host/host-composition";
 import { HostEvents } from "../host/host-events";
 import { allowedOrigins, originAllowed } from "../host/origins";
-import { createCloudStores } from "../host/stores";
 import { matchHostLeaf } from "../host/host-route";
 
 /** The methods this host answers. Pinned as a list rather than derived, so a
@@ -30,7 +29,7 @@ const IMPLEMENTED: readonly HostMethod[] = [
   "setUiState",
   "getNotificationSettings",
   "updateNotificationSettings",
-  "getVaultRoot",
+  "getWorkspaceBoot",
   "listVault",
   "readVaultDoc",
   "getVaultFileFacts",
@@ -89,66 +88,25 @@ const IMPLEMENTED: readonly HostMethod[] = [
   "createSkill",
 ];
 
-/** An in-memory stand-in for `ctx.storage.kv` — the same synchronous contract. */
-function memoryKv() {
-  const entries = new Map<string, string>();
-  return {
-    get: (key: string) => entries.get(key),
-    put: (key: string, value: string) => {
-      entries.set(key, value);
-    },
-    delete: (key: string) => {
-      entries.delete(key);
-    },
-  };
-}
-
 /**
- * A fresh handler map, built INSIDE a Durable Object so the vault's real
- * SQLite + R2 substrate is behind it. The callback runs there too — a
- * `SqlStorage` handle is bound to the object's I/O context and cannot be used
- * once it has been handed back out.
+ * The handler map, built by the SAME `composeHost` the Durable Object's own
+ * constructor calls — so what these suites assert about is what production
+ * wires. A hand-copied services record was a second composition that drifted
+ * from the one the socket reaches, which is exactly the drift a completeness
+ * assertion must not have under it.
+ *
+ * Built INSIDE the object so the vault's real SQLite + R2 substrate is behind
+ * it: a `SqlStorage` handle is bound to the object's I/O context and cannot be
+ * used once it has been handed back out.
  */
 function withHandlers<T>(
-  run: (ctx: {
-    handlers: ReturnType<typeof collectHandlers>;
-    events: HostEvents;
-  }) => Promise<T> | T,
+  run: (ctx: { handlers: HostHandlers; events: HostEvents }) => Promise<T> | T,
 ): Promise<T> {
   const stub = env.UserHost.getByName(userHostName("handler-fixture"));
-  return runInDurableObject(stub, (host) => {
+  return runInDurableObject(stub, (_host, ctx) => {
     const events = new HostEvents();
-    const stores = createCloudStores(memoryKv());
-    const handlers = collectHandlers((handle) => {
-      registerCloudHandlers(handle, {
-        stores,
-        events,
-        vault: host.vault,
-        knowledge: host.knowledge,
-        // The object's OWN agent composition: these suites assert the handler
-        // map's shape, and a second composition would be answering for a
-        // different runner than the one the socket reaches.
-        agent: {
-          env,
-          userId: "handler-fixture",
-          runner: host.agent.runner,
-          chat: host.agent.chat,
-          credentials: host.agent.credentials,
-          origin: () => "https://inteligir.com",
-          scripted: host.agent.scripted,
-          announce: () => {},
-        },
-        background: {
-          delegations: host.agent.delegations,
-          routines: host.agent.routines,
-          snapshots: host.agent.snapshots,
-        },
-        ai: host.ai,
-        voice: host.voice,
-        capture: { inbox: host.captureInbox, service: host.capture },
-      });
-    });
-    return run({ handlers, events });
+    const composition = composeHost({ env, ctx, events, onDeadlineChanged: () => {} });
+    return run({ handlers: composition.handlers, events });
   });
 }
 

@@ -1,115 +1,121 @@
 // ---------------------------------------------------------------------------
-// Structural guard on the UserHost's capability gate.
+// Structural backstop on the host's capability gate.
 //
-// The gate itself (mayInvoke/mayReceive over a ClientClass) is only as good as
-// the number of places that remember to consult it. Every inbound or outbound
-// path that re-implements "look up a handler" or "write a frame to a socket" —
-// the hydration push, event broadcast, binary frames — is a place that can
-// forget, and a forgotten check fails OPEN: a client reaches a method or event
-// its class never named.
+// The gate's BEHAVIOUR is asserted where it lives — socket-gate.test.ts drives
+// both directions through a fake socket, and inverting either predicate turns
+// that file red. This one covers the failure a behavioural test cannot see: a
+// path someone ADDS that re-implements "look up a handler" or "write a frame to
+// a socket" and forgets to consult the gate. A forgotten check fails OPEN, and
+// no test written before that path existed would notice.
 //
-// user-host.ts has exactly two chokepoints, resolveHandler() and sendEvent(),
-// and this test is what keeps it at two. Behavioural tests can only cover the
-// paths someone thought to write; this one fails when an extra path appears,
-// which is the actual failure mode.
-//
-// If you are here because this test failed: do not add your call site to an
-// allowlist. Route it through resolveHandler/sendEvent — that is the fix.
+// If you are here because this failed: do not add your call site to an
+// allowlist. Route it through SocketGate — that is the fix.
 //
 // The socket is not the only way in: the asset upload arrives as an HTTP
-// request, reaches the same vault, and cannot pass through either chokepoint
-// (there is no frame to resolve and no socket to push to). So it carries the
-// gate itself, and the last case below is what keeps it carrying one — an HTTP
-// route that reached a capability without naming it would be a hole no amount
-// of care on the socket path could close.
+// request, reaches the same vault, and cannot pass through the gate (there is
+// no frame to resolve and no socket to push to). So it carries the check
+// itself, and the case below is what keeps it carrying one — an HTTP route that
+// reached a capability without naming it would be a hole no amount of care on
+// the socket path could close.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
 import agentEndpointSource from "../host/agent-endpoints.ts?raw";
 import assetSource from "../host/asset-route.ts?raw";
+import gateSource from "../host/socket-gate.ts?raw";
 import runnerSource from "../agent/agent-runner.ts?raw";
-import source from "../host/user-host.ts?raw";
+import hostSource from "../host/user-host.ts?raw";
 
 /** Source lines with comments stripped, so a mention in prose never counts as
  * a call site. */
-const codeLines = source
-  .split("\n")
-  .map((line) => line.replace(/\/\/.*$/, "").replace(/\/\*.*?\*\//g, ""))
-  .filter((line) => !/^\s*\*/.test(line));
-
-function callSites(identifier: string): string[] {
-  return codeLines.filter(
-    (line) => line.includes(`${identifier}(`) && !line.includes(`private ${identifier}(`),
-  );
-}
-
-/** The same, over the runner — where the report path's own gate lives. */
-function runnerCallSites(identifier: string): string[] {
-  return runnerSource
+function codeLines(source: string): string[] {
+  return source
     .split("\n")
-    .map((line) => line.replace(/\/\/.*$/, ""))
-    .filter((line) => !/^\s*\*/.test(line))
-    .filter((line) => line.includes(`${identifier}(`));
+    .map((line) => line.replace(/\/\/.*$/, "").replace(/\/\*.*?\*\//g, ""))
+    .filter((line) => !/^\s*\*/.test(line));
 }
 
-/** The loop line plus the lines that can plausibly be its body. */
-function windowAt(line: string, lines: number): string {
-  const index = codeLines.indexOf(line);
-  return codeLines.slice(index, index + lines).join("\n");
+const gate = codeLines(gateSource);
+const host = codeLines(hostSource);
+
+function callSites(lines: string[], identifier: string): string[] {
+  return lines
+    .filter((line) => line.includes(`${identifier}(`) && !line.includes(`${identifier}(\n`))
+    .map((line) => line.trim());
 }
 
-describe("user-host gate chokepoints", () => {
+/** Every line index whose text matches, so a window is anchored to the OCCURRENCE
+ * rather than to the first line that happens to read the same. */
+function indicesOf(lines: string[], needle: string): number[] {
+  return lines.flatMap((line, index) => (line.includes(needle) ? [index] : []));
+}
+
+/** The same call-site scan over the runner — where the report path's own gate
+ * lives. */
+function runnerCallSites(identifier: string): string[] {
+  return codeLines(runnerSource).filter((line) => line.includes(`${identifier}(`));
+}
+
+describe("the gate has one way in and one way out", () => {
   it("resolves handlers in exactly one place", () => {
     // Reaching the dispatch map directly is how an inbound path skips the gate.
-    const reads = codeLines.filter((line) => line.includes("dispatch.get("));
     expect(
-      reads.map((line) => line.trim()),
-      "dispatch.get() must only be called inside resolveHandler()",
+      indicesOf(gate, "dispatch.get("),
+      "dispatch.get() must only be called inside resolve()",
     ).toHaveLength(1);
+    expect(indicesOf(host, "dispatch.get("), "the dispatch map belongs to SocketGate").toEqual([]);
   });
 
-  it("consults each gate in exactly one place", () => {
+  it("consults each predicate in exactly one place", () => {
     // A second call site means a path decided to gate itself — which is the
     // pattern that produces holes. One call site each = one chokepoint.
     expect(
-      callSites("mayInvoke").map((line) => line.trim()),
-      "mayInvoke() belongs to resolveHandler() alone",
+      callSites(gate, "mayInvoke"),
+      "mayInvoke() belongs to SocketGate.resolve() alone",
     ).toHaveLength(1);
     expect(
-      callSites("mayReceive").map((line) => line.trim()),
-      "mayReceive() belongs to sendEvent() alone",
+      callSites(gate, "mayReceive"),
+      "mayReceive() belongs to SocketGate.push() alone",
     ).toHaveLength(1);
+    for (const predicate of ["mayInvoke", "mayReceive"]) {
+      expect(
+        callSites(host, predicate),
+        `${predicate}() outside the gate — route the call through SocketGate`,
+      ).toEqual([]);
+    }
   });
 
-  it("fans out to authed sockets only through sendEvent", () => {
-    const loops = codeLines.filter((line) => line.includes("of this.authedSockets()"));
+  it("fans out to sockets only through the push gate", () => {
+    const loops = indicesOf(gate, "of this.sockets()");
     expect(loops.length, "no fan-out loop found — the broadcast shape changed").toBeGreaterThan(0);
-    for (const loop of loops) {
+    for (const index of loops) {
+      // Anchored to THIS loop's own index: locating a window by matching text
+      // would validate two identical loops against the first one's body.
       expect(
-        windowAt(loop, 3),
-        `Loop over authedSockets() that does not delegate to sendEvent() — route ` +
-          `pushes through it:\n${loop.trim()}`,
-      ).toContain("sendEvent(");
+        gate.slice(index, index + 4).join("\n"),
+        `Loop over sockets() that does not delegate to push() — route the writes ` +
+          `through it:\n${gate[index]?.trim() ?? ""}`,
+      ).toContain("this.push(");
     }
   });
 
   it("writes frames to a socket only from the paths that own one", () => {
     // Exactly three writers, each named so a FOURTH is visible rather than
-    // quietly correct-looking: sendEvent's own write (the push gate itself),
-    // and two per-socket ANSWERS that are gated by something else — a res
-    // frame by resolveHandler, the welcome frame by authentication itself.
+    // quietly correct-looking: the gate's own write (the push gate itself), and
+    // two per-socket ANSWERS gated by something else — a res frame by
+    // resolve(), the welcome frame by authentication itself.
     const OWNED_WRITES = [
-      "WebSocket.READY_STATE_OPEN) ws.send(frame)",
+      "WebSocket.READY_STATE_OPEN) socket.send(frame)",
       'ws.send(encodeFrame({ t: "res"',
       'ws.send(encodeFrame({ t: "welcome" }))',
     ];
-    const writes = codeLines
-      .filter((line) => /\bws\.send\(/.test(line))
+    const writes = [...gate, ...host]
+      .filter((line) => /\b(?:ws|socket)\.send\(/.test(line))
       .filter((line) => !OWNED_WRITES.some((marker) => line.includes(marker)));
 
     expect(
       writes.map((line) => line.trim()),
-      "A socket write outside sendEvent() and the two per-socket answers",
+      "A socket write outside SocketGate.push() and the two per-socket answers",
     ).toEqual([]);
   });
 
@@ -152,7 +158,7 @@ describe("user-host gate chokepoints", () => {
   it("keeps both chokepoints present and named", () => {
     // Cheap tripwire: a rename that split them would otherwise pass every check
     // above by making the identifiers disappear entirely.
-    expect(source).toContain("private resolveHandler(");
-    expect(source).toContain("private sendEvent(");
+    expect(gateSource).toContain("resolve(state: AuthedSocketState");
+    expect(gateSource).toContain("private push(");
   });
 });

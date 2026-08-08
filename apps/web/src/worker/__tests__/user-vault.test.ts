@@ -12,10 +12,12 @@
 import { env, runDurableObjectAlarm, runInDurableObject, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
+
 import { sha256Hex } from "../hash";
 import { userHostName } from "../host/host-address";
 import { UserKnowledge } from "../host/knowledge/user-knowledge";
-import { seedVault } from "../host/vault/seed";
+import { SEED_OPEN_NOTE, seedVault } from "../host/vault/seed";
 import { UserVault, type VaultChange } from "../host/vault/user-vault";
 import { renameWithLinkRewrite } from "../host/vault/vault-rename";
 import { authenticated, invoke, ORIGIN, signUp, WEB_ORIGIN, type Account } from "./host-helpers";
@@ -56,7 +58,12 @@ function withVault<T>(
         knowledge?.record(change);
       },
     });
-    knowledge = new UserKnowledge({ storage: state.storage, vault, onUpdated: () => {} });
+    knowledge = new UserKnowledge({
+      storage: state.storage,
+      vault,
+      onUpdated: () => {},
+      onDeadlineChanged: () => {},
+    });
     return run({ vault, knowledge, changes, state });
   });
 }
@@ -366,37 +373,70 @@ beforeAll(async () => {
 });
 
 describe("vault over the bridge", () => {
-  it("seeds on first connect and serves the listing", async () => {
+  it("seeds on first connect and serves the whole first paint in ONE call", async () => {
     const { ws, frames } = await authenticated(owner);
-    const listed = await invoke(ws, frames, 1, "listVault");
-    expect(listed).toMatchObject({ ok: true });
-    expect(listed.ok ? listed.result : null).toEqual([
-      { path: "AGENTS.md", name: "AGENTS.md", kind: "doc" },
-      { path: "Welcome.md", name: "Welcome.md", kind: "doc" },
-      { path: "templates/Meeting notes.md", name: "Meeting notes.md", kind: "doc" },
-    ]);
-    expect(await invoke(ws, frames, 2, "getVaultRoot")).toMatchObject({ result: "/Vault" });
+    // The root, the listing, the persisted ui state and the open note's own
+    // bytes — one round trip, because three would be three (see WorkspaceBoot).
+    const boot = await invoke(ws, frames, 1, "getWorkspaceBoot");
+    expect(boot).toMatchObject({ ok: true });
+    expect(boot.ok ? boot.result : null).toEqual({
+      root: "/Vault",
+      entries: [
+        { path: "AGENTS.md", name: "AGENTS.md", kind: "doc" },
+        { path: "Welcome.md", name: "Welcome.md", kind: "doc" },
+        { path: "templates/Meeting notes.md", name: "Meeting notes.md", kind: "doc" },
+      ],
+      uiState: { [UI_STATE_OPEN_NOTE_KEY]: SEED_OPEN_NOTE },
+      // The seed decided which note this lands on, and the bundle already
+      // carries its text — the client never asks a second time.
+      openNote: { path: SEED_OPEN_NOTE, content: expect.stringContaining("This is your vault") },
+    });
 
-    // A write announces itself to every connected client.
+    // A write announces itself to every connected client, NAMING what moved so
+    // a client re-reads only what it has to.
     ws.send(
       JSON.stringify({
         t: "req",
-        id: 3,
+        id: 2,
         method: "writeVaultDoc",
         payload: { path: "notes/new.md", content: "# New\n" },
       }),
     );
-    const events: string[] = [];
+    const events: Array<{ method: string; payload: unknown }> = [];
     for (;;) {
       const frame = await frames.next();
       if (frame.t === "evt") {
-        events.push(frame.method);
+        events.push({ method: frame.method, payload: frame.payload });
+        continue;
+      }
+      expect(frame).toMatchObject({ t: "res", id: 2, ok: true });
+      break;
+    }
+    expect(events).toEqual([
+      {
+        method: "onVaultChanged",
+        payload: {
+          root: "/Vault",
+          changed: { upserted: ["notes/new.md"], removed: [] },
+        },
+      },
+    ]);
+
+    // `refreshVault` asserts nothing about the manifest — it re-announces it —
+    // so it says so rather than naming paths it did not diff.
+    ws.send(JSON.stringify({ t: "req", id: 3, method: "refreshVault" }));
+    const refreshed: unknown[] = [];
+    for (;;) {
+      const frame = await frames.next();
+      if (frame.t === "evt") {
+        // The previous write's index pass lands somewhere in here.
+        if (frame.method === "onVaultChanged") refreshed.push(frame.payload);
         continue;
       }
       expect(frame).toMatchObject({ t: "res", id: 3, ok: true });
       break;
     }
-    expect(events).toEqual(["onVaultChanged"]);
+    expect(refreshed).toEqual([{ root: "/Vault", changed: null }]);
     ws.close(1000, "done");
   });
 
