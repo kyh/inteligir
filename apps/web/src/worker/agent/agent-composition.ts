@@ -5,7 +5,7 @@
 // It also holds the runtime choice: a real Cloudflare Sandbox, or the scripted
 // in-memory one. That is a single `if`, made once, on a var the deployment sets
 // (`AGENT_RUNTIME`) — and everything downstream of it is identical, because the
-// port is the same five verbs either way (./sandbox-port).
+// port is the same contract either way, in both directions (./sandbox-port).
 //
 // The scripted branch is not a test double bolted on the side. It is how this
 // repo is developed: `@cloudflare/sandbox` needs the Workers Paid plan and a
@@ -22,7 +22,6 @@ import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
 import type { ListDelegationsResult } from "@repo/bridge/delegation";
 import type { ListRoutinesResult } from "@repo/bridge/routines";
-import type { AgentReport, AgentReportReply } from "@repo/agent-container/protocol";
 
 import {
   BackgroundRuns,
@@ -138,25 +137,26 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
 
   // The scripted containers are built EAGERLY (a few fields in memory each) so
   // `scripted` is a plain lookup rather than something a caller has to provoke
-  // into existing. `report` is the PRODUCTION report entry, not a stub: a
+  // into existing. `report` is the PRODUCTION report sink, not a stub: a
   // scripted turn therefore drives the real transcript, the real tool executor
   // and the real confirmation broker, and only the process that would have
-  // produced the reports is fake. The lane each one reports on is bound HERE,
-  // which is the in-process twin of the report route reading it off the
-  // container's own bearer. The runner they report into is constructed just
-  // below, which is why the reference is deferred.
+  // produced the reports is fake. NEITHER IS TOLD ITS LANE — each presents the
+  // report bearer its own boot carried, and the sink resolves the lane from it,
+  // which is the identical derivation a container dialing in over HTTPS gets.
+  // The runner they report into is constructed just below, which is why the
+  // reference is deferred.
   let runner: AgentRunner | null = null;
-  const scriptedPort = (lane: AgentLane): FakeSandbox =>
+  const scriptedPort = (): FakeSandbox =>
     new FakeSandbox({
-      report: (report: AgentReport): Promise<AgentReportReply> => {
+      report: (identity, body) => {
         if (runner === null) throw new Error("the agent runner is not composed yet");
-        return runner.report(report, lane);
+        return runner.acceptReport(identity, body);
       },
       defer: deps.defer,
     });
   const scripted: Record<AgentLane, FakeSandbox> | null = sandboxRuntimeEnabled(deps.env)
     ? null
-    : { chat: scriptedPort("chat"), background: scriptedPort("background") };
+    : { chat: scriptedPort(), background: scriptedPort() };
 
   // A real container's stub is built once per lane and captured, so its state
   // survives between turns; the scripted ones already do.

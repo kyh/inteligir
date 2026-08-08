@@ -20,10 +20,14 @@
 // Browser Run, and `bash` may want a package registry; both are opt-in through
 // `AGENT_EXTRA_ALLOWED_HOSTS` so a deployment that wants them says so.
 //
-// `ContainerProxy` is re-exported from the Worker entry beside this class
-// because the SDK constructs outbound-interception fetchers that reference it
-// by name. Without that export the interception silently does not install, and
-// the credential seam disappears rather than failing.
+// BOTH HALVES OF THE SEAM ARE RESOLVED BY NAME, and both are checked rather
+// than trusted. `ContainerProxy` is re-exported from the Worker entry beside
+// this class because the SDK constructs outbound-interception fetchers that
+// reference it there — `tools/repo-guards/src/container-exports.test.ts` reads
+// every entry for it, including the deployed one the Workers suite cannot load.
+// The handler table below is read back after it is assigned. Either failure is
+// silent otherwise: the firewall still allows the provider hosts, the requests
+// still leave, and the only symptom is a container spending a placeholder key.
 // ---------------------------------------------------------------------------
 
 import { Sandbox } from "@cloudflare/sandbox";
@@ -92,12 +96,38 @@ async function providerEgress(request: Request, env: Env): Promise<Response> {
   return fetch(rewritten);
 }
 
+/** The hosts the credential seam must stand in front of: every provider whose
+ * requests carry a token this Worker owns. */
+function interceptedHosts(): string[] {
+  return allProviders()
+    .filter((entry) => entry.requiresAuth)
+    .map((entry) => entry.apiHost);
+}
+
 // Assigned rather than declared as `static override outboundByHost = …`: the
 // base class exposes it as a static ACCESSOR, and a static field declaration
 // under `useDefineForClassFields` defines an own property instead of calling
 // the setter — the interception would never install, and nothing would say so.
 AgentSandbox.outboundByHost = Object.fromEntries(
-  allProviders()
-    .filter((entry) => entry.requiresAuth)
-    .map((entry) => [entry.apiHost, providerEgress]),
+  interceptedHosts().map((host) => [host, providerEgress]),
 );
+
+// READ IT BACK, at module scope, and refuse to be a Worker if it did not take.
+//
+// The SDK keeps these handlers in a registry the setter writes and a getter
+// reads; nothing else in this deployment ever asks for them, so an assignment
+// that missed the setter — the field-declaration hazard above, a base class
+// that stops exposing the accessor — leaves a container whose provider requests
+// go out carrying the PLACEHOLDER key. That failure is silent by construction:
+// the firewall still allows the host, the request still leaves, and the only
+// symptom is a model that will not answer. Throwing here makes it a boot error
+// on a code path every test loads, which is the loudest place a fact the type
+// system cannot express can be checked.
+for (const host of interceptedHosts()) {
+  if (AgentSandbox.outboundByHost?.[host] !== providerEgress) {
+    throw new Error(
+      `the sandbox's outbound interception did not install for ${host} — ` +
+        "the provider credential seam is not in place",
+    );
+  }
+}

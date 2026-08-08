@@ -32,6 +32,7 @@ import { mkdir } from "node:fs/promises";
 import {
   AGENT_CONTAINER_PORT,
   CONTAINER_API,
+  CONTAINER_REFUSAL,
   CONTAINER_VAULT_DIR,
   type ContainerBoot,
   type ContainerState,
@@ -83,7 +84,6 @@ type Daemon = {
 
 let daemon: Daemon | null = null;
 let vaultRevision = 0;
-let seededThrough = 0;
 let activeTurn: string | null = null;
 
 // ---------------------------------------------------------------------------
@@ -100,7 +100,11 @@ function currentState(): ContainerState {
   return {
     bootId: daemon?.boot.bootId ?? null,
     vaultRevision,
-    seededThrough,
+    // Read off the session rather than tracked beside it: seeding is a property
+    // of the live session, and a session that refused the prompt its seed rode
+    // in with never took the conversation. A boot builds a new one, so a fresh
+    // container reports `false` by construction.
+    seeded: daemon?.session?.isSeeded() ?? false,
     busy: activeTurn !== null,
   };
 }
@@ -135,7 +139,7 @@ async function handleBoot(body: unknown): Promise<Reply> {
     // which of the agent's writes the vault of record refused, and which
     // revision the container may now claim to hold (./vault-report).
     report: createVaultReport({
-      reporter,
+      send: (report) => reporter.send(report),
       heldRevision: () => vaultRevision,
       setRevision: (revision) => {
         vaultRevision = revision;
@@ -147,7 +151,6 @@ async function handleBoot(body: unknown): Promise<Reply> {
 
   daemon = { boot, reporter, watcher, tools, session: null, stream: null };
   vaultRevision = 0;
-  seededThrough = 0;
   return OK;
 }
 
@@ -201,7 +204,7 @@ function handleTurn(body: unknown): Reply {
 
   if (activeTurn !== null) {
     if (turn.kind === "user_message") {
-      return { status: 409, body: { error: "a turn is already running" } };
+      return { status: 409, body: { error: CONTAINER_REFUSAL.turnInFlight } };
     }
     const session = current.session;
     if (session === null) {
@@ -248,12 +251,6 @@ async function runTurn(current: Daemon, turn: ContainerTurn): Promise<void> {
   } catch (error) {
     failure = toMessage(error);
   }
-
-  const session = current.session;
-  // Seeding is tracked from what the session ACCEPTED, not from what was sent:
-  // a turn pi refused before the message entered the conversation leaves the
-  // session unseeded, and the object has to send the transcript again.
-  if (session !== null && session.isSeeded()) seededThrough = turn.seededThrough;
 
   await events.flush();
   // The turn is OVER before it is REPORTED. That ordering is load-bearing for
@@ -387,7 +384,7 @@ function malformed(what: string): Reply {
 }
 
 function notBooted(): Reply {
-  return { status: 409, body: { error: "the container has not booted" } };
+  return { status: 409, body: { error: CONTAINER_REFUSAL.notBooted } };
 }
 
 function toMessage(error: unknown): string {

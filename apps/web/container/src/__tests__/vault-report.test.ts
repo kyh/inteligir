@@ -60,11 +60,9 @@ function harness(reply: AgentReportReply | null) {
   const told: string[] = [];
   let revision = 4;
   const report = createVaultReport({
-    reporter: {
-      send: (payload) => {
-        sent.push(payload);
-        return Promise.resolve(reply);
-      },
+    send: (payload) => {
+      sent.push(payload);
+      return Promise.resolve(reply);
     },
     heldRevision: () => revision,
     setRevision: (next) => {

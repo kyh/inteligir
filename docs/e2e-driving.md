@@ -11,8 +11,10 @@ flows rather than ending every change "unverified, owner-only."
 one (`apps/web/src/worker/agent/fake-sandbox.ts`). Everything around it is
 production code: the runner, the tool manifest and executor, the transcript, the
 confirmation broker, the snapshot store and the vault write-back. The port IS
-the seam, which is why the whole agent suite runs this way and why the suite is
-evidence about the real thing.
+the seam — in both directions, so the scripted container's reports are real
+ones, presented with its own boot bearer and answered through the same entry an
+HTTPS report reaches. That is why the whole agent suite runs this way and why
+the suite is evidence about the real thing.
 
 It is what `pnpm --filter @repo/web test` already sets. For a running app, put it
 in `apps/web/.dev.vars`:
@@ -97,6 +99,13 @@ two independent queues, each drained on its own, so a stray chat turn does not
 eat the background lane's step. Script, then drive exactly one flow before
 re-scripting. Empty `steps` restores the self-refilling echo. It throws unless
 the runtime is scripted, so it does nothing on a real deployment.
+
+A step carries three things, and the difference between the last two is the
+whole shape of the agent: `text` is what the model said, `toolCalls` are the
+GRANTED tools (implemented host-side, so they run the real executor and the real
+confirmations), and `writes` are what the agent's OWN file tools did to
+`./vault` — which reach the vault of record as a reported write, get a restore
+point captured for them, and can be refused.
 
 **The queue does not survive hibernation.** It lives in an in-memory field on
 the Durable Object, and an idle object with open sockets is evicted — a minute

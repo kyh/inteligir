@@ -25,7 +25,6 @@ const TURN = {
   text: "hello",
   images: [],
   seed: [],
-  seededThrough: 1,
 };
 
 describe("parseBoot", () => {

@@ -27,6 +27,7 @@
 import { describe, expect, it } from "vitest";
 import agentEndpointSource from "../host/agent-endpoints.ts?raw";
 import assetSource from "../host/asset-route.ts?raw";
+import runnerSource from "../agent/agent-runner.ts?raw";
 import source from "../host/user-host.ts?raw";
 
 /** Source lines with comments stripped, so a mention in prose never counts as
@@ -40,6 +41,15 @@ function callSites(identifier: string): string[] {
   return codeLines.filter(
     (line) => line.includes(`${identifier}(`) && !line.includes(`private ${identifier}(`),
   );
+}
+
+/** The same, over the runner — where the report path's own gate lives. */
+function runnerCallSites(identifier: string): string[] {
+  return runnerSource
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, ""))
+    .filter((line) => !/^\s*\*/.test(line))
+    .filter((line) => line.includes(`${identifier}(`));
 }
 
 /** The loop line plus the lines that can plausibly be its body. */
@@ -111,20 +121,30 @@ describe("user-host gate chokepoints", () => {
   });
 
   it("gates the container's report on the token that names its generation", () => {
-    // The report route is the third transport into this object and the widest:
+    // The report path is the third transport into this object and the widest:
     // everything downstream of it writes to the vault or runs a granted tool.
-    // Its gate is NOT the client class — a container is not a client — so this
-    // pins the two conditions it does carry, both required. A route that read a
-    // report before proving whose container sent it would be a hole neither
-    // socket chokepoint could close. The same call answers WHICH LANE the
-    // container is, so the undo surface a report's writes land under is read
-    // off the credential rather than taken from the body.
+    // Its gate is NOT the client class — a container is not a client — and it
+    // is not the route's either: the scripted container reaches the same entry
+    // with no HTTP hop, so a decision the route made would be one that runtime
+    // skipped. The HTTP leg reads the bearer and hands over; `acceptReport` is
+    // where every condition is checked.
     expect(agentEndpointSource).toContain("readBearer(request.headers)");
-    expect(agentEndpointSource).toContain("runner.resolveReportLane(token)");
-    // And the body is parsed only AFTER both, so an unauthenticated caller
-    // cannot spend this object's time on a megabyte of JSON.
-    const authIndex = agentEndpointSource.indexOf("resolveReportLane");
-    const parseIndex = agentEndpointSource.indexOf("await request.json()");
+    expect(agentEndpointSource).toContain("runner.acceptReport(token,");
+    expect(agentEndpointSource).not.toContain("AgentReportSchema");
+
+    // The bearer answers WHICH LANE the container is, so the undo surface a
+    // report's writes land under is read off the credential rather than taken
+    // from the body — and it is derived in exactly ONE place, or the two
+    // transports could disagree about whose container reported.
+    expect(runnerCallSites("this.resolveReportLane")).toHaveLength(1);
+    expect(runnerSource).toContain("private async resolveReportLane(");
+    expect(runnerSource).toContain("private report(");
+
+    // And the body is parsed only AFTER the identity holds, so a caller who
+    // cannot prove which container it is never spends this object's time on a
+    // megabyte of JSON.
+    const authIndex = runnerSource.indexOf("this.resolveReportLane(identity)");
+    const parseIndex = runnerSource.indexOf("JSON.parse(body)");
     expect(authIndex).toBeGreaterThan(-1);
     expect(parseIndex).toBeGreaterThan(authIndex);
   });

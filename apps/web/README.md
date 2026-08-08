@@ -73,8 +73,9 @@ src/
       vault/             THE VAULT — manifest in DO SQLite, bytes in R2
       knowledge/         THE INDEX — core's SQL store over DO SQLite + FTS5
     agent/               THE AGENT — the container, and everything around it
-      sandbox-port.ts    the six verbs the DO may ask of a container (five over
-                         HTTP; shutdown has no daemon leg)
+      sandbox-port.ts    BOTH directions: the six verbs the DO may ask of a
+                         container (five over HTTP; shutdown has no daemon leg)
+                         and the sink every report arrives through
       cf-sandbox.ts      that port over @cloudflare/sandbox
       fake-sandbox.ts    that port in memory, scripted (AGENT_RUNTIME=scripted)
       sandbox-class.ts   the Sandbox subclass: enableInternet=false + the egress seam
@@ -460,6 +461,14 @@ Worker; the image is `container/`, built from this repo.
   folds into the transcript and broadcasts. An object that instead held the
   container's event stream open would be pinned for the life of the turn, and
   an outbound connection expires at fifteen minutes — mid-answer.
+- **The return path is the PORT's, so a turn is one testable thing.** Every
+  report — over HTTPS from a real container, or in process from the scripted
+  one — lands on the same sink (`AgentRunner.acceptReport`) with the bearer its
+  boot carried and the body as text. The sink resolves the LANE from that
+  bearer, checks the shape, and only then does the report become anything. One
+  derivation, so the undo surface a write lands under cannot depend on which
+  runtime ran; and the scripted container reports for real rather than calling
+  back through a closure that already knew the answer.
 - **The report's ANSWER is part of the protocol, not a courtesy.** A `vault`
   report is answered with what the object refused — a container-side `rm`, a
   write with no restore point — and with the revision the container may now
@@ -507,11 +516,15 @@ Worker; the image is `container/`, built from this repo.
 - **`AGENT_RUNTIME=scripted`** replaces the container with an in-memory one
   (`fake-sandbox.ts`). The runner, the transcript, the tool executor, the
   confirmation broker and the vault write-back are the production ones either
-  way; only the process that would have produced the reports is fake. The whole
-  test suite runs this way. It is opt-in rather than a fallback:
-  `sandboxRuntimeEnabled` reads this variable and nothing else, so a deployment
-  with no plan and no image that leaves it unset still gets the real port and
-  fails at container boot.
+  way; only the process that would have produced the reports is fake, and it
+  produces REAL ones — serialized, bounded, presented with its own boot bearer,
+  and answered through the same sink an HTTPS report reaches. A scripted step
+  can carry tool calls and file `writes`, so one drive covers a whole turn:
+  dispatch, work, report, the vault of record, the fan-out. What is left out is
+  the HTTP hop and pi. The whole test suite runs this way. It is opt-in rather
+  than a fallback: `sandboxRuntimeEnabled` reads this variable and nothing else,
+  so a deployment with no plan and no image that leaves it unset still gets the
+  real port and fails at container boot.
 
 ### The unattended lane (`src/worker/background/`)
 

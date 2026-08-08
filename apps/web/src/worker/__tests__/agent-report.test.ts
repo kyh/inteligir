@@ -237,20 +237,21 @@ describe("the container report route", () => {
     });
     expect(await tool.json()).toMatchObject({ kind: "tool", isError: true });
 
-    const busy = await withHost(userId, async (host) => {
-      // The live container says it has started work on the turn this host
-      // dispatched; the one that is over then announces its end.
-      const turnId = host.agent.runner.chatTurnId();
-      await host.agent.runner.report(
-        { kind: "events", turnId, events: [{ type: "agent_start" }] },
-        "chat",
-      );
-      await host.agent.runner.report(
-        { kind: "turn_end", turnId: "a-turn-that-is-over", error: null },
-        "chat",
-      );
-      return host.agent.runner.agentBusy();
+    // The live container says it has started work on the turn this host
+    // dispatched; the one that is over then announces its end. Both go in the
+    // way a container's do — bearer first, body as text — because that is the
+    // only way in.
+    await report(userId, live.token, {
+      kind: "events",
+      turnId: live.turnId,
+      events: [{ type: "agent_start" }],
     });
+    await report(userId, live.token, {
+      kind: "turn_end",
+      turnId: "a-turn-that-is-over",
+      error: null,
+    });
+    const busy = await withHost(userId, (host) => host.agent.runner.agentBusy());
     expect(busy).toBe(true);
   });
 

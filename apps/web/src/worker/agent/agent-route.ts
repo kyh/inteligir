@@ -19,17 +19,14 @@
 // mid-answer.
 // ---------------------------------------------------------------------------
 
+import { MAX_REPORT_BYTES } from "@repo/agent-container/protocol";
+
 import { tokenAddress } from "./agent-crypto";
 import { readBearer } from "../host/session";
 import { userHostName } from "../host/host-address";
 import { OAUTH_CALLBACK_PATH, oauthResultPage, providerRefusalMessage } from "./provider-oauth";
 
 const REPORT_PATH = /^\/v1\/agent\/([^/]+)\/report$/;
-
-/** Largest report body accepted. Events batch and vault ops carry bytes, so
- * this is generous — but a container is a process the user's own agent runs
- * commands inside, and an unbounded body from one is a Durable Object's memory. */
-const MAX_REPORT_BYTES = 8 * 1024 * 1024;
 
 /** The userId a `POST /v1/agent/:userId/report` addresses, or `null`. Pure — no
  * bindings, no I/O. */

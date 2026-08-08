@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import type { FauxAgentScript } from "@repo/bridge/ipc-registry";
+import { CONTAINER_REFUSAL } from "@repo/agent-container/protocol";
 
 import type { FakeSandbox } from "../agent/fake-sandbox";
 import type { UserHost } from "../host/user-host";
@@ -148,6 +149,165 @@ describe("an agent turn", () => {
     expect(seeds).toEqual([2, 4]);
   });
 
+  // The whole point of the port having a return direction: ONE turn, from the
+  // dispatch through the container's work, its reports, the vault of record and
+  // the fan-out to sockets, with nothing between them stubbed. The lane is what
+  // holds it together — every report here is authenticated with the scripted
+  // container's own boot bearer, and the sink derives "chat" from it. Break
+  // that derivation and this goes red in three places at once: an unattended
+  // report writes nothing (no background run holds the lane), records nothing
+  // in the conversation, and captures nothing under the chat undo surface.
+  it("carries one turn from dispatch through the vault of record to the sockets", async () => {
+    const outcome = await withHost("turn-round-trip", async (host) => {
+      await host.vault.writeText("notes/searchable.md", "# Findable\n\nunmistakable-token\n");
+      const events: AppAgentEvent[] = [];
+      const broadcast: string[] = [];
+      connect(host);
+      const offEvents = onAgentEvents(host, (event) => events.push(event));
+      const offBroadcast = collectBroadcast(host, broadcast);
+      scriptedPort(host).setScript({
+        steps: [
+          {
+            text: "Found it and wrote it down.",
+            toolCalls: [{ name: "search_vault", arguments: { query: "unmistakable-token" } }],
+            writes: [{ path: "notes/from-the-agent.md", text: "# From the agent\n" }],
+          },
+        ],
+      });
+
+      await host.agent.runner.send({ type: "user_message", text: "note what you find" });
+      await settle();
+      offEvents();
+      offBroadcast();
+      return {
+        events: events.map((event) => event.type),
+        toolResult: events.find((event) => event.type === "tool_execution_end"),
+        history: host.agent.chat.history().map((entry) => ({ role: entry.role, text: entry.text })),
+        written: await host.vault.readText("notes/from-the-agent.md"),
+        // The container adopted the revision the object answered with, so its
+        // own bytes are not pushed back at it on the next wake.
+        container: await scriptedPort(host).state(),
+        revision: host.agent.revisions.current(),
+        notice: scriptedPort(host).lastVaultNotice(),
+        broadcast: [...new Set(broadcast)].toSorted(),
+        busy: host.agent.runner.agentBusy(),
+      };
+    });
+
+    // Container work: the tool ran host-side and answered with real rows.
+    expect(outcome.toolResult).toMatchObject({ type: "tool_execution_end", isError: false });
+    expect(JSON.stringify(outcome.toolResult)).toContain("notes/searchable.md");
+    // The turn's shape, as a socket saw it.
+    expect(outcome.events).toEqual([
+      "agent_start",
+      "tool_execution_start",
+      "tool_execution_end",
+      "message_start",
+      "message_end",
+      "agent_end",
+    ]);
+    // The conversation of record.
+    expect(outcome.history).toEqual([
+      { role: "user", text: "note what you find" },
+      { role: "tool", text: expect.stringContaining("notes/searchable.md") },
+      { role: "assistant", text: "Found it and wrote it down." },
+    ]);
+    // The vault of record — not the container's copy.
+    expect(outcome.written).toBe("# From the agent\n");
+    expect(outcome.notice).toBe("");
+    expect(outcome.container.phase === "ready" && outcome.container.vaultRevision).toBe(
+      outcome.revision,
+    );
+    // The fan-out: the write's undo point is announced on the CHAT surface,
+    // which is the lane made visible.
+    expect(outcome.broadcast).toContain("onAgentEditCaptured");
+    expect(outcome.broadcast).toContain("onAgentEvent");
+    expect(outcome.broadcast).toContain("onVaultChanged");
+    expect(outcome.busy).toBe(false);
+  });
+
+  // A reported removal is refused (deletion is the destructive tier's), and the
+  // refusal has to reach the MODEL — the agent's own file tools already told it
+  // the file was gone. The image steers that sentence into the running session;
+  // this asserts the sentence was produced at all.
+  it("tells the container what the vault of record refused", async () => {
+    const refused = await withHost("turn-refused-write", async (host) => {
+      connect(host);
+      scriptedPort(host).setScript({
+        steps: [{ text: "Saved.", writes: [{ path: "notes/held.md", text: "# Held\n" }] }],
+      });
+      // No restore point can be made for a path whose bytes are unreachable,
+      // and a write with no undo point is refused, fail-closed.
+      await host.vault.writeText("notes/held.md", "# Original\n");
+      const file = host.vault.lookup("notes/held.md");
+      if (file === null) throw new Error("the target was not written");
+      await env.VAULT_FILES.delete(`${userHostName("turn-refused-write")}/${file.key}`);
+
+      await host.agent.runner.send({ type: "user_message", text: "save it" });
+      await settle();
+      return {
+        notice: scriptedPort(host).lastVaultNotice(),
+        container: await scriptedPort(host).state(),
+        revision: host.agent.revisions.current(),
+      };
+    });
+    expect(refused.notice).toContain("notes/held.md");
+    expect(refused.notice).toContain("restore point");
+    // Nothing was applied, so the container may not move past its own baseline.
+    expect(refused.container.phase === "ready" && refused.container.vaultRevision).toBe(
+      refused.revision,
+    );
+  });
+
+  // `steer` and `follow_up` take no turn of their own: they fold into the loop
+  // already running and keep reporting under ITS id. A container that refused
+  // every concurrent dispatch made that unreachable from a test.
+  it("folds a steer into the turn already running", async () => {
+    const turn = await withHost("turn-steer", async (host) => {
+      const events: AppAgentEvent[] = [];
+      connect(host);
+      const off = onAgentEvents(host, (event) => events.push(event));
+      scriptedPort(host).setScript({ steps: [{ text: "first" }, { text: "and second" }] });
+
+      await host.agent.runner.send({ type: "user_message", text: "start" });
+      // `send` resolves when the container ACCEPTS, and the container clears
+      // `busy` only after three more reports — so a dispatch here is mid-turn.
+      // Captured rather than assumed: if the turn had already ended, the steer
+      // would open a second one and the `agent_start` count below says so.
+      const midTurn = await scriptedPort(host).state();
+      const busyMidTurn = midTurn.phase === "ready" && midTurn.busy;
+      await host.agent.runner.send({ type: "steer", text: "and this too" });
+      await settle();
+      off();
+      return {
+        busyMidTurn,
+        starts: events.filter((event) => event.type === "agent_start").length,
+        said: events.flatMap((event) =>
+          event.type === "message_end" && event.role === "assistant" ? [event.text] : [],
+        ),
+      };
+    });
+    expect(turn.busyMidTurn).toBe(true);
+    // ONE turn, two things said in it.
+    expect(turn.starts).toBe(1);
+    expect(turn.said).toEqual(["first", "and second"]);
+  });
+
+  // Two `user_message`s is two turns, and there is only ever one. Both
+  // containers answer that with the SAME sentence, out of the contract they
+  // share — the alternative is a status code in the user's composer.
+  it("refuses a second message while a turn is running, in the container's words", async () => {
+    const refusal = await withHost("turn-busy", async (host) => {
+      connect(host);
+      await host.agent.runner.send({ type: "user_message", text: "first" });
+      return await host.agent.runner
+        .send({ type: "user_message", text: "second" })
+        .then(() => "")
+        .catch((error: unknown) => (error instanceof Error ? error.message : String(error)));
+    });
+    expect(refusal).toBe(CONTAINER_REFUSAL.turnInFlight);
+  });
+
   it("rolls a fresh thread and leaves the old one browsable", async () => {
     const { sessions, history } = await withHost("turn-sessions", async (host) => {
       connect(host);
@@ -171,6 +331,11 @@ function onAgentEvents(host: UserHost, listener: (event: AppAgentEvent) => void)
   return hostEvents(host).onAny((method, payload) => {
     if (method === "onAgentEvent" && isAgentEvent(payload)) listener(payload);
   });
+}
+
+/** Every channel this object pushed, in order — the fan-out a socket sees. */
+function collectBroadcast(host: UserHost, into: string[]): () => void {
+  return hostEvents(host).onAny((method) => into.push(method));
 }
 
 function hostEvents(host: UserHost): {

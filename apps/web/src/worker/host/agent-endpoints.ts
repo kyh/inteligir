@@ -8,14 +8,7 @@
 // than shortened is that both callers are unauthenticated in the session sense:
 // the container has no user session, and the OAuth callback is a redirect the
 // provider issues to a browser.
-//
-// The report body is SCHEMA-CHECKED before it becomes anything. A container is
-// a process the user's own agent runs shell commands inside, so its reports are
-// input from a place the model reaches — not a trusted peer's RPC.
 // ---------------------------------------------------------------------------
-
-import { AgentReportSchema, type AgentReport } from "@repo/agent-container/protocol";
-import { Value } from "@sinclair/typebox/value";
 
 import type { AgentRunner } from "../agent/agent-runner";
 import { oauthResultPage, providerRefusalMessage } from "../agent/provider-oauth";
@@ -26,33 +19,21 @@ import { readBearer } from "./session";
 /**
  * Answer one container report.
  *
- * The bearer proves three things at once, and the third is the newest: this
- * object, the container generation it was minted for, and WHICH LANE that
- * container is — the conversation's or the unattended one. The lane decides
- * whether the report's writes land under the chat undo toast or a background
- * task's "Restore original", so it is read off the credential rather than
- * accepted from the body a container composes.
+ * HTTP and nothing else: the bearer off the header, the body as text, and the
+ * sink's answer mapped onto a status. Every decision — is this bearer one of
+ * this object's containers, which LANE is it, is this body a report at all —
+ * belongs to `acceptReport`, because the scripted container reaches the same
+ * entry without an HTTP hop and a decision made here would be one it skipped.
  */
 export async function handleAgentReport(request: Request, runner: AgentRunner): Promise<Response> {
   const token = readBearer(request.headers);
+  // Refused before the body is read: a caller with no bearer has nothing to say
+  // and must not cost this object a body.
   if (token === null) return new Response("unauthorized", { status: 401 });
-  const lane = await runner.resolveReportLane(token);
-  if (lane === null) return new Response("unauthorized", { status: 401 });
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response("malformed report", { status: 400 });
-  }
-  if (!Value.Check(AgentReportSchema, body)) {
-    const first = Value.Errors(AgentReportSchema, body).First();
-    return new Response(`malformed report — ${first?.message ?? "shape mismatch"}`, {
-      status: 400,
-    });
-  }
-  const report: AgentReport = body;
-  return Response.json(await runner.report(report, lane));
+  const answer = await runner.acceptReport(token, await request.text());
+  return answer.ok
+    ? Response.json(answer.reply)
+    : new Response(answer.error, { status: answer.status });
 }
 
 /**

@@ -159,8 +159,7 @@ export class ChatStore {
 
   // ---- writes ---------------------------------------------------------------
 
-  /** Record what the user said. Returns the transcript sequence it landed at,
-   * which is what a dispatch reports as `seededThrough`. */
+  /** Record what the user said, at the transcript sequence it landed at. */
   appendUser(text: string): number {
     const sessionId = this.activeSessionId();
     const seq = this.append(sessionId, "user", text, null, null, false);
@@ -226,7 +225,6 @@ export class ChatStore {
           row.role === "user" || row.role === "assistant",
       )
       .map((row) => ({
-        seq: row.seq,
         role: row.role,
         text: clamp(row.role === "user" ? stripNoteContext(row.text) : row.text, SEED_TEXT_LIMIT),
       }));

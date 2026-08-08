@@ -17,14 +17,18 @@
 //
 // It is a pure function over the reply so that the daemon's wiring — steer the
 // running session, advance the held revision — is the only part that needs a
-// process.
+// process. That is also what lets the SCRIPTED container (the Worker's
+// ./fake-sandbox) read the object's answer with this reader rather than a
+// second one: the file names no transport and no node, so it loads on workerd.
 // ---------------------------------------------------------------------------
 
-import type { AgentReportReply, VaultOp } from "./protocol";
-import type { Reporter } from "./reporter";
+import type { AgentReport, AgentReportReply, VaultOp } from "./protocol";
 
 export type VaultReportDeps = {
-  readonly reporter: Reporter;
+  /** Post one report; `null` when it did not land. The image's reporter,
+   * narrowed to the one call this makes — naming the whole thing would put a
+   * node-typed module in the graph of every host that reads a reply. */
+  readonly send: (report: AgentReport) => Promise<AgentReportReply | null>;
   /** The revision the container currently believes its `./vault` is at. */
   readonly heldRevision: () => number;
   /** Adopt the revision the object answered with. */
@@ -46,7 +50,7 @@ export function createVaultReport(
 ): (ops: readonly VaultOp[]) => Promise<void> {
   return async (ops) => {
     const held = deps.heldRevision();
-    const reply = await deps.reporter.send({ kind: "vault", fromRevision: held, ops: [...ops] });
+    const reply = await deps.send({ kind: "vault", fromRevision: held, ops: [...ops] });
     const outcome = readVaultReply(held, ops, reply);
     deps.setRevision(outcome.revision);
     if (outcome.notice !== "") await deps.tellAgent(outcome.notice);

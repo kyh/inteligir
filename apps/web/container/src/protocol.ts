@@ -72,6 +72,34 @@ const REPORT_TIMEOUT_MS = 30_000;
  * trip, and the write the answer sets off. */
 const CONFIRMATION_ROUND_TRIP_MS = 30_000;
 
+/**
+ * Largest report body a transport may hand the object.
+ *
+ * It lives here because BOTH transports bound the same thing: the Worker route
+ * refuses an oversized body before an object is woken, and the in-process one
+ * refuses to hand one over. Events batch and vault ops carry bytes, so it is
+ * generous — but a container is a process the user's own agent runs commands
+ * inside, and an unbounded body from one is a Durable Object's memory.
+ */
+export const MAX_REPORT_BYTES = 8 * 1024 * 1024;
+
+/**
+ * The sentences a container refuses a dispatch with.
+ *
+ * They live in the contract because the USER reads them: whichever container
+ * ran, the refusal lands in the composer. The real adapter relays the daemon's
+ * own words and the scripted one answers with them directly, so the condition
+ * has one sentence rather than one per implementation. A status code is not a
+ * sentence — "refused /v1/turn (409)" names the transport and not the reason.
+ */
+export const CONTAINER_REFUSAL = {
+  /** A second `user_message` while a turn is in flight. `steer` and
+   * `follow_up` fold into that turn instead, so neither reaches this. */
+  turnInFlight: "a turn is already running",
+  /** Anything that needs a booted daemon, before there is one. */
+  notBooted: "the container has not booted",
+} as const;
+
 // ---------------------------------------------------------------------------
 // Durable Object → container
 // ---------------------------------------------------------------------------
@@ -81,7 +109,10 @@ const CONFIRMATION_ROUND_TRIP_MS = 30_000;
 export type ContainerState = {
   readonly bootId: string | null;
   readonly vaultRevision: number;
-  readonly seededThrough: number;
+  /** Whether the live session already holds the conversation. The daemon reads
+   * it off that session, so the object never has to track a position in a
+   * transcript the container cannot see. */
+  readonly seeded: boolean;
   readonly busy: boolean;
 };
 
@@ -125,8 +156,9 @@ export type ContainerTurn = {
   readonly kind: "user_message" | "steer" | "follow_up";
   readonly text: string;
   readonly images: readonly { readonly data: string; readonly mimeType: string }[];
+  /** Prior turns to seed a fresh session with — empty when the container's own
+   * session already holds the conversation, which it is the one that knows. */
   readonly seed: readonly { readonly role: "user" | "assistant"; readonly text: string }[];
-  readonly seededThrough: number;
 };
 
 // ---------------------------------------------------------------------------

@@ -80,7 +80,6 @@ const TurnSchema = Type.Object(
         OBJECT,
       ),
     ),
-    seededThrough: Type.Number(),
   },
   OBJECT,
 );

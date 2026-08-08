@@ -3,9 +3,14 @@
 //
 // Everything here is SDK coupling and nothing here is policy: the runner, the
 // tools, the transcript and the confirmation broker never see this file, and
-// the scripted port (./fake-sandbox) implements the same five verbs. That split
+// the scripted port (./fake-sandbox) implements the same contract. That split
 // is what makes the agent testable on a machine with no Workers Paid plan and
 // no built image, which is every machine this repo is developed on.
+//
+// This half carries the boot's `reportUrl` and `reportToken` into the container
+// and the container dials them; the report itself lands on the SAME sink the
+// scripted container reaches in process (../agent/agent-runner's
+// `acceptReport`). Nothing about a lane is decided here.
 //
 // Three platform facts shape the code rather than being worked around:
 //
@@ -93,7 +98,7 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
     try {
       const response = await call(path, body);
       if (!response.ok) {
-        return { ok: false, error: `the agent container refused ${path} (${response.status})` };
+        return { ok: false, error: await refusal(response, path) };
       }
       return { ok: true };
     } catch (error) {
@@ -116,7 +121,7 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
           phase: "ready",
           bootId: reported.bootId,
           vaultRevision: reported.vaultRevision,
-          seededThrough: reported.seededThrough,
+          seeded: reported.seeded,
           busy: reported.busy,
         };
       } catch {
@@ -208,7 +213,6 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
         text: turn.text,
         images: turn.images,
         seed: turn.seed.map((entry) => ({ role: entry.role, text: entry.text })),
-        seededThrough: turn.seededThrough,
       };
       return post(CONTAINER_API.turn, payload);
     },
@@ -227,17 +231,41 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
   };
 }
 
+/**
+ * Why the daemon refused, in ITS words.
+ *
+ * The daemon answers a refusal with a sentence (`CONTAINER_REFUSAL` and its
+ * neighbours) and that sentence is the one the user reads in the composer, so
+ * it is relayed rather than replaced by the status that carried it: "the agent
+ * container refused /v1/turn (409)" names the transport, not the reason, and
+ * the scripted container answering the same condition would say something else
+ * entirely. The status line is the fallback for a body that is not the
+ * daemon's — a platform error page, a proxy, a container mid-replacement.
+ */
+async function refusal(response: Response, path: string): Promise<string> {
+  const fallback = `the agent container refused ${path} (${response.status})`;
+  try {
+    const body: unknown = await response.json();
+    if (typeof body !== "object" || body === null) return fallback;
+    const record: Record<string, unknown> = { ...body };
+    const error = record["error"];
+    return typeof error === "string" && error !== "" ? error : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function readContainerState(value: unknown): ContainerState | null {
   if (typeof value !== "object" || value === null) return null;
   const record: Record<string, unknown> = { ...value };
   const bootId = record["bootId"];
   const vaultRevision = record["vaultRevision"];
-  const seededThrough = record["seededThrough"];
+  const seeded = record["seeded"];
   const busy = record["busy"];
   if (bootId !== null && typeof bootId !== "string") return null;
-  if (typeof vaultRevision !== "number" || typeof seededThrough !== "number") return null;
-  if (typeof busy !== "boolean") return null;
-  return { bootId, vaultRevision, seededThrough, busy };
+  if (typeof vaultRevision !== "number") return null;
+  if (typeof seeded !== "boolean" || typeof busy !== "boolean") return null;
+  return { bootId, vaultRevision, seeded, busy };
 }
 
 function chunk<T>(values: readonly T[], size: number): T[][] {

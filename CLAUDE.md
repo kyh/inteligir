@@ -315,7 +315,10 @@ repo, and its `src/pi/` is the harness quarantine.
   recurring per-turn cost; the loader keeps the head and sheds the tail.
 - **`AGENT_RUNTIME=scripted`** replaces the container with an in-memory one.
   The runner, the transcript, the tool executor, the confirmation broker and the
-  vault write-back are the production ones either way.
+  vault write-back are the production ones either way — and so is the RETURN
+  path: the port covers both directions, so the scripted container produces real
+  reports and presents its own boot bearer to the same sink an HTTPS report
+  reaches. The lane a report belongs to is derived there, once, from that bearer.
 
 ### The editor's AI, voice, capture, skills
 

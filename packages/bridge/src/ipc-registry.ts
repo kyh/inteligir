@@ -143,9 +143,11 @@ const NotificationsPatchSchema = Type.Object(
 );
 
 // Dev-only scripted-agent responses: one step per assistant turn — optional
-// text plus optional tool calls (e.g. the write-back a delegation performs),
-// answered by the in-memory container. The handler throws unless
-// AGENT_RUNTIME=scripted, so the channel never does anything in production.
+// text, optional tool calls (e.g. the write-back a delegation performs), and
+// optional file writes, which are what the agent's OWN file tools do and reach
+// the vault of record as a reported write rather than as a tool call. Answered
+// by the in-memory container. The handler throws unless AGENT_RUNTIME=scripted,
+// so the channel never does anything in production.
 const FauxAgentScriptSchema = Type.Object(
   {
     steps: Type.Array(
@@ -159,6 +161,14 @@ const FauxAgentScriptSchema = Type.Object(
                   name: Type.String({ minLength: 1 }),
                   arguments: Type.Record(Type.String(), Type.Unknown()),
                 },
+                { additionalProperties: false },
+              ),
+            ),
+          ),
+          writes: Type.Optional(
+            Type.Array(
+              Type.Object(
+                { path: Type.String({ minLength: 1 }), text: Type.String() },
                 { additionalProperties: false },
               ),
             ),

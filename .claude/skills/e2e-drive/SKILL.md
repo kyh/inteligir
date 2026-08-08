@@ -48,6 +48,10 @@ the page, and `/api/auth/get-session` yields nothing the socket accepts.
   `listDelegations` for `status:"done"`, then `readVaultDoc` to confirm the box
   is checked.
 
+- **An agent file write**: a step's `writes: [{path, text}]` is what the agent's
+  own file tools did to `./vault`. It reaches the vault of record as a reported
+  write — restore point captured, removals refused — rather than as a tool call.
+
 Both lanes are seeded with the same steps — two independent queues, one step per
 assistant turn — so script, then drive exactly one flow before re-scripting.
 `agentToolManifest` in `apps/web/src/worker/agent/agent-tools.ts` is the list of

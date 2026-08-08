@@ -6,8 +6,8 @@
 // on one would hold an invocation open for the whole of it — with the user's
 // sockets, their vault manifest and their knowledge index behind it. So `send`
 // resolves as soon as the container has ACCEPTED the turn, and everything the
-// turn produces arrives later, as separate short requests into the report path
-// (`report`).
+// turn produces arrives later, through the port's return direction
+// (`acceptReport`) — one entry, whichever transport carried it.
 //
 // So the agent is never an in-process object whose events arrive on a callback.
 // The sequence is:
@@ -31,7 +31,7 @@
 // file. Two sessions sharing one `./vault` would make every agent write
 // ambiguous between an attended edit the chat toast can undo and an unattended
 // one the delegation dock owns. Two containers make the lane a fact of the
-// CREDENTIAL instead: each boots with its own report bearer, and the route
+// CREDENTIAL instead: each boots with its own report bearer, and `acceptReport`
 // resolves the lane from the token rather than from anything the caller says.
 // ---------------------------------------------------------------------------
 
@@ -41,11 +41,13 @@ import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
 import type { TextChatMessage } from "@repo/bridge/chat-message";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import {
+  AgentReportSchema,
   base64ToBytes,
   type AgentReport,
   type AgentReportReply,
   type VaultOp,
 } from "@repo/agent-container/protocol";
+import { Value } from "@sinclair/typebox/value";
 
 import type {
   BackgroundDispatchOutcome,
@@ -74,6 +76,7 @@ import {
 import type { ProviderCredentials } from "./provider-credentials";
 import type {
   SandboxPort,
+  SandboxReportAnswer,
   SandboxSeedTurn,
   SandboxVaultFile,
   SandboxVaultPush,
@@ -277,10 +280,6 @@ export class AgentRunner {
       text: command.text,
       images: command.images ?? [],
       seed: seed.seed,
-      // What the container's session will hold once this turn runs. Only ever
-      // compared against zero — it marks a session as seeded rather than
-      // addressing a point in the transcript.
-      seededThrough: this.deps.chat.head() + 1,
     });
     if (!outcome.ok) {
       this.deps.kv.put(CHAT_TURN_KEY, previous);
@@ -337,7 +336,6 @@ export class AgentRunner {
         // An unattended turn carries no conversation, which is the whole point
         // of the second container.
         seed: [],
-        seededThrough: 0,
       });
       if (!dispatched.ok) return refuse(dispatched.error);
       return { ok: true, run };
@@ -372,14 +370,49 @@ export class AgentRunner {
   // ---- the inbound half -----------------------------------------------------
 
   /**
-   * One report from a container.
+   * The ONE way in for everything a container says — `SandboxReportSink`.
    *
-   * The caller has already proven the bearer AND read the lane off it; this is
-   * where a report BECOMES something — a transcript entry, a broadcast, a vault
-   * write, a tool result. The scripted sandbox calls it directly, so this is the
-   * same path in both runtimes.
+   * Both transports arrive here: the Worker's report route after it has bounded
+   * the body and addressed this object, and the scripted container in process.
+   * Neither carries a verdict, and neither states a lane. Everything is decided
+   * from the bearer and the bytes:
+   *
+   *   1. the bearer names an account and a BOOT, and the boot names the lane —
+   *      the credential decides whose undo surface owns the writes, so a
+   *      container cannot claim the other one's;
+   *   2. the body is parsed and schema-checked before any of it becomes a
+   *      transcript entry, a broadcast or a vault write.
+   *
+   * The identity is checked BEFORE the body is looked at: a caller who cannot
+   * prove which container it is has nothing to say, and a parse error is not
+   * something to tell them about.
    */
-  report(report: AgentReport, lane: AgentLane): Promise<AgentReportReply> {
+  async acceptReport(identity: string, body: string): Promise<SandboxReportAnswer> {
+    const lane = await this.resolveReportLane(identity);
+    if (lane === null) return { ok: false, status: 401, error: "unauthorized" };
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      return { ok: false, status: 400, error: "malformed report" };
+    }
+    if (!Value.Check(AgentReportSchema, parsed)) {
+      const first = Value.Errors(AgentReportSchema, parsed).First();
+      return {
+        ok: false,
+        status: 400,
+        error: `malformed report — ${first?.message ?? "shape mismatch"}`,
+      };
+    }
+    return { ok: true, reply: await this.report(parsed, lane) };
+  }
+
+  /**
+   * One verified report, on its lane — where it BECOMES something: a transcript
+   * entry, a broadcast, a vault write, a tool result.
+   */
+  private report(report: AgentReport, lane: AgentLane): Promise<AgentReportReply> {
     return lane === "background" ? this.reportBackground(report) : this.reportChat(report);
   }
 
@@ -496,11 +529,10 @@ export class AgentRunner {
    * Verify a container's bearer against this object's own name and its CURRENT
    * boot, and answer WHICH lane it belongs to.
    *
-   * The lane is a property of the credential, never of the report body: a
-   * container that claimed to be the other one would be claiming a different
-   * undo surface for its writes.
+   * Private, and that is the point: `acceptReport` is the only caller, so there
+   * is exactly one derivation of the lane for every container this host runs.
    */
-  async resolveReportLane(identity: string): Promise<AgentLane | null> {
+  private async resolveReportLane(identity: string): Promise<AgentLane | null> {
     const claims = await verifyScopedToken(
       this.deps.env.BETTER_AUTH_SECRET,
       "report",
@@ -603,10 +635,10 @@ export class AgentRunner {
     // The background lane carries no conversation at all — it is a different
     // container precisely so it cannot.
     if (lane === "background") return { ok: true, seed: [] };
-    const seededThrough = warm && state.phase === "ready" ? state.seededThrough : 0;
     // A warm container's pi session already holds the conversation; seeding it
     // again would replay every turn as though the user had said it twice.
-    return { ok: true, seed: seededThrough > 0 ? [] : this.deps.chat.seed() };
+    const seeded = warm && state.phase === "ready" && state.seeded;
+    return { ok: true, seed: seeded ? [] : this.deps.chat.seed() };
   }
 
   private async buildVaultPush(
