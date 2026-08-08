@@ -27,20 +27,15 @@
 // ---------------------------------------------------------------------------
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
-import { Type } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { mkdir } from "node:fs/promises";
 
 import {
   AGENT_CONTAINER_PORT,
   CONTAINER_API,
   CONTAINER_VAULT_DIR,
-  base64ToBytes,
   type ContainerBoot,
   type ContainerState,
   type ContainerTurn,
-  type ContainerVaultPush,
 } from "./protocol";
 import { createBrowserTool } from "./browser-tool";
 import {
@@ -50,8 +45,11 @@ import {
   type EventStream,
   type Reporter,
 } from "./reporter";
+import { parseBoot, parseTurn, parseVaultPush } from "./requests";
 import { hostRelayTools, type ContainerTool } from "./tools";
 import { createContainerSession, type ContainerSession } from "./pi/session";
+import { materialize } from "./vault-materialize";
+import { createVaultReport } from "./vault-report";
 import { createVaultWatcher, type VaultWatcher } from "./vault-watcher";
 
 /** `toRevision` on a push that is NOT the last chunk. The revision advances
@@ -64,84 +62,6 @@ const CHUNK_CONTINUES = -1;
  * chunks them, so this is generous — but an unbounded body is this process's
  * memory. */
 const MAX_BODY_BYTES = 64 * 1024 * 1024;
-
-// ---------------------------------------------------------------------------
-// Request shapes
-//
-// The types in ./protocol are the contract; these schemas are the RUNTIME check
-// for them. They are tied together by assignment rather than by comment: each
-// parser returns the protocol type, so a schema that drifts from the contract
-// fails to compile.
-// ---------------------------------------------------------------------------
-
-const OBJECT = { additionalProperties: false } as const;
-
-const BootSchema = Type.Object(
-  {
-    bootId: Type.String({ minLength: 1 }),
-    reportUrl: Type.String(),
-    reportToken: Type.String(),
-    provider: Type.Object(
-      {
-        provider: Type.String({ minLength: 1 }),
-        modelId: Type.String({ minLength: 1 }),
-        baseUrl: Type.String({ minLength: 1 }),
-        apiKey: Type.String(),
-      },
-      OBJECT,
-    ),
-    tools: Type.Array(
-      Type.Object(
-        {
-          name: Type.String({ minLength: 1 }),
-          description: Type.String(),
-          parameters: Type.Unknown(),
-        },
-        OBJECT,
-      ),
-    ),
-    instructions: Type.String(),
-    browserCdpUrl: Type.Union([Type.String(), Type.Null()]),
-    browserCdpToken: Type.Union([Type.String(), Type.Null()]),
-  },
-  OBJECT,
-);
-
-const VaultPushSchema = Type.Object(
-  {
-    toRevision: Type.Number(),
-    replaceAll: Type.Boolean(),
-    upserted: Type.Array(
-      Type.Object({ path: Type.String({ minLength: 1 }), bytesBase64: Type.String() }, OBJECT),
-    ),
-    removed: Type.Array(Type.String({ minLength: 1 })),
-  },
-  OBJECT,
-);
-
-const TurnSchema = Type.Object(
-  {
-    turnId: Type.String({ minLength: 1 }),
-    kind: Type.Union([
-      Type.Literal("user_message"),
-      Type.Literal("steer"),
-      Type.Literal("follow_up"),
-    ]),
-    text: Type.String(),
-    images: Type.Array(Type.Object({ data: Type.String(), mimeType: Type.String() }, OBJECT)),
-    seed: Type.Array(
-      Type.Object(
-        {
-          role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]),
-          text: Type.String(),
-        },
-        OBJECT,
-      ),
-    ),
-    seededThrough: Type.Number(),
-  },
-  OBJECT,
-);
 
 // ---------------------------------------------------------------------------
 // State
@@ -186,8 +106,8 @@ function currentState(): ContainerState {
 }
 
 async function handleBoot(body: unknown): Promise<Reply> {
-  if (!Value.Check(BootSchema, body)) return malformed("boot");
-  const boot: ContainerBoot = body;
+  const boot = parseBoot(body);
+  if (boot === null) return malformed("boot");
 
   // Idempotent for a given bootId: the object re-boots whenever it cannot
   // recognize what the container is running, and re-running a live boot would
@@ -211,9 +131,17 @@ async function handleBoot(body: unknown): Promise<Reply> {
   await mkdir(CONTAINER_VAULT_DIR, { recursive: true });
   const watcher = createVaultWatcher({
     dir: CONTAINER_VAULT_DIR,
-    report: async (ops) => {
-      await reporter.send({ kind: "vault", ops: [...ops] });
-    },
+    // The object's ANSWER is the point of this call, not a courtesy: it says
+    // which of the agent's writes the vault of record refused, and which
+    // revision the container may now claim to hold (./vault-report).
+    report: createVaultReport({
+      reporter,
+      heldRevision: () => vaultRevision,
+      setRevision: (revision) => {
+        vaultRevision = revision;
+      },
+      tellAgent,
+    }),
   });
   watcher.start();
 
@@ -226,13 +154,35 @@ async function handleBoot(body: unknown): Promise<Reply> {
 async function handleVault(body: unknown): Promise<Reply> {
   const current = daemon;
   if (current === null) return notBooted();
-  if (!Value.Check(VaultPushSchema, body)) return malformed("vault push");
-  const push: ContainerVaultPush = body;
+  const push = parseVaultPush(body);
+  if (push === null) return malformed("vault push");
 
-  const applied = await materialize(current.watcher, push);
+  const applied = await materialize(CONTAINER_VAULT_DIR, current.watcher, push);
   if (!applied.ok) return refuse(applied.error);
   if (push.toRevision !== CHUNK_CONTINUES) vaultRevision = push.toRevision;
   return OK;
+}
+
+/**
+ * Say something to the model mid-turn, from the DAEMON.
+ *
+ * The only caller is the vault report: the agent's own file tools already
+ * answered "written", and a refusal the model never reads is a model that goes
+ * on building on a note the user does not have. With no session to steer there
+ * is nothing to correct and nothing to retry, so it is logged — loudly, because
+ * the alternative reading of the silence is that everything landed.
+ */
+async function tellAgent(text: string): Promise<void> {
+  const session = daemon?.session;
+  if (session === null || session === undefined) {
+    console.error(`[vault] no running session to tell:\n${text}`);
+    return;
+  }
+  try {
+    await session.notify(text);
+  } catch (error) {
+    console.error("[vault] could not tell the agent what was refused:", error);
+  }
 }
 
 /**
@@ -246,8 +196,8 @@ async function handleVault(body: unknown): Promise<Reply> {
 function handleTurn(body: unknown): Reply {
   const current = daemon;
   if (current === null) return notBooted();
-  if (!Value.Check(TurnSchema, body)) return malformed("turn");
-  const turn: ContainerTurn = body;
+  const turn = parseTurn(body);
+  if (turn === null) return malformed("turn");
 
   if (activeTurn !== null) {
     if (turn.kind === "user_message") {
@@ -329,57 +279,6 @@ async function teardown(): Promise<void> {
     console.error("[boot] could not abort the previous session:", error);
   }
   session.dispose();
-}
-
-// ---------------------------------------------------------------------------
-// Materialization
-// ---------------------------------------------------------------------------
-
-/**
- * Put the object's bytes under `./vault`.
- *
- * Every write is announced to the watcher, which is what stops it coming back
- * as an agent edit (./vault-watcher). A path that would land outside the vault
- * is refused rather than clamped: the caller is the object, so such a path is a
- * bug worth surfacing, not input to sanitize.
- */
-async function materialize(
-  watcher: VaultWatcher,
-  push: ContainerVaultPush,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (push.replaceAll) {
-    await rm(CONTAINER_VAULT_DIR, { recursive: true, force: true });
-    await mkdir(CONTAINER_VAULT_DIR, { recursive: true });
-    // Everything under the directory is now the host's by construction, so
-    // there is nothing left to attribute and nothing to report.
-    watcher.reset();
-  }
-
-  for (const file of push.upserted) {
-    const full = vaultPath(file.path);
-    if (full === null) return { ok: false, error: `${file.path} is not a path inside the vault` };
-    const bytes = base64ToBytes(file.bytesBase64);
-    if (bytes === null) return { ok: false, error: `${file.path} did not carry valid base64` };
-    await mkdir(dirname(full), { recursive: true });
-    await writeFile(full, bytes);
-    await watcher.noteSelfChange(file.path);
-  }
-
-  for (const path of push.removed) {
-    const full = vaultPath(path);
-    if (full === null) return { ok: false, error: `${path} is not a path inside the vault` };
-    await rm(full, { force: true });
-    await watcher.noteSelfChange(path);
-  }
-  return { ok: true };
-}
-
-/** The absolute path `relPath` names inside the vault, or `null` when it names
- * something outside it. */
-function vaultPath(relPath: string): string | null {
-  const full = resolve(CONTAINER_VAULT_DIR, relPath);
-  const rel = relative(CONTAINER_VAULT_DIR, full);
-  return rel === "" || rel.startsWith("..") || isAbsolute(rel) ? null : full;
 }
 
 // ---------------------------------------------------------------------------

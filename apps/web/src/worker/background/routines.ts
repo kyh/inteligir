@@ -40,7 +40,7 @@ import {
   type UpsertRoutineParams,
   type UpsertRoutineResult,
 } from "@repo/bridge/routines";
-import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import { readJson, toErrorMessage } from "@repo/bridge/wire-helpers";
 import { Value } from "@sinclair/typebox/value";
 
 import type { AgentSnapshots } from "../agent/agent-snapshots";
@@ -478,7 +478,10 @@ export class Routines {
   /** The record as the wire declares it, with `hasSnapshot` resolved against
    * the store rather than stored (see Delegations.toDelegation). */
   private toRoutine(row: RoutineRow): Routine {
-    const parsed: unknown = JSON.parse(row.record);
+    // Parsed inside the fallback's reach (see Delegations.toDelegation): text
+    // that will not parse and text that parses into the wrong shape are the
+    // same fact, and only one of them may answer with a throw.
+    const parsed = readJson(row.record);
     if (!Value.Check(RoutineSchema, parsed)) return unreadable(row);
     if (parsed.lastRun === null) return parsed;
     const held = row.last_snapshot_id !== null && this.deps.snapshots.holds(row.last_snapshot_id);
@@ -565,7 +568,7 @@ function unreadable(row: RoutineRow): Routine {
 
 function readInFlight(value: string | null): InFlight | null {
   if (value === null) return null;
-  const parsed: unknown = JSON.parse(value);
+  const parsed = readJson(value);
   if (typeof parsed !== "object" || parsed === null) return null;
   const record: Record<string, unknown> = { ...parsed };
   const turnId = record["turnId"];

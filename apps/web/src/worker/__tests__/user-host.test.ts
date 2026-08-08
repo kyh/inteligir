@@ -226,6 +226,31 @@ describe("auth deadline", () => {
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     expect(await frames.closed).toBe(WS_CLOSE_UNAUTHORIZED);
   });
+
+  // The dirty flag lives for ONE invocation, which is only safe if every
+  // inbound path consumes it — including the one that throws. Nothing anywhere
+  // re-derives it, so a handler that trashes a file and then fails would leave
+  // the retention sweep armed by nobody.
+  it("still arms the alarm when the inbound path throws", async () => {
+    const stub = env.UserHost.getByName(userHostName("alarm-after-throw"));
+    const armed = await runInDurableObject(stub, async (host, state) => {
+      await host.vault.writeText("doomed.md", "bye\n");
+      // Trashed straight through the vault, so nothing has consumed the flag
+      // the change set — exactly the state a handler is in mid-invocation.
+      await host.vault.trash(["doomed.md"]);
+      await state.storage.deleteAlarm();
+      expect(await state.storage.getAlarm()).toBeNull();
+
+      // The failure a real path can take: the index flush after the leaf ran.
+      host.knowledge.flush = () => Promise.reject(new Error("storage went away"));
+      const response = await host.fetch(
+        new Request("https://host/v1/agent/alarm-after-throw/report", { method: "POST" }),
+      );
+      expect(response.status).toBe(500);
+      return state.storage.getAlarm();
+    });
+    expect(armed).not.toBeNull();
+  });
 });
 
 describe("capability classes", () => {

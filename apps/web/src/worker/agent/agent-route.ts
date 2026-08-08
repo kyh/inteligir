@@ -64,11 +64,56 @@ export async function routeAgentReport(
   // Object on its way to being told no.
   if (tokenAddress(token) !== addressed) return new Response("unauthorized", { status: 401 });
 
+  const bounded = await boundBody(request, MAX_REPORT_BYTES);
+  if (bounded === null) return new Response("report too large", { status: 413 });
+  return env.UserHost.getByName(userHostName(addressed)).fetch(bounded);
+}
+
+/**
+ * The same request with a body that CANNOT exceed `limit`, or `null` when it
+ * already does.
+ *
+ * A declared `content-length` is the fast path and the ordinary one: the
+ * container posts a string, so `fetch` sets the header and the request is
+ * forwarded untouched. A body with no declared length is not therefore small —
+ * it is a body whose size nobody has stated, which is what a chunked one is —
+ * so it is READ under the same ceiling before an object is woken. Reading it is
+ * bounded by definition: the read stops at the limit, so the memory this costs
+ * is the ceiling it enforces, and the caller here is a process the user's own
+ * agent runs shell commands inside.
+ */
+async function boundBody(request: Request, limit: number): Promise<Request | null> {
   const declared = request.headers.get("content-length");
-  if (declared !== null && /^\d+$/.test(declared) && Number(declared) > MAX_REPORT_BYTES) {
-    return new Response("report too large", { status: 413 });
+  if (declared !== null && /^\d+$/.test(declared)) {
+    return Number(declared) > limit ? null : request;
   }
-  return env.UserHost.getByName(userHostName(addressed)).fetch(request);
+  const body = request.body;
+  if (body === null) return request;
+
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = body.getReader();
+  for (;;) {
+    const next = await reader.read();
+    if (next.done) break;
+    size += next.value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(next.value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: bytes,
+  });
 }
 
 /**

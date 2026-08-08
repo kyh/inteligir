@@ -26,7 +26,12 @@
 // about parsing rather than about the deployment.
 // ---------------------------------------------------------------------------
 
-import { REPORT_AUTH_HEADER, type AgentReport, type AgentReportReply } from "./protocol";
+import {
+  REPORT_AUTH_HEADER,
+  reportTimeoutMs,
+  type AgentReport,
+  type AgentReportReply,
+} from "./protocol";
 
 /** Where reports go, and what proves they came from this container. */
 export type ReportTarget = { readonly url: string; readonly token: string };
@@ -46,15 +51,12 @@ export type Reporter = {
 const MAX_BATCH = 20;
 const FLUSH_MS = 100;
 
-/** Ceiling on one report. A turn closes itself out by reporting `turn_end`, so
- * a request with no timeout would leave the daemon believing a turn is still
- * running and refusing the next one. */
-const REPORT_TIMEOUT_MS = 30_000;
-
 export function createReporter(target: ReportTarget): Reporter {
   return {
     async send(report, signal) {
-      const deadline = AbortSignal.timeout(REPORT_TIMEOUT_MS);
+      // Per KIND, from the contract (./protocol): a `tool` report is answered
+      // by a human on the other side, every other kind out of storage.
+      const deadline = AbortSignal.timeout(reportTimeoutMs(report.kind));
       try {
         const response = await fetch(target.url, {
           method: "POST",

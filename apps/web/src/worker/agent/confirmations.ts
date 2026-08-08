@@ -17,7 +17,11 @@
 //
 // The timeout is short for a reason that is also the cost: a pending proposal
 // pins a Durable Object, and an unanswered dialog should not bill for minutes
-// of one.
+// of one. It is DECLARED IN THE CONTRACT (@repo/agent-container/protocol)
+// rather than here, because the container's own ceiling on a tool report is
+// derived from it: a container that gave up while a person was still deciding
+// would answer the model "the result is unknown" and then have the confirmed
+// delete happen anyway.
 //
 // POLICY, NOT ENFORCEMENT (CLAUDE.md § Decisions): this asks a human, it does
 // not stop a model. The agent has a shell inside the container and can reach
@@ -26,10 +30,8 @@
 // deliberately.
 // ---------------------------------------------------------------------------
 
+import { AGENT_CONFIRMATION_TIMEOUT_MS } from "@repo/agent-container/protocol";
 import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
-
-/** How long a proposal waits before it declines itself. */
-const CONFIRMATION_TIMEOUT_MS = 90_000;
 
 export type ConfirmationProposal = Omit<AgentConfirmationRequest, "id">;
 
@@ -38,7 +40,7 @@ export class ConfirmationBroker {
 
   constructor(
     private readonly emit: (request: AgentConfirmationRequest) => void,
-    private readonly timeoutMs: number = CONFIRMATION_TIMEOUT_MS,
+    private readonly timeoutMs: number = AGENT_CONFIRMATION_TIMEOUT_MS,
   ) {}
 
   /** Ask the human. Resolves false on decline, timeout, or teardown. */

@@ -69,6 +69,14 @@ export type ContainerSession = {
   /** Fold a message into the turn already in flight. Resolves as soon as it is
    * queued; the running turn still owns the loop. */
   queue(kind: "steer" | "follow_up", turn: ContainerTurn): Promise<void>;
+  /**
+   * Fold a message from the DAEMON — not from the person — into the running
+   * turn. The vault's refusals arrive this way: the agent's own file tools
+   * already answered "written", and only the object knows they did not land,
+   * so the correction has to reach the model while the turn can still act on
+   * it. Steered rather than queued as a follow-up for the same reason.
+   */
+  notify(text: string): Promise<void>;
   /** Whether this session has taken a prompt. Read after a turn — including a
    * failed one — to decide whether the prior conversation still has to be
    * replayed into it. */
@@ -142,6 +150,8 @@ export async function createContainerSession(
         ? session.steer(turn.text, attachments)
         : session.followUp(turn.text, attachments));
     },
+
+    notify: (text) => session.steer(text),
 
     isSeeded: () => seeded,
 

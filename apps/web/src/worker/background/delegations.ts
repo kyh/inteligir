@@ -38,7 +38,7 @@ import {
   type ListDelegationsResult,
   type RestoreSnapshotResult,
 } from "@repo/bridge/delegation";
-import { toErrorMessage } from "@repo/bridge/wire-helpers";
+import { readJson, toErrorMessage } from "@repo/bridge/wire-helpers";
 import { findTaskLine } from "@repo/notes/knowledge/find-task-line";
 import { Value } from "@sinclair/typebox/value";
 
@@ -402,7 +402,11 @@ export class Delegations {
    * cost a fanout pass over every record the prune touched.
    */
   private toDelegation(row: DelegationRow): Delegation {
-    const parsed: unknown = JSON.parse(row.record);
+    // PARSED INSIDE THE FALLBACK'S REACH. Unparseable text and text that parses
+    // into the wrong shape are the same fact — a row this build cannot read —
+    // and a `JSON.parse` outside the guard answers one of them with a throw out
+    // of a plain list call.
+    const parsed = readJson(row.record);
     if (!Value.Check(DelegationSchema, parsed)) {
       // Unreachable through this class — every write goes through `write`,
       // which serializes a checked union. A row that does not check belongs to

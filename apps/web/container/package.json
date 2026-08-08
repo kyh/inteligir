@@ -13,6 +13,7 @@
   "scripts": {
     "build:container": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node24 --packages=external --outfile=dist/main.js",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "esbuild": "^0.28.1",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

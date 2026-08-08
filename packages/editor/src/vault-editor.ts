@@ -13,10 +13,15 @@
 // The React component owns pure UI (file list, filter, raw/rich mode) and the
 // autosave debounce, calling controller methods and subscribing for renders.
 
+import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+
 export type VaultIO = {
   read: (path: string) => Promise<string>;
   write: (path: string, content: string) => Promise<void>;
-  remove: (path: string) => Promise<void>;
+  /** Delete, ANSWERING WITH THE OUTCOME. The host's deletion gate can hold a
+   * delete whole — the file stays, on purpose — and a controller that closed
+   * the note anyway would report a deletion that did not happen. */
+  remove: (path: string) => Promise<DeleteVaultEntryResult>;
 };
 
 export type VaultEditorState = {
@@ -137,22 +142,35 @@ export class VaultEditorController {
     if (this.writing === writing) this.writing = null;
   }
 
-  /** Delete the open file. Waits for any in-flight write (so it can't recreate
-   * the file after the delete), then removes and clears the selection. The
-   * unsaved buffer is intentionally discarded — that's what deleting means — so
-   * dirty is cleared at the end rather than up front, leaving flush's own
-   * dirty-bookkeeping intact while it's still running. */
-  async remove(): Promise<void> {
+  /**
+   * Delete the open file. Waits for any in-flight write (so it can't recreate
+   * the file after the delete), then removes and — ONLY IF THE FILE ACTUALLY
+   * WENT — clears the selection. The unsaved buffer is intentionally discarded
+   * when it does — that's what deleting means — so dirty is cleared at the end
+   * rather than up front, leaving flush's own dirty-bookkeeping intact while
+   * it's still running.
+   *
+   * The outcome is RETURNED rather than swallowed. A held delete (the host's
+   * deletion gate) and a failed one both leave the file on disk, and closing
+   * the note over either would tell the user the file is gone while it is
+   * still there — the one report a delete must never make. The caller surfaces
+   * what happened; `null` is a delete that threw, which is neither outcome.
+   */
+  async remove(): Promise<DeleteVaultEntryResult | null> {
     const path = this.st.path;
-    if (path === null) return;
+    if (path === null) return null;
     if (this.writing) await this.writing.catch(() => {});
     this.readSeq++; // cancel any in-flight read of this path
+    let outcome: DeleteVaultEntryResult | null = null;
     try {
-      await this.io.remove(path);
+      outcome = await this.io.remove(path);
     } catch {
-      // Best-effort; clear regardless.
+      // Answered as `null` — the file's fate is unknown, so the note stays.
     }
-    this.emit({ path: null, content: "", dirty: false });
+    if (outcome !== null && outcome.outcome !== "held") {
+      this.emit({ path: null, content: "", dirty: false });
+    }
+    return outcome;
   }
 
   private async reloadOpen(): Promise<void> {

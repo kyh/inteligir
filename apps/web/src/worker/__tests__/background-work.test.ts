@@ -24,8 +24,13 @@ import { authenticated, invoke, signUp } from "./host-helpers";
 
 /** A fresh host object per case — the vault manifest, the queues and the
  * scripted containers all live in one object's storage. */
-function withHost<T>(name: string, run: (host: UserHost) => Promise<T> | T): Promise<T> {
-  return runInDurableObject(env.UserHost.getByName(userHostName(name)), (host) => run(host));
+function withHost<T>(
+  name: string,
+  run: (host: UserHost, state: DurableObjectState) => Promise<T> | T,
+): Promise<T> {
+  return runInDurableObject(env.UserHost.getByName(userHostName(name)), (host, state) =>
+    run(host, state),
+  );
 }
 
 /** Select the credential-free provider — no account, no OAuth app, no real
@@ -233,6 +238,42 @@ describe("delegation anchors", () => {
       "re-delegate",
     );
     expect(outcome.container).toBe("cold");
+  });
+});
+
+describe("records this build cannot read", () => {
+  // A record that will not PARSE and one that parses into the wrong shape are
+  // the same fact: a row this build cannot read. The projection names itself as
+  // failed rather than vanishing from the list — and neither case may reach the
+  // caller as a throw out of a plain `list()`.
+  it("projects an unparseable delegation row instead of throwing", async () => {
+    const listed = await withHost("bg-corrupt-delegation", async (host, state) => {
+      connect(host);
+      await host.vault.writeText("tasks.md", THREE_TASKS);
+      await host.agent.delegations.create({ sourceFile: "tasks.md", ordinal: 0 });
+      await drain();
+      state.storage.sql.exec("UPDATE agent_delegations SET record = ?", "{ not json at all");
+      return host.agent.delegations.list();
+    });
+    expect(listed.delegations).toHaveLength(1);
+    expect(listed.delegations[0]?.status).toBe("failed");
+  });
+
+  it("projects an unparseable routine row instead of throwing", async () => {
+    const listed = await withHost("bg-corrupt-routine", (host, state) => {
+      const created = host.agent.routines.upsert({
+        name: "Morning",
+        prompt: "Say hello",
+        schedule: { cadence: "daily", timeOfDay: "09:00" },
+        target: { kind: "daily" },
+        enabled: false,
+      });
+      expect(created.ok).toBe(true);
+      state.storage.sql.exec("UPDATE agent_routines SET record = ?", "}{");
+      return host.agent.routines.list();
+    });
+    expect(listed.routines).toHaveLength(1);
+    expect(listed.routines[0]?.name).toBe("Unreadable routine");
   });
 });
 

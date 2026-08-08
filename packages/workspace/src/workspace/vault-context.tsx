@@ -38,7 +38,11 @@ import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
-import { heldDeletionMessage, type VaultEntry } from "@repo/bridge/ipc-registry";
+import {
+  heldDeletionMessage,
+  type DeleteVaultEntryResult,
+  type VaultEntry,
+} from "@repo/bridge/ipc-registry";
 import { UI_STATE_OPEN_NOTE_KEY as OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 
 /** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,
@@ -73,10 +77,7 @@ function validNotePath(path: string): string | null {
 const VAULT_IO: VaultIO = {
   read: (path) => getBridge().readVaultDoc({ path }),
   write: (path, content) => getBridge().writeVaultDoc({ path, content }),
-  remove: (path) =>
-    getBridge()
-      .deleteVaultEntry({ path })
-      .then(() => undefined),
+  remove: (path) => getBridge().deleteVaultEntry({ path }),
 };
 
 // ---------------------------------------------------------------------------
@@ -318,28 +319,36 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [applyOpenPath, disposeRuntime, ensureRuntime, flushCurrent, refreshList],
   );
 
+  // Every delete answers the same way, whether or not the file is the one
+  // open. Surface the failure (siblings createFileAt/renameEntry toast theirs
+  // too) — a swallowed reject just silently reappears the row after
+  // refreshList. A HELD delete is not a failure and not a success: the file is
+  // still there on purpose, and the gate's own sentence says why.
+  const reportDeletion = useCallback((path: string, outcome: DeleteVaultEntryResult | null) => {
+    if (outcome === null) toast.error(`Couldn't delete ${path}.`);
+    else if (outcome.outcome === "held") toast.warning(heldDeletionMessage(outcome.held));
+  }, []);
+
   const deleteEntry = useCallback(
     async (path: string) => {
       const runtime = runtimeRef.current;
       if (runtime?.path === path) {
-        // remove() emits path:null, which the vanish watcher turns into a
-        // dropped note; the explicit drop below is an idempotent backstop.
-        await runtime.remove();
-        dropNote(path);
+        // The runtime clears its own buffer only when the file actually went;
+        // the explicit drop below is an idempotent backstop for the same
+        // condition, so a HELD delete leaves the note open over the file that
+        // is still there.
+        const outcome = await runtime.remove();
+        if (outcome !== null && outcome.outcome !== "held") dropNote(path);
+        reportDeletion(path, outcome);
       } else {
-        // Surface the failure (siblings createFileAt/renameEntry toast theirs
-        // too) — a swallowed reject just silently reappears the row after
-        // refreshList. A HELD delete is not a failure and not a success: the
-        // file is still there on purpose, and the gate's own sentence says why.
         const outcome = await getBridge()
           .deleteVaultEntry({ path })
           .catch(() => null);
-        if (outcome === null) toast.error(`Couldn't delete ${path}.`);
-        else if (outcome.outcome === "held") toast.warning(heldDeletionMessage(outcome.held));
+        reportDeletion(path, outcome);
       }
       refreshList();
     },
-    [dropNote, refreshList],
+    [dropNote, refreshList, reportDeletion],
   );
 
   const refreshVault = useCallback(() => {

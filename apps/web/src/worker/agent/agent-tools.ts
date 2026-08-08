@@ -9,8 +9,12 @@
 //     what the agent may do, and every tool's model-facing sentence comes FROM
 //     it (`grantedDescription`) — a tool with no row throws at manifest time.
 //   • the destructive tier raises its confirmation INSIDE the executor, so no
-//     tool can skip it. A container that decided not to ask would still be
-//     asking, because the asking is not in the container.
+//     tool can skip it — not the container, and not the tool either. A
+//     destructive tool declares a `propose` and nothing else: the executor
+//     raises it, and the context `execute` is handed carries no `confirm` at
+//     all, so a tool that forgot to ask could not ask. `policyFor` refuses to
+//     register a tool whose shape disagrees with its grant tier, so the fourth
+//     destructive tool is confirmed before anyone writes a test for it.
 //   • a compromised image cannot widen the surface. It can call these tools
 //     with whatever arguments it likes — and every one of them is
 //     schema-checked and scoped to this user's own vault before it runs.
@@ -94,9 +98,10 @@ export type DelegationToolPort = {
   queuedInTurn(turnId: string): number;
 };
 
-/** What the executor needs. Structural so tests drive the real tools over a
- * real vault and index without a container anywhere. */
-export type AgentToolContext = {
+/** What a TOOL needs. Structural so tests drive the real tools over a real
+ * vault and index without a container anywhere. Deliberately narrower than
+ * `AgentToolCall`: see the note on `confirm` there. */
+type AgentToolContext = {
   readonly vault: UserVault;
   readonly knowledge: UserKnowledge;
   readonly snapshots: AgentSnapshots;
@@ -110,12 +115,39 @@ export type AgentToolContext = {
   /** Whether a human is in this conversation. False on the background lane,
    * where the delegate and destructive tiers do not exist. */
   readonly attended: boolean;
+};
+
+/**
+ * What the executor needs on top of what a tool needs.
+ *
+ * `confirm` is HERE rather than on the context precisely so that no tool body
+ * can reach it: raising the proposal is the executor's job, driven by the
+ * tool's declared shape, and a tool that could ask is a tool that could forget.
+ */
+export type AgentToolCall = AgentToolContext & {
   /** Raise a destructive proposal with the human and wait for the answer. A
    * non-answer is a decline. */
   readonly confirm: (proposal: Omit<AgentConfirmationRequest, "id">) => Promise<boolean>;
 };
 
-type ToolDefinition = {
+/**
+ * What a destructive tool resolves its arguments into, before anything is
+ * touched.
+ *
+ * `settled` is the case that needs no human — a note that is already gone, an
+ * edit this conversation never made — and it exists so that "do not ask about
+ * nothing" stays inside the tool while "ask" stays outside it.
+ */
+type DestructiveProposal =
+  | {
+      readonly kind: "ask";
+      readonly request: Omit<AgentConfirmationRequest, "id">;
+      /** What the model is told when the human says no. */
+      readonly declined: string;
+    }
+  | { readonly kind: "settled"; readonly result: AgentToolResult };
+
+type ToolBody = {
   readonly name: string;
   readonly parameters: TSchema;
   /** Appended to the grant table's sentence: mechanics only (result shape,
@@ -123,6 +155,20 @@ type ToolDefinition = {
   readonly mechanics: string;
   readonly execute: (ctx: AgentToolContext, args: unknown) => Promise<AgentToolResult>;
 };
+
+/**
+ * A tool, split by WHO ANSWERS FIRST.
+ *
+ * `asks` is checked against the grant table's tier at registration
+ * (`policyFor`), so the two cannot disagree: a `destructive-confirmed` row with
+ * a tool that asks nothing throws, and so does the reverse.
+ */
+type ToolDefinition =
+  | ({ readonly asks: "nothing" } & ToolBody)
+  | ({
+      readonly asks: "the-user";
+      readonly propose: (ctx: AgentToolContext, args: unknown) => DestructiveProposal;
+    } & ToolBody);
 
 /**
  * Why a tier is absent from an UNATTENDED turn, or null when it is granted
@@ -271,6 +317,7 @@ const DelegationRef = Type.Object(
 const TOOLS: readonly ToolDefinition[] = [
   {
     name: "search_vault",
+    asks: "nothing",
     parameters: SearchArgs,
     mechanics:
       "Each element is `{path, snippet}` (`snippet` is omitted when listing a tag with no query).",
@@ -295,6 +342,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "get_backlinks",
+    asks: "nothing",
     parameters: NotePath,
     mechanics: `Each element is \`{path}\`; at most ${BACKLINKS_MAX} are returned.`,
     execute: async (ctx, raw) => {
@@ -306,6 +354,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "get_links",
+    asks: "nothing",
     parameters: NotePath,
     mechanics:
       "Each element is `{path}` for a resolved target, or `{target, unresolved: true}` for a " +
@@ -329,6 +378,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "related_notes",
+    asks: "nothing",
     parameters: NotePath,
     mechanics: "Each element is `{path, reasons}`, reasons being an array of strings.",
     execute: async (ctx, raw) => {
@@ -341,6 +391,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "list_vault",
+    asks: "nothing",
     parameters: Page,
     mechanics: "Each element is `{path, name, kind}`, kind being 'doc' or 'other'.",
     execute: (ctx, raw) => {
@@ -359,6 +410,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "read_note",
+    asks: "nothing",
     parameters: NotePath,
     mechanics:
       "Returns the markdown itself, frontmatter included — or one sentence saying there is " +
@@ -377,6 +429,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "get_note_facts",
+    asks: "nothing",
     parameters: NotePath,
     mechanics:
       "The array holds one `{path, sizeBytes, modifiedMs}` element, or is empty when there is " +
@@ -389,6 +442,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "list_tasks",
+    asks: "nothing",
     parameters: Page,
     mechanics:
       "The ONLY source of the ordinal and the source line. Each element is " +
@@ -415,6 +469,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "list_tags",
+    asks: "nothing",
     parameters: NoArgs,
     mechanics:
       "Inline `#tags` and frontmatter `tags:` together; narrow to one with search_vault's " +
@@ -427,6 +482,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "list_wiki_targets",
+    asks: "nothing",
     parameters: Page,
     mechanics: "Each element is `{path, title, type, aliases}`.",
     execute: async (ctx, raw) => {
@@ -450,6 +506,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "get_link_graph",
+    asks: "nothing",
     parameters: NoArgs,
     mechanics:
       'Answers "what is disconnected here?" and "what are the hubs?". Returns a JSON object — ' +
@@ -462,6 +519,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "list_delegations",
+    asks: "nothing",
     parameters: NoArgs,
     mechanics:
       `The ${DELEGATIONS_MAX} most recent, each \`{id, path, line, status, result}\` — ` +
@@ -488,6 +546,7 @@ const TOOLS: readonly ToolDefinition[] = [
   // ---- write-checkpointed --------------------------------------------------
   {
     name: "toggle_task",
+    asks: "nothing",
     parameters: TaskRef,
     mechanics:
       "It FLIPS the line's current state, so read `checked` from list_tasks first if you need " +
@@ -519,6 +578,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "rename_note",
+    asks: "nothing",
     parameters: RenameArgs,
     mechanics: "",
     execute: async (ctx, raw) => {
@@ -535,6 +595,7 @@ const TOOLS: readonly ToolDefinition[] = [
   // ---- delegate — the one tier that manufactures agent turns -----------------
   {
     name: "delegate_task",
+    asks: "nothing",
     parameters: DelegateArgs,
     mechanics:
       `At most ${MAX_DELEGATIONS_PER_TURN} per turn. The task runs unattended on its own ` +
@@ -559,6 +620,7 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "cancel_delegation",
+    asks: "nothing",
     parameters: DelegationRef,
     mechanics: "",
     execute: async (ctx, raw) => {
@@ -571,23 +633,41 @@ const TOOLS: readonly ToolDefinition[] = [
   },
 
   // ---- destructive, confirmed in the conversation ---------------------------
+  //
+  // Each one declares WHAT IT WOULD DO (`propose`) and, separately, does it
+  // (`execute`). The executor is what turns the first into the second, and the
+  // context these bodies are handed has no `confirm` on it — so the asking is
+  // not something a tool here could forget or a container could skip. Both
+  // halves resolve the arguments for themselves: propose must not act, and
+  // execute must not assume the world stood still while a person read a dialog.
   {
     name: "delete_note",
+    asks: "the-user",
     parameters: NotePath,
     mechanics:
       "Say what you are deleting before you call this, so the dialog does not surprise the user.",
+    propose: (ctx, raw) => {
+      const { path } = parse(NotePath, raw);
+      const file = ctx.vault.lookup(path);
+      if (file === null || file.state !== "live") {
+        return { kind: "settled", result: success(`${path} was already gone.`) };
+      }
+      return {
+        kind: "ask",
+        request: {
+          title: `Delete ${file.path}?`,
+          detail:
+            "The agent proposed removing this file. It moves to the vault's trash and can be " +
+            "restored from there for 30 days.",
+          confirmLabel: "Delete",
+        },
+        declined: `The user declined to delete ${file.path}.`,
+      };
+    },
     execute: async (ctx, raw) => {
       const { path } = parse(NotePath, raw);
       const file = ctx.vault.lookup(path);
       if (file === null || file.state !== "live") return success(`${path} was already gone.`);
-      const confirmed = await ctx.confirm({
-        title: `Delete ${file.path}?`,
-        detail:
-          "The agent proposed removing this file. It moves to the vault's trash and can be " +
-          "restored from there for 30 days.",
-        confirmLabel: "Delete",
-      });
-      if (!confirmed) return failure(`The user declined to delete ${file.path}.`);
       const result = await ctx.vault.trash([file.path]);
       if (!result.ok) return failure(heldDeletionMessage(result.held));
       return success(
@@ -597,22 +677,35 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "undo_my_edits",
+    asks: "the-user",
     parameters: NotePath,
     mechanics: "A background task's edits are not yours to undo.",
+    propose: (ctx, raw) => {
+      const { path } = parse(NotePath, raw);
+      if (ctx.snapshots.latest(ctx.scope, path) === null) {
+        return {
+          kind: "settled",
+          result: failure(`I have not edited ${path} in this conversation.`),
+        };
+      }
+      return {
+        kind: "ask",
+        request: {
+          title: `Undo the agent's edit to ${path}?`,
+          detail:
+            "This puts the note back to the bytes it had before the agent's most recent edit in " +
+            "this conversation. Everything written to it since goes with it.",
+          confirmLabel: "Undo",
+        },
+        declined: `The user declined to undo my edit to ${path}.`,
+      };
+    },
     execute: async (ctx, raw) => {
       const { path } = parse(NotePath, raw);
       const snapshotId = ctx.snapshots.latest(ctx.scope, path);
       if (snapshotId === null) {
         return failure(`I have not edited ${path} in this conversation.`);
       }
-      const confirmed = await ctx.confirm({
-        title: `Undo the agent's edit to ${path}?`,
-        detail:
-          "This puts the note back to the bytes it had before the agent's most recent edit in " +
-          "this conversation. Everything written to it since goes with it.",
-        confirmLabel: "Undo",
-      });
-      if (!confirmed) return failure(`The user declined to undo my edit to ${path}.`);
       const result = await ctx.snapshots.restore([snapshotId], ctx.scope.origin);
       if (!result.ok) return failure(result.reason);
       // Consumed, so a second undo of the same edit cannot rewind to the same
@@ -623,22 +716,31 @@ const TOOLS: readonly ToolDefinition[] = [
   },
   {
     name: "restore_delegation",
+    asks: "the-user",
     parameters: DelegationRef,
     mechanics: "",
+    propose: (ctx, raw) => {
+      const { id } = parse(DelegationRef, raw);
+      const delegation = ctx.delegations.list().delegations.find((row) => row.id === id);
+      if (delegation === undefined) {
+        return { kind: "settled", result: failure(`There is no background task with id ${id}.`) };
+      }
+      return {
+        kind: "ask",
+        request: {
+          title: `Undo the background task's edit to ${delegation.sourceFile}?`,
+          detail:
+            `This puts ${delegation.sourceFile} back to the bytes it had before that task ran. ` +
+            "Everything written to it since goes with it.",
+          confirmLabel: "Restore",
+        },
+        declined: `The user declined to restore ${delegation.sourceFile}.`,
+      };
+    },
     execute: async (ctx, raw) => {
       const { id } = parse(DelegationRef, raw);
       const delegation = ctx.delegations.list().delegations.find((row) => row.id === id);
       if (delegation === undefined) return failure(`There is no background task with id ${id}.`);
-      const confirmed = await ctx.confirm({
-        title: `Undo the background task's edit to ${delegation.sourceFile}?`,
-        detail:
-          `This puts ${delegation.sourceFile} back to the bytes it had before that task ran. ` +
-          "Everything written to it since goes with it.",
-        confirmLabel: "Restore",
-      });
-      if (!confirmed) {
-        return failure(`The user declined to restore ${delegation.sourceFile}.`);
-      }
       const result = await ctx.delegations.restoreSnapshot(id);
       if (!result.ok) return failure(result.error);
       return success(`Restored ${delegation.sourceFile} to its state before that task ran.`);
@@ -663,7 +765,7 @@ const TOOLS: readonly ToolDefinition[] = [
  */
 export function agentToolManifest(attended: boolean): SandboxToolSpec[] {
   return TOOLS.flatMap((tool) => {
-    const grant = grantFor(tool.name);
+    const grant = policyFor(tool);
     if (!attended && unattendedRefusal(grant.tier) !== null) return [];
     return [
       {
@@ -676,13 +778,29 @@ export function agentToolManifest(attended: boolean): SandboxToolSpec[] {
   });
 }
 
-/** The grant row for `agentName`, or a throw naming the gap. */
-function grantFor(agentName: string): AgentGrant {
-  const grant = AGENT_GRANTS.find((row) => row.agentName === agentName);
+/**
+ * The grant row governing `tool`, refusing outright when the two disagree.
+ *
+ * TWO gaps, one throw, because both are the same mistake: a capability nobody
+ * declared is a capability nobody weighed, and a `destructive-confirmed` row
+ * whose tool asks nothing is a confirmation the table promises and the code
+ * never raises. Called from the manifest AND the executor, so neither a boot
+ * nor a call can route around it.
+ */
+function policyFor(tool: ToolDefinition): AgentGrant {
+  const grant = AGENT_GRANTS.find((row) => row.agentName === tool.name);
   if (grant === undefined) {
     throw new Error(
-      `tool '${agentName}' is not in the agent grant table — declare it in ` +
+      `tool '${tool.name}' is not in the agent grant table — declare it in ` +
         `@repo/bridge/agent-grants before offering it.`,
+    );
+  }
+  const confirmed = grant.tier === "destructive-confirmed";
+  if (confirmed !== (tool.asks === "the-user")) {
+    throw new Error(
+      `tool '${tool.name}' is '${grant.tier}' in the agent grant table but asks ` +
+        `'${tool.asks}' — the destructive tier is what raises the confirmation, so a tool in it ` +
+        `must declare a proposal and a tool outside it must not.`,
     );
   }
   return grant;
@@ -693,29 +811,46 @@ export function agentToolNames(): readonly string[] {
   return TOOLS.map((tool) => tool.name);
 }
 
+/** Tool names whose execution raises a human confirmation first — read off the
+ * definitions, so a test can hold them against the grant table's own tier
+ * rather than against a second list. */
+export function agentToolsAskingTheUser(): readonly string[] {
+  return TOOLS.filter((tool) => tool.asks === "the-user").map((tool) => tool.name);
+}
+
 /**
  * Run one tool call from a container.
  *
- * A tool that is not offered, one its lane may not use, or arguments that do
- * not fit its schema all come back as an ERROR RESULT rather than a throw: pi
- * turns an error result into something the model reads and can correct, where a
- * transport failure reads as the host being broken.
+ * A tool that is not offered, one its lane may not use, arguments that do not
+ * fit its schema, and a human who said no all come back as an ERROR RESULT
+ * rather than a throw: pi turns an error result into something the model reads
+ * and can correct, where a transport failure reads as the host being broken.
+ *
+ * THE CONFIRMATION IS RAISED HERE, from the tool's declared shape rather than
+ * from anything its body does. A destructive tool cannot reach `confirm` — it
+ * is not on the context it is handed — so "the tool forgot to ask" is not a
+ * state this module can be in.
  */
 export async function executeAgentTool(
-  ctx: AgentToolContext,
+  call: AgentToolCall,
   name: string,
   args: unknown,
 ): Promise<AgentToolResult> {
   const tool = TOOLS.find((candidate) => candidate.name === name);
   if (tool === undefined) return failure(`There is no tool called ${name} on this host.`);
-  if (!ctx.attended) {
+  if (!call.attended) {
     // The manifest already withheld it; this is what holds when a container is
     // running a boot from before that was true.
-    const refusal = unattendedRefusal(grantFor(name).tier);
+    const refusal = unattendedRefusal(policyFor(tool).tier);
     if (refusal !== null) return failure(refusal);
   }
   try {
-    return await tool.execute(ctx, args);
+    if (tool.asks === "the-user") {
+      const proposal = tool.propose(call, args);
+      if (proposal.kind === "settled") return proposal.result;
+      if (!(await call.confirm(proposal.request))) return failure(proposal.declined);
+    }
+    return await tool.execute(call, args);
   } catch (error) {
     return failure(`${name} failed: ${toErrorMessage(error)}`);
   }

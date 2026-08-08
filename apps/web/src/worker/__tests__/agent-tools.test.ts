@@ -18,9 +18,11 @@ import type { AgentConfirmationRequest } from "@repo/bridge/ipc-registry";
 import {
   agentToolManifest,
   agentToolNames,
+  agentToolsAskingTheUser,
   executeAgentTool,
-  type AgentToolContext,
+  type AgentToolCall,
 } from "../agent/agent-tools";
+import { SANDBOX_PROVIDER_ID } from "../agent/provider-catalog";
 import { userHostName } from "../host/host-address";
 import type { UserHost } from "../host/user-host";
 
@@ -41,7 +43,7 @@ function withTools<T>(
     // The object's OWN snapshot store, index and delegation queue — a second
     // composition would put the restore points somewhere the production path
     // never looks.
-    const context: AgentToolContext = {
+    const context: AgentToolCall = {
       vault: host.vault,
       knowledge: host.knowledge,
       snapshots: host.agent.snapshots,
@@ -86,6 +88,66 @@ describe("the agent's tool surface", () => {
     for (const row of withheld) expect(unattended.has(row.agentName)).toBe(false);
     // The read tiers are unchanged: an unattended run still needs the vault.
     expect(unattended.has("search_vault")).toBe(true);
+  });
+
+  it("asks the user for exactly the tools the grant table calls destructive", () => {
+    // Derived from both sides rather than from a list: a fourth destructive
+    // tool that forgot its proposal fails HERE, and `policyFor` throws before
+    // it ever reaches a container.
+    const declared = AGENT_GRANTS.filter((row) => row.tier === "destructive-confirmed").map(
+      (row) => row.agentName,
+    );
+    expect(agentToolsAskingTheUser().toSorted()).toEqual(declared.toSorted());
+  });
+
+  it("cannot run a destructive tool without a confirmation, whatever the tool does", async () => {
+    // Every destructive tool, over state that makes the proposal REAL — a
+    // decline must leave the world exactly as it was, and each of them must
+    // have asked.
+    const asked: string[] = [];
+    const survived = await withTools(
+      "tools-destructive-declined",
+      (proposal) => {
+        asked.push(proposal.title);
+        return Promise.resolve(false);
+      },
+      async ({ host, call }) => {
+        await host.vault.writeText("target.md", "- [ ] original\n");
+        // A restore point `undo_my_edits` can name, made the way the agent
+        // makes one.
+        await call("toggle_task", {
+          path: "target.md",
+          ordinal: 0,
+          expectedRaw: "- [ ] original",
+        });
+        // A background task for `restore_delegation` to name, on its own note
+        // so the run it queues cannot touch the one under assertion.
+        await host.vault.writeText("chore.md", "- [ ] hand this off\n");
+        host.agent.credentials.setSelection({ provider: SANDBOX_PROVIDER_ID, modelId: "s-1" });
+        const delegation = await host.agent.delegations.create(
+          { sourceFile: "chore.md", ordinal: 0 },
+          null,
+        );
+        expect(delegation.ok).toBe(true);
+
+        for (const [tool, args] of [
+          ["delete_note", { path: "target.md" }],
+          ["undo_my_edits", { path: "target.md" }],
+          ["restore_delegation", { id: delegation.ok ? delegation.delegation.id : "" }],
+        ] satisfies [string, unknown][]) {
+          const result = await call(tool, args);
+          expect(result.isError, `${tool} acted on a decline`).toBe(true);
+        }
+        return {
+          state: host.vault.lookup("target.md")?.state,
+          body: await host.vault.readText("target.md"),
+        };
+      },
+    );
+    expect(asked).toHaveLength(agentToolsAskingTheUser().length);
+    // Nothing was trashed, and the agent's own edit is still there.
+    expect(survived.state).toBe("live");
+    expect(survived.body).toBe("- [x] original\n");
   });
 
   it("refuses those tiers at the executor too, not only in the menu", async () => {

@@ -34,9 +34,19 @@ export type TaskLineMatch = {
 
 type HeadingInfo = { line: number; text: string };
 
-/** Find the `ordinal`-th UNCHECKED checkbox in `raw` (scanTaskItems' counting
- * contract). Returns null if there's no such checkbox or it's already checked
- * (stale) — the caller rejects rather than acting on the wrong/old line. */
+/**
+ * Find the `ordinal`-th UNCHECKED checkbox in `raw` (scanTaskItems' counting
+ * contract). Returns null if there's no such checkbox or it's already checked.
+ *
+ * REFUSING A CHECKED ITEM IS THIS LOCATOR'S OWN RULE, not the ordinal's, and it
+ * is the one place it deliberately disagrees with `toggleTaskAtOrdinal`, which
+ * accepts either state off the identical ordinal. The two answer different
+ * questions: a toggle must reach a checked box, because unticking one is half
+ * of what toggling means; delegation must not, because handing a done task to
+ * an agent is work nobody asked for and the agent's first act would be to tick
+ * a box that is already ticked. So the difference is the FEATURE, and the
+ * shared half — which item the ordinal names — stays `scanTaskItems` for both.
+ */
 export function findTaskLine(raw: string, ordinal: number): TaskLineMatch | null {
   // `.find` — not `[ordinal]` — because an item scanTaskItems skipped (no
   // source position) still consumed its ordinal there.

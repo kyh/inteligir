@@ -460,6 +460,16 @@ Worker; the image is `container/`, built from this repo.
   folds into the transcript and broadcasts. An object that instead held the
   container's event stream open would be pinned for the life of the turn, and
   an outbound connection expires at fifteen minutes — mid-answer.
+- **The report's ANSWER is part of the protocol, not a courtesy.** A `vault`
+  report is answered with what the object refused — a container-side `rm`, a
+  write with no restore point — and with the revision the container may now
+  claim to hold. The agent's own file tools already told the model "done"
+  against a COPY, so the container steers the refusals into the running turn;
+  and it may adopt the answered revision only because the object gives it its
+  own current one solely when nothing but that batch moved the vault. A `tool`
+  report's deadline exceeds the confirmation window for the same reason: a
+  container that gave up while a person was still deciding would answer the
+  model "the result is unknown" about something that then happened.
 - **The provider credential never reaches the container.** The Worker owns the
   OAuth round-trip, the refresh token is AES-GCM sealed in the object under an
   HKDF-derived per-user key, and the container is handed a **placeholder**. Per

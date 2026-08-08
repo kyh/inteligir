@@ -49,6 +49,29 @@ export const CONTAINER_WORKSPACE_DIR = "/workspace";
 /** Header the container presents its report bearer on. */
 export const REPORT_AUTH_HEADER = "authorization";
 
+/**
+ * How long a destructive proposal waits for a human before it declines itself.
+ *
+ * It lives HERE, in the contract both halves read, because it is one half of a
+ * pair: the object holds the tool call open for this long, and the container
+ * has to be willing to wait at least that long for the answer
+ * (`reportTimeoutMs`). A container that gave up first would tell the model
+ * the result is unknown while the object went on to execute the confirmed
+ * action — a tool result that says "unknown" about something that HAPPENED is
+ * the one outcome neither number may produce.
+ *
+ * Short on purpose, and the shortness is the cost: a pending proposal pins a
+ * Durable Object, and an unanswered dialog must not bill for minutes of one.
+ */
+export const AGENT_CONFIRMATION_TIMEOUT_MS = 90_000;
+
+/** Ceiling on a report the object answers out of its own storage. */
+const REPORT_TIMEOUT_MS = 30_000;
+
+/** What a `tool` report is allowed on top of the confirmation window: the round
+ * trip, and the write the answer sets off. */
+const CONFIRMATION_ROUND_TRIP_MS = 30_000;
+
 // ---------------------------------------------------------------------------
 // Durable Object → container
 // ---------------------------------------------------------------------------
@@ -155,9 +178,22 @@ export const AgentReportSchema = Type.Union([
     },
     { additionalProperties: false },
   ),
-  /** Files the agent's own file tools changed under `./vault`. */
+  /**
+   * Files the agent's own file tools changed under `./vault`.
+   *
+   * `fromRevision` is the vault revision the container believes its copy is
+   * otherwise at — the baseline these ops were made ON TOP OF. The object
+   * answers with the revision the container may now claim, which is its own
+   * current one only when nothing but these ops moved the vault since; a
+   * browser edit that landed mid-turn has to stay in the container's next
+   * delta.
+   */
   Type.Object(
-    { kind: Type.Literal("vault"), ops: Type.Array(VaultOpSchema) },
+    {
+      kind: Type.Literal("vault"),
+      fromRevision: Type.Number(),
+      ops: Type.Array(VaultOpSchema),
+    },
     { additionalProperties: false },
   ),
   /** The turn is over. `error` is non-null when the session itself failed. */
@@ -173,6 +209,24 @@ export const AgentReportSchema = Type.Union([
 
 export type AgentReport = Static<typeof AgentReportSchema>;
 export type VaultOp = Static<typeof VaultOpSchema>;
+
+/**
+ * Ceiling on one report, by kind.
+ *
+ * A `tool` report is the only one whose answer can wait on a PERSON — the
+ * destructive tier raises its confirmation inside the object, mid-call — so it
+ * gets the confirmation window plus a round trip. Every other kind is the
+ * object folding a value into its own storage and answering.
+ *
+ * DERIVED rather than declared, because the pair is the whole point: a
+ * container that gave up before the human answered would tell the model the
+ * result is unknown while the object executed the confirmed action.
+ */
+export function reportTimeoutMs(kind: AgentReport["kind"]): number {
+  return kind === "tool"
+    ? AGENT_CONFIRMATION_TIMEOUT_MS + CONFIRMATION_ROUND_TRIP_MS
+    : REPORT_TIMEOUT_MS;
+}
 
 /** What the report route answers with, by report kind. */
 export type AgentReportReply =

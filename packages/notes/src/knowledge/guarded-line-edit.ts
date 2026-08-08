@@ -98,11 +98,18 @@ export function toggleCheckboxLine(
   return { ok: true, content: replaced.content, checked };
 }
 
-/** Toggle the `ordinal`-th GFM task item (find-task-line's counting contract,
+/**
+ * Toggle the `ordinal`-th GFM task item (find-task-line's counting contract,
  * frontmatter-aware and code-fence-safe) after verifying its current source
  * line equals `expectedRaw`. Content-addressed: lines shifting above the item
  * relocate it by ordinal, while any edit to the line itself — or a different
- * task landing at the ordinal — refuses with `line-changed`. */
+ * task landing at the ordinal — refuses with `line-changed`.
+ *
+ * EITHER STATE IS ADDRESSABLE HERE, and that is the deliberate difference from
+ * `findTaskLine`, which refuses an item that is already checked off the same
+ * ordinal. Unticking a checked box is half of what a toggle is; delegating a
+ * done task is nothing. The counting contract is shared, the state rule is not.
+ */
 export function toggleTaskAtOrdinal(
   source: string,
   ordinal: number,

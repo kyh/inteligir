@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { toggleTaskAtOrdinal } from "../guarded-line-edit";
 import { scanTaskItems } from "../link-extract";
 
 import { findTaskLine } from "../find-task-line";
@@ -24,6 +25,15 @@ describe("findTaskLine", () => {
     expect(m?.text).toBe("book the flight");
     expect(m?.lineText).toBe("- [ ] book the flight");
     expect(m?.heading).toBe("This week");
+  });
+
+  // The ONE place this locator and the guarded toggle disagree, pinned so the
+  // disagreement stays a decision: the same ordinal names the same item for
+  // both, and only the state rule differs (see both modules' headers).
+  it("refuses a checked item the guarded toggle accepts at the same ordinal", () => {
+    expect(findTaskLine(DOC, 1)).toBeNull();
+    const toggled = toggleTaskAtOrdinal(DOC, 1, "- [x] already done");
+    expect(toggled).toMatchObject({ ok: true, checked: false });
   });
 
   it("counts checked boxes in the ordinal but won't delegate one", () => {

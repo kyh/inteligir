@@ -79,6 +79,11 @@ export default defineConfig({
     }),
   ],
   test: {
+    // PINNED to this package's own tests. `container/` is a workspace member
+    // living inside this directory, and vitest's default glob would sweep its
+    // node suite into the Workers pool — where `fs.watch` does not exist and
+    // its own config never applies.
+    include: ["src/**/*.test.ts"],
     setupFiles: ["./src/worker/__tests__/apply-schema.ts"],
     // Monorepo worker budget (see apps/desktop/vitest.config.ts).
     maxWorkers: 1,

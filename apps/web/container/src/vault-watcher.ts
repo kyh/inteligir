@@ -43,8 +43,9 @@ import { bytesToBase64, type VaultOp } from "./protocol";
 
 /** How long a burst of events settles before it is read. Long enough that a
  * multi-file `bash` invocation reports once, short enough that a single edit
- * reaches the object while the turn is still running. */
-const SETTLE_MS = 400;
+ * reaches the object while the turn is still running. Exported because a test
+ * over a real directory has to wait it out rather than guess at it. */
+export const SETTLE_MS = 400;
 
 /** Largest file reported back. Past this it is not a note, and the report route
  * has its own body ceiling that a single such file would blow through. */

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+
 import { VaultEditorController, type VaultIO } from "@repo/editor/vault-editor";
 
 // A controllable fake filesystem: reads/writes resolve only when the test
@@ -39,9 +41,13 @@ class FakeVault implements VaultIO {
     this.pendingWrites.push(d);
     return d.promise;
   };
-  remove = (path: string): Promise<void> => {
+  /** What the host answers. `held` is the deletion gate refusing whole — the
+   * file stays, and so must the open note. */
+  removeOutcome: DeleteVaultEntryResult = { outcome: "trashed" };
+  remove = (path: string): Promise<DeleteVaultEntryResult> => {
+    if (this.removeOutcome.outcome === "held") return Promise.resolve(this.removeOutcome);
     this.files.delete(path);
-    return Promise.resolve();
+    return Promise.resolve(this.removeOutcome);
   };
 }
 
@@ -169,6 +175,35 @@ describe("VaultEditorController", () => {
     await Promise.all([flush, removed]);
     expect(c.getState().path).toBe(null);
     expect(io.files.has("a.md")).toBe(false);
+  });
+
+  // The deletion gate holds a delete WHOLE — the file is still there, on
+  // purpose. A controller that cleared the buffer anyway would close the note
+  // silently over a file nobody deleted, which is the one report a delete must
+  // never make, and the caller would have nothing to say about it.
+  it("keeps the note open when the host holds the delete", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "A");
+    io.removeOutcome = {
+      outcome: "held",
+      held: { deletions: 40, liveCount: 100, limit: 25, sample: ["a.md"] },
+    };
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    const outcome = await c.remove();
+    expect(outcome).toMatchObject({ outcome: "held" });
+    expect(c.getState()).toMatchObject({ path: "a.md", content: "A" });
+    expect(io.files.has("a.md")).toBe(true);
+  });
+
+  it("keeps the note open when the delete itself fails", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "A");
+    io.remove = () => Promise.reject(new Error("offline"));
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    expect(await c.remove()).toBe(null);
+    expect(c.getState()).toMatchObject({ path: "a.md", content: "A" });
   });
 
   it("does not switch files when the pending save fails", async () => {

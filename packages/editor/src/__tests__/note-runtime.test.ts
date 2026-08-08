@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+
 import { type VaultIO } from "@repo/editor/vault-editor";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 
@@ -22,10 +24,12 @@ class FakeVault implements VaultIO {
     this.files.set(path, content);
     return Promise.resolve();
   };
-  remove = (path: string): Promise<void> => {
+  removeOutcome: DeleteVaultEntryResult = { outcome: "trashed" };
+  remove = (path: string): Promise<DeleteVaultEntryResult> => {
     this.removes++;
+    if (this.removeOutcome.outcome === "held") return Promise.resolve(this.removeOutcome);
     this.files.delete(path);
-    return Promise.resolve();
+    return Promise.resolve(this.removeOutcome);
   };
 }
 
@@ -220,5 +224,26 @@ describe("createNoteRuntime", () => {
 
     await runDebounce();
     expect(io.writes).toBe(0); // the discarded edit never wrote
+  });
+
+  it("hands a held delete back to the caller instead of closing the note", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    io.removeOutcome = {
+      outcome: "held",
+      held: { deletions: 40, liveCount: 100, limit: 25, sample: ["a.md"] },
+    };
+    const vanished: string[] = [];
+    const runtime = createNoteRuntime("a.md", "root", io, {
+      onVanished: (path) => vanished.push(path),
+    });
+    await settle();
+
+    expect(await runtime.remove()).toMatchObject({ outcome: "held" });
+    await settle();
+    // The file is still there, so the note is: nothing vanished, and the
+    // provider gets the outcome to toast rather than a silent close.
+    expect(vanished).toEqual([]);
+    expect(runtime.controller.getState().path).toBe("a.md");
   });
 });

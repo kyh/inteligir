@@ -113,6 +113,18 @@ const BOOT_ID_KEY: Record<AgentLane, string> = {
 };
 
 /**
+ * The chat turn this object last dispatched — the conversation's counterpart of
+ * the background lane's lock row.
+ *
+ * DURABLE, not a field: the reports that answer a turn arrive as separate
+ * requests and the object hibernates between them, so an in-memory copy reads
+ * as absent exactly when a report needs it. Without it a container on the
+ * current boot can announce `turn_end` for a turn that is long over and clear
+ * `busy` under the one now running.
+ */
+const CHAT_TURN_KEY = "agent/chat-turn";
+
+/**
  * Cloudflare Browser Run's CDP endpoint, or `null` when this deployment has no
  * Browser Run account.
  *
@@ -248,8 +260,19 @@ export class AgentRunner {
     const seed = await this.ensureContainer("chat", port, provider);
     if (!seed.ok) throw new Error(seed.error);
 
+    const turnId = crypto.randomUUID();
+    const previous = this.chatTurnId();
+    // A steer or a follow-up folds into the turn already running and keeps
+    // reporting under ITS id, so it must not replace the tracked one — unless
+    // nothing is tracked, in which case the container starts a turn on this id.
+    // Written BEFORE the dispatch, because a container can report from inside
+    // it, and put back when the dispatch is refused.
+    this.deps.kv.put(
+      CHAT_TURN_KEY,
+      command.type === "user_message" || previous === "" ? turnId : previous,
+    );
     const outcome = await port.dispatch({
-      turnId: crypto.randomUUID(),
+      turnId,
       kind: command.type,
       text: command.text,
       images: command.images ?? [],
@@ -259,9 +282,19 @@ export class AgentRunner {
       // addressing a point in the transcript.
       seededThrough: this.deps.chat.head() + 1,
     });
-    if (!outcome.ok) throw new Error(outcome.error);
+    if (!outcome.ok) {
+      this.deps.kv.put(CHAT_TURN_KEY, previous);
+      throw new Error(outcome.error);
+    }
     this.deps.chat.appendUser(command.text);
     this.setBusy(true);
+  }
+
+  /** The chat turn this object last dispatched, or `""` when it has never
+   * dispatched one. */
+  chatTurnId(): string {
+    const stored = this.deps.kv.get(CHAT_TURN_KEY);
+    return typeof stored === "string" ? stored : "";
   }
 
   /**
@@ -350,8 +383,26 @@ export class AgentRunner {
     return lane === "background" ? this.reportBackground(report) : this.reportChat(report);
   }
 
+  /**
+   * One report from the CHAT container.
+   *
+   * A report whose turn is not the one this object last dispatched folds into
+   * NOTHING — the same rule the unattended lane gets from `runs.runAt`. The
+   * container outlives a turn, so a `turn_end` for a turn that is long over
+   * would otherwise clear `busy` under the one now running, and a message from
+   * it would land in the conversation as though it had just been said.
+   *
+   * A `vault` report carries no turn and is not gated by one: the writes are
+   * the agent's, whichever turn made them, and refusing them would strand work
+   * the user can no longer recover.
+   */
   private async reportChat(report: AgentReport): Promise<AgentReportReply> {
     const scope: SnapshotScope = { origin: "chat", ref: this.deps.chat.activeSessionId() };
+    if (report.kind !== "vault" && !this.isCurrentChatTurn(report.turnId)) {
+      return report.kind === "tool"
+        ? { kind: "tool", isError: true, text: "That turn is over; this host is running another." }
+        : { kind: "ack" };
+    }
     switch (report.kind) {
       case "events":
         for (const raw of report.events) {
@@ -368,7 +419,7 @@ export class AgentRunner {
         return { kind: "tool", isError: result.isError, text: result.text };
       }
       case "vault":
-        return this.applyVaultOps(report.ops, scope);
+        return this.applyVaultOps(report, scope);
       case "turn_end":
         this.setBusy(false);
         if (report.error !== null) {
@@ -396,14 +447,16 @@ export class AgentRunner {
       const holder = this.deps.runs.holder();
       if (holder === null) {
         return {
+          // Nothing was applied, so the container's own baseline is still the
+          // most it may claim to hold.
           kind: "vault",
-          revision: this.deps.revisions.current(),
+          revision: report.fromRevision,
           rejected: report.ops.map(
             (op) => `${op.path}: no background task is running, so nothing was written`,
           ),
         };
       }
-      return this.applyVaultOps(report.ops, { origin: holder.owner, ref: holder.ref });
+      return this.applyVaultOps(report, { origin: holder.owner, ref: holder.ref });
     }
 
     const run = this.deps.runs.runAt(report.turnId);
@@ -715,13 +768,22 @@ export class AgentRunner {
    * with nothing to recover it. Last-write-wins plus the restore point above
    * loses nothing — the user can put the note back — and the manifest, the
    * index and the deletion gate all still see an ordinary vault write.
+   *
+   * EVERY REFUSAL IS NAMED IN THE ANSWER, and the container is required to read
+   * it: the agent's own file tools already told the model the write succeeded —
+   * against a copy — so a refusal nobody relays is a model that goes on
+   * building on a note the user does not have.
    */
   private async applyVaultOps(
-    ops: readonly VaultOp[],
+    report: { readonly fromRevision: number; readonly ops: readonly VaultOp[] },
     scope: SnapshotScope,
   ): Promise<AgentReportReply> {
+    // Read BEFORE anything is applied: the container may adopt a revision only
+    // if its own baseline was still the vault's when this batch started.
+    const started = this.deps.revisions.current();
     const rejected: string[] = [];
-    for (const op of ops) {
+    let applied = 0;
+    for (const op of report.ops) {
       if (op.op === "remove") {
         rejected.push(`${op.path}: use delete_note, which asks the user first`);
         continue;
@@ -736,9 +798,35 @@ export class AgentRunner {
         continue;
       }
       const written = await this.deps.vault.write(op.path, bytes);
-      if (!written.ok) rejected.push(`${op.path}: ${written.reason}`);
+      if (written.ok) applied += 1;
+      else rejected.push(`${op.path}: ${written.reason}`);
     }
-    return { kind: "vault", revision: this.deps.revisions.current(), rejected };
+    return {
+      kind: "vault",
+      revision: this.adoptableRevision(report.fromRevision, started, applied),
+      rejected,
+    };
+  }
+
+  /**
+   * The revision the reporting container may claim to hold, once its own ops
+   * have been applied.
+   *
+   * `current()` ONLY when the container's baseline was the vault's revision
+   * when this batch began and the batch moved it by exactly its own successful
+   * writes — one log entry per written path. Any other reading means something
+   * else moved the vault (a browser edit landing mid-turn, another lane, an
+   * upload), and that file has to stay in this container's next delta: a
+   * container that adopted a revision past it would never be sent the file
+   * again, and the agent would read a copy the user has since changed.
+   *
+   * Falling back to the baseline is always safe — it costs a re-push of files
+   * the container already has, which is the same work a cold wake does.
+   */
+  private adoptableRevision(from: number, started: number, applied: number): number {
+    if (started !== from) return from;
+    const ended = this.deps.revisions.current();
+    return ended - started === applied ? ended : from;
   }
 
   // ---- internals ------------------------------------------------------------
@@ -769,6 +857,15 @@ export class AgentRunner {
   private selectedProvider(): ProviderEntry | null {
     const choice = this.chooseProvider();
     return choice.ok ? choice.entry : null;
+  }
+
+  /** Whether `turnId` names the chat turn this object last dispatched. A host
+   * that has never dispatched one has nothing to disagree with — a container
+   * that was already running when this object first woke still has a turn to
+   * finish. */
+  private isCurrentChatTurn(turnId: string): boolean {
+    const tracked = this.chatTurnId();
+    return tracked === "" || tracked === turnId;
   }
 
   private bootId(lane: AgentLane): string {

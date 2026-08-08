@@ -14,6 +14,24 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Parse stored or received JSON into `unknown`, answering `undefined` for text
+ * that is not JSON at all.
+ *
+ * A VALUE rather than a throw, because every caller of this is about to check
+ * the SHAPE and already has a fallback for a shape it cannot read. Bare
+ * `JSON.parse` splits that one fact in two — unparseable throws, wrong-shaped
+ * returns — and the throw escapes past the fallback the caller wrote for it.
+ * `undefined` fails every schema check, so the two arrive at the same branch.
+ */
+export function readJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Human-readable message for a caught value. A non-Error throw stringifies —
  * or, when `fallback` is given, yields the fallback instead (for UI surfaces
  * where a raw stringified value would read worse than a canned sentence). */

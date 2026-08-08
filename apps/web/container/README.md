@@ -10,14 +10,35 @@ scratch copy of the vault at `/workspace/vault`. It holds no credential, no tool
 implementation and no policy.
 
 - `src/protocol.ts` — the wire contract, imported by BOTH halves. The Worker
-  reads it from `@repo/agent-container/protocol`.
+  reads it from `@repo/agent-container/protocol`. The report DEADLINES live here
+  too, derived from the confirmation window rather than declared beside it: a
+  container that gave up while a person was still answering would tell the model
+  the result is unknown and have the action happen anyway.
 - `src/main.ts` — the daemon: five HTTP paths, one turn at a time, and a
   dispatch that answers 202 rather than waiting for the agent.
+- `src/requests.ts` — the runtime check for the three payloads the object drives
+  it with, tied to the contract by assignment rather than by comment.
 - `src/pi/` — the pi harness quarantine (see its README): the only files
   allowed to name `@earendil-works/pi-*`.
 - `src/reporter.ts`, `src/vault-watcher.ts`, `src/tools.ts`,
   `src/browser-tool.ts` — the outbound half, the agent's file writes, the tool
   relays, and the one locally implemented tool.
+- `src/vault-materialize.ts`, `src/vault-report.ts` — putting the object's bytes
+  under `./vault` (refusing, never clamping, a path that would escape it), and
+  READING THE ANSWER to what the agent wrote back. The answer is not a courtesy:
+  the vault of record refuses removals outright and can refuse a write, while
+  the agent's own file tools already told the model "done" against the copy — so
+  the refusals are steered into the running turn.
+
+## Tests
+
+`pnpm --filter @repo/agent-container test` — a node suite, because this is a
+node process. It covers the pieces where a silent wrong answer is possible: the
+watcher's self-write attribution over a real directory and a real `fs.watch`
+(the mechanism is the mtime a write actually produced, so a fake filesystem
+proves nothing), the materializer's traversal guard, the reporter's one-attempt
+rule and per-kind deadline, and the vault reply. pi is never started and no
+provider is reached.
 
 ## Building
 

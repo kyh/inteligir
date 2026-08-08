@@ -5,6 +5,8 @@
 // controller, the autosave debounce timer, and the vanish watcher that fires
 // when the file disappears out from under the open note.
 
+import type { DeleteVaultEntryResult } from "@repo/bridge/ipc-registry";
+
 import { VaultEditorController, type VaultIO } from "@repo/editor/vault-editor";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 
@@ -40,8 +42,10 @@ export type NoteRuntime = {
   flush(): Promise<boolean>;
   /** Tear down: clear the debounce timer and unsubscribe the vanish watcher. */
   dispose(): void;
-  /** Delete the underlying file (clears the debounce timer first). */
-  remove(): Promise<void>;
+  /** Delete the underlying file (clears the debounce timer first), answering
+   * with what the host did. A HELD delete leaves the note open, because the
+   * file is still there; `null` is a delete that threw. */
+  remove(): Promise<DeleteVaultEntryResult | null>;
 };
 
 /** Create the runtime for a note and start loading its file. The caller (the
@@ -112,10 +116,10 @@ export function createNoteRuntime(
       autosave.cancel();
       unsubscribe();
     },
-    async remove(): Promise<void> {
+    remove(): Promise<DeleteVaultEntryResult | null> {
       preFlush?.();
       autosave.cancel();
-      await controller.remove();
+      return controller.remove();
     },
   };
 }

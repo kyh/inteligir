@@ -148,9 +148,16 @@ export class UserHost extends DurableObject<Env> {
   /** The link/search index over that vault (see ./knowledge/user-knowledge). */
   readonly knowledge: UserKnowledge;
 
-  /** Set when a mutation may have created a deadline; consumed by `refreshAlarm`
-   * at the end of the inbound path. In memory only, and never read across
-   * one — it is set and cleared inside a single invocation. */
+  /**
+   * Set when a mutation may have created a deadline; consumed by
+   * `refreshAlarm` at the end of the inbound path.
+   *
+   * In memory, which is only safe because it is never read ACROSS an
+   * invocation — and that in turn is only true because every inbound path
+   * consumes it in a `finally`. Nothing anywhere re-derives it: a handler that
+   * trashes a file and then throws is the whole reason the consumption cannot
+   * sit on the success path, because the deadline it armed would never be.
+   */
   private alarmDirty = false;
 
   /** Set by `purgeAccount`. Every entry point refuses while it holds, because
@@ -461,33 +468,41 @@ export class UserHost extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
     if (this.purged) return new Response("gone", { status: 410 });
     try {
-      // Six ways in, and the split is the transport or the CREDENTIAL, never
-      // the capability: the ticket mint (./ticket-route), the Bridge socket,
-      // the attachment upload that cannot fit in one of its frames
-      // (./asset-route), the deep link that arrives as a navigation rather than
-      // a frame (../capture/deep-link-route), the container's report
-      // (./agent-endpoints), and the provider's OAuth redirect. The last two
-      // carry a token this Worker minted rather than a session, because neither
-      // caller has one.
-      const pathname = new URL(request.url).pathname;
-      const leaf = matchHostLeaf(request.method, pathname);
-      if (leaf !== null) return await this.handleLeaf(leaf, request);
-      if (matchAgentReportPath(request.method, pathname) !== null) {
-        const response = await handleAgentReport(request, this.agent.runner);
-        await this.knowledge.flush();
-        await this.refreshAlarm();
-        return response;
-      }
-      if (isOAuthCallbackPath(pathname)) {
-        return await handleOAuthCallback(request, this.env, this.agent.credentials, () => {
-          this.announceProviders();
-        });
-      }
-      return new Response("not found", { status: 404 });
+      return await this.route(request);
     } catch (error) {
       logUnhandled("user-host", request, error);
       return new Response("internal error", { status: 500 });
+    } finally {
+      // On EVERY exit, including the failing one: the dirty flag lives for one
+      // invocation, so a path that armed a deadline and then threw would leave
+      // it set with no alarm and nothing to re-derive it.
+      await this.refreshAlarm();
     }
+  }
+
+  private async route(request: Request): Promise<Response> {
+    // Six ways in, and the split is the transport or the CREDENTIAL, never the
+    // capability: the ticket mint (./ticket-route), the Bridge socket, the
+    // attachment upload that cannot fit in one of its frames (./asset-route),
+    // the deep link that arrives as a navigation rather than a frame
+    // (../capture/deep-link-route), the container's report
+    // (./agent-endpoints), and the provider's OAuth redirect. The last two
+    // carry a token this Worker minted rather than a session, because neither
+    // caller has one.
+    const pathname = new URL(request.url).pathname;
+    const leaf = matchHostLeaf(request.method, pathname);
+    if (leaf !== null) return await this.handleLeaf(leaf, request);
+    if (matchAgentReportPath(request.method, pathname) !== null) {
+      const response = await handleAgentReport(request, this.agent.runner);
+      await this.knowledge.flush();
+      return response;
+    }
+    if (isOAuthCallbackPath(pathname)) {
+      return await handleOAuthCallback(request, this.env, this.agent.credentials, () => {
+        this.announceProviders();
+      });
+    }
+    return new Response("not found", { status: 404 });
   }
 
   private async handleLeaf(leaf: HostLeaf, request: Request): Promise<Response> {
@@ -511,7 +526,6 @@ export class UserHost extends DurableObject<Env> {
         // Project what the upload wrote before answering, so the index is never
         // a message behind the manifest.
         await this.knowledge.flush();
-        await this.refreshAlarm();
         return response;
       }
       case "link": {
@@ -521,7 +535,6 @@ export class UserHost extends DurableObject<Env> {
         // reason to wake.
         this.alarmDirty = true;
         await this.knowledge.flush();
-        await this.refreshAlarm();
         return response;
       }
       case "export":
@@ -589,10 +602,13 @@ export class UserHost extends DurableObject<Env> {
     try {
       await this.dispatchMessage(ws, message);
       await this.knowledge.flush();
-      await this.refreshAlarm();
     } catch (error) {
       logUnhandledCallback("user-host", "webSocketMessage", error);
       ws.close(WS_CLOSE_INTERNAL_ERROR, "internal error");
+    } finally {
+      // See `fetch`: consumed on every exit, or the flag outlives the
+      // invocation that set it and the deadline it stands for is never armed.
+      await this.refreshAlarm();
     }
   }
 
@@ -648,10 +664,13 @@ export class UserHost extends DurableObject<Env> {
    * with when it next needs waking, and the alarm is re-armed at the earliest
    * of them. Adding a third concern is a sweep plus a row in `nextDueAt`.
    *
-   * `setAlarm` is confined to this class and to two call sites that both arm at
-   * `nextDueAt(now)` — the tail of this method, and `armAlarm` behind
-   * `refreshAlarm`. No concern arms for itself; that is the invariant, not the
-   * call count.
+   * `setAlarm` is confined to this class — the tail of this method and
+   * `armAlarm`, which never moves an alarm later than one already due. NO
+   * CONCERN ARMS FOR ITSELF; that is the invariant, not the call count, and
+   * the count is genuinely three: the tail here, `refreshAlarm` behind the
+   * dirty flag, and the socket's own auth deadline in `upgrade`, which is the
+   * one arming for a deadline that does not exist yet when `nextDueAt` is
+   * asked.
    */
   override async alarm(): Promise<void> {
     if (this.purged) return;
@@ -710,14 +729,26 @@ export class UserHost extends DurableObject<Env> {
     if (existing === null || existing > at) await this.ctx.storage.setAlarm(at);
   }
 
-  /** Re-derive the alarm after an inbound path that mutated something, or that
+  /**
+   * Re-derive the alarm after an inbound path that mutated something, or that
    * left indexing work behind. Skipped entirely when neither happened, so a
-   * chatty read-only socket pays no storage read per message. */
+   * chatty read-only socket pays no storage read per message.
+   *
+   * TOTAL, because it runs in a `finally`: an alarm this object could not arm
+   * must not turn a served request into a 500 or a live socket into a closed
+   * one, and there is nothing the caller could do about it either way. A purged
+   * instance is the ordinary case — its storage is gone.
+   */
   private async refreshAlarm(): Promise<void> {
+    if (this.purged) return;
     if (!this.alarmDirty && !this.knowledge.hasPendingWork()) return;
     this.alarmDirty = false;
-    const next = this.nextDueAt(Date.now());
-    if (next !== null) await this.armAlarm(next);
+    try {
+      const next = this.nextDueAt(Date.now());
+      if (next !== null) await this.armAlarm(next);
+    } catch (error) {
+      logUnhandledCallback("user-host", "refreshAlarm", error);
+    }
   }
 
   // ---- auth ----------------------------------------------------------------
