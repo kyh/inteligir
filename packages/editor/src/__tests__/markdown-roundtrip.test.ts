@@ -20,6 +20,10 @@ import {
 //   churn/*.{in,out}.md     roundTrip(in) === out, roundTrip(out) === out
 //                           (idempotent normalization); rich-safe where marked.
 //
+// The raw set holds ONLY documents that do not parse. Constructs the editor
+// has no node for — raw HTML, `{…}` expressions, unknown JSX — are opaque nodes
+// and belong in the canonical set instead.
+//
 // A serializer change that reshapes ANY byte of a canonical fixture is a
 // regression — fix the serializer, don't re-pin the fixture, unless the change
 // is a conscious canonical-form revision documented in the commit.
@@ -139,7 +143,14 @@ describe("toCanonical", () => {
   });
 
   it("throws ParseFailedError when there is nothing safe to format to", () => {
-    expect(() => toCanonical("returns in <50ms\n")).toThrow(ParseFailedError);
-    expect(() => toCanonical("<Steps>x</Steps>\n")).toThrow(ParseFailedError);
+    expect(() => toCanonical("<Foo>x</Bar>\n")).toThrow(ParseFailedError);
+    expect(() => toCanonical("{unclosed brace\n")).toThrow(ParseFailedError);
+  });
+
+  it("formats a document whose constructs it cannot model", () => {
+    // Constructs with no editor node are held verbatim, not rejected.
+    for (const md of ["returns in <50ms\n", "<Steps>x</Steps>\n", "<!-- c -->\n"]) {
+      expect(analyzeMarkdown(toCanonical(md)).canonical, md).toBe(true);
+    }
   });
 });

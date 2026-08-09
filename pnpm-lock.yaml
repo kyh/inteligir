@@ -543,6 +543,9 @@ importers:
 
   packages/notes:
     dependencies:
+      estree-util-is-identifier-name:
+        specifier: ^3.0.0
+        version: 3.0.0
       mdast-util-gfm-task-list-item:
         specifier: ^2.0.0
         version: 2.0.0
@@ -552,9 +555,12 @@ importers:
       mdast-util-to-markdown:
         specifier: ^2.1.2
         version: 2.1.2
-      micromark-extension-mdx:
-        specifier: ^2.1.0
-        version: 2.1.0
+      micromark-extension-mdx-expression:
+        specifier: ^3.0.1
+        version: 3.0.1
+      micromark-extension-mdx-jsx:
+        specifier: ^3.0.2
+        version: 3.0.2
       remark-frontmatter:
         specifier: 'catalog:'
         version: 5.0.0
@@ -7795,9 +7801,6 @@ packages:
   micromark-extension-mdx-md@2.0.0:
     resolution: {integrity: sha512-EpAiszsB3blw4Rpba7xTOUptcFeBFi+6PY8VnJ2hhimH+vCQDirWgsMpz7w1XcZE7LVrSAUGb9VJpG9ghlYvYQ==}
 
-  micromark-extension-mdx@2.1.0:
-    resolution: {integrity: sha512-lxyf9u2Lh3DufwUEDa/DnqNoGz5d3l6RIll1XyHaARQpy5sULXB05Cqh5BqHlVOj49n3LyXOpKG/kSczdkuMwg==}
-
   micromark-extension-mdxjs-esm@3.0.0:
     resolution: {integrity: sha512-DJFl4ZqkErRpq/dAPyeWp15tGrcrrJho1hKK5uBS70BCtfrIFg81sqcTVu3Ta+KD1Tk5vAtBNElWxtAa+m8K9A==}
 
@@ -13221,7 +13224,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.86.0': {}
 
@@ -17686,14 +17691,6 @@ snapshots:
 
   micromark-extension-mdx-md@2.0.0:
     dependencies:
-      micromark-util-types: 2.0.2
-
-  micromark-extension-mdx@2.1.0:
-    dependencies:
-      micromark-extension-mdx-expression: 3.0.1
-      micromark-extension-mdx-jsx: 3.0.2
-      micromark-extension-mdx-md: 2.0.0
-      micromark-util-combine-extensions: 2.0.1
       micromark-util-types: 2.0.2
 
   micromark-extension-mdxjs-esm@3.0.0:

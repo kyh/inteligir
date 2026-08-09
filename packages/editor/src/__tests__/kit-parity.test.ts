@@ -22,8 +22,10 @@ import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
 
-// Every node plugin the vocabulary depends on. Dropping any of these from
-// BASE_KIT or EDITOR_KIT is a silent corruption hazard, not a cosmetic one.
+// Every node plugin a file's bytes depend on. Dropping any of these from
+// BASE_KIT or EDITOR_KIT is a silent corruption hazard, not a cosmetic one —
+// the opaque pair most of all, since it is what carries constructs neither
+// editor models.
 const VOCABULARY_PLUGIN_KEYS = [
   "callout",
   "toggle",
@@ -38,6 +40,8 @@ const VOCABULARY_PLUGIN_KEYS = [
   "frontmatter",
   "wikiLink",
   "wikiEmbed",
+  "opaqueBlock",
+  "opaqueInline",
 ];
 
 function walkElements(nodes: Descendant[], visit: (el: TElement) => void): void {
@@ -123,7 +127,7 @@ describe("kit parity (live editor mirror)", () => {
   });
 
   it("registers the inline voids as inline voids (normalization guard)", () => {
-    for (const type of ["date", "wikiLink", "wikiEmbed", "inline_equation"]) {
+    for (const type of ["date", "wikiLink", "wikiEmbed", "inline_equation", "opaqueInline"]) {
       const el: TElement = { children: [{ text: "" }], type };
       for (const [label, editor] of [
         ["BASE_KIT", base],

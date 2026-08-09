@@ -38,9 +38,12 @@ src/
                        # scorer, name validation, doc test, posix path helpers
   markdown/            # the remark pipeline
     parse.ts, md-plugins.ts  # owned unified parse + probe-proven plugin order
-    vocabulary.ts      # post-parse gate: outside the fixed vocabulary → Raw
+    remark-opaque.ts   # post-parse transform: a construct the editor has no
+                       # node for becomes an opaque node holding its own
+                       # markdown, so the file opens instead of being refused
     remark-wiki-link.ts, remark-mdx-agnostic.ts  # own wiki-link tokenizer
-                       # (byte-exact round-trip); MDX without acorn
+                       # (byte-exact round-trip); MDX without acorn, sharing
+                       # `<` with CommonMark behind a crash-free lookahead
     frontmatter.ts     # split/recombine + typed properties + the ONE privacy
                        # kernel (privacyOfParsed answers indeterminate for
                        # frontmatter it can't type; AI callers fail closed)

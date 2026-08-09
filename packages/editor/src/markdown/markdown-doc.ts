@@ -5,8 +5,12 @@
 // form (roundTrip(raw) === raw), re-serializing it is stable, so editing one
 // block in Rich mode and saving the whole document produces a MINIMAL diff.
 // Non-canonical files edit as Raw (byte-exact) until the user Formats them.
-// Files that fail to parse, or that contain constructs outside the fixed
-// vocabulary (vocabulary.ts), are Raw with a reason — never silently mangled.
+//
+// Only a document that cannot be PARSED is refused. Constructs the editor has
+// no node for are not refused — they become opaque nodes
+// (@repo/notes/markdown/remark-opaque) that render as inert literal text and
+// serialize back byte-for-byte — so the only RawReason left is a real parse
+// failure: a mismatched tag, an unbalanced brace, nesting too deep to convert.
 //
 // The parse is OWNED (parse.ts): Plate's deserializeMd is banned in app code —
 // its htmlToJsx pre-pass corrupts code fences and it swallows parse errors
@@ -17,12 +21,14 @@ import { getMergedOptionsDeserialize, mdastToSlate, serializeMd } from "@platejs
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
-import { type RawReason, scanVocabulary } from "@repo/notes/markdown/vocabulary";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 
-export type { RawReason };
 export { MD_STRINGIFY };
+
+/** Why a document cannot be modelled at all. `line` is 1-based when micromark
+ * reported one. */
+export type RawReason = { kind: "parse-error"; message: string; line: number | null };
 
 export type DocAnalysis = {
   /** Rich mode is lossless: parse ok && scan ok && (canonical || letters-equal). */
@@ -45,24 +51,14 @@ export class ParseFailedError extends Error {
 
 /** Human-readable form of a RawReason (mode badge tooltip). */
 export function describeRawReason(reason: RawReason): string {
-  switch (reason.kind) {
-    case "parse-error":
-      return reason.line === null
-        ? `Parse error: ${reason.message}`
-        : `Parse error at line ${reason.line}: ${reason.message}`;
-    case "unknown-jsx":
-      return `Contains unsupported element <${reason.name}>`;
-    case "jsx-attr":
-      return `<${reason.name}> has an unsupported attribute (${reason.attr})`;
-    case "expression":
-      return "Contains a {…} expression";
-  }
+  return reason.line === null
+    ? `Parse error: ${reason.message}`
+    : `Parse error at line ${reason.line}: ${reason.message}`;
 }
 
-/** Why the open gate refuses Rich: a pipeline RawReason, or `roundtrip-loss` —
- * the file parses within the vocabulary but re-serializing it would silently
- * drop content (a serializer bug, never user error). This gate's alone: core's
- * RawReason cannot produce it, because only this pipeline serializes. */
+/** Why the open gate refuses Rich: a parse failure, or `roundtrip-loss` — the
+ * file parses but re-serializing it would silently drop content (a serializer
+ * bug, never user error). */
 export type GateReason = RawReason | { kind: "roundtrip-loss" };
 
 /** Map a DocAnalysis to the open gate's verdict: the analysis's own reason
@@ -115,7 +111,7 @@ function rangeErrorToRaw(error: unknown): RawReason {
   throw error;
 }
 
-// One parse + scan + mdast→Slate pass, shared by every entry point.
+// One parse + mdast→Slate pass, shared by every entry point.
 function convert(md: string): Converted {
   const parsed = parseMdast(md);
   if (!parsed.ok) {
@@ -124,8 +120,6 @@ function convert(md: string): Converted {
       reason: { kind: "parse-error", line: parsed.failure.line, message: parsed.failure.message },
     };
   }
-  const rejected = scanVocabulary(parsed.root);
-  if (rejected) return { ok: false, reason: rejected };
   const editor = makeEditor();
   try {
     const value = mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));

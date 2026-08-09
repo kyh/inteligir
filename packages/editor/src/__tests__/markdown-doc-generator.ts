@@ -1,4 +1,4 @@
-// Deterministic seeded document generator over the fixed MDX vocabulary
+// Deterministic seeded document generator over the app's modelled constructs
 // (headings, marks, lists, tables, blockquotes/alerts, code fences, math,
 // wiki-links, images, toggles, columns) — the property test's source of
 // "arbitrary but legal" documents. Test-only; the header of
@@ -6,9 +6,9 @@
 //
 // The generator does NOT aim to produce byte-canonical markdown (padding,
 // exact list markers, etc.) — `toCanonical` normalizes whatever it produces.
-// It only has to stay within the vocabulary the pipeline claims to handle
-// (see packages/notes/src/markdown/vocabulary.ts): no unknown JSX, no
-// expressions, no ESM, no HTML comments.
+// It stays clear of opaque constructs (unknown JSX, expressions, HTML) so the
+// property test exercises the MODELLED nodes; those are pinned by the fixture
+// matrix and markdown-pipeline.test.ts instead.
 
 // Tiny seeded PRNG (mulberry32) — deterministic, no dependency.
 function mulberry32(seed: number): () => number {

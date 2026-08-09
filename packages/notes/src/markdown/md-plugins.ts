@@ -5,11 +5,12 @@
 // Plugin order is load-bearing and pinned by the round-trip fixture matrix:
 // frontmatter must precede everything so `---` is claimed before
 // thematic-break; math before gfm/mdx; the agnostic MDX and wiki-link
-// extensions are ours.
+// extensions are ours; the opaque transform runs LAST, over the finished tree
+// and the complete set of stringify extensions.
 
 import type { ListItem } from "mdast";
 import type { Handle } from "mdast-util-to-markdown";
-import type { Plugin, Processor } from "unified";
+import type { Plugin, Processor, Transformer } from "unified";
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item";
 import { defaultHandlers } from "mdast-util-to-markdown";
 import remarkFrontmatter from "remark-frontmatter";
@@ -17,6 +18,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
 import { remarkMdxAgnostic } from "./remark-mdx-agnostic";
+import { remarkOpaque } from "./remark-opaque";
 import { remarkWikiLink } from "./remark-wiki-link";
 
 // Single-dollar math is OFF (locked decision): "$5 and $6" in meeting notes
@@ -28,12 +30,20 @@ function remarkMathNoSingleDollar(this: Processor): undefined {
   return remarkMath.call(this, { singleDollarTextMath: false });
 }
 
+// Plate types remarkPlugins as Plugin[] (no [plugin, options] tuples), so the
+// opaque transform's stringify conventions are bound by this named wrapper —
+// the same shape remarkMathNoSingleDollar uses above.
+function remarkOpaqueCanonical(this: Processor): Transformer | undefined | void {
+  return remarkOpaque.call(this, MD_STRINGIFY);
+}
+
 export const MD_REMARK_PLUGINS: Plugin[] = [
   remarkFrontmatter, // ['yaml'] default — MUST pair with md-rules' yaml/frontmatter rules
   remarkMathNoSingleDollar,
   remarkGfm,
   remarkMdxAgnostic, // ours — NOT Plate's remarkMdx (acorn)
   remarkWikiLink, // ours — [[target]] / [[target|alias]] / ![[embed]]
+  remarkOpaqueCanonical, // ours — everything the editor cannot model, held verbatim
 ];
 
 // A thematic break serialized as the FIRST line of a document would emit

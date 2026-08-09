@@ -128,9 +128,9 @@ function apply(
 }
 
 // Gate policy: classify SAVED bytes with the full round-trip oracle
-// (parse + vocabulary + serialize + bounded fixpoint + content-loss check) so
-// a serializer bug on in-vocabulary content gates the file to Raw instead of
-// letting the first Rich save persist corrupted bytes. A pipeline THROW —
+// (parse + serialize + bounded fixpoint + content-loss check) so a serializer
+// bug gates the file to Raw instead of letting the first Rich save persist
+// corrupted bytes. A pipeline THROW —
 // markdown-doc deliberately rethrows non-depth errors as real bugs — degrades
 // to Raw here too, rather than crashing the surface (the seedValue
 // never-crash precedent). Residual window: the oracle sees bytes at open and

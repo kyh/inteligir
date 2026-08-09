@@ -22,9 +22,9 @@ export const AGENT_INSTRUCTIONS_PATH = "AGENTS.md";
  * is what closes the loop. */
 export const AGENT_INSTRUCTIONS_AGENT_PATH = "./vault/AGENTS.md";
 
-/** First-use skeleton. Deliberately comment-free markdown: HTML comments are
- * outside the editor's MDX vocabulary and would open the seeded file in Raw
- * mode — the guidance is written as plain prose the agent can read too. */
+/** First-use skeleton. Deliberately comment-free markdown: the guidance is
+ * written as plain prose so the agent reads it and the user sees it rendered,
+ * rather than as invisible HTML comments. */
 export const AGENT_INSTRUCTIONS_SKELETON = `# Agent instructions
 
 Custom instructions for the AI agent in this vault. Edit freely — the agent

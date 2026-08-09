@@ -25,6 +25,14 @@ Intro paragraph with [[Some Note]] and an alias [[Other|friendly]] plus ![[embed
 
 Meet on <date value="2026-07-01" /> at noon.
 
+<!-- an html comment the editor shows but never touches -->
+
+<Steps>
+  Unknown JSX, held verbatim.
+</Steps>
+
+Press <kbd>K</kbd> to open the palette.
+
 $$
 \int_0^1 x^2 dx
 $$

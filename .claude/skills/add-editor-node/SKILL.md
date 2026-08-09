@@ -1,6 +1,6 @@
 ---
 name: add-editor-node
-description: Add a node type to the Plate editor — the Base + React kit pair, the base-kit composition, the Slate↔mdast rule, the MDX vocabulary gate in @repo/notes, an insert surface, and the byte-pinned round-trip fixtures that prove it. Use when a new block or inline needs to render and, above all, survive a save byte-for-byte.
+description: Add a node type to the Plate editor — the Base + React kit pair, the base-kit composition, the Slate↔mdast rule, the component registry in @repo/notes, an insert surface, and the byte-pinned round-trip fixtures that prove it. Use when a new block or inline needs to render and, above all, survive a save byte-for-byte.
 allowed-tools: Bash(*), Read, Edit, Write
 ---
 
@@ -23,7 +23,8 @@ turns that premise into CI.
 - `packages/editor/src/markdown/md-rules.ts` — the header's rule
   dispatch note: **deserialize routes by mdast type (JSX by tag name), serialize
   by the Slate node's plugin key.** That asymmetry explains half the file.
-- `packages/notes/src/markdown/vocabulary.ts` — the whole gate, ~100 lines.
+- `packages/notes/src/markdown/remark-opaque.ts` — the component registry and
+  the opaque fallback, ~170 lines.
 - `packages/editor/src/__tests__/markdown-roundtrip.test.ts` — the fixture
   matrix contract, stated at the top of the file.
 - CLAUDE.md § "The workspace UI" for where the pipeline sits.
@@ -31,10 +32,10 @@ turns that premise into CI.
 ## Decide first: does the node have bytes, and in what syntax?
 
 - **MDX component** (`<toggle>`, `<column_group>`, `<video>`, `<date>`) — the
-  normal case. Needs a vocabulary allowlist entry and usually an `MD_RULES`
-  rule.
+  normal case. Needs a `COMPONENT_*_TAGS` entry in `remark-opaque.ts` and
+  usually an `MD_RULES` rule.
 - **Standard markdown / GFM** (headings, tables, task items) — remark already
-  parses it; you need a kit and possibly a serialize override, no vocabulary
+  parses it; you need a kit and possibly a serialize override, no registry
   change.
 - **Custom inline syntax** (`[[wiki-links]]`) — needs a remark micromark
   extension in `packages/notes/src/markdown/` plus a slot in
@@ -44,9 +45,11 @@ turns that premise into CI.
   half at all. `TagChipKit` is the precedent; it is deliberately absent from
   `BASE_KIT` because a leaf decoration never reaches the value.
 
-The vocabulary is a LOCKED list. Adding a tag to it means every vault file
-containing that tag now opens Rich instead of Raw — a one-way promise that the
-pipeline can represent it losslessly. Do not add one casually.
+The component list is the set of tags the editor claims it can MODEL. A tag
+outside it still opens — it becomes an opaque node, shown verbatim and written
+back byte-for-byte. Adding a tag is therefore a one-way promise that the
+pipeline round-trips it losslessly; getting that wrong corrupts files, where
+leaving it out only costs rendering. Do not add one casually.
 
 ## Files to touch
 
@@ -109,8 +112,8 @@ and knip do not detect cycles).
 
 Add the Base half to `BASE_KIT`, the React half to `EDITOR_KIT`, in the same
 relative position. `EDITOR_KIT` must stay a plugin SUPERSET of `BASE_KIT`;
-`kit-parity` fails on drift, and if the node is part of the MDX vocabulary its
-plugin key must also join `VOCABULARY_PLUGIN_KEYS` in that test.
+`kit-parity` fails on drift, and if the node carries bytes its plugin key must
+also join `VOCABULARY_PLUGIN_KEYS` in that test.
 
 ### 4. The markdown rule — `editor/markdown/md-rules.ts`
 
@@ -148,14 +151,14 @@ Pull every `defaultRules` handler you delegate to into a module-level const with
 a throw if it is missing — that is how a `@platejs/markdown` bump fails loudly at
 import instead of silently corrupting files.
 
-### 5. The vocabulary gate — `packages/notes/src/markdown/vocabulary.ts`
+### 5. The component registry — `packages/notes/src/markdown/remark-opaque.ts`
 
-MDX nodes only. Anything outside this scan sends the whole file to Raw mode
-rather than being mangled — that is the safety property, so widening it is the
-risky direction.
+MDX nodes only. Anything outside these sets becomes an OPAQUE node — inert
+literal text that serializes back verbatim — so widening them is the risky
+direction: an opaque node cannot corrupt a file, a wrong rule can.
 
 ```ts
-const ALLOWED_FLOW_TAGS = new Set([
+const COMPONENT_FLOW_TAGS = new Set([
   "callout",
   "toggle",
   "column_group",
@@ -165,15 +168,21 @@ const ALLOWED_FLOW_TAGS = new Set([
   "file",
   "date",
 ]);
-const ALLOWED_TEXT_TAGS = new Set(["date"]);
+const COMPONENT_TEXT_TAGS = new Set(["date"]);
 ```
 
-Attributes are gated too. Unknown attribute NAMES are fine on flow tags (their
+Attributes decide too. Unknown attribute NAMES are fine on flow tags (their
 rules spread string props both directions), but the value must be a plain string
 `mdxJsxAttribute` — bare booleans, braced expressions and spreads do not survive
-`parseAttributes`/`propsToAttributes`. If your rule DROPS unknown attributes the
-way Plate's `date` rule does, add a per-tag allowlist like `DATE_ATTRS`;
-otherwise the first rich save deletes user content.
+`parseAttributes`/`propsToAttributes`, so an element carrying one goes opaque
+WHOLE. If your rule DROPS unknown attributes the way Plate's `date` rule does,
+add a per-tag allowlist like `DATE_ATTRS`; otherwise the first rich save deletes
+user content.
+
+`remark-mdx-agnostic.ts` sits under this: it shares `<` between JSX and
+CommonMark behind a crash-free lookahead. If you touch that lookahead, the
+precedence fixtures in `packages/notes/src/markdown/__tests__/remark-opaque.test.ts`
+are what stop a real component from silently parsing as HTML.
 
 ### 6. An insert surface
 
@@ -201,11 +210,11 @@ must you — formatting them is corruption, and so is hand-typing them.
 
 Three classes, one file per behavior:
 
-| dir          | shape                | asserts                                                                              |
-| ------------ | -------------------- | ------------------------------------------------------------------------------------ |
-| `canonical/` | `<name>.md`          | `roundTrip(src) === src` (mod trailing newline), idempotent, `canonical && richSafe` |
-| `churn/`     | `<stem>.{in,out}.md` | `roundTrip(in) === out` and `roundTrip(out) === out`                                 |
-| `raw/`       | `<name>.<kind>.md`   | `richSafe === false`, `rawReason.kind` = the filename's second-to-last segment       |
+| dir          | shape                | asserts                                                                                                             |
+| ------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `canonical/` | `<name>.md`          | `roundTrip(src) === src` (mod trailing newline), idempotent, `canonical && richSafe`                                |
+| `churn/`     | `<stem>.{in,out}.md` | `roundTrip(in) === out` and `roundTrip(out) === out`                                                                |
+| `raw/`       | `<name>.<kind>.md`   | `richSafe === false`, `rawReason.kind` = the filename's second-to-last segment (only real parse failures live here) |
 
 Generate the bytes through the pipeline (`roundTrip` / `toCanonical` from
 `editor/markdown/markdown-doc.ts`), never by hand. Add at least a canonical
@@ -218,7 +227,7 @@ next autosave.
 
 `canonical/kitchen-sink.md` is also the fixture vault's full-vocabulary sample
 note (`__tests__/sample-notes.ts` imports it; `dev/fixture-bridge.ts` serves it
-to the UI suites) — a vocabulary addition belongs there so the corpus test
+to the UI suites) — a new node type belongs there so the corpus test
 covers it.
 
 ## Rules
@@ -238,14 +247,14 @@ covers it.
 - Single-dollar math stays OFF and thematic breaks never emit `---` at byte 0 —
   both are locked decisions in `md-plugins.ts`. Don't relitigate them from a
   node's convenience.
-- Files stay `.md`. The vocabulary is fixed; unknown JSX, expressions and HTML
-  comments go to Raw by design, not by omission.
+- Files stay `.md`. Unknown JSX, expressions and HTML comments are opaque
+  nodes, not a Raw verdict — only a document that cannot be parsed opens Raw.
 
 ## Verify
 
 ```bash
 pnpm --filter @repo/editor test    # the whole pipeline: fixtures, parity, adversarial, corpus
-pnpm --filter @repo/notes test      # vocabulary + remark stack, if you touched packages/notes
+pnpm --filter @repo/notes test      # opaque + precedence + remark stack, if you touched packages/notes
 pnpm --filter @repo/editor typecheck
 ```
 

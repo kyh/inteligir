@@ -47,9 +47,15 @@ const OTHER_PATH = "notes/b.md";
 // Rich-capable: parses in-vocabulary and round-trips byte-canonically.
 const RICH_MD = "# Hello\n\nA plain paragraph.\n";
 const RICH_MD_2 = "# Hello\n\nA plain paragraph, revised.\n";
-// Raw-only: `<div>` is outside the MDX vocabulary, so the gate refuses Rich
-// (unknown-jsx). Asserted below rather than assumed.
-const GATED_MD = '<div align="center">centered</div>\n';
+// Raw-only: the closing tag does not match, so the document does not parse at
+// all and the gate refuses Rich. Asserted below rather than assumed.
+const GATED_MD = "<Foo>centered</Bar>\n";
+const GATED_REASON = {
+  kind: "parse-error",
+  line: 1,
+  message:
+    "Unexpected closing tag `</Bar>`, expected corresponding closing tag for `<Foo>` (1:1-1:6)",
+} as const;
 
 /** The smallest stand-in for the slice of VaultEditorController the provider's
  * publish subscription touches: a state snapshot plus subscribers. The test
@@ -154,7 +160,7 @@ describe("open-note-store publishEditor", () => {
 
     useOpenNote.setState(useOpenNote.getInitialState(), true);
     openNote(OTHER_PATH, GATED_MD);
-    expect(useOpenNote.getState().analyzed.rawReason).toEqual({ kind: "unknown-jsx", name: "div" });
+    expect(useOpenNote.getState().analyzed.rawReason).toEqual(GATED_REASON);
   });
 
   describe("path change", () => {
@@ -182,7 +188,7 @@ describe("open-note-store publishEditor", () => {
       expect(landed).toBeDefined();
       expect(landed?.editor.content).toBe(GATED_MD);
       expect(landed?.analyzed).toEqual({
-        rawReason: { kind: "unknown-jsx", name: "div" },
+        rawReason: GATED_REASON,
         content: GATED_MD,
         path: OTHER_PATH,
       });
@@ -191,7 +197,7 @@ describe("open-note-store publishEditor", () => {
         kind: "markdown",
         path: OTHER_PATH,
         isPrivate: false,
-        surface: { mode: "raw", reason: { kind: "unknown-jsx", name: "div" } },
+        surface: { mode: "raw", reason: GATED_REASON },
       });
 
       // The whole observable history, not just the endpoint.
@@ -248,7 +254,7 @@ describe("open-note-store publishEditor", () => {
 
       await drain();
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: { kind: "unknown-jsx", name: "div" },
+        rawReason: GATED_REASON,
         content: GATED_MD,
         path: RICH_PATH,
       });
@@ -296,7 +302,7 @@ describe("open-note-store publishEditor", () => {
 
       expect(seen.length).toBe(1);
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: { kind: "unknown-jsx", name: "div" },
+        rawReason: GATED_REASON,
         content: GATED_MD,
         path: RICH_PATH,
       });
@@ -348,7 +354,7 @@ describe("open-note-store publishEditor", () => {
       controller.emit({ dirty: false });
       await drain();
       expect(useOpenNote.getState().analyzed).toEqual({
-        rawReason: { kind: "unknown-jsx", name: "div" },
+        rawReason: GATED_REASON,
         content: GATED_MD,
         path: RICH_PATH,
       });
@@ -365,7 +371,7 @@ describe("open-note-store publishEditor", () => {
 
       expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1);
       expect(vi.mocked(toast.warning)).toHaveBeenCalledWith(
-        `Switched to Raw editing — ${describeGateReason({ kind: "unknown-jsx", name: "div" })}`,
+        `Switched to Raw editing — ${describeGateReason(GATED_REASON)}`,
       );
       // The pick is retained (a recovering file pops back to Rich) — only the
       // EFFECTIVE surface flipped.
@@ -374,7 +380,7 @@ describe("open-note-store publishEditor", () => {
         kind: "markdown",
         path: RICH_PATH,
         isPrivate: false,
-        surface: { mode: "raw", reason: { kind: "unknown-jsx", name: "div" } },
+        surface: { mode: "raw", reason: GATED_REASON },
       });
     });
 
@@ -382,10 +388,7 @@ describe("open-note-store publishEditor", () => {
       openNote(OTHER_PATH, GATED_MD);
       await drain();
 
-      expect(useOpenNote.getState().analyzed.rawReason).toEqual({
-        kind: "unknown-jsx",
-        name: "div",
-      });
+      expect(useOpenNote.getState().analyzed.rawReason).toEqual(GATED_REASON);
       expect(useOpenNote.getState().mode).toBe("raw");
       expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
     });
@@ -397,10 +400,7 @@ describe("open-note-store publishEditor", () => {
       controller.emit({ content: GATED_MD, dirty: false });
       await drain();
 
-      expect(useOpenNote.getState().analyzed.rawReason).toEqual({
-        kind: "unknown-jsx",
-        name: "div",
-      });
+      expect(useOpenNote.getState().analyzed.rawReason).toEqual(GATED_REASON);
       expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
     });
   });

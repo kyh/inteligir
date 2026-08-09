@@ -19,7 +19,6 @@ import { AI_MARK } from "@repo/editor/ai/ai-mark";
 import { shouldSerializeNode } from "@repo/editor/ai/transient";
 import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
-import { scanVocabulary } from "@repo/notes/markdown/vocabulary";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 
@@ -54,9 +53,9 @@ export const MarkdownKit = [
     // no text/html and the data isn't a bare URL): this replaces the parse,
     // not the trigger.
     //
-    // The replacement is the owned pipeline — the same three primitives the
-    // file-open path runs (parseMdast → scanVocabulary → mdastToSlate),
-    // assembled HERE rather than imported from markdown-doc.ts because that
+    // The replacement is the owned pipeline — the same two primitives the
+    // file-open path runs (parseMdast → mdastToSlate), assembled HERE rather
+    // than imported from markdown-doc.ts because that
     // module eagerly imports BASE_KIT, and a kit importing it back would close
     // exactly the eager cycle `editor-import-cycles.test.ts` forbids. The
     // usual escape hatch doesn't apply either: `parser.deserialize` is
@@ -64,16 +63,15 @@ export const MarkdownKit = [
     // LIVE editor is in any case the more correct context for a paste than
     // markdown-doc's headless mirror.
     //
-    // Anything the pipeline refuses — a parse error, or content outside the
-    // MDX vocabulary — returns undefined, and Plate falls through to its
-    // plain-text insert. Refusing to interpret content this app cannot
-    // represent is the point; it is never mangled on the way in.
+    // A parse error returns undefined and Plate falls through to its plain-text
+    // insert. Constructs the editor has no node for are not a refusal — the
+    // parse hands them back as opaque nodes, so pasted HTML or unknown JSX
+    // arrives intact rather than mangled.
     .extend(() => ({
       parser: {
         deserialize: ({ data, editor }) => {
           const parsed = parseMdast(data);
           if (!parsed.ok) return undefined;
-          if (scanVocabulary(parsed.root)) return undefined;
           try {
             return mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
           } catch {

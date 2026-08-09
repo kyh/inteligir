@@ -56,8 +56,8 @@ packages/        # libraries — boundaries are PACKAGE facts (deps + exports ma
                  #   knowledge/ — link graph, backlinks, lexical search + the
                  #                SQL store (schema + FTS5, driver-injected),
                  #                tags, tasks, rename byte-surgery
-                 #   markdown/  — remark parse pipeline, MDX vocabulary gate,
-                 #                wiki-links, frontmatter
+                 #   markdown/  — remark parse pipeline, opaque nodes for what
+                 #                the editor can't model, wiki-links, frontmatter
   bridge/        # Iso wire contract (@repo/bridge) — the IPC registry, the ws
                  # client + protocol, the agent grant table, shared schemas
   ui/            # Shared UI components (@repo/ui) — vendored stock shadcn on
@@ -244,12 +244,16 @@ that object's prefix. The manifest is authoritative for versions and hashes.
 - **The deletion gate** (§ Decisions) sits here, in the object every writer goes
   through.
 
-Notes are **markdown with a fixed MDX vocabulary**: GFM plus `[[wiki-links]]`
+Notes are **markdown the editor never refuses**: GFM plus `[[wiki-links]]`
 (aliases, `![[transclusion]]`), `$$` math, mermaid fences, `> [!NOTE]` alerts,
 and the MDX components `<toggle>`, `<column_group>/<column>`, `<video>`,
-`<media_embed>`, `<file>`, `<date>`. Anything outside the vocabulary (unknown
-JSX, expressions, HTML comments) sends the file to Raw mode rather than being
-mangled. Files stay `.md`.
+`<media_embed>`, `<file>`, `<date>`, `<callout>` — the constructs with a real
+editor node. Everything else that parses (raw HTML, `{…}` expressions, unknown
+JSX) becomes an **opaque node**: inert literal text that serializes back
+byte-for-byte, so an agent can write whatever a model produces and the file
+still opens. Only a document that cannot be PARSED at all — a mismatched tag,
+an unbalanced brace — falls back to Raw, and Raw is otherwise a toggle the user
+chooses. Files stay `.md`.
 
 ### The knowledge index
 
@@ -406,9 +410,10 @@ command palette.
 - The markdown parse pipeline lives in `@repo/notes/markdown/*`;
   `@repo/editor/markdown/` is the Plate-coupled byte-stability brain over it —
   the Slate↔mdast rules and the idempotent round-trip (bounded fixpoint).
-  **Rich is the default surface**: any file that parses within the vocabulary
-  opens Rich and normalizes on the first real edit; only unrepresentable content
-  opens Raw (byte-exact) with the badge. Every node type lives in
+  **Rich is the default surface**: any file that PARSES opens Rich and
+  normalizes on the first real edit; constructs with no editor node ride along
+  as opaque nodes, and only a parse failure opens Raw (byte-exact) with the
+  badge. Every node type lives in
   `@repo/editor/kits/*` as a Base (headless) + React pair; `base-kit.ts`
   composes the Base halves for the headless serializer mirror, and kit-parity
   tests make drift impossible. The round-trip fixture matrix under
@@ -649,6 +654,37 @@ record for the decisions code comments cite.
   properties parse and serialize against the file's own YAML
   (`@repo/notes/markdown/frontmatter`); YAML the typing rules can't represent is
   preserved byte-exactly, never coerced or dropped.
+
+- **The editor refuses a file only when it cannot PARSE it.** A vocabulary gate
+  — anything outside a fixed list of constructs drops the whole document into an
+  unstyled textarea — is the tempting answer and is REJECTED. It has a real
+  reason behind it: unknown JSX deserializes to escaped TEXT, so a save mangles
+  `<Foo>` into `\<Foo>`. Remove that reason instead of the gate. An **opaque
+  node** (`@repo/notes/markdown/remark-opaque`) holds such a construct's
+  markdown as a string, renders it as inert literal text, and emits it back
+  unescaped, exactly as a plain-text editor treats a tag it does not understand.
+  Two consequences are load-bearing:
+  - **`<` is shared between JSX and CommonMark.** `micromark-extension-mdx`
+    bundles `mdx-md`, which disables autolink/htmlFlow/htmlText so JSX owns the
+    character; that alone made `<https://x>`, `<a@b.com>`, `<!-- c -->` and a
+    bare `<50ms` whole-file parse ERRORS, because the JSX tokenizer throws
+    rather than declining. So `remark-mdx-agnostic.ts` composes the jsx and
+    expression extensions itself and wraps the tag constructs in a crash-free
+    lookahead: JSX runs only where a tag can actually start. The lookahead is a
+    deliberate SUPERSET of mdx-jsx's grammar — accepting too much only
+    reproduces today's parse error, accepting too little would divert a real
+    component to htmlText and silently stop rendering it.
+  - **`htmlFlow` stays disabled** (so does `codeIndented`, which
+    `knowledge/link-extract.ts` matches for task-ordinal lockstep). Its
+    type-6/7 branches swallow every line to the next blank one, so a single
+    `<div>x</div>` line inside a `<callout>` would eat the `</callout>`.
+    Block-level HTML arrives as JSX, which nests; only the non-tag forms
+    (comments, instructions, declarations, CDATA) need CommonMark, and
+    `htmlText` covers those.
+    The opaque value is RE-SERIALIZED from the node, never sliced out of the
+    source: a slice is byte-exact only where no container prefixes the lines it
+    spans, and inside a blockquote it would capture the `> ` markers that the
+    stringifier then adds again.
 
 - **The vault is CASE-PRESERVING BUT CASE-INSENSITIVE.** `Note.md` and `note.md`
   are ONE file, spelled the way it was last written. R2 keys are case-SENSITIVE,

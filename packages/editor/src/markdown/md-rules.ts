@@ -30,6 +30,7 @@ import {
 } from "@platejs/markdown";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import type { OpaqueBlock, OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
@@ -110,9 +111,10 @@ function jsxFlowSerialize(
 function mediaSerializeWithoutId(node: TElement, options: SerializeMdOptions) {
   return jsxFlowSerialize(node, options, {
     // A url-less media node (`<video />`) must OMIT src entirely: spreading
-    // `src: undefined` emits a bare `src` attribute, which the vocabulary scan
-    // itself rejects on the next parse (non-string attr → Raw). `name` falls
-    // back to the node's own type (video / media_embed / file).
+    // `src: undefined` emits a bare `src` attribute, which the next parse reads
+    // as a non-string attribute and turns the whole element opaque — the media
+    // node would stop rendering. `name` falls back to the node's own type
+    // (video / media_embed / file).
     mapProps: (rest) => {
       const { url, ...props } = rest;
       return typeof url === "string" ? { ...props, src: url } : props;
@@ -280,7 +282,7 @@ export const MD_RULES: MdRules = {
   // any line-filling tag as flow). The default rule would return the inline
   // void at block level; wrapping it back into a paragraph restores the exact
   // shape that produced the bytes, so the form round-trips canonically.
-  // vocabulary.ts admits flow `<date>` to match.
+  // remark-opaque admits flow `<date>` as a component to match.
   date: {
     deserialize: (
       node: MdMdxJsxFlowElement | MdMdxJsxTextElement,
@@ -303,6 +305,32 @@ export const MD_RULES: MdRules = {
   video: { serialize: mediaSerializeWithoutId },
   media_embed: { serialize: mediaSerializeWithoutId },
   file: { serialize: mediaSerializeWithoutId },
+
+  // Void nodes holding a construct this editor has no model for; `value` stays
+  // verbatim both directions. The remark plugin decides what becomes opaque and
+  // registers the toMarkdown handlers that emit `value` unescaped.
+  opaqueBlock: {
+    deserialize: (node: OpaqueBlock): TElement => ({
+      children: [{ text: "" }],
+      type: "opaqueBlock",
+      value: node.value,
+    }),
+    serialize: (node: TElement): OpaqueBlock => ({
+      type: "opaqueBlock",
+      value: typeof node.value === "string" ? node.value : "",
+    }),
+  },
+  opaqueInline: {
+    deserialize: (node: OpaqueInline): TElement => ({
+      children: [{ text: "" }],
+      type: "opaqueInline",
+      value: node.value,
+    }),
+    serialize: (node: TElement): OpaqueInline => ({
+      type: "opaqueInline",
+      value: typeof node.value === "string" ? node.value : "",
+    }),
+  },
 
   // Inline-void wiki nodes; `body` stays verbatim both directions. The remark
   // plugin's toMarkdown handler emits the actual `[[…]]` / `![[…]]` bytes.

@@ -24,8 +24,8 @@ export function isMarkdownPath(path: string): boolean {
  * - `rich`: the Plate editor is showing — rich is available by construction.
  * - `raw`: the byte-exact textarea is showing. `reason === null` means the
  *   user chose Raw on a rich-capable note (the header toggle); a non-null
- *   reason means the note is gated to Raw (parse error / out-of-vocabulary
- *   construct / round-trip content loss — the header's Raw badge tooltip).
+ *   reason means the note is gated to Raw (parse error / round-trip content
+ *   loss — the header's Raw badge tooltip).
  *
  * The user's underlying raw/rich pick stays provider state (`setMode`), NOT
  * part of this union: a mid-session gate flip keeps the pick, so a note that
@@ -96,8 +96,7 @@ export function openDocPath(doc: OpenDoc): string | null {
 }
 
 /** Whether Rich editing is available: a markdown note whose saved content
- * passes the vocabulary + round-trip gate. Drives the header's raw/rich
- * toggle. */
+ * passes the parse + round-trip gate. Drives the header's raw/rich toggle. */
 export function richAvailable(doc: OpenDoc): boolean {
   return doc.kind === "markdown" && (doc.surface.mode === "rich" || doc.surface.reason === null);
 }

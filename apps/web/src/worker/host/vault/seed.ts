@@ -8,8 +8,8 @@
 // instructions file the agent reads every turn, and one template so the
 // template command has something to apply.
 //
-// Every file is inside the editor's MDX vocabulary — no HTML comments, no
-// unknown JSX — so all three open in Rich mode rather than Raw.
+// Every file is written in constructs the editor MODELS, so all three open as
+// live rich content rather than as inert opaque blocks.
 // ---------------------------------------------------------------------------
 
 import {

@@ -17,10 +17,12 @@ import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { isTodoItem, todoIndex } from "@repo/editor/todo-item";
 
-/** Parse `md` through the live editor's seed path and assert that the Plate
- * tree's todo elements match scanTaskItems' tasks 1:1 — same count, same
- * ordinal, same checked state, in document order. */
-function assertLockstep(md: string): void {
+/** Parse `md` through the live editor's seed path and assert that every todo
+ * the Plate tree SHOWS resolves, by ordinal, to the source task scanTaskItems
+ * assigns the same position. `hidden` is the number of source tasks the editor
+ * cannot show because they sit inside an opaque block — their ordinals still
+ * have to be consumed, or every later checkbox is off by one. */
+function assertLockstep(md: string, hidden = 0): void {
   const tasks = scanTaskItems(md);
   const parsed = parseMarkdown(md);
   if (!parsed.ok) throw new Error("corpus doc must parse rich");
@@ -31,15 +33,18 @@ function assertLockstep(md: string): void {
   }
   // Same items recognized on both sides (Plate phantoms and lookalikes the
   // source-side skips must not appear on either count)…
-  expect(todos.length).toBe(tasks.length);
-  // …and the i-th todo element's click-time ordinal is the i-th source task's
-  // ordinal, with matching checked state.
-  todos.forEach((element, i) => {
-    const task = tasks[i];
-    if (task === undefined) throw new Error(`no source task at position ${i}`);
-    expect(todoIndex(editor, element)).toBe(task.ordinal);
+  expect(todos.length).toBe(tasks.length - hidden);
+  // …and each shown todo's click-time ordinal indexes the SOURCE task it was
+  // rendered from, with matching checked state.
+  let previous = -1;
+  for (const element of todos) {
+    const ordinal = todoIndex(editor, element);
+    expect(ordinal).toBeGreaterThan(previous); // document order
+    previous = ordinal;
+    const task = tasks[ordinal];
+    if (task === undefined) throw new Error(`no source task at ordinal ${ordinal}`);
     expect(element.checked).toBe(task.checked);
-  });
+  }
 }
 
 describe("todoIndex ↔ scanTaskItems ordinal lockstep", () => {
@@ -138,14 +143,43 @@ describe("todoIndex ↔ scanTaskItems ordinal lockstep", () => {
     );
   });
 
-  // Indented code — the app's canonical flavor is the MDX vocabulary, where
-  // indented code blocks DO NOT EXIST (micromark-extension-mdx-md disables
-  // `codeIndented`), so a 4-space-indented `- [ ]` line parses as a live
-  // task in the editor. scanTaskItems reads the same grammar (link-extract's
-  // remarkNoIndentedCode), so the disk-side count agrees ordinal-for-ordinal.
-  // (The two grammars must not diverge: plain remark-gfm reads that line as
-  // code and skips it, throwing every later renderer ordinal off by one.)
+  // Indented code — the app's canonical flavor has no indented code blocks
+  // (md-plugins disables `codeIndented`), so a 4-space-indented `- [ ]` line
+  // parses as a live task in the editor. scanTaskItems reads the same grammar
+  // (link-extract's remarkPlainBlocks), so the disk-side count agrees
+  // ordinal-for-ordinal. (The two grammars must not diverge: plain remark-gfm
+  // reads that line as code and skips it, throwing every later renderer
+  // ordinal off by one.)
   it("an indented (4-space) checkbox is a live task on both sides", () => {
     assertLockstep(["Notes", "", "    - [ ] indented-code lookalike", "", "- [ ] real"].join("\n"));
+  });
+
+  // Opaque blocks — a checkbox inside unknown JSX or raw HTML is ONE inert
+  // string to the editor, but core reads the list underneath and counts it.
+  // The editor cannot show that checkbox, so it must still SPEND its ordinal;
+  // otherwise the next real checkbox inherits it and Delegate edits the wrong
+  // line. Everything below would pass with the hidden count ignored — except
+  // the ordinal of the todo that follows, which is the whole point.
+
+  // The hidden items are `[x]` and the visible one `[ ]` on purpose: an ordinal
+  // that skipped them would land on a checked task and the state compare — the
+  // only identity these ordinals have — would catch it.
+
+  it("hidden: a task inside unknown JSX spends its ordinal", () => {
+    assertLockstep(
+      ["<Steps>", "", "- [x] hidden", "", "</Steps>", "", "- [ ] after"].join("\n"),
+      1,
+    );
+  });
+
+  it("hidden: several tasks inside one opaque block spend all of them", () => {
+    assertLockstep(
+      ["<div>", "", "- [x] h1", "- [x] h2", "", "</div>", "", "- [ ] after"].join("\n"),
+      2,
+    );
+  });
+
+  it("hidden: an inline opaque hides nothing on either side", () => {
+    assertLockstep(["- [ ] before <!-- a comment --> after", "- [x] second"].join("\n"));
   });
 });

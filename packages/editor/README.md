@@ -57,8 +57,8 @@ src/
 - **`roundTrip(raw) === raw` for every canonical file.** The fixture matrix
   under `src/__tests__/fixtures/roundtrip/` is the contract: `canonical/` must
   survive untouched, `churn/` pins the one normalization each input gets
-  (`*.in.md` → `*.out.md`), and `raw/` pins the inputs that must fall out of the
-  vocabulary into Raw mode, with the REASON in the filename.
+  (`*.in.md` → `*.out.md`), and `raw/` pins the inputs that cannot be parsed at
+  all and so open in Raw mode, with the REASON in the filename.
 - **Never hand-edit or format a fixture.** Their bytes are the assertion —
   trailing spaces, indentation, line endings. oxfmt ignores the directory;
   editors must too. Generate them through the `roundTrip` pipeline itself.
@@ -66,10 +66,12 @@ src/
   halves for the headless serializer; `kit-parity.test.ts` fails when the two
   compositions disagree, so a node that renders but does not serialize is
   impossible.
-- **Rich is the default surface.** Anything that parses inside the MDX
-  vocabulary (`@repo/notes/markdown/vocabulary`) opens Rich and normalizes on
-  the first real edit. Only unrepresentable content — unknown JSX, expressions,
-  HTML comments, parse errors — opens Raw, byte-exact, with the badge.
+- **Rich is the default surface.** Anything that PARSES opens Rich and
+  normalizes on the first real edit. Constructs with no editor node — unknown
+  JSX, `{…}` expressions, raw HTML — are opaque nodes
+  (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
+  written back byte-for-byte. Only a real parse failure (a mismatched tag, an
+  unbalanced brace) opens Raw, byte-exact, with the badge.
 - **AI state is transient.** Generation marks and accept/reject suggestions are
   editor-only; `ai/transient*.ts` settles them before any flush, so no AI
   artifact can reach a file.

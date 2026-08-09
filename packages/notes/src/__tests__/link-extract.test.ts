@@ -66,8 +66,8 @@ describe("scanDoc — wiki links", () => {
   });
 
   it("extracts a 4-space-indented link (no indented code in the canonical flavor)", () => {
-    // The MDX vocabulary disables `codeIndented`, so the editor renders this
-    // as a live link — the scan reads the same grammar (remarkNoIndentedCode)
+    // The editor's grammar disables `codeIndented`, so it renders this as a
+    // live link — the scan reads the same grammar (remarkPlainBlocks)
     // and indexes it.
     const src = "Notes\n\n    [[indented live link]]\n";
     expect(links(src).map((l) => l.target)).toEqual(["indented live link"]);

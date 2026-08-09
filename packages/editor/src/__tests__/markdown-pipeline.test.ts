@@ -13,23 +13,23 @@ import {
 } from "@repo/editor/markdown/markdown-doc";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
-import { scanVocabulary } from "@repo/notes/markdown/vocabulary";
 
 // In-tree translations of the scratchpad probe scenarios (rt/probe1-6) that
 // aren't already pinned by the fixture matrix: the failure modes the owned
-// parse + vocabulary scan exist to kill, and the unit surface of the wiki
-// tokenizer / body parser.
+// parse exists to kill, and the unit surface of the wiki tokenizer / body
+// parser.
 
 describe("owned parse (probe1/2/3 translations)", () => {
   it("throws real errors instead of deserializeMd's silent degradation", () => {
     // Each of these produced a mangled, non-idempotent model under
     // deserializeMd (probe1); under the owned parse they are honest failures.
+    // The list is short on purpose: a tag has to be genuinely BROKEN to fail
+    // now, so everything a well-formed document can hold parses.
     const parseErrors = [
-      "returns in <50ms sometimes\n",
-      "see <https://example.com> now\n",
       "<Foo>\n\nnever closed\n",
+      "<Foo>broken</Bar>\n",
+      "text </Bar> more\n",
       "{unclosed brace\n",
-      "hello\n\n<!-- a comment -->\n\nworld\n",
     ];
     for (const md of parseErrors) {
       const result = parseMdast(md);
@@ -38,7 +38,7 @@ describe("owned parse (probe1/2/3 translations)", () => {
       expect(result.failure.message.length).toBeGreaterThan(0);
     }
     // Positioned errors carry the line for the badge tooltip.
-    const positioned = parseMdast("first\n\nreturns in <50ms sometimes\n");
+    const positioned = parseMdast("first\n\n<Foo>broken</Bar>\n");
     expect(positioned.ok).toBe(false);
     if (!positioned.ok) expect(positioned.failure.line).toBe(3);
   });
@@ -54,9 +54,10 @@ describe("owned parse (probe1/2/3 translations)", () => {
   it("parses expressions under agnostic MDX instead of crashing (acorn difference)", () => {
     // With Plate's remarkMdx (acorn), `config { noServer: true }` THROWS
     // "Could not parse expression with acorn". Agnostic mode parses it as an
-    // expression — the vocabulary scan routes it to Raw instead of a crash.
-    const analysis = analyzeMarkdown("config { noServer: true } here\n");
-    expect(analysis.rawReason?.kind).toBe("expression");
+    // expression, which the opaque node then carries byte-for-byte.
+    const md = "config { noServer: true } here\n";
+    expect(roundTrip(md)).toBe(md);
+    expect(analyzeMarkdown(md).canonical).toBe(true);
   });
 
   it("keeps `import X from 'x'` as prose (no mdxjsEsm under agnostic MDX)", () => {
@@ -66,74 +67,82 @@ describe("owned parse (probe1/2/3 translations)", () => {
   });
 });
 
-const scan = (md: string) => {
-  const parsed = parseMdast(md);
-  expect(parsed.ok).toBe(true);
-  return parsed.ok ? scanVocabulary(parsed.root) : null;
-};
+// Every opaque `value` in the parsed model, in document order.
+function opaqueValues(md: string): string[] {
+  const parsed = parseMarkdown(md);
+  expect(parsed.ok, md).toBe(true);
+  if (!parsed.ok) return [];
+  const values: string[] = [];
+  const walk = (node: unknown): void => {
+    if (node === null || typeof node !== "object") return;
+    if ("type" in node && (node.type === "opaqueBlock" || node.type === "opaqueInline")) {
+      values.push("value" in node && typeof node.value === "string" ? node.value : "");
+      return;
+    }
+    if ("children" in node && Array.isArray(node.children)) node.children.forEach(walk);
+  };
+  parsed.value.forEach(walk);
+  return values;
+}
 
-describe("vocabulary scan (probe1 unknown-JSX hole)", () => {
-  it("rejects unknown components that would pass the letters() heuristic", () => {
-    // `<Foo bar="1">text</Foo>` degrades to escaped text whose letters() equals
-    // the source — without the scan, isRichSafe would wave it into Rich mode
-    // and the first edit would mangle the component into `\<Foo>` prose.
-    expect(scan('<Foo bar="1">text body</Foo>\n')).toEqual({ kind: "unknown-jsx", name: "Foo" });
+// A construct the editor has no node for is held verbatim rather than refused.
+// `roundTrip(md) === md` is the whole contract: the bytes survive an edit
+// anywhere else in the document. Anything that fails here corrupts a file.
+function expectOpaque(md: string, values: string[]): void {
+  expect(opaqueValues(md), md).toEqual(values);
+  expect(roundTrip(md), md).toBe(md);
+  expect(analyzeMarkdown(md).canonical, md).toBe(true);
+}
+
+describe("opaque nodes (constructs with no editor node)", () => {
+  it("carries unknown components verbatim", () => {
+    expectOpaque('<Foo bar="1">text body</Foo>\n', ['<Foo bar="1">text body</Foo>']);
+    expectOpaque("<Steps>\n  step body\n</Steps>\n", ["<Steps>\n  step body\n</Steps>"]);
   });
 
-  it("rejects lowercase paired tags — fixed vocabulary means fixed", () => {
-    expect(scan('<div align="center">x</div>\n')).toEqual({ kind: "unknown-jsx", name: "div" });
-    expect(scan("press <kbd>K</kbd> now\n")).toEqual({ kind: "unknown-jsx", name: "kbd" });
+  it("carries lowercase HTML-ish tags verbatim", () => {
+    expectOpaque('<div align="center">x</div>\n', ['<div align="center">x</div>']);
+    expectOpaque("press <kbd>K</kbd> now\n", ["<kbd>K</kbd>"]);
   });
 
-  it("rejects fragments", () => {
-    expect(scan("<>\nfragment\n</>\n")).toEqual({ kind: "unknown-jsx", name: "<>" });
+  it("carries fragments verbatim", () => {
+    expectOpaque("<>\n  fragment\n</>\n", ["<>\n  fragment\n</>"]);
   });
 
-  it("rejects non-string attribute forms on allowed tags", () => {
-    expect(
-      scan("<column_group>\n  <column width={50}>\n    x\n  </column>\n</column_group>\n"),
-    ).toEqual({
-      attr: "width",
-      kind: "jsx-attr",
-      name: "column",
-    });
-    expect(scan("<callout draft>\n  x\n</callout>\n")).toEqual({
-      attr: "draft",
-      kind: "jsx-attr",
-      name: "callout",
-    });
-    expect(scan("<callout {...props}>\n  x\n</callout>\n")).toEqual({
-      attr: "{...spread}",
-      kind: "jsx-attr",
-      name: "callout",
-    });
+  it("carries HTML comments, both flow and inline", () => {
+    expectOpaque("before\n\n<!-- a flow comment -->\n\nafter\n", ["<!-- a flow comment -->"]);
+    expectOpaque("before <!-- inline comment --> after\n", ["<!-- inline comment -->"]);
   });
 
-  it("permits unknown attr NAMES on allowed flow tags (string props round-trip)", () => {
-    expect(scan('<callout variant="info" custom="yes">\n  x\n</callout>\n')).toBeNull();
+  it("carries processing instructions and expressions", () => {
+    expectOpaque('<?xml version="1.0"?>\n', ['<?xml version="1.0"?>']);
+    expectOpaque("value is {count} here\n", ["{count}"]);
   });
 
-  it("rejects unknown attr names on <date> (Plate's rule keeps only `value`)", () => {
+  it("carries an allowed tag whose attributes are not plain strings", () => {
+    // Bare booleans, braced expressions and spreads do not survive
+    // parseAttributes/propsToAttributes — the element goes opaque WHOLE rather
+    // than losing the attribute on the first save.
+    expectOpaque("<callout draft>\n  x\n</callout>\n", ["<callout draft>\n  x\n</callout>"]);
+    expectOpaque("<callout {...props}>\n  x\n</callout>\n", [
+      "<callout {...props}>\n  x\n</callout>",
+    ]);
+    expectOpaque("<column_group>\n  <column width={50}>\n    x\n  </column>\n</column_group>\n", [
+      "<column width={50}>\n  x\n</column>",
+    ]);
+  });
+
+  it("carries unknown attr names on <date> (Plate's rule keeps only `value`)", () => {
     // Unlike the flow tags, date's deserialize DROPS everything but `value` —
-    // waving `foo` through would silently delete it on the first rich save.
-    expect(scan('Meet <date value="2026-07-01" foo="x" /> ok\n')).toEqual({
-      attr: "foo",
-      kind: "jsx-attr",
-      name: "date",
-    });
+    // modelling it would silently delete `foo` on the first rich save.
+    expectOpaque('Meet <date value="2026-07-01" foo="x" /> ok\n', [
+      '<date value="2026-07-01" foo="x" />',
+    ]);
   });
 
-  it("allows date in text AND flow position", () => {
-    expect(scan('Meet on <date value="2026-07-01" /> at noon.\n')).toBeNull();
-    // A chip-only paragraph serializes to a line-filling `<date />`, which
-    // re-parses as flow — md-rules wraps it back into a paragraph, so the
-    // scan admits it (fixture: canonical/date-only-paragraph.md).
-    expect(scan('<date value="2026-07-01" />\n')).toBeNull();
-  });
-
-  it("passes the whole fixed vocabulary", () => {
+  it("leaves the app's own components modelled, never opaque", () => {
     const md = [
-      '<callout variant="info">',
+      '<callout variant="info" custom="yes">',
       "  x",
       "</callout>",
       "",
@@ -157,8 +166,26 @@ describe("vocabulary scan (probe1 unknown-JSX hole)", () => {
       "",
       '<file src="https://example.com/a.pdf" />',
       "",
+      'Meet on <date value="2026-07-01" /> at noon.',
+      "",
     ].join("\n");
-    expect(scan(md)).toBeNull();
+    expect(opaqueValues(md)).toEqual([]);
+    expect(analyzeMarkdown(md).canonical).toBe(true);
+  });
+
+  it("keeps an opaque block inside a container prefix-correct", () => {
+    // The value is RE-SERIALIZED, never sliced out of the source: a slice would
+    // capture the `> ` markers and the stringifier would add a second set.
+    expectOpaque("> <Steps>\n>   quoted\n> </Steps>\n", ["<Steps>\n  quoted\n</Steps>"]);
+    expectOpaque("<callout>\n  <Steps>\n    nested\n  </Steps>\n</callout>\n", [
+      "<Steps>\n  nested\n</Steps>",
+    ]);
+  });
+
+  it("keeps html-ish bytes out of fenced code (opaque never runs inside a fence)", () => {
+    const md = "```\n<!-- not a comment -->\n<div>x</div>\n```\n";
+    expect(opaqueValues(md)).toEqual([]);
+    expect(roundTrip(md)).toBe(md);
   });
 });
 
@@ -429,15 +456,15 @@ describe("gate API", () => {
   });
 
   it("parseMarkdown surfaces the raw reason instead of a degraded value", () => {
-    const parsed = parseMarkdown("<Steps>x</Steps>\n");
+    const parsed = parseMarkdown("<Steps>x</Step>\n");
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.reason.kind).toBe("unknown-jsx");
+    expect(parsed.reason.kind).toBe("parse-error");
   });
 
   it("roundTrip throws typed errors carrying the reason", () => {
     try {
-      roundTrip("returns in <50ms\n");
+      roundTrip("<Foo>broken</Bar>\n");
       expect.unreachable("roundTrip must throw on parse failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ParseFailedError);
@@ -464,13 +491,12 @@ describe("gate API", () => {
     expect(() => roundTrip(deep)).toThrow(ParseFailedError);
   });
 
-  it("describes every reason kind for the mode badge", () => {
-    expect(describeRawReason({ kind: "unknown-jsx", name: "Steps" })).toBe(
-      "Contains unsupported element <Steps>",
+  it("describes the reason for the mode badge, with and without a line", () => {
+    expect(
+      describeRawReason({ kind: "parse-error", line: 4, message: "Unexpected closing tag" }),
+    ).toBe("Parse error at line 4: Unexpected closing tag");
+    expect(describeRawReason({ kind: "parse-error", line: null, message: "Nope" })).toBe(
+      "Parse error: Nope",
     );
-    expect(describeRawReason({ attr: "draft", kind: "jsx-attr", name: "callout" })).toBe(
-      "<callout> has an unsupported attribute (draft)",
-    );
-    expect(describeRawReason({ kind: "expression" })).toBe("Contains a {…} expression");
   });
 });

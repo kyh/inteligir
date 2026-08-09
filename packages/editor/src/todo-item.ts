@@ -5,6 +5,8 @@
 
 import { PathApi, type SlateEditor, type TElement } from "platejs";
 
+import { scanTaskItems } from "@repo/notes/knowledge/link-extract";
+
 // Whether a Plate list node is a genuine todo checkbox (has a `- [ ]` / `- [x]`
 // on disk), as opposed to a phantom.
 //
@@ -27,6 +29,19 @@ export function isTodoItem(node: unknown): boolean {
   );
 }
 
+// A checkbox can also sit INSIDE an opaque block — `<Steps>` holding a `- [ ]`
+// is one string to this editor, but core's source-side scan reads the list
+// underneath it and counts the task. The ordinal is a position in the SOURCE,
+// so those hidden tasks have to be counted here too or every later checkbox is
+// off by one and Delegate edits the wrong line. Only the BLOCK half counts:
+// an inline opaque (an html comment, `<kbd>`) is phrasing on both sides, and
+// scanning its string would invent tasks core never sees.
+function hiddenTaskCount(node: unknown): number {
+  if (typeof node !== "object" || node === null) return 0;
+  if (!("type" in node) || node.type !== "opaqueBlock") return 0;
+  return "value" in node && typeof node.value === "string" ? scanTaskItems(node.value).length : 0;
+}
+
 /** The checkbox's ordinal — its position among all real todo items in the
  * document, counted over the live Plate tree at click time. Traversal is
  * whole-document pre-order (`editor.api.nodes`), NOT top-level only: a todo
@@ -42,9 +57,12 @@ export function todoIndex(editor: SlateEditor, element: TElement): number {
   const targetPath = editor.api.findPath(element);
   if (!targetPath) return -1;
   let count = 0;
-  for (const [, path] of editor.api.nodes({ at: [], match: (node) => isTodoItem(node) })) {
+  for (const [node, path] of editor.api.nodes({
+    at: [],
+    match: (candidate) => isTodoItem(candidate) || hiddenTaskCount(candidate) > 0,
+  })) {
     if (PathApi.equals(path, targetPath)) return count;
-    count += 1;
+    count += isTodoItem(node) ? 1 : hiddenTaskCount(node);
   }
   return -1;
 }

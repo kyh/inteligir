@@ -84,7 +84,7 @@ describe("findTaskLine", () => {
   });
 
   it("counts a 4-space-indented checkbox (no indented code in the canonical flavor)", () => {
-    // The MDX vocabulary has no indented-code construct, so the editor renders
+    // The editor's grammar has no indented-code construct, so the editor renders
     // this line as a live task — scanTaskItems reads the same grammar and the
     // ordinal counts it. A parser that treated the indent as a code block
     // would skip the line and desync every later ordinal from the editor.

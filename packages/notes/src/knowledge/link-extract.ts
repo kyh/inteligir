@@ -7,12 +7,11 @@
 // and fence/code-span safety is inherited from the parser (text constructs
 // never run inside code), not re-implemented with regexes.
 //
-// Pipeline note: math and the MDX-agnostic vocabulary plugins are omitted —
-// they only re-shape nodes whose TEXT content still parses here (links inside
-// `<toggle>` bodies etc. are separated from the tag by blank lines in the
-// canonical form). Links inside raw block-level HTML runs are not extracted.
-// Indented code, however, is disabled to match the editor's MDX grammar
-// (see remarkNoIndentedCode below) — task ordinals depend on it.
+// Pipeline note: math and the MDX-agnostic plugins are omitted — they only
+// re-shape nodes whose TEXT content still parses here (links inside `<toggle>`
+// bodies etc. are separated from the tag by blank lines in the canonical form).
+// Indented code and flow HTML, however, are disabled to match the editor's MDX
+// grammar (see remarkPlainBlocks below) — task ordinals depend on it.
 //
 // Span contract: `targetSpan` is emitted only after the bytes are verified
 // (the raw slice re-derives the parsed target). A link that fails verification
@@ -95,23 +94,23 @@ export type DocScan = {
   tasks: ExtractedTask[];
 };
 
-// The vault's canonical flavor is the MDX vocabulary (md-plugins.ts), where
-// indented code DOES NOT EXIST — micromark-extension-mdx-md disables
-// `codeIndented`, so the editor renders a 4-space-indented `- [ ]` as a live
-// task and an indented `[[link]]` as a live link. The scan must read the SAME
-// grammar or its task count desyncs from the editor's todoIndex (the
-// Delegate/toggle anchor is (sourceFile, ordinal)). Only this ONE disable is
-// adopted: the full MDX pipeline throws on out-of-vocabulary docs (the scan
-// stays total — Raw-mode docs keep indexing), and mdx-md's other disables
-// (autolink/html) would change tag/link extraction in unrelated edge cases.
-const remarkNoIndentedCode: Plugin = function (this: Processor): undefined {
+// The editor's flavor (md-plugins.ts) has no indented code and no flow HTML:
+// a 4-space-indented `- [ ]` is a live task, and a `<div>x</div>` line does not
+// swallow the lines after it. The scan must read the SAME grammar or its task
+// count desyncs from the editor's todoIndex (the Delegate/toggle anchor is
+// (sourceFile, ordinal)) — htmlFlow's block branches run to the next blank
+// line, so one stray HTML-ish line would hide every task under it from this
+// side only. These two disables are all that is adopted: the full MDX pipeline
+// throws on malformed docs, and the scan stays total so Raw-mode docs keep
+// indexing.
+const remarkPlainBlocks: Plugin = function (this: Processor): undefined {
   const data = this.data();
-  (data.micromarkExtensions ??= []).push({ disable: { null: ["codeIndented"] } });
+  (data.micromarkExtensions ??= []).push({ disable: { null: ["codeIndented", "htmlFlow"] } });
 };
 
 const processor = unified()
   .use(remarkParse)
-  .use(remarkNoIndentedCode)
+  .use(remarkPlainBlocks)
   .use(remarkFrontmatter)
   .use(remarkGfm)
   .use(remarkWikiLink);

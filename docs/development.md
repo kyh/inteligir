@@ -135,13 +135,13 @@ rotting in prose here:
   the client-class allowlist decision.
 - **Adding an editor node type** — `.claude/skills/add-editor-node/`. The
   Base + React kit pair, the `base-kit`/`editor-kit` composition, the Slate↔mdast
-  rule, the MDX vocabulary gate, and the byte-pinned round-trip fixtures.
+  rule, the component registry, and the byte-pinned round-trip fixtures.
 
 ## Tests
 
 - `pnpm --filter @repo/notes test` — the pure domain: the knowledge engine
   (link graph, search, related notes, rename), tags and tasks, markdown
-  parse/vocabulary/frontmatter.
+  parse/opaque-nodes/frontmatter.
 - `pnpm --filter @repo/web test` — the product, against real in-process
   miniflare (UserHost DO + R2 + D1 + Better Auth): the handler map, the vault,
   the index, the agent and its tools, background work, capture, voice, auth.

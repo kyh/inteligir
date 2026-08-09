@@ -24,6 +24,7 @@ import { LinkKit } from "@repo/editor/kits/link-kit";
 import { ListKit } from "@repo/editor/kits/list-kit";
 import { MarkdownKit } from "@repo/editor/kits/markdown-kit";
 import { MathKit } from "@repo/editor/kits/math-kit";
+import { OpaqueKit } from "@repo/editor/kits/opaque-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
@@ -45,6 +46,7 @@ export const EDITOR_KIT = [
   ...DateKit,
   ...MathKit,
   ...CalloutKit,
+  ...OpaqueKit,
   ...FrontmatterKit,
   ...WikiLinkKit,
   ...WikiAutocompleteKit,
