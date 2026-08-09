@@ -10,11 +10,12 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import type { EventMethod } from "@repo/bridge/ipc-contract";
+
 import { mayInvoke, mayReceive } from "../host/client-class";
 import { HOST_METHODS, type HostHandlers } from "../host/handler-registry";
 import { userHostName } from "../host/host-address";
 import { composeHost } from "../host/host-composition";
-import { HostEvents } from "../host/host-events";
 import { allowedOrigins, originAllowed } from "../host/origins";
 import { matchHostLeaf } from "../host/host-route";
 
@@ -30,15 +31,26 @@ import { matchHostLeaf } from "../host/host-route";
  * used once it has been handed back out.
  */
 function withHandlers<T>(
-  run: (ctx: { handlers: HostHandlers; events: HostEvents }) => Promise<T> | T,
+  run: (ctx: { handlers: HostHandlers; emitted: Emitted[] }) => Promise<T> | T,
 ): Promise<T> {
   const stub = env.UserHost.getByName(userHostName("handler-fixture"));
   return runInDurableObject(stub, (_host, ctx) => {
-    const events = new HostEvents();
-    const composition = composeHost({ env, ctx, events, onDeadlineChanged: () => {} });
-    return run({ handlers: composition.handlers, events });
+    const emitted: Emitted[] = [];
+    const composition = composeHost({
+      env,
+      ctx,
+      emit: (method, payload) => {
+        emitted.push({ method, payload });
+      },
+      onDeadlineChanged: () => {},
+    });
+    return run({ handlers: composition.handlers, emitted });
   });
 }
+
+/** One announcement the composition made. Production hands `emit` to the gate,
+ * which decides which sockets hear it; here it is just recorded. */
+type Emitted = { method: EventMethod; payload: unknown };
 
 describe("cloud handler registry", () => {
   // Against the registry, never against a written-down copy of it: a pinned
@@ -70,15 +82,14 @@ describe("cloud handler registry", () => {
   });
 
   it("reports a ready app phase and re-announces it on SETUP", async () => {
-    await withHandlers(async ({ handlers, events }) => {
+    await withHandlers(async ({ handlers, emitted }) => {
       expect(await handlers.getAppState(undefined)).toEqual({ phase: "ready", agent: "idle" });
 
-      const seen: unknown[] = [];
-      events.onAny((method, payload) => {
-        if (method === "onAppState") seen.push(payload);
-      });
+      const before = emitted.length;
       await handlers.transition({ type: "SETUP" });
-      expect(seen).toEqual([{ phase: "ready", agent: "idle" }]);
+      expect(emitted.slice(before)).toEqual([
+        { method: "onAppState", payload: { phase: "ready", agent: "idle" } },
+      ]);
     });
   });
 });

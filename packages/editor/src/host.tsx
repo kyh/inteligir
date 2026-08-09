@@ -10,6 +10,11 @@ import { createContext, useContext, type ComponentType, type ReactNode } from "r
 // mutation surface, the file listing (which resolves `[[wiki targets]]`), and
 // the one panel the shell owns but renders inside the editor column.
 //
+// Only things the SHELL owns cross. A capability that lives in this package
+// already — the open-note store's mode and html-view setters, say — is imported
+// where it is used: routing it through the host would be an identity forward
+// that reads like a boundary and guards nothing.
+//
 // These types live HERE, not beside the provider, because the dependency runs
 // this way: `workspace/vault-context.tsx` implements `VaultActions` and imports
 // the type from this file. Declaring them in the shell would put a type edge
@@ -17,8 +22,11 @@ import { createContext, useContext, type ComponentType, type ReactNode } from "r
 // ---------------------------------------------------------------------------
 
 export type VaultActions = {
-  /** Open a file, replacing the current note. Pending edits on the current
-   * note are flushed first; a failed flush refuses to navigate. */
+  /** Open a file, replacing the current note, AND bring the editor surface up.
+   * Both halves, always: a note opened from the graph or the tasks view has to
+   * show the note rather than leave the user on the surface they clicked from.
+   * Pending edits on the current note are flushed first; a failed flush refuses
+   * to navigate. */
   openFile: (path: string) => void;
   /** Record an edit to a SPECIFIC note's buffer (debounced autosave). Bytes
    * always carry the path of the editor that produced them: teardown settles
@@ -51,15 +59,6 @@ export type VaultActions = {
   flush: () => Promise<boolean>;
   /** Re-list the vault now (re-list + reindex). */
   refreshVault: () => void;
-  /** The user's raw/rich pick for a rich-capable markdown note (the header
-   * toggle). Honored only while rich is available — a gated note shows Raw
-   * regardless, and the pick survives a mid-session gate flip so a note that
-   * recovers pops back to the surface the user chose. */
-  setMode: (mode: "raw" | "rich") => void;
-  /** Show the open `.html` as raw text in the editor ("Open as text"). */
-  showHtmlAsText: () => void;
-  /** Show the open `.html` as a sandboxed app again ("Open as app"). */
-  showHtmlAsApp: () => void;
 };
 
 export type VaultListing = {

@@ -22,6 +22,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AppState } from "@repo/bridge/app-state";
+import type { IpcEmit } from "@repo/bridge/ipc-contract";
 import { registerAgentHandlers, type AgentServices } from "../agent/agent-handlers";
 import { registerAiHandlers } from "../ai/ai-handlers";
 import type { TextGenerator } from "../ai/text-generator";
@@ -34,7 +35,6 @@ import { registerSkillsHandlers } from "../skills/skills-handlers";
 import { registerVoiceHandlers } from "../voice/voice-handlers";
 import type { VoiceComposition } from "../voice/voice-composition";
 import type { HandlerRegistrar } from "./handler-registry";
-import type { HostEvents } from "./host-events";
 import { registerKnowledgeHandlers } from "./knowledge-handlers";
 import type { UserKnowledge } from "./knowledge/user-knowledge";
 import type { CloudStores } from "./stores";
@@ -43,7 +43,7 @@ import type { UserVault } from "./vault/user-vault";
 
 type CloudHostServices = {
   readonly stores: CloudStores;
-  readonly events: HostEvents;
+  readonly emit: IpcEmit;
   readonly vault: UserVault;
   readonly knowledge: UserKnowledge;
   readonly agent: AgentServices;
@@ -76,11 +76,11 @@ export function registerCloudHandlers(handle: HandlerRegistrar, services: CloudH
         // behind, so both answer with the phase this host is already in —
         // re-announced, so a client that transitioned and waited is not
         // stranded on an event that never comes.
-        services.events.emit("onAppState", appState());
+        services.emit("onAppState", appState());
         return;
       case "NEW_SESSION":
         services.agent.runner.newSession();
-        services.events.emit("onAppState", appState());
+        services.emit("onAppState", appState());
         return;
     }
   });

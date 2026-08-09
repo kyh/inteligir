@@ -9,6 +9,11 @@
 // is faked and what arrived on it is the assertion.
 //
 // Invert `mayReceive` and this file turns red.
+//
+// One case this suite deliberately cannot build: a binary channel handed
+// something that is not bytes. `IpcEmit` types every emit site against the
+// registry, so that payload does not compile. The gate keeps a runtime guard
+// for it anyway, because hydration resolves a getter whose result is `unknown`.
 // ---------------------------------------------------------------------------
 
 import { REMOTE_ALLOWED_EVENTS } from "@repo/bridge/channel-policy";
@@ -124,12 +129,6 @@ describe("what a socket may be told", () => {
 
     expect(mobile.binaryFrames()).toHaveLength(0);
     expect(web.binaryFrames()).toHaveLength(1);
-  });
-
-  it("pushes nothing on a binary channel handed something that is not bytes", () => {
-    const web = socketFor("web");
-    gateOver([web]).broadcast("onTtsAudio", { audio: "not bytes" });
-    expect(web.binaryFrames()).toHaveLength(0);
   });
 
   it("skips a socket that never authenticated, and one that is closing", () => {

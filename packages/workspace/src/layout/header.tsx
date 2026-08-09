@@ -17,7 +17,7 @@ import { confirmVaultDelete } from "@repo/workspace/components/confirm-vault-del
 import { describeGateReason } from "@repo/editor/markdown/markdown-doc";
 import { PageDetails } from "@repo/editor/properties/page-details";
 import { richAvailable } from "@repo/editor/note/open-doc";
-import { useOpenNote } from "@repo/editor/note/open-note-store";
+import { setOpenNoteMode, showOpenHtmlAsApp, useOpenNote } from "@repo/editor/note/open-note-store";
 import { useVaultActions, useVaultListing } from "@repo/editor/host";
 
 /**
@@ -30,7 +30,7 @@ import { useVaultActions, useVaultListing } from "@repo/editor/host";
  */
 export function Header() {
   const { folderName } = useVaultListing();
-  const { setMode, deleteEntry, showHtmlAsApp } = useVaultActions();
+  const { deleteEntry } = useVaultActions();
   // Narrow selectors: every value here is a primitive (or the gate
   // reason, which changes only per saved-content re-analysis), so typing in
   // the note never re-renders the header — only privacy/surface/path flips do.
@@ -93,7 +93,7 @@ export function Header() {
               size="sm"
               variant="outline"
               className="h-7 px-2 text-xs"
-              onClick={showHtmlAsApp}
+              onClick={showOpenHtmlAsApp}
             >
               Open as app
             </Button>
@@ -123,7 +123,7 @@ export function Header() {
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setMode(m)}
+                  onClick={() => setOpenNoteMode(m)}
                   aria-pressed={surfaceMode === m}
                   className={cn(
                     "rounded px-2 py-0.5 capitalize transition-colors",

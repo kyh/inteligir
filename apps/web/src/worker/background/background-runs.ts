@@ -13,8 +13,8 @@
 //
 // (Module scope would be worse still: one isolate serves many tenants' objects,
 // so a module-level lock would serialize one user's delegations against
-// another's. The instance-per-object rule ./host/host-events states applies
-// here for the same reason.)
+// another's. The instance-per-object rule ./host/host-composition states
+// applies here for the same reason.)
 //
 // EVERY LEASE EXPIRES. A container that dies mid-turn never reports
 // `turn_end`, and a lane held by a turn nobody is running is a lane no

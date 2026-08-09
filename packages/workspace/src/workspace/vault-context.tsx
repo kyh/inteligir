@@ -1,15 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { toast } from "@repo/ui/components/sonner";
 
 import { docExists, getBridge } from "@repo/bridge/client";
 import { createDebouncer } from "@repo/editor/lib/debounce";
-import {
-  EditorHostProvider,
-  type EditorHost,
-  type VaultActions,
-  type VaultListing,
-} from "@repo/editor/host";
+import { EditorHostProvider, type EditorHost, type VaultListing } from "@repo/editor/host";
 import { ConnectionsPanel } from "@repo/workspace/workspace/connections-panel";
 import { hasTransientSuggestions } from "@repo/editor/ai/suggestions";
 import { hasTransientAiState } from "@repo/editor/ai/transient";
@@ -22,86 +17,35 @@ import {
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { createCaptureApplier, insertCaptureLine } from "@repo/workspace/workspace/capture-apply";
-import { type NoteRuntime, createNoteRuntime } from "@repo/editor/note/note-runtime";
-import {
-  publishEditor,
-  publishOpenPath,
-  setOpenNoteMode,
-  showOpenHtmlAsApp,
-  showOpenHtmlAsText,
-} from "@repo/editor/note/open-note-store";
-import { type VaultIO } from "@repo/editor/vault-editor";
+import { openNoteState, publishEditor, publishOpenPath } from "@repo/editor/note/open-note-store";
+import { createVaultSession } from "@repo/workspace/workspace/vault-session";
 import { useUiStateStore } from "@repo/workspace/stores/ui-state-store";
 import { useViewStore } from "@repo/workspace/stores/view-store";
 import { workspaceBoot } from "@repo/workspace/stores/workspace-boot";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
-import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
-import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
-import {
-  heldDeletionMessage,
-  vaultChangeTouches,
-  type DeleteVaultEntryResult,
-  type VaultChangedEvent,
-  type VaultEntry,
-} from "@repo/bridge/vault";
+import type { VaultEntry } from "@repo/bridge/vault";
 import { UI_STATE_OPEN_NOTE_KEY as OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 
 /** Debounce window-focus → vault refresh so a flurry of focus/blur (alt-tab,
- * dialogs) coalesces into one snapshot rebuild (vault liveness — CLAUDE.md
- * § Decisions). */
+ * dialogs) coalesces into one refresh. */
 const FOCUS_REFRESH_DEBOUNCE_MS = 1000;
 
-/**
- * Append the default `.md` extension unless `name` already ends in one (any
- * lowercase-alphanumeric extension). `name` is assumed already trimmed.
- */
-function withDefaultExtension(name: string): string {
-  return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.md`;
-}
-
-/** Gate a to-be-created path's basename through checkNoteName (directory
- * segments pass through — `notes/foo` is intentional foldering here, unlike a
- * `/` typed into the h1 title). Returns the path with the NFC-normalized
- * basename, or null after a rejection toast. */
-function validNotePath(path: string): string | null {
-  const verdict = checkNoteName(basenamePath(path));
-  if (!verdict.ok) {
-    toast.error(noteNameErrorMessage(verdict.reason));
-    return null;
-  }
-  const dir = dirnamePath(path);
-  return dir === "" ? verdict.name : `${dir}/${verdict.name}`;
-}
-
-/** Whether a vault broadcast changed the sidebar's own rows: a path arriving or
- * leaving. A change the host could not describe moves it by definition. */
-function movesTheListing(event: VaultChangedEvent, entries: readonly VaultEntry[]): boolean {
-  const { changed } = event;
-  if (changed === null) return true;
-  if (changed.removed.length > 0) return true;
-  const known = new Set(entries.map((entry) => entry.path));
-  return changed.upserted.some((path) => !known.has(path));
-}
-
-// IO the editor controller acts through — thin wrappers over the bridge so the
-// controller stays bridge-agnostic and unit-testable.
-const VAULT_IO: VaultIO = {
-  read: (path) => getBridge().readVaultDoc({ path }),
-  write: (path, content) => getBridge().writeVaultDoc({ path, content }),
-  remove: (path) => getBridge().deleteVaultEntry({ path }),
-};
-
 // ---------------------------------------------------------------------------
-// This provider PRODUCES the vault state; @repo/editor/host declares its shape
-// and owns the contexts. Three exposure seams, split by change CADENCE so a
-// keystroke re-renders only what depends on the open note's content:
-// - useVaultActions — the stable callbacks (identity never changes).
+// This provider is the REACT WIRING over `vault-session`: it binds the
+// session's ports to the Bridge, the open-note store and the toaster, mirrors
+// the two low-cadence values it publishes into state, and subscribes the
+// effects a session cannot own (a window listener, a Bridge subscription, an
+// unmount). Every ordering rule lives in the session.
+//
+// Three exposure seams, split by change CADENCE so a keystroke re-renders only
+// what depends on the open note's content:
+// - useVaultActions — the session's own actions (identity never changes).
 //   Consumers that only ACT (wiki chips, palette actions, sidebar handlers)
 //   never re-render from vault state at all.
-// - useVaultListing — entries + folderName + resolveWikiTarget; changes
-//   only on a structural refresh (or when the wiki resolver rebuilds).
+// - useVaultListing — entries + folderName + resolveWikiTarget; changes only
+//   on a structural refresh (or when the wiki resolver rebuilds).
 // - useOpenNote (@repo/editor/note/open-note-store) — the high-cadence
 //   open-note slice, subscribed via selectors.
 // ---------------------------------------------------------------------------
@@ -109,377 +53,90 @@ const VAULT_IO: VaultIO = {
 export function VaultProvider({ children }: { children: ReactNode }) {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [root, setRoot] = useState("");
-  const rootRef = useRef("");
 
-  // ---- Open note -----------------------------------------------------------
-  // The ref is the source of truth every operation reads and writes
-  // SYNCHRONOUSLY; the open-note store is its exposure mirror. Keeping
-  // mutations out of setState updaters keeps them single-shot under
-  // StrictMode's double-invoke.
-  const openPathRef = useRef<string | null>(null);
-  const runtimeRef = useRef<NoteRuntime | null>(null);
-  // The provider's own subscription publishing this runtime's controller
-  // emissions into the open-note store (separate from the runtime's internal
-  // vanish watcher — dispose must clear both).
-  const runtimeSubRef = useRef<(() => void) | null>(null);
-  const setUiState = useUiStateStore((s) => s.set);
-
-  const applyOpenPath = useCallback(
-    (next: string | null) => {
-      if (next === openPathRef.current) return;
-      openPathRef.current = next;
-      publishOpenPath(next);
-      setUiState(OPEN_NOTE_KEY, next);
-    },
-    [setUiState],
+  // Built once, and inert until `start()` — so React's double-invoked
+  // initializer can construct one and throw it away with nothing to undo.
+  const [session] = useState(() =>
+    createVaultSession({
+      boot: workspaceBoot,
+      list: () => getBridge().listVault(),
+      refresh: () => getBridge().refreshVault(),
+      exists: (path) => docExists(getBridge(), path),
+      rename: (from, to) => getBridge().renameVaultEntry({ from, to }),
+      note: {
+        read: (path) => getBridge().readVaultDoc({ path }),
+        write: (path, content) => getBridge().writeVaultDoc({ path, content }),
+        remove: (path) => getBridge().deleteVaultEntry({ path }),
+      },
+      publishListing: setEntries,
+      publishRoot: setRoot,
+      publishOpenPath: (path) => {
+        publishOpenPath(path);
+        useUiStateStore.getState().set(OPEN_NOTE_KEY, path);
+      },
+      publishEditor,
+      // Navigation always lands on the editor: opening a note from the graph,
+      // the palette or a wiki chip must show the note.
+      showEditor: () => useViewStore.getState().setSurface("editor"),
+      notify: (level, message) => {
+        if (level === "error") toast.error(message);
+        else toast.warning(message);
+      },
+      settleAiSession: settleTransients,
+    }),
   );
 
-  const disposeRuntime = useCallback(() => {
-    runtimeSubRef.current?.();
-    runtimeSubRef.current = null;
-    runtimeRef.current?.dispose();
-    runtimeRef.current = null;
-  }, []);
-
-  /** Drop the open note without flushing — the file is already gone (external
-   * delete, unreadable restore) or explicitly deleted. */
-  const dropNote = useCallback(
-    (path: string) => {
-      if (runtimeRef.current?.path !== path) return;
-      disposeRuntime();
-      applyOpenPath(null);
-    },
-    [applyOpenPath, disposeRuntime],
-  );
-
-  /** Create the runtime for a note and start loading its file. Any previous
-   * runtime must already be disposed (openFile owns that ordering). `initial`
-   * opens the note from bytes the caller already has (the boot bundle). */
-  const ensureRuntime = useCallback(
-    (path: string, initial?: string): NoteRuntime => {
-      const existing = runtimeRef.current;
-      if (existing?.path === path) return existing;
-      const runtime = createNoteRuntime(
-        path,
-        rootRef.current,
-        VAULT_IO,
-        { onVanished: dropNote },
-        initial,
-      );
-      runtimeRef.current = runtime;
-      // Publish this runtime's controller emissions into the open-note store —
-      // synchronously with each emission, so a keystroke's value lands in the
-      // same event flush (see open-note-store.ts). Subscribe BEFORE the first
-      // publish so no emission can slip between snapshot and subscription.
-      const publish = () => publishEditor(runtime.controller.getState());
-      runtimeSubRef.current = runtime.controller.subscribe(publish);
-      publish();
-      return runtime;
-    },
-    [dropNote],
-  );
-
-  /** Flush the open note's pending edits (clearing the debounce). True when
-   * clean. A pending AI suggestion session on the file is settled first:
-   * reject-all reverts only the suggestion-marked ranges, so typing
-   * the user interleaved during the review persists while the AI marks
-   * disappear — without this, the flush would write the frozen pre-session
-   * buffer and the typing would die with the unmounting editor. */
-  const flushCurrent = useCallback(async (): Promise<boolean> => {
-    const runtime = runtimeRef.current;
-    if (!runtime) return true;
-    const settled = settleTransients(runtime.path);
-    if (settled !== null && settled !== runtime.controller.getState().content) {
-      runtime.controller.edit(settled);
-    }
-    return runtime.flush();
-  }, []);
-
-  const openFile = useCallback(
-    (path: string) => {
-      void (async () => {
-        // Navigation always lands on the editor surface — opening a note from
-        // the graph, palette, or a wiki chip must show the note, not stay on
-        // whatever surface was up.
-        useViewStore.getState().setSurface("editor");
-        if (openPathRef.current === path) return;
-        // Flush the current note first, and refuse to navigate away from
-        // edits that won't save (same contract as before).
-        if (!(await flushCurrent())) {
-          toast.error("Couldn't save the current file — resolve that before switching.");
-          return;
-        }
-        disposeRuntime();
-        ensureRuntime(path);
-        applyOpenPath(path);
-      })();
-    },
-    [applyOpenPath, disposeRuntime, ensureRuntime, flushCurrent],
-  );
-
-  // Ordering token so overlapping list calls (initial load + onVaultChanged, or
-  // rapid vault events) can't land out of order — only the latest applies.
-  const listSeq = useRef(0);
-  // Last-applied listing, in a ref so the async callback compares against the
-  // truly latest value (React state would be a stale closure). Every vault
-  // broadcast re-fetches the listing — focus refreshes, delegation completion,
-  // external open-note edits (autosaves went silent with the vault-liveness
-  // model, CLAUDE.md § Decisions) — and most
-  // of those don't change the listing, so skip the state set when nothing
-  // structural changed to keep the sidebar tree from re-rendering on refocus.
-  const lastEntriesRef = useRef<VaultEntry[]>([]);
-  const refreshList = useCallback(() => {
-    const bridge = getBridge();
-    const seq = ++listSeq.current;
-    void (async () => {
-      try {
-        const next = await bridge.listVault();
-        if (seq !== listSeq.current) return;
-        const prev = lastEntriesRef.current;
-        const same =
-          next.length === prev.length &&
-          next.every((entry, i) => {
-            const before = prev[i];
-            return (
-              before !== undefined &&
-              entry.path === before.path &&
-              entry.name === before.name &&
-              entry.kind === before.kind
-            );
-          });
-        if (same) return;
-        lastEntriesRef.current = next;
-        setEntries(next);
-      } catch {
-        // Best-effort — keep the last-known listing on a transient failure.
-      }
-    })();
-  }, []);
-
-  const editNote = useCallback((path: string, next: string) => {
-    const runtime = runtimeRef.current;
-    if (runtime?.path !== path) return;
-    runtime.edit(next);
-  }, []);
-
-  const registerNoteSerializeFlush = useCallback((path: string, flush: () => void) => {
-    const runtime = runtimeRef.current;
-    if (runtime?.path !== path) return;
-    runtime.registerPreFlush(flush);
-  }, []);
-
-  const createFileAt = useCallback(
-    async (rawPath: string, seedContent = ""): Promise<string | null> => {
-      const trimmed = rawPath.trim();
-      if (!trimmed) return null;
-      const path = validNotePath(withDefaultExtension(trimmed));
-      if (path === null) return null;
-      const bridge = getBridge();
-      // Don't truncate an existing file — it already satisfies "exists".
-      // Open-or-create seeds only when the file is genuinely new, so a second
-      // "open today's note" reopens the existing note byte-for-byte.
-      if (await docExists(bridge, path)) return path;
-      const created = await bridge
-        .writeVaultDoc({ path, content: seedContent })
-        .then(() => true)
-        .catch(() => false);
-      if (!created) {
-        toast.error(`Couldn't create ${path}.`);
-        return null;
-      }
-      refreshList();
-      return path;
-    },
-    [refreshList],
-  );
-
-  const createFile = useCallback(
-    async (rawPath: string, content = "") => {
-      const path = await createFileAt(rawPath, content);
-      if (path !== null) openFile(path);
-    },
-    [createFileAt, openFile],
-  );
-
-  const renameEntry = useCallback(
-    async (from: string, to: string): Promise<boolean> => {
-      const dest = to.trim();
-      if (!dest || dest === from) return true; // nothing to do
-      const bridge = getBridge();
-      const wasOpen = openPathRef.current === from;
-      // Flush first so an in-flight write of `from` can't recreate it post-move.
-      if (wasOpen && !(await flushCurrent())) {
-        toast.error("Couldn't save the file — resolve that before renaming.");
-        return false;
-      }
-      // Dispose `from`'s runtime BEFORE the bridge call: the rename's
-      // vault-changed broadcast otherwise races the remap below — the old
-      // controller reloads the now-missing source path, lands on path: null,
-      // and the vanish watcher closes the very note we're carrying over.
-      if (wasOpen) disposeRuntime();
-      const result = await bridge.renameVaultEntry({ from, to: dest }).catch(() => null);
-      if (!result || !result.ok) {
-        toast.error(result?.ok === false ? result.error : "Couldn't rename the file.");
-        // The file never moved — re-attach a controller to the still-open note.
-        if (wasOpen && openPathRef.current === from) ensureRuntime(from);
-        return false;
-      }
-      refreshList();
-      // Carry the open note to the new path: a fresh controller reading the
-      // moved file (the old one was flushed + disposed above).
-      if (wasOpen && openPathRef.current === from) {
-        ensureRuntime(dest);
-        applyOpenPath(dest);
-      }
-      return true;
-    },
-    [applyOpenPath, disposeRuntime, ensureRuntime, flushCurrent, refreshList],
-  );
-
-  // Every delete answers the same way, whether or not the file is the one
-  // open. Surface the failure (siblings createFileAt/renameEntry toast theirs
-  // too) — a swallowed reject just silently reappears the row after
-  // refreshList. A HELD delete is not a failure and not a success: the file is
-  // still there on purpose, and the gate's own sentence says why.
-  const reportDeletion = useCallback((path: string, outcome: DeleteVaultEntryResult | null) => {
-    if (outcome === null) toast.error(`Couldn't delete ${path}.`);
-    else if (outcome.outcome === "held") toast.warning(heldDeletionMessage(outcome.held));
-  }, []);
-
-  const deleteEntry = useCallback(
-    async (path: string) => {
-      const runtime = runtimeRef.current;
-      if (runtime?.path === path) {
-        // The runtime clears its own buffer only when the file actually went;
-        // the explicit drop below is an idempotent backstop for the same
-        // condition, so a HELD delete leaves the note open over the file that
-        // is still there.
-        const outcome = await runtime.remove();
-        if (outcome !== null && outcome.outcome !== "held") dropNote(path);
-        reportDeletion(path, outcome);
-      } else {
-        const outcome = await getBridge()
-          .deleteVaultEntry({ path })
-          .catch(() => null);
-        reportDeletion(path, outcome);
-      }
-      refreshList();
-    },
-    [dropNote, refreshList, reportDeletion],
-  );
-
-  const refreshVault = useCallback(() => {
-    getBridge()
-      .refreshVault()
-      .catch(() => {});
-  }, []);
-
-  // The whole first paint in ONE invoke: the root, the listing, the persisted
-  // ui state and the open note's own bytes. The host resolves which note that
-  // is from ui-state, so the client never has to learn what it wants before it
-  // can ask for it.
   useEffect(() => {
-    void workspaceBoot()
-      .then((boot) => {
-        rootRef.current = boot.root;
-        setRoot(boot.root);
-        runtimeRef.current?.controller.setRoot(boot.root);
-        lastEntriesRef.current = boot.entries;
-        setEntries(boot.entries);
-        // Never over a note already open: the user (or a deep link) can beat
-        // the boot, and a runtime that exists is one somebody chose.
-        if (boot.openNote !== null && runtimeRef.current === null) {
-          ensureRuntime(boot.openNote.path, boot.openNote.content);
-          applyOpenPath(boot.openNote.path);
-        }
-        return undefined;
-      })
-      .catch(() => {
-        // The socket's supervisor reconnects and the next focus refresh
-        // re-lists; an empty sidebar is the honest interim state.
-      });
-  }, [applyOpenPath, ensureRuntime]);
+    void session.start();
+    return () => session.stop();
+  }, [session]);
 
-  // Live updates: hand a vault-changed broadcast to the open note's controller
-  // (reload or drop) and re-list the tree — but only when the change actually
-  // reached them. A real root switch drops the note: its relative path belongs
-  // to the old vault.
-  useEffect(() => {
-    return getBridge().onVaultChanged((event) => {
-      const nextRoot = event.root;
-      const switched = rootRef.current !== "" && nextRoot !== rootRef.current;
-      rootRef.current = nextRoot;
-      setRoot(nextRoot);
-      if (switched) {
-        disposeRuntime();
-        applyOpenPath(null);
-        refreshList();
-        return;
-      }
-      // The root is adopted either way; only the RELOAD is conditional.
-      runtimeRef.current?.controller.setRoot(nextRoot);
-      const open = openPathRef.current;
-      if (open !== null && vaultChangeTouches(event, open)) {
-        runtimeRef.current?.controller.externalChange(nextRoot);
-      }
-      // A write that only changed a file's CONTENT leaves every sidebar row
-      // identical, and re-listing anyway costs a round trip per autosave on
-      // every open client.
-      if (movesTheListing(event, lastEntriesRef.current)) refreshList();
-    });
-  }, [applyOpenPath, disposeRuntime, refreshList]);
+  // Live updates: the host is the vault's only writer and announces every
+  // change.
+  useEffect(
+    () => getBridge().onVaultChanged((event) => session.handleVaultChanged(event)),
+    [session],
+  );
 
-  // The host is the vault's only writer and broadcasts every change, so this is
-  // NOT polling — it is what repairs a MISSED broadcast. A socket that dropped
-  // while the agent was writing comes back to a listing nobody re-announced:
-  // reconnect hydration replays the event getters, not the vault. One debounced
-  // re-query per focus flurry closes that window and costs nothing otherwise.
+  // NOT polling — this is what repairs a MISSED broadcast. A socket that
+  // dropped while the agent was writing comes back to a listing nobody
+  // re-announced: reconnect hydration replays the event getters, not the vault.
+  // One debounced re-query per focus flurry closes that window and costs
+  // nothing otherwise.
   useEffect(() => {
-    const refresh = createDebouncer(refreshVault, FOCUS_REFRESH_DEBOUNCE_MS);
+    const refresh = createDebouncer(session.actions.refreshVault, FOCUS_REFRESH_DEBOUNCE_MS);
     const onFocus = () => refresh.schedule();
     window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("focus", onFocus);
       refresh.cancel();
     };
-  }, [refreshVault]);
-
-  // Persist on unmount so a change within the debounce window isn't lost, then
-  // tear the runtime down — the manual controller subscription + vanish watcher
-  // have no automatic teardown, so drop them explicitly (keeps StrictMode's
-  // mount/unmount/mount cycle leak-free).
-  useEffect(
-    () => () => {
-      void runtimeRef.current?.flush();
-      disposeRuntime();
-    },
-    [disposeRuntime],
-  );
+  }, [session]);
 
   // Deep-link captures (inteligir://append|task) targeting the OPEN note are
   // routed INTO the live buffer — a host disk write would be skipped by the
   // dirty reload guard and clobbered by the next whole-buffer autosave. Rich
   // mode inserts through the live Plate editor (serialize → editNote carries
-  // it); Raw mode appends via runtime.edit. Ack goes out only after a
-  // confirmed flush; anything else ("not-open", a failed flush) hands the
-  // entry back to the host's disk drain.
+  // it); Raw mode appends via the session's editNote. Ack goes out only after a
+  // confirmed flush; anything else ("not-open", a failed flush) hands the entry
+  // back to the host's disk drain.
   useEffect(() => {
     const bridge = getBridge();
     const applier = createCaptureApplier({
-      openPath: () => openPathRef.current,
+      openPath: () => openNoteState().openPath,
       liveEditor: getLiveEditor,
       hasTransients: (editor) => hasTransientSuggestions(editor) || hasTransientAiState(editor),
       insertLine: insertCaptureLine,
       bufferContent: () => {
         // Loaded content only: while the controller is still reading the file
-        // (state.path === null) an edit would no-op and a clean flush would
-        // ack "applied" without persisting — report no buffer instead, so the
+        // (path === null) an edit would no-op and a clean flush would ack
+        // "applied" without persisting — report no buffer instead, so the
         // host's disk drain takes the capture and the reload shows it.
-        const state = runtimeRef.current?.controller.getState();
-        return state !== undefined && state.path !== null ? state.content : null;
+        const { editor } = openNoteState();
+        return editor.path === null ? null : editor.content;
       },
-      editBuffer: editNote,
-      flush: flushCurrent,
+      editBuffer: session.actions.editNote,
+      flush: session.actions.flush,
       ack: (id, outcome) => {
         bridge.ackCapture({ id, outcome }).catch(() => {});
       },
@@ -490,43 +147,44 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       applier.dispose();
       unsubscribe();
     };
-  }, [editNote, flushCurrent]);
+  }, [session]);
 
-  // Expose the flush + open-note path to non-React callers (the voice transcript
-  // path) so a dictated turn persists the open note AND tags the agent with which
-  // file "this note" means — same as the typed composer. The path getter reads
-  // the live runtime, so it stays correct without re-registering per open.
+  // Expose the flush + open-note path to non-React callers (the voice
+  // transcript path) so a dictated turn persists the open note AND tags the
+  // agent with which file "this note" means — same as the typed composer. The
+  // getters read the published state, so they stay correct without
+  // re-registering per open.
   useEffect(() => {
-    registerOpenNoteFlush(flushCurrent);
-    registerOpenNotePath(() => runtimeRef.current?.controller.getState().path ?? null);
+    registerOpenNoteFlush(session.actions.flush);
+    registerOpenNotePath(() => openNoteState().editor.path);
     // AI-path privacy read (fail-closed: indeterminate counts as private) —
     // agent-store omits the note-context hint for a private note. Reads the
     // live buffer, not the saved file, so a just-typed `private: true` is
     // honored on the very next send, and the buffer is the ONLY gate: this is a
     // leak-prevention gesture on the client, not a boundary the host enforces.
     registerOpenNotePrivacy(() => {
-      const state = runtimeRef.current?.controller.getState();
-      if (!state || state.path === null) return true; // no note → nothing to attach anyway
-      return notePrivacy(state.content) !== "public";
+      const { editor } = openNoteState();
+      if (editor.path === null) return true; // no note → nothing to attach anyway
+      return notePrivacy(editor.content) !== "public";
     });
     return () => {
       registerOpenNoteFlush(null);
       registerOpenNotePath(null);
       registerOpenNotePrivacy(null);
     };
-  }, [flushCurrent]);
+  }, [session]);
 
   const folderName = useMemo(() => {
     const cleaned = root.replace(/[/\\]+$/, "");
     return cleaned.split(/[/\\]/).pop() ?? cleaned;
   }, [root]);
 
-  // Alias entries for the local resolver: the host's knowledge index owns
-  // alias extraction; the client pulls WikiTargets (path + aliases) over
-  // the Bridge so chips, transclusion, and autocomplete resolve `[[alias]]`
-  // exactly like backlinks do. Refreshed with every listing refresh and on
-  // knowledge updates — the index lags saves ~100-300ms, so a just-added
-  // alias resolves slightly late (same as the backlinks panel).
+  // Alias entries for the local resolver: the host's knowledge index owns alias
+  // extraction; the client pulls WikiTargets (path + aliases) over the Bridge
+  // so chips, transclusion, and autocomplete resolve `[[alias]]` exactly like
+  // backlinks do. Refreshed on knowledge updates — the index lags saves
+  // ~100-300ms, so a just-added alias resolves slightly late (same as the
+  // backlinks panel).
   const [wikiTargets, setWikiTargets] = useState<WikiTarget[]>([]);
   const refreshWikiTargets = useCallback(() => {
     getBridge()
@@ -548,9 +206,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     return getBridge().onKnowledgeUpdated(() => refreshWikiTargets());
   }, [refreshWikiTargets]);
 
-  // Wiki resolution over the live listing — same engine as the host's index,
-  // so chips and the knowledge channels agree on what resolves. The listing
-  // stays the path authority (aliases only fill the below-path tiers).
+  // Wiki resolution over the live listing — same engine as the host's index, so
+  // chips and the knowledge channels agree on what resolves. The listing stays
+  // the path authority (aliases only fill the below-path tiers).
   const resolver = useMemo(() => {
     const aliasEntries: Array<readonly [string, string]> = [];
     for (const target of wikiTargets) {
@@ -566,43 +224,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [resolver],
   );
 
-  // Stable for the provider's lifetime — every dep is a stable callback.
-  const actions = useMemo<VaultActions>(
-    () => ({
-      openFile,
-      editNote,
-      registerNoteSerializeFlush,
-      createFile,
-      createFileAt,
-      renameEntry,
-      deleteEntry,
-      flush: flushCurrent,
-      refreshVault,
-      setMode: setOpenNoteMode,
-      showHtmlAsText: showOpenHtmlAsText,
-      showHtmlAsApp: showOpenHtmlAsApp,
-    }),
-    [
-      openFile,
-      editNote,
-      registerNoteSerializeFlush,
-      createFile,
-      createFileAt,
-      renameEntry,
-      deleteEntry,
-      flushCurrent,
-      refreshVault,
-    ],
-  );
-
   const listing = useMemo<VaultListing>(
     () => ({ entries, folderName, resolveWikiTarget }),
     [entries, folderName, resolveWikiTarget],
   );
 
   const host = useMemo<EditorHost>(
-    () => ({ actions, listing, ConnectionsPanel }),
-    [actions, listing],
+    () => ({ actions: session.actions, listing, ConnectionsPanel }),
+    [session, listing],
   );
 
   return <EditorHostProvider host={host}>{children}</EditorHostProvider>;

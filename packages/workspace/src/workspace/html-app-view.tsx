@@ -26,7 +26,7 @@ import { vaultChangeTouches } from "@repo/bridge/vault";
 import { handleBrokerRequest } from "@repo/workspace/workspace/html-app-broker";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { htmlAppRuntime } from "@repo/workspace/workspace/html-app-host";
-import { useOpenNote } from "@repo/editor/note/open-note-store";
+import { showOpenHtmlAsText, useOpenNote } from "@repo/editor/note/open-note-store";
 import { useVaultActions } from "@repo/editor/host";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
@@ -44,7 +44,7 @@ const RequestEnvelope = Type.Object(
 );
 
 export function HtmlAppView() {
-  const { openFile, showHtmlAsText } = useVaultActions();
+  const { openFile } = useVaultActions();
   const openPath = useOpenNote((s) => openDocPath(s.openDoc));
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [src, setSrc] = useState<string | null>(null);
@@ -180,7 +180,7 @@ export function HtmlAppView() {
             size="sm"
             variant="outline"
             className="h-6 gap-1 px-2 text-xs"
-            onClick={showHtmlAsText}
+            onClick={showOpenHtmlAsText}
           >
             <FileTextIcon className="size-3" />
             Open as text

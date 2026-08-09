@@ -5,8 +5,9 @@
 // MODULE scope would be catastrophic in a Worker isolate: one isolate serves
 // many tenants' objects, so a module-level buffer would stream one user's note
 // text into another user's headphones. Everything here is instance state,
-// constructed with the object it belongs to — the same rule ../host/host-events
-// states for the event bus, restated because this one carries note CONTENT.
+// constructed with the object it belongs to — the same rule
+// ../host/host-composition states for every part of a host, restated because
+// this one carries note CONTENT.
 //
 // ONE REQUEST PER CHUNK, not a persistent upstream. A Durable Object holding a
 // long-lived WebSocket to ElevenLabs would be pinned for the whole conversation

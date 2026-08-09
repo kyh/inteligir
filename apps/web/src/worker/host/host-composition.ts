@@ -12,6 +12,7 @@
 // fan one user's events onto another user's sockets.
 // ---------------------------------------------------------------------------
 
+import type { IpcEmit } from "@repo/bridge/ipc-contract";
 import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 
 import { composeAgent, type AgentComposition } from "../agent/agent-composition";
@@ -23,7 +24,6 @@ import { composeVoice, type VoiceComposition } from "../voice/voice-composition"
 import { resolveDailyNotePath } from "./daily-note";
 import { collectHandlers, type HostHandlers } from "./handler-registry";
 import { cloudAppState, registerCloudHandlers } from "./handlers";
-import type { HostEvents } from "./host-events";
 import { HostLimits } from "./host-limits";
 import { userIdFromHostName } from "./host-address";
 import { UserKnowledge } from "./knowledge/user-knowledge";
@@ -40,9 +40,11 @@ const LAST_ORIGIN_KEY = "host/last-origin";
 export type HostCompositionDeps = {
   readonly env: Env;
   readonly ctx: DurableObjectState;
-  /** This host's event bus. Passed in rather than built here because the object
-   * subscribes the fan-out to it before anything can emit. */
-  readonly events: HostEvents;
+  /** Announce one event to this user's own sockets. Every part composed here
+   * that has something to say says it through this, and the object binds it to
+   * the gate that decides which sockets may hear it (./socket-gate) — so there
+   * is no bus in between and nothing else can subscribe to one user's events. */
+  readonly emit: IpcEmit;
   /** A deadline this host must wake for may have moved — a mutation armed the
    * retention sweep, a routine's schedule changed, indexing work is left over.
    * The object re-derives its ONE alarm from every concern (./host-alarm). */
@@ -99,7 +101,7 @@ export type HostComposition = {
 };
 
 export function composeHost(deps: HostCompositionDeps): HostComposition {
-  const { env, ctx, events } = deps;
+  const { env, ctx, emit } = deps;
   const kv = ctx.storage.kv;
   // An object addressed by id rather than by name can never authenticate (the
   // bind check compares against `userHostName`), so it can never write — the
@@ -127,7 +129,7 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     storage: ctx.storage,
     vault,
     onUpdated: () => {
-      events.emit("onKnowledgeUpdated", {});
+      emit("onKnowledgeUpdated", {});
     },
     // An index rebuild too large for one pass is a deadline like any other:
     // the object must come back for the next slice on its own.
@@ -153,25 +155,25 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     dailyPath,
     publicOrigin,
     emitAgentEvent: (event) => {
-      events.emit("onAgentEvent", event);
+      emit("onAgentEvent", event);
     },
     emitConfirmation: (request) => {
-      events.emit("onAgentConfirmationRequested", request);
+      emit("onAgentConfirmationRequested", request);
     },
     emitDelegations: (result) => {
-      events.emit("onDelegationsUpdated", result);
+      emit("onDelegationsUpdated", result);
     },
     emitDelegationStream: (id, text) => {
-      events.emit("onDelegationStreamed", { id, text });
+      emit("onDelegationStreamed", { id, text });
     },
     emitRoutines: (result) => {
-      events.emit("onRoutinesUpdated", result);
+      emit("onRoutinesUpdated", result);
     },
     emitEditCaptured: (capture) => {
-      events.emit("onAgentEditCaptured", capture);
+      emit("onAgentEditCaptured", capture);
     },
     onBusyChanged: () => {
-      events.emit("onAppState", cloudAppState(agent.runner.agentBusy()));
+      emit("onAppState", cloudAppState(agent.runner.agentBusy()));
     },
     // A routine's schedule moved, or a background run took the lane and with it
     // a lease to reclaim.
@@ -193,7 +195,7 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     // wakes after a browser edit materializes the delta rather than the note it
     // last saw.
     agent.revisions.record(change);
-    events.emit("onVaultChanged", {
+    emit("onVaultChanged", {
       root: VAULT_ROOT,
       // An EMPTY change is `refresh()`'s own announcement: it asserts nothing
       // about the manifest, so every client re-reads. Every real mutation names
@@ -216,7 +218,7 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     // and a method-shaped reference to it throws on call.
     fetch: (input, init) => fetch(input, init),
     emitDelta: (requestId, delta) => {
-      events.emit("onAiStreamed", { requestId, delta });
+      emit("onAiStreamed", { requestId, delta });
     },
   });
 
@@ -232,10 +234,10 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
       // this returns.
       const audio = new ArrayBuffer(pcm.byteLength);
       new Uint8Array(audio).set(pcm);
-      events.emit("onTtsAudio", { audio });
+      emit("onTtsAudio", { audio });
     },
     emitTranscript: (transcript) => {
-      events.emit("onSttTranscript", transcript);
+      emit("onSttTranscript", transcript);
     },
     defer: (work) => {
       ctx.waitUntil(work);
@@ -247,7 +249,7 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     vault,
     dailyPath,
     onApply: (event) => {
-      events.emit("onCaptureApply", event);
+      emit("onCaptureApply", event);
     },
     now: () => Date.now(),
   });
@@ -255,7 +257,7 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     kv,
     inbox: captureInbox,
     onNav: (event) => {
-      events.emit("onDeepLinkNav", event);
+      emit("onDeepLinkNav", event);
     },
   });
 
@@ -263,13 +265,13 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     const snapshot = providerSettings(env, agent.credentials.selection(), (provider) =>
       agent.credentials.connected(provider),
     );
-    if (snapshot !== null) events.emit("onAiProviderChanged", snapshot);
+    if (snapshot !== null) emit("onAiProviderChanged", snapshot);
   };
 
   const handlers = collectHandlers((handle) => {
     registerCloudHandlers(handle, {
       stores,
-      events,
+      emit,
       vault,
       knowledge,
       agent: {

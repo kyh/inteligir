@@ -23,7 +23,6 @@ import { logUnhandled, logUnhandledCallback } from "../log";
 import { handleAssetUpload } from "./asset-route";
 import { HostAlarm, type AlarmConcern } from "./host-alarm";
 import { composeHost, type HostComposition } from "./host-composition";
-import { HostEvents } from "./host-events";
 import { purgeR2Prefix } from "./vault/r2-prefix";
 import { handleVaultExport } from "./vault-export";
 import { INDEX_CONTINUATION_MS, type UserKnowledge } from "./knowledge/user-knowledge";
@@ -107,10 +106,6 @@ const WS_CLOSE_INTERNAL_ERROR = 1011;
 const WS_CLOSE_SERVICE_RESTART = 1012;
 
 export class UserHost extends DurableObject<Env> {
-  /** Per-INSTANCE, never module scope: one isolate serves many tenants' hosts
-   * (see ./host-events). */
-  private readonly events = new HostEvents();
-
   /** This user's whole wiring graph, built in one place (./host-composition). */
   private readonly host: HostComposition;
 
@@ -153,9 +148,12 @@ export class UserHost extends DurableObject<Env> {
     this.host = composeHost({
       env,
       ctx,
-      events: this.events,
-      // Reads `this.alarms` lazily, which is assigned below and long before
-      // anything can serve a request that moves a deadline.
+      // Both read a field assigned below, lazily — and both are only ever
+      // called by something serving a request, which cannot happen until this
+      // constructor has returned.
+      emit: (method, payload) => {
+        this.gate.broadcast(method, payload);
+      },
       onDeadlineChanged: () => this.alarms.markDirty(),
     });
     this.vault = this.host.vault;
@@ -173,9 +171,6 @@ export class UserHost extends DurableObject<Env> {
       storage: ctx.storage,
       now: () => Date.now(),
       concerns: this.alarmConcerns(),
-    });
-    this.events.onAny((method, payload) => {
-      this.gate.broadcast(method, payload);
     });
   }
 

@@ -70,3 +70,9 @@ export type IpcHandler<K extends IpcMethod> =
 
 /** Map a method name to its broadcast event payload. */
 export type IpcEvent<K extends IpcMethod> = IpcRegistry[K] extends Event<infer V> ? V : never;
+
+/** Push one event-kind registry entry. The payload type is resolved from the
+ * registry, so a renamed event channel is a compile error at the emit site —
+ * which is only worth anything if the same signature holds all the way to
+ * whatever writes the frame. */
+export type IpcEmit = <K extends EventMethod>(method: K, payload: IpcEvent<K>) => void;

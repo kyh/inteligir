@@ -17,18 +17,23 @@ import { describe, expect, it } from "vitest";
 
 import type { AppAgentEvent } from "@repo/bridge/agent-events";
 import type { FauxAgentScript } from "@repo/bridge/agent-script";
+import { parseServerFrame } from "@repo/bridge/ws-protocol";
 import { CONTAINER_REFUSAL } from "@repo/agent-container/protocol";
 
 import type { FakeSandbox } from "../agent/fake-sandbox";
 import type { UserHost } from "../host/user-host";
 import { userHostName } from "../host/host-address";
+import { authedState, writeSocketState } from "../host/socket-state";
 import { SANDBOX_PROVIDER_ID } from "../agent/provider-catalog";
 
 /** A fresh host object per case — the vault manifest, the transcript and the
  * scripted container all live in one object's storage. */
-function withHost<T>(name: string, run: (host: UserHost) => Promise<T> | T): Promise<T> {
+function withHost<T>(
+  name: string,
+  run: (host: UserHost, ctx: DurableObjectState) => Promise<T> | T,
+): Promise<T> {
   const stub = env.UserHost.getByName(userHostName(name));
-  return runInDurableObject(stub, (host) => run(host));
+  return runInDurableObject(stub, (host, ctx) => run(host, ctx));
 }
 
 /** Select the credential-free provider: no account, no OAuth app, no
@@ -83,16 +88,12 @@ describe("an agent turn", () => {
   });
 
   it("broadcasts every agent event it records", async () => {
-    const seen = await withHost("turn-events", async (host) => {
-      const events: AppAgentEvent[] = [];
+    const seen = await withHost("turn-events", async (host, ctx) => {
       connect(host);
-      // The object's own bus is what a socket subscribes to, so listening here
-      // is listening to exactly what a client would receive.
-      const off = onAgentEvents(host, (event) => events.push(event));
+      const client = attachClient(ctx);
       await host.agent.runner.send({ type: "user_message", text: "ping" });
       await settle();
-      off();
-      return events.map((event) => event.type);
+      return client.agentEvents().map((event) => event.type);
     });
     expect(seen).toContain("agent_start");
     expect(seen).toContain("message_end");
@@ -158,13 +159,10 @@ describe("an agent turn", () => {
   // report writes nothing (no background run holds the lane), records nothing
   // in the conversation, and captures nothing under the chat undo surface.
   it("carries one turn from dispatch through the vault of record to the sockets", async () => {
-    const outcome = await withHost("turn-round-trip", async (host) => {
+    const outcome = await withHost("turn-round-trip", async (host, ctx) => {
       await host.vault.writeText("notes/searchable.md", "# Findable\n\nunmistakable-token\n");
-      const events: AppAgentEvent[] = [];
-      const broadcast: string[] = [];
       connect(host);
-      const offEvents = onAgentEvents(host, (event) => events.push(event));
-      const offBroadcast = collectBroadcast(host, broadcast);
+      const client = attachClient(ctx);
       scriptedPort(host).setScript({
         steps: [
           {
@@ -177,8 +175,7 @@ describe("an agent turn", () => {
 
       await host.agent.runner.send({ type: "user_message", text: "note what you find" });
       await settle();
-      offEvents();
-      offBroadcast();
+      const events = client.agentEvents();
       return {
         events: events.map((event) => event.type),
         toolResult: events.find((event) => event.type === "tool_execution_end"),
@@ -189,7 +186,7 @@ describe("an agent turn", () => {
         container: await scriptedPort(host).state(),
         revision: host.agent.revisions.current(),
         notice: scriptedPort(host).lastVaultNotice(),
-        broadcast: [...new Set(broadcast)].toSorted(),
+        broadcast: [...new Set(client.channels())].toSorted(),
         busy: host.agent.runner.agentBusy(),
       };
     });
@@ -263,10 +260,9 @@ describe("an agent turn", () => {
   // already running and keep reporting under ITS id. A container that refused
   // every concurrent dispatch made that unreachable from a test.
   it("folds a steer into the turn already running", async () => {
-    const turn = await withHost("turn-steer", async (host) => {
-      const events: AppAgentEvent[] = [];
+    const turn = await withHost("turn-steer", async (host, ctx) => {
       connect(host);
-      const off = onAgentEvents(host, (event) => events.push(event));
+      const client = attachClient(ctx);
       scriptedPort(host).setScript({ steps: [{ text: "first" }, { text: "and second" }] });
 
       await host.agent.runner.send({ type: "user_message", text: "start" });
@@ -278,7 +274,7 @@ describe("an agent turn", () => {
       const busyMidTurn = midTurn.phase === "ready" && midTurn.busy;
       await host.agent.runner.send({ type: "steer", text: "and this too" });
       await settle();
-      off();
+      const events = client.agentEvents();
       return {
         busyMidTurn,
         starts: events.filter((event) => event.type === "agent_start").length,
@@ -324,36 +320,39 @@ describe("an agent turn", () => {
   });
 });
 
-/** Subscribe to the object's own event bus. Reaches through the host because
- * the bus is per-instance by design — a module-level one would fan a user's
- * events out to every other user's sockets. */
-function onAgentEvents(host: UserHost, listener: (event: AppAgentEvent) => void): () => void {
-  return hostEvents(host).onAny((method, payload) => {
-    if (method === "onAgentEvent" && isAgentEvent(payload)) listener(payload);
-  });
-}
-
-/** Every channel this object pushed, in order — the fan-out a socket sees. */
-function collectBroadcast(host: UserHost, into: string[]): () => void {
-  return hostEvents(host).onAny((method) => into.push(method));
-}
-
-function hostEvents(host: UserHost): {
-  onAny(listener: (method: string, payload: unknown) => void): () => void;
+/**
+ * An authenticated socket on this object, and what it was pushed.
+ *
+ * There is no seam to subscribe to instead, and that is deliberate: the object
+ * announces straight into the capability gate, which writes frames to the
+ * sockets `ctx.getWebSockets()` holds. So a listener IS a socket — accepted the
+ * way the upgrade accepts one, with the attachment a spent ticket would have
+ * written — and every assertion below is on bytes that crossed the gate.
+ */
+function attachClient(ctx: DurableObjectState): {
+  channels: () => string[];
+  agentEvents: () => AppAgentEvent[];
 } {
-  // The bus is private to the object; the composition hands the runner an
-  // emitter over it, and this is the same subscription a socket makes.
-  const candidate: unknown = Reflect.get(host, "events");
-  if (
-    typeof candidate === "object" &&
-    candidate !== null &&
-    "onAny" in candidate &&
-    typeof candidate.onAny === "function"
-  ) {
-    const onAny = candidate.onAny.bind(candidate);
-    return { onAny: (listener) => onAny(listener) };
-  }
-  throw new Error("the host's event bus is not reachable");
+  const pair = new WebSocketPair();
+  const [client, server] = [pair[0], pair[1]];
+  ctx.acceptWebSocket(server, ["v1"]);
+  writeSocketState(server, authedState("web", Date.now()));
+  const pushed: Array<{ method: string; payload: unknown }> = [];
+  client.accept();
+  client.addEventListener("message", (event) => {
+    if (typeof event.data !== "string") return;
+    const frame = parseServerFrame(event.data);
+    if (frame !== null && frame.t === "evt") {
+      pushed.push({ method: frame.method, payload: frame.payload });
+    }
+  });
+  return {
+    channels: () => pushed.map((frame) => frame.method),
+    agentEvents: () =>
+      pushed.flatMap((frame) =>
+        frame.method === "onAgentEvent" && isAgentEvent(frame.payload) ? [frame.payload] : [],
+      ),
+  };
 }
 
 function isAgentEvent(payload: unknown): payload is AppAgentEvent {

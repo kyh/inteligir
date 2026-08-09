@@ -20,7 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { binaryChannelFor, HYDRATED_EVENTS } from "@repo/bridge/channel-policy";
-import type { EventMethod } from "@repo/bridge/ipc-contract";
+import type { EventMethod, IpcEvent } from "@repo/bridge/ipc-contract";
 import { isRecord } from "@repo/bridge/wire-helpers";
 import { encodeBinaryFrame, encodeFrame } from "@repo/bridge/ws-protocol";
 
@@ -92,8 +92,11 @@ export class SocketGate {
     return { ok: true, handler };
   }
 
-  /** Push one event to every authenticated socket its class admits it to. */
-  broadcast(method: EventMethod, payload: unknown): void {
+  /** Push one event to every authenticated socket its class admits it to. This
+   * IS the host's `IpcEmit`: everything that announces something calls it, so
+   * the registry's payload type is checked at the announcement rather than
+   * widened to `unknown` on the way here. */
+  broadcast<K extends EventMethod>(method: K, payload: IpcEvent<K>): void {
     // Encoded ONCE and fanned out: a broadcast is the same bytes on every
     // socket.
     const frame = this.encode(method, payload);
@@ -142,7 +145,10 @@ export class SocketGate {
   }
 
   /** One event as the bytes it crosses as, or null when a registry-declared
-   * binary channel was handed something that is not a buffer. */
+   * binary channel was handed something that is not a buffer. `broadcast` is
+   * typed against the registry and cannot produce that; `hydrate` resolves a
+   * getter host-side and gets back an `unknown`, which is the payload this
+   * refusal is for. */
   private encode(method: string, payload: unknown): string | ArrayBufferView | null {
     // Registry-declared binary channels cross as [tag][bytes] instead of JSON;
     // the client reconstitutes the payload from the same declaration.
