@@ -12,8 +12,10 @@
 // machinery to write.
 // ---------------------------------------------------------------------------
 
-import type { ExtractedLink, ExtractedTask } from "./link-extract";
+import type { ExtractedLink } from "./link-extract";
 import { scanDoc, titleFromPath } from "./link-extract";
+import { splitLines } from "./source-lines";
+import type { ExtractedTask } from "./task-ordinal";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
@@ -52,7 +54,7 @@ export type DocProjection = {
 /** Parse a doc once into its projection. Pure: same bytes, same output. */
 export function projectDoc(path: string, content: string): DocProjection {
   const scan = scanDoc(content);
-  const lines = content.split(/\r\n|\r|\n/);
+  const lines = splitLines(content);
   const links = scan.links.map(
     (link): StoredLink => ({ ...link, snippet: clipSnippet((lines[link.line - 1] ?? "").trim()) }),
   );

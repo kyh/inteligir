@@ -36,7 +36,8 @@ export const LinkGraphBoundsSchema = Type.Object(
 export const ToggleTaskSchema = Type.Object(
   {
     path: Type.String(),
-    /** Position among the file's GFM task items (find-task-line's counting). */
+    /** Position among the file's GFM task items (@repo/notes' task-ordinal
+     * counting). */
     ordinal: Type.Number({ minimum: 0 }),
     /** The task's exact untrimmed source line (terminator excluded) as the
      * projection recorded it — the write proceeds only on byte equality. */

@@ -29,6 +29,7 @@ import type {
 } from "./link-graph-index";
 import { titleFromPath } from "./link-extract";
 import { clipSnippet, projectDoc } from "./projection";
+import { splitLines } from "./source-lines";
 import { relatedNotes, type RelatedNoteEntry, type RelatedNotesOpts } from "./related-notes";
 import { SearchIndex, tokenize } from "./search-index";
 import type { TagCount } from "./tag-index";
@@ -47,7 +48,7 @@ export class KnowledgeIndex {
   /** Index (or re-index) a markdown doc. */
   setDoc(path: string, content: string): void {
     const projection = projectDoc(path, content);
-    this.lines.set(path, content.split(/\r\n|\r|\n/));
+    this.lines.set(path, splitLines(content));
     this.linkGraph.applyDoc(path, projection);
     this.searchIndex.set(path, {
       title: projection.title,

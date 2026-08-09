@@ -37,6 +37,7 @@ import { readVaultReply } from "@repo/agent-container/vault-report";
 
 import type {
   SandboxBoot,
+  SandboxDispatch,
   SandboxOutcome,
   SandboxPort,
   SandboxReportSink,
@@ -70,7 +71,9 @@ export class FakeSandbox implements SandboxPort {
   private booted: SandboxBoot | null = null;
   private vaultRevision = 0;
   private seeded = false;
-  private busy = false;
+  /** The turn in flight, or null — the daemon's own shape, so "which turn does
+   * a folded message report under" is answerable here for the same reason. */
+  private activeTurn: string | null = null;
   private interrupted = false;
   /** The files the scripted container "holds" — kept so a test can assert what
    * materialization actually pushed, which is the half of the vault story the
@@ -122,7 +125,7 @@ export class FakeSandbox implements SandboxPort {
       bootId: this.booted.bootId,
       vaultRevision: this.vaultRevision,
       seeded: this.seeded,
-      busy: this.busy,
+      busy: this.activeTurn !== null,
     });
   }
 
@@ -149,11 +152,12 @@ export class FakeSandbox implements SandboxPort {
     return Promise.resolve({ ok: true });
   }
 
-  dispatch(turn: SandboxTurn): Promise<SandboxOutcome> {
+  dispatch(turn: SandboxTurn): Promise<SandboxDispatch> {
     if (this.booted === null) {
       return Promise.resolve({ ok: false, error: CONTAINER_REFUSAL.notBooted });
     }
-    if (this.busy) {
+    const running = this.activeTurn;
+    if (running !== null) {
       // The daemon's own rule: a steer or a follow-up folds into the loop that
       // is already running, and a second `user_message` is a second turn, of
       // which there is only ever one. The refusal comes from the contract both
@@ -162,9 +166,10 @@ export class FakeSandbox implements SandboxPort {
         return Promise.resolve({ ok: false, error: CONTAINER_REFUSAL.turnInFlight });
       }
       this.queued.push(turn);
-      return Promise.resolve({ ok: true });
+      // Folded, so the RUNNING turn's id is what the reports will carry.
+      return Promise.resolve({ ok: true, turnId: running });
     }
-    this.busy = true;
+    this.activeTurn = turn.turnId;
     this.interrupted = false;
     // The scripted session takes every prompt, so it holds the conversation
     // from this turn on — the same thing the image reads off pi's preflight.
@@ -173,7 +178,7 @@ export class FakeSandbox implements SandboxPort {
     // has to honour, so the fake honours it too — a fake that ran the turn
     // inline would let a caller await something production never awaits.
     this.deps.defer(this.runTurn(turn));
-    return Promise.resolve({ ok: true });
+    return Promise.resolve({ ok: true, turnId: turn.turnId });
   }
 
   interrupt(): Promise<SandboxOutcome> {
@@ -185,7 +190,7 @@ export class FakeSandbox implements SandboxPort {
     this.booted = null;
     this.files.clear();
     this.push = null;
-    this.busy = false;
+    this.activeTurn = null;
     this.seeded = false;
     this.queued = [];
     return Promise.resolve();
@@ -218,7 +223,7 @@ export class FakeSandbox implements SandboxPort {
       failure = error instanceof Error ? error.message : String(error);
     }
     this.queued = [];
-    this.busy = false;
+    this.activeTurn = null;
     await this.send({ kind: "turn_end", turnId: turn.turnId, error: failure });
   }
 

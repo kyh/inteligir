@@ -39,7 +39,7 @@ import {
   type RestoreSnapshotResult,
 } from "@repo/bridge/delegation";
 import { readJson, toErrorMessage } from "@repo/bridge/wire-helpers";
-import { findTaskLine } from "@repo/notes/knowledge/find-task-line";
+import { resolveTaskAnchor, type TaskLookupRefusal } from "@repo/notes/knowledge/task-ordinal";
 import { Value } from "@sinclair/typebox/value";
 
 import type { AgentSnapshots } from "../agent/agent-snapshots";
@@ -57,6 +57,20 @@ const MAX_DELEGATIONS = 200;
 
 /** Longest result summary kept on the record. */
 const SUMMARY_LEN = 200;
+
+/** Why the anchor yielded nothing to delegate, as the user reads it. Two
+ * causes, two sentences: an ordinal that names no task means the file moved
+ * under them, while one that names a finished task means there is nothing left
+ * to hand over — and telling them the checkbox vanished would send them looking
+ * for a line that is still on screen. */
+function anchorRefusal(reason: TaskLookupRefusal): string {
+  switch (reason) {
+    case "no-such-task":
+      return "That checkbox is no longer in the file — save your edits first.";
+    case "already-done":
+      return "That checkbox is already ticked, so there is nothing to delegate.";
+  }
+}
 
 type DelegationRow = {
   readonly id: string;
@@ -150,19 +164,15 @@ export class Delegations {
     } catch (error) {
       return { ok: false, error: `Couldn't read ${params.sourceFile}: ${toErrorMessage(error)}` };
     }
-    const match = findTaskLine(raw, params.ordinal);
-    if (match === null) {
-      return {
-        ok: false,
-        error: "That checkbox is no longer in the file — save your edits first.",
-      };
-    }
+    const found = resolveTaskAnchor(raw, params.ordinal);
+    if (!found.ok) return { ok: false, error: anchorRefusal(found.reason) };
+    const anchor = found.anchor;
 
     const delegation: Delegation = {
       id: crypto.randomUUID(),
       sourceFile: params.sourceFile,
-      anchor: { ordinal: params.ordinal, text: match.text, heading: match.heading },
-      lineText: match.lineText.trim(),
+      anchor: { ordinal: params.ordinal, text: anchor.text, heading: anchor.heading },
+      lineText: anchor.lineText.trim(),
       status: "queued",
       createdAt: Date.now(),
       startedAt: null,
@@ -343,9 +353,9 @@ export class Delegations {
         error: `Couldn't read ${delegation.sourceFile}: ${toErrorMessage(error)}`,
       };
     }
-    const match = findTaskLine(raw, delegation.anchor.ordinal);
-    if (match === null) return { ok: false, error: "That checkbox is no longer in the file." };
-    if (match.text !== delegation.anchor.text) {
+    const found = resolveTaskAnchor(raw, delegation.anchor.ordinal);
+    if (!found.ok) return { ok: false, error: anchorRefusal(found.reason) };
+    if (found.anchor.text !== delegation.anchor.text) {
       return {
         ok: false,
         error: "The note changed since you delegated this — re-delegate the task.",
@@ -355,8 +365,8 @@ export class Delegations {
     // is the guard bytes any later host-side write-back would quote.
     const fresh: Delegation = {
       ...delegation,
-      lineText: match.lineText,
-      anchor: { ...delegation.anchor, heading: match.heading },
+      lineText: found.anchor.lineText,
+      anchor: { ...delegation.anchor, heading: found.anchor.heading },
     };
     if (
       fresh.lineText !== delegation.lineText ||

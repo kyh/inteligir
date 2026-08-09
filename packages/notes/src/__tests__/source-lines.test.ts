@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  replaceLineGuarded,
-  toggleCheckboxLine,
-  toggleTaskAtOrdinal,
-} from "../knowledge/guarded-line-edit";
+import { replaceLineGuarded, splitLines, toggleCheckboxLine } from "../knowledge/source-lines";
 
 const LF_DOC = ["# Title", "", "- [ ] task one", "- [x] task two", ""].join("\n");
 
@@ -127,81 +123,36 @@ describe("toggleCheckboxLine", () => {
   });
 });
 
-describe("toggleTaskAtOrdinal", () => {
-  const DOC = [
-    "---",
-    "title: has frontmatter",
-    "---",
+// THE reason both readings live in one module. `splitLines` reads a line as a
+// value and the guarded write reads it as a span; every byte-exact edit in the
+// product rides on the two naming the same bytes. Drive it over the EOL flavors
+// that actually break: CRLF, a bare CR, a mix, no trailing terminator, and a
+// trailing one (which yields a final empty line by contract).
+describe("splitLines ↔ the guarded write's own reading", () => {
+  const DOCS = [
+    "a\nb\nc",
+    "a\r\nb\r\nc\r\n",
+    "a\rb\rc",
+    "a\r\nb\rc\nd",
     "",
-    "- [ ] review PR", //   ordinal 0
-    "",
-    "## Later",
-    "",
-    "- [ ] review PR", //   ordinal 1 — byte-identical duplicate
-    "- [x] shipped", //     ordinal 2
-  ].join("\n");
+    "\n",
+    "only",
+    "trailing\n",
+  ];
 
-  it("locates by ordinal, so duplicate identical lines can't steal the write", () => {
-    const result = toggleTaskAtOrdinal(DOC, 1, "- [ ] review PR");
-    if (!result.ok) throw new Error("toggle failed");
-    const lines = result.content.split("\n");
-    expect(lines[4]).toBe("- [ ] review PR"); // ordinal 0 untouched
-    expect(lines[8]).toBe("- [x] review PR"); // ordinal 1 flipped
-  });
-
-  it("survives lines shifting above the task (content-addressed, not line-addressed)", () => {
-    const shifted = `inserted paragraph\n\n${DOC.slice(DOC.indexOf("- [ ] review PR"))}`;
-    const result = toggleTaskAtOrdinal(shifted, 1, "- [ ] review PR");
-    if (!result.ok) throw new Error("toggle failed");
-    expect(result.content).toContain("## Later\n\n- [x] review PR");
-  });
-
-  it("refuses when the ordinal-th task's text drifted (line-changed)", () => {
-    expect(toggleTaskAtOrdinal(DOC, 0, "- [ ] review PR again")).toEqual({
-      ok: false,
-      reason: "line-changed",
-    });
-  });
-
-  it("refuses a vanished ordinal (line-missing)", () => {
-    expect(toggleTaskAtOrdinal(DOC, 5, "- [ ] review PR")).toEqual({
-      ok: false,
-      reason: "line-missing",
-    });
-  });
-
-  it("unchecks a checked task by ordinal", () => {
-    const result = toggleTaskAtOrdinal(DOC, 2, "- [x] shipped");
-    expect(result).toMatchObject({ ok: true, checked: false });
-  });
-
-  it("ignores checkbox-shaped lines in frontmatter and fenced code when counting", () => {
-    const tricky = [
-      "---",
-      "notes:",
-      "  - [ ] yaml lookalike",
-      "---",
-      "",
-      "```",
-      "- [ ] fenced lookalike",
-      "```",
-      "",
-      "- [ ] the only real task",
-    ].join("\n");
-    const result = toggleTaskAtOrdinal(tricky, 0, "- [ ] the only real task");
-    if (!result.ok) throw new Error("toggle failed");
-    expect(result.content).toContain("- [x] the only real task");
-    expect(result.content).toContain("- [ ] yaml lookalike"); // untouched
-    expect(result.content).toContain("- [ ] fenced lookalike"); // untouched
-  });
-
-  it("toggles by ordinal on a CRLF file (extraction raw ↔ guard agreement)", () => {
-    const crlf = "# H\r\n\r\n- [ ] first\r\n- [ ] second\r\n";
-    const result = toggleTaskAtOrdinal(crlf, 1, "- [ ] second");
-    expect(result).toEqual({
-      ok: true,
-      checked: true,
-      content: "# H\r\n\r\n- [ ] first\r\n- [x] second\r\n",
-    });
+  it("names the same bytes for every line of every EOL flavor", () => {
+    for (const doc of DOCS) {
+      const lines = splitLines(doc);
+      for (const [index, line] of lines.entries()) {
+        // The guard passes only if the span the write scans out holds exactly
+        // the bytes the split handed back.
+        expect(replaceLineGuarded(doc, index, line, line)).toEqual({ ok: true, content: doc });
+      }
+      // And they agree about where the file STOPS.
+      expect(replaceLineGuarded(doc, lines.length, "", "x")).toEqual({
+        ok: false,
+        reason: "line-missing",
+      });
+    }
   });
 });

@@ -1,7 +1,7 @@
 // The task-ordinal LOCKSTEP test — pins the editor's `todoIndex` (the
 // Plate-tree counter behind the editor's Delegate button, todo-item.ts)
-// against core's `scanTaskItems` (the source-side authority behind
-// find-task-line and the guarded toggle). The delegation/toggle anchor is
+// against core's `scanTaskItems` (the source-side authority in
+// @repo/notes/knowledge/task-ordinal). The delegation/toggle anchor is
 // (sourceFile, ordinal): if the two counters disagree, a Delegate click
 // resolves to the WRONG checkbox on disk — the agent does the wrong task and
 // checks the wrong box. Every corpus doc is built through the real pipeline
@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor, type TElement } from "platejs";
 
-import { scanTaskItems } from "@repo/notes/knowledge/link-extract";
+import { scanTaskItems } from "@repo/notes/knowledge/task-ordinal";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";

@@ -10,7 +10,7 @@ import { type Static, Type } from "@sinclair/typebox";
 
 /** Positional locator for the checkbox. `ordinal` is its position among ALL
  * todo checkboxes in the file (document order, checked or not — core
- * scanTaskItems' counting) — identical in the editor's parsed tree and the raw
+ * @repo/notes' task-ordinal counting) — identical in the editor's parsed tree and the raw
  * markdown, so it needs no text matching and distinguishes duplicate labels.
  * `text` + `heading` are resolved host-side from that line, purely as context
  * for the agent's prompt. */

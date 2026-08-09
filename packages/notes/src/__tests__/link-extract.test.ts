@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  scanDoc,
-  scanTaskItems,
-  titleFromPath,
-  type ExtractedLink,
-} from "../knowledge/link-extract";
+import { scanDoc, titleFromPath, type ExtractedLink } from "../knowledge/link-extract";
+import { scanTaskItems } from "../knowledge/task-ordinal";
 
 function links(source: string): ExtractedLink[] {
   return scanDoc(source).links;

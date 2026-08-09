@@ -38,6 +38,7 @@ import {
   type ContainerBoot,
   type ContainerState,
   type ContainerTurn,
+  type ContainerTurnAccepted,
   type ContainerVaultPush,
 } from "@repo/agent-container/protocol";
 import { getSandbox } from "@cloudflare/sandbox";
@@ -46,6 +47,7 @@ import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { AgentSandbox } from "./sandbox-class";
 import type {
   SandboxBoot,
+  SandboxDispatch,
   SandboxOutcome,
   SandboxPort,
   SandboxState,
@@ -206,7 +208,7 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
       } satisfies ContainerVaultPush);
     },
 
-    dispatch(turn: SandboxTurn): Promise<SandboxOutcome> {
+    async dispatch(turn: SandboxTurn): Promise<SandboxDispatch> {
       const payload: ContainerTurn = {
         turnId: turn.turnId,
         kind: turn.kind,
@@ -214,7 +216,23 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
         images: turn.images,
         seed: turn.seed.map((entry) => ({ role: entry.role, text: entry.text })),
       };
-      return post(CONTAINER_API.turn, payload);
+      try {
+        const response = await call(CONTAINER_API.turn, payload);
+        if (!response.ok) {
+          return { ok: false, error: await refusal(response, CONTAINER_API.turn) };
+        }
+        const accepted = readTurnAccepted(await response.json());
+        // A daemon that took the turn without naming it leaves nothing to
+        // listen for, so this refuses rather than guessing: the user reads a
+        // sentence, which is recoverable, instead of watching a turn produce
+        // silence, which is not.
+        if (accepted === null) {
+          return { ok: false, error: "the agent container accepted the turn without naming it" };
+        }
+        return { ok: true, turnId: accepted.turnId };
+      } catch (error) {
+        return { ok: false, error: `the agent container is unreachable: ${toErrorMessage(error)}` };
+      }
     },
 
     interrupt(): Promise<SandboxOutcome> {
@@ -253,6 +271,14 @@ async function refusal(response: Response, path: string): Promise<string> {
   } catch {
     return fallback;
   }
+}
+
+function readTurnAccepted(value: unknown): ContainerTurnAccepted | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record: Record<string, unknown> = { ...value };
+  const turnId = record["turnId"];
+  if (typeof turnId !== "string" || turnId === "") return null;
+  return { ok: true, turnId };
 }
 
 function readContainerState(value: unknown): ContainerState | null {

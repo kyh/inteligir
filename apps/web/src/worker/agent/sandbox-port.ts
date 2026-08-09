@@ -45,6 +45,23 @@ import type { AgentReportReply } from "@repo/agent-container/protocol";
 export type SandboxOutcome = { readonly ok: true } | { readonly ok: false; readonly error: string };
 
 /**
+ * A dispatch's verdict, which carries one more thing than the rest: WHICH turn
+ * the reports for this message will arrive under.
+ *
+ * A `steer` or `follow_up` folds into the turn already running and reports
+ * under ITS id; one that lands after that turn ended opens a turn of its own.
+ * Only the container knows which happened, so it answers, and the runner tracks
+ * what it is told. Deriving it instead — asking `state()` whether the container
+ * looked busy a moment ago — is the same fact computed twice, and the two
+ * disagree exactly when a turn ends in the gap: the object would then be
+ * listening for a turn id no report will ever carry, and the whole answer to
+ * the user would fold into nothing.
+ */
+export type SandboxDispatch =
+  | { readonly ok: true; readonly turnId: string }
+  | { readonly ok: false; readonly error: string };
+
+/**
  * What the container says it is holding right now.
  *
  * `cold` covers unreachable and never-booted together on purpose: the recovery
@@ -212,9 +229,9 @@ export type SandboxPort = {
    * Hand the container a turn and RETURN. Must not await the turn: a delegation
    * or routine runs for up to ten minutes and a Durable Object that waited on
    * one would hold an invocation open for the whole of it. Progress arrives
-   * later, over the report route.
+   * later, over the report route — under the turn id this answers with.
    */
-  dispatch(turn: SandboxTurn): Promise<SandboxOutcome>;
+  dispatch(turn: SandboxTurn): Promise<SandboxDispatch>;
   /** Ask the in-flight turn to stop. */
   interrupt(): Promise<SandboxOutcome>;
   /** Drop the container. The provider disconnect path calls this so a

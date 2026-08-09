@@ -1,24 +1,25 @@
 // ---------------------------------------------------------------------------
-// Guarded surgical line edits — the WRITE-side counterpart of find-task-line's
-// read-side guard. A caller that recorded a line's exact bytes (the
-// projection's ExtractedTask.raw) can replace that one line iff the file still
-// carries those bytes at the addressed spot; any drift is a refusal VALUE,
-// never a silent wrong write and never a throw.
+// A LINE of a markdown file — and the guarded, byte-exact way to rewrite one.
 //
-// EOL contract (shared with the projection): a line's `raw` is its content
-// EXCLUDING the terminator (`\r\n`, `\r`, or `\n`) — the same split rule
-// knowledge-index/projection use — and the splice never touches terminator
-// bytes, so CRLF and even mixed-EOL files survive byte-exactly.
+// ONE RULE, STATED ONCE: a line's content EXCLUDES its terminator, whichever
+// flavor that is (`\r\n`, `\r`, `\n`). Everything downstream rides on it — the
+// task scan records a checkbox's `raw` under it, the projection cuts link
+// snippets under it, and the guarded write below compares against it — so it is
+// written here and nowhere else. Four copies of the split regex is four chances
+// for one of them to disagree, and the one that disagrees corrupts a file.
 //
-// Addressing: `replaceLineGuarded`/`toggleCheckboxLine` take a raw LINE index
-// (position-addressed); `toggleTaskAtOrdinal` is the primitive the toggle
-// surfaces use — it locates the ordinal-th GFM task item (find-task-line's
-// counting contract, content-addressed) and THEN requires raw-byte equality,
-// so an insert above the item retargets correctly and a duplicate identical
-// line elsewhere can never steal the write.
+// TWO READINGS OF THAT RULE LIVE HERE TOGETHER, because they have to agree:
+// `splitLines` reads lines as VALUES, `lineSpan` reads one as a POSITION. The
+// split is the convenient one and cannot be used to write: joining back would
+// rewrite every terminator in the file, so a CRLF doc saved after ticking one
+// box would come back with every line changed. So the write side scans EOLs in
+// place and splices INSIDE the span — no untouched byte moves, mixed EOLs
+// included. Their agreement is pinned by __tests__/source-lines.test.ts.
+//
+// Addressing: `replaceLineGuarded`/`toggleCheckboxLine` take a raw LINE index.
+// Content-addressed callers go through ./task-ordinal, which resolves an ordinal
+// to a line first and then requires raw-byte equality here.
 // ---------------------------------------------------------------------------
-
-import { scanTaskItems } from "./link-extract";
 
 export type LineEditResult = { ok: true; content: string } | LineEditFailure;
 
@@ -35,6 +36,13 @@ type CheckboxToggleFailure = {
   ok: false;
   reason: "line-missing" | "line-changed" | "not-a-checkbox";
 };
+
+/** Every line's CONTENT, terminator excluded — the one split rule. A file ending
+ * in a terminator yields a trailing empty line, exactly as the byte count says
+ * it should. */
+export function splitLines(source: string): string[] {
+  return source.split(/\r\n|\r|\n/);
+}
 
 /** The `[start, end)` span of the 0-based `lineIndex`-th line's content —
  * terminator excluded — or null when the file has fewer lines. Scans EOLs in
@@ -96,27 +104,4 @@ export function toggleCheckboxLine(
   const replaced = replaceLineGuarded(source, lineIndex, expectedRaw, flipped);
   if (!replaced.ok) return replaced;
   return { ok: true, content: replaced.content, checked };
-}
-
-/**
- * Toggle the `ordinal`-th GFM task item (find-task-line's counting contract,
- * frontmatter-aware and code-fence-safe) after verifying its current source
- * line equals `expectedRaw`. Content-addressed: lines shifting above the item
- * relocate it by ordinal, while any edit to the line itself — or a different
- * task landing at the ordinal — refuses with `line-changed`.
- *
- * EITHER STATE IS ADDRESSABLE HERE, and that is the deliberate difference from
- * `findTaskLine`, which refuses an item that is already checked off the same
- * ordinal. Unticking a checked box is half of what a toggle is; delegating a
- * done task is nothing. The counting contract is shared, the state rule is not.
- */
-export function toggleTaskAtOrdinal(
-  source: string,
-  ordinal: number,
-  expectedRaw: string,
-): CheckboxToggleResult {
-  const task = scanTaskItems(source).find((item) => item.ordinal === ordinal);
-  if (task === undefined) return { ok: false, reason: "line-missing" };
-  if (task.raw !== expectedRaw) return { ok: false, reason: "line-changed" };
-  return toggleCheckboxLine(source, task.line - 1, expectedRaw);
 }

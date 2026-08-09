@@ -42,7 +42,7 @@ import type {
 import type { AgentConfirmationRequest } from "@repo/bridge/agent-actions";
 import { heldDeletionMessage } from "@repo/bridge/vault";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
+import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/task-ordinal";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";

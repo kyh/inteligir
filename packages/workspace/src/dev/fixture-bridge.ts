@@ -33,14 +33,15 @@ import {
 } from "@repo/bridge/daily-notes";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import { toggleCheckboxLine, toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
+import { toggleCheckboxLine } from "@repo/notes/knowledge/source-lines";
 import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
 import type { KnowledgeStore } from "@repo/notes/knowledge/knowledge-store";
-import { scanTaskItems, titleFromPath } from "@repo/notes/knowledge/link-extract";
+import { titleFromPath } from "@repo/notes/knowledge/link-extract";
 import { boundGraph, LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
+import { openTaskAtOrdinal, toggleTaskAtOrdinal } from "@repo/notes/knowledge/task-ordinal";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { addFrontmatterAlias, notePrivacy } from "@repo/notes/markdown/frontmatter";
 import { dailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
@@ -50,16 +51,16 @@ import { SAMPLE_NOTES } from "@repo/editor/__tests__/sample-notes";
 const FIXTURE_ROOT = "/fixture-vault";
 
 /** Simulate the background agent's edit: check the `ordinal`-th task item off
- * (the REAL core primitives — scanTaskItems locates by the shared ordinal
- * contract, toggleCheckboxLine flips only the marker char) and append a
- * nested one-line result under it. Null when the ordinal doesn't land on an
- * unchecked task item, mirroring the host's findTaskLine rejections. */
+ * (the REAL core primitives — `openTaskAtOrdinal` applies delegation's own
+ * state rule, `toggleCheckboxLine` flips only the marker char) and append a
+ * nested one-line result under it. */
 function simulateDelegationEdit(
   content: string,
   ordinal: number,
 ): { content: string; taskText: string; lineText: string } | null {
-  const task = scanTaskItems(content).find((t) => t.ordinal === ordinal);
-  if (!task || task.checked) return null;
+  const lookup = openTaskAtOrdinal(content, ordinal);
+  if (!lookup.ok) return null;
+  const task = lookup.task;
   const toggled = toggleCheckboxLine(content, task.line - 1, task.raw);
   if (!toggled.ok) return null;
   const indent = /^\s*/.exec(task.raw)?.[0] ?? "";

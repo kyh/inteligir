@@ -116,14 +116,18 @@ const BOOT_ID_KEY: Record<AgentLane, string> = {
 };
 
 /**
- * The chat turn this object last dispatched — the conversation's counterpart of
- * the background lane's lock row.
+ * The chat turn whose reports this object is listening for — the conversation's
+ * counterpart of the background lane's lock row.
  *
  * DURABLE, not a field: the reports that answer a turn arrive as separate
  * requests and the object hibernates between them, so an in-memory copy reads
  * as absent exactly when a report needs it. Without it a container on the
  * current boot can announce `turn_end` for a turn that is long over and clear
  * `busy` under the one now running.
+ *
+ * It holds what the CONTAINER said the turn is, never what this side hoped it
+ * would be; `""` means there is nothing to disagree with, which is both the
+ * never-dispatched state and the one a dispatch in flight leaves behind.
  */
 const CHAT_TURN_KEY = "agent/chat-turn";
 
@@ -263,19 +267,19 @@ export class AgentRunner {
     const seed = await this.ensureContainer("chat", port, provider);
     if (!seed.ok) throw new Error(seed.error);
 
-    const turnId = crypto.randomUUID();
     const previous = this.chatTurnId();
-    // A steer or a follow-up folds into the turn already running and keeps
-    // reporting under ITS id, so it must not replace the tracked one — unless
-    // nothing is tracked, in which case the container starts a turn on this id.
-    // Written BEFORE the dispatch, because a container can report from inside
-    // it, and put back when the dispatch is refused.
-    this.deps.kv.put(
-      CHAT_TURN_KEY,
-      command.type === "user_message" || previous === "" ? turnId : previous,
-    );
+    // A dispatch in flight tracks NOTHING, and `""` is exactly that value: this
+    // object has no turn to disagree with yet. Which turn will carry the
+    // reports is the container's answer and it has not given it — a steer folds
+    // into the turn already running and reports under ITS id, while one that
+    // lands after that turn ended opens a turn of its own. The container can
+    // report from inside the dispatch, so this window has to admit whichever it
+    // turns out to be: honouring one extra report for the length of one call is
+    // nothing beside swallowing a whole turn's answer, which is what tracking
+    // the wrong guess here does.
+    this.deps.kv.put(CHAT_TURN_KEY, "");
     const outcome = await port.dispatch({
-      turnId,
+      turnId: crypto.randomUUID(),
       kind: command.type,
       text: command.text,
       images: command.images ?? [],
@@ -285,6 +289,9 @@ export class AgentRunner {
       this.deps.kv.put(CHAT_TURN_KEY, previous);
       throw new Error(outcome.error);
     }
+    // The container SAID which turn carries this message; nothing here
+    // re-derives it.
+    this.deps.kv.put(CHAT_TURN_KEY, outcome.turnId);
     this.deps.chat.appendUser(command.text);
     this.setBusy(true);
   }

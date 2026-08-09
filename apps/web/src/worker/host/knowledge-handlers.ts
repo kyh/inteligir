@@ -9,7 +9,7 @@
 
 import type { ToggleTaskResult } from "@repo/bridge/knowledge";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/guarded-line-edit";
+import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/task-ordinal";
 
 import type { HandlerRegistrar } from "./handler-registry";
 import type { UserKnowledge } from "./knowledge/user-knowledge";

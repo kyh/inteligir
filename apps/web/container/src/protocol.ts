@@ -144,6 +144,21 @@ export type ContainerBoot = {
   readonly browserCdpToken: string | null;
 };
 
+/**
+ * What the daemon answers a turn dispatch with: the id every report for this
+ * message will carry.
+ *
+ * A `steer` or `follow_up` FOLDS into the turn already running rather than
+ * opening one — so its reports come back under that turn's id, not the one it
+ * was dispatched with. One that arrives after the running turn ended opens a
+ * turn of its own, under its own id. The container is the only side that knows
+ * which of the two happened, so it says; the driving side must never re-derive
+ * it from a `busy` flag read a moment earlier, because a turn can end in the
+ * gap and every report of the new one would then be answering an id nobody is
+ * listening for.
+ */
+export type ContainerTurnAccepted = { readonly ok: true; readonly turnId: string };
+
 export type ContainerVaultPush = {
   readonly toRevision: number;
   readonly replaceAll: boolean;

@@ -33,7 +33,7 @@
 
 import type { SearchResult } from "./knowledge-index";
 import type { KnowledgeStore, StoredDocRow, StoredFingerprint } from "./knowledge-store";
-import type { ExtractedTask } from "./link-extract";
+import type { ExtractedTask } from "./task-ordinal";
 import type { DocProjection, StoredLink } from "./projection";
 import { PROJECTION_VERSION } from "./projection";
 import { tokenize } from "./search-index";

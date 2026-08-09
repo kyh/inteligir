@@ -27,10 +27,13 @@ src/
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
                        # in-memory tiered lexical index (behavior pin)
-    find-task-line.ts  # the pure content-addressed task locator; its ORDINAL
-                       # counting is the contract guarded-line-edit and
-                       # link-extract are both pinned against
-    guarded-line-edit.ts # raw-byte-guarded line splice (task toggles)
+    task-ordinal.ts    # what (sourceFile, ordinal) names: the ONE count of a
+                       # doc's checkboxes, the lookup, the two state rules
+                       # (delegation wants an open one, a toggle takes either)
+                       # and the guarded write back
+    source-lines.ts    # what a LINE is — content excludes its terminator —
+                       # as a split and as a span, so a guarded splice leaves
+                       # every other byte, CRLF included, untouched
     vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
                        # command palette and the agent's search_vault
     task-schedule.ts, tag-index.ts, related-notes.ts, note-name.ts,
@@ -38,6 +41,8 @@ src/
                        # scorer, name validation, doc test, posix path helpers
   markdown/            # the remark pipeline
     parse.ts, md-plugins.ts  # owned unified parse + probe-proven plugin order
+    scan-parse.ts      # the grammar the knowledge scans read: the editor's
+                       # flavor on the two constructs that move a task ordinal
     remark-opaque.ts   # post-parse transform: a construct the editor has no
                        # node for becomes an opaque node holding its own
                        # markdown, so the file opens instead of being refused

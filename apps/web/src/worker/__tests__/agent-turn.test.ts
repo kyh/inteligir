@@ -289,6 +289,49 @@ describe("an agent turn", () => {
     expect(turn.said).toEqual(["first", "and second"]);
   });
 
+  // The other half of the same question, and the one that used to end in
+  // SILENCE. A steer only folds while a turn is running; land it a moment later
+  // and the container opens a turn of its own on the steer's own id. The object
+  // is told which id that is, so it listens for the right one — a guess made
+  // before the dispatch (keep the previous turn, because a steer usually folds)
+  // is wrong exactly here, and every report of the new turn would fail the
+  // current-turn gate and fold into nothing: no answer, no error, no busy
+  // state ever cleared.
+  it("answers a steer that lands after the turn ended, on a turn of its own", async () => {
+    const outcome = await withHost("turn-steer-late", async (host, ctx) => {
+      connect(host);
+      const client = attachClient(ctx);
+      scriptedPort(host).setScript({ steps: [{ text: "first" }, { text: "second" }] });
+
+      await host.agent.runner.send({ type: "user_message", text: "start" });
+      await settle();
+      // Captured, not assumed: the first turn is OVER, which is what makes the
+      // steer below a new turn rather than a fold.
+      const after = await scriptedPort(host).state();
+      await host.agent.runner.send({ type: "steer", text: "one more thing" });
+      await settle();
+      const events = client.agentEvents();
+      return {
+        busyAfterFirst: after.phase === "ready" && after.busy,
+        starts: events.filter((event) => event.type === "agent_start").length,
+        said: events.flatMap((event) =>
+          event.type === "message_end" && event.role === "assistant" ? [event.text] : [],
+        ),
+        history: host.agent.chat.history().map((entry) => entry.text),
+        busy: host.agent.runner.agentBusy(),
+      };
+    });
+    expect(outcome.busyAfterFirst).toBe(false);
+    // TWO turns, because nothing was running to fold into.
+    expect(outcome.starts).toBe(2);
+    // The answer reached the conversation — this is the assertion that goes red
+    // when the steer's reports are swallowed.
+    expect(outcome.said).toEqual(["first", "second"]);
+    expect(outcome.history).toEqual(["start", "first", "one more thing", "second"]);
+    // And `turn_end` was honoured, so the composer is not left thinking.
+    expect(outcome.busy).toBe(false);
+  });
+
   // Two `user_message`s is two turns, and there is only ever one. Both
   // containers answer that with the SAME sentence, out of the contract they
   // share — the alternative is a status code in the user's composer.

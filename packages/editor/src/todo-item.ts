@@ -1,11 +1,11 @@
 // The editor's half of the task-ordinal counting contract, React-free so
 // the lockstep test (todo-ordinal-lockstep.test.ts) can pin it headless
-// against core's `scanTaskItems` — the counting authority the host's
-// find-task-line and the guarded toggle already share.
+// against core's `scanTaskItems` — the counting authority every other surface
+// resolves through (@repo/notes/knowledge/task-ordinal).
 
 import { PathApi, type SlateEditor, type TElement } from "platejs";
 
-import { scanTaskItems } from "@repo/notes/knowledge/link-extract";
+import { scanTaskItems } from "@repo/notes/knowledge/task-ordinal";
 
 // Whether a Plate list node is a genuine todo checkbox (has a `- [ ]` / `- [x]`
 // on disk), as opposed to a phantom.
@@ -50,7 +50,7 @@ function hiddenTaskCount(node: unknown): number {
  * next top-level todo — delegating the wrong checkbox. Pre-order over the
  * whole tree visits every todo in document order, matching the host's count
  * of the same `- [ ]` / `- [x]` items in the raw markdown (core
- * `scanTaskItems`, via find-task-line and the guarded toggle), so the two
+ * `scanTaskItems`, which the anchor and the guarded toggle share), so the two
  * agree by position — no text matching, duplicate labels stay distinct.
  * (The lockstep is pinned by todo-ordinal-lockstep.test.ts.) */
 export function todoIndex(editor: SlateEditor, element: TElement): number {

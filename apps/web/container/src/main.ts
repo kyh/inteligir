@@ -37,6 +37,7 @@ import {
   type ContainerBoot,
   type ContainerState,
   type ContainerTurn,
+  type ContainerTurnAccepted,
 } from "./protocol";
 import { createBrowserTool } from "./browser-tool";
 import {
@@ -92,7 +93,6 @@ let activeTurn: string | null = null;
 
 type Reply = { readonly status: number; readonly body: unknown };
 
-const ACCEPTED: Reply = { status: 202, body: { ok: true } };
 const OK: Reply = { status: 200, body: { ok: true } };
 const NOT_FOUND: Reply = { status: 404, body: { error: "no such path" } };
 
@@ -195,6 +195,11 @@ async function tellAgent(text: string): Promise<void> {
  * into the loop that is already running rather than starting one — so they are
  * accepted while busy. A second `user_message` is a second turn, and there is
  * only ever one.
+ *
+ * Either way the answer NAMES the turn that will carry the reports: folded, it
+ * is the running turn's id; otherwise the dispatched one. This is the only
+ * place that distinction is decided, so it is also the only place that may
+ * report it.
  */
 function handleTurn(body: unknown): Reply {
   const current = daemon;
@@ -213,12 +218,16 @@ function handleTurn(body: unknown): Reply {
     void session.queue(turn.kind, turn).catch((error: unknown) => {
       console.error("[turn] could not queue:", error);
     });
-    return ACCEPTED;
+    return accepted(activeTurn);
   }
 
   activeTurn = turn.turnId;
   void runTurn(current, turn);
-  return ACCEPTED;
+  return accepted(turn.turnId);
+}
+
+function accepted(turnId: string): Reply {
+  return { status: 202, body: { ok: true, turnId } satisfies ContainerTurnAccepted };
 }
 
 async function handleInterrupt(): Promise<Reply> {

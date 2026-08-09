@@ -451,7 +451,7 @@ command palette.
   date-shaped `[[link]]` in the item, else the note's daily-note date — computed
   client-side via `@repo/notes/knowledge/task-schedule`. Toggling goes through
   the guarded `toggleVaultTask` channel
-  (`@repo/notes/knowledge/guarded-line-edit`: ordinal-locate + raw-byte
+  (`@repo/notes/knowledge/task-ordinal`: ordinal-locate + raw-byte
   equality, refusal values kick an index self-heal); rows delegate through the
   same (sourceFile, ordinal) delegation store the editor uses.
 - **HTML apps are OFF** (§ Decisions). The workspace still opens a vault

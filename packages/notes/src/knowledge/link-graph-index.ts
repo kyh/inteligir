@@ -24,7 +24,8 @@
 // ---------------------------------------------------------------------------
 
 import { isDocPath } from "./doc-file";
-import type { ExtractedTask, LinkKind } from "./link-extract";
+import type { LinkKind } from "./link-extract";
+import type { ExtractedTask } from "./task-ordinal";
 import { buildResolver, type TargetResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex, type TagCount } from "./tag-index";
