@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // The agent session: one pi session per boot, one turn at a time.
 //
-// This is the desktop's `packages/agent/src/pi/agent.ts` with almost everything
-// taken away, and the differences are all consequences of where it runs:
+// Everything below is a consequence of where it runs — a container whose
+// filesystem is deleted whenever it sleeps:
 //
 //   • THE SESSION IS IN MEMORY. The container's filesystem is deleted when it
 //     sleeps, so a session file would be a resumable thread that never survives
@@ -22,9 +22,9 @@
 //     to — a container image that could widen its own tool surface would be a
 //     second grant table.
 //
-// Events are forwarded RAW. The object parses them with the same parser the
-// desktop host uses (`@repo/bridge/agent-event-parser`), which is the one place
-// that mapping should live, so translating here would be a second copy of it.
+// Events are forwarded RAW. The object parses them with
+// `@repo/bridge/agent-event-parser`, the one place that mapping lives, so
+// translating here would be a second copy of it.
 // ---------------------------------------------------------------------------
 
 import {

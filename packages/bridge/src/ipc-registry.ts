@@ -33,7 +33,7 @@ import {
   type AiConnectResult,
   type AiProviderSettings,
 } from "./ai-provider";
-import { AppEventSchema, type AppState, type SetupProgress } from "./app-state";
+import { AppEventSchema, type AppState } from "./app-state";
 import type { ChatHistoryEntry } from "./chat-log";
 import { TextChatMessageSchema } from "./chat-message";
 import {
@@ -101,7 +101,6 @@ export const IPC = {
   getAppState: invokeVoid<AppState>(),
   transition: invoke<typeof AppEventSchema, void>(AppEventSchema),
   onAppState: event<AppState>(),
-  onSetupProgress: event<SetupProgress>(),
 
   // Agent
   onAgentEvent: event<AppAgentEvent>(),

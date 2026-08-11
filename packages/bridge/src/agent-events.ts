@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// App-level agent event types — parsed from raw pi-agent-core events at
-// the main process boundary. Renderer consumes these directly.
+// App-level agent event types — parsed from raw pi events in the host, and
+// consumed by the workspace exactly as they arrive.
 // ---------------------------------------------------------------------------
 
 export type AppAgentEvent =

@@ -28,7 +28,7 @@ not know which one it is running in.
 multiplexes through `HostAlarm` (`host/host-alarm.ts`): a list of concerns, each
 a `sweep` plus the `dueAt` it next needs waking for, re-armed at the earliest.
 Concerns today: unauthenticated-socket reaping, ticket expiry, the trash sweep,
-the capture inbox, routines, and index continuation. It is NOT a scheduler you
+the capture inbox, the background lane, and index continuation. It is NOT a scheduler you
 can add a timer to — a concern that calls `setAlarm` for itself silently cancels
 whatever was armed, and a `setTimeout` pins the object out of hibernation.
 (`CLAUDE.md` § Decisions, "The object has ONE alarm".)
@@ -79,9 +79,7 @@ a rename rewrites links in, and what a vault change announces bytes for.
 the title, there is no slug layer (`@repo/notes/knowledge/note-name`).
 `NotePathSchema` is asked for where the answer only makes sense for a note (the
 knowledge queries); `VaultPathSchema` is asked for where the handler acts on
-whatever the path names. **Ambiguity worth knowing**: the channel `readVaultFile`
-takes `VaultPathSchema`, so "doc" in a channel NAME is looser than `isDocPath` —
-read the schema, not the name.
+whatever the path names.
 
 **version** — per FILE, on its manifest row, bumped by every write and move. It
 is optimistic concurrency: a caller that supplies `baseVersion` gets a

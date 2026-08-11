@@ -4,10 +4,9 @@
 // own vocabulary (`ContainerTool`, `AgentReport`, `ContainerTurn`).
 //
 // pi moves fast, and an import that leaks upward turns every export rename into
-// a change across the daemon, the reporter and the tool relays. The container
-// package has no test script of its own and no lint override names pi, so
-// without this the rule was a sentence in a README that a violation would ship
-// straight past.
+// a change across the daemon, the reporter and the tool relays. Nothing else
+// catches one: no lint override names pi, and the container's own suite drives
+// behaviour rather than import topology.
 //
 // Import specifiers only — `src/tools.ts` names pi in prose, explaining the
 // vocabulary it exists to keep, and a guard that counted that would forbid the

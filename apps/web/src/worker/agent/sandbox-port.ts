@@ -312,7 +312,8 @@ export type SandboxPort = {
   dispatch(turn: SandboxTurn): Promise<SandboxDispatch>;
   /** Ask the in-flight turn to stop. */
   interrupt(): Promise<SandboxOutcome>;
-  /** Drop the container. The provider disconnect path calls this so a
-   * credential-bearing egress route cannot outlive the credential. */
+  /** Drop the container — the account purge's teardown. Disconnecting a
+   * provider needs no call here: the egress seam mints per request, so a
+   * container whose credential is gone gets a refusal rather than a token. */
   shutdown(): Promise<void>;
 };

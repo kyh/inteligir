@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// Local STT — captures mic audio in the page, pushes 16kHz Float32 PCM
-// chunks to the main process where sherpa-onnx + streaming Parakeet runs.
+// STT capture — takes mic audio in the page and pushes 16kHz Float32 PCM
+// chunks over the Bridge to the host, which transcribes them.
 // ---------------------------------------------------------------------------
 
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
@@ -11,8 +11,8 @@ export type TranscriptCallback = (text: string, isFinal: boolean) => void;
 
 export type STTHandle = {
   /**
-   * Resolves after the main-process recognizer has been told to stop and the
-   * tail transcript has been forwarded. Callers must AWAIT this before
+   * Resolves after the host's recognizer has been told to stop and the tail
+   * transcript has been forwarded. Callers must AWAIT this before
    * starting a new STT session — otherwise the new session's
    * startStt/stopStt can interleave with the previous session's teardown,
    * letting stopSession finalize the wrong stream.
@@ -26,8 +26,8 @@ export async function startSTT(
 ): Promise<STTHandle> {
   const bridge = getBridge();
 
-  // Request mic permission BEFORE starting the main-process recognizer
-  // session — if the user denies, there's no main-process state to leak.
+  // Request mic permission BEFORE starting the host's recognizer session —
+  // if the user denies, there is no host-side state to leak.
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
   let startResult: Awaited<ReturnType<typeof bridge.startStt>>;
@@ -93,7 +93,7 @@ export async function startSTT(
   /**
    * Ask the worklet to flush its partial buffer. Resolves after the flushed
    * chunk (if any) has crossed the message port and our onmessage handler
-   * forwarded it to the main process — so the trailing ~128ms isn't dropped.
+   * forwarded it to the host — so the trailing ~128ms isn't dropped.
    */
   function flushWorklet(): Promise<void> {
     return new Promise<void>((resolveFlush) => {

@@ -22,7 +22,6 @@ const helpers = vi.hoisted(
       sendAgentCommand: ReturnType<typeof vi.fn>;
       onAgentEvent: ReturnType<typeof vi.fn>;
       onAppState: ReturnType<typeof vi.fn>;
-      onSetupProgress: ReturnType<typeof vi.fn>;
       getAppState: ReturnType<typeof vi.fn>;
       getAgentHistory: ReturnType<typeof vi.fn>;
       transition: ReturnType<typeof vi.fn>;
@@ -33,7 +32,6 @@ const helpers = vi.hoisted(
       sendAgentCommand: vi.fn(),
       onAgentEvent: vi.fn(() => () => {}),
       onAppState: vi.fn(() => () => {}),
-      onSetupProgress: vi.fn(() => () => {}),
       getAppState: vi.fn(),
       getAgentHistory: vi.fn(),
       transition: vi.fn(),

@@ -417,7 +417,7 @@ export function renderNeverGrantedSection(): string {
     "",
     "The app can do these; you are not given them. When one is what the user needs, say so " +
       "plainly and name the place in the app — don't invent a tool for it, and don't reach " +
-      "around it with `bash`, `browser` or `peekaboo`.",
+      "around it with `bash` or `browser`.",
     "",
     ...groups,
     "",

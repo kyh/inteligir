@@ -13,7 +13,6 @@ import {
   type ChatLog,
 } from "@repo/bridge/chat-log";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import type { SetupProgress } from "@repo/bridge/app-state";
 import type { Bridge } from "@repo/bridge/ipc-contract";
 import { buildNoteContext } from "@repo/bridge/note-context";
 import type { ImageAttachment } from "@repo/bridge/chat-message";
@@ -85,8 +84,6 @@ type AgentStore = {
   /** Derived: `log` projected into UIMessages (identity-stable per item). */
   messages: ChatMessage[];
   appState: AppState;
-  /** Latest setup progress, or null before any event arrives. */
-  setupProgress: SetupProgress | null;
   /** Queued messages reported by pi (steer + followUp). Cleared on agent_end. */
   queuedFollowUp: string[];
   queuedSteering: string[];
@@ -203,12 +200,6 @@ function subscribeAppState(bridge: Bridge, set: SetFn, get: GetFn): () => void {
   });
 }
 
-function subscribeSetupProgress(bridge: Bridge, set: SetFn): () => void {
-  return bridge.onSetupProgress((progress) => {
-    set({ setupProgress: progress });
-  });
-}
-
 // Bumped whenever the chat surface is INTENTIONALLY cleared (new session,
 // reset-app-data) so a history fetch still in flight can't land afterward and
 // resurrect the cleared transcript. The empty-log check alone can't catch
@@ -242,7 +233,6 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
   chatMeta: new Map(),
   messages: [],
   appState: { phase: "starting" },
-  setupProgress: null,
   queuedFollowUp: [],
   queuedSteering: [],
 
@@ -251,13 +241,11 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
 
     const unsubAgent = subscribeAgentEvents(bridge, set, get);
     const unsubState = subscribeAppState(bridge, set, get);
-    const unsubProgress = subscribeSetupProgress(bridge, set);
     void loadInitialHistory(bridge, set);
 
     return () => {
       unsubAgent();
       unsubState();
-      unsubProgress();
     };
   },
 

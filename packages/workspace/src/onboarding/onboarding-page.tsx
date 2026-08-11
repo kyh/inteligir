@@ -8,7 +8,6 @@ import { useAgentStore } from "@repo/workspace/stores/agent-store";
 
 export function OnboardingPage() {
   const appState = useAgentStore((s) => s.appState);
-  const setupProgress = useAgentStore((s) => s.setupProgress);
 
   const setupError =
     appState.phase === "error" && appState.prev === "setting_up" ? appState.message : null;
@@ -43,10 +42,6 @@ export function OnboardingPage() {
       .catch(() => {});
   }, []);
 
-  const label = setupProgress?.step ?? "Setting up...";
-  const percent = setupProgress?.percent ?? null;
-  const isIndeterminate = percent === null;
-
   return (
     <div className="flex flex-1 flex-col items-center justify-end px-6 pb-16">
       <InitialOrb />
@@ -60,18 +55,11 @@ export function OnboardingPage() {
           </>
         ) : (
           <>
-            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">Setting up...</p>
             {/* bg-muted ≈ canvas on the new ladder — the overlay tint keeps
                 the track visible against the plain canvas. */}
             <div className="h-1 w-full overflow-hidden rounded-full bg-foreground/10">
-              <div
-                className={
-                  isIndeterminate
-                    ? "h-full w-full animate-progress-fill bg-foreground/60"
-                    : "h-full bg-foreground/60 transition-[width] duration-200 ease-out"
-                }
-                style={isIndeterminate ? undefined : { width: `${String(percent)}%` }}
-              />
+              <div className="h-full w-full animate-progress-fill bg-foreground/60" />
             </div>
           </>
         )}

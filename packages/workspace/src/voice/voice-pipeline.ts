@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// Voice pipeline — pure I/O wrapper over local Parakeet STT (via main process
-// IPC) + ElevenLabs TTS (also via main process IPC). Holds no internal state;
+// Voice pipeline — pure I/O wrapper over the host's STT and TTS, both reached
+// over the Bridge. Holds no internal state;
 // the caller (voice-store + VoiceMachine) owns the lifecycle and reacts to
 // callbacks.
 // ---------------------------------------------------------------------------
@@ -22,7 +22,7 @@ export class VoicePipeline {
 
   /**
    * Acquire mic + start the recognizer. Resolves when ready to receive audio;
-   * rejects on mic-denial or main-process start failure (no state side effect,
+   * rejects on mic-denial or a host-side start failure (no state side effect,
    * the caller decides what to do).
    */
   async connect(): Promise<void> {

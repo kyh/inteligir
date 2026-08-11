@@ -33,7 +33,7 @@ export type Send<S extends TSchema> = {
   readonly _payload?: Static<S>;
 };
 
-/** Host → client push. No handler; emitted through the host's event bus. */
+/** Host → client push. No handler; emitted through the host's `IpcEmit`. */
 export type Event<E> = {
   readonly kind: "event";
   readonly _event?: E;

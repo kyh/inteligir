@@ -52,6 +52,8 @@ src/
     index.ts             The API route table; `ownsPath` is the split
     host/                THE WORKSPACE HOST — one Durable Object per user
       user-host.ts       Durable Object: hibernatable sockets, auth, dispatch
+      host-composition.ts the ONE wiring graph — every part, and the handler map
+      host-alarm.ts      the ONE alarm: a list of concerns, re-armed at the earliest
       host-route.ts      The ONE Worker leg: credential → object name → forward
       host-address.ts    `user:<id>` — the object name, derived never parsed
       ticket-route.ts    POST /v1/host/ticket: verify, classify, mint
@@ -59,8 +61,8 @@ src/
       origins.ts         The exact-match origin allowlist (on the mint)
       client-class.ts    ClientClass, how it is decided, + the two capability gates
       socket-state.ts    The socket attachment: the only state a wake can read
+      socket-gate.ts     the TWO chokepoints: dispatch in, broadcast + hydration out
       session.ts         readCredential + verifyHostSession — the one auth read
-      host-events.ts     The per-instance event bus (never module scope)
       handler-registry.ts collectHandlers(): the completeness guard
       handlers.ts        every channel's implementation, grouped by feature
       host-limits.ts     the per-account budget each HTTP leaf charges
@@ -470,7 +472,7 @@ client.
   `__tests__/socket-gate.test.ts` drives both directions with a fake socket and
   asserts what a client was NOT sent; `__tests__/no-ungated-dispatch.test.ts` is
   the backstop that fails when a third path appears.
-- **All 63 host methods are implemented, and there is no second pile.**
+- **Every host method is implemented, and there is no second pile.**
   `collectHandlers` throws at construction if any is unregistered. A capability
   this host does not have has no channel either: a method that answers only by
   refusing satisfies both the completeness guard and no-dead-channels while

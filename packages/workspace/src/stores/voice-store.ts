@@ -31,7 +31,7 @@ let pipeline: VoicePipeline | null = null;
 let unsubscribeMachine: (() => void) | null = null;
 // In-flight pipeline teardown promise. runConnect awaits this before sending
 // a fresh startStt, so a rapid stop/start can't let the prior session's
-// stopStt arrive at the main process AFTER the new startSession and
+// stopStt arrive at the host AFTER the new startSession and
 // finalize the wrong stream.
 let pendingTeardown: Promise<void> | null = null;
 
@@ -79,7 +79,7 @@ async function runConnect(): Promise<void> {
   if (!session) return;
   const gen = machine.generation;
 
-  // Wait for any prior session's main-process stopSession to land before
+  // Wait for any prior session's host-side stopSession to land before
   // sending startStt — otherwise IPC interleaving lets the previous stop
   // finalize the new session's recognizer stream.
   if (pendingTeardown) {

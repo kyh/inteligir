@@ -47,13 +47,14 @@ purpose. That exclusion is precisely the hole a per-package lint override would
 leave open, which is why the check lives here rather than in `.oxlintrc.json`
 (which does carry the rule for `notes` and `bridge`, where no exception exists).
 
-### `src/no-dead-channels.test.ts` — every Bridge channel has a caller
+### `src/no-dead-channels.test.ts` — every channel has both halves
 
-Adding a channel costs three edits (registry entry, host handler, fixture stub)
-and the compiler enforces all three — so a channel whose CALLER later disappears
-leaves a fully implemented, fully typechecked, permanently unreachable surface
-behind. **knip structurally cannot see it**: it sees the registry entry used by
-the handler map, and the handler used by the registry.
+Adding a channel costs four edits (registry entry, grant-table row, fixture
+stub, host handler) and every one of them is a compile error or a construction
+throw — so a channel whose CALLER later disappears leaves a fully implemented,
+fully typechecked, permanently unreachable surface behind. **knip structurally
+cannot see it**: it sees the registry entry used by the handler map, and the
+handler used by the registry.
 
 So `IPC_METHODS` is resolved from `@repo/bridge` and each name is searched for
 across `apps/`, `packages/`, `tools/`, `docs/` and `.claude/`, minus a SUPPLY
@@ -72,18 +73,27 @@ set — files that mention every method by construction:
   those two files, naming a channel in prose DOES count as demand, so do not
   write a channel's name into a doc to keep this green.
 
-Deliberately conservative: it matches bare identifiers, so a channel whose name
-is also an ordinary word could be kept alive by a coincidental mention. It errs
-toward passing, which means **a failure here is always real**.
+**An event kind is checked in the other direction too.** Demand cannot see the
+producer: a subscriber, a store field and a renderer branch typecheck perfectly
+against a channel the host never pushes, so the surface renders its fallback
+forever and every test passes. Events have no handler, so there is no
+completeness map to be incomplete against — instead every `event` row must have
+an `emit(`/`broadcast(` site naming it under `apps/web/src/worker`, which an
+emit spells as a literal by construction.
+
+Deliberately conservative in both directions: the consumer sweep matches bare
+identifiers, so a channel whose name is also an ordinary word could be kept
+alive by a coincidental mention. It errs toward passing, which means **a failure
+here is always real**.
 
 ### `src/pi-quarantine.test.ts` — pi imports stay in one folder
 
 `apps/web/container/src/pi/` is the only place allowed to name
 `@earendil-works/pi-*`; the daemon, the reporter, the vault watcher and the tool
 relays speak the image's own vocabulary. pi moves fast, and a leaked import
-turns every upstream rename into a change across the whole image. The container
-package has no test script of its own and no lint override names pi, so without
-this the rule was a sentence in a README that a violation would ship past.
+turns every upstream rename into a change across the whole image. Nothing else
+catches one: no lint override names pi, and the container's own suite drives
+behaviour rather than import topology.
 
 Import specifiers only — `container/src/tools.ts` names pi in prose, explaining
 the vocabulary the quarantine exists to keep, and a guard that counted that
@@ -158,6 +168,35 @@ the guard cannot read fails rather than resolving a narrower set than the
 install does, and dropping the filter demands every member back. The two line
 numbers are compared as before. The Dockerfile's comments say the same things;
 the guard reads instructions only, so it pins the build rather than the prose.
+
+### `src/container-exports.test.ts` — the two by-NAME couplings
+
+The Sandbox SDK resolves `AgentSandbox` and `ContainerProxy` off the Worker
+entry's exports at runtime, by name. A missing `AgentSandbox` fails the deploy
+loudly; a missing `ContainerProxy` takes the CREDENTIAL SEAM with it silently —
+provider requests still leave, still carrying the placeholder key, and the only
+symptom is a model that will not answer.
+
+Both entry modules are read (`server.ts` deploys, `index.ts` is what the Workers
+suite can construct), textually: `server.ts` imports the site's SSR entry, whose
+virtual modules exist only inside a Start build, and the thing being checked is
+which NAMES a module exports.
+
+### `src/docs-links.test.ts` — no markdown link points at nothing
+
+Docs are the one surface with no compiler, so a `[](./path)` aimed at a file
+that does not exist reads as authoritative and survives review after review.
+Destinations are extracted with the vault's own `scanDoc` rather than a regex —
+the tested extractor this repo already ships, which percent-decodes, splits the
+`#fragment`, drops external and fragment-only links and skips code spans and
+fenced blocks for free, and reports the source LINE so a failure names what to
+fix. Wiki links are skipped: `[[target]]` resolves against a vault, not against
+the file it sits in.
+
+Scope is markdown link DESTINATIONS only. Backtick-quoted paths rot the same way
+and are the commoner citation form here, but a backtick span also carries
+commands, globs, package specifiers and symbol names — separating those needs a
+maintained exception list, which rots in turn.
 
 ### `src/delete-copy.test.ts` — what a delete may promise
 

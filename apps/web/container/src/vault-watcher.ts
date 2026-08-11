@@ -28,11 +28,9 @@
 //     filename — which stats as "absent" and would otherwise be reported as the
 //     deletion of a note nobody has.
 //
-// The recursive watch is the counterpart of the desktop's deliberate refusal to
-// have one (CLAUDE.md § Decisions). The reasoning does not transfer: this
-// directory is not the user's folder of thousands of notes being edited by
-// other apps, it is a scratch copy with exactly one writer, and it exists for
-// the minutes a turn runs.
+// The watch is RECURSIVE, which a watch over a user's own notes folder could
+// not afford: this directory is a scratch copy with exactly one writer, and it
+// exists for the minutes a turn runs.
 // ---------------------------------------------------------------------------
 
 import { watch, type FSWatcher } from "node:fs";

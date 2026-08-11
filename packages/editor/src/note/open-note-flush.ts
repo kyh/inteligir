@@ -1,4 +1,4 @@
-// A module-level handle to flush the currently-open note to disk, registered by
+// A module-level handle to flush the currently-open note to the vault, registered by
 // the live VaultProvider. Lets non-React callers — specifically the voice
 // transcript path in agent-store, which runs outside the component tree — make
 // sure the agent reads the latest bytes from `./vault` before a turn, the same
@@ -12,7 +12,7 @@ let pathImpl: (() => string | null) | null = null;
 let privacyImpl: (() => boolean) | null = null;
 
 // Upper bound on how long a flush may take before callers give up on it. A flush
-// is a local disk write through IPC; if it somehow never settles, a serialized
+// is one write to the host; if it somehow never settles, a serialized
 // caller (the voice chain) must not wedge forever behind it.
 const FLUSH_TIMEOUT_MS = 5000;
 
@@ -50,8 +50,8 @@ export function openNoteIsPrivate(): boolean {
  * within FLUSH_TIMEOUT_MS (resolving false on timeout) so a hung flush can't
  * deadlock a serialized caller. The timer is cleared once the race settles so it
  * never leaks. (JS can't cancel the underlying write; a flush slow enough to time
- * out — a >5s local disk write, i.e. a wedged main process — could still land
- * late, the documented last-write-wins residual. The timeout only bounds the
+ * out — a >5s round trip to the host — could still land late, the documented
+ * last-write-wins residual. The timeout only bounds the
  * caller's wait, it doesn't abort the write.) */
 export function flushOpenNote(): Promise<boolean> {
   if (!flushImpl) return Promise.resolve(true);

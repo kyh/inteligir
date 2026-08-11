@@ -107,12 +107,12 @@ provider configured), never for a whole channel.
 
 ## 5. Events — emit, and answer the hydration question
 
-Host code emits through the `HostEvents` bus (`host/host-events.ts`), an
-INSTANCE handed in with the services — a module-level listener set would fan one
-user's events onto another user's sockets.
+Host code emits through the `IpcEmit` callback (`@repo/bridge/ipc-contract`)
+handed in with the services — there is no bus. The object binds it to
+`SocketGate.broadcast`, which decides which sockets may hear it.
 
 ```ts
-services.events.emit("onKnowledgeUpdated", {});
+services.emit("onKnowledgeUpdated", {});
 ```
 
 ## The three judgement calls — `channel-policy.ts`

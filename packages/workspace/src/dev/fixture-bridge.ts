@@ -649,7 +649,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       }
     },
     onAppState: appStateEvents.subscribe,
-    onSetupProgress: () => () => {},
 
     // Agent — canned streamed echo so the composer is testable.
     onAgentEvent: agentEvents.subscribe,
@@ -1196,7 +1195,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       const snapshot = routineSnapshots.get(lastRun.runId);
       if (!snapshot) return { ok: false, error: "The saved copy is missing." };
       if (snapshot.content === null) {
-        // The run created the note — undo deletes it (host: OS trash).
+        // The run created the note — undo deletes it (host: a tombstone).
         if (vault.delete(snapshot.path)) {
           removeEntry(snapshot.path);
           touchVault({ upserted: [], removed: [snapshot.path] });

@@ -59,7 +59,7 @@ function budgetNotice(budget: SkillBudgetState): BudgetNotice | null {
 function notLoadedDetail(reason: "skill-count"): string {
   switch (reason) {
     case "skill-count":
-      return "Too many skills on disk for the agent's prompt, so this one never reached it and the agent cannot invoke it. Remove skills you don't use.";
+      return "Too many skills in your vault for the agent's prompt, so this one never reached it and the agent cannot invoke it. Remove skills you don't use.";
     default: {
       const unreachable: never = reason;
       return unreachable;

@@ -205,8 +205,8 @@ export type ContainerTurn = {
 
 /** An agent event, in the shape `@repo/bridge/agent-events` declares. Kept as a
  * permissive record here so the container never has to know the union: the DO
- * parses it with the same parser the desktop host uses, which is the one place
- * that mapping should live. */
+ * parses it with `@repo/bridge/agent-event-parser`, the one place that mapping
+ * lives. */
 const AgentEventSchema = Type.Object({ type: Type.String() }, { additionalProperties: true });
 
 const VaultOpSchema = Type.Union([

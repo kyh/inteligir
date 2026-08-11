@@ -51,10 +51,3 @@ export const AppStateSchema = Type.Union([
 ]);
 
 export type AppState = Static<typeof AppStateSchema>;
-
-/** How far a long-running startup step has got. `percent` is null while the
- * step is running without a measurable total. */
-export type SetupProgress = {
-  step: string;
-  percent: number | null;
-};

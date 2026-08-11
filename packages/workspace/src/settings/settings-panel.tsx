@@ -37,7 +37,7 @@ export function SettingsPanel() {
           <span className="flex flex-col">
             <span className="text-xs text-foreground">Start new session</span>
             <span className="text-[10px] text-muted-foreground">
-              Replaces the current session. Chat history is cleared.
+              Starts a fresh thread. Past chats stay browsable.
             </span>
           </span>
           <Button
