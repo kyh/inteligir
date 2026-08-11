@@ -44,6 +44,8 @@ export default defineConfig({
           name: "renderer",
           environment: "jsdom",
           include: ["src/renderer/**/*.test.tsx"],
+          // Fills the browser APIs jsdom omits but renderer components use.
+          setupFiles: ["./src/renderer/__tests__/dom-setup.ts"],
           server: { deps: { inline: inlineDeps } },
         },
       },

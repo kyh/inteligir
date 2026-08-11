@@ -343,7 +343,13 @@ function DelegationRow({
       {/* 1fr/0fr on a grid row is the height transition that needs no measured
        * pixel height — the reference's own mechanism, so a streaming reply can
        * grow the panel without a layout effect chasing it. */}
+      {/* `inert` while collapsed, not just `opacity: 0`. A 0fr grid row plus
+       * overflow-hidden hides the panel visually but leaves "Restore original"
+       * in the tab order, so keyboard focus could land on an invisible control
+       * that overwrites a file. inert also takes it out of the a11y tree, which
+       * is why no separate aria-hidden is needed. */}
       <div
+        inert={!expanded}
         className="grid transition-[grid-template-rows,opacity] duration-300"
         style={{
           gridTemplateRows: expanded ? "1fr" : "0fr",

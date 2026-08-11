@@ -736,9 +736,17 @@ function ComposerBar({
   const trailingRef = useRef<HTMLDivElement | null>(null);
   const [wrapped, setWrapped] = useState(false);
 
-  // `busy`/`hasInput` are deps because they add and remove the steer button,
-  // which changes how much room the trailing cluster takes.
-  useLayoutEffect(() => {
+  // The probe reads three live widths, so it must re-run whenever ANY of them
+  // moves — not only when the draft does. The control clusters change width on
+  // their own: the steer button appears on `busy` AND on staged attachments
+  // (useHasContent), and the window itself resizes. A dependency list can't see
+  // any of that, so the measurement is driven by a ResizeObserver over the grid
+  // and both clusters, with the layout effect covering the draft.
+  //
+  // It converges rather than looping: `available` is derived from the grid's
+  // width, which the reflow does not change (only its height), and a re-measure
+  // that reaches the same verdict bails inside setState.
+  const measure = useCallback(() => {
     const grid = gridRef.current;
     const mirror = mirrorRef.current;
     const leading = leadingRef.current;
@@ -746,8 +754,23 @@ function ComposerBar({
     if (!grid || !mirror || !leading || !trailing) return;
     const available =
       grid.clientWidth - leading.offsetWidth - trailing.offsetWidth - BAR_GAP_ALLOWANCE;
-    setWrapped(value.includes("\n") || mirror.offsetWidth + WRAP_SLOP > available);
-  }, [value, busy, hasInput]);
+    // Read the draft off the mirror rather than closing over `value`, so this
+    // stays dependency-free and the observer below is created exactly once.
+    const drafted = mirror.textContent ?? "";
+    setWrapped(drafted.includes("\n") || mirror.offsetWidth + WRAP_SLOP > available);
+  }, []);
+
+  useLayoutEffect(measure, [measure, value]);
+
+  useEffect(() => {
+    const targets = [gridRef.current, leadingRef.current, trailingRef.current].filter(
+      (el): el is HTMLDivElement => el !== null,
+    );
+    if (targets.length === 0) return;
+    const observer = new ResizeObserver(measure);
+    for (const el of targets) observer.observe(el);
+    return () => observer.disconnect();
+  }, [measure]);
 
   return (
     <div
