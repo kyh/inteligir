@@ -180,7 +180,10 @@ So the gate is what a render CAN establish: a request carrying no session
 cookie has no session, and `ssrWhenSignedOut`
 (`apps/web/src/lib/session-guard.ts`) server-renders precisely those. A request
 that carries one may hold a live session or a dead one, so it stays
-client-rendered and the guard runs the real check where it always ran.
+client-rendered and the guard runs the real check where it always ran. Which
+routes may declare the flag is pinned by
+`tools/repo-guards/src/route-ssr.test.ts`, because re-adding the one line is
+otherwise invisible.
 
 Two tsconfig programs, deliberately: the site compiles under `lib.dom`,
 `src/worker/` compiles without it. workerd and the DOM both declare

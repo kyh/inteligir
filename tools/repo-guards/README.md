@@ -91,6 +91,48 @@ would forbid the comment rather than the coupling. A second assertion checks the
 quarantine still contains pi imports, so a regex that stops matching fails loudly
 instead of passing over an empty set.
 
+### `src/route-ssr.test.ts` — where `ssr` may be declared
+
+TanStack Router inherits `ssr` DOWNWARD, so a parent that declares it has
+decided for children that never asked. One line — `ssr: false` on the `/app`
+layout — makes the auth pages client-only by inheritance and leaves a signed-out
+visitor watching a blank document until the bundle lands, and nothing else in
+the repo notices. `apps/web` cannot hold the check itself: its vitest project
+runs inside the Workers pool, where there is no filesystem to walk.
+
+Three rules over the route modules, read textually:
+
+- **No route with children declares `ssr`** — derived from the declared paths,
+  so a layout added later is held to it without being named.
+- **`CLIENT_ONLY` declares `ssr: false`.** The workspace mutates Plate's own
+  editor nodes and `/app/link` reads `window.location`; no tree walk can know
+  that, so those two are named with their reason. Membership is the only licence
+  to declare `false`, which is what stops the fix being traded away.
+- **Every other session-guarded route declares `ssr: ssrWhenSignedOut`.**
+  `currentSession()` answers `null` on the server by construction, so a guarded
+  route that server-renders is reading a session it cannot see; the gate admits
+  precisely the requests where that `null` is the truth.
+
+The `ssr` match is anchored at oxfmt's two-space indent, so it reads a property
+and never a comment quoting one — both this suite's header and the layout's
+explain the hazard by writing `ssr: false` out.
+
+### `src/agent-image.test.ts` — what the image's install layer is keyed on
+
+`apps/web/container/Dockerfile` copies the workspace manifests, installs, and
+only then copies the sources, so a source edit re-bundles the daemon instead of
+re-resolving ~1,700 packages. Two lines undo that, and neither failure is
+visible in a build log: a `COPY . .` above the install just costs minutes, and
+a workspace member whose manifest is not copied is **not refused**
+by `--frozen-lockfile` — pnpm installs the members it can see, leaves a dangling
+`node_modules` symlink where the missing one belongs, and the image fails at
+RUNTIME on a missing dependency, after a deploy.
+
+So the manifest list is expanded from `pnpm-workspace.yaml`'s own globs and
+diffed against the `COPY` lines above the install, and the two line numbers are
+compared. The Dockerfile's comments say the same things; the guard reads
+instructions only, so it pins the build rather than the prose.
+
 ## The maintenance contract
 
 - **Every suite carries a FLOOR, and the floors are the point.** A notation
