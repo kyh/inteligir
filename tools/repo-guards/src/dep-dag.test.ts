@@ -18,7 +18,8 @@
 // build-time failure at best and a runtime one at worst — but their tests walk
 // the filesystem on purpose, and no lint rule can tell the two apart by
 // package. This walks the shipped source only, which is exactly the hole a
-// per-package lint override would leave open.
+// per-package lint override would leave open. It reads SPECIFIERS, and the
+// third case is the floor that proves it still reads any at all.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -35,10 +36,26 @@ const EDGE_CLAUSE = /\b([a-z][a-z-]*)→([a-z][a-z-]*(?:\+[a-z][a-z-]*)*)/g;
 /** `notes and ui are leaves` — the zero-edge packages. */
 const LEAF_CLAUSE = /\b([a-z][a-z, -]*?) are leaves\b/;
 
-/** A node built-in or electron module specifier in an import/require/dynamic
- * import. Prose mentions in comments are not imports and must not count. */
+/**
+ * A `node:` builtin or an `electron` module, wherever a specifier can appear:
+ * a static import, an `export … from`, a `require()` and a dynamic `import()`.
+ *
+ * Anchored on the SPECIFIER, never on the keyword's line. oxfmt WRAPS a long
+ * import, so a keyword-anchored match is one `pnpm format:fix` away from
+ * missing the very import it was written to catch — and `export … from
+ * "node:fs"` has no keyword to anchor to at all.
+ */
 const HOST_IMPORT =
-  /(?:^|[\s(])(?:import|require)[^\n]*?["'](node:[^"']+|electron(?:\/[^"']*)?)["']/m;
+  /(?:from|require\(|import\(|import)\s*["'](node:[^"']+|electron(?:\/[^"']*)?)["']/g;
+
+/** Every host-module specifier a file reaches for, deduplicated — so a failure
+ * names what to remove rather than only where. */
+function hostImports(file: string): string[] {
+  const found = [...fs.readFileSync(file, "utf8").matchAll(HOST_IMPORT)].flatMap((match) =>
+    match[1] === undefined ? [] : [match[1]],
+  );
+  return [...new Set(found)].toSorted();
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -185,14 +202,31 @@ describe("dep DAG", () => {
     }
     expect(files.length).toBeGreaterThan(50);
 
-    const importers = files
-      .filter((file) => HOST_IMPORT.test(fs.readFileSync(file, "utf8")))
-      .map((file) => `  ${path.relative(REPO_ROOT, file).split(path.sep).join("/")}`);
+    const importers = files.flatMap((file) => {
+      const specifiers = hostImports(file);
+      if (specifiers.length === 0) return [];
+      const relative = path.relative(REPO_ROOT, file).split(path.sep).join("/");
+      return [`  ${relative}: ${specifiers.join(", ")}`];
+    });
 
     expect(
       importers,
       `packages/ is bundled into a browser and into React Native — shipped source ` +
         `cannot reach node or electron (tests may; they are excluded):\n${importers.join("\n")}`,
     ).toEqual([]);
+  });
+
+  it("the host-import match still finds the shell's own imports", () => {
+    // The floor. An empty answer above is only meaningful if the match still
+    // works: apps/desktop is electron and node by definition, so it is the one
+    // place in this repo where finding NOTHING proves the pattern rotted.
+    const files: string[] = [];
+    shippedFiles(path.join(REPO_ROOT, "apps/desktop/src"), files);
+    const importers = files.filter((file) => hostImports(file).length > 0);
+    expect(
+      importers.length,
+      "matched no node/electron import in apps/desktop — the pattern stopped working,\n" +
+        "so the assertion above is passing over every violation rather than finding none",
+    ).toBeGreaterThan(0);
   });
 });

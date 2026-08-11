@@ -15,6 +15,12 @@
 // is named below with its reason rather than derived — no tree walk can know
 // which component survives a server render.
 //
+// Each rule below says what a NAMED set of routes must declare, so the last one
+// is the closure: a route in none of those sets may not declare the flag at
+// all. Without it every rule here is satisfied by `ssr: false` on the marketing
+// page — the one route whose whole job is to render for a visitor who has never
+// loaded this app.
+//
 // Textual, like the rest of this package. `apps/web` compiles under two tsconfig
 // programs and its vitest project runs inside the Workers pool, where there is
 // no filesystem to walk; and what is being read — which options a route module
@@ -133,6 +139,28 @@ describe("apps/web route SSR", () => {
       ungated,
       `a guarded route reads a session the server cannot see, so it must declare\n` +
         `ssr: ${SESSION_GATE} — or join CLIENT_ONLY above with its reason:\n${ungated.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("no other route declares ssr at all", () => {
+    // The closure over the three rules above, and the one that makes them a
+    // POLICY rather than three spot checks: they each say what a named set of
+    // routes must declare, and every one of them is satisfied by a route in
+    // none of those sets declaring whatever it likes. `ssr: false` on the
+    // marketing page is the shape that costs something — a blank document until
+    // the bundle lands, on the one page whose whole job is to render for a
+    // visitor who has never loaded this app.
+    const clientOnly = new Set(CLIENT_ONLY.map((entry) => entry.route));
+    const declaring = ROUTES.filter(
+      (route) => route.ssr !== null && !clientOnly.has(route.route) && !route.guarded,
+    ).map((route) => `  ${route.file} (${route.route}) declares ssr: ${route.ssr}`);
+
+    expect(
+      declaring,
+      `ssr is a per-route decision with exactly two reasons in this app: a component\n` +
+        `that cannot render on workerd (join CLIENT_ONLY with yours), or a session the\n` +
+        `server cannot see (ssr: ${SESSION_GATE}). A route with neither renders on the\n` +
+        `server, which is the default and the cheap one:\n${declaring.join("\n")}`,
     ).toEqual([]);
   });
 });

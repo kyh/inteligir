@@ -13,6 +13,16 @@ declare module "*?raw" {
   export default source;
 }
 
+// Vite's eager raw glob, hand-declared for the same reason as `*?raw` and
+// narrowed to the one call shape a structural test needs: a set of module
+// patterns in, their source text out.
+interface ImportMeta {
+  glob(
+    patterns: readonly string[],
+    options: { readonly query: "?raw"; readonly import: "default"; readonly eager: true },
+  ): Record<string, string>;
+}
+
 declare namespace Cloudflare {
   interface Env {
     TEST_SCHEMA: string;

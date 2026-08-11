@@ -14,9 +14,10 @@
 // looks up a handler or writes an event frame.
 //
 // `__tests__/socket-gate.test.ts` drives both directions through a fake socket
-// — inverting either predicate turns it red. `__tests__/no-ungated-dispatch.ts`
-// is the backstop that fails when a THIRD path appears, which is the failure
-// mode a behavioural test cannot see.
+// — inverting either predicate turns it red.
+// `__tests__/no-ungated-dispatch.test.ts` sweeps every module the Worker ships
+// and is the backstop that fails when a THIRD path appears, which is the
+// failure mode a behavioural test cannot see.
 // ---------------------------------------------------------------------------
 
 import { binaryChannelFor, HYDRATED_EVENTS } from "@repo/bridge/channel-policy";

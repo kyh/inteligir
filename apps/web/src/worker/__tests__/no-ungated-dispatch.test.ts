@@ -8,24 +8,44 @@
 // a socket" and forgets to consult the gate. A forgotten check fails OPEN, and
 // no test written before that path existed would notice.
 //
-// If you are here because this failed: do not add your call site to an
-// allowlist. Route it through SocketGate — that is the fix.
+// So every module the Worker ships is swept, not a list of the files this guard
+// happened to be pointed at — a list only ever sees the paths its author
+// already thought of, which is precisely the module this is looking for. Each
+// rule below is stated as the SET of files that may hold a fact; a file joining
+// one is the failure, and the message names the fact rather than the line.
 //
-// The socket is not the only way in: the asset upload and the vault export
-// arrive as HTTP requests, reach the same vault, and cannot pass through the
-// gate (there is no frame to resolve and no socket to push to). So each carries
-// the check itself, and the case below is what keeps them carrying one — an
-// HTTP route that reached a capability without naming it would be a hole no
-// amount of care on the socket path could close.
+// If you are here because this failed: do not add your call site to the set.
+// Route it through SocketGate — that is the fix.
+//
+// The socket is not the only way in. Three HTTP leaves reach the same vault and
+// cannot pass through the gate (there is no frame to resolve and no socket to
+// push to), so each carries the check itself, named as the registry METHOD it
+// stands in for. That is a different fact from the socket chokepoint and is
+// pinned as one: the leaves are a table here, and a route that reaches a
+// capability without naming it — or a leaf that quietly drops its check — is
+// what the closure below catches.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
-import agentEndpointSource from "../host/agent-endpoints.ts?raw";
-import assetSource from "../host/asset-route.ts?raw";
-import exportSource from "../host/vault-export.ts?raw";
-import gateSource from "../host/socket-gate.ts?raw";
-import runnerSource from "../agent/agent-runner.ts?raw";
-import hostSource from "../host/user-host.ts?raw";
+
+/**
+ * Every module the Worker ships, keyed by its path under `src/worker/`.
+ *
+ * Vite resolves the glob at transform time, so the sweep needs no filesystem —
+ * workerd has none, which is why this reads source as modules rather than
+ * walking a tree. `__tests__` is excluded because a test's job is to spell what
+ * production may not, and the two ambient `.d.ts` files because they are
+ * generated declarations rather than code.
+ */
+const SOURCES = new Map(
+  Object.entries(
+    import.meta.glob(["../**/*.ts", "!../**/__tests__/**", "!../**/*.d.ts"], {
+      query: "?raw",
+      import: "default",
+      eager: true,
+    }),
+  ).map(([key, source]): [string, string] => [key.replace(/^\.\.\//, ""), source]),
+);
 
 /** Source lines with comments stripped, so a mention in prose never counts as
  * a call site. */
@@ -36,13 +56,31 @@ function codeLines(source: string): string[] {
     .filter((line) => !/^\s*\*/.test(line));
 }
 
-const gate = codeLines(gateSource);
-const host = codeLines(hostSource);
+const CODE = new Map(
+  [...SOURCES].map(([file, source]): [string, string[]] => [file, codeLines(source)]),
+);
+
+/** A named module's code, or a loud failure — a file this guard cannot find is
+ * a fact nothing checks. */
+function linesOf(file: string): string[] {
+  const lines = CODE.get(file);
+  if (lines === undefined) {
+    throw new Error(`src/worker/${file} is gone — re-anchor this guard, do not delete it`);
+  }
+  return lines;
+}
+
+/** Every module whose code matches, sorted — the set form each rule is stated
+ * in. Patterns must be non-global: `test()` on a `/g` regex is stateful. */
+function modulesMatching(pattern: RegExp): string[] {
+  return [...CODE]
+    .filter(([, lines]) => lines.some((line) => pattern.test(line)))
+    .map(([file]) => file)
+    .toSorted();
+}
 
 function callSites(lines: string[], identifier: string): string[] {
-  return lines
-    .filter((line) => line.includes(`${identifier}(`) && !line.includes(`${identifier}(\n`))
-    .map((line) => line.trim());
+  return lines.filter((line) => line.includes(`${identifier}(`)).map((line) => line.trim());
 }
 
 /** Every line index whose text matches, so a window is anchored to the OCCURRENCE
@@ -51,25 +89,78 @@ function indicesOf(lines: string[], needle: string): number[] {
   return lines.flatMap((line, index) => (line.includes(needle) ? [index] : []));
 }
 
-/** The same call-site scan over the runner — where the report path's own gate
- * lives. */
-function runnerCallSites(identifier: string): string[] {
-  return codeLines(runnerSource).filter((line) => line.includes(`${identifier}(`));
-}
+const GATE = "host/socket-gate.ts";
+const HOST = "host/user-host.ts";
+
+const gate = linesOf(GATE);
+
+/**
+ * The transports that reach a capability with no socket to gate them, each
+ * named as the registry METHOD it stands in for.
+ *
+ * Naming the method is the point: an upload and `writeVaultAsset` are one
+ * capability over two transports, so a route gated on something of its own
+ * would be a second policy for the same thing — and the two would drift.
+ */
+const HTTP_LEAVES = [
+  {
+    file: "host/asset-route.ts",
+    gate: 'mayInvoke(clientClass, "writeVaultAsset")',
+    why: "an upload too large for a frame is the write channel over a second transport",
+  },
+  {
+    file: "capture/deep-link-route.ts",
+    gate: 'mayInvoke(clientClass, "ackCapture")',
+    why: "a capture writes to the vault, so a class that may not ack one may not create one",
+  },
+  {
+    file: "host/vault-export.ts",
+    gate: 'mayInvoke("mobile", "readVaultFile")',
+    why:
+      "the download is a top-level navigation, so the cookie arrives with no Origin to " +
+      "corroborate it and the gate names the class a bearer can at most amount to",
+  },
+];
 
 describe("the gate has one way in and one way out", () => {
+  it("sweeps the whole Worker", () => {
+    // A floor: a moved source tree or a glob that stops matching would make
+    // every set below trivially satisfied.
+    expect(SOURCES.size, "the sweep found almost nothing — did src/worker move?").toBeGreaterThan(
+      50,
+    );
+  });
+
+  it("lays hands on a socket in exactly one place", () => {
+    // Upstream of every rule below: a module that cannot OBTAIN a socket cannot
+    // write to one, whatever it does with the handler map.
+    expect(
+      modulesMatching(/\b(?:getWebSockets|acceptWebSocket)\(|\bnew WebSocketPair\b/),
+      "sockets belong to UserHost — take them from it, do not enumerate your own",
+    ).toEqual([HOST]);
+  });
+
+  it("names the handler map in exactly the four places it crosses", () => {
+    // Built, held, handed over, consumed. A fifth module naming it is a module
+    // that can dispatch a method without the class gate ever answering.
+    expect(
+      modulesMatching(/\bHostHandlers\b|\bWireHandler\b|\.handlers\b/),
+      "the handler map is SocketGate's — resolve through the gate instead of indexing it",
+    ).toEqual(["host/handler-registry.ts", "host/host-composition.ts", GATE, HOST]);
+  });
+
   it("resolves handlers in exactly one place", () => {
     // Reaching the dispatch map directly is how an inbound path skips the gate.
     expect(
       indicesOf(gate, "dispatch.get("),
       "dispatch.get() must only be called inside resolve()",
     ).toHaveLength(1);
-    expect(indicesOf(host, "dispatch.get("), "the dispatch map belongs to SocketGate").toEqual([]);
   });
 
-  it("consults each predicate in exactly one place", () => {
-    // A second call site means a path decided to gate itself — which is the
-    // pattern that produces holes. One call site each = one chokepoint.
+  it("consults each predicate in exactly one place on the socket path", () => {
+    // A second call site inside the gate means a path decided to gate itself —
+    // which is the pattern that produces holes. One call site each = one
+    // chokepoint.
     expect(
       callSites(gate, "mayInvoke"),
       "mayInvoke() belongs to SocketGate.resolve() alone",
@@ -78,12 +169,14 @@ describe("the gate has one way in and one way out", () => {
       callSites(gate, "mayReceive"),
       "mayReceive() belongs to SocketGate.push() alone",
     ).toHaveLength(1);
-    for (const predicate of ["mayInvoke", "mayReceive"]) {
-      expect(
-        callSites(host, predicate),
-        `${predicate}() outside the gate — route the call through SocketGate`,
-      ).toEqual([]);
-    }
+
+    // And nowhere else except where the predicates are declared and the leaves
+    // below, which are the OTHER fact and are pinned as such.
+    expect(
+      modulesMatching(/\b(?:mayInvoke|mayReceive)\(/),
+      "a capability check outside the socket gate and the three HTTP leaves — route\n" +
+        "it through SocketGate, or add the leaf to HTTP_LEAVES with the method it stands for",
+    ).toEqual(["host/client-class.ts", GATE, ...HTTP_LEAVES.map((leaf) => leaf.file)].toSorted());
   });
 
   it("fans out to sockets only through the push gate", () => {
@@ -105,34 +198,36 @@ describe("the gate has one way in and one way out", () => {
     // quietly correct-looking: the gate's own write (the push gate itself), and
     // two per-socket ANSWERS gated by something else — a res frame by
     // resolve(), the welcome frame by authentication itself.
-    const OWNED_WRITES = [
-      "WebSocket.READY_STATE_OPEN) socket.send(frame)",
-      'ws.send(encodeFrame({ t: "res"',
-      'ws.send(encodeFrame({ t: "welcome" }))',
-    ];
-    const writes = [...gate, ...host]
-      .filter((line) => /\b(?:ws|socket)\.send\(/.test(line))
-      .filter((line) => !OWNED_WRITES.some((marker) => line.includes(marker)));
+    const OWNED_WRITES: Record<string, readonly string[]> = {
+      [GATE]: ["WebSocket.READY_STATE_OPEN) socket.send(frame)"],
+      [HOST]: ['ws.send(encodeFrame({ t: "res"', 'ws.send(encodeFrame({ t: "welcome" }))'],
+    };
+    // Receiver-shaped rather than a bare `.send(`: the Worker's other senders
+    // are an email binding, the container port and a voice session, and a rule
+    // that had to list them would rot the first time one was renamed.
+    const SOCKET_WRITE = /\b[\w$]*(?:ws|sock(?:et)?)[\w$]*\.send\(/i;
+
+    const writes = [...CODE].flatMap(([file, lines]) =>
+      lines
+        .filter((line) => SOCKET_WRITE.test(line))
+        .filter((line) => !(OWNED_WRITES[file] ?? []).some((marker) => line.includes(marker)))
+        .map((line) => `  ${file}: ${line.trim()}`),
+    );
 
     expect(
-      writes.map((line) => line.trim()),
-      "A socket write outside SocketGate.push() and the two per-socket answers",
+      writes,
+      `A socket write outside SocketGate.push() and the two per-socket answers:\n` +
+        writes.join("\n"),
     ).toEqual([]);
   });
 
-  it("gates the HTTP transport on the capability it serves", () => {
-    // Named as the CHANNEL it stands in for, not as "an upload": the two are
-    // the same capability over two transports, so they must be gated on the
-    // same registry method or one of them will drift into a second policy.
-    expect(assetSource).toContain('mayInvoke(clientClass, "writeVaultAsset")');
-
-    // The export is the same rule read from its other end. It cannot derive a
-    // class at all — the download is a top-level navigation, so the browser's
-    // cookie arrives with no Origin to corroborate it — so it names the
-    // capability against the class a BEARER can at most amount to. Without a
-    // gate here the companion reaches the whole vault over a route, having been
-    // refused one note over the socket.
-    expect(exportSource).toContain('mayInvoke("mobile", "readVaultFile")');
+  it("gates each HTTP transport on the capability it serves", () => {
+    for (const leaf of HTTP_LEAVES) {
+      expect(
+        linesOf(leaf.file).join("\n"),
+        `${leaf.file} must gate on ${leaf.gate} — ${leaf.why}`,
+      ).toContain(leaf.gate);
+    }
   });
 
   it("gates the container's report on the token that names its generation", () => {
@@ -143,15 +238,18 @@ describe("the gate has one way in and one way out", () => {
     // with no HTTP hop, so a decision the route made would be one that runtime
     // skipped. The HTTP leg reads the bearer and hands over; `acceptReport` is
     // where every condition is checked.
-    expect(agentEndpointSource).toContain("readBearer(request.headers)");
-    expect(agentEndpointSource).toContain("runner.acceptReport(token,");
-    expect(agentEndpointSource).not.toContain("AgentReportSchema");
+    const endpoints = linesOf("host/agent-endpoints.ts").join("\n");
+    expect(endpoints).toContain("readBearer(request.headers)");
+    expect(endpoints).toContain("runner.acceptReport(token,");
+    expect(endpoints).not.toContain("AgentReportSchema");
 
     // The bearer answers WHICH LANE the container is, so the undo surface a
     // report's writes land under is read off the credential rather than taken
     // from the body — and it is derived in exactly ONE place, or the two
     // transports could disagree about whose container reported.
-    expect(runnerCallSites("this.resolveReportLane")).toHaveLength(1);
+    const runner = linesOf("agent/agent-runner.ts");
+    expect(callSites(runner, "this.resolveReportLane")).toHaveLength(1);
+    const runnerSource = runner.join("\n");
     expect(runnerSource).toContain("private async resolveReportLane(");
     expect(runnerSource).toContain("private report(");
 
@@ -167,6 +265,7 @@ describe("the gate has one way in and one way out", () => {
   it("keeps both chokepoints present and named", () => {
     // Cheap tripwire: a rename that split them would otherwise pass every check
     // above by making the identifiers disappear entirely.
+    const gateSource = gate.join("\n");
     expect(gateSource).toContain("resolve(state: AuthedSocketState");
     expect(gateSource).toContain("private push(");
   });
