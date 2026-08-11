@@ -239,9 +239,9 @@ export const AGENT_GRANTS = [
     agentName: "delete_note",
     tier: "destructive-confirmed",
     description:
-      "Propose moving a file to the system trash. The user is asked first and may say no, " +
+      "Propose deleting a file from the vault. The user is asked first and may say no, " +
       "which comes back as an ordinary result — do not retry it, and do not reach for `bash " +
-      "rm` instead. Recoverable from the trash, but the user's own decision either way.",
+      "rm` instead. There is no trash view and no restore: nothing brings the file back.",
   },
   {
     capability: "restoreAgentEdits",

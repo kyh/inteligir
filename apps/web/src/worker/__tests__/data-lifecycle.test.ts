@@ -10,9 +10,12 @@
 // say anything about.
 // ---------------------------------------------------------------------------
 
+import { eq } from "drizzle-orm";
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { createDb } from "../db/client";
+import { inviteCode } from "../db/schema";
 import { userHostName } from "../host/host-address";
 import { planExport } from "../host/vault-export";
 import { purgeR2Prefix } from "../host/vault/r2-prefix";
@@ -323,6 +326,42 @@ describe("account deletion", () => {
     expect(
       (await SELF.fetch(`${ORIGIN}/v1/host/export`, { headers: { cookie: doomed.cookie } })).status,
     ).toBe(401);
+  });
+
+  // The invite row is the one thing a user typed that lives outside their own
+  // object, so `purgeAccount` cannot reach it and "Delete everything" would
+  // leave their email behind in D1. Deliberately a MIXED-CASE address: the gate
+  // records it as typed and Better Auth lowercases the user row, so a scrub
+  // comparing the two exactly would find nothing and silently keep the email.
+  it("forgets the deleted account's email on the invite it spent, without un-burning it", async () => {
+    const email = "Lifecycle-Invited@Example.com";
+    const invited = await signUp(email);
+
+    const claimed = await createDb(env.DB)
+      .select()
+      .from(inviteCode)
+      .where(eq(inviteCode.redeemedBy, email))
+      .get();
+    expect(claimed?.redeemedAt).not.toBeNull();
+    const code = claimed?.code;
+    if (code === undefined) throw new Error("the sign-up recorded no redeemer");
+
+    const deleted = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: invited.cookie, origin: ORIGIN },
+      body: JSON.stringify({ password: "test-password-1234" }),
+    });
+    expect(deleted.status).toBe(200);
+
+    const row = await createDb(env.DB)
+      .select()
+      .from(inviteCode)
+      .where(eq(inviteCode.code, code))
+      .get();
+    expect(row?.redeemedBy).toBeNull();
+    // Still burned — clearing this would hand a working sign-up to whoever
+    // still has the code.
+    expect(row?.redeemedAt).not.toBeNull();
   });
 
   it("purges idempotently — a retry after a half-failed delete resumes", async () => {

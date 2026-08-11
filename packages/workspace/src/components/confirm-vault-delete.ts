@@ -1,11 +1,12 @@
 import { confirm } from "@repo/ui/components/confirm-dialog";
 
-/** The one delete-confirm for vault files. User deletes go to the OS trash
- * (CLAUDE.md § Decisions), so the copy says recoverable, not permanent. */
+/** The one delete-confirm for vault files. There is no trash view and no
+ * restore channel, so the copy may not offer one — `docs/privacy.md` is what
+ * this has to agree with. */
 export const confirmVaultDelete = (path: string): Promise<boolean> =>
   confirm({
     title: `Delete ${path}?`,
-    body: "Moves the file to your system trash.",
+    body: "This removes it from your vault. It can't be undone.",
     confirmLabel: "Delete",
     destructive: true,
   });

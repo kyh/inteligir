@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { createAuth } from "../auth/auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
@@ -106,5 +107,81 @@ describe("invite-gated sign-up", () => {
     const response = await signUp({ inviteCode: "INVITE-UNTOUCHED" });
     expect(response.status).toBe(400);
     expect((await readCode("INVITE-UNTOUCHED"))?.redeemedAt).toBeNull();
+  });
+
+  // The gate is only a gate if there is no way past it. Better Auth's own
+  // sign-up route is reachable on this origin and takes no invite field, so
+  // without `disableSignUp` on the instance that serves `/api/auth/*` it
+  // creates an account for anyone who types the path.
+  it("refuses Better Auth's own sign-up route, which takes no code", async () => {
+    const response = await SELF.fetch(ORIGIN + "/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: JSON.stringify({
+        name: "Eve",
+        email: "eve@example.test",
+        password: PASSWORD,
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "EMAIL_PASSWORD_SIGN_UP_DISABLED" });
+
+    // Refused, not merely unacknowledged: no account came out of it.
+    const signIn = await SELF.fetch(ORIGIN + "/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: JSON.stringify({ email: "eve@example.test", password: PASSWORD }),
+    });
+    expect(signIn.status).not.toBe(200);
+  });
+
+  // The other door into sign-up, and the one no route table shows: an OAuth
+  // callback creates an account from the provider's profile, having asked no
+  // code. Asserted over the built config rather than by driving a callback,
+  // because the provider is the party that would have to answer — and the flag
+  // is the whole of what Better Auth reads (`provider.options.disableSignUp`).
+  it("refuses account creation through every social provider it can serve", () => {
+    const configured = createAuth(
+      {
+        ...env,
+        GITHUB_CLIENT_ID: "gh-id",
+        GITHUB_CLIENT_SECRET: "gh-secret",
+        GOOGLE_CLIENT_ID: "goo-id",
+        GOOGLE_CLIENT_SECRET: "goo-secret",
+      },
+      ORIGIN,
+    );
+
+    const social = configured.options.socialProviders ?? {};
+    expect(Object.keys(social).toSorted()).toEqual(["github", "google"]);
+    for (const [name, provider] of Object.entries(social)) {
+      expect(
+        provider?.disableSignUp,
+        `${name} may sign a linked account in, never create one`,
+      ).toBe(true);
+    }
+  });
+
+  // Sign-IN is untouched by the flag — the same instance still serves it, and
+  // an account that spent a code has to be able to come back.
+  it("still signs an invited account back in through Better Auth", async () => {
+    await mintCode("INVITE-RETURNS");
+    expect(
+      (
+        await signUp({
+          name: "Grace",
+          email: "grace@example.test",
+          password: PASSWORD,
+          inviteCode: "INVITE-RETURNS",
+        })
+      ).status,
+    ).toBe(200);
+
+    const signIn = await SELF.fetch(ORIGIN + "/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      body: JSON.stringify({ email: "grace@example.test", password: PASSWORD }),
+    });
+    expect(signIn.status).toBe(200);
   });
 });

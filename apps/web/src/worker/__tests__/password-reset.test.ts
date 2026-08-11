@@ -5,6 +5,7 @@ import worker from "../index";
 import { sendResetEmail } from "../auth/reset-email";
 import { createDb } from "../db/client";
 import { verification } from "../db/schema";
+import { mintInvite } from "./host-helpers";
 
 // The password-reset flow, driven against the real in-process Worker +
 // D1. Email delivery is the ONE piece that can't run here (it needs the
@@ -41,11 +42,17 @@ function envWith(EMAIL: SendEmail): Env {
   return { ...env, EMAIL };
 }
 
+/** An account, through the invite gate — the only route that creates one. */
 async function signUp(email: string): Promise<void> {
-  const response = await SELF.fetch(ORIGIN + "/api/auth/sign-up/email", {
+  const response = await SELF.fetch(ORIGIN + "/v1/auth/sign-up", {
     method: "POST",
     headers: { "content-type": "application/json", origin: ORIGIN },
-    body: JSON.stringify({ email, password: OLD_PASSWORD, name: "user" }),
+    body: JSON.stringify({
+      email,
+      password: OLD_PASSWORD,
+      name: "user",
+      inviteCode: await mintInvite(),
+    }),
   });
   if (response.status !== 200) {
     throw new Error(`sign-up failed: ${String(response.status)} ${await response.text()}`);

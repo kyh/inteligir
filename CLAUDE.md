@@ -393,7 +393,14 @@ repo, and its `src/pi/` is the harness quarantine.
   bearer plugin on, `baseURL` derived from the request origin (§ Decisions).
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`auth/invite.ts`), claiming the code in one atomic statement and then
-  forwarding to `/api/auth/sign-up/email` so the response comes back untouched.
+  forwarding into the one instance built with `disableSignUp` off, so the
+  response comes back untouched. Every other caller's instance carries the flag,
+  which shuts `/api/auth/sign-up/email` and `auth.api.signUpEmail` together.
+  Each social provider carries its OWN `disableSignUp`, and the credential type
+  makes it non-optional: a provider is a sign-in for an account that already
+  linked it, never a way to get one. Otherwise the gate would be a fact about
+  email+password rather than about sign-up — an OAuth callback mints an account
+  from the provider's profile and asks no code.
 - **Ownership needs no table**: a session names exactly one host object.
 - **Export is a streamed zip** (`GET /v1/host/export`), one R2 body at a time,
   nothing gathered — a vault may exceed the isolate's memory. There is no

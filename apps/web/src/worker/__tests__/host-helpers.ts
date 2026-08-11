@@ -9,8 +9,11 @@
 // ---------------------------------------------------------------------------
 
 import { parseServerFrame, type ResFrame, type ServerFrame } from "@repo/bridge/ws-protocol";
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { expect } from "vitest";
+
+import { createDb } from "../db/client";
+import { inviteCode } from "../db/schema";
 
 /** The origin the Worker is reached on — Better Auth derives its baseURL from
  * it, so every request in these suites uses one. */
@@ -32,13 +35,26 @@ export type Account = {
   readonly cookie: string;
 };
 
+/** Mint an invite and hand back its code. A UUID rather than a counter: these
+ * suites share one D1 per file and `code` is the primary key. */
+export async function mintInvite(): Promise<string> {
+  const code = crypto.randomUUID();
+  await createDb(env.DB).insert(inviteCode).values({ code });
+  return code;
+}
+
+/**
+ * An account, created the only way this deployment creates one: a minted code
+ * spent at the invite gate. Better Auth's own sign-up route refuses, so a
+ * helper that dialled it would be testing a path production does not have.
+ */
 export async function signUp(email: string): Promise<Account> {
   const password = "test-password-1234";
   const name = email.split("@")[0] ?? "user";
-  const signUpResponse = await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
+  const signUpResponse = await SELF.fetch(`${ORIGIN}/v1/auth/sign-up`, {
     method: "POST",
     headers: { "content-type": "application/json", origin: ORIGIN },
-    body: JSON.stringify({ email, password, name }),
+    body: JSON.stringify({ email, password, name, inviteCode: await mintInvite() }),
   });
   if (signUpResponse.status !== 200) {
     throw new Error(`sign-up failed: ${signUpResponse.status} ${await signUpResponse.text()}`);

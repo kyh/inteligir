@@ -1,5 +1,5 @@
 import { and, eq, isNull } from "drizzle-orm";
-import { createAuth } from "./auth";
+import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { isRecord } from "@repo/bridge/wire-helpers";
@@ -11,15 +11,14 @@ import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
 // deployment. Body is Better Auth's sign-up body plus one field:
 // `{ name, email, password, inviteCode }`.
 //
-// Better Auth's own `/api/auth/sign-up/email` stays reachable and stays
-// UNGATED — gating it would mean either an `additionalFields` column on the
-// user table or a middleware reaching into another package's request body, and
-// both put the gate somewhere a reader of the sign-up flow would not look. So
-// the gate is a route in front of it: this claims an invite and then FORWARDS
-// to Better Auth's handler, whose response (`set-cookie`, `set-auth-token`,
-// and every validation error) is returned untouched. The deployment is closed
-// by the fact that nothing publishes the ungated path — which is a product
-// decision, not a boundary, and is written down here rather than implied.
+// Better Auth's own `/api/auth/sign-up/email` REFUSES. The instance every
+// other caller builds carries `disableSignUp`, which Better Auth checks off the
+// options its sign-up endpoint runs under — so the flag shuts `auth.api
+// .signUpEmail` and every other way into that endpoint, not only the HTTP path.
+// This route claims an invite and then FORWARDS into the one instance built
+// with sign-up enabled (`createSignUpAuth`), so the response — `set-cookie`,
+// `set-auth-token`, and every validation error — is Better Auth's own,
+// untouched. An account cannot be created without spending a code.
 //
 // ORDER MATTERS. The invite is claimed BEFORE the account exists, because the
 // claim is the only atomic step available: one `UPDATE … WHERE code = ? AND
@@ -134,5 +133,5 @@ function forwardSignUp(
     headers,
     body: JSON.stringify({ name: body.name, email: body.email, password: body.password }),
   });
-  return createAuth(env, origin).handler(forwarded);
+  return createSignUpAuth(env, origin).handler(forwarded);
 }

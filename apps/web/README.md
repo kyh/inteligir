@@ -248,9 +248,9 @@ Three pages over the existing Better Auth routes, sharing one card
 - **Sign-up is invite-gated**, and the gate is a Worker route in front of Better
   Auth rather than a hook inside it (`src/worker/auth/invite.ts`).
   `POST /v1/auth/sign-up` takes `{name, email, password, inviteCode}`, claims
-  the code, and then FORWARDS to `/api/auth/sign-up/email`, returning Better
-  Auth's response untouched — cookie, `set-auth-token` and validation errors
-  all come back as they would from a direct sign-up.
+  the code, and then FORWARDS into a Better Auth instance built with sign-up
+  enabled, returning its response untouched — cookie, `set-auth-token` and
+  validation errors all come back as they would from a direct sign-up.
 - **The claim is one atomic statement** —
   `UPDATE invite_code SET … WHERE code = ? AND redeemed_at IS NULL` — so two
   simultaneous sign-ups on one code settle on exactly one winner. It happens
@@ -258,11 +258,19 @@ Three pages over the existing Better Auth routes, sharing one card
   rejected sign-up releases it, scoped to the email that claimed it. An isolate
   that dies in between burns a code, which costs the owner one INSERT to
   replace.
-- **Better Auth's own `/api/auth/sign-up/email` stays reachable and ungated.**
-  Nothing publishes it, which closes the deployment as a product decision, not
-  as a boundary. Gating it properly would mean an `additionalFields` column on
-  the user table or middleware reading another package's request body — both of
-  them put the gate somewhere a reader of the sign-up flow would not look.
+- **Better Auth's own `/api/auth/sign-up/email` REFUSES.** Sign-up is closed by
+  CONFIGURATION rather than by the route table: `emailAndPassword.disableSignUp`
+  is set on the instance every other caller builds, and Better Auth checks it off
+  the options its sign-up endpoint runs under — so `auth.api.signUpEmail` is shut
+  by the same flag, not only the HTTP path. That is also why the gate builds its
+  own instance (`createSignUpAuth`): there is no per-call override, and the
+  forward is what keeps the response Better Auth's own. Sign-IN is untouched.
+- **So does every social provider**, through its own `disableSignUp` — the one
+  Better Auth reads off `provider.options` in the OAuth callback. It is typed
+  non-optional on the credential record, because a provider added without it is
+  a second sign-up door that no route table shows: the callback creates an
+  account out of the provider's profile, having asked for no code. Existing
+  users still sign in; only the register branch refuses.
 - **There is ONE reset page and it is the Worker's**
   (`src/worker/auth/reset-page.ts`). `/app/forgot-password` only REQUESTS the
   link; the page that sets a new password stays server-rendered, static and

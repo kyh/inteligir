@@ -159,6 +159,29 @@ install does, and dropping the filter demands every member back. The two line
 numbers are compared as before. The Dockerfile's comments say the same things;
 the guard reads instructions only, so it pins the build rather than the prose.
 
+### `src/delete-copy.test.ts` — what a delete may promise
+
+A delete is a tombstone and nothing reads a tombstone's bytes back: no trash
+view, no restore, no purge-sooner. `docs/privacy.md` is the contract. The copy
+around it drifted away from that in three places at once — the dialog a user
+approves, the dialog the agent's proposal raises, and the sentence the grant
+table hands the model — because each is written where its own feature lives and
+none of them can see the others. Nothing types a string, so the rule lives here,
+once, over all three.
+
+Two halves, both load-bearing. **No recovery PROMISE**, matched as phrases
+rather than words, because "moves to the trash" and "there is no trash view"
+share every word that matters — so the denial is cut out of the text first and
+the promises are looked for in what is left. **An explicit DENIAL**, because
+otherwise deleting the false promise satisfies the rule and the user is told
+nothing at all, which is how the copy got there.
+
+Each site is sliced between the marker that opens its entry and the next
+occurrence of that same marker key, and comments are stripped — a rule stated in
+prose above the copy may never stand in for the copy saying it. The slice
+carries a length floor, so markers that move fail loudly rather than checking an
+empty string.
+
 ## The maintenance contract
 
 - **Every suite carries a FLOOR, and the floors are the point.** A notation

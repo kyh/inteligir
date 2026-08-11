@@ -27,9 +27,8 @@
 //
 // A CREATE IS NOT AN EMPTY FILE. When the target does not exist yet, the
 // restore point is "it did not exist", and undoing it TOMBSTONES the file
-// rather than writing zero bytes — the vault's trash is what "gone" means here,
-// so an undone create is recoverable for the retention window like any other
-// delete.
+// rather than writing zero bytes — a tombstone is what "gone" means here, so an
+// undone create ends the same way any other delete does.
 // ---------------------------------------------------------------------------
 
 /** Snapshots kept PER ORIGIN. A count cap rather than an age window: snapshots

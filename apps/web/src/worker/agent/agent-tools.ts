@@ -658,8 +658,8 @@ const TOOLS: readonly ToolDefinition[] = [
         request: {
           title: `Delete ${file.path}?`,
           detail:
-            "The agent proposed removing this file. It moves to the vault's trash and can be " +
-            "restored from there for 30 days.",
+            "The agent proposed removing this file from the vault. There is no trash view and " +
+            "no way to restore it.",
           confirmLabel: "Delete",
         },
         declined: `The user declined to delete ${file.path}.`,
@@ -671,9 +671,7 @@ const TOOLS: readonly ToolDefinition[] = [
       if (file === null || file.state !== "live") return success(`${path} was already gone.`);
       const result = await ctx.vault.trash([file.path]);
       if (!result.ok) return failure(heldDeletionMessage(result.held));
-      return success(
-        `Moved ${file.path} to the vault's trash. The user can restore it from there.`,
-      );
+      return success(`Deleted ${file.path}. Nothing restores it.`);
     },
   },
   {

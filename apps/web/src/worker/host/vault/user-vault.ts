@@ -44,9 +44,11 @@ import { parseVaultPath, type VaultKey } from "./vault-key";
  */
 export const VAULT_ROOT = "/Vault";
 
-/** How long a tombstone survives before the sweep purges it for good. Long
- * enough that a mistaken delete is still recoverable a month later, short
- * enough that deleted bytes are not billed forever. */
+/** How long a tombstone survives before the sweep purges it for good. The row
+ * and its blob are what keep a delete reversible in principle; no channel
+ * exposes that today, so what the window actually buys the user is a delay
+ * before erasure, and `docs/privacy.md` states it as exactly that rather than
+ * as a way back. */
 const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
@@ -414,8 +416,8 @@ export class UserVault {
    * link rewrite writes conditionally, which is what keeps it from clobbering a
    * doc that changed under it.
    *
-   * Writing over a TOMBSTONE resurrects the row and consumes the tombstone: the
-   * trash is a recovery affordance, not a namespace reservation, and a caller
+   * Writing over a TOMBSTONE resurrects the row and consumes the tombstone: a
+   * tombstone holds bytes on their way out, not a name in reserve, and a caller
    * that writes to a trashed path has said which of the two it wants.
    */
   async write(rawPath: string, bytes: Uint8Array, baseVersion?: number): Promise<WriteOutcome> {
