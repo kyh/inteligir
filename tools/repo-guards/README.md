@@ -121,17 +121,26 @@ explain the hazard by writing `ssr: false` out.
 
 `apps/web/container/Dockerfile` copies the workspace manifests, installs, and
 only then copies the sources, so a source edit re-bundles the daemon instead of
-re-resolving ~1,700 packages. Two lines undo that, and neither failure is
-visible in a build log: a `COPY . .` above the install just costs minutes, and
-a workspace member whose manifest is not copied is **not refused**
-by `--frozen-lockfile` — pnpm installs the members it can see, leaves a dangling
-`node_modules` symlink where the missing one belongs, and the image fails at
-RUNTIME on a missing dependency, after a deploy.
+re-resolving the workspace. That install is FILTERED to the daemon's own
+package, so what it resolves is the workspace root plus that package's workspace
+closure — two manifests today, not every member's.
 
-So the manifest list is expanded from `pnpm-workspace.yaml`'s own globs and
-diffed against the `COPY` lines above the install, and the two line numbers are
-compared. The Dockerfile's comments say the same things; the guard reads
-instructions only, so it pins the build rather than the prose.
+Two lines undo that, and neither failure is visible in a build log. A `COPY . .`
+above the install just costs minutes. A manifest the install resolves but does
+not receive is **not refused** — `--frozen-lockfile` exits 0 for both shapes of
+the gap: a `--filter` matching nothing installs nothing at all, and a workspace
+dependency whose manifest is absent installs as a dangling `node_modules`
+symlink. Which step reads the gap first — the bundle, the deploy, or the daemon
+on a wake — is left to luck, and none of them name the missing `COPY` line.
+
+So the manifest list is DERIVED from the install line's own `--filter`, walked
+over the manifests' `workspace:` links, and diffed against the `COPY` lines
+above the install in both directions: one missing is the gap above, one surplus
+is a file in that layer's cache key the install never reads. A selector shape
+the guard cannot read fails rather than resolving a narrower set than the
+install does, and dropping the filter demands every member back. The two line
+numbers are compared as before. The Dockerfile's comments say the same things;
+the guard reads instructions only, so it pins the build rather than the prose.
 
 ## The maintenance contract
 
