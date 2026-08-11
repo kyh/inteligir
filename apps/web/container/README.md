@@ -14,9 +14,12 @@ implementation and no policy.
   too, derived from the confirmation window rather than declared beside it: a
   container that gave up while a person was still answering would tell the model
   the result is unknown and have the action happen anyway.
-- `src/main.ts` — the daemon: five HTTP paths, one turn at a time, and a
-  dispatch that answers 202 rather than waiting for the agent.
-- `src/requests.ts` — the runtime check for the three payloads the object drives
+- `src/main.ts` — the daemon: six HTTP paths, one turn at a time, and a
+  dispatch that answers 202 rather than waiting for the agent. `/v1/reset` is
+  the cheap half of a boot — the pi session goes, `./vault` and the revision
+  stay — which is how a new thread or edited instructions reach the model
+  without re-materializing a vault that has not moved.
+- `src/requests.ts` — the runtime check for the four payloads the object drives
   it with, tied to the contract by assignment rather than by comment.
 - `src/pi/` — the pi harness quarantine (see its README): the only files
   allowed to name `@earendil-works/pi-*`.

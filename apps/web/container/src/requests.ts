@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The RUNTIME check for the three payloads the object drives this daemon with.
+// The RUNTIME check for the four payloads the object drives this daemon with.
 //
 // The types in ./protocol are the contract; these schemas are what proves an
 // arriving body matches one. They are tied together by ASSIGNMENT rather than
@@ -14,7 +14,7 @@
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import type { ContainerBoot, ContainerTurn, ContainerVaultPush } from "./protocol";
+import type { ContainerBoot, ContainerReset, ContainerTurn, ContainerVaultPush } from "./protocol";
 
 const OBJECT = { additionalProperties: false } as const;
 
@@ -49,6 +49,8 @@ const BootSchema = Type.Object(
   OBJECT,
 );
 
+const ResetSchema = Type.Object({ instructions: Type.String() }, OBJECT);
+
 const VaultPushSchema = Type.Object(
   {
     toRevision: Type.Number(),
@@ -64,6 +66,7 @@ const VaultPushSchema = Type.Object(
 const TurnSchema = Type.Object(
   {
     turnId: Type.String({ minLength: 1 }),
+    conversation: Type.String({ minLength: 1 }),
     kind: Type.Union([
       Type.Literal("user_message"),
       Type.Literal("steer"),
@@ -86,6 +89,10 @@ const TurnSchema = Type.Object(
 
 export function parseBoot(body: unknown): ContainerBoot | null {
   return Value.Check(BootSchema, body) ? body : null;
+}
+
+export function parseReset(body: unknown): ContainerReset | null {
+  return Value.Check(ResetSchema, body) ? body : null;
 }
 
 export function parseVaultPush(body: unknown): ContainerVaultPush | null {

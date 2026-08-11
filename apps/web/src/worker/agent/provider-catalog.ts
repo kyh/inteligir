@@ -122,7 +122,13 @@ const SANDBOX: ProviderEntry = {
   extraHeaders: {},
   defaultModelId: "sandbox-1",
   fastModelId: "sandbox-1",
-  models: [{ id: "sandbox-1", label: "Scripted" }],
+  // TWO, so that switching models is drivable with no account. The model is a
+  // fact a turn carries into the container, and a menu with one entry cannot
+  // exercise the path that carries it.
+  models: [
+    { id: "sandbox-1", label: "Scripted" },
+    { id: "sandbox-2", label: "Scripted (alternate)" },
+  ],
   scopes: [],
   requiresAuth: false,
 };

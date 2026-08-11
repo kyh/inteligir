@@ -60,7 +60,7 @@ import type {
 import type { UserKnowledge } from "../host/knowledge/user-knowledge";
 import type { UserVault } from "../host/vault/user-vault";
 import { mintScopedToken, verifyScopedToken } from "./agent-crypto";
-import { composeInstructions } from "./agent-instructions";
+import { composeInstructions, instructionsDependOn } from "./agent-instructions";
 import type { AgentSnapshots, SnapshotScope } from "./agent-snapshots";
 import { agentToolManifest, executeAgentTool, type DelegationToolPort } from "./agent-tools";
 import type { ChatStore } from "./chat-store";
@@ -75,6 +75,7 @@ import {
 } from "./provider-catalog";
 import type { ProviderCredentials } from "./provider-credentials";
 import type {
+  SandboxBootPins,
   SandboxPort,
   SandboxReportAnswer,
   SandboxSeedTurn,
@@ -82,6 +83,7 @@ import type {
   SandboxVaultPush,
 } from "./sandbox-port";
 import type { VaultRevisions } from "./vault-revisions";
+import { sha256Hex } from "../hash";
 import type { DurableKv } from "../store/durable-kv";
 
 /**
@@ -110,9 +112,24 @@ const MAX_MATERIALIZED_FILES = 5_000;
 /** Per lane, so a token minted for one container is refused by the other's
  * check — the same one-primitive-two-uses rule the scoped token's `scope`
  * field keeps (./agent-crypto). */
-const BOOT_ID_KEY: Record<AgentLane, string> = {
-  chat: "agent/boot-id",
-  background: "agent/boot-id/background",
+const BOOT_KEY: Record<AgentLane, string> = {
+  chat: "agent/boot",
+  background: "agent/boot/background",
+};
+
+/**
+ * What this object handed the container it believes is running — its identity,
+ * and a digest of every PINNED fact that identity was booted with.
+ *
+ * The digest is the second half of the warm predicate, and the reason it is
+ * durable rather than derived from the container's own answer is that these are
+ * facts the OBJECT decided: which provider a turn runs on, which model, where
+ * reports go. A container asked to confirm them could only echo what it was
+ * told, so the comparison would be with itself.
+ */
+type StoredBoot = {
+  readonly id: string;
+  readonly pins: string;
 };
 
 /**
@@ -264,7 +281,11 @@ export class AgentRunner {
     // twice. The composer's optimistic bubble is what tells the user it did
     // not go.
     const port = this.deps.sandbox("chat");
-    const seed = await this.ensureContainer("chat", port, provider);
+    // The thread this message belongs to, resolved BEFORE the container is
+    // brought up: it is what decides whether the live session is holding this
+    // conversation or one the user has since discarded.
+    const conversation = this.deps.chat.activeSessionId();
+    const seed = await this.ensureContainer("chat", port, provider, conversation);
     if (!seed.ok) throw new Error(seed.error);
 
     const previous = this.chatTurnId();
@@ -280,6 +301,7 @@ export class AgentRunner {
     this.deps.kv.put(CHAT_TURN_KEY, "");
     const outcome = await port.dispatch({
       turnId: crypto.randomUUID(),
+      conversation,
       kind: command.type,
       text: command.text,
       images: command.images ?? [],
@@ -333,15 +355,20 @@ export class AgentRunner {
       const prepared = await prepare(run);
       if (!prepared.ok) return refuse(prepared.error);
       const port = this.deps.sandbox("background");
-      const ready = await this.ensureContainer("background", port, provider);
+      // An unattended task IS its own conversation, of one turn. Naming the run
+      // is what makes the next task a different one: the lane's container
+      // outlives a run, and a session left holding the last task's messages
+      // would show them to the next task, which shares nothing with it but a
+      // container.
+      const ready = await this.ensureContainer("background", port, provider, run.turnId);
       if (!ready.ok) return refuse(ready.error);
       const dispatched = await port.dispatch({
         turnId: run.turnId,
+        conversation: run.turnId,
         kind: "user_message",
         text: prepared.prompt,
         images: [],
-        // An unattended turn carries no conversation, which is the whole point
-        // of the second container.
+        // No prior turns, which is the whole point of the second container.
         seed: [],
       });
       if (!dispatched.ok) return refuse(dispatched.error);
@@ -356,9 +383,16 @@ export class AgentRunner {
     await this.deps.sandbox("background").interrupt();
   }
 
-  /** Roll a fresh thread. The container keeps running; the next turn seeds it
-   * from the new (empty) transcript, which is what makes the fresh thread
-   * fresh to the model too. */
+  /**
+   * Roll a fresh thread.
+   *
+   * Nothing is said to the container HERE, and that is deliberate rather than
+   * an omission: the container is asleep most of the time, and a verb pushed at
+   * one from a UI action would be a wake nobody asked for. What makes the new
+   * thread fresh to the model is that the next turn names it — the live session
+   * is then holding a conversation that turn does not belong to, and
+   * `ensureContainer` replaces the session before dispatching.
+   */
   newSession(): string {
     return this.deps.chat.newSession();
   }
@@ -578,32 +612,52 @@ export class AgentRunner {
   // ---- container lifecycle --------------------------------------------------
 
   /**
-   * Bring a lane's container to a state that can run a turn, and say what the
-   * turn must seed it with.
+   * Bring a lane's container to a state that can run THIS turn, and say what
+   * the turn must seed it with.
    *
-   * A container that is cold — which is the ordinary state — is booted and
-   * handed the whole vault. One that is warm gets the delta since the revision
-   * it reports holding, and seeds nothing, because its pi session already has
-   * the conversation.
+   * Three outcomes, and which one happens is decided by what has changed rather
+   * than by how long ago the container started:
+   *
+   *   • COLD — the ordinary state, because the filesystem is deleted on sleep.
+   *     Boot it and hand it the whole vault.
+   *   • PINNED FACT MOVED — the provider, the model, the tool set, where
+   *     reports go. None of them can be handed to a container that is already
+   *     running (./sandbox-port), so this is a cold wake too. That is the whole
+   *     of the bug this shape exists to make impossible: a fast path keyed on
+   *     the boot id alone kept the container and silently ran the turn on the
+   *     provider the user just switched away from.
+   *   • SESSION STALE — the container is fine but its pi session is holding a
+   *     conversation the user discarded, or was built with instructions the
+   *     vault has since changed. `reset` replaces the session and leaves
+   *     `./vault` alone, so a fresh thread costs a session rather than a
+   *     re-materialized vault.
    */
   private async ensureContainer(
     lane: AgentLane,
     port: SandboxPort,
     provider: ProviderEntry,
+    conversation: string,
   ): Promise<{ ok: true; seed: readonly SandboxSeedTurn[] } | { ok: false; error: string }> {
+    const reportUrl = this.reportUrl();
+    if (reportUrl === null) {
+      return {
+        ok: false,
+        error:
+          "This deployment has no PUBLIC_HOST set, so the agent container has nowhere to " +
+          "report to. Set it and deploy again.",
+      };
+    }
+    const pins = this.bootPins(lane, provider, reportUrl);
+    const digest = await pinsDigest(pins);
+    const booted = this.storedBoot(lane);
     const state = await port.state();
-    const warm = state.phase === "ready" && state.bootId === this.bootId(lane);
+    const warm =
+      state.phase === "ready" &&
+      booted !== null &&
+      state.bootId === booted.id &&
+      booted.pins === digest;
 
     if (!warm) {
-      const reportUrl = this.reportUrl();
-      if (reportUrl === null) {
-        return {
-          ok: false,
-          error:
-            "This deployment has no PUBLIC_HOST set, so the agent container has nowhere to " +
-            "report to. Set it and deploy again.",
-        };
-      }
       const bootId = crypto.randomUUID();
       const reportToken = await mintScopedToken(this.deps.env.BETTER_AUTH_SECRET, {
         scope: "report",
@@ -611,26 +665,17 @@ export class AgentRunner {
         ref: bootId,
         expiresAt: Date.now() + REPORT_TOKEN_TTL_MS,
       });
-      const booted = await port.boot({
+      const outcome = await port.boot({
         bootId,
-        reportUrl,
         reportToken,
-        provider: {
-          provider: provider.id,
-          modelId: resolveModelId(provider, this.deps.credentials.selection()?.modelId),
-          baseUrl: provider.baseUrl,
-          // A placeholder, never a credential: the outbound interceptor puts
-          // the real token on the request (./egress).
-          apiKey: "sandbox-managed",
-        },
-        tools: agentToolManifest(lane === "chat"),
+        ...pins,
         instructions: await composeInstructions(this.deps.vault),
-        browser: browserRun(this.deps.env),
       });
-      if (!booted.ok) return booted;
-      // The boot id is stored only once the container accepted it, so a failed
-      // boot cannot invalidate the token a live container is still using.
-      this.deps.kv.put(BOOT_ID_KEY[lane], bootId);
+      if (!outcome.ok) return outcome;
+      // Stored only once the container accepted it, so a failed boot cannot
+      // invalidate the token a live container is still using — and the digest
+      // goes with the id, because half of a warm predicate is not one.
+      this.deps.kv.put(BOOT_KEY[lane], { id: bootId, pins: digest } satisfies StoredBoot);
     }
 
     const heldRevision = warm && state.phase === "ready" ? state.vaultRevision : 0;
@@ -639,13 +684,64 @@ export class AgentRunner {
     const materialized = await port.materialize(push.push);
     if (!materialized.ok) return materialized;
 
-    // The background lane carries no conversation at all — it is a different
-    // container precisely so it cannot.
-    if (lane === "background") return { ok: true, seed: [] };
-    // A warm container's pi session already holds the conversation; seeding it
-    // again would replay every turn as though the user had said it twice.
-    const seeded = warm && state.phase === "ready" && state.seeded;
-    return { ok: true, seed: seeded ? [] : this.deps.chat.seed() };
+    // A container booted a moment ago has no session at all, so there is
+    // nothing to reset and nothing it can already hold.
+    if (!warm) return { ok: true, seed: this.seedFor(lane) };
+
+    const held = state.phase === "ready" ? state.conversation : null;
+    // Two reasons a live session cannot run this turn, and one verb for both:
+    // it is holding a conversation this turn does not belong to, or the vault
+    // moved a file the instructions are composed FROM, which pi baked into it.
+    if ((held !== null && held !== conversation) || instructionsMoved(push.push)) {
+      const reset = await port.reset({ instructions: await composeInstructions(this.deps.vault) });
+      if (!reset.ok) return reset;
+      return { ok: true, seed: this.seedFor(lane) };
+    }
+    // Seeding a session that already holds this conversation would replay every
+    // turn as though the user had said it twice.
+    return { ok: true, seed: held === conversation ? [] : this.seedFor(lane) };
+  }
+
+  /**
+   * The pinned half of a boot, for `lane`.
+   *
+   * Built in ONE place and both booted with and hashed from it, so the facts
+   * the predicate weighs and the facts the container receives cannot be two
+   * different lists.
+   */
+  private bootPins(lane: AgentLane, provider: ProviderEntry, reportUrl: string): SandboxBootPins {
+    return {
+      reportUrl,
+      provider: {
+        provider: provider.id,
+        modelId: resolveModelId(provider, this.deps.credentials.selection()?.modelId),
+        baseUrl: provider.baseUrl,
+        // A placeholder, never a credential: the outbound interceptor puts the
+        // real token on the request (./egress).
+        apiKey: "sandbox-managed",
+      },
+      tools: agentToolManifest(lane === "chat"),
+      browser: browserRun(this.deps.env),
+    };
+  }
+
+  /** The prior conversation a fresh session has to be told about. The
+   * unattended lane carries none at all — it is a different container precisely
+   * so it cannot. */
+  private seedFor(lane: AgentLane): readonly SandboxSeedTurn[] {
+    return lane === "background" ? [] : this.deps.chat.seed();
+  }
+
+  /** The container this object last booted for `lane`, or null when it has
+   * booted none it can still recognize. */
+  private storedBoot(lane: AgentLane): StoredBoot | null {
+    const stored = this.deps.kv.get(BOOT_KEY[lane]);
+    if (typeof stored !== "object" || stored === null) return null;
+    const record: Record<string, unknown> = { ...stored };
+    const id = record["id"];
+    const pins = record["pins"];
+    if (typeof id !== "string" || id === "" || typeof pins !== "string") return null;
+    return { id, pins };
   }
 
   private async buildVaultPush(
@@ -907,18 +1003,13 @@ export class AgentRunner {
     return tracked === "" || tracked === turnId;
   }
 
-  private bootId(lane: AgentLane): string {
-    const stored = this.deps.kv.get(BOOT_ID_KEY[lane]);
-    return typeof stored === "string" ? stored : "";
-  }
-
   /** Which lane's CURRENT container `boot` names, or null when it names one
    * that has been replaced. The empty string is never a live boot — it is what
    * a lane that has never booted reads back as. */
   private laneOfBoot(boot: string): AgentLane | null {
     if (boot === "") return null;
     for (const lane of ["chat", "background"] satisfies AgentLane[]) {
-      if (boot === this.bootId(lane)) return lane;
+      if (boot === this.storedBoot(lane)?.id) return lane;
     }
     return null;
   }
@@ -951,6 +1042,37 @@ export class AgentRunner {
     this.busy = busy;
     this.deps.onBusyChanged();
   }
+}
+
+/**
+ * A digest over every PINNED boot fact, which is what the warm predicate
+ * compares.
+ *
+ * Over the whole group rather than a hand-picked field or two: the group is a
+ * type, so building one is total, and hashing what was built means a fact added
+ * to `SandboxBootPins` joins the predicate by existing rather than by someone
+ * remembering to name it here. A digest rather than the JSON itself because the
+ * tool manifest is kilobytes of schema and this is written to the object's own
+ * storage on every boot.
+ */
+function pinsDigest(pins: SandboxBootPins): Promise<string> {
+  return sha256Hex(new TextEncoder().encode(JSON.stringify(pins)));
+}
+
+/**
+ * Whether a vault push moved a file the agent's instructions are composed FROM.
+ *
+ * Read off the push the wake computes anyway, so a warm turn pays nothing for
+ * it. `replaceAll` means the change log could not answer what moved, and an
+ * unanswerable question about a prompt the model is running on is taken as a
+ * yes.
+ */
+function instructionsMoved(push: SandboxVaultPush): boolean {
+  if (push.replaceAll) return true;
+  return (
+    push.upserted.some((file) => instructionsDependOn(file.path)) ||
+    push.removed.some((path) => instructionsDependOn(path))
+  );
 }
 
 /** How a background run ended, read off the run's own record. A stop the user

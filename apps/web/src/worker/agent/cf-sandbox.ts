@@ -36,6 +36,7 @@ import {
   CONTAINER_WORKSPACE_DIR,
   bytesToBase64,
   type ContainerBoot,
+  type ContainerReset,
   type ContainerState,
   type ContainerTurn,
   type ContainerTurnAccepted,
@@ -47,6 +48,7 @@ import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import type { AgentSandbox } from "./sandbox-class";
 import type {
   SandboxBoot,
+  SandboxBootSession,
   SandboxDispatch,
   SandboxOutcome,
   SandboxPort,
@@ -123,7 +125,7 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
           phase: "ready",
           bootId: reported.bootId,
           vaultRevision: reported.vaultRevision,
-          seeded: reported.seeded,
+          conversation: reported.conversation,
           busy: reported.busy,
         };
       } catch {
@@ -179,6 +181,12 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
       return post(CONTAINER_API.boot, payload);
     },
 
+    reset(session: SandboxBootSession): Promise<SandboxOutcome> {
+      return post(CONTAINER_API.reset, {
+        instructions: session.instructions,
+      } satisfies ContainerReset);
+    },
+
     async materialize(push: SandboxVaultPush): Promise<SandboxOutcome> {
       // Chunked, and the LAST chunk carries the revision: a push interrupted
       // halfway leaves the container reporting the old revision, so the next
@@ -211,6 +219,7 @@ export function createCfSandboxPort(deps: CfSandboxDeps): SandboxPort {
     async dispatch(turn: SandboxTurn): Promise<SandboxDispatch> {
       const payload: ContainerTurn = {
         turnId: turn.turnId,
+        conversation: turn.conversation,
         kind: turn.kind,
         text: turn.text,
         images: turn.images,
@@ -286,12 +295,13 @@ function readContainerState(value: unknown): ContainerState | null {
   const record: Record<string, unknown> = { ...value };
   const bootId = record["bootId"];
   const vaultRevision = record["vaultRevision"];
-  const seeded = record["seeded"];
+  const conversation = record["conversation"];
   const busy = record["busy"];
   if (bootId !== null && typeof bootId !== "string") return null;
   if (typeof vaultRevision !== "number") return null;
-  if (typeof seeded !== "boolean" || typeof busy !== "boolean") return null;
-  return { bootId, vaultRevision, seeded, busy };
+  if (conversation !== null && typeof conversation !== "string") return null;
+  if (typeof busy !== "boolean") return null;
+  return { bootId, vaultRevision, conversation, busy };
 }
 
 function chunk<T>(values: readonly T[], size: number): T[][] {

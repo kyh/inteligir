@@ -10,9 +10,10 @@
 //     session is a projection of it, rebuilt on every wake.
 //   • THE SESSION IS SEEDED, NOT RESTORED. A fresh session knows nothing, so
 //     the first turn after a wake carries the prior conversation as a block of
-//     context ahead of the user's message. Once a session has run a turn it is
-//     seeded, and the object stops sending the seed — replaying it would be the
-//     user saying everything twice.
+//     context ahead of the user's message. A session that has taken a prompt
+//     holds THAT conversation and names it, so the object stops sending the
+//     seed for it — and knows to build a new session for any other, rather than
+//     answering a discarded thread out of this one.
 //   • NO EXTENSIONS, NO SKILLS, NO DISCOVERED CONTEXT FILES. Everything the
 //     model is told comes from the boot payload, which the Worker composed. A
 //     file discovered on this filesystem would be a system prompt nobody wrote.
@@ -55,6 +56,15 @@ const BUILTIN_TOOLS = ["read", "bash", "edit", "write"];
 
 export type ContainerSessionDeps = {
   readonly boot: ContainerBoot;
+  /**
+   * The instruction file this session loads as extra context.
+   *
+   * Passed rather than read off `boot`, because a session outlives neither the
+   * boot nor the instructions: a `reset` hands the daemon new ones without
+   * replacing the container, and the session built after it must be built with
+   * those rather than with what the boot happened to carry.
+   */
+  readonly instructions: string;
   /** Tools the model may call: the boot's relays plus anything the image
    * implements locally. */
   readonly tools: readonly ContainerTool[];
@@ -77,10 +87,11 @@ export type ContainerSession = {
    * it. Steered rather than queued as a follow-up for the same reason.
    */
   notify(text: string): Promise<void>;
-  /** Whether this session has taken a prompt. Read after a turn — including a
-   * failed one — to decide whether the prior conversation still has to be
-   * replayed into it. */
-  isSeeded(): boolean;
+  /** Which conversation this session took, or `null` while it has taken no
+   * prompt at all. Read after a turn — including a failed one — to decide
+   * whether the prior conversation still has to be replayed into it, and
+   * whether this session is the right one to replay it into. */
+  conversation(): string | null;
   abort(): Promise<void>;
   dispose(): void;
 };
@@ -91,7 +102,7 @@ export async function createContainerSession(
   await mkdir(AGENT_DIR, { recursive: true });
   const { runtime, model } = await createProviderRuntime(deps.boot, AGENT_DIR);
 
-  const instructions = deps.boot.instructions;
+  const instructions = deps.instructions;
   const resourceLoader = new DefaultResourceLoader({
     cwd: CONTAINER_WORKSPACE_DIR,
     agentDir: AGENT_DIR,
@@ -122,11 +133,12 @@ export async function createContainerSession(
   });
 
   const unsubscribe = session.subscribe(deps.onEvent);
-  let seeded = false;
+  let conversation: string | null = null;
 
   return {
     async run(turn) {
-      const prefix = seeded || turn.seed.length === 0 ? "" : `${renderSeed(turn.seed)}\n\n`;
+      const prefix =
+        conversation !== null || turn.seed.length === 0 ? "" : `${renderSeed(turn.seed)}\n\n`;
       const images = toImages(turn.images);
       await session.prompt(`${prefix}${turn.text}`, {
         // A chat message is a message. With expansion on, a message that opens
@@ -137,7 +149,7 @@ export async function createContainerSession(
         // that rode in with it did too. A turn that fails afterwards must not
         // ask for the transcript again.
         preflightResult: (accepted) => {
-          seeded ||= accepted;
+          if (accepted) conversation ??= turn.conversation;
         },
         ...(images.length === 0 ? {} : { images }),
       });
@@ -153,7 +165,7 @@ export async function createContainerSession(
 
     notify: (text) => session.steer(text),
 
-    isSeeded: () => seeded,
+    conversation: () => conversation,
 
     abort: () => session.abort(),
 

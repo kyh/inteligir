@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // The agent daemon: the process the Worker starts inside the container.
 //
-// It answers exactly the five paths in `CONTAINER_API` and nothing else. The
+// It answers exactly the six paths in `CONTAINER_API` and nothing else. The
 // caller is the user's own Durable Object over the sandbox's control plane, and
 // the shape of every handler here is dictated by one rule from that side:
 //
@@ -18,8 +18,14 @@
 // sleeps, which for an agent nobody is talking to is most of the time. `boot`
 // and `vault` are therefore not first-run steps but the ordinary path, and the
 // state this file keeps — which boot it is running, which vault revision it
-// holds, how far its session is seeded — exists precisely because the object
-// cannot know any of it.
+// holds, which conversation its session took — exists precisely because the
+// object cannot know any of it.
+//
+// `reset` is the cheap half of a boot: the pi session goes, `./vault` and the
+// revision stay. It is what the object reaches for when the SESSION has to be
+// new but the container does not — the user rolled a fresh thread, or the
+// instructions a session is built with changed — because re-materializing a
+// vault that has not moved is the expensive half.
 //
 // State is process-global. One container is one user's agent; there is no
 // second tenant to keep apart, and a registry would be indirection over a
@@ -47,7 +53,7 @@ import {
   type EventStream,
   type Reporter,
 } from "./reporter";
-import { parseBoot, parseTurn, parseVaultPush } from "./requests";
+import { parseBoot, parseReset, parseTurn, parseVaultPush } from "./requests";
 import { hostRelayTools, type ContainerTool } from "./tools";
 import { createContainerSession, type ContainerSession } from "./pi/session";
 import { materialize } from "./vault-materialize";
@@ -74,6 +80,9 @@ type Daemon = {
   readonly reporter: Reporter;
   readonly watcher: VaultWatcher;
   readonly tools: readonly ContainerTool[];
+  /** What the NEXT session is built with. Held beside the boot rather than read
+   * off it, because `reset` replaces these without replacing the container. */
+  instructions: string;
   /** Built on the first turn, not at boot: constructing it reaches the provider
    * runtime and reads resources, and a boot that answered slowly would eat into
    * the object's own invocation. */
@@ -100,11 +109,11 @@ function currentState(): ContainerState {
   return {
     bootId: daemon?.boot.bootId ?? null,
     vaultRevision,
-    // Read off the session rather than tracked beside it: seeding is a property
-    // of the live session, and a session that refused the prompt its seed rode
-    // in with never took the conversation. A boot builds a new one, so a fresh
-    // container reports `false` by construction.
-    seeded: daemon?.session?.isSeeded() ?? false,
+    // Read off the session rather than tracked beside it: the conversation is a
+    // property of the live session, and a session that refused the prompt its
+    // seed rode in with never took one. A boot or a reset leaves no session, so
+    // both report `null` by construction.
+    conversation: daemon?.session?.conversation() ?? null,
     busy: activeTurn !== null,
   };
 }
@@ -149,8 +158,39 @@ async function handleBoot(body: unknown): Promise<Reply> {
   });
   watcher.start();
 
-  daemon = { boot, reporter, watcher, tools, session: null, stream: null };
+  daemon = {
+    boot,
+    reporter,
+    watcher,
+    tools,
+    instructions: boot.instructions,
+    session: null,
+    stream: null,
+  };
   vaultRevision = 0;
+  return OK;
+}
+
+/**
+ * Throw the live session away and take the instructions the next one is built
+ * with. `./vault` and `vaultRevision` are untouched, which is the whole point:
+ * the object reaches for this exactly when the session must be new and the
+ * container need not be.
+ *
+ * Refused mid-turn. Disposing the session under a running turn would strand it
+ * with no way to report an end, and the dispatch the object is about to make
+ * would be refused anyway — so this refuses first, in the same words.
+ */
+async function handleReset(body: unknown): Promise<Reply> {
+  const current = daemon;
+  if (current === null) return notBooted();
+  const reset = parseReset(body);
+  if (reset === null) return malformed("reset");
+  if (activeTurn !== null) {
+    return { status: 409, body: { error: CONTAINER_REFUSAL.turnInFlight } };
+  }
+  current.instructions = reset.instructions;
+  await disposeSession(current);
   return OK;
 }
 
@@ -252,6 +292,7 @@ async function runTurn(current: Daemon, turn: ContainerTurn): Promise<void> {
       current.session ??
       (await createContainerSession({
         boot: current.boot,
+        instructions: current.instructions,
         tools: current.tools,
         onEvent: (event) => current.stream?.push(event),
       }));
@@ -277,12 +318,19 @@ async function teardown(): Promise<void> {
   activeTurn = null;
   if (current === null) return;
   current.watcher.stop();
+  await disposeSession(current);
+}
+
+/** Drop a daemon's pi session, leaving everything else it holds alone. */
+async function disposeSession(current: Daemon): Promise<void> {
   const session = current.session;
   if (session === null) return;
+  current.session = null;
+  current.stream = null;
   try {
     await session.abort();
   } catch (error) {
-    console.error("[boot] could not abort the previous session:", error);
+    console.error("[session] could not abort the previous session:", error);
   }
   session.dispose();
 }
@@ -299,6 +347,7 @@ async function route(request: IncomingMessage): Promise<Reply> {
   if (request.method !== "POST") return NOT_FOUND;
   if (
     path !== CONTAINER_API.boot &&
+    path !== CONTAINER_API.reset &&
     path !== CONTAINER_API.vault &&
     path !== CONTAINER_API.turn &&
     path !== CONTAINER_API.interrupt
@@ -311,6 +360,8 @@ async function route(request: IncomingMessage): Promise<Reply> {
   switch (path) {
     case CONTAINER_API.boot:
       return handleBoot(body.value);
+    case CONTAINER_API.reset:
+      return handleReset(body.value);
     case CONTAINER_API.vault:
       return handleVault(body.value);
     case CONTAINER_API.turn:

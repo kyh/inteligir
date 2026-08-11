@@ -22,7 +22,7 @@ import { renderNeverGrantedSection } from "@repo/bridge/agent-grants";
 
 import type { SkillInfo } from "@repo/bridge/skills";
 
-import { listVaultSkills, promptableSkills, SKILLS_DIR } from "../skills/vault-skills";
+import { isSkillFile, listVaultSkills, promptableSkills, SKILLS_DIR } from "../skills/vault-skills";
 import type { UserVault } from "../host/vault/user-vault";
 
 /** Characters of the user's own instructions carried into a turn. */
@@ -82,6 +82,20 @@ export async function composeInstructions(vault: UserVault): Promise<string> {
     }
   }
   return sections.filter((section) => section !== "").join("\n");
+}
+
+/**
+ * Whether a vault path is one `composeInstructions` READS.
+ *
+ * Written directly under the composer so the two are read together, because
+ * they have to agree: a session is built with the instructions of the moment
+ * and pi bakes them in, so this is what tells the runner a live session is now
+ * carrying a prompt the vault no longer says. It answers off a path alone —
+ * the change log names paths and nothing else — and the cost of getting it
+ * wrong in the generous direction is one extra session, not a stale one.
+ */
+export function instructionsDependOn(path: string): boolean {
+  return path === AGENT_INSTRUCTIONS_PATH || isSkillFile(path);
 }
 
 /**

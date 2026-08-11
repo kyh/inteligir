@@ -154,6 +154,12 @@ export async function listVaultSkills(vault: UserVault): Promise<SkillInfo[]> {
   return applyBudget(raw);
 }
 
+/** Whether `path` is a skill's OWN file — the only paths under `skills/` that
+ * `listVaultSkills` reads, so the only ones whose bytes can move the listing. */
+export function isSkillFile(path: string): boolean {
+  return slugOfSkillPath(path) !== null;
+}
+
 /** Just the skills the prompt receives — name, clamped description, path. */
 export function promptableSkills(skills: readonly SkillInfo[]): SkillInfo[] {
   return skills.filter((skill) => skill.budget.kind !== "not-loaded");

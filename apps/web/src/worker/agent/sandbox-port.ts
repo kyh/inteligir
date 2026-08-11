@@ -2,7 +2,7 @@
 // The sandbox port — everything the Durable Object may ask of the container,
 // and everything the container may say back.
 //
-// TWO DIRECTIONS, AND BOTH ARE THE PORT'S. Outbound is the six verbs below.
+// TWO DIRECTIONS, AND BOTH ARE THE PORT'S. Outbound is the seven verbs below.
 // Inbound is `SandboxReportSink`: one entry, bearer first, body as text. That
 // is not symmetry for its own sake — it is what makes a TURN one testable
 // thing. A port that only covered the outbound half left the return path to be
@@ -35,6 +35,22 @@
 // are what a WAKE looks like, and the port's job is to make that legible rather
 // than to hide it. `SandboxState` is the whole reason: the container reports
 // what it currently holds, because the DO cannot know.
+//
+// EVERY FACT `boot` CARRIES IS CLASSIFIED, AND THE TYPE IS WHAT FORCES IT.
+// `SandboxBoot` is not a record of its own — it is the INTERSECTION of three
+// groups, so a fact added to a boot has nowhere to be written that does not
+// also answer "what keeps this true for a container that is already running?":
+//
+//   • `SandboxBootIdentity` — minted per boot; it IS which container this is.
+//   • `SandboxBootPins`     — a change means a container that has to be
+//                             REPLACED. The runner folds these into the warm
+//                             predicate, so a mismatch is a cold wake.
+//   • `SandboxBootSession`  — what a pi session is built with. `reset` hands
+//                             them to a container that is already running.
+//
+// A warm fast path that skipped `boot` on the boot id alone silently dropped
+// every one of the other two groups — the provider, the model, the instructions
+// — while the object went on believing it had handed them over.
 // ---------------------------------------------------------------------------
 
 import type { TSchema } from "@sinclair/typebox";
@@ -78,15 +94,21 @@ export type SandboxState =
       /** The vault revision the container's `./vault` was last materialized at. */
       readonly vaultRevision: number;
       /**
-       * Whether the live session already holds the conversation.
+       * WHICH conversation the live session holds, or `null` when it holds
+       * none.
        *
-       * A BOOLEAN, because that is the whole question the runner asks it: seed
-       * this turn, or don't. A transcript position would be a number this side
-       * could only ever compare against zero — an interface lying about its
-       * type — and the container is the one that knows, since a session that
-       * refused the prompt its seed rode in with never took the conversation.
+       * A REF rather than a "seeded" boolean, and the difference is the whole
+       * of "New chat": a boolean answers "has this session taken a prompt",
+       * which stays true across a thread the user discarded — so the object
+       * would go on withholding the seed while the model answered out of a
+       * conversation that no longer exists. Naming the conversation makes
+       * "seeded for the wrong one" a state the runner can see instead of one it
+       * cannot express.
+       *
+       * The container is the one that answers, because a session that refused
+       * the prompt its seed rode in with never took the conversation at all.
        */
-      readonly seeded: boolean;
+      readonly conversation: string | null;
       /** A turn is in flight. */
       readonly busy: boolean;
     };
@@ -153,33 +175,78 @@ export type SandboxSeedTurn = {
  */
 type SandboxBrowser = { readonly cdpUrl: string; readonly token: string };
 
-export type SandboxBoot = {
+/**
+ * Which container this is. Minted per boot, so nothing here can go stale under
+ * a container that is still running — a different value IS a different one.
+ */
+type SandboxBootIdentity = {
   /** The boot identity the container echoes back from `state`. */
   readonly bootId: string;
-  /** Absolute URL the container posts every report to (./agent-route). Unused
-   * by a container that reaches the sink in process, which still presents the
-   * bearer below — the identity is the part the return path decides on. */
-  readonly reportUrl: string;
   /** The bearer the container presents on every report (./agent-crypto). Bound
    * to `bootId`, which is what makes the lane a fact of this boot. */
   readonly reportToken: string;
+};
+
+/**
+ * The facts a running container cannot be handed again, so a change to any of
+ * them means replacing it.
+ *
+ * Each one is fixed at a point no verb reaches. The report URL is baked into
+ * the daemon's environment at start. The provider and the model are what pi's
+ * runtime is constructed over. The tool list is a function of the LANE, and a
+ * lane IS a container — so for a live one it cannot move at all, and pinning it
+ * costs nothing while leaving nowhere for a future tool change to hide. So the
+ * runner compares these against what it booted the live container with, and a
+ * mismatch is a cold wake rather than a fast path that drops them.
+ */
+export type SandboxBootPins = {
+  /** Absolute URL the container posts every report to (./agent-route). Unused
+   * by a container that reaches the sink in process, which still presents the
+   * bearer above — the identity is the part the return path decides on. */
+  readonly reportUrl: string;
   readonly provider: SandboxProvider;
   readonly tools: readonly SandboxToolSpec[];
-  /** The standing instruction file the session loads as extra context. */
-  readonly instructions: string;
   readonly browser: SandboxBrowser | null;
 };
+
+/**
+ * What a pi SESSION is built with — the payload of `reset`.
+ *
+ * Instructions reach the model verbatim in every turn's system prompt, and pi
+ * bakes them into the session at construction, so there is no seam that swaps
+ * them under a live one. That makes "a fresh session" the only honest way for
+ * an edited `AGENTS.md` or a new skill to take effect — which is exactly what
+ * `reset` is, and why the two travel together rather than as two verbs that
+ * could be called apart.
+ */
+export type SandboxBootSession = {
+  /** The standing instruction file the session loads as extra context. */
+  readonly instructions: string;
+};
+
+/**
+ * Everything a boot carries — and nothing that is not in one of the three
+ * groups, because there is nowhere else to write it.
+ */
+export type SandboxBoot = SandboxBootIdentity & SandboxBootPins & SandboxBootSession;
 
 /** What the client asked for, once the runner has resolved it against the
  * transcript. `interrupt` is not here — it is its own port method, because it
  * must reach a container that is mid-turn and takes no message. */
 export type SandboxTurn = {
   readonly turnId: string;
+  /**
+   * WHICH conversation this message belongs to — the chat thread's id, or an
+   * unattended run's own, since a background task is a conversation of one
+   * turn. The container records it against the session that accepts the prompt
+   * and reports it back as `SandboxState.conversation`.
+   */
+  readonly conversation: string;
   readonly kind: "user_message" | "steer" | "follow_up";
   readonly text: string;
   readonly images: readonly { readonly data: string; readonly mimeType: string }[];
   /** Prior turns to seed with — empty when the container reported that its live
-   * session already holds the conversation. */
+   * session already holds THIS conversation. */
   readonly seed: readonly SandboxSeedTurn[];
 };
 
@@ -223,6 +290,17 @@ export type SandboxPort = {
   /** Bring the agent daemon up and hand it its identity, tools and credential
    * placeholder. Idempotent for a given `bootId`. */
   boot(boot: SandboxBoot): Promise<SandboxOutcome>;
+  /**
+   * Throw away the live pi session and hand the container what the next one
+   * must be built with. `./vault` and the revision the container holds are
+   * untouched — this is the cheap half of a boot, and the whole reason it
+   * exists is that the expensive half is re-materializing a vault that has not
+   * changed.
+   *
+   * Refused while a turn is in flight: disposing the session under a running
+   * turn would strand it, and the dispatch behind this would be refused anyway.
+   */
+  reset(session: SandboxBootSession): Promise<SandboxOutcome>;
   /** Put vault bytes under `./vault`, where pi's native file tools find them. */
   materialize(push: SandboxVaultPush): Promise<SandboxOutcome>;
   /**

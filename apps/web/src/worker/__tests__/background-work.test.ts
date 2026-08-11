@@ -151,6 +151,47 @@ describe("the background lane", () => {
     expect(after.holder).toBeNull();
   });
 
+  // The lane is one container, and a container outlives a run. Its pi session
+  // would otherwise carry the last task's whole conversation into the next
+  // one's — two tasks that share nothing but a lane, one of them reading the
+  // other's notes and tool results as its own history.
+  it("gives each unattended task a session of its own", async () => {
+    const conversations = await withHost("bg-session-per-task", async (host) => {
+      connect(host);
+      await host.vault.writeText("tasks.md", "- [ ] first\n- [ ] second\n");
+      const scripted = host.agent.scripted("background");
+      if (scripted === null)
+        throw new Error("this deployment is not running the scripted container");
+
+      const seen: (string | null)[] = [];
+      await host.agent.delegations.create({ sourceFile: "tasks.md", ordinal: 0 });
+      await drain();
+      const first = await scripted.state();
+      seen.push(first.phase === "ready" ? first.conversation : null);
+
+      await host.agent.delegations.create({ sourceFile: "tasks.md", ordinal: 1 });
+      await drain();
+      const second = await scripted.state();
+      seen.push(second.phase === "ready" ? second.conversation : null);
+      return {
+        seen,
+        bootIds: [
+          first.phase === "ready" ? first.bootId : "",
+          second.phase === "ready" ? second.bootId : "",
+        ],
+        statuses: host.agent.delegations.list().delegations.map((row) => row.status),
+      };
+    });
+
+    expect(conversations.statuses).toEqual(["done", "done"]);
+    expect(conversations.seen[0]).not.toBeNull();
+    // Each run IS its own conversation, so the second one is not the first's.
+    expect(conversations.seen[1]).not.toBe(conversations.seen[0]);
+    // And the container was kept: a task boundary costs a session, not a wake
+    // that re-materializes the vault.
+    expect(conversations.bootIds[1]).toBe(conversations.bootIds[0]);
+  });
+
   it("refuses to run at all when no restore point can be saved", async () => {
     const name = "bg-capture-fails";
     const key = await withHost(name, async (host) => {

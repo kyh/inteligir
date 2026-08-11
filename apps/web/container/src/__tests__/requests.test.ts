@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseBoot, parseTurn, parseVaultPush } from "../requests";
+import { parseBoot, parseReset, parseTurn, parseVaultPush } from "../requests";
 
 const BOOT = {
   bootId: "boot-1",
@@ -21,6 +21,7 @@ const BOOT = {
 
 const TURN = {
   turnId: "turn-1",
+  conversation: "thread-1",
   kind: "user_message",
   text: "hello",
   images: [],
@@ -42,6 +43,27 @@ describe("parseBoot", () => {
 
   it("refuses a provider that is missing its model", () => {
     expect(parseBoot({ ...BOOT, provider: { ...BOOT.provider, modelId: "" } })).toBe(null);
+  });
+});
+
+describe("parseReset", () => {
+  it("accepts the instructions the next session is built with", () => {
+    expect(parseReset({ instructions: "# Inteligir\n" })).toEqual({
+      instructions: "# Inteligir\n",
+    });
+    // Empty is a real answer: a deployment whose user wrote no standing
+    // instructions still resets a session.
+    expect(parseReset({ instructions: "" })).toEqual({ instructions: "" });
+  });
+
+  it("refuses a reset that carries no instructions at all", () => {
+    // Absent is not empty. A session built from a reset that forgot them would
+    // silently run with no system prompt.
+    expect(parseReset({})).toBe(null);
+  });
+
+  it("refuses a field the contract does not declare", () => {
+    expect(parseReset({ instructions: "", replaceAll: true })).toBe(null);
   });
 });
 
@@ -87,5 +109,14 @@ describe("parseTurn", () => {
 
   it("refuses a seed entry with a role that is not user or assistant", () => {
     expect(parseTurn({ ...TURN, seed: [{ role: "system", text: "x" }] })).toBe(null);
+  });
+
+  // The session records this against itself and the state report answers with
+  // it, so a turn that named none would leave the object unable to tell a
+  // session holding this thread from one holding a discarded one.
+  it("refuses a turn that names no conversation", () => {
+    expect(parseTurn({ ...TURN, conversation: "" })).toBe(null);
+    const { conversation: _conversation, ...withoutIt } = TURN;
+    expect(parseTurn(withoutIt)).toBe(null);
   });
 });

@@ -796,6 +796,23 @@ record for the decisions code comments cite.
   the conversation restarts, so anything not in the transcript does not come
   back.
 
+- **EVERY FACT `boot` CARRIES IS CLASSIFIED, and `SandboxBoot`'s own type is
+  what forces it.** It is the INTERSECTION of three groups rather than a record
+  of its own, so a fact added to a boot has nowhere to be written that does not
+  also answer what keeps it true for a container that is already running:
+  IDENTITY (`bootId`, the report bearer) is minted per boot; PINS (the report
+  URL, the provider, the model, the tool set, Browser Run) cannot be handed to a
+  live container, so the runner folds a digest of the whole group into the warm
+  predicate and a mismatch is a cold wake; SESSION (the instructions) rides the
+  `reset` verb, which throws away the pi session and leaves `./vault` and the
+  revision alone. The bug that shape exists to make unrepresentable is a warm
+  fast path keyed on the boot id alone: it silently dropped the provider the
+  user had just switched to, and left the model answering out of the thread
+  "New chat" told them was gone. What decides a reset is the CONVERSATION the
+  container names — the chat thread's id, or an unattended run's own, since a
+  background task is a conversation of one turn and the lane's container
+  outlives it.
+
 - **The provider credential never reaches the container.** The Worker owns the
   OAuth round-trip; the refresh token is AES-GCM sealed in the object under an
   HKDF-derived per-user key; the container is configured with a PLACEHOLDER, and

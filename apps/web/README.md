@@ -74,9 +74,12 @@ src/
       vault/             THE VAULT — manifest in DO SQLite, bytes in R2
       knowledge/         THE INDEX — core's SQL store over DO SQLite + FTS5
     agent/               THE AGENT — the container, and everything around it
-      sandbox-port.ts    BOTH directions: the six verbs the DO may ask of a
-                         container (five over HTTP; shutdown has no daemon leg)
-                         and the sink every report arrives through
+      sandbox-port.ts    BOTH directions: the seven verbs the DO may ask of a
+                         container (six over HTTP; shutdown has no daemon leg),
+                         the sink every report arrives through, and the three
+                         groups a boot's facts are split into — identity, the
+                         pins the warm predicate weighs, the session `reset`
+                         carries
       cf-sandbox.ts      that port over @cloudflare/sandbox
       fake-sandbox.ts    that port in memory, scripted (AGENT_RUNTIME=scripted)
       sandbox-class.ts   the Sandbox subclass: enableInternet=false + the egress seam

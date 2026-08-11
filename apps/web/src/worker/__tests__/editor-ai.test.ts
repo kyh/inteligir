@@ -241,7 +241,10 @@ describe("the generator", () => {
   it("lists the selected provider's models with the declared fast tier default", async () => {
     await withGenerator(async (host) => {
       expect(host.ai.ghostModels()).toEqual({
-        models: [{ id: "sandbox-1", label: "Scripted" }],
+        models: [
+          { id: "sandbox-1", label: "Scripted" },
+          { id: "sandbox-2", label: "Scripted (alternate)" },
+        ],
         defaultId: "sandbox-1",
       });
     });

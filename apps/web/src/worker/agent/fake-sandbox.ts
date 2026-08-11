@@ -37,6 +37,7 @@ import { readVaultReply } from "@repo/agent-container/vault-report";
 
 import type {
   SandboxBoot,
+  SandboxBootSession,
   SandboxDispatch,
   SandboxOutcome,
   SandboxPort,
@@ -70,7 +71,12 @@ export type FakeSandboxDeps = {
 export class FakeSandbox implements SandboxPort {
   private booted: SandboxBoot | null = null;
   private vaultRevision = 0;
-  private seeded = false;
+  /** The conversation its scripted session took, or null while it has taken
+   * none — the daemon's own shape, read off the live session. */
+  private conversation: string | null = null;
+  /** What the next session would be built with. The daemon holds these beside
+   * the boot for the same reason: a reset replaces them in place. */
+  private instructions = "";
   /** The turn in flight, or null — the daemon's own shape, so "which turn does
    * a folded message report under" is answerable here for the same reason. */
   private activeTurn: string | null = null;
@@ -118,13 +124,19 @@ export class FakeSandbox implements SandboxPort {
     return this.notice;
   }
 
+  /** The instructions its next session would be built with — the half of a
+   * boot a warm container takes through `reset` rather than through a wake. */
+  loadedInstructions(): string {
+    return this.instructions;
+  }
+
   state(): Promise<SandboxState> {
     if (this.booted === null) return Promise.resolve({ phase: "cold" });
     return Promise.resolve({
       phase: "ready",
       bootId: this.booted.bootId,
       vaultRevision: this.vaultRevision,
-      seeded: this.seeded,
+      conversation: this.conversation,
       busy: this.activeTurn !== null,
     });
   }
@@ -136,7 +148,24 @@ export class FakeSandbox implements SandboxPort {
     this.files.clear();
     this.push = null;
     this.vaultRevision = 0;
-    this.seeded = false;
+    this.conversation = null;
+    this.instructions = boot.instructions;
+    return Promise.resolve({ ok: true });
+  }
+
+  reset(session: SandboxBootSession): Promise<SandboxOutcome> {
+    if (this.booted === null) {
+      return Promise.resolve({ ok: false, error: CONTAINER_REFUSAL.notBooted });
+    }
+    // The daemon's own rule: a session disposed under a running turn would
+    // strand it, so the refusal comes first and in the contract's words.
+    if (this.activeTurn !== null) {
+      return Promise.resolve({ ok: false, error: CONTAINER_REFUSAL.turnInFlight });
+    }
+    this.instructions = session.instructions;
+    // The session goes; the files and the revision stay, which is the whole
+    // difference between this and a boot.
+    this.conversation = null;
     return Promise.resolve({ ok: true });
   }
 
@@ -171,9 +200,9 @@ export class FakeSandbox implements SandboxPort {
     }
     this.activeTurn = turn.turnId;
     this.interrupted = false;
-    // The scripted session takes every prompt, so it holds the conversation
+    // The scripted session takes every prompt, so it holds THIS conversation
     // from this turn on — the same thing the image reads off pi's preflight.
-    this.seeded = true;
+    this.conversation ??= turn.conversation;
     // Dispatch RETURNS; the turn runs after. That is the contract the real port
     // has to honour, so the fake honours it too — a fake that ran the turn
     // inline would let a caller await something production never awaits.
@@ -191,7 +220,8 @@ export class FakeSandbox implements SandboxPort {
     this.files.clear();
     this.push = null;
     this.activeTurn = null;
-    this.seeded = false;
+    this.conversation = null;
+    this.instructions = "";
     this.queued = [];
     return Promise.resolve();
   }

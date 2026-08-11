@@ -33,6 +33,7 @@ export const AGENT_CONTAINER_PORT = 8787;
 export const CONTAINER_API = {
   state: "/v1/state",
   boot: "/v1/boot",
+  reset: "/v1/reset",
   vault: "/v1/vault",
   turn: "/v1/turn",
   interrupt: "/v1/interrupt",
@@ -93,8 +94,9 @@ export const MAX_REPORT_BYTES = 8 * 1024 * 1024;
  * sentence — "refused /v1/turn (409)" names the transport and not the reason.
  */
 export const CONTAINER_REFUSAL = {
-  /** A second `user_message` while a turn is in flight. `steer` and
-   * `follow_up` fold into that turn instead, so neither reaches this. */
+  /** A second `user_message` while a turn is in flight, and a `reset` that
+   * would dispose the session running it. `steer` and `follow_up` fold into
+   * that turn instead, so neither reaches this. */
   turnInFlight: "a turn is already running",
   /** Anything that needs a booted daemon, before there is one. */
   notBooted: "the container has not booted",
@@ -109,10 +111,12 @@ export const CONTAINER_REFUSAL = {
 export type ContainerState = {
   readonly bootId: string | null;
   readonly vaultRevision: number;
-  /** Whether the live session already holds the conversation. The daemon reads
-   * it off that session, so the object never has to track a position in a
-   * transcript the container cannot see. */
-  readonly seeded: boolean;
+  /** WHICH conversation the live session holds, or null when it holds none.
+   * The daemon reads it off that session, so the object never has to track a
+   * position in a transcript the container cannot see — and a session left
+   * holding a thread the user discarded is a value the object can compare
+   * rather than a boolean that answers the wrong question. */
+  readonly conversation: string | null;
   readonly busy: boolean;
 };
 
@@ -145,6 +149,20 @@ export type ContainerBoot = {
 };
 
 /**
+ * Throw the live pi session away and say what the next one is built with.
+ *
+ * The instructions ride along because they are the reason a reset is not
+ * merely a disposal: pi bakes them into a session at construction, so the way
+ * an edited `AGENTS.md` reaches the model is the next session reading the new
+ * bytes. `./vault` and the revision the container holds are deliberately NOT
+ * here — re-materializing a vault that has not changed is the expensive half
+ * of a boot, and the whole point of this verb is to skip it.
+ */
+export type ContainerReset = {
+  readonly instructions: string;
+};
+
+/**
  * What the daemon answers a turn dispatch with: the id every report for this
  * message will carry.
  *
@@ -168,11 +186,16 @@ export type ContainerVaultPush = {
 
 export type ContainerTurn = {
   readonly turnId: string;
+  /** Which conversation this message belongs to. Recorded against the session
+   * that accepts the prompt and reported back as `ContainerState.conversation`,
+   * so the object can tell a session holding THIS thread from one holding a
+   * thread the user has discarded. */
+  readonly conversation: string;
   readonly kind: "user_message" | "steer" | "follow_up";
   readonly text: string;
   readonly images: readonly { readonly data: string; readonly mimeType: string }[];
   /** Prior turns to seed a fresh session with — empty when the container's own
-   * session already holds the conversation, which it is the one that knows. */
+   * session already holds this conversation, which it is the one that knows. */
   readonly seed: readonly { readonly role: "user" | "assistant"; readonly text: string }[];
 };
 

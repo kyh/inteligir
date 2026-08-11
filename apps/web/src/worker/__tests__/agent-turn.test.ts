@@ -57,6 +57,16 @@ function scriptedPort(host: UserHost): FakeSandbox {
   return existing;
 }
 
+/** Which container is running and what its session holds — the two halves of
+ * "is this the same container, and is it the same conversation". */
+async function containerState(
+  host: UserHost,
+): Promise<{ bootId: string; conversation: string | null }> {
+  const state = await scriptedPort(host).state();
+  if (state.phase !== "ready") throw new Error("the scripted container is not running");
+  return { bootId: state.bootId, conversation: state.conversation };
+}
+
 /** Let every deferred continuation run. */
 async function settle(): Promise<void> {
   for (let pass = 0; pass < 50; pass += 1) await Promise.resolve();
@@ -345,6 +355,110 @@ describe("an agent turn", () => {
         .catch((error: unknown) => (error instanceof Error ? error.message : String(error)));
     });
     expect(refusal).toBe(CONTAINER_REFUSAL.turnInFlight);
+  });
+
+  // "New chat" is sold to users as discarding the conversation, which makes it
+  // a claim about what the MODEL can still see and not only about what the
+  // screen shows. The container sleeps after ten minutes, so inside that window
+  // its pi session is still holding the thread that was thrown away — and a
+  // seeded latch that only a new boot could clear kept it there, answering the
+  // next question out of a conversation the user believed was gone.
+  it("gives the container a new session when the user rolls a fresh thread", async () => {
+    const rolled = await withHost("turn-new-thread", async (host) => {
+      connect(host);
+      await host.agent.runner.send({ type: "user_message", text: "the sky is green" });
+      await settle();
+      const before = await containerState(host);
+
+      host.agent.runner.newSession();
+      const thread = host.agent.chat.activeSessionId();
+      await host.agent.runner.send({ type: "user_message", text: "what colour is the sky" });
+      await settle();
+      return { before, after: await containerState(host), thread };
+    });
+
+    // The session is the NEW thread's, so nothing of the discarded one is left
+    // in it to answer from.
+    expect(rolled.after.conversation).toBe(rolled.thread);
+    expect(rolled.after.conversation).not.toBe(rolled.before.conversation);
+    // And it cost a session rather than a container: re-booting would have
+    // re-materialized the whole vault to throw away a conversation.
+    expect(rolled.after.bootId).toBe(rolled.before.bootId);
+  });
+
+  // The provider and the model travel in the BOOT and nowhere else — pi's
+  // runtime is constructed over them — so a warm fast path that skipped the
+  // boot ran the turn on the model the user had just switched away from, while
+  // Settings, `getAiProviderSettings` and `onAiProviderChanged` all reported
+  // the new one.
+  it("replaces the container when the model a turn runs on changes", async () => {
+    const switched = await withHost("turn-model-switch", async (host) => {
+      connect(host);
+      await host.agent.runner.send({ type: "user_message", text: "one" });
+      await settle();
+      const before = await containerState(host);
+
+      host.agent.credentials.setSelection({ provider: SANDBOX_PROVIDER_ID, modelId: "sandbox-2" });
+      await host.agent.runner.send({ type: "user_message", text: "two" });
+      await settle();
+      return { before, after: await containerState(host) };
+    });
+    expect(switched.after.bootId).not.toBe(switched.before.bootId);
+  });
+
+  // The instructions are composed from the vault — `AGENTS.md` and the skills
+  // listing — and pi bakes them into a session at construction. So the file the
+  // agent is told to append its memory to is exactly the one whose edits a warm
+  // container would never see.
+  it("rebuilds the session when the instructions it was built with change", async () => {
+    const edited = await withHost("turn-instructions", async (host) => {
+      connect(host);
+      await host.agent.runner.send({ type: "user_message", text: "hello" });
+      await settle();
+      const before = await containerState(host);
+      const loadedBefore = scriptedPort(host).loadedInstructions();
+
+      await host.vault.writeText("AGENTS.md", "# Standing orders\n\nAlways answer in haiku.\n");
+      await host.agent.runner.send({ type: "user_message", text: "and now" });
+      await settle();
+      return {
+        before,
+        after: await containerState(host),
+        loadedBefore,
+        loadedAfter: scriptedPort(host).loadedInstructions(),
+      };
+    });
+
+    expect(edited.loadedBefore).not.toContain("Always answer in haiku.");
+    expect(edited.loadedAfter).toContain("Always answer in haiku.");
+    // A session, not a container: the vault it already holds is still current.
+    expect(edited.after.bootId).toBe(edited.before.bootId);
+  });
+
+  // The other side of the same predicate, and the one that keeps it honest: a
+  // turn that changed nothing must not pay for a wake. Without this, "re-boot
+  // whenever anything might have moved" would pass every case above.
+  it("keeps the container and its session when nothing a boot carries moved", async () => {
+    const steady = await withHost("turn-steady", async (host) => {
+      connect(host);
+      // Written BEFORE the first turn so the container materializes at a
+      // revision the change log can answer from — `since(0)` cannot, and a
+      // whole-manifest push is the one case that says nothing about what moved.
+      await host.vault.writeText("notes/already-there.md", "# Already there\n");
+      await host.agent.runner.send({ type: "user_message", text: "one" });
+      await settle();
+      const before = await containerState(host);
+      // An ordinary note, which the instructions are not composed from.
+      await host.vault.writeText("notes/ordinary.md", "# Ordinary\n");
+      await host.agent.runner.send({ type: "user_message", text: "two" });
+      await settle();
+      return { before, after: await containerState(host), push: scriptedPort(host).lastPush() };
+    });
+    expect(steady.after.bootId).toBe(steady.before.bootId);
+    expect(steady.after.conversation).toBe(steady.before.conversation);
+    // The delta, not the whole manifest — the wake that did not happen.
+    expect(steady.push?.replaceAll).toBe(false);
+    expect(steady.push?.upserted.map((file) => file.path)).toEqual(["notes/ordinary.md"]);
   });
 
   it("rolls a fresh thread and leaves the old one browsable", async () => {

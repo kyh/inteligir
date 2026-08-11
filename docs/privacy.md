@@ -58,7 +58,9 @@ them, so:
   account — that one is not a provider you chose.
 - **The chat transcript is durable.** It records what the agent did, including
   what it read. Starting a new session (Settings → New session) rolls a fresh
-  thread; past threads stay in the transcript.
+  thread; past threads stay in the transcript. The agent's own live session is
+  replaced with it, so the next message is answered without the thread you left
+  behind.
 
 ## `private: true` — what it is
 
