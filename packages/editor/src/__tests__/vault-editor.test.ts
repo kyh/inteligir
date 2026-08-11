@@ -186,7 +186,7 @@ describe("VaultEditorController", () => {
     io.files.set("a.md", "A");
     io.removeOutcome = {
       outcome: "held",
-      held: { deletions: 40, liveCount: 100, limit: 25, sample: ["a.md"] },
+      held: { deletions: 40, liveCount: 100, limit: 25, windowMs: 600_000, sample: ["a.md"] },
     };
     const c = new VaultEditorController(io);
     await c.open("a.md");

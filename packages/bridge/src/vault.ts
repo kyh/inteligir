@@ -45,13 +45,29 @@ export const VaultRenameSchema = Type.Object(
   { additionalProperties: false },
 );
 
-// Attachment ingestion — image (or other) bytes written into the vault. A
-// client reaches the host over the Bridge only, so bytes cross as base64 both
-// ways.
+// Attachment ingestion — image (or other) bytes written into the vault, as
+// base64 inside one socket frame.
 export const VaultWriteAssetSchema = Type.Object(
   { dir: Type.String(), baseName: Type.String(), bytesBase64: Type.String() },
   { additionalProperties: false },
 );
+
+/**
+ * Largest attachment `writeVaultAsset` carries.
+ *
+ * The channel puts the bytes as base64 inside ONE WebSocket frame: a Durable
+ * Object caps a received message at 32 MiB, base64 inflates by a third, and a
+ * multi-megabyte frame blocks every other message on that socket while it
+ * arrives — so the frame stops being a plausible way to move a file well before
+ * a user stops trying to paste one. Anything past this rides the streaming
+ * upload transport instead (`installAssetUpload` in ./client), which never puts
+ * the bytes on the socket at all.
+ *
+ * The number lives HERE because both ends read it: the host refuses a bigger
+ * frame, and a client that picks its transport by the same number can never
+ * compose one.
+ */
+export const MAX_INLINE_ASSET_BYTES = 4 * 1024 * 1024;
 
 /** One file in the vault, relative to the vault root. `kind` splits editable
  * docs (see DOC_EXTENSIONS) from everything else (images, pdfs, …). */
@@ -115,7 +131,8 @@ export type VaultFileFacts = { sizeBytes: number; modifiedMs: number };
  * a broken image is a UI state, not an exception — hence a Result, not a throw. */
 export type ReadVaultAssetResult = { ok: true; bytesBase64: string } | { ok: false; error: string };
 
-/** The deletion gate's refusal, in the terms a human is asked to confirm. */
+/** The deletion gate's refusal, in the terms it is stated in. Every field is a
+ * number the host computed, because the gate's policy is the host's. */
 export type HeldDeletions = {
   /** How many deletions this call would bring the window to. */
   readonly deletions: number;
@@ -123,6 +140,9 @@ export type HeldDeletions = {
   readonly liveCount: number;
   /** The count above which the gate holds. */
   readonly limit: number;
+  /** How long the rolling window is. It is what makes the refusal actionable —
+   * the count drains by itself, and this is how long that takes. */
+  readonly windowMs: number;
   /** A few of the paths this call would remove. */
   readonly sample: readonly string[];
 };
@@ -141,13 +161,23 @@ export type DeleteVaultEntryResult =
   | { readonly outcome: "absent" }
   | { readonly outcome: "held"; readonly held: HeldDeletions };
 
-/** The sentence a held deletion is reported with — one phrasing, so the refusal
- * reads the same in a toast, in an agent tool's failure and in a log. */
+/**
+ * The sentence a held deletion is reported with — one phrasing, so the refusal
+ * reads the same in a toast, in an agent tool's failure and in a log.
+ *
+ * It names the recourse that EXISTS. No confirmation verb crosses the Bridge,
+ * so a sentence ending "confirm to proceed" would send every reader — the user
+ * and the model alike — looking for a button nobody can press. What actually
+ * releases the hold is time: the count is a rolling window, and it drains.
+ */
 export function heldDeletionMessage(held: HeldDeletions): string {
   const named = held.sample.map((path) => `"${path}"`).join(", ");
+  const more = held.sample.length < held.deletions ? ", …" : "";
   return (
-    `Refusing to delete ${held.deletions} file(s) of ${held.liveCount} without confirmation ` +
-    `(${named}${held.sample.length < held.deletions ? ", …" : ""}). ` +
-    "Confirm the deletion to proceed."
+    `Held: this would make ${held.deletions} deletions inside ` +
+    `${Math.round(held.windowMs / 60_000)} minutes, past the limit of ` +
+    `${Math.round(held.limit)} for a vault of ${held.liveCount} files. ` +
+    `Nothing was deleted (${named}${more}). The count is a rolling window that drains on ` +
+    `its own — wait for it to clear, then delete again.`
   );
 }

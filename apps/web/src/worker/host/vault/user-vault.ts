@@ -792,7 +792,13 @@ export class UserVault {
     const limit = Math.max(MIN_HELD_DELETIONS, HELD_DELETION_SHARE * liveCount);
     if (deletions <= limit) return null;
     if (confirmDeletions !== undefined && deletions <= confirmDeletions) return null;
-    return { deletions, liveCount, limit, sample: targets.slice(0, 5).map((key) => key.path) };
+    return {
+      deletions,
+      liveCount,
+      limit,
+      windowMs: DELETION_WINDOW_MS,
+      sample: targets.slice(0, 5).map((key) => key.path),
+    };
   }
 
   private objectKey(key: string): string {

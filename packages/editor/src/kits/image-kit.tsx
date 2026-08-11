@@ -1,17 +1,22 @@
 // Image kit: markdown `![alt](path)` nodes plus the paste/drop ingestion that
 // gets image BYTES into the vault (the embed kit is url-only by charter). An
-// image pasted or dropped into a Rich note is written under `assets/` through
-// the Bridge (writeVaultAsset picks a collision-free name), then inserted as a
-// bare `![](assets/<name>)` node — the canonical byte form (no align/width/
-// caption). Non-image pastes/drops fall through untouched. Rendering lives in
-// nodes/image-node.tsx.
+// image pasted or dropped into a Rich note is written under `assets/` (the host
+// picks a collision-free name), then inserted as a bare `![](assets/<name>)`
+// node — the canonical byte form (no align/width/caption). Non-image
+// pastes/drops fall through untouched. Rendering lives in nodes/image-node.tsx.
+//
+// The bytes take one of TWO transports, picked by size against the number the
+// host enforces: a screenshot fits a socket frame, a photo does not.
 
 import { KEYS, createSlatePlugin, type SlateEditor } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
-import { getBridge } from "@repo/bridge/client";
+import { getAssetUpload, getBridge } from "@repo/bridge/client";
+import { MAX_INLINE_ASSET_BYTES } from "@repo/bridge/vault";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { ImageElement } from "@repo/editor/nodes/image-node";
+import { toast } from "@repo/ui/components/sonner";
 
 // Base (headless) half — void node metadata for the serializer mirror. The
 // live React half is a separate plugin instance sharing the `img` key (the
@@ -49,14 +54,44 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-// Write each image to the vault and insert its node at the caret, in order.
-async function ingestImageFiles(editor: SlateEditor, files: File[]): Promise<void> {
-  const bridge = getBridge();
+/** Move one image's bytes into the vault and answer with the path they landed
+ * at. The socket frame is the cheap way and the streamed upload is the one that
+ * fits anything, so the size decides — against the host's own number, so this
+ * never composes a frame the host will refuse. */
+async function writeAsset(file: File, name: string): Promise<string> {
+  if (file.size > MAX_INLINE_ASSET_BYTES) {
+    const { path } = await getAssetUpload()({ dir: ASSET_DIR, name, body: file });
+    return path;
+  }
+  const bytesBase64 = await fileToBase64(file);
+  const written = await getBridge().writeVaultAsset({
+    dir: ASSET_DIR,
+    baseName: name,
+    bytesBase64,
+  });
+  return written.path;
+}
+
+/**
+ * Write each image to the vault and insert its node at the caret, in order.
+ *
+ * NEVER REJECTS, and that is the contract rather than a courtesy: both handlers
+ * fire this and hand the browser back its event, so a rejection has nobody left
+ * to reach — the `preventDefault` already ate the paste, and nothing on the page
+ * listens for an unhandled one. A failure would be a paste that produces no
+ * image, no message and no trace the user can see. So it produces a message,
+ * and stops at the file that failed.
+ */
+export async function ingestImageFiles(editor: SlateEditor, files: File[]): Promise<void> {
   for (const file of files) {
-    const bytesBase64 = await fileToBase64(file);
-    const baseName = file.name !== "" ? file.name : `pasted-image${extFromMime(file.type)}`;
-    const { path } = await bridge.writeVaultAsset({ dir: ASSET_DIR, baseName, bytesBase64 });
-    insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url: path });
+    const name = file.name !== "" ? file.name : `pasted-image${extFromMime(file.type)}`;
+    try {
+      const url = await writeAsset(file, name);
+      insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url });
+    } catch (error) {
+      toast.error(`Couldn't add ${name} — ${toErrorMessage(error)}`);
+      return;
+    }
   }
 }
 

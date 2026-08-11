@@ -117,6 +117,23 @@ The `ssr` match is anchored at oxfmt's two-space indent, so it reads a property
 and never a comment quoting one — both this suite's header and the layout's
 explain the hazard by writing `ssr: false` out.
 
+### `src/host-routes.test.ts` — every `/v1/host` URL names a served leaf
+
+`host-route.ts`'s `HOST_LEAVES` is the whole table: a path outside it is refused
+before any object is named. Every other spelling of a `/v1/host/…` URL — the
+`fetch` a page issues, the route an error tells the caller to retry over — is a
+claim about that table, and a string is the one thing the compiler will not
+check. The failure this caught was the quiet kind: a refusal naming a URL shape
+the router rejects, which reads as helpful and routes nobody anywhere.
+
+The declared leaves are parsed out of that one file (an empty parse fails), and
+every `.ts`/`.tsx` under `apps/` and `packages/` is scanned for the segment
+after `/v1/host/`. The segment pattern ends at `/`, `?`, a quote or a `${…}`
+interpolation, and matches none of the forms prose uses for the whole family
+(`/v1/host/*`, `/v1/host/<leaf>`) — so documenting the shape is not read as
+naming a route. Tests are excluded: a router test's job is to spell the paths
+the router must REFUSE.
+
 ### `src/agent-image.test.ts` — what the image's install layer is keyed on
 
 `apps/web/container/Dockerfile` copies the workspace manifests, installs, and

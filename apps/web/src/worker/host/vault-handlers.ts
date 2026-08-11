@@ -7,6 +7,7 @@ import type {
   ReadVaultAssetResult,
   WorkspaceBoot,
 } from "@repo/bridge/vault";
+import { MAX_INLINE_ASSET_BYTES } from "@repo/bridge/vault";
 import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
@@ -16,18 +17,6 @@ import type { CloudStores } from "./stores";
 import { base64ToBytes, bytesToBase64 } from "./vault/base64";
 import { VAULT_ROOT, type UserVault } from "./vault/user-vault";
 import { renameWithLinkRewrite } from "./vault/vault-rename";
-
-/**
- * Largest asset the inline `writeVaultAsset` channel accepts.
- *
- * The channel carries bytes as base64 inside ONE WebSocket frame. A Durable
- * Object caps a received message at 32 MiB and base64 inflates by a third, so
- * the frame is a hard ceiling rather than a budget — and a multi-megabyte frame
- * blocks every other message on that socket while it arrives. Anything past
- * this goes to the streaming upload route (./asset-route), which never puts the
- * bytes on the socket at all.
- */
-const MAX_INLINE_ASSET_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 /** The open note's bytes, or null when ui-state names nothing or the file it
  * names is gone. A note that vanished must not fail a whole boot. */
@@ -88,9 +77,12 @@ export function registerVaultHandlers(
   handle("writeVaultAsset", async ({ dir, baseName, bytesBase64 }) => {
     const bytes = base64ToBytes(bytesBase64);
     if (bytes === null) throw new Error("Attachment bytes are not valid base64");
-    if (bytes.length > MAX_INLINE_ASSET_UPLOAD_BYTES) {
+    // The cap is @repo/bridge's, so a client reading the same number streams
+    // instead of composing a frame that lands here. This is the backstop for a
+    // caller that did not.
+    if (bytes.length > MAX_INLINE_ASSET_BYTES) {
       throw new Error(
-        `Attachment too large for the socket (${bytes.length} bytes) — upload it over /v1/host/:userId/assets`,
+        `Attachment too large for the socket (${bytes.length} bytes) — upload it over POST /v1/host/assets`,
       );
     }
     return { path: await vault.writeAsset(dir, baseName, bytes) };

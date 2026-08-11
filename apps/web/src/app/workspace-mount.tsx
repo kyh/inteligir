@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { installBridge } from "@repo/bridge/client";
+import { installAssetUpload, installBridge } from "@repo/bridge/client";
 import { createWsBridge, type WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import { App } from "@repo/workspace/app-root";
 import { setAccountPort } from "@repo/workspace/workspace/account-host";
 
+import { uploadHostAsset } from "@/lib/asset-upload";
 import { authClient, authErrorMessage, mintSocketTicket } from "@/lib/auth-client";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +44,9 @@ export default function WorkspaceMount({ email }: { email: string }) {
       onStatus: setStatus,
     });
     installBridge(transport.bridge);
+    // The socket's companion transport: a pasted photo is bigger than a frame,
+    // and this origin serves the route that streams it.
+    installAssetUpload(uploadHostAsset);
     // Sign-out is deliberately NOT a Bridge call: it invalidates the very
     // credential that socket authenticated with, so it belongs to the surface
     // holding it. A full reload rather than a router navigate — every store in

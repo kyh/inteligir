@@ -306,8 +306,12 @@ Three pages over the existing Better Auth routes, sharing one card
 - **The deletion gate** (CLAUDE.md § Decisions) sits here, in the object every
   writer goes through, so the workspace, the agent and the upload route are all
   held by one number: deletions past `max(25, 5% of the manifest)` inside a
-  rolling window are held whole until a human confirms. It reads a COUNT, never
-  a cause — it bounds the blast radius of a mass delete, it does not detect one.
+  rolling window are held whole. It reads a COUNT, never a cause — it bounds the
+  blast radius of a mass delete, it does not detect one. The vault takes a
+  confirmation that waives one pass, but **no Bridge channel spells it**, so what
+  releases a hold today is the window draining; `heldDeletionMessage` says that
+  and nothing more, because a refusal naming an act nobody can perform is worse
+  than the hold.
 
 ### The data lifecycle (export, retention, deletion)
 

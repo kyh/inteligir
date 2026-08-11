@@ -255,6 +255,9 @@ describe("deletion gate", () => {
       expect(held.held.liveCount).toBe(40);
       expect(held.held.limit).toBe(25);
       expect(held.held.sample).toHaveLength(5);
+      // The window the count drains over: the refusal's only actionable term,
+      // since no channel spells the confirmation the vault itself accepts.
+      expect(held.held.windowMs).toBe(10 * 60 * 1000);
       // A held plan is held WHOLE — not the first 25 of it.
       expect(vault.list()).toHaveLength(40);
     });

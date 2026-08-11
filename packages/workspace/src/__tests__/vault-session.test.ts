@@ -318,7 +318,7 @@ describe("deleting", () => {
     const h = await opened({ "a.md": "A" }, "a.md");
     h.hooks.removeOutcome = {
       outcome: "held",
-      held: { deletions: 40, liveCount: 100, limit: 25, sample: ["a.md"] },
+      held: { deletions: 40, liveCount: 100, limit: 25, windowMs: 600_000, sample: ["a.md"] },
     };
 
     await h.session.actions.deleteEntry("a.md");

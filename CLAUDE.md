@@ -737,7 +737,7 @@ record for the decisions code comments cite.
 - **ONE deletion gate, in the object every writer goes through, and it bounds a
   blast radius rather than detecting a bug.** Deletions past
   `max(25, 5% of the manifest)` inside a rolling window are held whole —
-  applying nothing — until a human confirms. It reads a COUNT, never a cause, so
+  applying nothing. It reads a COUNT, never a cause, so
   a bug that sheds one path per call sits far below the floor and passes
   straight through; describe it that way and never as detection. The count
   accumulates over a WINDOW rather than per call, because a caller deleting one
@@ -745,7 +745,11 @@ record for the decisions code comments cite.
   a per-call gate would never see it; the window drains on its own, and a
   restore removes its file from it. Because it lives in the object rather than
   on a device, the browser, the agent and the upload route are all held by one
-  number, and a confirmation is one act rather than one per device.
+  number. **The vault takes a confirmation that waives one pass, and no Bridge
+  channel spells it** — so what releases a hold today is the window draining,
+  and `heldDeletionMessage` says exactly that. A refusal naming an act nobody
+  can perform sends the user and the model both looking for a button that does
+  not exist; building the verb is what earns the other sentence back.
 
 - **Rate limits: anonymous callers in D1, authenticated ones in the object.**
   The auth routes are limited in D1 because their callers are anonymous and a

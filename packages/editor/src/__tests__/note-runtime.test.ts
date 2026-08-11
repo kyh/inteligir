@@ -231,7 +231,7 @@ describe("createNoteRuntime", () => {
     io.files.set("a.md", "v0");
     io.removeOutcome = {
       outcome: "held",
-      held: { deletions: 40, liveCount: 100, limit: 25, sample: ["a.md"] },
+      held: { deletions: 40, liveCount: 100, limit: 25, windowMs: 600_000, sample: ["a.md"] },
     };
     const vanished: string[] = [];
     const runtime = createNoteRuntime("a.md", "root", io, {
