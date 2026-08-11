@@ -1,7 +1,7 @@
 // OpenNote store — the HIGH-CADENCE slice of the vault workspace.
 //
 // The open note's exposed state (editor snapshot, derived OpenDoc, raw/rich
-// mode, html-app flags) changes on every keystroke (Raw) / serialize settle
+// mode) changes on every keystroke (Raw) / serialize settle
 // (Rich) / autosave `saving` flip. Carrying that in the VaultContext value
 // re-renders ALL of its consumers per keystroke; a zustand store lets each
 // consumer subscribe to exactly the field it reads
@@ -28,8 +28,6 @@ import {
 } from "@repo/editor/markdown/markdown-doc";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
 import { type OpenDoc, deriveOpenDoc, isMarkdownPath } from "@repo/editor/note/open-doc";
-
-const HTML_RE = /\.html$/i;
 
 /** The `editor` snapshot exposed while no note is open. */
 const NO_NOTE_STATE: VaultEditorState = {
@@ -60,16 +58,14 @@ export type OpenNoteState = {
   /** The user's raw/rich pick for the open note (honored only while rich is
    * available — deriveOpenDoc exposes the EFFECTIVE surface). */
   mode: "raw" | "rich";
-  /** Per-open view choice for `.html` files: raw text (true) vs. app. */
-  htmlAsText: boolean;
   /** The open document as ONE discriminated union — derived in lockstep with
    * (openPath, editor, analysis, mode) inside every store update, so it can
    * never disagree with the values it came from. */
   openDoc: OpenDoc;
-  /** Whether the open file is a vault `.html` file (renderable as an app). */
-  openIsHtml: boolean;
-  /** Whether to show the open `.html` as a sandboxed app (vs. raw text). */
-  isHtmlApp: boolean;
+  /** Where the user has been, newest LAST. `back.at(-1)` is what Back opens. */
+  back: string[];
+  /** Where Back came from, newest LAST. Cleared by any fresh navigation. */
+  forward: string[];
 };
 
 const INITIAL_ANALYZED: Analyzed = { rawReason: null, content: "", path: null };
@@ -79,11 +75,18 @@ const INITIAL_STATE: OpenNoteState = {
   editor: NO_NOTE_STATE,
   analyzed: INITIAL_ANALYZED,
   mode: "raw",
-  htmlAsText: false,
   openDoc: { kind: "none" },
-  openIsHtml: false,
-  isHtmlApp: false,
+  back: [],
+  forward: [],
 };
+
+/** Deepest history either direction keeps. A workspace open for a week would
+ * otherwise accumulate one entry per note opened, forever. */
+const HISTORY_DEPTH = 50;
+
+function capped(stack: readonly string[]): string[] {
+  return stack.length > HISTORY_DEPTH ? stack.slice(stack.length - HISTORY_DEPTH) : [...stack];
+}
 
 /** Subscribe to a slice of the open-note state: `useOpenNote((s) => s.mode)`.
  * A consumer re-renders only when ITS selected value changes — the seam that
@@ -102,7 +105,7 @@ export function openNoteState(): OpenNoteState {
  * keeping `openDoc` referentially stable when none of its inputs changed, so
  * a consumer selecting it doesn't re-render on unrelated updates. */
 function apply(
-  partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed" | "mode" | "htmlAsText">>,
+  partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed" | "mode">>,
 ): void {
   useOpenNote.setState((s) => {
     const merged = { ...s, ...partial };
@@ -121,8 +124,6 @@ function apply(
           rawReason: merged.analyzed.rawReason,
           chosenMode: merged.mode,
         });
-    merged.openIsHtml = merged.openPath !== null && HTML_RE.test(merged.openPath);
-    merged.isHtmlApp = merged.openIsHtml && !merged.htmlAsText;
     return merged;
   });
 }
@@ -229,26 +230,75 @@ export function publishEditor(editor: VaultEditorState): void {
   apply({ editor });
 }
 
-/** Publish the intent path (provider-only, from applyOpenPath). Resets the
- * per-open html view choice; closing (null) also resets the editor snapshot
- * through the analysis machine so analyzed/mode clear exactly as they did
- * when the NO_NOTE state flowed through the provider's render. */
-export function publishOpenPath(path: string | null): void {
-  apply({ openPath: path, htmlAsText: false });
+/**
+ * How the open path moved, for history's sake.
+ * - `navigate`: somebody chose this note (a click, a wiki chip, a deep link,
+ *   Back or Forward, or closing the note). The stacks record it.
+ * - `carry`: a RENAME moved the note that was already open. Nothing was
+ *   navigated, and the old path no longer exists — so every entry naming it is
+ *   rewritten rather than a new one pushed. Without this, Back would offer a
+ *   path the rename deleted.
+ */
+export type OpenPathChange = "navigate" | "carry";
+
+/** The stacks after a navigation from `prev` to `next`.
+ *
+ * A Back or Forward move is recognized by VALUE — `next` is already the top of
+ * one stack — rather than by a flag the caller sets. That matters because the
+ * navigation is async and refusable (an unsaved note blocks the switch): a flag
+ * armed before the open would survive a refusal and mis-attribute the NEXT one,
+ * while a stack that only moves when the path actually changed cannot.
+ */
+function movedHistory(
+  state: OpenNoteState,
+  prev: string | null,
+  next: string | null,
+): Pick<OpenNoteState, "back" | "forward"> {
+  const carriedForward = prev === null ? state.forward : [...state.forward, prev];
+  const carriedBack = prev === null ? state.back : [...state.back, prev];
+  if (next !== null && state.back.at(-1) === next) {
+    return { back: state.back.slice(0, -1), forward: capped(carriedForward) };
+  }
+  if (next !== null && state.forward.at(-1) === next) {
+    return { back: capped(carriedBack), forward: state.forward.slice(0, -1) };
+  }
+  return { back: capped(carriedBack), forward: [] };
+}
+
+/** Publish the intent path (provider-only, from applyOpenPath). Closing (null)
+ * also resets the editor snapshot through the analysis machine so analyzed/mode
+ * clear exactly as they did when the NO_NOTE state flowed through the
+ * provider's render. */
+export function publishOpenPath(path: string | null, change: OpenPathChange = "navigate"): void {
+  const state = useOpenNote.getState();
+  const prev = state.openPath;
+  if (prev !== path) {
+    useOpenNote.setState(
+      change === "carry"
+        ? {
+            back: state.back.map((entry) => (entry === prev && path !== null ? path : entry)),
+            forward: state.forward.map((entry) => (entry === prev && path !== null ? path : entry)),
+          }
+        : movedHistory(state, prev, path),
+    );
+  }
+  apply({ openPath: path });
   if (path === null) publishEditor(NO_NOTE_STATE);
+}
+
+/** The note Back would open, or null when there is nowhere to go. Forward's
+ * twin is `forward.at(-1)`. Both are plain reads — the MOVE is the ordinary
+ * `openFile` on that path, which publishes and lets `movedHistory` recognize
+ * it. */
+export function backTarget(state: OpenNoteState): string | null {
+  return state.back.at(-1) ?? null;
+}
+
+export function forwardTarget(state: OpenNoteState): string | null {
+  return state.forward.at(-1) ?? null;
 }
 
 /** The user's raw/rich pick for a rich-capable markdown note (header toggle). */
 export function setOpenNoteMode(mode: "raw" | "rich"): void {
   apply({ mode });
-}
-
-/** Show the open `.html` as raw text in the editor ("Open as text"). */
-export function showOpenHtmlAsText(): void {
-  apply({ htmlAsText: true });
-}
-
-/** Show the open `.html` as a sandboxed app again ("Open as app"). */
-export function showOpenHtmlAsApp(): void {
-  apply({ htmlAsText: false });
 }

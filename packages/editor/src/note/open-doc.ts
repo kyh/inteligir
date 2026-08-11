@@ -41,10 +41,8 @@ type MarkdownSurface = { mode: "rich" } | { mode: "raw"; reason: GateReason | nu
  *   also the transient while a rename carries the note over, or while a
  *   vanished file closes. `path` is the INTENT path (sidebar/graph highlights
  *   key off it before content lands).
- * - `non-markdown`: a loaded non-markdown file (`.html` opened as text,
- *   `.txt`, …) — always the raw textarea. The `.html` app-vs-text view stays
- *   the separate `openIsHtml`/`isHtmlApp` pair: it keys off the intent path
- *   and shows before (and regardless of) the text buffer loading.
+ * - `non-markdown`: a loaded non-markdown file (`.html`, `.txt`, …) — always
+ *   the raw textarea.
  * - `markdown`: a loaded markdown note. `isPrivate` is the header's lock
  *   badge — USER-FACING semantics: strictly `private: true` on the LIVE
  *   buffer (unreadable frontmatter shows no lock); the AI paths use their own

@@ -26,11 +26,15 @@ import { cn } from "@repo/ui/lib/utils";
 const CONTAINER_CLASS =
   "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-focus-ring/25 focus-visible:outline-none [&_.slate-selection-area]:bg-focus-ring/15";
 
-/** The centered ~700px text column (symmetric padding, not max-w). Shared by
+/** The centered text column (symmetric padding, not max-w). Shared by
  * PlateContent, the page-title <h1>, the Raw textarea, and the backlinks
  * section so they can't drift apart. 48px min padding keeps the -left-11
- * (44px) drag gutter inside the editable's clip with a 4px reveal. */
-export const EDITOR_COLUMN_PX = "px-12 sm:px-[max(48px,calc(50%-350px))]";
+ * (44px) drag gutter inside the editable's clip with a 4px reveal. The inset
+ * is the workspace's `--editor-column-inset` (Settings → Appearance picks
+ * between the reading column and the full pane); its default keeps the ~700px
+ * column. */
+export const EDITOR_COLUMN_PX =
+  "px-12 sm:px-[max(48px,var(--editor-column-inset,calc(50%-350px)))]";
 
 // Document typography comes from shadcn/typeset (typeset.css + the
 // .typeset-docs preset in @repo/ui globals) — element renderers carry only

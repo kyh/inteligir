@@ -438,7 +438,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     if (at !== -1) routines[at] = next;
     emitRoutines();
   };
-  let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
   // Skills — one bundled row and two added rows so the listing renders both
   // sources and all three budget outcomes (a real vault would have to hold 50+
@@ -788,13 +787,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       return [{ text: STT_CANNED_TRANSCRIPT, isFinal: true }];
     },
     onSttTranscript: sttEvents.subscribe,
-
-    // Notifications
-    getNotificationSettings: async () => notifications,
-    updateNotificationSettings: async (patch) => {
-      notifications = { enabled: patch.enabled ?? notifications.enabled };
-      return notifications;
-    },
 
     // UI state
     getUiState: async () => ({ ...uiState }),

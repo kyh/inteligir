@@ -2,17 +2,14 @@
 // same serialize path to disk a body edit does (properties-node.ts).
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { InfoIcon } from "lucide-react";
 
 import { Badge } from "@repo/ui/components/badge";
-import { Button } from "@repo/ui/components/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "@repo/ui/components/sheet";
 
 import type { VaultFileFacts } from "@repo/bridge/vault";
@@ -73,10 +70,19 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** The editor lookup can only miss during a teardown race; the derived facts
+/** Fully controlled — it carries no trigger, because the one place that opens
+ * it is the header's overflow menu and a panel nested inside a menu closes with
+ * it. The editor lookup can only miss during a teardown race; the derived facts
  * never needed it and still render. */
-export function PageDetails({ path }: { path: string }) {
-  const [open, setOpen] = useState(false);
+export function PageDetails({
+  path,
+  open,
+  onOpenChange,
+}: {
+  path: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const editor = open ? getLiveEditor(path) : null;
 
   // Collapsing to "" while closed keeps a keystroke from re-rendering this.
@@ -114,20 +120,7 @@ export function PageDetails({ path }: { path: string }) {
   const doneTasks = projection.tasks.filter((task) => task.checked).length;
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label="Page details"
-            title="Page details"
-            className="size-7 px-0 text-muted-foreground hover:text-foreground"
-          />
-        }
-      >
-        <InfoIcon className="size-4" />
-      </SheetTrigger>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
         // Prefixed to match SheetContent's own `data-[side=right]:sm:max-w-sm`:

@@ -70,8 +70,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       },
       publishListing: setEntries,
       publishRoot: setRoot,
-      publishOpenPath: (path) => {
-        publishOpenPath(path);
+      publishOpenPath: (path, change) => {
+        publishOpenPath(path, change);
         useUiStateStore.getState().set(OPEN_NOTE_KEY, path);
       },
       publishEditor,

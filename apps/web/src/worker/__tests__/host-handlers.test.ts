@@ -62,7 +62,7 @@ describe("cloud handler registry", () => {
     });
   });
 
-  it("persists ui state and notification settings through the store", async () => {
+  it("persists ui state through the store", async () => {
     await withHandlers(async ({ handlers }) => {
       await handlers.setUiState({ key: "workspace.openNote", value: "notes/ideas.md" });
       expect(await handlers.getUiState(undefined)).toEqual({
@@ -71,13 +71,6 @@ describe("cloud handler registry", () => {
 
       await handlers.setUiState({ key: "workspace.openNote", value: undefined });
       expect(await handlers.getUiState(undefined)).toEqual({});
-
-      expect(await handlers.getNotificationSettings(undefined)).toEqual({ enabled: true });
-      expect(await handlers.updateNotificationSettings({ enabled: false })).toEqual({
-        enabled: false,
-      });
-      // An absent `enabled` must not overwrite the live setting.
-      expect(await handlers.updateNotificationSettings({})).toEqual({ enabled: false });
     });
   });
 

@@ -35,7 +35,6 @@ src/
     app/link.tsx         Where a deep link lands — POSTs /v1/host/link same-origin
   app/
     workspace-mount.tsx  Dials the host socket, installs the Bridge, renders App
-    html-apps-disabled.ts The HTML-app runtime seam, refusing (see below)
   components/
     site-header.tsx
     hero-orb.tsx         Three.js orb (via @repo/ui), client-only
@@ -217,13 +216,9 @@ HTML-app runtime — and nothing else.
   last and overwrites the inner one's decision. The workspace mounts its own
   (fed from the user's server-side ui-state); the marketing page mounts its own
   (localStorage). The document shell mounts neither.
-- **HTML apps are OFF** (`src/app/html-apps-disabled.ts`): the seam has one
-  member, `injectRuntime`, and it **throws** rather than assembling the blob the
-  view would otherwise load.
-  See "What is deliberately not here yet" for the two things that must close
-  first. The refusal is the seam saying no, rather than the capability merely
-  being absent — an absent seam quietly becomes a working exfiltration path the
-  day someone builds the route that serves the file.
+- **HTML apps are not built.** A vault `.html` opens as text like any other
+  non-markdown file. See "What is deliberately not here yet" for what shipping
+  one would take.
 
 ### Auth surfaces (`/app/sign-in`, `/app/sign-up`, `/app/forgot-password`)
 
@@ -681,35 +676,37 @@ to name servers and consent to them, and that is a Settings section over
 Worker-held state, sized to what MCP actually needs — a server URL and a
 consent — rather than to a daemon's per-step catalog/connection API.
 
-**HTML apps** are not served. The workspace still opens a vault `.html` as an
-app, so the group is REFUSED rather than merely absent:
-`src/app/html-apps-disabled.ts` installs a runtime whose `injectRuntime` throws
-a sentence the user can act on, and the view's "Open as text" button reads the
-source. An absent seam would quietly become a working exfiltration path the day
-someone builds the serving route. The postMessage broker's capability set was
-audited, and two things must close first:
+**HTML apps** — a vault `.html` rendered as a live app instead of text. Not
+built, and the analysis behind that is worth keeping so it is not redone.
 
-1. **`read` + network is an unbounded exfiltration path.** The broker grants
-   `list`/`read` over every doc in the vault, and the frame's `allow-scripts`
-   sandbox does not restrain `fetch`, and nothing injects a CSP. On one
-   person's machine, with `.html` their own agent wrote, that is the accepted
-   bargain. Hosted, "the agent wrote it after reading a note" is a live path, so
-   the fix is a `connect-src 'none'` CSP on the served document — which whatever
-   serves it has to inject, and which should land WITH the serving route rather
-   than after it.
-2. **A second hostname reaching this Worker collides with a standing
-   decision.** Better Auth's `baseURL` is derived from the request origin, and
-   that is safe only because the deployment's own hostnames are the only ones
-   that reach it. A `usercontent.` route needs `/api/auth/*` refused on it
-   before the route exists, not after.
+The shape was: serve the file into a `sandbox="allow-scripts allow-forms"`
+frame with no `allow-same-origin`, inject a runtime (a vanilla JS layer, a CSS
+build, a theme), and hand the frame a postMessage broker so the page can
+`list`/`read`/`update`/`remove` vault docs. An agent authors ONE self-contained
+file and the user opens it.
 
-The rest of the audit is clean and worth recording: `create`/`update` are
-unconfirmed whole-file writes to any doc path (`remove` is confirmed), `open`
-navigates the workspace, `backlinks` leaks only link structure, every path is
-re-rejected for `..`/absolute/scheme shapes before the Bridge, and the listing
-pipeline caps before it reads so `withProperties` cannot fan out. A served frame
-would also give the token check a real `event.origin` to pin against — an
-improvement, and not one of the two blockers above.
+Three things have to be true before that ships, and none of them is a
+refinement of the frame:
+
+1. **The served document must carry `connect-src 'none'`.** The broker grants
+   `list`/`read` over every doc; `allow-scripts` does not restrain `fetch`. Read
+   plus network is an unbounded exfiltration path, and "the agent wrote this
+   file after reading a note" is a live path on a hosted product. The CSP has to
+   come from whatever SERVES the document, so it lands with the serving route
+   rather than after it.
+2. **A second hostname collides with a standing decision.** User content must
+   not be same-origin with the app, so serving it needs a `usercontent.` route —
+   and Better Auth's `baseURL` is derived from the request origin, which is safe
+   only because every hostname reaching this Worker is one the deployment owns.
+   That route needs `/api/auth/*` refused on it BEFORE it exists, not after.
+3. **The broker's write half needs a confirmation story.** `create`/`update`
+   would be unconfirmed whole-file writes to any doc path. The rest of the
+   surface audited clean: `backlinks` leaks only link structure, every path is
+   re-rejected for `..`/absolute/scheme shapes before the Bridge, and the listing
+   pipeline caps before it reads so `withProperties` cannot fan out.
+
+Until all three close, a vault `.html` is a text file, which is what it is on
+disk.
 
 ### Auth (`/api/auth/*`) — Better Auth on the Worker
 

@@ -351,16 +351,14 @@ export const AGENT_NEVER_GRANTED = [
     reason: "configuration",
     why:
       "The user's settings and the status reads over them — AI provider, vault, account, " +
-      "notifications, voice, skills, window state. Configuration is theirs, and a setting you " +
-      "changed is one they never chose. Tell them which Settings section to open.",
+      "voice, skills, window state. Configuration is theirs, and a setting you changed is one " +
+      "they never chose. Tell them which Settings section to open.",
     capabilities: [
       "getAppState",
       "getAiProviderSettings",
       "setAiProviderConfig",
       "isTtsAvailable",
       "setVoiceApiKey",
-      "getNotificationSettings",
-      "updateNotificationSettings",
       "getUiState",
       "setUiState",
       "getWorkspaceBoot",

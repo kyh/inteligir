@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useUiStateStore } from "@repo/workspace/stores/ui-state-store";
 
@@ -18,7 +18,13 @@ export function useDiskState<T>(
   const stored = useUiStateStore((s) => s.values[key]);
   const setInStore = useUiStateStore((s) => s.set);
 
-  const value = parseStored(stored) ?? defaultValue;
+  // Memoized on the STORED row, not the parsed result: a parse that builds an
+  // object would otherwise hand every render a fresh identity, and a caller
+  // holding an object-valued row would re-run its effects on every render.
+  const value = useMemo(
+    () => parseStored(stored) ?? defaultValue,
+    [stored, parseStored, defaultValue],
+  );
 
   const setValue = useCallback(
     (next: T) => {
@@ -38,3 +44,9 @@ export function useDiskState<T>(
  */
 export const parseStoredString = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined;
+
+export const parseStoredBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+export const parseStoredStringArray = (value: unknown): string[] | undefined =>
+  Array.isArray(value) && value.every((entry) => typeof entry === "string") ? value : undefined;

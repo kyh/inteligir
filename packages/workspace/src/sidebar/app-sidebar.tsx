@@ -7,6 +7,7 @@ import {
   FolderIcon,
   PencilIcon,
   SearchIcon,
+  SettingsIcon,
   Trash2Icon,
   WaypointsIcon,
 } from "lucide-react";
@@ -29,7 +30,6 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { confirmVaultDelete } from "@repo/workspace/components/confirm-vault-delete";
 import { ThemeToggle } from "@repo/workspace/components/theme-toggle";
-import { SettingsDialog } from "@repo/workspace/settings/settings-dialog";
 import { flattenTree, resolveTreeKey, type FlatRow } from "@repo/workspace/sidebar/tree-navigation";
 import { useResizableSidebar } from "@repo/workspace/sidebar/use-resizable-sidebar";
 import { buildVaultTree } from "@repo/workspace/sidebar/vault-tree";
@@ -253,7 +253,16 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
       <SidebarFooter className="flex-row items-center justify-between border-t border-sidebar-border p-2">
         <ThemeToggle />
-        <SettingsDialog />
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Settings"
+          title="Settings"
+          onClick={() => setSurface("settings")}
+          className="app-no-drag size-7 shrink-0 px-0 text-muted-foreground hover:text-foreground"
+        >
+          <SettingsIcon className="size-4" />
+        </Button>
       </SidebarFooter>
 
       {/* Drag-to-resize handle, pinned to the sidebar's right edge. Hidden when

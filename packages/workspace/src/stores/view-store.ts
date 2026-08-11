@@ -2,13 +2,20 @@ import { create } from "zustand";
 
 // Transient UI/view state for the shell (not persisted): whether the user has
 // pinned the agent response popover open, and which main surface fills the
-// workspace (the editor panes, the link-graph view, or the tasks view).
-// Everything else about the popover's visibility is derived from live agent
-// activity in the bottom composer.
+// workspace. Everything else about the popover's visibility is derived from
+// live agent activity in the bottom composer.
 
-/** The workspace's main surface: the note editor, the link graph, or the
- * whole-vault tasks view. */
-export type WorkspaceSurface = "editor" | "graph" | "tasks";
+/** The workspace's main surface. Settings is one of these rather than a dialog:
+ * it is a place the user goes, and a notice raised anywhere in the app sends
+ * them there with `setSurface("settings")`. */
+export type WorkspaceSurface = "editor" | "graph" | "tasks" | "settings";
+
+/** What the breadcrumb says when the surface is not a note. */
+export const SURFACE_LABEL: Record<Exclude<WorkspaceSurface, "editor">, string> = {
+  graph: "Graph",
+  tasks: "Tasks",
+  settings: "Settings",
+};
 
 type ViewStore = {
   responsePinned: boolean;
@@ -19,11 +26,6 @@ type ViewStore = {
   /** The read-only past-chat browser dialog (palette: "Browse past chats"). */
   pastChatsOpen: boolean;
   setPastChatsOpen: (open: boolean) => void;
-  /** The settings dialog. Held here, not in the gear button, so a notice
-   * raised anywhere in the app can send the user to the section that explains
-   * it — today the sync-hold toast. */
-  settingsOpen: boolean;
-  setSettingsOpen: (open: boolean) => void;
 };
 
 export const useViewStore = create<ViewStore>()((set) => ({
@@ -34,6 +36,4 @@ export const useViewStore = create<ViewStore>()((set) => ({
   setSurface: (surface) => set({ surface }),
   pastChatsOpen: false,
   setPastChatsOpen: (pastChatsOpen) => set({ pastChatsOpen }),
-  settingsOpen: false,
-  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
 }));

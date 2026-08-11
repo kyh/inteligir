@@ -1,77 +1,35 @@
-import { useCallback, useEffect, useState } from "react";
-import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { useCallback } from "react";
+
 import { Button } from "@repo/ui/components/button";
 import { Label } from "@repo/ui/components/label";
 
-import { SegmentedControl } from "@repo/workspace/components/segmented-control";
-import { getBridge } from "@repo/bridge/client";
-import { useTheme, type Theme } from "@repo/workspace/lib/use-theme";
 import { AccountSection } from "@repo/workspace/settings/sections/account-section";
 import { AiProviderSection } from "@repo/workspace/settings/sections/ai-provider-section";
+import { AppearanceSection } from "@repo/workspace/settings/sections/appearance-section";
 import { EditorAiSection } from "@repo/workspace/settings/sections/editor-ai-section";
 import { NotesSection } from "@repo/workspace/settings/sections/notes-section";
 import { RoutinesSection } from "@repo/workspace/settings/sections/routines-section";
-import { SettingSwitchRow } from "@repo/workspace/settings/sections/setting-switch-row";
 import { SkillsSection } from "@repo/workspace/settings/sections/skills-section";
 import { VoiceSection } from "@repo/workspace/settings/sections/voice-section";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
-import type { NotificationSettings } from "@repo/bridge/notifications";
 
-const THEME_OPTIONS: { value: Theme; label: string; icon: typeof SunIcon }[] = [
-  { value: "system", label: "System", icon: MonitorIcon },
-  { value: "light", label: "Light", icon: SunIcon },
-  { value: "dark", label: "Dark", icon: MoonIcon },
-];
-
+/** The sections, in order. A hardcoded list on purpose (root CLAUDE.md
+ * § Decisions) — a registry would buy indirection and an ordering problem in
+ * exchange for a `.push()`. */
 export function SettingsPanel() {
   const appState = useAgentStore((s) => s.appState);
   const newSession = useAgentStore((s) => s.newSession);
   const canStartNewSession = appState.phase === "ready" && appState.agent === "idle";
 
-  const { theme, setTheme } = useTheme();
-  const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
-
-  useEffect(() => {
-    void getBridge()
-      .getNotificationSettings()
-      .then(setNotifications)
-      .catch(() => {});
-  }, []);
-
   const handleNewSession = useCallback(() => {
     void newSession();
   }, [newSession]);
 
-  const toggleNotifications = useCallback(async (next: boolean) => {
-    setNotifications(
-      await getBridge().updateNotificationSettings({
-        enabled: next,
-      }),
-    );
-  }, []);
-
   return (
-    <div className="flex flex-col gap-4 p-3">
-      <AiProviderSection />
+    <div className="flex flex-col gap-6">
+      <AppearanceSection />
 
-      <div className="flex flex-col gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">Appearance</Label>
-        <SegmentedControl
-          options={THEME_OPTIONS.map(({ value, label, icon: Icon }) => ({
-            value,
-            label: (
-              <>
-                <Icon className="size-3.5" />
-                {label}
-              </>
-            ),
-          }))}
-          value={theme}
-          onChange={setTheme}
-          className="grid-cols-3"
-          optionClassName="flex flex-col items-center gap-1 text-[10px]"
-        />
-      </div>
+      <AiProviderSection />
 
       <div className="flex flex-col gap-2">
         <Label className="text-xs font-medium text-muted-foreground">Session</Label>
@@ -91,22 +49,6 @@ export function SettingsPanel() {
           >
             New session
           </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">Notifications</Label>
-        <div className="rounded-[10px] bg-muted">
-          <SettingSwitchRow
-            label="Notify when idle"
-            checked={notifications?.enabled === true}
-            onToggle={() => void toggleNotifications(notifications?.enabled !== true)}
-            disabled={notifications === null}
-          />
-          <p className="px-3 pb-2 text-[10px] text-muted-foreground">
-            Show an OS notification when the agent finishes a turn while Inteligir is in the
-            background.
-          </p>
         </div>
       </div>
 

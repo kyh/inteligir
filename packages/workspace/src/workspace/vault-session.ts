@@ -38,6 +38,7 @@ import {
   type WorkspaceBoot,
 } from "@repo/bridge/vault";
 import type { VaultActions } from "@repo/editor/host";
+import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime, type NoteRuntime } from "@repo/editor/note/note-runtime";
 import type { VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -71,8 +72,10 @@ export type VaultSessionPorts = {
   /** The vault root changed. */
   publishRoot: (root: string) => void;
   /** The note the UI now intends open. Both exposing it and REMEMBERING it —
-   * the next boot resolves its bytes from the same answer. */
-  publishOpenPath: (path: string | null) => void;
+   * the next boot resolves its bytes from the same answer. `change` separates
+   * a navigation from a rename carrying the open note to its new path — the
+   * two mean different things to navigation history. */
+  publishOpenPath: (path: string | null, change: OpenPathChange) => void;
   /** The open note's live editor state, on every emission the controller
    * makes. Synchronous with the emission, so a keystroke's value lands in the
    * same event flush. */
@@ -154,10 +157,10 @@ export function createVaultSession(ports: VaultSessionPorts): VaultSession {
   // a newer one.
   let listSeq = 0;
 
-  function applyOpenPath(next: string | null): void {
+  function applyOpenPath(next: string | null, change: OpenPathChange = "navigate"): void {
     if (next === openPath) return;
     openPath = next;
-    ports.publishOpenPath(next);
+    ports.publishOpenPath(next, change);
   }
 
   function disposeRuntime(): void {
@@ -309,7 +312,7 @@ export function createVaultSession(ports: VaultSessionPorts): VaultSession {
     // file (the old one was flushed and disposed above).
     if (wasOpen && openPath === from) {
       ensureRuntime(dest);
-      applyOpenPath(dest);
+      applyOpenPath(dest, "carry");
     }
     return true;
   }

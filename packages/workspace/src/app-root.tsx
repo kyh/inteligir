@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@repo/workspace/components/error-boundary";
 import { ReauthDialog } from "@repo/workspace/components/reauth-dialog";
 import { WorkspaceThemeProvider } from "@repo/workspace/lib/use-theme";
 import { OnboardingPage } from "@repo/workspace/onboarding/onboarding-page";
+import { useAppearanceSideEffects } from "@repo/workspace/appearance/use-appearance";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
 import { installVoiceNarration } from "@repo/workspace/voice/narration";
 import { useUiStateStore } from "@repo/workspace/stores/ui-state-store";
@@ -42,6 +43,8 @@ function RootLayout() {
   useEffect(() => void initUiState(), [initUiState]);
   // Voice's own wiring into chat — the chat store does not know voice exists.
   useEffect(() => installVoiceNarration(), []);
+  // The ONE place the persisted appearance reaches CSS.
+  useAppearanceSideEffects();
 
   const surface =
     appState.phase === "error" ? phaseSurface(appState.prev) : phaseSurface(appState.phase);

@@ -454,18 +454,13 @@ command palette.
   (`@repo/notes/knowledge/task-ordinal`: ordinal-locate + raw-byte
   equality, refusal values kick an index self-heal); rows delegate through the
   same (sourceFile, ordinal) delegation store the editor uses.
-- **HTML apps are OFF** (§ Decisions). The workspace still opens a vault
-  `.html` as an app, and the host's injected runtime REFUSES with a sentence the
-  user can act on — "Open as text" reads the source.
-- **Settings → Notifications is STORED AND UNWIRED**, and it is the one live
-  violation of the rule two sections up. "Notify when idle" persists through
-  `getNotificationSettings`/`updateNotificationSettings` into the host's
-  `notifications` JsonStore, and nothing reads it back: there is no
-  `new Notification(...)` anywhere, in the workspace or in the shell. The switch
-  therefore promises an OS notification no surface delivers. Building the
-  capability or deleting the section, the two channels and the store are both
-  answers; leaving it is not, because "adding a channel is the LAST step" exists
-  to stop exactly this.
+- **HTML apps are not built** (§ Decisions). A vault `.html` opens as text.
+- **Appearance is a typed record in ui-state** (`appearance/appearance.ts`):
+  editor + mono font, size, line height, column width, accent and chrome
+  contrast, each a CSS custom property pushed onto `:root` by the ONE
+  `applyAppearanceSideEffects` funnel. It needs no channel of its own —
+  `ui-state` is a schemaless key→JSON map, so the whole record persists under
+  one key.
 
 ## IPC / Bridge
 
@@ -831,23 +826,17 @@ record for the decisions code comments cite.
   fresh account being SHOWN a selected provider and then told none is selected
   the moment it sends a message.
 
-- **HTML apps do not ship until the served document carries a
-  `connect-src 'none'` CSP.** The workspace opens a vault `.html` in a
-  `sandbox="allow-scripts allow-forms"` frame and hands it a postMessage broker
-  that can `list()` and `read()` every doc. `allow-scripts` does not restrain
-  `fetch`, so read + network is an unbounded exfiltration path. On one person's
-  machine, running `.html` their own agent wrote, that was the accepted bargain;
-  hosted, "the agent wrote it after reading a note" is a live path. The CSP has
-  to be injected by whatever SERVES the file, so it lands with the serving route
-  rather than after it. The seam therefore refuses (`html-apps-disabled.ts`)
-  instead of being merely absent — an absent seam quietly becomes a working
-  exfiltration path the day someone builds the route. The rest of the broker
-  audit is clean and worth recording: `create`/`update` are unconfirmed
-  whole-file writes to any doc path (`remove` is confirmed), `backlinks` leaks
-  only link structure, every path is re-rejected for `..`/absolute/scheme shapes
-  before the Bridge, and the listing pipeline caps before it reads. A second
-  hostname (a `usercontent.` route) is the OTHER blocker — see the Better Auth
-  `baseURL` entry.
+- **HTML apps are not built, and the three blockers are recorded rather than
+  re-derived** (`apps/web/README.md` § What is deliberately not here yet). A
+  vault `.html` rendered as a live app needs, in order: a `connect-src 'none'`
+  CSP on the SERVED document (read + `fetch` inside an `allow-scripts` frame is
+  unbounded exfiltration, and the CSP has to come from whatever serves the
+  file); a `usercontent.` hostname with `/api/auth/*` refused on it BEFORE the
+  route exists (see the Better Auth `baseURL` entry); and a confirmation story
+  for the broker's write half. The previous shape shipped a REFUSING seam
+  instead, which was worse than nothing — it carried a whole broker, its tests
+  and a disabled runtime for a capability no route served. A vault `.html` is a
+  text file, which is what it is on disk.
 
 - **Better Auth's `baseURL` is derived per-request from the request origin**,
   never configured or allowlisted. Every hostname that reaches this Worker is
@@ -857,9 +846,9 @@ record for the decisions code comments cite.
   is per-install configuration, so a fixed fallback would mint password-reset
   links back at the wrong deployment, and localhost/preview/prod all work with
   no config. **The trigger to revisit is a hostname the deployment does not
-  fully control reaching the Worker** — a user-content subdomain for HTML apps
-  is the live candidate, and it needs `/api/auth/*` refused on it BEFORE the
-  route exists, not after.
+  fully control reaching the Worker** — a user-content subdomain (the HTML-app
+  blocker above) is the live candidate, and it needs `/api/auth/*` refused on it
+  BEFORE the route exists, not after.
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** Push is a supported primary flow for serverless databases, and the

@@ -10,16 +10,16 @@ import { requestSearch } from "@repo/editor/search-request";
 import { DelegationDock } from "@repo/workspace/delegation/delegation-dock";
 import { BottomComposer } from "@repo/workspace/composer/bottom-composer";
 import { PastChatsDialog } from "@repo/workspace/composer/past-chats-dialog";
-import { SaveIndicator } from "@repo/workspace/workspace/save-indicator";
+import { ScrollFade } from "@repo/workspace/workspace/scroll-fade";
+import { SettingsSurface } from "@repo/workspace/settings/settings-surface";
+import { StatusBar } from "@repo/workspace/workspace/status-bar";
 import { EditorPane } from "@repo/editor/editor-pane";
 import { Header } from "@repo/workspace/layout/header";
 import { AppSidebar } from "@repo/workspace/sidebar/app-sidebar";
-import { HtmlAppView } from "@repo/workspace/workspace/html-app-view";
 import { useAgentConfirm } from "@repo/workspace/workspace/use-agent-confirm";
 import { useAgentEditUndo } from "@repo/workspace/workspace/use-agent-edit-undo";
 import { useDeepLinkNav } from "@repo/workspace/workspace/use-deep-link";
 import { useOpenDailyNote } from "@repo/workspace/workspace/use-note-templates";
-import { useOpenNote } from "@repo/editor/note/open-note-store";
 import { VaultProvider } from "@repo/workspace/workspace/vault-context";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
 import { useDelegationStore } from "@repo/editor/stores/delegation-store";
@@ -31,25 +31,27 @@ import { useVoiceStore } from "@repo/workspace/stores/voice-store";
 const GraphView = lazy(() => import("@repo/workspace/workspace/graph-view"));
 const TasksView = lazy(() => import("@repo/workspace/workspace/tasks-view"));
 
-/** The main surface: the graph, the tasks view, an HTML App (open `.html`
- * shown as an app), or the editor. Lives inside VaultProvider so it can read
- * `isHtmlApp`. */
+/** The main surface: the graph, the tasks view, settings, or the editor. */
 function MainSurface({ surface }: { surface: WorkspaceSurface }) {
-  const isHtmlApp = useOpenNote((s) => s.isHtmlApp);
-  if (surface === "graph" || surface === "tasks") {
-    return (
-      <Suspense
-        fallback={
-          <div className="flex h-full items-center justify-center">
-            <Spinner className="size-5 text-muted-foreground" />
-          </div>
-        }
-      >
-        {surface === "graph" ? <GraphView /> : <TasksView />}
-      </Suspense>
-    );
+  switch (surface) {
+    case "graph":
+    case "tasks":
+      return (
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center">
+              <Spinner className="size-5 text-muted-foreground" />
+            </div>
+          }
+        >
+          {surface === "graph" ? <GraphView /> : <TasksView />}
+        </Suspense>
+      );
+    case "settings":
+      return <SettingsSurface />;
+    case "editor":
+      return <EditorPane />;
   }
-  return isHtmlApp ? <HtmlAppView /> : <EditorPane />;
 }
 
 /** inteligir:// nav verbs (today / note / search). Lives inside VaultProvider
@@ -165,9 +167,10 @@ export function WorkspacePage() {
           <main className="min-h-0 flex-1 overflow-auto">
             <MainSurface surface={surface} />
           </main>
+          {surface === "editor" && <ScrollFade />}
           <DelegationDock />
           <BottomComposer />
-          <SaveIndicator />
+          <StatusBar />
         </div>
       </SidebarProvider>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />

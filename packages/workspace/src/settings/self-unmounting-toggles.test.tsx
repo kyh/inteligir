@@ -1,12 +1,14 @@
-// A Settings button that UNMOUNTS ITSELF on click dismisses the whole dialog:
-// Base UI's outside-press check resolves after the press, finds the target
-// detached from the DOM, and reads it as a click outside the dialog.
+// A button that UNMOUNTS ITSELF on click dismisses any dismissible popup it
+// sits inside: Base UI's outside-press check resolves after the press, finds
+// the target detached from the DOM, and reads it as a click outside.
 //
-// The property that prevents it is simply "the button is still mounted after
-// its own click", which is deterministic and testable here — unlike the
-// dismissal itself, which needs a real dialog + synthesized native press.
-// Every toggle below therefore stays mounted and changes label/visibility in
-// place rather than living inside a ternary or `&&` guard that swaps it out.
+// Settings is a plain surface, so nothing dismisses today — but these sections
+// are the reusable part, and the property that prevents the defect is free to
+// keep: "the button is still mounted after its own click" is deterministic and
+// testable here, unlike the dismissal itself, which needs a real popup and a
+// synthesized native press. Every toggle below therefore stays mounted and
+// changes label/visibility in place rather than living inside a ternary or
+// `&&` guard that swaps it out.
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";

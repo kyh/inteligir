@@ -76,6 +76,11 @@ export function OnboardingPage() {
           </>
         )}
       </div>
+      {/* The composer collapses and REMEMBERS it, so the shortcut has to be
+          stated somewhere a first-run user reads. This is that place. */}
+      <p className="mt-8 text-[11px] text-muted-foreground/70">
+        Ask the agent to edit your notes from the composer at the bottom — ⌘/ hides and shows it.
+      </p>
     </div>
   );
 }

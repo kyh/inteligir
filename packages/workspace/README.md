@@ -23,8 +23,10 @@ src/
     vault-context.tsx  # the cadence-split VaultProvider (see Invariants)
     connections-panel.tsx, graph-view.tsx, tasks-view.tsx
                        # backlinks under the editor; the two lazy alt surfaces
-    html-app-view.tsx, html-app-broker.ts, html-app-host.ts
-                       # a vault .html as an app — the seam, and its broker
+    status-bar.tsx, document-stats.ts, scroll-fade.tsx
+                       # the bottom status row (save dot, private/Raw, the
+                       # toggleable counts) and the document's bottom fade
+    use-nav-history.ts # Back / Forward over the notes this session opened
     agent-edit-undo.ts, use-agent-confirm.ts, use-deep-link.ts,
     capture-apply.ts, use-note-templates.ts
                        # the post-turn undo, the destructive-tier prompt,
@@ -35,13 +37,15 @@ src/
                        # and the connect-a-provider row
   command/             # the palette — search, tag: narrowing, every command
   delegation/          # the delegation dock
-  settings/            # the dialog and its sections
+  appearance/          # the typed appearance record + the ONE funnel that
+                       # turns it into CSS custom properties
+  settings/            # the settings SURFACE and its sections
   voice/               # dictation + read-aloud + the narration wiring
   stores/              # agent (chat), ui-state, view, voice
   ai-elements/         # the chat message primitives
   components/          # app-wide chrome app-root mounts: error boundary,
                        # reauth dialog, theme toggle, the orb
-  layout/header.tsx    # the title row, breadcrumb and Page details popover
+  layout/header.tsx    # sidebar toggle, Back/Forward, breadcrumb, one menu
   lib/                 # use-disk-state (ui-state through the Bridge) +
                        # use-theme (the workspace's own ThemeProvider binding)
   styles/globals.css   # the app's Tailwind entry over @repo/ui/globals.css
@@ -71,6 +75,17 @@ src/
   details, so they are not restated below it.
 - **The palette is a hardcoded array**, and stays one (root `CLAUDE.md`
   § Decisions). So are the settings sections.
+- **Chrome over the document is the header and the status bar, and they split
+  by KIND.** The header carries things to press (the sidebar toggle,
+  Back/Forward, one overflow menu holding every per-file action); the status bar
+  carries things to read (saved/unsaved, private, Raw, the counts). A control
+  that drifts into the status bar, or a badge into the header, is the drift that
+  put fifteen affordances over the document in the first place.
+- **Appearance is CSS custom properties and nothing else.** Every field of the
+  record maps to one property, `applyAppearanceSideEffects` is the only writer,
+  and `styles/globals.css` declares the same defaults so the first paint is
+  right before the boot bundle lands. A preference with no CSS behind it (which
+  counts the status bar shows) gets its own ui-state key instead.
 - **The fixture Bridge must DO something.** A new channel's stub either acts on
   the in-memory state or throws `unavailable("<feature>")` naming the gap —
   never a silent `[]`. It is fully typed against the real `Bridge`, so a
@@ -82,9 +97,6 @@ src/
 
 - `@repo/bridge/client::installBridge` — the transport, installed before the
   first render.
-- `workspace/html-app-host.ts::setHtmlAppRuntime` — how a vault `.html` becomes
-  a served document. `apps/web` installs a runtime that REFUSES, and why is in
-  `apps/web/src/app/html-apps-disabled.ts`.
 - `workspace/account-host.ts::accountPort` — the account section's email,
   sign-out, export URL and delete. Absent means a surface with no account
   concept, and the section renders nothing rather than an empty box.

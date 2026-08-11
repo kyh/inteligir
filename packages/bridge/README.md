@@ -29,7 +29,7 @@ src/
                         # IpcEvent
   channel-policy.ts     # the three per-channel opt-ins the compiler cannot ask
                         # for: REMOTE_ALLOWED_*, HYDRATED_EVENTS, BINARY_CHANNELS
-  vault.ts, knowledge.ts, skills.ts, notifications.ts
+  vault.ts, knowledge.ts, skills.ts
                         # the payload schemas + result types those channels carry
   agent-actions.ts, agent-script.ts
                         # agent write checkpoints + destructive confirmations;

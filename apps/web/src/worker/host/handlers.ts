@@ -100,16 +100,6 @@ export function registerCloudHandlers(handle: HandlerRegistrar, services: CloudH
     });
   });
 
-  handle("getNotificationSettings", () => services.stores.notifications.read());
-  handle("updateNotificationSettings", (patch) =>
-    services.stores.notifications.update((current) => ({
-      ...current,
-      // Never spread the patch whole: the wire type admits
-      // `enabled: undefined`, which would overwrite the live setting.
-      ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
-    })),
-  );
-
   registerVaultHandlers(handle, services.vault, services.knowledge, services.stores);
   registerKnowledgeHandlers(handle, services.knowledge, services.vault);
   registerAgentHandlers(handle, services.agent);

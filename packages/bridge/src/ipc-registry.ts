@@ -65,7 +65,6 @@ import {
   ToggleTaskSchema,
   type ToggleTaskResult,
 } from "./knowledge";
-import { NotificationsPatchSchema, type NotificationSettings } from "./notifications";
 import {
   UpsertRoutineParamsSchema,
   type ListRoutinesResult,
@@ -173,12 +172,6 @@ export const IPC = {
   sendSttAudio: send<typeof BinaryAudioSchema>(BinaryAudioSchema),
   stopStt: invokeVoid<Array<{ text: string; isFinal: boolean }>>(),
   onSttTranscript: event<{ text: string; isFinal: boolean }>(),
-
-  // Notifications
-  getNotificationSettings: invokeVoid<NotificationSettings>(),
-  updateNotificationSettings: invoke<typeof NotificationsPatchSchema, NotificationSettings>(
-    NotificationsPatchSchema,
-  ),
 
   // UI state
   getUiState: invokeVoid<Record<string, unknown>>(),

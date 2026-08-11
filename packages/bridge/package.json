@@ -28,7 +28,6 @@
     "./ipc-registry": "./src/ipc-registry.ts",
     "./knowledge": "./src/knowledge.ts",
     "./note-context": "./src/note-context.ts",
-    "./notifications": "./src/notifications.ts",
     "./routine-schedule": "./src/routine-schedule.ts",
     "./routines": "./src/routines.ts",
     "./skills": "./src/skills.ts",

@@ -86,7 +86,7 @@ export function DelegationDock() {
   if (visible.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex w-80 flex-col gap-2">
+    <div className="pointer-events-none absolute right-4 bottom-9 z-40 flex w-80 flex-col gap-2">
       {visible.map((d) => (
         <DelegationCard
           key={d.id}

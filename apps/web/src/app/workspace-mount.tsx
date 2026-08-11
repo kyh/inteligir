@@ -5,10 +5,8 @@ import { installBridge } from "@repo/bridge/client";
 import { createWsBridge, type WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import { App } from "@repo/workspace/app-root";
 import { setAccountPort } from "@repo/workspace/workspace/account-host";
-import { setHtmlAppRuntime } from "@repo/workspace/workspace/html-app-host";
 
 import { authClient, authErrorMessage, mintSocketTicket } from "@/lib/auth-client";
-import { HTML_APPS_DISABLED } from "@/app/html-apps-disabled";
 
 // ---------------------------------------------------------------------------
 // Where the workspace meets this host: open the Bridge socket to the user's
@@ -45,7 +43,6 @@ export default function WorkspaceMount({ email }: { email: string }) {
       onStatus: setStatus,
     });
     installBridge(transport.bridge);
-    setHtmlAppRuntime(HTML_APPS_DISABLED);
     // Sign-out is deliberately NOT a Bridge call: it invalidates the very
     // credential that socket authenticated with, so it belongs to the surface
     // holding it. A full reload rather than a router navigate — every store in

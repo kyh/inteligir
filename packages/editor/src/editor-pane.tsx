@@ -177,7 +177,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         onKeyDown={onTitleKeyDown}
         className={cn(
           EDITOR_COLUMN_PX,
-          "mb-1 w-full break-words text-[28px] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
+          "mb-1 w-full break-words font-[family-name:var(--editor-font-family)] text-[28px] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
         )}
       />
       {showRich ? (
@@ -201,7 +201,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           spellCheck={false}
           className={cn(
             EDITOR_COLUMN_PX,
-            "min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-mono text-sm leading-relaxed text-foreground outline-none",
+            "min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-[family-name:var(--editor-mono-family)] text-[length:var(--editor-font-size)] leading-[var(--editor-line-height)] text-foreground outline-none",
           )}
           placeholder="Empty note"
         />

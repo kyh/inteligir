@@ -1,5 +1,5 @@
-import { memo, useEffect, useState } from "react";
-import { PinIcon, PinOffIcon, XIcon } from "lucide-react";
+import { memo, useCallback, useEffect, useState } from "react";
+import { ChevronDownIcon, PinIcon, PinOffIcon, SparklesIcon, XIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import {
@@ -23,11 +23,16 @@ import {
   isRenderableMessage,
 } from "@repo/workspace/composer/chat-message";
 import { Composer } from "@repo/workspace/composer/composer";
+import { parseStoredBoolean, useDiskState } from "@repo/workspace/lib/use-disk-state";
 import { useAgentStore } from "@repo/workspace/stores/agent-store";
 import { currentTurnMessages, type ChatMessage } from "@repo/workspace/stores/chat-log-view";
 import { useViewStore } from "@repo/workspace/stores/view-store";
 
 const IDLE_LINGER_MS = 7000;
+
+/** The collapsed/expanded choice outlives the session — a writer who put chat
+ * away wants it away tomorrow too. */
+const COLLAPSED_KEY = "workspace.composerCollapsed";
 
 /** Thinking = busy with no assistant text streamed for the CURRENT turn yet
  * (tool-only activity still counts as thinking). */
@@ -64,6 +69,12 @@ const MessageRow = memo(function MessageRow({ msg }: { msg: ChatMessage }) {
  * while the agent is working (and lingers briefly after), or stays open when
  * pinned. It shares the composer capsule's radius/surface/ring and springs
  * open/closed so the pair reads as one object expanding upward.
+ *
+ * The whole surface COLLAPSES to a single dot (⌘/, or the chevron the bottom
+ * strip reveals on hover), and that choice persists. Chat is the product, not
+ * decoration — so the collapsed dot keeps reporting a running turn, and the
+ * onboarding surface names the shortcut, because a control that persists itself
+ * away is one a new user would never find.
  */
 export function BottomComposer() {
   const messages = useAgentStore((s) => s.messages);
@@ -71,6 +82,19 @@ export function BottomComposer() {
   const busy = appState.phase === "ready" && appState.agent === "busy";
   const thinking = isThinking(messages, busy);
   const { capsule: popoverSpring } = useCapsuleSpring();
+
+  const [collapsed, setCollapsed] = useDiskState(COLLAPSED_KEY, false, parseStoredBoolean);
+  const toggleCollapsed = useCallback(() => setCollapsed(!collapsed), [collapsed, setCollapsed]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        toggleCollapsed();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleCollapsed]);
 
   const pinned = useViewStore((s) => s.responsePinned);
   const togglePinned = useViewStore((s) => s.togglePinned);
@@ -96,8 +120,12 @@ export function BottomComposer() {
   const open = (pinned || busy || recentlyActive) && !dismissed && messages.length > 0;
   const visibleMessages = messages.filter(isRenderableMessage);
 
+  if (collapsed) {
+    return <CollapsedDot busy={busy} onExpand={toggleCollapsed} />;
+  }
+
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col items-center gap-2 px-4 pb-4">
+    <div className="group pointer-events-none absolute inset-x-0 bottom-7 z-30 flex flex-col items-center gap-2 px-4 pb-4">
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
@@ -157,9 +185,41 @@ export function BottomComposer() {
         )}
       </AnimatePresence>
 
-      <div className="pointer-events-auto w-full max-w-3xl">
-        <Composer />
+      <div className="pointer-events-auto flex w-full max-w-3xl items-end gap-1">
+        <div className="min-w-0 flex-1">
+          <Composer />
+        </div>
+        <button
+          type="button"
+          aria-label="Hide the composer"
+          title="Hide the composer (⌘/)"
+          onClick={toggleCollapsed}
+          className="mb-2 grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground"
+        >
+          <ChevronDownIcon className="size-4" />
+        </button>
       </div>
+    </div>
+  );
+}
+
+/** The composer put away: one dot. It still reports a running turn, because a
+ * collapsed surface must not make the agent invisible. */
+function CollapsedDot({ busy, onExpand }: { busy: boolean; onExpand: () => void }) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-7 z-30 flex justify-center pb-4">
+      <button
+        type="button"
+        aria-label={busy ? "Show the composer — the agent is working" : "Show the composer"}
+        title="Show the composer (⌘/)"
+        onClick={onExpand}
+        className={cn(
+          "pointer-events-auto grid size-9 place-items-center rounded-full border border-border bg-background text-muted-foreground shadow-surface-2 transition-colors hover:text-foreground",
+          busy && "text-foreground",
+        )}
+      >
+        <SparklesIcon className={cn("size-4", busy && "animate-pulse")} />
+      </button>
     </div>
   );
 }

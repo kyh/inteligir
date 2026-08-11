@@ -5,11 +5,61 @@
    probe div with `cursor-pointer bg-primary/10 rounded-[12px]` computes to no
    styles at all, and the app under-renders rather than failing. The explicit
    @source below is what makes this package's classes independent of where it
-   is mounted. */
+   is mounted. @repo/editor needs the same treatment and has no stylesheet of
+   its own: this file is the workspace's Tailwind entry, so the editor's classes
+   are scanned from here or nowhere. Without the second line the note surface
+   renders with no reading column, no caret colour and no bottom padding — and
+   nothing fails, it just under-renders. */
 @source "../../**/*.{ts,tsx}";
+@source "../../../editor/src/**/*.{ts,tsx}";
 /* Markdown-render styles for the AI chat surface (ai-elements/response). Lives
    here, not in @repo/ui's shared globals, since only this package renders it. */
 @import "streamdown/styles.css";
+
+/* Appearance defaults. `appearance/appearance.ts` pushes the same seven
+   properties onto :root from the user's persisted record; these values ARE
+   DEFAULT_APPEARANCE, and exist so the first paint is right before the boot
+   bundle has hydrated. Keep the two in step. */
+:root {
+  --editor-font-family: var(--font-inter);
+  --editor-mono-family: var(--font-geist-mono);
+  --editor-font-size: 16px;
+  --editor-line-height: 1.8;
+  --editor-column-inset: calc(50% - 350px);
+  --accent-color: #6b97ff;
+  --chrome-contrast: 1;
+}
+
+/* Chrome contrast: how far the app's own lines stand off the canvas. Derived
+   from --foreground rather than a fixed token so one multiplier serves both
+   themes, and stated for BOTH selectors because @repo/ui's `.dark` block sets
+   these same names and out-specifies a lone :root. At contrast 1 these land on
+   the stock values. */
+:root,
+.dark {
+  --border: color-mix(in oklab, var(--foreground) calc(var(--chrome-contrast) * 9%), transparent);
+  --input: color-mix(in oklab, var(--foreground) calc(var(--chrome-contrast) * 12%), transparent);
+  --sidebar-border: var(--border);
+  --ring: var(--accent-color);
+  --sidebar-ring: var(--accent-color);
+  --focus-ring: var(--accent-color);
+}
+
+/* Document typography. `.typeset-docs` declares these in @repo/ui's globals;
+   re-declaring them here (later in the same cascade origin, same specificity)
+   is what hands the document surface to the user's own choice. */
+.typeset-docs {
+  --typeset-font-body: var(--editor-font-family);
+  --typeset-font-heading: var(--editor-font-family);
+  --typeset-font-mono: var(--editor-mono-family);
+  --typeset-size: var(--editor-font-size);
+  --typeset-leading: var(--editor-line-height);
+}
+
+/* The caret is the accent's one always-visible placement in the document. */
+[data-slate-editor="true"] {
+  caret-color: var(--accent-color);
+}
 
 html,
 body,
