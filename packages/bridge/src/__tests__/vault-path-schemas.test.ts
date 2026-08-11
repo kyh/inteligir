@@ -42,7 +42,7 @@ function structureOf(schema: TSchema): unknown {
 const NOTE_PATH_CHANNELS = [IPC.getBacklinks, IPC.getForwardLinks];
 
 const VAULT_PATH_CHANNELS = [
-  IPC.readVaultDoc,
+  IPC.readVaultFile,
   IPC.getVaultFileFacts,
   IPC.deleteVaultEntry,
   IPC.readVaultAsset,

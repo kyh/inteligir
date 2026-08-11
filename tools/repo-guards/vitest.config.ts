@@ -8,5 +8,9 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     // Monorepo worker budget (see apps/desktop/vitest.config.ts).
     maxWorkers: 2,
+    // These walk the whole tree, and the docs-link guard runs a markdown parse
+    // per file — comfortably past vitest's 5s default once the other suites
+    // are competing for the machine.
+    testTimeout: 60_000,
   },
 });

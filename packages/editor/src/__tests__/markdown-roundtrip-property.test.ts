@@ -29,7 +29,9 @@ import { generateDoc } from "./markdown-doc-generator";
 // N: each seed pays a full parse+serialize (createSlateEditor is not cheap),
 // so 200 seeds run ~25s against a ~10s suite-time budget. Coverage lives in
 // the generator's ~5-40 block range, not in seed count — so N is the knob to
-// turn, never the doc-size range; 72 keeps this file at ~7s with margin.
+// turn, never the doc-size range. 72 docs cost ~11s uncontended (each is a
+// parse, an opaque pass, a deserialize, a serialize and a fixpoint), so the
+// timeout below carries margin for a machine running the other suites too.
 const BASE_SEED = 20260708; // arbitrary, but fixed: changing it reshuffles every doc
 const N = 72;
 
@@ -77,7 +79,7 @@ function checkSeed(seed: number): string | null {
 describe("seeded property-based round-trip fuzzing", () => {
   it(
     `${N} generated documents reach a canonical fixpoint and re-serialize byte-stable`,
-    { timeout: 30_000 },
+    { timeout: 90_000 },
     () => {
       const failures: string[] = [];
       for (const seed of seeds()) {

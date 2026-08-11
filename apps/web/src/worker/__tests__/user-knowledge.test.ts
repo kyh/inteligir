@@ -429,7 +429,7 @@ describe("knowledge over the bridge", () => {
       JSON.stringify({
         t: "req",
         id: 20,
-        method: "writeVaultDoc",
+        method: "writeVaultFile",
         payload: { path: "linked.md", content: "# Linked\n\n[[Welcome]]\n" },
       }),
     );

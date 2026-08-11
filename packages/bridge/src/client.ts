@@ -24,11 +24,11 @@ export function getBridge(): Bridge {
  * rejection (absent, unreadable) means no — the caller only wants the
  * boolean, never the bytes or the error. */
 export async function docExists(
-  bridge: { readVaultDoc(payload: { path: string }): Promise<string> },
+  bridge: { readVaultFile(payload: { path: string }): Promise<string> },
   path: string,
 ): Promise<boolean> {
   try {
-    await bridge.readVaultDoc({ path });
+    await bridge.readVaultFile({ path });
     return true;
   } catch {
     return false;

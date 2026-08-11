@@ -87,7 +87,7 @@ line and each eval has to re-mint and re-dial inside its own IIFE.
   await welcomed;
   // Parked so the flows below can be their own evals against this same socket.
   window.call = call;
-  return await call("readVaultDoc", { path: "Welcome.md" });
+  return await call("readVaultFile", { path: "Welcome.md" });
 })();
 ```
 
@@ -138,7 +138,7 @@ level `await` is unavailable); `call` is the one the snippet parked on `window`.
 
 ```js
 const file = "scripted-delegation-test.md";
-await call("writeVaultDoc", { path: file, content: "# T\n\n- [ ] scripted delegation task\n" });
+await call("writeVaultFile", { path: file, content: "# T\n\n- [ ] scripted delegation task\n" });
 
 // Step 1 carries the tool call; step 2 is the follow-up summary turn. The tool
 // names and argument shapes are the manifest's own — `agentToolManifest` in
@@ -161,7 +161,7 @@ await call("setFauxAgentScript", {
 // ordinal = the checkbox's position among the doc's todo checkboxes (0 = first).
 await call("createDelegation", { sourceFile: file, ordinal: 0 });
 // then poll listDelegations() until delegations[0].status === "done",
-// then readVaultDoc({ path: file }) to confirm "- [x] …".
+// then readVaultFile({ path: file }) to confirm "- [x] …".
 
 // Clean up:
 await call("setFauxAgentScript", { steps: [] }); // restore the echo

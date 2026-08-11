@@ -807,7 +807,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       };
     },
     listVault: async () => listEntries(),
-    readVaultDoc: async ({ path }) => {
+    readVaultFile: async ({ path }) => {
       const content = vault.get(path);
       if (content === undefined) throw new Error(`no such file: ${path}`);
       return content;
@@ -819,7 +819,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
       if (content === undefined || modifiedMs === undefined) return null;
       return { sizeBytes: new TextEncoder().encode(content).length, modifiedMs };
     },
-    writeVaultDoc: async ({ path, content }) => {
+    writeVaultFile: async ({ path, content }) => {
       vault.set(path, content);
       indexEntry(path);
       touchVault(upserted(path));

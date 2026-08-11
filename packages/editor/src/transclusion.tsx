@@ -299,7 +299,7 @@ function useTargetContent(path: string | null): TargetContent {
     let live = true;
     const read = () => {
       bridge
-        .readVaultDoc({ path })
+        .readVaultFile({ path })
         .then((content) => {
           if (!live) return;
           setState((prev) =>

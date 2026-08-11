@@ -247,7 +247,7 @@ describe("unauthorized is terminal", () => {
 
   it("treats the host's auth close code the same way, and fails everything in flight", async () => {
     const h = await connected();
-    const inflight = rejection(h.bridge.readVaultDoc({ path: "notes/a.md" }));
+    const inflight = rejection(h.bridge.readVaultFile({ path: "notes/a.md" }));
     await settle();
 
     h.socket().serverClose(WS_CLOSE_UNAUTHORIZED);
@@ -308,7 +308,7 @@ describe("the reconnect supervisor", () => {
 
   it("rejects everything awaiting a res frame when the socket goes", async () => {
     const h = await connected();
-    const pending = rejection(h.bridge.readVaultDoc({ path: "notes/a.md" }));
+    const pending = rejection(h.bridge.readVaultFile({ path: "notes/a.md" }));
     await settle();
     expect(h.socket().frames()).toHaveLength(2); // auth + req
 
@@ -349,16 +349,16 @@ describe("the request queue", () => {
     await settle();
     h.socket().open();
 
-    const first = h.bridge.readVaultDoc({ path: "notes/a.md" });
-    const second = h.bridge.readVaultDoc({ path: "notes/b.md" });
+    const first = h.bridge.readVaultFile({ path: "notes/a.md" });
+    const second = h.bridge.readVaultFile({ path: "notes/b.md" });
     await settle();
     // Not welcomed yet — nothing but the auth frame has crossed.
     expect(h.socket().frames()).toHaveLength(1);
 
     h.socket().welcome();
     expect(h.socket().frames().slice(1)).toEqual([
-      { t: "req", id: 1, method: "readVaultDoc", payload: { path: "notes/a.md" } },
-      { t: "req", id: 2, method: "readVaultDoc", payload: { path: "notes/b.md" } },
+      { t: "req", id: 1, method: "readVaultFile", payload: { path: "notes/a.md" } },
+      { t: "req", id: 2, method: "readVaultFile", payload: { path: "notes/b.md" } },
     ]);
 
     h.socket().deliver(encodeFrame({ t: "res", id: 1, ok: true, result: "# A" }));
@@ -376,7 +376,7 @@ describe("the request queue", () => {
     // One past the 256-deep cap: the queue is a bound on memory, and the
     // request most likely to be stale is the one that has waited longest.
     const queued = Array.from({ length: 257 }, () =>
-      rejection(h.bridge.readVaultDoc({ path: "notes/a.md" })),
+      rejection(h.bridge.readVaultFile({ path: "notes/a.md" })),
     );
     await settle();
 

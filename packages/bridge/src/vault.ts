@@ -35,7 +35,7 @@ export const VaultPathSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const VaultWriteDocSchema = Type.Object(
+export const VaultWriteFileSchema = Type.Object(
   { path: Type.String(), content: Type.String() },
   { additionalProperties: false },
 );
@@ -54,7 +54,7 @@ export const VaultWriteAssetSchema = Type.Object(
 );
 
 /** One file in the vault, relative to the vault root. `kind` splits editable
- * markdown docs (md/markdown/txt) from everything else (images, pdfs, …). */
+ * docs (see DOC_EXTENSIONS) from everything else (images, pdfs, …). */
 export type VaultEntry = {
   path: string;
   name: string;

@@ -12,7 +12,7 @@ import { useVaultActions } from "@repo/editor/host";
  * unreadable — the seed is optional in every flow. */
 async function readTemplate(path: string): Promise<string | null> {
   return getBridge()
-    .readVaultDoc({ path })
+    .readVaultFile({ path })
     .catch(() => null);
 }
 

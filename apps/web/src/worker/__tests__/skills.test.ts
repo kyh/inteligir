@@ -65,7 +65,7 @@ describe("createSkill", () => {
 
     // It is a vault file like any other, which is the whole point of the store
     // choice: the user can open and edit it in the editor they already have.
-    const read = await invoke(ws, frames, 2, "readVaultDoc", {
+    const read = await invoke(ws, frames, 2, "readVaultFile", {
       path: "skills/weekly-review/SKILL.md",
     });
     expect(read.ok && String(read.result)).toContain("Read journal/ for the last seven days");

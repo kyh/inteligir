@@ -129,7 +129,7 @@ export const AGENT_GRANTS = [
       "want. A short page is normal and says nothing about what else exists.",
   },
   {
-    capability: "readVaultDoc",
+    capability: "readVaultFile",
     agentName: "read_note",
     tier: "read-projected",
     description:
@@ -372,7 +372,7 @@ export const AGENT_NEVER_GRANTED = [
       "You already read and write vault bytes with your own file tools, and every write is " +
       "captured for the user to undo. A second route to the same bytes would not be, so there " +
       "is not one. Use `read`, `edit` and `write` under ./vault.",
-    capabilities: ["writeVaultDoc", "writeVaultAsset", "readVaultAsset"],
+    capabilities: ["writeVaultFile", "writeVaultAsset", "readVaultAsset"],
   },
 ] as const satisfies readonly AgentDenialGroup[];
 

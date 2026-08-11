@@ -43,7 +43,7 @@ afterEach(() => {
 describe("fixture bridge delegation cancel", () => {
   it("cancel during the simulated run really cancels — no edit lands", async () => {
     const bridge = newBridge();
-    const before = await bridge.readVaultDoc({ path: SOURCE });
+    const before = await bridge.readVaultFile({ path: SOURCE });
 
     const created = await bridge.createDelegation({ sourceFile: SOURCE, ordinal: 0 });
     if (!created.ok) throw new Error("fixture delegation refused");
@@ -59,7 +59,7 @@ describe("fixture bridge delegation cancel", () => {
     // The simulated agent edit was scheduled for +800ms — a real cancel means
     // it never lands, even after the timer horizon passes.
     vi.advanceTimersByTime(2000);
-    expect(await bridge.readVaultDoc({ path: SOURCE })).toBe(before);
+    expect(await bridge.readVaultFile({ path: SOURCE })).toBe(before);
     const settled = (await bridge.listDelegations()).delegations.find(
       (d) => d.id === created.delegation.id,
     );
@@ -68,7 +68,7 @@ describe("fixture bridge delegation cancel", () => {
 
   it("a finished run can't be pulled back (host parity), and the run edits when NOT canceled", async () => {
     const bridge = newBridge();
-    const before = await bridge.readVaultDoc({ path: SOURCE });
+    const before = await bridge.readVaultFile({ path: SOURCE });
 
     const created = await bridge.createDelegation({ sourceFile: SOURCE, ordinal: 0 });
     if (!created.ok) throw new Error("fixture delegation refused");
@@ -78,7 +78,7 @@ describe("fixture bridge delegation cancel", () => {
       (d) => d.id === created.delegation.id,
     );
     expect(done?.status).toBe("done");
-    expect(await bridge.readVaultDoc({ path: SOURCE })).not.toBe(before);
+    expect(await bridge.readVaultFile({ path: SOURCE })).not.toBe(before);
 
     await expect(bridge.cancelDelegation(created.delegation.id)).resolves.toEqual({ ok: false });
     await expect(bridge.cancelDelegation("no-such-id")).resolves.toEqual({ ok: false });

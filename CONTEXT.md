@@ -79,7 +79,7 @@ a rename rewrites links in, and what a vault change announces bytes for.
 the title, there is no slug layer (`@repo/notes/knowledge/note-name`).
 `NotePathSchema` is asked for where the answer only makes sense for a note (the
 knowledge queries); `VaultPathSchema` is asked for where the handler acts on
-whatever the path names. **Ambiguity worth knowing**: the channel `readVaultDoc`
+whatever the path names. **Ambiguity worth knowing**: the channel `readVaultFile`
 takes `VaultPathSchema`, so "doc" in a channel NAME is looser than `isDocPath` —
 read the schema, not the name.
 

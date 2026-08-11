@@ -60,10 +60,10 @@ export function registerVaultHandlers(
   });
 
   handle("listVault", () => vault.list());
-  handle("readVaultDoc", ({ path }) => vault.readText(path));
+  handle("readVaultFile", ({ path }) => vault.readText(path));
   handle("getVaultFileFacts", ({ path }) => vault.fileFacts(path));
 
-  handle("writeVaultDoc", async ({ path, content }) => {
+  handle("writeVaultFile", async ({ path, content }) => {
     // Unconditional (last write wins), exactly as the editor's autosave has
     // always been. The version the manifest carries is for the callers that
     // need compare-and-swap — the rename's link rewrite — not for this one.

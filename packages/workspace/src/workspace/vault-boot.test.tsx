@@ -45,9 +45,9 @@ function countedBridge(): { bridge: Bridge; calls: string[] } {
       calls.push("listVault");
       return base.listVault();
     },
-    readVaultDoc: (params) => {
-      calls.push("readVaultDoc");
-      return base.readVaultDoc(params);
+    readVaultFile: (params) => {
+      calls.push("readVaultFile");
+      return base.readVaultFile(params);
     },
   };
   return { bridge, calls };
@@ -109,7 +109,7 @@ describe("the broadcast a save causes", () => {
     // is identical afterwards, which is what an autosave looks like.
     const [existing] = await bridge.listVault();
     calls.length = 0;
-    await bridge.writeVaultDoc({ path: existing?.path ?? "", content: "changed\n" });
+    await bridge.writeVaultFile({ path: existing?.path ?? "", content: "changed\n" });
 
     await waitFor(() => {
       expect(bridge.listVault).toBeTruthy();
@@ -125,7 +125,7 @@ describe("the broadcast a save causes", () => {
     });
 
     calls.length = 0;
-    await bridge.writeVaultDoc({ path: "brand/new-note.md", content: "# New\n" });
+    await bridge.writeVaultFile({ path: "brand/new-note.md", content: "# New\n" });
     await waitFor(() => {
       expect(calls).toEqual(["listVault"]);
     });

@@ -108,7 +108,7 @@ describe("the deep-link route", () => {
     await runInDurableObject(stub, async (host) => {
       await host.captureInbox.sweep(Date.now() + 60_000);
     });
-    const read = await invoke(ws, frames, 10, "readVaultDoc", { path: applied.path });
+    const read = await invoke(ws, frames, 10, "readVaultFile", { path: applied.path });
     expect(read.ok && String(read.result)).toContain("- [ ] call the vet");
     ws.close();
   });
@@ -131,7 +131,7 @@ describe("the deep-link route", () => {
     const daily = (listed.ok ? listed.result : []) as { path: string }[];
     const journal = daily.find((entry) => entry.path.startsWith("journal/"));
     expect(journal).toBeDefined();
-    const read = await invoke(ws, frames, 21, "readVaultDoc", { path: journal?.path });
+    const read = await invoke(ws, frames, 21, "readVaultFile", { path: journal?.path });
     const matches = String(read.ok ? read.result : "").match(/- one idea/g) ?? [];
     expect(matches).toHaveLength(1);
     ws.close();

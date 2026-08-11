@@ -42,10 +42,10 @@ the page, and `/api/auth/get-session` yields nothing the socket accepts.
 
 - **Chat**: `setFauxAgentScript({steps:[{text:"MARKER"}]})` → type in the
   composer, press Enter → assert `MARKER` in the UI.
-- **Delegation**: `writeVaultDoc` a note with a `[ ]` checkbox, then
+- **Delegation**: `writeVaultFile` a note with a `[ ]` checkbox, then
   `setFauxAgentScript` with a `toggle_task` tool-call step followed by a final
   text step, then `createDelegation({sourceFile, ordinal:0})`, then poll
-  `listDelegations` for `status:"done"`, then `readVaultDoc` to confirm the box
+  `listDelegations` for `status:"done"`, then `readVaultFile` to confirm the box
   is checked.
 
 - **An agent file write**: a step's `writes: [{path, text}]` is what the agent's

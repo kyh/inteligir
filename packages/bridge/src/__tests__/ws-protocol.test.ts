@@ -24,7 +24,7 @@ describe("client frames", () => {
   const frames: ClientFrame[] = [
     { t: "auth", ticket: "tkt" },
     { t: "req", id: 1, method: "listVault" },
-    { t: "req", id: 2, method: "readVaultDoc", payload: { path: "a.md" } },
+    { t: "req", id: 2, method: "readVaultFile", payload: { path: "a.md" } },
     { t: "send", method: "sendSttAudio", payload: [0.25, -0.5] },
     { t: "send", method: "ttsSend", payload: { text: "hi" } },
   ];

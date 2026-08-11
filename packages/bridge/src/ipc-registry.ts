@@ -78,7 +78,7 @@ import {
   VaultPathSchema,
   VaultRenameSchema,
   VaultWriteAssetSchema,
-  VaultWriteDocSchema,
+  VaultWriteFileSchema,
   type DeleteVaultEntryResult,
   type ReadVaultAssetResult,
   type VaultChangedEvent,
@@ -181,12 +181,12 @@ export const IPC = {
   /** The whole first paint in one round trip (see WorkspaceBoot). */
   getWorkspaceBoot: invokeVoid<WorkspaceBoot>(),
   listVault: invokeVoid<VaultEntry[]>(),
-  readVaultDoc: invoke<typeof VaultPathSchema, string>(VaultPathSchema),
+  readVaultFile: invoke<typeof VaultPathSchema, string>(VaultPathSchema),
   /** Size + last-modified for one vault file, or null when it cannot be
    * described. Its own channel rather than a fatter `listVault`: the listing
    * carries neither (see VaultFileFacts). */
   getVaultFileFacts: invoke<typeof VaultPathSchema, VaultFileFacts | null>(VaultPathSchema),
-  writeVaultDoc: invoke<typeof VaultWriteDocSchema, void>(VaultWriteDocSchema),
+  writeVaultFile: invoke<typeof VaultWriteFileSchema, void>(VaultWriteFileSchema),
   /** Trash one vault entry. A tombstone, not a removal — and subject to the
    * deletion gate, whose hold is its own outcome rather than an error. */
   deleteVaultEntry: invoke<typeof VaultPathSchema, DeleteVaultEntryResult>(VaultPathSchema),

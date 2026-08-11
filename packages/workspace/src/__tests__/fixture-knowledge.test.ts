@@ -22,11 +22,11 @@ describe("fixture bridge knowledge channels", () => {
     // A term that cannot pre-exist in the fixture vault.
     expect(await bridge.searchVault({ query: "xyzzyplugh" })).toEqual([]);
 
-    await bridge.writeVaultDoc({
+    await bridge.writeVaultFile({
       path: "review/probe.md",
       content: "# Xyzzyplugh\n\nlinks [[review/other]]\n",
     });
-    await bridge.writeVaultDoc({ path: "review/other.md", content: "# Other\n" });
+    await bridge.writeVaultFile({ path: "review/other.md", content: "# Other\n" });
 
     const hits = await bridge.searchVault({ query: "xyzzyplugh" });
     expect(hits.map((r) => r.path)).toContain("review/probe.md");
@@ -48,15 +48,15 @@ describe("fixture bridge knowledge channels", () => {
       events++;
     });
 
-    await bridge.writeVaultDoc({ path: "review/hub.md", content: "see [[probe target]]\n" });
-    await bridge.writeVaultDoc({ path: "review/probe target.md", content: "# P\n" });
+    await bridge.writeVaultFile({ path: "review/hub.md", content: "see [[probe target]]\n" });
+    await bridge.writeVaultFile({ path: "review/probe target.md", content: "# P\n" });
 
     const renamed = await bridge.renameVaultEntry({
       from: "review/probe target.md",
       to: "review/probe renamed.md",
     });
     expect(renamed.ok).toBe(true);
-    expect(await bridge.readVaultDoc({ path: "review/hub.md" })).toBe("see [[probe renamed]]\n");
+    expect(await bridge.readVaultFile({ path: "review/hub.md" })).toBe("see [[probe renamed]]\n");
     expect(await bridge.getBacklinks({ path: "review/probe renamed.md" })).toHaveLength(1);
     expect(events).toBeGreaterThanOrEqual(3);
 
@@ -77,7 +77,7 @@ describe("fixture bridge knowledge channels", () => {
 
   it("renaming an asset rewrites md image and wiki embed references", async () => {
     const bridge = newBridge();
-    await bridge.writeVaultDoc({
+    await bridge.writeVaultFile({
       path: "review/gallery.md",
       content: "shot ![alt](../wiki/diagram.png), embed ![[diagram.png]]\n",
     });
@@ -87,7 +87,7 @@ describe("fixture bridge knowledge channels", () => {
       to: "assets/schematic.png",
     });
     expect(renamed.ok).toBe(true);
-    expect(await bridge.readVaultDoc({ path: "review/gallery.md" })).toBe(
+    expect(await bridge.readVaultFile({ path: "review/gallery.md" })).toBe(
       "shot ![alt](../assets/schematic.png), embed ![[schematic.png]]\n",
     );
     expect(await bridge.getBacklinks({ path: "assets/schematic.png" })).toHaveLength(2);
@@ -95,10 +95,10 @@ describe("fixture bridge knowledge channels", () => {
 
   it("refuses a clobbering rename like the host", async () => {
     const bridge = newBridge();
-    await bridge.writeVaultDoc({ path: "a.md", content: "A\n" });
-    await bridge.writeVaultDoc({ path: "b.md", content: "B\n" });
+    await bridge.writeVaultFile({ path: "a.md", content: "A\n" });
+    await bridge.writeVaultFile({ path: "b.md", content: "B\n" });
     const result = await bridge.renameVaultEntry({ from: "a.md", to: "b.md" });
     expect(result.ok).toBe(false);
-    expect(await bridge.readVaultDoc({ path: "b.md" })).toBe("B\n");
+    expect(await bridge.readVaultFile({ path: "b.md" })).toBe("B\n");
   });
 });

@@ -64,8 +64,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       exists: (path) => docExists(getBridge(), path),
       rename: (from, to) => getBridge().renameVaultEntry({ from, to }),
       note: {
-        read: (path) => getBridge().readVaultDoc({ path }),
-        write: (path, content) => getBridge().writeVaultDoc({ path, content }),
+        read: (path) => getBridge().readVaultFile({ path }),
+        write: (path, content) => getBridge().writeVaultFile({ path, content }),
         remove: (path) => getBridge().deleteVaultEntry({ path }),
       },
       publishListing: setEntries,

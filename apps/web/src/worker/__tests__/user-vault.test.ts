@@ -398,7 +398,7 @@ describe("vault over the bridge", () => {
       JSON.stringify({
         t: "req",
         id: 2,
-        method: "writeVaultDoc",
+        method: "writeVaultFile",
         payload: { path: "notes/new.md", content: "# New\n" },
       }),
     );

@@ -136,7 +136,7 @@ Two things worth knowing before you reach for the UI:
 
 - **Drive the Bridge directly.** From `agent-browser eval` on a signed-in `/app`
   page you can open a second host socket and call ANY Bridge method
-  (`readVaultDoc`, `writeVaultDoc`, `createDelegation`, …). The credential is a
+  (`readVaultFile`, `writeVaultFile`, `createDelegation`, …). The credential is a
   ticket the page mints same-origin against its own session cookie — there is no
   userId in the URL and no session token in the page. Exact snippet in
   `docs/e2e-driving.md`.

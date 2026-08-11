@@ -163,7 +163,7 @@ describe("GET /v1/host/export", () => {
   it("hands back the whole vault as a zip of its markdown", async () => {
     const { ws, frames } = await authenticated(exporter);
     expect(
-      await invoke(ws, frames, 1, "writeVaultDoc", {
+      await invoke(ws, frames, 1, "writeVaultFile", {
         path: "notes/exported.md",
         content: "# Exported\n\nTaken with me.\n",
       }),
@@ -252,7 +252,7 @@ describe("account deletion", () => {
   it("erases the object's storage and the R2 prefix through Better Auth", async () => {
     const { ws, frames } = await authenticated(doomed);
     expect(
-      await invoke(ws, frames, 1, "writeVaultDoc", {
+      await invoke(ws, frames, 1, "writeVaultFile", {
         path: "notes/private-thoughts.md",
         content: "# Mine\n",
       }),
