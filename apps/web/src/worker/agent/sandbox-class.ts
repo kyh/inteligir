@@ -32,7 +32,7 @@
 
 import { Sandbox } from "@cloudflare/sandbox";
 
-import { tokenAddress } from "./agent-crypto";
+import { verifiedTokenAddress } from "./agent-crypto";
 import { userHostName } from "../host/host-address";
 import { injectProviderCredential } from "./egress";
 import { allProviders } from "./provider-catalog";
@@ -82,10 +82,12 @@ export class AgentSandbox extends Sandbox<Env> {
  */
 async function providerEgress(request: Request, env: Env): Promise<Response> {
   const rewritten = await injectProviderCredential(request, async (identity, provider) => {
-    // The token NAMES the object to ask; that object re-verifies the signature
-    // against its own name before it mints anything. The Worker addresses, the
-    // object decides — the same split the socket and asset routes use.
-    const address = tokenAddress(identity);
+    // The token NAMES the object to ask, and it has to be one this deployment
+    // signed before it may name anything: an object comes into existence the
+    // moment it is addressed. That object then re-verifies against its own name
+    // and its own live boot before it mints. The Worker addresses, the object
+    // decides — the same split the socket and asset routes use.
+    const address = await verifiedTokenAddress(env.BETTER_AUTH_SECRET, "report", identity);
     if (address === null)
       return { error: "the sandbox identity is not a token this Worker minted" };
     const host = env.UserHost.getByName(userHostName(address));

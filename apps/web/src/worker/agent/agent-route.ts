@@ -8,8 +8,15 @@
 // the container has no user session, and the OAuth callback is a redirect the
 // provider issues to a browser. So both carry a token this Worker minted, and
 // both follow the same split every other host route follows — the WORKER reads
-// the token only far enough to address an object, and the OBJECT verifies the
-// signature against its own name. There is no forwarded verdict to forge.
+// the token only far enough to address an object, and the OBJECT re-verifies it
+// against its own name and its own state. There is no forwarded verdict to
+// forge.
+//
+// "Only far enough to address" still means the SIGNATURE holds. Naming a
+// Durable Object brings one into existence, so a name taken from unverified
+// claims is a name anyone can type: a spray of userIds would leave orphan
+// objects behind, each holding storage, belonging to no account and reachable
+// by no purge path. Expiry and binding stay the object's to answer.
 //
 // The report route is the reason a turn does not pin a Durable Object. The
 // container holds the turn; each thing it produces arrives here as its own
@@ -21,7 +28,7 @@
 
 import { MAX_REPORT_BYTES } from "@repo/agent-container/protocol";
 
-import { tokenAddress } from "./agent-crypto";
+import { verifiedTokenAddress } from "./agent-crypto";
 import { readBearer } from "../host/session";
 import { userHostName } from "../host/host-address";
 import { OAUTH_CALLBACK_PATH, oauthResultPage, providerRefusalMessage } from "./provider-oauth";
@@ -54,12 +61,15 @@ export async function routeAgentReport(
 
   const token = readBearer(request.headers);
   if (token === null) return new Response("unauthorized", { status: 401 });
-  // The token's own claim about who it belongs to has to AGREE with the path
-  // before an object is woken. It is still not a verdict — the object it
-  // reaches re-verifies the signature — but a mismatch here is a request that
-  // was never going to be served, and one that must not instantiate a Durable
-  // Object on its way to being told no.
-  if (tokenAddress(token) !== addressed) return new Response("unauthorized", { status: 401 });
+  // The token has to be one this deployment signed, and its claim about who it
+  // belongs to has to AGREE with the path, before an object is woken. It is
+  // still not a verdict — the object re-verifies and adds the boot binding no
+  // signature can carry — but a request failing either is one that was never
+  // going to be served, and it must not instantiate a Durable Object on its way
+  // to being told no.
+  if ((await verifiedTokenAddress(env.BETTER_AUTH_SECRET, "report", token)) !== addressed) {
+    return new Response("unauthorized", { status: 401 });
+  }
 
   const bounded = await boundBody(request, MAX_REPORT_BYTES);
   if (bounded === null) return new Response("report too large", { status: 413 });
@@ -130,10 +140,14 @@ export async function routeOAuthCallback(
   const url = new URL(request.url);
 
   const state = url.searchParams.get("state");
-  const addressed = state === null ? null : tokenAddress(state);
+  const addressed =
+    state === null ? null : await verifiedTokenAddress(env.BETTER_AUTH_SECRET, "oauth", state);
   if (addressed !== null) {
     // Forwarded as a request the object can verify from scratch: the state token
     // is the credential, and it is the object that decides whether it holds.
+    // Expiry included — a state that timed out on a consent screen is authentic
+    // and belongs to a real object, which is the only party that can both say
+    // so in words and clear the verifier the attempt parked.
     return env.UserHost.getByName(userHostName(addressed)).fetch(request);
   }
   // Nothing to address, so nothing to clear. A refusal that lost its state is

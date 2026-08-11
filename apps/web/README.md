@@ -409,8 +409,13 @@ client.
   so there is no verdict to forge. The container's
   `POST /v1/agent/:userId/report` is the one route that does carry the id,
   because the container has no session to derive it from; `agent-route.ts`
-  requires the segment to AGREE with the token's own claim before naming
-  anything, so the id is a cross-check rather than an input.
+  verifies the token's SIGNATURE and requires the segment to AGREE with the
+  claim it proves before naming anything, so the id is a cross-check rather than
+  an input. Signature-first is what keeps the invariant total: naming an object
+  creates one, so a name read out of unverified claims is a name anyone can
+  type. The OAuth callback's `state` addresses the same way, for the same
+  reason. Expiry and binding stay the object's — an expired token is authentic,
+  and names an object that already exists.
 - **The socket authenticates with a TICKET, in the first frame.** `POST
 /v1/host/ticket` mints one against the session; the object stores it in its
   own SQLite and the first `{t:"auth"}` frame spends it. Single-use (a

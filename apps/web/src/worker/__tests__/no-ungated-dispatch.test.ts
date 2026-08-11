@@ -11,17 +11,18 @@
 // If you are here because this failed: do not add your call site to an
 // allowlist. Route it through SocketGate — that is the fix.
 //
-// The socket is not the only way in: the asset upload arrives as an HTTP
-// request, reaches the same vault, and cannot pass through the gate (there is
-// no frame to resolve and no socket to push to). So it carries the check
-// itself, and the case below is what keeps it carrying one — an HTTP route that
-// reached a capability without naming it would be a hole no amount of care on
-// the socket path could close.
+// The socket is not the only way in: the asset upload and the vault export
+// arrive as HTTP requests, reach the same vault, and cannot pass through the
+// gate (there is no frame to resolve and no socket to push to). So each carries
+// the check itself, and the case below is what keeps them carrying one — an
+// HTTP route that reached a capability without naming it would be a hole no
+// amount of care on the socket path could close.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
 import agentEndpointSource from "../host/agent-endpoints.ts?raw";
 import assetSource from "../host/asset-route.ts?raw";
+import exportSource from "../host/vault-export.ts?raw";
 import gateSource from "../host/socket-gate.ts?raw";
 import runnerSource from "../agent/agent-runner.ts?raw";
 import hostSource from "../host/user-host.ts?raw";
@@ -124,6 +125,14 @@ describe("the gate has one way in and one way out", () => {
     // the same capability over two transports, so they must be gated on the
     // same registry method or one of them will drift into a second policy.
     expect(assetSource).toContain('mayInvoke(clientClass, "writeVaultAsset")');
+
+    // The export is the same rule read from its other end. It cannot derive a
+    // class at all — the download is a top-level navigation, so the browser's
+    // cookie arrives with no Origin to corroborate it — so it names the
+    // capability against the class a BEARER can at most amount to. Without a
+    // gate here the companion reaches the whole vault over a route, having been
+    // refused one note over the socket.
+    expect(exportSource).toContain('mayInvoke("mobile", "readVaultFile")');
   });
 
   it("gates the container's report on the token that names its generation", () => {

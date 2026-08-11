@@ -131,6 +131,26 @@ export async function mintScopedToken(secret: string, claims: ScopedToken): Prom
   return `${payload}.${base64UrlEncode(new Uint8Array(signature))}`;
 }
 
+/** The claims this deployment's signature vouches for under `scope`, expiry
+ * aside — the half both public checks share, so neither can verify differently
+ * from the other. */
+async function signedClaims(
+  secret: string,
+  scope: ScopedToken["scope"],
+  token: string,
+): Promise<ScopedToken | null> {
+  const dot = token.indexOf(".");
+  if (dot <= 0) return null;
+  const payload = token.slice(0, dot);
+  const signature = base64UrlDecode(token.slice(dot + 1));
+  if (signature === null) return null;
+  const key = await reportKey(secret);
+  const valid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(payload));
+  if (!valid) return null;
+  const claims = readClaims(payload);
+  return claims === null || claims.scope !== scope ? null : claims;
+}
+
 /**
  * The claims a token proves under `scope`, or `null` to refuse.
  *
@@ -144,31 +164,34 @@ export async function verifyScopedToken(
   token: string,
   now: number,
 ): Promise<ScopedToken | null> {
-  const dot = token.indexOf(".");
-  if (dot <= 0) return null;
-  const payload = token.slice(0, dot);
-  const signature = base64UrlDecode(token.slice(dot + 1));
-  if (signature === null) return null;
-  const key = await reportKey(secret);
-  const valid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(payload));
-  if (!valid) return null;
-  const claims = readClaims(payload);
-  if (claims === null || claims.scope !== scope || claims.expiresAt <= now) return null;
-  return claims;
+  const claims = await signedClaims(secret, scope, token);
+  return claims === null || claims.expiresAt <= now ? null : claims;
 }
 
 /**
- * The userId a token NAMES, with no signature check at all.
+ * The userId a token names, admitted only once its SIGNATURE holds — what the
+ * Worker addresses an object with.
  *
- * The Worker route uses it to address an object; it is not a verdict, and the
- * object it reaches re-verifies from scratch. Separate from `verifyScopedToken`
- * so a caller cannot reach for the cheap one by accident: this function's name
- * says it trusts nothing.
+ * It is still not a verdict. The object re-verifies from scratch and adds
+ * everything only it can know: whether the token has expired, and whether its
+ * `ref` still names a live container generation or a parked authorization. What
+ * this buys is the invariant the addressing split rests on: naming a Durable
+ * Object brings one into existence, so the name has to come from something a
+ * caller cannot mint. Reading the claims unverified would let anyone spray
+ * userIds and leave orphan objects behind, each holding storage, belonging to
+ * no account and reachable by no purge path.
+ *
+ * Expiry is deliberately NOT checked here. It is the object's to answer,
+ * because the object is what turns "expired" into words a person reads and
+ * clears the state that went with it — and an expired token is authentic, so it
+ * names an object that already exists.
  */
-export function tokenAddress(token: string): string | null {
-  const dot = token.indexOf(".");
-  if (dot <= 0) return null;
-  return readClaims(token.slice(0, dot))?.userId ?? null;
+export async function verifiedTokenAddress(
+  secret: string,
+  scope: ScopedToken["scope"],
+  token: string,
+): Promise<string | null> {
+  return (await signedClaims(secret, scope, token))?.userId ?? null;
 }
 
 function readClaims(payload: string): ScopedToken | null {

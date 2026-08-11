@@ -197,8 +197,11 @@ Addressed `env.UserHost.getByName("user:" + userId)`, where the userId is
 derived from the caller's own credential: no `/v1/host/*` path carries one, so a
 caller holding no session cannot bring an object into existence by naming one.
 (`POST /v1/agent/:userId/report` is the one route with the id in its path — the
-container holds no session — and there the segment must AGREE with the token's
-own claim before an object is named.) It serves
+container holds no session — and there the segment must AGREE with a claim the
+token's own SIGNATURE proves before an object is named. Verifying first is what
+makes the invariant total rather than nearly true: naming an object CREATES one,
+so a name read out of unverified claims is a name anyone can type. The OAuth
+callback's `state` addresses the same way.) It serves
 that user's whole Bridge — every host method and event channel the registry
 declares — over one hibernatable WebSocket per client, and it owns everything
 that user has: the vault manifest, the JsonStores, the knowledge index, the

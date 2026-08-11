@@ -188,6 +188,34 @@ describe("GET /v1/host/export", () => {
   it("refuses a caller with no session", async () => {
     expect((await SELF.fetch(`${ORIGIN}/v1/host/export`)).status).toBe(401);
   });
+
+  it("refuses the companion class, which reaches no vault channel at all", async () => {
+    // The same account, the same vault, over the credential that decides the
+    // companion class. The socket refuses it one note; this leaf must not hand
+    // it every note in a zip.
+    const { ws, frames } = await authenticated(exporter, "mobile");
+    const overSocket = await invoke(ws, frames, 1, "readVaultFile", {
+      path: "notes/exported.md",
+    });
+    ws.close(1000, "done");
+    expect(overSocket).toMatchObject({ ok: false });
+
+    const overHttp = await SELF.fetch(`${ORIGIN}/v1/host/export`, {
+      headers: { authorization: `Bearer ${exporter.token}` },
+    });
+    expect(overHttp.status).toBe(403);
+  });
+
+  it("still serves the browser's own download, which carries no Origin", async () => {
+    // The refusal above must not be spelled as "no derivable client class": a
+    // top-level navigation sends the cookie and NO Origin, so that is exactly
+    // what the download this route exists for looks like.
+    const download = await SELF.fetch(`${ORIGIN}/v1/host/export`, {
+      headers: { cookie: exporter.cookie },
+    });
+    expect(download.status).toBe(200);
+    await download.arrayBuffer();
+  });
 });
 
 describe("host rate budgets", () => {

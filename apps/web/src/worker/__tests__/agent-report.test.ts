@@ -13,13 +13,14 @@
 // a vault delete.
 // ---------------------------------------------------------------------------
 
-import { env, runInDurableObject, SELF } from "cloudflare:test";
+import { env, listDurableObjectIds, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { bytesToBase64 } from "@repo/agent-container/protocol";
 
 import { mintScopedToken } from "../agent/agent-crypto";
-import { matchAgentReportPath } from "../agent/agent-route";
+import { matchAgentReportPath, routeOAuthCallback } from "../agent/agent-route";
+import { OAUTH_CALLBACK_PATH } from "../agent/provider-oauth";
 import { SANDBOX_PROVIDER_ID } from "../agent/provider-catalog";
 import { userHostName } from "../host/host-address";
 import type { UserHost } from "../host/user-host";
@@ -53,6 +54,17 @@ async function liveContainer(
     expiresAt: Date.now() + 60_000,
   });
   return { token, turnId: host.agent.runner.chatTurnId() };
+}
+
+/** The payload half of a token, spelled by hand — everything a signature covers
+ * and nothing that proves it. Base64url of the same JSON `mintScopedToken`
+ * writes, `scope` included, so a refusal cannot be the scope check answering for
+ * the signature check. */
+function unsignedClaims(scope: "report" | "oauth", userId: string): string {
+  return btoa(JSON.stringify({ s: scope, u: userId, r: "a-boot", e: Date.now() + 60_000 }))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
 }
 
 function report(userId: string, token: string | null, body: unknown): Promise<Response> {
@@ -92,6 +104,52 @@ describe("the container report route", () => {
       events: [],
     });
     expect(response.status).toBe(401);
+  });
+
+  // A refusal is not enough on its own. Naming a Durable Object is what brings
+  // one into existence, so a route that reads a token's claims before checking
+  // its signature lets anyone leave objects behind — each holding storage,
+  // belonging to no account, and reachable by no purge path, since a purge runs
+  // from the account being deleted. The two routes that carry a minted token
+  // are the only ones that can: no `/v1/host/*` path carries a userId at all.
+  it("brings no object into existence for a token this deployment did not sign", async () => {
+    const authentic = await mintScopedToken(env.BETTER_AUTH_SECRET, {
+      scope: "report",
+      userId: "spray-tampered",
+      ref: "a-boot",
+      expiresAt: Date.now() + 60_000,
+    });
+
+    const before = (await listDurableObjectIds(env.UserHost)).length;
+    for (let index = 0; index < 12; index += 1) {
+      const forged = `${unsignedClaims("report", `spray-${index}`)}.not-a-signature`;
+      const response = await report(`spray-${index}`, forged, {
+        kind: "events",
+        turnId: "t",
+        events: [],
+      });
+      expect(response.status, `spray ${index}`).toBe(401);
+    }
+    // Re-signing someone else's claims is the same attack with the payload kept
+    // intact — the signature covers the payload, so a swapped userId breaks it.
+    const swapped = `${unsignedClaims("report", "spray-swapped")}.${authentic.slice(authentic.indexOf(".") + 1)}`;
+    expect(
+      (await report("spray-swapped", swapped, { kind: "events", turnId: "t", events: [] })).status,
+    ).toBe(401);
+
+    // The OAuth callback addresses off the same primitive and must hold the
+    // same line — it is a GET a provider redirects a BROWSER to, so anyone can
+    // cause it.
+    const url = new URL(`${ORIGIN}${OAUTH_CALLBACK_PATH}`);
+    url.searchParams.set("state", `${unsignedClaims("oauth", "spray-oauth")}.not-a-signature`);
+    url.searchParams.set("code", "c");
+    const callback = await routeOAuthCallback(new Request(url), env, OAUTH_CALLBACK_PATH);
+    expect(await callback?.text()).toContain("not issued by this app");
+
+    expect(
+      (await listDurableObjectIds(env.UserHost)).length,
+      "an unsigned token created a Durable Object",
+    ).toBe(before);
   });
 
   it("refuses a bearer from a container that was replaced", async () => {

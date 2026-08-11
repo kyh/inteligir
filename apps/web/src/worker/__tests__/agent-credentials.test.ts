@@ -23,7 +23,7 @@ import {
   mintScopedToken,
   openCredential,
   sealCredential,
-  tokenAddress,
+  verifiedTokenAddress,
   verifyScopedToken,
 } from "../agent/agent-crypto";
 import { EGRESS_IDENTITY_HEADER, injectProviderCredential } from "../agent/egress";
@@ -113,22 +113,36 @@ describe("provider credentials", () => {
 });
 
 describe("the container's identity token", () => {
-  it("names an object without proving anything, and proves itself separately", async () => {
+  it("names an object only once its signature holds, and still proves nothing else", async () => {
     const token = await mintScopedToken(SECRET, {
       scope: "report",
       userId: "user-a",
       ref: "boot-1",
       expiresAt: Date.now() + 60_000,
     });
-    expect(tokenAddress(token)).toBe("user-a");
+    expect(await verifiedTokenAddress(SECRET, "report", token)).toBe("user-a");
     expect(await verifyScopedToken(SECRET, "report", token, Date.now())).toMatchObject({
       userId: "user-a",
       ref: "boot-1",
     });
-    // Tampering with the payload keeps the address readable and the signature
-    // wrong — which is exactly why addressing is not a verdict.
+    // Tampering with the payload leaves the claims READABLE and the signature
+    // wrong. Addressing has to refuse it too: naming a Durable Object creates
+    // one, so a name is not free even when nothing downstream believes it.
     const forged = `${token.slice(0, token.indexOf("."))}x.${token.slice(token.indexOf(".") + 1)}`;
+    expect(await verifiedTokenAddress(SECRET, "report", forged)).toBeNull();
     expect(await verifyScopedToken(SECRET, "report", forged, Date.now())).toBeNull();
+
+    // What addressing still does NOT decide: an expired token names its object
+    // and is refused there, because only the object can say so in words and
+    // clear the state that went with it.
+    const stale = await mintScopedToken(SECRET, {
+      scope: "report",
+      userId: "user-a",
+      ref: "boot-1",
+      expiresAt: Date.now() - 1,
+    });
+    expect(await verifiedTokenAddress(SECRET, "report", stale)).toBe("user-a");
+    expect(await verifyScopedToken(SECRET, "report", stale, Date.now())).toBeNull();
   });
 
   it("is refused under a scope it was not minted for", async () => {

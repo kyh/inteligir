@@ -13,13 +13,21 @@
 // A GET, and a plain navigation rather than a fetch: the browser writes the
 // body to disk as it arrives, which a `fetch` + blob would undo by materializing
 // the archive in the page. That has one consequence worth naming — a top-level
-// navigation carries NO `Origin`, so this leaf cannot derive a client class the
-// way the ticket mint does and is gated on the session alone. What a cross-site
-// page can therefore cause is a download the victim's browser saves and the
-// page cannot read: no disclosure, only cost. That cost is what the leaf's rate
-// budget (./host-limits) is for.
+// navigation carries NO `Origin`, so `clientClassFor` cannot be asked here: the
+// browser's own cookie derives no class for want of corroboration, and refusing
+// on that `null` would refuse the download this route exists for. What a
+// cross-site page can therefore cause is a download the victim's browser saves
+// and the page cannot read: no disclosure, only cost. That cost is what the
+// leaf's rate budget (./host-limits) is for.
+//
+// The other half of the class rule still decides, and it has to: a BEARER is
+// the companion's credential, so the most it can ever amount to is `mobile`,
+// and this leaf is `readVaultFile` over every file at once. Gated on that
+// capability like the other two HTTP leaves — a class that may not read one
+// note must not be handed the vault in a zip.
 // ---------------------------------------------------------------------------
 
+import { mayInvoke } from "./client-class";
 import { readCredential, verifyHostSession } from "./session";
 import type { UserVault } from "./vault/user-vault";
 import { MAX_ENTRIES, MAX_TOTAL_BYTES, zipStream, type ZipSource } from "./vault/zip-stream";
@@ -71,6 +79,9 @@ export async function handleVaultExport(
   const origin = new URL(request.url).origin;
   const session = await verifyHostSession(env, origin, credential, hostName);
   if (session === null) return new Response("unauthorized", { status: 401 });
+  if (credential.kind === "bearer" && !mayInvoke("mobile", "readVaultFile")) {
+    return new Response("forbidden", { status: 403 });
+  }
 
   const plan = planExport(vault.liveFiles());
   if (!plan.ok) return new Response(refusalMessage(plan), { status: 413 });
