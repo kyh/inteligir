@@ -4,7 +4,7 @@ import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-rout
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-shell";
-import { currentSession } from "@/lib/session-guard";
+import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
 
 // Sign-up does NOT go through the Better Auth client: this deployment is
 // invite-only, and the gate is a Worker route in front of Better Auth's own
@@ -31,6 +31,7 @@ async function refusalMessage(response: Response): Promise<string> {
 }
 
 export const Route = createFileRoute("/app/sign-up")({
+  ssr: ssrWhenSignedOut,
   beforeLoad: async () => {
     if ((await currentSession()) !== null) throw redirect({ to: "/app" });
   },

@@ -39,7 +39,7 @@ Durable Object, the file bytes in R2, accounts in D1, the agent in a container.
 ```
 apps/            # shippable artifacts
   web/           # THE PRODUCT (@repo/web) — ONE CF Worker:
-                 #   marketing site + /app (the workspace, client-only)
+                 #   marketing site + /app (auth pages SSR, workspace client-only)
                  #   /api/auth/* — Better Auth on D1
                  #   UserHost   — one Durable Object per user: the vault
                  #                manifest, every JsonStore, the knowledge
@@ -162,10 +162,25 @@ red.
 
 `src/worker/server.ts` splits one origin three ways: `/api/*`, `/v1/*` and
 `/auth/*` go to the Worker's own route table, everything else to TanStack
-Start's SSR handler — the marketing page, and the client-only shell that `/app`
-mounts the workspace from. One origin is what makes the UI and the API
-same-origin, which is what the session cookie and the ticket mint's Origin
-allowlist depend on.
+Start's SSR handler — the marketing page, the auth pages, and the client-only
+shell that `/app` mounts the workspace from. One origin is what makes the UI and
+the API same-origin, which is what the session cookie and the ticket mint's
+Origin allowlist depend on.
+
+**`ssr: false` is a per-ROUTE fact, never the `/app` layout's.** The flag is
+inherited downward, so declaring it on the layout would make the auth pages —
+a form and two `useState`s — client-only by inheritance, and every visitor
+would watch a blank document until the bundle landed. Only the workspace and
+the deep-link page carry it. What that costs is a guard that has to answer
+server-side, and `beforeLoad` has no browser to ask: the cookie is `httpOnly`,
+and this Worker cannot ask ITSELF either, because Cloudflare states that
+"routes cannot be the target of a same-zone `fetch()` call" — a loopback to
+`/api/auth/get-session` would resolve in miniflare and fail only in production.
+So the gate is what a render CAN establish: a request carrying no session
+cookie has no session, and `ssrWhenSignedOut`
+(`apps/web/src/lib/session-guard.ts`) server-renders precisely those. A request
+that carries one may hold a live session or a dead one, so it stays
+client-rendered and the guard runs the real check where it always ran.
 
 Two tsconfig programs, deliberately: the site compiles under `lib.dom`,
 `src/worker/` compiles without it. workerd and the DOM both declare

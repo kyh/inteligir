@@ -13,7 +13,8 @@ ONE Cloudflare Worker serving three surfaces from one origin:
 
 `src/worker/server.ts` is the entry that splits them: `/api/*`, `/v1/*` and
 `/auth/*` go to the rest of `src/worker/`, everything else to Start's SSR
-handler — the marketing page and the client-only shell `/app` is served from.
+handler — the marketing page, the auth pages, and the client-only shell the
+workspace mounts into.
 One origin is what makes the UI and the API same-origin to each other, which is
 what the session cookie — and so the ticket mint's Origin allowlist — depends on.
 
@@ -27,8 +28,8 @@ src/
     __root.tsx           Document shell — head/meta only, NO theme provider
     index.tsx            Landing page (download-URL loader) + its own chrome
     robots[.]txt.tsx     robots.txt server route
-    app.tsx              `/app` layout — `ssr: false` for the whole subtree
-    app/index.tsx        The workspace: session guard + the lazy mount
+    app.tsx              `/app` layout — no `ssr` option, so children choose
+    app/index.tsx        The workspace: `ssr: false` + session guard + lazy mount
     app/sign-in.tsx      Email + password
     app/sign-up.tsx      Invite-gated (POSTs /v1/auth/sign-up)
     app/forgot-password.tsx  Requests the emailed reset link
@@ -43,7 +44,8 @@ src/
   lib/
     site-config.ts       Title, description, links — single source for metadata
     auth-client.ts       Better Auth browser client; `activeSession()`
-    session-guard.ts     `currentSession()` — the same, behind a dynamic import
+    session-guard.ts     `currentSession()` behind a dynamic import, and the
+                         cookie-presence `ssr` gate the auth pages render under
   styles/globals.css     Inter Variable + @repo/ui/globals.css
   worker/                THE WORKER — its own tsconfig program (see below)
     server.ts            Worker entry: path split + the Durable Object export
@@ -185,10 +187,25 @@ The product UI is `@repo/workspace`'s `App`, mounted here unchanged. This app
 supplies exactly what the package's two seams ask for — a Bridge and an
 HTML-app runtime — and nothing else.
 
-- **`ssr: false`, declared once on the `/app` layout route.** The router
-  inherits it downward, so the whole subtree is client-only from one line. It
-  has to be: Plate mutates its own editor nodes and the workspace reaches for
-  `window` on the way up, and neither survives a render pass on workerd.
+- **`ssr: false` is declared per route, never on the `/app` layout.** The router
+  inherits the flag downward — a child can never be more server-rendered than
+  its parent — so one line on the layout would take the auth pages with it, and
+  a form plus two `useState`s would wait on the JavaScript bundle to paint at
+  all. Only `app/index.tsx` and `app/link.tsx` carry it: Plate mutates its own
+  editor nodes and the workspace reaches for `window` on the way up, and neither
+  survives a render pass on workerd.
+- **A guarded page that server-renders decides that from the session COOKIE**
+  (`lib/session-guard.ts`). `beforeLoad` cannot ask the browser anything, and
+  this Worker cannot ask itself either — it is mounted on zone routes, and
+  Cloudflare states that "routes cannot be the target of a same-zone `fetch()`
+  call", so a loopback to `/api/auth/get-session` resolves in miniflare and
+  fails only in production. What a render CAN establish is that a request
+  carrying no `better-auth.session_token` has no session. So `ssrWhenSignedOut`
+  server-renders exactly those requests, and one carrying a cookie — live or
+  stale, only Better Auth can say — renders on the client, where the guard runs
+  the real check it always did. `currentSession()` answers `null` server-side
+  on the strength of that gate, and the direction is the safe one regardless: it
+  can only ever send someone TO the sign-in page.
 - **The workspace is behind a dynamic import, and behind an
   `import.meta.env.SSR` branch.** The first keeps Plate and the ~30 packages
   under it out of the marketing route's bundle; the second keeps them out of

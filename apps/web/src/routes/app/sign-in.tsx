@@ -5,9 +5,10 @@ import { Button } from "@repo/ui/components/button";
 
 import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-shell";
 import { authClient, authErrorMessage } from "@/lib/auth-client";
-import { currentSession } from "@/lib/session-guard";
+import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
 
 export const Route = createFileRoute("/app/sign-in")({
+  ssr: ssrWhenSignedOut,
   beforeLoad: async () => {
     if ((await currentSession()) !== null) throw redirect({ to: "/app" });
   },

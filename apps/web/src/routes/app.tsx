@@ -1,20 +1,22 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 // ---------------------------------------------------------------------------
-// `/app` — the product, and the one place on this site that never server-
-// renders.
+// `/app` — the product.
 //
-// `ssr: false` is declared HERE rather than per page because the router
-// inherits it downward: a child route can never be more server-rendered than
-// its parent, so the whole `/app` tree is client-only from one line. It has to
-// be. Plate mutates its own editor nodes and the workspace reaches for
-// `window` on the way up, and neither survives a render pass on workerd.
+// This layout carries NO `ssr` option, and that placement is the point: the
+// router inherits the flag downward, so a child can never be more
+// server-rendered than its parent. Declaring `ssr: false` here would make the
+// auth pages — a form and two `useState`s — client-only by inheritance, and
+// their whole first paint would wait on the JavaScript bundle.
+//
+// The two routes that genuinely cannot server-render say so themselves:
+// `./app/index.tsx` (Plate mutates its own editor nodes) and `./app/link.tsx`
+// (it reads `window.location` on the way up).
 //
 // The marketing route keeps its SSR. Nothing here is shared with it beyond the
 // document shell in __root.tsx.
 // ---------------------------------------------------------------------------
 
 export const Route = createFileRoute("/app")({
-  ssr: false,
   component: () => <Outlet />,
 });

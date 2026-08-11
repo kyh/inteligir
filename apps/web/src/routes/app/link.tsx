@@ -22,6 +22,9 @@ import { currentSession } from "@/lib/session-guard";
 type LinkState = { done: false } | { done: true; error: string | null };
 
 export const Route = createFileRoute("/app/link")({
+  // The verb is read off `window.location` and acted on immediately, so there
+  // is nothing here a server render could produce but a spinner.
+  ssr: false,
   beforeLoad: async () => {
     if ((await currentSession()) === null) throw redirect({ to: "/app/sign-in" });
   },
