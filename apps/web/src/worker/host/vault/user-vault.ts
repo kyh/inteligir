@@ -435,7 +435,15 @@ export class UserVault {
       const body = isDocPath(parsed.path)
         ? { text: new TextDecoder().decode(bytes), contentHash }
         : null;
-      this.onChanged({ upserted: [{ path: parsed.path, body }], removed: [] });
+      // A write to an existing row under a different SPELLING adopts the new
+      // one (the key folds, so the two are one file) — which retires the old
+      // display path exactly as `move`'s case-only branch does, and it has to
+      // be announced the same way. A change naming only the new path leaves
+      // every listener holding the old one: the open editor never reloads, so
+      // the next autosave folds its stale buffer back onto the same key, and
+      // the index and the container's workspace each keep a second copy.
+      const retitled = current !== null && current.path !== parsed.path ? [current.path] : [];
+      this.onChanged({ upserted: [{ path: parsed.path, body }], removed: retitled });
       return { ok: true, file };
     });
   }

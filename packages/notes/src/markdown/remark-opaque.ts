@@ -80,17 +80,29 @@ const COMPONENT_TEXT_TAGS = new Set(["date"]);
 // truncated on the first save.
 const DATE_ATTRS = new Set(["value"]);
 
+// Names that are the Slate NODE's own, on every tag. Plate's `parseAttributes`
+// spreads the attributes over the element it builds and spreads them LAST, so
+// one of these overwrites the field rather than arriving as a prop: `type`
+// retitles the node to something no serialize rule answers for and the block
+// vanishes on the next save, and `children` replaces the parsed subtree with a
+// string. `id` survives the parse and is dropped on the way out, because the
+// flow rules strip the id Plate's own NodeIdPlugin leaks. All three are the
+// `DATE_ATTRS` case generalized — an attribute the round trip cannot carry
+// belongs to an opaque node, which holds it verbatim.
+const RESERVED_ATTRS = new Set(["type", "children", "id"]);
+
 // Every attribute on a component must be a plain string-valued
 // `mdxJsxAttribute`: bare booleans (`<callout draft>`) come back from Plate as
 // `draft="null"`, and braced expressions and spreads do not survive
-// parseAttributes/propsToAttributes. Unknown attribute NAMES are fine on the
-// flow tags — their rules spread string props both directions.
+// parseAttributes/propsToAttributes. Unknown attribute NAMES are otherwise fine
+// on the flow tags — their rules spread string props both directions.
 function isModellableAttribute(
   tag: string,
   attribute: MdxJsxAttribute | MdxJsxExpressionAttribute,
 ): boolean {
   if (attribute.type !== "mdxJsxAttribute") return false;
   if (typeof attribute.value !== "string") return false;
+  if (RESERVED_ATTRS.has(attribute.name)) return false;
   return tag !== "date" || DATE_ATTRS.has(attribute.name);
 }
 

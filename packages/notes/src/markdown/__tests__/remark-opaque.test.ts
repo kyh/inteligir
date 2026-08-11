@@ -136,4 +136,23 @@ describe("opaque values", () => {
       '<date value="2026-07-01" foo="x" />',
     ]);
   });
+
+  // The attributes are spread over the Slate node LAST, so one named after a
+  // field of the node itself overwrites it rather than arriving as a prop —
+  // `type` retitles the node to something no rule serializes and the block is
+  // gone on the next save, `children` replaces the subtree with a string, `id`
+  // is stripped on the way out. The reserved names are not a component's to
+  // carry, whatever the tag.
+  it("take the whole component when an attribute is named after a node's own field", () => {
+    for (const attribute of ['type="info"', 'children="boom"', 'id="leaked"']) {
+      const md = `<callout ${attribute}>\n  x\n</callout>\n`;
+      expect(opaqueValues(md), md).toEqual([`<callout ${attribute}>\n  x\n</callout>`]);
+    }
+    expect(opaqueValues('<video src="https://x.test/v.mp4" type="mp4" />\n')).toEqual([
+      '<video src="https://x.test/v.mp4" type="mp4" />',
+    ]);
+    // An ordinary unknown attribute is still a prop the flow rules spread both
+    // directions — the refusal is the reserved NAMES, not unknown ones.
+    expect(opaqueValues('<callout variant="info">\n  x\n</callout>\n')).toEqual([]);
+  });
 });

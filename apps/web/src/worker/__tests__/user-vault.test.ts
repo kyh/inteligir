@@ -99,6 +99,29 @@ describe("manifest", () => {
     });
   });
 
+  it("announces the spelling a write retired, exactly as a rename does", async () => {
+    await withVault("manifest-case-announce", async ({ vault, changes }) => {
+      await vault.writeText("Meeting.md", "first");
+      changes.length = 0;
+      await vault.writeText("meeting.md", "second");
+      // The row's display path moved, so the old one is GONE from the listing —
+      // and a change that named only the new one would leave every listener
+      // (the open editor, the index, the container's workspace) holding a path
+      // the manifest no longer has. `move`'s case-only branch says the same.
+      expect(changes).toEqual([
+        { upserted: [{ path: "meeting.md", body: expect.anything() }], removed: ["Meeting.md"] },
+      ]);
+
+      // A write that keeps the spelling retires nothing — the announcement must
+      // not claim a deletion an autosave did not cause.
+      changes.length = 0;
+      await vault.writeText("meeting.md", "third");
+      expect(changes).toEqual([
+        { upserted: [{ path: "meeting.md", body: expect.anything() }], removed: [] },
+      ]);
+    });
+  });
+
   it("refuses a path that climbs out of the vault", async () => {
     await withVault("manifest-escape", async ({ vault }) => {
       expect(await vault.write("../escape.md", utf8.encode("x"))).toEqual({
