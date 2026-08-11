@@ -31,6 +31,11 @@ export default defineConfig({
           name: "workspace-dom",
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
+          // These mount real component trees under jsdom while the Workers
+          // pool runs workerd beside them, so vitest's 5s default is a
+          // coin-flip under a full `turbo run test` and passes alone. A flaky
+          // test is worse than a slow one — it teaches the reader to re-run.
+          testTimeout: 20_000,
           server: { deps: { inline: inlineDeps } },
         },
       },

@@ -103,6 +103,11 @@ product's own — every route, the Durable Object's protocol, the local loop and
 the owner-only deploy. The two change checklists are skills, not prose:
 `.claude/skills/add-bridge-channel` and `.claude/skills/add-editor-node`.
 
+**`CONTEXT.md` is the glossary** — what each domain word MEANS and which
+neighbouring concept it gets confused with (vault vs manifest, doc vs note,
+version vs revision, ticket vs session, the open note's three paths). This file
+is architecture and § Decisions is why; read the glossary before either.
+
 ## Agent-driven development
 
 `AGENTS.md` is the tool-agnostic guide meant to be **run** — read it before

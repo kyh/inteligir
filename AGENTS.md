@@ -6,8 +6,9 @@ a **Cloudflare Worker** (`apps/web`): the marketing site, Better Auth on D1, and
 holds the vault, the knowledge index, the agent and the background work. An
 Electron shell and an Expo app wrap it. This is the tool-agnostic guide for
 coding agents — it's meant to be **run**, not just read. `CLAUDE.md` holds the
-architecture and the durable decisions; `apps/web/README.md` the product's own
-protocol and dev recipe. Both point back here.
+architecture and the durable decisions; `CONTEXT.md` is the glossary, and the
+fastest way to stop guessing what a word means; `apps/web/README.md` the
+product's own protocol and dev recipe. All three point back here.
 
 **Every surface except mobile is headlessly agent-verifiable.** There is no
 excuse for leaving a UI change "unverified".
@@ -204,6 +205,8 @@ tools/repo-guards   Derived fitness tests over the repo itself
 ```
 
 - `CLAUDE.md` — architecture, the dep DAG, and § Decisions.
+- `CONTEXT.md` — the glossary: what each domain word means, and the neighbour it
+  is confused with.
 - `apps/web/README.md` — the Worker's routes and protocol, the local loop, the
   owner-only deploy.
 - `docs/development.md` — the run modes, per-package test commands, the change

@@ -36,6 +36,9 @@ export default defineConfig({
           name: "editor-dom",
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
+          // Mounts real Plate trees beside the Workers pool; 5s is a coin-flip
+          // under a full run and passes alone.
+          testTimeout: 20_000,
           server: { deps: { inline: inlineDeps } },
         },
       },
