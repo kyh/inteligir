@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowUpIcon,
   AudioLinesIcon,
@@ -85,6 +85,19 @@ function isImagePromptInputFile(file: PromptInputFile): file is ImagePromptInput
   );
 }
 
+/** The prompt bar's icon-button chrome: the reference's 28px hit target, its
+ * ink ramp, and its combined color/press transition. Shared by every control in
+ * the bar so they stay one family. */
+const AI_ICON_BUTTON =
+  "size-7 shrink-0 rounded-full text-ai-ink-3 transition-[background-color,color,transform] duration-150 hover:bg-ai-hover hover:text-ai-ink active:scale-[0.94]";
+
+/** Send/stop — the bar's one filled control. It inverts the surface (ink fill,
+ * surface-colored glyph) rather than using the app's `primary`, which is what
+ * makes it read as the single commit action in the reference. Disabled falls to
+ * the strong hairline so the bar keeps its shape without implying "ready". */
+const AI_SEND_BUTTON =
+  "size-7 shrink-0 rounded-full bg-ai-ink text-ai-surface transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.94] disabled:bg-ai-line-strong disabled:text-ai-ink-2";
+
 type QueuedMessage = { key: string; text: string };
 function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
   const seen = new Map<string, number>();
@@ -98,8 +111,8 @@ function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
 // One queued message row — steering and follow-up differ only by the leading icon.
 function QueuedRow({ msg, icon }: { msg: QueuedMessage; icon: ReactNode }) {
   return (
-    <QueueItem className="rounded-md px-2 py-1 hover:bg-muted" title={msg.text}>
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+    <QueueItem className="rounded-ai-chip px-2 py-1 hover:bg-ai-hover" title={msg.text}>
+      <div className="flex items-center gap-1.5 text-[11px] text-ai-ink-2">
         {icon}
         <QueueItemContent>{msg.text}</QueueItemContent>
       </div>
@@ -344,13 +357,13 @@ export function Composer() {
             exit={{ opacity: 0, y: 6, filter: "blur(4px)" }}
             transition={capsuleSpring}
           >
-            <Queue className="rounded-2xl border-transparent bg-popover px-1.5 py-1 text-popover-foreground shadow-sm ring-1 ring-border">
+            <Queue className="rounded-2xl border-transparent bg-ai-surface px-1.5 py-1 text-ai-ink shadow-ai-raised">
               <QueueList className="mt-0 -mb-1">
                 {steeringQueue.map((msg) => (
                   <QueuedRow
                     key={msg.key}
                     msg={msg}
-                    icon={<ZapIcon className="size-3 shrink-0 text-primary" />}
+                    icon={<ZapIcon className="size-3 shrink-0 text-ai-accent" />}
                   />
                 ))}
                 {followUpQueue.map((msg) => (
@@ -372,7 +385,11 @@ export function Composer() {
           layout={!reduceMotion}
           transition={capsuleSpring}
           style={{ borderRadius: CAPSULE_RADIUS }}
-          className={cn(CAPSULE_SURFACE, expanded ? "w-full" : "w-fit mx-auto")}
+          className={cn(
+            CAPSULE_SURFACE,
+            "transition-shadow duration-150 focus-within:shadow-ai-focus",
+            expanded ? "w-full" : "w-fit mx-auto",
+          )}
         >
           <AnimatePresence initial={false} mode="popLayout">
             {voiceActive && (
@@ -435,35 +452,36 @@ export function Composer() {
                   onError={onAttachError}
                   onFilesChange={handleFilesChange}
                   onSubmit={handleSubmit}
-                  className="bg-transparent [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-0 [&_[data-slot=input-group]]:rounded-3xl [&_[data-slot=input-group]]:border-transparent [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0 [&_[data-slot=input-group]]:shadow-none"
+                  // The InputGroup is stripped back to a bare container: the
+                  // capsule around it owns the surface, the radius AND the
+                  // focus affordance (`focus-within:shadow-ai-focus`). The
+                  // has-focus-visible ring is suppressed explicitly — the
+                  // capsule already answers "you're typing here", and leaving
+                  // both on draws two rings a pixel apart, in two palettes.
+                  className={cn(
+                    "bg-transparent",
+                    // h-auto defeats PromptInput's own `h-9` on the InputGroup:
+                    // that fixed 36px is sized for a one-line pill, and the bar
+                    // must grow with the textarea and the reflowed control row —
+                    // otherwise `overflow-hidden` silently clips both.
+                    "[&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-1.5 [&_[data-slot=input-group]]:rounded-3xl [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:p-1.5 [&_[data-slot=input-group]]:shadow-none",
+                    "[&_[data-slot=input-group]]:border-transparent [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:border-transparent [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:ring-0",
+                  )}
                 >
                   <ComposerAttachments />
-                  {/* Two-row layout (the InputGroup block-end pattern): the textarea owns
-                   * the top row full-width, a toolbar sits beneath with attach + mic
-                   * pinned left and steer/send pinned right — so the controls stay
-                   * aligned regardless of how tall the textarea grows. */}
-                  <ComposerTextarea
+                  <ComposerBar
                     ref={textareaRef}
                     busy={busy}
                     value={draft}
                     onDraftChange={setDraft}
                     onInterrupt={interrupt}
                     onEngage={engage}
+                    hasInput={hasInput}
+                    onSteer={requestSteer}
+                    onStartVoice={() => void voice.start()}
+                    ttsConfigured={ttsConfigured}
+                    onToggleVoiceChat={toggleVoiceConversation}
                   />
-                  <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
-                    <div className="flex items-center gap-1">
-                      <AttachButton />
-                      <MicButton onStart={() => void voice.start()} />
-                      <VoiceChatButton
-                        ttsConfigured={ttsConfigured}
-                        onToggle={toggleVoiceConversation}
-                      />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
-                      <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
-                    </div>
-                  </div>
                 </PromptInput>
               </motion.div>
             ) : (
@@ -525,7 +543,7 @@ function ListeningRow({
         type="button"
         aria-label="Cancel voice input"
         onClick={onCancel}
-        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="grid size-8 shrink-0 place-items-center rounded-full text-ai-ink-3 transition-colors hover:bg-ai-hover hover:text-ai-ink"
       >
         <XIcon className="size-4" />
       </button>
@@ -535,11 +553,9 @@ function ListeningRow({
       <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
         <ListeningOrb />
         {transcript ? (
-          <span className="max-w-[55%] truncate text-xs text-muted-foreground">{transcript}</span>
+          <span className="max-w-[55%] truncate text-xs text-ai-ink-2">{transcript}</span>
         ) : (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {formatElapsed(elapsed)}
-          </span>
+          <span className="text-xs tabular-nums text-ai-ink-2">{formatElapsed(elapsed)}</span>
         )}
       </div>
       <button
@@ -547,7 +563,7 @@ function ListeningRow({
         aria-label="Confirm voice input"
         onClick={onConfirm}
         disabled={stopping}
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
+        className="grid size-8 shrink-0 place-items-center rounded-full bg-ai-ink text-ai-surface transition-transform hover:scale-105 active:scale-95 disabled:opacity-50"
       >
         <CheckIcon className="size-4" />
       </button>
@@ -594,13 +610,13 @@ function VoiceConversationRow({
         type="button"
         aria-label="End voice chat"
         onClick={onEnd}
-        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="grid size-8 shrink-0 place-items-center rounded-full text-ai-ink-3 transition-colors hover:bg-ai-hover hover:text-ai-ink"
       >
         <XIcon className="size-4" />
       </button>
       <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
         <ListeningOrb status={orbStatus} />
-        <span className="max-w-[55%] truncate text-xs text-muted-foreground">{caption}</span>
+        <span className="max-w-[55%] truncate text-xs text-ai-ink-2">{caption}</span>
       </div>
       {/* Spacer mirroring the end button so the orb stays optically centered
        * (the dictation row's confirm button occupies this slot). */}
@@ -634,8 +650,8 @@ function VoiceChatButton({
       aria-disabled={disabled || undefined}
       onClick={disabled ? undefined : onToggle}
       className={cn(
-        "size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground",
-        disabled && "opacity-50 hover:bg-transparent hover:text-muted-foreground",
+        AI_ICON_BUTTON,
+        disabled && "opacity-50 hover:bg-transparent hover:text-ai-ink-3",
       )}
     >
       <AudioLinesIcon className="size-4" />
@@ -650,7 +666,7 @@ function AttachButton() {
       tooltip="Attach image"
       aria-label="Attach image"
       onClick={openFileDialog}
-      className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+      className={AI_ICON_BUTTON}
     >
       <PaperclipIcon className="size-4" />
     </PromptInputButton>
@@ -663,10 +679,121 @@ function MicButton({ onStart }: { onStart: () => void }) {
       tooltip="Dictate a message"
       aria-label="Dictate a message"
       onClick={onStart}
-      className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+      className={AI_ICON_BUTTON}
     >
       <MicIcon className="size-4" />
     </PromptInputButton>
+  );
+}
+
+/** Horizontal slack the wrap probe leaves for the grid's column gaps and the
+ * textarea's own px-1 padding. */
+const BAR_GAP_ALLOWANCE = 16;
+/** Reflow a character early rather than exactly on the overflow, so the last
+ * glyph never sits flush against the trailing controls. */
+const WRAP_SLOP = 8;
+
+/**
+ * The prompt bar: one row — [attach mic voice] [textarea] [steer send] — that
+ * reflows to two (textarea full-width above the controls) as soon as the draft
+ * needs more than a single line.
+ *
+ * The reflow is measured against the GRID's width, which is identical in both
+ * layouts, so it cannot oscillate. Measuring the textarea's own width would:
+ * reflowing hands it the full row, the text then fits on one line, the bar
+ * flips back, the text overflows again — a flicker on every keystroke at the
+ * boundary. A hidden mirror span carrying the same font metrics reports the
+ * draft's natural single-line width instead.
+ */
+function ComposerBar({
+  ref,
+  busy,
+  value,
+  onDraftChange,
+  onInterrupt,
+  onEngage,
+  hasInput,
+  onSteer,
+  onStartVoice,
+  ttsConfigured,
+  onToggleVoiceChat,
+}: {
+  ref: React.Ref<HTMLTextAreaElement>;
+  busy: boolean;
+  value: string;
+  onDraftChange: (draft: string) => void;
+  onInterrupt: () => void;
+  onEngage: () => void;
+  hasInput: boolean;
+  onSteer: () => void;
+  onStartVoice: () => void;
+  ttsConfigured: boolean | null;
+  onToggleVoiceChat: () => void;
+}) {
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const mirrorRef = useRef<HTMLSpanElement | null>(null);
+  const leadingRef = useRef<HTMLDivElement | null>(null);
+  const trailingRef = useRef<HTMLDivElement | null>(null);
+  const [wrapped, setWrapped] = useState(false);
+
+  // `busy`/`hasInput` are deps because they add and remove the steer button,
+  // which changes how much room the trailing cluster takes.
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    const mirror = mirrorRef.current;
+    const leading = leadingRef.current;
+    const trailing = trailingRef.current;
+    if (!grid || !mirror || !leading || !trailing) return;
+    const available =
+      grid.clientWidth - leading.offsetWidth - trailing.offsetWidth - BAR_GAP_ALLOWANCE;
+    setWrapped(value.includes("\n") || mirror.offsetWidth + WRAP_SLOP > available);
+  }, [value, busy, hasInput]);
+
+  return (
+    <div
+      ref={gridRef}
+      className="relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-x-1 gap-y-1.5"
+    >
+      {/* Off-flow probe: the draft on one unwrapped line, at the textarea's
+       * exact metrics, so its width is the real thing to compare against. */}
+      <span
+        ref={mirrorRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute whitespace-pre text-[13px] leading-[18px]"
+      >
+        {value}
+      </span>
+      <div
+        ref={leadingRef}
+        className={cn(
+          "flex items-center gap-1",
+          wrapped ? "col-start-1 row-start-2" : "col-start-1 row-start-1",
+        )}
+      >
+        <AttachButton />
+        <MicButton onStart={onStartVoice} />
+        <VoiceChatButton ttsConfigured={ttsConfigured} onToggle={onToggleVoiceChat} />
+      </div>
+      <ComposerTextarea
+        ref={ref}
+        busy={busy}
+        value={value}
+        onDraftChange={onDraftChange}
+        onInterrupt={onInterrupt}
+        onEngage={onEngage}
+        className={wrapped ? "col-span-3 col-start-1 row-start-1" : "col-start-2 row-start-1"}
+      />
+      <div
+        ref={trailingRef}
+        className={cn(
+          "flex items-center gap-1",
+          wrapped ? "col-start-3 row-start-2 justify-self-end" : "col-start-3 row-start-1",
+        )}
+      >
+        <SteerButton busy={busy} hasInput={hasInput} onSteer={onSteer} />
+        <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={onInterrupt} />
+      </div>
+    </div>
   );
 }
 
@@ -677,6 +804,7 @@ function ComposerTextarea({
   onDraftChange,
   onInterrupt,
   onEngage,
+  className,
 }: {
   ref: React.Ref<HTMLTextAreaElement>;
   busy: boolean;
@@ -684,6 +812,7 @@ function ComposerTextarea({
   onDraftChange: (draft: string) => void;
   onInterrupt: () => void;
   onEngage: () => void;
+  className?: string;
 }) {
   const { files, clear } = usePromptInputAttachments();
   const handleKeyDown = useCallback(
@@ -703,7 +832,12 @@ function ComposerTextarea({
     <PromptInputTextarea
       ref={ref}
       value={value}
-      className="max-h-[160px] min-h-9 w-full bg-transparent px-3 pt-3 pb-1 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
+      // max-h-25 is the reference's 100px growth ceiling; past it the textarea
+      // scrolls rather than pushing the bar taller.
+      className={cn(
+        "field-sizing-content max-h-25 min-h-7 w-full resize-none bg-transparent px-1 py-[5px] text-[13px] leading-[18px] text-ai-ink [overflow-wrap:anywhere] placeholder:text-ai-ink-3",
+        className,
+      )}
       placeholder={busy ? "Queue a message…" : "Ask the agent to edit your notes…"}
       onChange={(e) => onDraftChange(e.currentTarget.value)}
       onKeyDown={handleKeyDown}
@@ -734,14 +868,14 @@ function CollapsedPill({
         onClick={onExpand}
         className="flex h-full flex-1 items-center gap-2 text-left"
       >
-        <SparklesIcon className="size-4 shrink-0 text-muted-foreground/70" />
-        <span className="text-sm whitespace-nowrap text-muted-foreground">Ask the agent…</span>
+        <SparklesIcon className="size-4 shrink-0 text-ai-ink-3" />
+        <span className="text-sm whitespace-nowrap text-ai-ink-2">Ask the agent…</span>
       </button>
       <Tooltip>
         <TooltipTrigger
           aria-label="Dictate a message"
           onClick={onStartVoice}
-          className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="grid size-8 shrink-0 place-items-center rounded-full text-ai-ink-3 transition-colors hover:bg-ai-hover hover:text-ai-ink"
         >
           <MicIcon className="size-4" />
         </TooltipTrigger>
@@ -752,7 +886,7 @@ function CollapsedPill({
           <TooltipTrigger
             aria-label="Talk with the agent"
             onClick={onStartVoiceChat}
-            className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="grid size-8 shrink-0 place-items-center rounded-full text-ai-ink-3 transition-colors hover:bg-ai-hover hover:text-ai-ink"
           >
             <AudioLinesIcon className="size-4" />
           </TooltipTrigger>
@@ -788,7 +922,7 @@ function SteerButton({
         onSteer();
         e.currentTarget.form?.requestSubmit();
       }}
-      className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+      className={AI_ICON_BUTTON}
     >
       <ZapIcon className="size-4" />
     </PromptInputButton>
@@ -811,7 +945,7 @@ function SubmitOrStop({
         tooltip="Stop"
         aria-label="Stop"
         onClick={onInterrupt}
-        className="size-8 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+        className={AI_SEND_BUTTON}
       >
         <SquareIcon className="size-4" />
       </PromptInputButton>
@@ -821,7 +955,7 @@ function SubmitOrStop({
     <PromptInputSubmit
       disabled={!hasContent}
       aria-label={busy ? "Queue for next turn" : "Send"}
-      className="size-8 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
+      className={AI_SEND_BUTTON}
     >
       {busy ? <ListPlusIcon className="size-4" /> : <ArrowUpIcon className="size-4" />}
     </PromptInputSubmit>
@@ -838,13 +972,13 @@ function ComposerAttachments() {
           key={file.id}
           size="xs"
           orientation="vertical"
-          className="size-9 rounded-lg border-border"
+          className="size-9 rounded-ai-control border-ai-line"
         >
           <AttachmentMedia variant="image" className="size-full rounded-lg">
             {file.type === "file" && file.url ? (
               <img alt={file.filename || "Image"} src={file.url} />
             ) : (
-              <ImageIcon className="size-4 text-muted-foreground" />
+              <ImageIcon className="size-4 text-ai-ink-3" />
             )}
           </AttachmentMedia>
           <AttachmentActions className="top-0 right-0 gap-0">

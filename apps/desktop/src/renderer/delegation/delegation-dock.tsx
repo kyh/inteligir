@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  CheckCircle2Icon,
-  ClockIcon,
-  Loader2Icon,
-  SquareIcon,
-  Undo2Icon,
-  XCircleIcon,
-  XIcon,
-} from "lucide-react";
+import { CheckIcon, ChevronDownIcon, SquareIcon, Undo2Icon, XIcon } from "lucide-react";
 
 import {
   AlertDialog,
@@ -18,6 +10,7 @@ import {
   AlertDialogTitle,
 } from "@repo/ui/components/alert-dialog";
 import { Spinner } from "@repo/ui/components/spinner";
+import { cn } from "@repo/ui/lib/utils";
 import { Response } from "@renderer/ai-elements/response";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
@@ -86,13 +79,20 @@ export function DelegationDock() {
   if (visible.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex w-80 flex-col gap-2">
-      {visible.map((d) => (
-        <DelegationCard
+    // Wider than the old w-80 (320px): a task row carries badge, label, file,
+    // pill and two controls on one line, and at 320px the label truncated to a
+    // few characters. 27rem is the reference's own row width.
+    <div className="pointer-events-none absolute right-4 bottom-4 z-40 flex w-[27rem] flex-col gap-2">
+      {visible.map((d, i) => (
+        <DelegationRow
           key={d.id}
           delegation={d}
           stream={streams[d.id] ?? null}
           fileExists={entries.some((entry) => entry.path === d.sourceFile)}
+          // Position among the rows on screen, oldest-first, so the ring's
+          // number reads as "step N of what's in flight" like the reference.
+          queuePosition={visible.length - i}
+          index={i}
           onStop={() => cancel(d.id)}
           onRestore={() => setConfirming(d)}
           onDismiss={() =>
@@ -133,23 +133,129 @@ export function DelegationDock() {
   );
 }
 
-function StatusIcon({ status }: { status: Delegation["status"] }) {
+/** Radius of a collapsed row vs an expanded one. A capsule that squares off as
+ * it opens is the reference's tell that the row became a panel; the transition
+ * between the two is what sells it, so both live here as one pair. */
+const ROW_RADIUS_COLLAPSED = 22;
+const ROW_RADIUS_EXPANDED = 14;
+
+/**
+ * A step ring — the pre-completion badge. Queued rows show a static ring
+ * carrying their place in the queue; a running row spins a 28%-arc over it.
+ * Geometry follows the reference: r=11 in a 24px box, so the stroke sits a
+ * pixel inside the badge slot.
+ */
+function StepRing({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const circumference = 2 * Math.PI * 11;
+  return (
+    <span className="relative inline-flex size-6 shrink-0 items-center justify-center">
+      <svg
+        width={24}
+        height={24}
+        aria-hidden
+        className={cn("absolute inset-0", active && "animate-spin")}
+      >
+        <circle cx={12} cy={12} r={11} fill="none" stroke="var(--ai-line)" strokeWidth={2} />
+        {active && (
+          <circle
+            cx={12}
+            cy={12}
+            r={11}
+            fill="none"
+            stroke="var(--ai-ink-3)"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeDasharray={`${0.28 * circumference} ${0.72 * circumference}`}
+          />
+        )}
+      </svg>
+      <span className="relative text-[10.5px] font-semibold tabular-nums text-ai-ink">
+        {children}
+      </span>
+    </span>
+  );
+}
+
+/** The terminal badge — a filled disc that pops in when the run lands. */
+function OutcomeDot({ tone, children }: { tone: "green" | "red"; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "animate-ai-pop-in flex size-5.5 shrink-0 items-center justify-center rounded-full text-white",
+        tone === "red" ? "bg-ai-red" : "bg-ai-green",
+      )}
+      style={{ animationDuration: "300ms" }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatusBadge({
+  status,
+  queuePosition,
+}: {
+  status: Delegation["status"];
+  queuePosition: number;
+}) {
   switch (status) {
     case "queued":
-      return <ClockIcon className="size-3.5 shrink-0 text-muted-foreground" />;
+      return <StepRing active={false}>{queuePosition}</StepRing>;
     case "running":
-      return <Loader2Icon className="size-3.5 shrink-0 animate-spin text-primary" />;
+      return <StepRing active>{queuePosition}</StepRing>;
     case "done":
-      return <CheckCircle2Icon className="size-3.5 shrink-0 text-emerald-600" />;
+      return (
+        <OutcomeDot tone="green">
+          <CheckIcon className="size-3 [stroke-width:3.5]" />
+        </OutcomeDot>
+      );
     case "failed":
-      return <XCircleIcon className="size-3.5 shrink-0 text-destructive" />;
+      return (
+        <OutcomeDot tone="red">
+          <XIcon className="size-3 [stroke-width:3.5]" />
+        </OutcomeDot>
+      );
   }
 }
 
-function DelegationCard({
+/** The trailing status pill. Absent while queued — an un-started row's badge
+ * already says everything, and a "Queued" pill on every waiting row is noise. */
+function StatusPill({ status }: { status: Delegation["status"] }) {
+  const pill =
+    "animate-ai-fade-in inline-flex h-5.5 items-center rounded-full px-2 text-[11.5px] font-medium";
+  switch (status) {
+    case "queued":
+      return null;
+    case "running":
+      return <span className={cn(pill, "bg-ai-accent-tint text-ai-accent-ink")}>Running</span>;
+    case "done":
+      return <span className={cn(pill, "bg-ai-green-tint text-ai-green")}>Completed</span>;
+    case "failed":
+      return <span className={cn(pill, "bg-ai-red-tint text-ai-red")}>Failed</span>;
+  }
+}
+
+/** Vault-relative path → the file's own name, the one fact that says which note
+ * this row came from without spending the width a full path needs. */
+function fileName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
+}
+
+/**
+ * One task row: a capsule whose header is always legible at a glance — badge,
+ * what was delegated, which file, outcome — over a detail region holding the
+ * agent's write-up and the row's destructive affordance.
+ *
+ * A running row opens itself so the reply streams in view; once it lands the row
+ * stays open (there is something to read) but a user toggle always wins, which
+ * is why `expanded` is a nullable override rather than a plain boolean.
+ */
+function DelegationRow({
   delegation,
   stream,
   fileExists,
+  queuePosition,
+  index,
   onStop,
   onRestore,
   onDismiss,
@@ -157,34 +263,54 @@ function DelegationCard({
   delegation: Delegation;
   stream: string | null;
   fileExists: boolean;
+  queuePosition: number;
+  index: number;
   onStop: () => void;
   onRestore: () => void;
   onDismiss: () => void;
 }) {
-  const { status, anchor, resultSummary, error, hasSnapshot, restoredAt } = delegation;
+  const { status, anchor, resultSummary, error, hasSnapshot, restoredAt, sourceFile } = delegation;
   const active = status === "running" || status === "queued";
   // Prefer the live stream while running; fall back to the persisted summary.
   const body = error ?? stream ?? resultSummary ?? "";
   // Undo affordance: only once the run is over (restoring under a live run
   // would race the agent) and only when a pre-run snapshot was captured.
   const restorable = !active && hasSnapshot;
+  const [override, setOverride] = useState<boolean | null>(null);
+  const hasDetail = body.length > 0 || restorable;
+  const expanded = (override ?? status !== "queued") && hasDetail;
 
   return (
-    <div className="pointer-events-auto flex max-h-72 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <StatusIcon status={status} />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium" title={anchor.text}>
+    <div
+      className="animate-ai-fade-up pointer-events-auto self-stretch overflow-hidden bg-ai-surface shadow-ai-card transition-[border-radius] duration-300"
+      style={{
+        borderRadius: expanded ? ROW_RADIUS_EXPANDED : ROW_RADIUS_COLLAPSED,
+        animationDelay: `${index * 80}ms`,
+      }}
+    >
+      <div className="flex h-11 items-center gap-2.5 px-2.5">
+        <StatusBadge status={status} queuePosition={queuePosition} />
+        <span
+          className="min-w-0 flex-1 truncate text-[13px] font-medium text-ai-ink"
+          title={anchor.text}
+        >
           {anchor.text}
         </span>
+        {/* Capped and truncatable: a long filename must yield room before the
+         * label does — what was delegated matters more than where it lives. */}
+        <span className="max-w-28 shrink-0 truncate text-[12.5px] text-ai-ink-2" title={sourceFile}>
+          {fileName(sourceFile)}
+        </span>
+        <StatusPill status={status} />
         {active ? (
           <button
             type="button"
             onClick={onStop}
+            aria-label="Stop delegation"
             title="Stop"
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-destructive"
+            className="flex size-6 shrink-0 items-center justify-center rounded-full text-ai-ink-3 transition-colors duration-100 hover:bg-ai-hover hover:text-ai-red"
           >
-            <SquareIcon className="size-3 fill-current" />
-            Stop
+            <SquareIcon className="size-2.5 fill-current" />
           </button>
         ) : (
           <button
@@ -192,42 +318,77 @@ function DelegationCard({
             aria-label="Dismiss delegation"
             onClick={onDismiss}
             title="Dismiss"
-            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex size-6 shrink-0 items-center justify-center rounded-full text-ai-ink-3 transition-colors duration-100 hover:bg-ai-hover hover:text-ai-ink"
           >
             <XIcon className="size-3.5" />
           </button>
         )}
-      </div>
-      {body.length > 0 && (
-        <div className="min-h-0 overflow-y-auto px-3 py-2 text-xs leading-relaxed select-text">
-          {status === "failed" ? (
-            <span className="text-destructive">{body}</span>
-          ) : (
-            <Response className="typeset typeset-chat">{body}</Response>
-          )}
-        </div>
-      )}
-      {restorable && (
-        <div className="flex items-center gap-2 border-t border-border px-3 py-1.5">
+        {/* The disclosure is the row itself; it only exists once there is
+         * something under it to disclose. */}
+        {hasDetail && (
           <button
             type="button"
-            onClick={onRestore}
-            disabled={!fileExists}
-            title={
-              fileExists
-                ? `Overwrite ${delegation.sourceFile} with its pre-run content`
-                : `${delegation.sourceFile} no longer exists`
-            }
-            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+            aria-expanded={expanded}
+            aria-label={expanded ? "Hide result" : "Show result"}
+            onClick={() => setOverride(!expanded)}
+            className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-ai-ink-3 transition-colors duration-100 hover:bg-ai-hover hover:text-ai-ink"
           >
-            <Undo2Icon className="size-3" />
-            Restore original
+            <ChevronDownIcon
+              className="size-[15px] transition-transform duration-300"
+              style={{ transform: expanded ? "rotate(180deg)" : "rotate(0)" }}
+            />
           </button>
-          {restoredAt !== null && (
-            <span className="text-[10px] text-muted-foreground">Restored</span>
-          )}
+        )}
+      </div>
+      {/* 1fr/0fr on a grid row is the height transition that needs no measured
+       * pixel height — the reference's own mechanism, so a streaming reply can
+       * grow the panel without a layout effect chasing it. */}
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-300"
+        style={{
+          gridTemplateRows: expanded ? "1fr" : "0fr",
+          opacity: expanded ? 1 : 0,
+          transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+        }}
+      >
+        <div className="overflow-hidden">
+          <div className="mb-2.5 grid grid-cols-[24px_1fr] gap-2.5 px-2.5">
+            <span aria-hidden className="mx-auto h-full w-px bg-ai-line" />
+            <div className="flex min-w-0 flex-col gap-1.5">
+              {body.length > 0 && (
+                <div className="max-h-56 overflow-y-auto text-[12px] leading-relaxed select-text">
+                  {status === "failed" ? (
+                    <span className="text-ai-red">{body}</span>
+                  ) : (
+                    <Response className="typeset typeset-chat text-ai-ink-2">{body}</Response>
+                  )}
+                </div>
+              )}
+              {restorable && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onRestore}
+                    disabled={!fileExists}
+                    title={
+                      fileExists
+                        ? `Overwrite ${sourceFile} with its pre-run content`
+                        : `${sourceFile} no longer exists`
+                    }
+                    className="flex items-center gap-1 rounded-ai-chip px-1.5 py-0.5 text-[11.5px] font-medium text-ai-ink-2 transition-colors duration-100 hover:bg-ai-hover hover:text-ai-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-ai-ink-2"
+                  >
+                    <Undo2Icon className="size-3" />
+                    Restore original
+                  </button>
+                  {restoredAt !== null && (
+                    <span className="text-[11.5px] text-ai-ink-3">Restored</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
