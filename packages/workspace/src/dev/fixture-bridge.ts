@@ -185,13 +185,9 @@ date: {{date}}
 
 ## Log
 `,
-  // An HTML App fixture so the sandboxed-app surface is drivable over the
-  // fixture Bridge. Exercises Alpine (the counter) + the injected
-  // window.inteligir.files bridge (the note list). Not in SAMPLE_NOTES: it's not
-  // a doc, so the markdown-corpus contract doesn't apply.
-  // Project cluster — typed frontmatter so the dashboard HTML app can query
-  // "project", pull each hit's properties, and sort a table by priority. All
-  // three link [[hub]] so `backlinks("wiki/hub.md")` returns a real, deduped set.
+  // Project cluster — typed frontmatter, so a search can narrow to "project",
+  // pull each hit's properties and sort by priority. All three link [[hub]] so
+  // `backlinks("wiki/hub.md")` returns a real, deduped set.
   "projects/alpha.md": `---
 title: Project Alpha
 status: active
@@ -224,117 +220,6 @@ due: 2026-07-20
 # Project Gamma
 
 Exploratory project work, links back to [[hub]].
-`,
-  "demo-app.html": `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Notes Explorer</title>
-  </head>
-  <body>
-    <div x-data="notesApp()" x-init="load()" class="mx-auto max-w-md">
-      <h1 class="mb-3 text-lg font-semibold">Notes Explorer</h1>
-      <button
-        class="mb-4 rounded border px-3 py-1"
-        style="border-color: var(--border)"
-        x-on:click="count++"
-      >
-        Count: <span x-text="count"></span>
-      </button>
-      <ul class="space-y-1" data-testid="note-list">
-        <template x-for="note in notes" :key="note.path">
-          <li>
-            <button class="text-left underline" x-on:click="open(note.path)" x-text="note.name"></button>
-          </li>
-        </template>
-      </ul>
-    </div>
-    <script>
-      function notesApp() {
-        return {
-          count: 0,
-          notes: [],
-          async load() {
-            this.notes = await window.inteligir.files.list();
-          },
-          open(path) {
-            window.inteligir.files.open(path);
-          },
-        };
-      }
-    </script>
-  </body>
-</html>
-`,
-  "dashboard-demo.html": `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Project Dashboard</title>
-  </head>
-  <body>
-    <div x-data="dashboard()" x-init="load()" class="mx-auto max-w-2xl p-4">
-      <h1 class="mb-1 text-lg font-semibold">Project Dashboard</h1>
-      <p class="mb-4 text-sm" style="color: var(--muted)">
-        Notes matching "<span x-text="query"></span>", sorted by priority.
-      </p>
-      <table class="w-full text-sm" data-testid="project-table">
-        <thead>
-          <tr class="border-b text-left" style="border-color: var(--border)">
-            <th class="py-1 pr-3">Name</th>
-            <th class="py-1 pr-3">Status</th>
-            <th class="py-1 pr-3">Priority</th>
-            <th class="py-1 pr-3">Due</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template x-for="row in rows" :key="row.path">
-            <tr class="border-b" style="border-color: var(--border)">
-              <td class="py-1 pr-3">
-                <button class="underline" x-on:click="open(row.path)" x-text="row.name"></button>
-              </td>
-              <td class="py-1 pr-3" x-text="prop(row, 'status')"></td>
-              <td class="py-1 pr-3" x-text="prop(row, 'priority')"></td>
-              <td class="py-1 pr-3" x-text="prop(row, 'due')"></td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
-      <h2 class="mt-6 mb-1 text-sm font-semibold">Backlinks to hub</h2>
-      <ul class="space-y-1 text-sm" data-testid="backlink-list">
-        <template x-for="path in backlinks" :key="path">
-          <li x-text="path"></li>
-        </template>
-      </ul>
-    </div>
-    <script>
-      function dashboard() {
-        return {
-          query: "project",
-          rows: [],
-          backlinks: [],
-          async load() {
-            const hits = await window.inteligir.files.list({
-              query: this.query,
-              withProperties: true,
-              limit: 50,
-            });
-            this.rows = hits
-              .slice()
-              .sort((a, b) => (this.prop(a, "priority") ?? 0) - (this.prop(b, "priority") ?? 0));
-            this.backlinks = await window.inteligir.files.backlinks("wiki/hub.md");
-          },
-          prop(row, key) {
-            return row.properties ? row.properties[key] : undefined;
-          },
-          open(path) {
-            window.inteligir.files.open(path);
-          },
-        };
-      }
-    </script>
-  </body>
-</html>
 `,
 };
 
