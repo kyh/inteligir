@@ -21,7 +21,12 @@ import { unavailable } from "../host/handler-registry";
 import type { AgentLane, AgentRunner } from "./agent-runner";
 import type { ChatStore } from "./chat-store";
 import type { FakeSandbox } from "./fake-sandbox";
-import { providerEntry, providerSettings, resolveModelId } from "./provider-catalog";
+import {
+  chooseProvider,
+  providerEntry,
+  providerSettings,
+  resolveModelId,
+} from "./provider-catalog";
 import type { ProviderCredentials } from "./provider-credentials";
 import { startAuthorization } from "./provider-oauth";
 
@@ -65,14 +70,15 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
    * left to do.
    */
   handle("reauthenticate", async () => {
-    const selection = services.credentials.selection();
-    const entry = selection === null ? null : providerEntry(selection.provider);
-    if (entry === null) return { ok: false as const, error: "No AI provider is selected." };
-    const minted = await services.credentials.mintAccessToken(entry);
+    const choice = chooseProvider(services.env, services.credentials.selection(), (provider) =>
+      services.credentials.connected(provider),
+    );
+    if (!choice.ok) return { ok: false as const, error: choice.error };
+    const minted = await services.credentials.mintAccessToken(choice.entry);
     if (minted.ok) return { ok: true as const };
     return {
       ok: false as const,
-      error: `${entry.label} could not be refreshed (${minted.error}). Connect it again in Settings → AI.`,
+      error: `${choice.entry.label} could not be refreshed (${minted.error}). Connect it again in Settings → AI.`,
     };
   });
 

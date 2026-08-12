@@ -19,6 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { verifyScopedToken } from "../agent/agent-crypto";
 import { routeOAuthCallback } from "../agent/agent-route";
+import { chooseProvider, type ProviderEnv } from "../agent/provider-catalog";
 import { ProviderCredentials } from "../agent/provider-credentials";
 import { OAUTH_CALLBACK_PATH, startAuthorization } from "../agent/provider-oauth";
 import { handleOAuthCallback } from "../host/agent-endpoints";
@@ -26,6 +27,15 @@ import type { DeletableDurableKv } from "../store/durable-kv";
 
 const ORIGIN = "https://inteligir.test";
 const USER = "connect-user";
+
+/** The OAuth trio vitest.config.ts binds, spelled as the narrow shape the
+ * catalog reads. `Env` cannot stand in: these are production SECRETS, so
+ * `wrangler types` never declares them and the two types share no property. */
+const CONFIGURED: ProviderEnv = {
+  ANTHROPIC_OAUTH_AUTHORIZE_URL: "https://provider.test/authorize",
+  ANTHROPIC_OAUTH_TOKEN_URL: "https://provider.test/token",
+  ANTHROPIC_OAUTH_CLIENT_ID: "test-client",
+};
 
 /** An in-memory stand-in for `ctx.storage.kv` — the same synchronous contract. */
 function memoryKv(): DeletableDurableKv {
@@ -127,6 +137,23 @@ describe("completing it on the callback", () => {
     expect(credentials.connected("anthropic")).toBe(true);
     // The workspace is in another tab with nothing else to learn from.
     expect(settled).toHaveBeenCalledTimes(1);
+  });
+
+  // The state every connected account starts in, and the one the chat's
+  // Re-authenticate link used to refuse from: completing an authorization seals
+  // the credential and writes no selection, so an account that never opened the
+  // model dropdown has `null` there forever.
+  it("stores no selection, and the one resolution still names what was connected", async () => {
+    const credentials = credentialsWith(grant);
+    const { state } = await begin(credentials);
+    await handleOAuthCallback(callback({ state, code: "auth-code" }), env, credentials, vi.fn());
+
+    expect(credentials.selection()).toBeNull();
+    expect(
+      chooseProvider(CONFIGURED, credentials.selection(), (provider) =>
+        credentials.connected(provider),
+      ),
+    ).toMatchObject({ ok: true, entry: { id: "anthropic" } });
   });
 
   it("refuses a replay — the verifier is consumed on read", async () => {
