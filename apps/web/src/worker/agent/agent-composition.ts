@@ -147,15 +147,12 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
   // produced the reports is fake. NEITHER IS TOLD ITS LANE — each presents the
   // report bearer its own boot carried, and the sink resolves the lane from it,
   // which is the identical derivation a container dialing in over HTTPS gets.
-  // The runner they report into is constructed just below, which is why the
-  // reference is deferred.
-  let runner: AgentRunner | null = null;
+  // The runner they report into is constructed below, so the reference is
+  // resolved when a report arrives rather than when the port is built — a turn
+  // cannot report before composition returns.
   const scriptedPort = (): FakeSandbox =>
     new FakeSandbox({
-      report: (identity, body) => {
-        if (runner === null) throw new Error("the agent runner is not composed yet");
-        return runner.acceptReport(identity, body);
-      },
+      report: (identity, body) => runner.acceptReport(identity, body),
       defer: deps.defer,
     });
   const scripted: Record<AgentLane, FakeSandbox> | null = sandboxRuntimeEnabled(deps.env)
@@ -179,61 +176,27 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
     return port;
   };
 
-  // The two owners of the background lane. Both are constructed before the
-  // runner so it can hand the delegate tier a real port, and both dispatch
-  // THROUGH the runner — which is why that edge is a lazy accessor rather than
-  // a constructor argument.
+  // The two owners of the background lane both dispatch THROUGH the runner,
+  // and the runner hands the delegate tier a port back — a real cycle, resolved
+  // by ORDER rather than by nullability: the runner is built first and reaches
+  // its owners through references that are only followed once a turn runs.
   const dispatch = async (
     owner: Parameters<AgentRunner["runBackground"]>[0],
     ref: string,
     prepare: Parameters<AgentRunner["runBackground"]>[2],
   ) => {
-    if (runner === null) throw new Error("the agent runner is not composed yet");
     const outcome = await runner.runBackground(owner, ref, prepare);
     // A claimed lane carries a lease the host must wake to reclaim — a
     // container that dies mid-turn never reports, so nothing else would.
     deps.onDeadlineChanged();
     return outcome;
   };
-  // Not `runner?.providerRefusal() ?? …`: the runner answering NULL is the
-  // whole point of asking, and `??` would read "nothing is wrong" as "the
-  // runner is missing" and refuse every run.
-  const refusalReason = (): string | null =>
-    runner === null ? "The agent is not composed yet." : runner.providerRefusal();
+  // Straight off the resolution, not through the runner: whether a provider can
+  // run is a fact about the account's selection, and both owners ask it before
+  // there is a turn to ask the runner about.
+  const refusalReason = (): string | null => providers.refusal();
 
-  const delegations = new Delegations({
-    sql: deps.sql,
-    vault: { readText: (path) => deps.vault.readText(path) },
-    snapshots,
-    runs,
-    dispatch,
-    interrupt: async () => {
-      await runner?.interruptBackground();
-    },
-    refusalReason,
-    onChanged: deps.emitDelegations,
-    onStreamed: deps.emitDelegationStream,
-  });
-  const routines = new Routines({
-    sql: deps.sql,
-    vault: {
-      readOptional: async (path) => {
-        const file = deps.vault.lookup(path);
-        return file === null || file.state !== "live" ? null : deps.vault.readText(path);
-      },
-      writeText: (path, content) => deps.vault.writeText(path, content),
-    },
-    snapshots,
-    runs,
-    dispatch,
-    dailyPath: deps.dailyPath,
-    clock: () => new Date(),
-    refusalReason,
-    onChanged: deps.emitRoutines,
-    onScheduleChanged: deps.onDeadlineChanged,
-  });
-
-  runner = new AgentRunner({
+  const runner = new AgentRunner({
     env: deps.env,
     userId: deps.userId,
     kv: deps.kv,
@@ -265,6 +228,36 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
       await routines.pump();
       deps.onDeadlineChanged();
     },
+  });
+
+  const delegations = new Delegations({
+    sql: deps.sql,
+    vault: { readText: (path) => deps.vault.readText(path) },
+    snapshots,
+    runs,
+    dispatch,
+    interrupt: () => runner.interruptBackground(),
+    refusalReason,
+    onChanged: deps.emitDelegations,
+    onStreamed: deps.emitDelegationStream,
+  });
+  const routines = new Routines({
+    sql: deps.sql,
+    vault: {
+      readOptional: async (path) => {
+        const file = deps.vault.lookup(path);
+        return file === null || file.state !== "live" ? null : deps.vault.readText(path);
+      },
+      writeText: (path, content) => deps.vault.writeText(path, content),
+    },
+    snapshots,
+    runs,
+    dispatch,
+    dailyPath: deps.dailyPath,
+    clock: () => new Date(),
+    refusalReason,
+    onChanged: deps.emitRoutines,
+    onScheduleChanged: deps.onDeadlineChanged,
   });
 
   return {
