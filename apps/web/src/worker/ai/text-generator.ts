@@ -40,8 +40,8 @@ import {
 } from "@repo/bridge/inline-ai";
 import { toErrorMessage } from "@repo/bridge/wire-helpers";
 
-import { chooseProvider, type ProviderChoice, type ProviderEntry } from "../agent/provider-catalog";
-import type { ProviderCredentials } from "../agent/provider-credentials";
+import type { ProviderChoice, ProviderEntry } from "../agent/provider-catalog";
+import type { ProviderService } from "../agent/provider-service";
 import {
   buildCompletionRequest,
   completionHeaders,
@@ -84,7 +84,7 @@ type InFlight = { readonly requestId: string; readonly controller: AbortControll
 
 export type TextGeneratorDeps = {
   readonly env: Env;
-  readonly credentials: ProviderCredentials;
+  readonly providers: ProviderService;
   /** Bound rather than passed bare: `fetch` on workerd is an unbound global,
    * and a method-shaped reference to it throws on call. */
   readonly fetch: typeof fetch;
@@ -246,7 +246,7 @@ export class TextGenerator {
       onDelta?.(text);
       return { ok: true, text };
     }
-    const minted = await this.deps.credentials.mintAccessToken(entry);
+    const minted = await this.deps.providers.mintAccessToken(entry);
     if (!minted.ok) return { ok: false, error: minted.error };
 
     const request = buildCompletionRequest(entry, params);
@@ -277,9 +277,7 @@ export class TextGenerator {
   }
 
   private choose(): ProviderChoice {
-    return chooseProvider(this.deps.env, this.deps.credentials.selection(), (provider) =>
-      this.deps.credentials.connected(provider),
-    );
+    return this.deps.providers.choose();
   }
 
   /** Abort a lane's request — either whichever one it holds (`null`) or only

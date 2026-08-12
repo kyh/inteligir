@@ -14,20 +14,13 @@
 // snapshot is pushed as `onAiProviderChanged`.
 // ---------------------------------------------------------------------------
 
-import type { AiProviderSettings } from "@repo/bridge/ai-provider";
 import type { HandlerRegistrar } from "../host/handler-registry";
-import { unavailable } from "../host/handler-registry";
 
 import type { AgentLane, AgentRunner } from "./agent-runner";
 import type { ChatStore } from "./chat-store";
 import type { FakeSandbox } from "./fake-sandbox";
-import {
-  chooseProvider,
-  providerEntry,
-  providerSettings,
-  resolveModelId,
-} from "./provider-catalog";
 import type { ProviderCredentials } from "./provider-credentials";
+import type { ProviderService } from "./provider-service";
 import { startAuthorization } from "./provider-oauth";
 
 export type AgentServices = {
@@ -35,6 +28,10 @@ export type AgentServices = {
   readonly userId: string;
   readonly runner: AgentRunner;
   readonly chat: ChatStore;
+  /** Which provider runs, and the selection behind it (./provider-service). */
+  readonly providers: ProviderService;
+  /** The OAuth round trip only — parking a verifier and redeeming it later
+   * reads no selection, so it stays off the resolution seam. */
   readonly credentials: ProviderCredentials;
   /** The origin this object is reached on, for building a redirect URI. Read
    * off the socket that authenticated, because a Durable Object has no notion
@@ -70,11 +67,9 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
    * left to do.
    */
   handle("reauthenticate", async () => {
-    const choice = chooseProvider(services.env, services.credentials.selection(), (provider) =>
-      services.credentials.connected(provider),
-    );
+    const choice = services.providers.choose();
     if (!choice.ok) return { ok: false as const, error: choice.error };
-    const minted = await services.credentials.mintAccessToken(choice.entry);
+    const minted = await services.providers.mintAccessToken(choice.entry);
     if (minted.ok) return { ok: true as const };
     return {
       ok: false as const,
@@ -103,24 +98,12 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
 
   // ---- the AI provider ------------------------------------------------------
 
-  handle("getAiProviderSettings", () => settingsSnapshot(services));
+  handle("getAiProviderSettings", () => services.providers.settings());
 
   handle("setAiProviderConfig", (patch) => {
-    const current = currentSelection(services);
-    const providerId = patch.provider ?? current.provider;
-    const entry = providerEntry(providerId);
-    if (entry === null) throw new Error(`There is no provider called ${providerId}.`);
-    // A provider SWITCH defaults the model: the model ids are per-provider, so
-    // carrying the old one over would name a model the new provider has never
-    // heard of.
-    const requested =
-      patch.provider === undefined ? (patch.modelId ?? current.modelId) : patch.modelId;
-    services.credentials.setSelection({
-      provider: entry.id,
-      modelId: resolveModelId(entry, requested),
-    });
+    const settings = services.providers.setSelection(patch);
     services.announce();
-    return settingsSnapshot(services);
+    return settings;
   });
 
   // Every refusal `startAuthorization` can reach — an unknown provider, one
@@ -140,33 +123,8 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
   });
 
   handle("disconnectAiProvider", ({ provider }) => {
-    services.credentials.disconnect(provider);
+    const settings = services.providers.disconnect(provider);
     services.announce();
-    return settingsSnapshot(services);
+    return settings;
   });
-}
-
-/**
- * The Settings AI section renders exclusively from this snapshot, built by the
- * catalog's `providerSettings` — the same resolution a turn goes through, so
- * what Settings shows and what a message runs on can never disagree.
- *
- * A deployment that configured no OAuth app and runs the real container offers
- * NOTHING, and that is where the refusal belongs — an empty menu with a
- * selection pointing at a provider that is not in it would render as a broken
- * Settings page rather than an unconfigured one.
- */
-function settingsSnapshot(services: AgentServices): AiProviderSettings {
-  const snapshot = providerSettings(services.env, services.credentials.selection(), (provider) =>
-    services.credentials.connected(provider),
-  );
-  if (snapshot === null) {
-    unavailable("any AI provider (none is configured on this deployment)");
-  }
-  return snapshot;
-}
-
-/** The selection this host will actually run. */
-function currentSelection(services: AgentServices): { provider: string; modelId: string } {
-  return settingsSnapshot(services).selected;
 }

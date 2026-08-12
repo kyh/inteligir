@@ -65,15 +65,8 @@ import type { AgentSnapshots, SnapshotScope } from "./agent-snapshots";
 import { agentToolManifest, executeAgentTool, type DelegationToolPort } from "./agent-tools";
 import type { ChatStore } from "./chat-store";
 import { ConfirmationBroker } from "./confirmations";
-import {
-  chooseProvider,
-  providerEntry,
-  resolveModelId,
-  sandboxRuntimeEnabled,
-  type ProviderChoice,
-  type ProviderEntry,
-} from "./provider-catalog";
-import type { ProviderCredentials } from "./provider-credentials";
+import { sandboxRuntimeEnabled } from "./provider-catalog";
+import type { ProviderService, TurnProvider } from "./provider-service";
 import type {
   SandboxBootPins,
   SandboxPort,
@@ -178,7 +171,7 @@ export type AgentRunnerDeps = {
   readonly knowledge: UserKnowledge;
   readonly chat: ChatStore;
   readonly snapshots: AgentSnapshots;
-  readonly credentials: ProviderCredentials;
+  readonly providers: ProviderService;
   readonly revisions: VaultRevisions;
   /** The shared background lane — the durable one-turn-at-a-time lock. */
   readonly runs: BackgroundRuns;
@@ -249,8 +242,7 @@ export class AgentRunner {
    * phrasing would only be a second thing to keep true.
    */
   providerRefusal(): string | null {
-    const choice = this.chooseProvider();
-    return choice.ok ? null : choice.error;
+    return this.deps.providers.refusal();
   }
 
   // ---- the outbound half ----------------------------------------------------
@@ -269,10 +261,11 @@ export class AgentRunner {
       return;
     }
 
-    const refusal = this.providerRefusal();
-    if (refusal !== null) throw new Error(refusal);
-    const provider = this.selectedProvider();
-    if (provider === null) throw new Error("No AI provider is selected.");
+    // ONE resolution per message, threaded into the boot below: the facts the
+    // container is configured with are the facts this turn was admitted on.
+    const resolved = this.deps.providers.turnFacts();
+    if (!resolved.ok) throw new Error(resolved.error);
+    const provider = resolved.provider;
 
     // The message is recorded LAST, once a container has accepted it. Anything
     // that fails before then — a cold container that will not start, a vault
@@ -338,12 +331,9 @@ export class AgentRunner {
     ref: string,
     prepare: (run: BackgroundRun) => Promise<BackgroundPrepared>,
   ): Promise<BackgroundDispatchOutcome> {
-    const refusal = this.providerRefusal();
-    if (refusal !== null) return { ok: false, reason: "refused", error: refusal };
-    const provider = this.selectedProvider();
-    if (provider === null) {
-      return { ok: false, reason: "refused", error: "No AI provider is selected." };
-    }
+    const resolved = this.deps.providers.turnFacts();
+    if (!resolved.ok) return { ok: false, reason: "refused", error: resolved.error };
+    const provider = resolved.provider;
     const run = this.deps.runs.claim(owner, ref, Date.now());
     if (run === null) return { ok: false, reason: "busy" };
 
@@ -603,9 +593,7 @@ export class AgentRunner {
     if (this.laneOfBoot(claims.ref) === null) {
       return { ok: false, error: "the sandbox identity belongs to a container that was replaced" };
     }
-    const entry = providerEntry(providerId);
-    if (entry === null) return { ok: false, error: "unknown provider" };
-    const minted = await this.deps.credentials.mintAccessToken(entry);
+    const minted = await this.deps.providers.mintAccessTokenFor(providerId);
     return minted.ok ? { ok: true, token: minted.token } : { ok: false, error: minted.error };
   }
 
@@ -635,7 +623,7 @@ export class AgentRunner {
   private async ensureContainer(
     lane: AgentLane,
     port: SandboxPort,
-    provider: ProviderEntry,
+    provider: TurnProvider,
     conversation: string,
   ): Promise<{ ok: true; seed: readonly SandboxSeedTurn[] } | { ok: false; error: string }> {
     const reportUrl = this.reportUrl();
@@ -709,13 +697,13 @@ export class AgentRunner {
    * the predicate weighs and the facts the container receives cannot be two
    * different lists.
    */
-  private bootPins(lane: AgentLane, provider: ProviderEntry, reportUrl: string): SandboxBootPins {
+  private bootPins(lane: AgentLane, provider: TurnProvider, reportUrl: string): SandboxBootPins {
     return {
       reportUrl,
       provider: {
-        provider: provider.id,
-        modelId: resolveModelId(provider, this.deps.credentials.selection()?.modelId),
-        baseUrl: provider.baseUrl,
+        provider: provider.entry.id,
+        modelId: provider.modelId,
+        baseUrl: provider.entry.baseUrl,
         // A placeholder, never a credential: the outbound interceptor puts the
         // real token on the request (./egress).
         apiKey: "sandbox-managed",
@@ -981,17 +969,6 @@ export class AgentRunner {
       attended,
       confirm: (proposal) => this.confirmations.ask(proposal),
     };
-  }
-
-  private chooseProvider(): ProviderChoice {
-    return chooseProvider(this.deps.env, this.deps.credentials.selection(), (provider) =>
-      this.deps.credentials.connected(provider),
-    );
-  }
-
-  private selectedProvider(): ProviderEntry | null {
-    const choice = this.chooseProvider();
-    return choice.ok ? choice.entry : null;
   }
 
   /** Whether `turnId` names the chat turn this object last dispatched. A host

@@ -38,6 +38,7 @@ import { ChatStore } from "./chat-store";
 import { createCfSandboxPort } from "./cf-sandbox";
 import { FakeSandbox } from "./fake-sandbox";
 import { ProviderCredentials } from "./provider-credentials";
+import { ProviderService } from "./provider-service";
 import { sandboxRuntimeEnabled } from "./provider-catalog";
 import type { SandboxPort } from "./sandbox-port";
 import { VaultRevisions } from "./vault-revisions";
@@ -77,6 +78,8 @@ export type AgentComposition = {
   readonly runner: AgentRunner;
   readonly chat: ChatStore;
   readonly credentials: ProviderCredentials;
+  /** The ONE resolution of which provider runs, and the selection behind it. */
+  readonly providers: ProviderService;
   readonly revisions: VaultRevisions;
   readonly snapshots: AgentSnapshots;
   /** The shared background lane — the durable one-turn-at-a-time lock. */
@@ -134,6 +137,7 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
     // and a method-shaped reference to it throws on call.
     fetch: (input, init) => fetch(input, init),
   });
+  const providers = new ProviderService({ env: deps.env, credentials });
 
   // The scripted containers are built EAGERLY (a few fields in memory each) so
   // `scripted` is a plain lookup rather than something a caller has to provoke
@@ -237,7 +241,7 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
     knowledge: deps.knowledge,
     chat,
     snapshots,
-    credentials,
+    providers,
     revisions,
     runs,
     sandbox,
@@ -267,6 +271,7 @@ export function composeAgent(deps: AgentCompositionDeps): AgentComposition {
     runner,
     chat,
     credentials,
+    providers,
     revisions,
     snapshots,
     runs,

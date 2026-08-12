@@ -16,7 +16,6 @@ import type { IpcEmit } from "@repo/bridge/ipc-contract";
 import { UI_STATE_OPEN_NOTE_KEY } from "@repo/bridge/ui-state";
 
 import { composeAgent, type AgentComposition } from "../agent/agent-composition";
-import { providerSettings } from "../agent/provider-catalog";
 import { TextGenerator } from "../ai/text-generator";
 import { CaptureInbox } from "../capture/capture-inbox";
 import { CaptureService } from "../capture/capture-service";
@@ -213,7 +212,7 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
 
   const ai = new TextGenerator({
     env,
-    credentials: agent.credentials,
+    providers: agent.providers,
     // Bound rather than passed bare: `fetch` on workerd is an unbound global,
     // and a method-shaped reference to it throws on call.
     fetch: (input, init) => fetch(input, init),
@@ -261,10 +260,10 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
     },
   });
 
+  // Fail-soft on purpose: a deployment offering no provider has no snapshot to
+  // announce, and an OAuth redirect must not become a 500 because of it.
   const announceProviders = (): void => {
-    const snapshot = providerSettings(env, agent.credentials.selection(), (provider) =>
-      agent.credentials.connected(provider),
-    );
+    const snapshot = agent.providers.settingsOrNull();
     if (snapshot !== null) emit("onAiProviderChanged", snapshot);
   };
 
@@ -279,6 +278,7 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
         userId,
         runner: agent.runner,
         chat: agent.chat,
+        providers: agent.providers,
         credentials: agent.credentials,
         origin: publicOrigin,
         scripted: agent.scripted,
