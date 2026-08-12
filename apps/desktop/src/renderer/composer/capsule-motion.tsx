@@ -22,9 +22,14 @@ const CAPSULE_SPRING: Transition = { type: "spring", duration: 0.55, bounce: 0.3
  * 1.5px-inset counterpart. */
 export const CAPSULE_RADIUS = 24;
 
-/** The capsule's shared surface chrome (radius comes from CAPSULE_RADIUS). */
-export const CAPSULE_SURFACE =
-  "relative overflow-hidden bg-popover text-popover-foreground shadow-lg shadow-black/5 ring-1 ring-border";
+/** The capsule's shared surface chrome (radius comes from CAPSULE_RADIUS).
+ *
+ * Painted in the AI-surface palette (`--ai-*`, renderer globals.css) rather
+ * than the app's shadcn theme: the composer and the response popover are the
+ * AI surfaces, and they read as one object only if they share this ramp. No
+ * separate ring — `shadow-ai-card`'s first layer IS the hairline border, so a
+ * `ring-1` on top would paint a second one a pixel out. */
+export const CAPSULE_SURFACE = "relative overflow-hidden bg-ai-surface text-ai-ink shadow-ai-card";
 
 /** The content crossfade every capsule state change shares: content blurs in a
  * beat after the shape settles, so the shape reads first and details second.
@@ -115,7 +120,7 @@ export function ThinkingSweep() {
           transition={{ duration: 1.6, ease: "linear", repeat: Infinity }}
         />
       )}
-      <div className="absolute inset-[1.5px] rounded-[22.5px] bg-popover" />
+      <div className="absolute inset-[1.5px] rounded-[22.5px] bg-ai-surface" />
     </motion.div>
   );
 }
