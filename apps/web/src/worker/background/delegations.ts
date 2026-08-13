@@ -38,9 +38,10 @@ import {
   type ListDelegationsResult,
   type RestoreSnapshotResult,
 } from "@repo/bridge/delegation";
-import { readJson, toErrorMessage } from "@repo/bridge/wire-helpers";
+import { toErrorMessage } from "@repo/bridge/wire-helpers";
+
+import { parseRecord, SUMMARY_LEN } from "./record";
 import { resolveTaskAnchor, type TaskLookupRefusal } from "@repo/notes/knowledge/task-ordinal";
-import { Value } from "@sinclair/typebox/value";
 
 import type { AgentSnapshots } from "../agent/agent-snapshots";
 import type {
@@ -56,7 +57,6 @@ import type {
 const MAX_DELEGATIONS = 200;
 
 /** Longest result summary kept on the record. */
-const SUMMARY_LEN = 200;
 
 /** Why the anchor yielded nothing to delegate, as the user reads it. Two
  * causes, two sentences: an ordinal that names no task means the file moved
@@ -412,18 +412,12 @@ export class Delegations {
    * cost a fanout pass over every record the prune touched.
    */
   private toDelegation(row: DelegationRow): Delegation {
-    // PARSED INSIDE THE FALLBACK'S REACH. Unparseable text and text that parses
-    // into the wrong shape are the same fact — a row this build cannot read —
-    // and a `JSON.parse` outside the guard answers one of them with a throw out
-    // of a plain list call.
-    const parsed = readJson(row.record);
-    if (!Value.Check(DelegationSchema, parsed)) {
-      // Unreachable through this class — every write goes through `write`,
-      // which serializes a checked union. A row that does not check belongs to
-      // a shape this build cannot read, and reporting it as failed is the only
-      // honest projection: it names itself instead of vanishing from the list.
-      return unreadable(row);
-    }
+    // Unreachable through this class — every write goes through `write`, which
+    // serializes a checked union. A row that does not check belongs to a shape
+    // this build cannot read, and reporting it as failed is the only honest
+    // projection: it names itself instead of vanishing from the list.
+    const parsed = parseRecord(row.record, DelegationSchema);
+    if (parsed === null) return unreadable(row);
     const held = row.snapshot_id !== null && this.deps.snapshots.holds(row.snapshot_id);
     return parsed.status === "queued" ? parsed : { ...parsed, hasSnapshot: held };
   }

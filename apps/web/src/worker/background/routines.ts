@@ -41,7 +41,8 @@ import {
   type UpsertRoutineResult,
 } from "@repo/bridge/routines";
 import { readJson, toErrorMessage } from "@repo/bridge/wire-helpers";
-import { Value } from "@sinclair/typebox/value";
+
+import { parseRecord, SUMMARY_LEN } from "./record";
 
 import type { AgentSnapshots } from "../agent/agent-snapshots";
 import type {
@@ -52,7 +53,6 @@ import type {
 } from "./background-runs";
 
 const MAX_ROUTINES = 50;
-const SUMMARY_LEN = 200;
 
 /**
  * How long to wait before looking again when a slot has already passed and the
@@ -478,11 +478,8 @@ export class Routines {
   /** The record as the wire declares it, with `hasSnapshot` resolved against
    * the store rather than stored (see Delegations.toDelegation). */
   private toRoutine(row: RoutineRow): Routine {
-    // Parsed inside the fallback's reach (see Delegations.toDelegation): text
-    // that will not parse and text that parses into the wrong shape are the
-    // same fact, and only one of them may answer with a throw.
-    const parsed = readJson(row.record);
-    if (!Value.Check(RoutineSchema, parsed)) return unreadable(row);
+    const parsed = parseRecord(row.record, RoutineSchema);
+    if (parsed === null) return unreadable(row);
     if (parsed.lastRun === null) return parsed;
     const held = row.last_snapshot_id !== null && this.deps.snapshots.holds(row.last_snapshot_id);
     return { ...parsed, lastRun: { ...parsed.lastRun, hasSnapshot: held } };
