@@ -17,22 +17,12 @@
 import type { SearchResult } from "./knowledge-index";
 import type { DocProjection } from "./projection";
 
-/** Stat identity of an indexed file — the incremental-refresh diff basis.
- * `ino` rides along because atomic writes (temp + rename) always land on a
- * fresh inode, so even an exact (mtime, size) collision can't masquerade as
- * "unchanged". */
-export type StoredFingerprint = {
-  mtimeMs: number;
-  size: number;
-  ino: number;
-};
-
-/** One indexed doc as persisted: identity, change-detection keys, projection. */
+/** One indexed doc as persisted: identity, change-detection key, projection. */
 export type StoredDocRow = {
   path: string;
-  fingerprint: StoredFingerprint;
-  /** sha-256 hex of the doc text — the write authority ABOVE the fingerprint:
-   * a provider-wide mtime rewrite re-reads but never re-projects/re-writes. */
+  /** sha-256 hex of the doc text — the whole change-detection basis. The
+   * manifest already computes it, so reconcile diffs hashes and never stats:
+   * there is no filesystem behind this store to stat. */
   contentHash: string;
   projection: DocProjection;
 };
@@ -48,11 +38,6 @@ export type KnowledgeStore = {
 
   /** Register a non-doc vault file (image, pdf, …). */
   upsertOther(path: string): void;
-
-  /** Persist a fingerprint alone — the hash-equal fast path (an mtime rewrite
-   * with unchanged content), so the next boot's stat diff stays quiet without
-   * re-projecting or churning the search corpus. */
-  updateFingerprint(path: string, fingerprint: StoredFingerprint): void;
 
   /** Drop a file (doc or other) and all its child records. */
   remove(path: string): void;

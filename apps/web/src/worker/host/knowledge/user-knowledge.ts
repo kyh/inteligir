@@ -471,19 +471,7 @@ export class UserKnowledge {
       console.warn(`[knowledge] could not index ${path}:`, messageOf(err));
       return;
     }
-    this.store.upsertDoc(
-      {
-        path,
-        // Inert here, and stored only because the row shape requires it: the
-        // fingerprint exists for a host that must guess whether a file on a
-        // filesystem changed. This one has the manifest's content hash, so it
-        // never has to guess.
-        fingerprint: { mtimeMs: 0, size: text.length, ino: 0 },
-        contentHash,
-        projection,
-      },
-      text,
-    );
+    this.store.upsertDoc({ path, contentHash, projection }, text);
     this.graph.applyDoc(path, projection);
     this.hashes.set(path, contentHash);
     this.others.delete(path);

@@ -33,7 +33,6 @@ const ROOT = "/Vault";
 function row(path: string, content: string, at: number): StoredDocRow {
   return {
     path,
-    fingerprint: { mtimeMs: at, size: content.length, ino: at },
     contentHash: `hash-${at}`,
     projection: projectDoc(path, content),
   };

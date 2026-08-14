@@ -455,8 +455,7 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   const linkGraph = new LinkGraphIndex();
   const knowledgeStore = openKnowledgeStore(FIXTURE_ROOT);
   // Stat identity is fabricated (no filesystem behind the Map): a fresh
-  // monotonic fingerprint per write — nothing in the harness diffs it.
-  let fingerprintSeq = 0;
+
   // A real last-modified for the fixture vault, not a canned constant.
   const writtenAtMs = new Map<string, number>();
   const indexEntry = (path: string): void => {
@@ -466,11 +465,9 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
     if (isDocPath(path)) {
       const projection = projectDoc(path, content);
       linkGraph.applyDoc(path, projection);
-      fingerprintSeq++;
       knowledgeStore.upsertDoc(
         {
           path,
-          fingerprint: { mtimeMs: fingerprintSeq, size: content.length, ino: fingerprintSeq },
           contentHash: fnv1a(content),
           projection,
         },

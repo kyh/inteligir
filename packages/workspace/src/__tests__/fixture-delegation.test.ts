@@ -17,7 +17,6 @@ function memoryKnowledgeStore(): KnowledgeStore {
     loadAll: () => ({ docs: [], others: [] }),
     upsertDoc: () => {},
     upsertOther: () => {},
-    updateFingerprint: () => {},
     remove: () => {},
     clear: () => {},
     search: () => [],

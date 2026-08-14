@@ -32,14 +32,13 @@
 // ---------------------------------------------------------------------------
 
 import type { SearchResult } from "./knowledge-index";
-import type { KnowledgeStore, StoredDocRow, StoredFingerprint } from "./knowledge-store";
-import type { ExtractedTask } from "./task-ordinal";
-import type { DocProjection, StoredLink } from "./projection";
+import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
+import { parseStoredProjection } from "./projection-row";
 import { tokenize } from "./search-index";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 8;
+export const KNOWLEDGE_SCHEMA_VERSION = 9;
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 type SqlValue = null | number | string;
@@ -104,19 +103,18 @@ export type SqlKnowledgeStore = KnowledgeStore & {
 
 // ---- Schema -------------------------------------------------------------------
 
-// Column layout mirrors DocProjection: files carries identity + fingerprint +
-// content hash; links/headings/tags/aliases are ord-keyed child rows
-// (deterministic rebuild output); search_fts holds the ONLY copy of doc
-// bodies. Sibling workstreams extend by adding a projection field + a child
-// table here and bumping PROJECTION_VERSION — the wipe-and-rebuild guard IS
-// the migration.
+// `files` carries identity, the content hash and the whole DocProjection as
+// ONE json column; `search_fts` holds the only copy of doc bodies.
 //
-// Child rows are read only by hydration's per-table ORDER BY sweeps (boot) —
-// link/tag/name RESOLUTION happens entirely in the in-memory LinkGraphIndex,
-// so the schema carries no lookup indexes or derived key columns beyond the
-// PKs. Those PKs are what makes paged hydration cheap: every child table is
-// keyed (path, ord), so a page's `path > ? AND path <= ?` window is an index
-// range scan, not a filtered table sweep.
+// The projection is stored rather than shredded because nothing queries its
+// parts: link, tag and name RESOLUTION all happen in the in-memory
+// LinkGraphIndex, so five FK-cascaded child tables only ever served
+// hydration's own sweeps — and Durable Object SQLite bills rows WRITTEN, so a
+// doc with 30 links and 8 tasks cost 56 billed writes where it now costs one.
+// Sibling workstreams extend by adding a projection field and bumping
+// PROJECTION_VERSION; the wipe-and-rebuild guard IS the migration.
+//
+// `files.path` is the PK, so paged hydration is an index range scan.
 const SCHEMA_DDL = `
 CREATE TABLE meta (
   key TEXT PRIMARY KEY,
@@ -125,53 +123,8 @@ CREATE TABLE meta (
 CREATE TABLE files (
   path TEXT PRIMARY KEY,
   kind TEXT NOT NULL CHECK (kind IN ('doc', 'other')),
-  title TEXT,
   content_hash TEXT,
-  mtime_ms REAL,
-  size INTEGER,
-  ino INTEGER
-);
-CREATE TABLE links (
-  source_path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
-  ord INTEGER NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('wiki', 'md', 'image')),
-  embed INTEGER NOT NULL,
-  target TEXT NOT NULL,
-  anchor TEXT,
-  alias TEXT,
-  line INTEGER NOT NULL,
-  snippet TEXT NOT NULL,
-  target_span_start INTEGER,
-  target_span_end INTEGER,
-  PRIMARY KEY (source_path, ord)
-);
-CREATE TABLE headings (
-  path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
-  ord INTEGER NOT NULL,
-  text TEXT NOT NULL,
-  PRIMARY KEY (path, ord)
-);
-CREATE TABLE tags (
-  path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
-  ord INTEGER NOT NULL,
-  tag TEXT NOT NULL,
-  PRIMARY KEY (path, ord)
-);
-CREATE TABLE aliases (
-  path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
-  ord INTEGER NOT NULL,
-  alias TEXT NOT NULL,
-  PRIMARY KEY (path, ord)
-);
-CREATE TABLE tasks (
-  path TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
-  ordinal INTEGER NOT NULL,
-  line INTEGER NOT NULL,
-  raw TEXT NOT NULL,
-  text TEXT NOT NULL,
-  checked INTEGER NOT NULL,
-  wiki_targets TEXT NOT NULL,
-  PRIMARY KEY (path, ordinal)
+  projection TEXT
 );
 CREATE VIRTUAL TABLE search_fts USING fts5(
   title, headings, body, path UNINDEXED,
@@ -193,34 +146,14 @@ LIMIT ?
 `;
 
 // Hydration reads. Both `files` pages are keyset-paginated (`path > ?` against
-// the PK index) rather than OFFSET-paginated, so page N costs the same as page
-// 0. The five child reads take the page's own [after, last] path window; every
-// child row in that window belongs to a doc in the page, because non-doc files
-// never keep child rows (upsertOther deletes them).
+// the PK index) rather than OFFSET-paginated, so page N costs the same as
+// page 0.
 const DOC_PAGE_SQL = `
-SELECT path, title, content_hash, mtime_ms, size, ino
+SELECT path, content_hash, projection
 FROM files WHERE kind = 'doc' AND path > ? ORDER BY path LIMIT ?
 `;
 const OTHER_PAGE_SQL = `
 SELECT path FROM files WHERE kind = 'other' AND path > ? ORDER BY path LIMIT ?
-`;
-const LINKS_RANGE_SQL = `
-SELECT source_path, kind, embed, target, anchor, alias, line, snippet,
-       target_span_start, target_span_end
-FROM links WHERE source_path > ? AND source_path <= ? ORDER BY source_path, ord
-`;
-const HEADINGS_RANGE_SQL = `
-SELECT path, text FROM headings WHERE path > ? AND path <= ? ORDER BY path, ord
-`;
-const TAGS_RANGE_SQL = `
-SELECT path, tag FROM tags WHERE path > ? AND path <= ? ORDER BY path, ord
-`;
-const ALIASES_RANGE_SQL = `
-SELECT path, alias FROM aliases WHERE path > ? AND path <= ? ORDER BY path, ord
-`;
-const TASKS_RANGE_SQL = `
-SELECT path, ordinal, line, raw, text, checked, wiki_targets
-FROM tasks WHERE path > ? AND path <= ? ORDER BY path, ordinal
 `;
 
 /** Keyset start: every vault path is non-empty, so "" precedes all of them. */
@@ -253,72 +186,6 @@ function columnString(row: SqlRow, key: string): string {
   const value = row[key];
   if (typeof value === "string") return value;
   throw new Error(`knowledge-store: column ${key} is not text`);
-}
-
-function columnStringOrNull(row: SqlRow, key: string): string | null {
-  const value = row[key];
-  if (value === null || value === undefined) return null;
-  if (typeof value === "string") return value;
-  throw new Error(`knowledge-store: column ${key} is not text/null`);
-}
-
-function columnNumberOrNull(row: SqlRow, key: string): number | null {
-  const value = row[key];
-  if (value === null || value === undefined) return null;
-  if (typeof value === "number") return value;
-  throw new Error(`knowledge-store: column ${key} is not a number/null`);
-}
-
-function parseLinkKind(value: string): StoredLink["kind"] {
-  if (value === "wiki" || value === "md" || value === "image") return value;
-  throw new Error(`knowledge-store: unknown link kind ${value}`);
-}
-
-/** The `wiki_targets` column is a JSON string array — parse at the SQL
- * boundary like every other column, throwing on any malformed row (the store
- * guards treat that as corruption and wipe-rebuild). */
-function parseWikiTargets(row: SqlRow): string[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(columnString(row, "wiki_targets"));
-  } catch {
-    throw new Error("knowledge-store: column wiki_targets is not valid JSON");
-  }
-  if (Array.isArray(parsed) && parsed.every((t): t is string => typeof t === "string")) {
-    return parsed;
-  }
-  throw new Error("knowledge-store: column wiki_targets is not a string array");
-}
-
-function parseStoredTask(row: SqlRow): ExtractedTask {
-  return {
-    checked: columnNumber(row, "checked") !== 0,
-    text: columnString(row, "text"),
-    raw: columnString(row, "raw"),
-    line: columnNumber(row, "line"),
-    ordinal: columnNumber(row, "ordinal"),
-    wikiTargets: parseWikiTargets(row),
-  };
-}
-
-function parseStoredLink(row: SqlRow): StoredLink {
-  const link: StoredLink = {
-    kind: parseLinkKind(columnString(row, "kind")),
-    embed: columnNumber(row, "embed") !== 0,
-    target: columnString(row, "target"),
-    line: columnNumber(row, "line"),
-    snippet: columnString(row, "snippet"),
-  };
-  const anchor = columnStringOrNull(row, "anchor");
-  if (anchor !== null) link.anchor = anchor;
-  const alias = columnStringOrNull(row, "alias");
-  if (alias !== null) link.alias = alias;
-  const targetStart = columnNumberOrNull(row, "target_span_start");
-  const targetEnd = columnNumberOrNull(row, "target_span_end");
-  if (targetStart !== null && targetEnd !== null) {
-    link.targetSpan = { start: targetStart, end: targetEnd };
-  }
-  return link;
 }
 
 // ---- Store --------------------------------------------------------------------
@@ -427,63 +294,14 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     return row === undefined ? null : columnNumber(row, "rowid");
   };
 
-  const deleteChildren = (path: string): void => {
-    driver.run("DELETE FROM links WHERE source_path = ?", [path]);
-    driver.run("DELETE FROM headings WHERE path = ?", [path]);
-    driver.run("DELETE FROM tags WHERE path = ?", [path]);
-    driver.run("DELETE FROM aliases WHERE path = ?", [path]);
-    driver.run("DELETE FROM tasks WHERE path = ?", [path]);
-  };
-
-  /** One doc page: the `files` slice after `after`, then the child rows in the
-   * exact path window that slice covers. Empty when the corpus is exhausted. */
-  const readDocPage = (after: string, limit: number): StoredDocRow[] => {
-    const docs = new Map<string, StoredDocRow>();
-    for (const row of driver.all(DOC_PAGE_SQL, [after, limit])) {
-      const path = columnString(row, "path");
-      const projection: DocProjection = {
-        title: columnString(row, "title"),
-        headings: [],
-        links: [],
-        tags: [],
-        aliases: [],
-        tasks: [],
-      };
-      docs.set(path, {
-        path,
-        fingerprint: {
-          mtimeMs: columnNumber(row, "mtime_ms"),
-          size: columnNumber(row, "size"),
-          ino: columnNumber(row, "ino"),
-        },
-        contentHash: columnString(row, "content_hash"),
-        projection,
-      });
-    }
-    // `files.path` is the PRIMARY KEY, so the map never collapses two rows —
-    // page.length is the row count, which is what the cursor's "short page
-    // ends the phase" test relies on.
-    const page = [...docs.values()];
-    const last = page[page.length - 1];
-    if (last === undefined) return page;
-    const pageWindow: readonly SqlValue[] = [after, last.path];
-    for (const row of driver.all(LINKS_RANGE_SQL, pageWindow)) {
-      docs.get(columnString(row, "source_path"))?.projection.links.push(parseStoredLink(row));
-    }
-    for (const row of driver.all(HEADINGS_RANGE_SQL, pageWindow)) {
-      docs.get(columnString(row, "path"))?.projection.headings.push(columnString(row, "text"));
-    }
-    for (const row of driver.all(TAGS_RANGE_SQL, pageWindow)) {
-      docs.get(columnString(row, "path"))?.projection.tags.push(columnString(row, "tag"));
-    }
-    for (const row of driver.all(ALIASES_RANGE_SQL, pageWindow)) {
-      docs.get(columnString(row, "path"))?.projection.aliases.push(columnString(row, "alias"));
-    }
-    for (const row of driver.all(TASKS_RANGE_SQL, pageWindow)) {
-      docs.get(columnString(row, "path"))?.projection.tasks.push(parseStoredTask(row));
-    }
-    return page;
-  };
+  /** One doc page: the `files` slice after `after`. Empty when the corpus is
+   * exhausted. */
+  const readDocPage = (after: string, limit: number): StoredDocRow[] =>
+    driver.all(DOC_PAGE_SQL, [after, limit]).map((row) => ({
+      path: columnString(row, "path"),
+      contentHash: columnString(row, "content_hash"),
+      projection: parseStoredProjection(columnString(row, "projection")),
+    }));
 
   const readOtherPage = (after: string, limit: number): { path: string }[] =>
     driver.all(OTHER_PAGE_SQL, [after, limit]).map((row) => ({ path: columnString(row, "path") }));
@@ -556,72 +374,13 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
       transaction(() => {
         const { projection } = row;
         driver.run(
-          `INSERT INTO files (path, kind, title, content_hash, mtime_ms, size, ino)
-           VALUES (?, 'doc', ?, ?, ?, ?, ?)
+          `INSERT INTO files (path, kind, content_hash, projection)
+           VALUES (?, 'doc', ?, ?)
            ON CONFLICT(path) DO UPDATE SET
-             kind = 'doc', title = excluded.title, content_hash = excluded.content_hash,
-             mtime_ms = excluded.mtime_ms, size = excluded.size, ino = excluded.ino`,
-          [
-            row.path,
-            projection.title,
-            row.contentHash,
-            row.fingerprint.mtimeMs,
-            row.fingerprint.size,
-            row.fingerprint.ino,
-          ],
+             kind = 'doc', content_hash = excluded.content_hash,
+             projection = excluded.projection`,
+          [row.path, row.contentHash, JSON.stringify(projection)],
         );
-        deleteChildren(row.path);
-        for (const [ord, link] of projection.links.entries()) {
-          driver.run(
-            `INSERT INTO links (source_path, ord, kind, embed, target, anchor, alias, line, snippet, target_span_start, target_span_end)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              row.path,
-              ord,
-              link.kind,
-              link.embed ? 1 : 0,
-              link.target,
-              link.anchor ?? null,
-              link.alias ?? null,
-              link.line,
-              link.snippet,
-              link.targetSpan?.start ?? null,
-              link.targetSpan?.end ?? null,
-            ],
-          );
-        }
-        for (const [ord, text] of projection.headings.entries()) {
-          driver.run("INSERT INTO headings (path, ord, text) VALUES (?, ?, ?)", [
-            row.path,
-            ord,
-            text,
-          ]);
-        }
-        for (const [ord, tag] of projection.tags.entries()) {
-          driver.run("INSERT INTO tags (path, ord, tag) VALUES (?, ?, ?)", [row.path, ord, tag]);
-        }
-        for (const [ord, alias] of projection.aliases.entries()) {
-          driver.run("INSERT INTO aliases (path, ord, alias) VALUES (?, ?, ?)", [
-            row.path,
-            ord,
-            alias,
-          ]);
-        }
-        for (const task of projection.tasks) {
-          driver.run(
-            `INSERT INTO tasks (path, ordinal, line, raw, text, checked, wiki_targets)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-              row.path,
-              task.ordinal,
-              task.line,
-              task.raw,
-              task.text,
-              task.checked ? 1 : 0,
-              JSON.stringify(task.wikiTargets),
-            ],
-          );
-        }
         const rowid = rowidOf(row.path);
         if (rowid === null) throw new Error("knowledge-store: upserted file row vanished");
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
@@ -651,21 +410,10 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         driver.run(
           `INSERT INTO files (path, kind) VALUES (?, 'other')
            ON CONFLICT(path) DO UPDATE SET
-             kind = 'other', title = NULL, content_hash = NULL,
-             mtime_ms = NULL, size = NULL, ino = NULL`,
+             kind = 'other', content_hash = NULL, projection = NULL`,
           [path],
         );
-        deleteChildren(path);
       });
-    },
-
-    updateFingerprint(path, fingerprint: StoredFingerprint) {
-      driver.run("UPDATE files SET mtime_ms = ?, size = ?, ino = ? WHERE path = ?", [
-        fingerprint.mtimeMs,
-        fingerprint.size,
-        fingerprint.ino,
-        path,
-      ]);
     },
 
     remove(path) {
@@ -673,7 +421,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         const rowid = rowidOf(path);
         if (rowid === null) return;
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
-        driver.run("DELETE FROM files WHERE path = ?", [path]); // children CASCADE
+        driver.run("DELETE FROM files WHERE path = ?", [path]);
       });
     },
 
