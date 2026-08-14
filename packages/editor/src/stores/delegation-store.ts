@@ -19,6 +19,8 @@ type DelegationStore = {
   /** Overwrite the delegation's file with its pre-run snapshot (cheap undo of
    * the agent's edit). The vault watcher refreshes the open editor. */
   restore: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Drop this account's delegations (./workspace-runtime disposes on sign-out). */
+  reset: () => void;
 };
 
 export const useDelegationStore = create<DelegationStore>()((set) => ({
@@ -71,6 +73,8 @@ export const useDelegationStore = create<DelegationStore>()((set) => ({
     if (!result) return { ok: false, error: "Couldn't restore the snapshot." };
     return result.ok ? { ok: true } : { ok: false, error: result.error };
   },
+
+  reset: () => set({ delegations: [], streams: {} }),
 }));
 
 /** The most recent delegation for a given checkbox (file + ordinal), or null.

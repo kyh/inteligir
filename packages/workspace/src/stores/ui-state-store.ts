@@ -16,6 +16,9 @@ type UiStateStore = {
   loaded: boolean;
   init: () => Promise<void>;
   set: (key: string, value: unknown) => void;
+  /** Drop this account's values and cancel pending writes
+   * (./workspace-runtime disposes on sign-out). */
+  reset: () => void;
 };
 
 const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -53,5 +56,15 @@ export const useUiStateStore = create<UiStateStore>()((set) => ({
   set: (key, value) => {
     set((s) => ({ values: { ...s.values, [key]: value } }));
     scheduleFlush(key, value);
+  },
+
+  reset: () => {
+    // Cancelled, never flushed: a debounced write belongs to the account whose
+    // socket just closed, and firing it after sign-out either fails or lands on
+    // the next account's host.
+    for (const timer of flushTimers.values()) clearTimeout(timer);
+    flushTimers.clear();
+    initPromise = null;
+    set({ values: {}, loaded: false });
   },
 }));

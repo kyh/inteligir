@@ -81,6 +81,8 @@ type AiProviderStore = {
   /** Drop the host's sealed credential for `provider`. Touches ONLY that
    * credential — the user's own account is untouched. */
   disconnect: (provider: string) => Promise<void>;
+  /** Drop this account's snapshot (./workspace-runtime disposes on sign-out). */
+  reset: () => void;
 };
 
 let initStarted = false;
@@ -112,6 +114,15 @@ export const useAiProviderStore = create<AiProviderStore>()((set, get) => ({
       // snapshot at null until app restart.
       initStarted = false;
     }
+  },
+
+  reset: () => {
+    // `subscribed` deliberately survives: the onAiProviderChanged handler is
+    // installed on the BRIDGE, and a sign-out disposes that transport with the
+    // subscription on it. Re-latching here would install a second handler on
+    // the next account's socket.
+    initStarted = false;
+    set({ settings: null, connect: IDLE });
   },
 
   refresh: async () => {

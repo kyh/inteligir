@@ -101,6 +101,8 @@ type AgentStore = {
   ) => Promise<{ flushed: boolean }>;
   interrupt: () => void;
   newSession: () => Promise<void>;
+  /** Drop this account's transcript (./workspace-runtime disposes on sign-out). */
+  reset: () => void;
 };
 
 function sameStrings(a: readonly string[], b: readonly string[]): boolean {
@@ -228,13 +230,20 @@ async function loadInitialHistory(bridge: Bridge, set: SetFn): Promise<void> {
 // Store factory
 // ---------------------------------------------------------------------------
 
-export const useAgentStore = create<AgentStore>()((set, get) => ({
+const INITIAL_AGENT: Pick<
+  AgentStore,
+  "log" | "chatMeta" | "messages" | "appState" | "queuedFollowUp" | "queuedSteering"
+> = {
   log: emptyChatLog,
   chatMeta: new Map(),
   messages: [],
   appState: { phase: "starting" },
   queuedFollowUp: [],
   queuedSteering: [],
+};
+
+export const useAgentStore = create<AgentStore>()((set, get) => ({
+  ...INITIAL_AGENT,
 
   init: () => {
     const bridge = getBridge();
@@ -323,5 +332,14 @@ export const useAgentStore = create<AgentStore>()((set, get) => ({
     // of the thread being replaced must not speak into the new one.
     emitAssistantStream({ kind: "reset" });
     await getBridge().transition({ type: "NEW_SESSION" });
+  },
+
+  reset: () => {
+    // Same bump a NEW_SESSION does, for the same reason: a history fetch still
+    // in flight must not land afterward and resurrect a cleared transcript —
+    // here, into the next account's surface.
+    chatGeneration += 1;
+    emitAssistantStream({ kind: "reset" });
+    set({ ...INITIAL_AGENT, chatMeta: new Map() });
   },
 }));

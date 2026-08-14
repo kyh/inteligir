@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import { installAssetUpload, installBridge } from "@repo/bridge/client";
 import { createWsBridge, type WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import { App } from "@repo/workspace/app-root";
+import { endWorkspaceSession } from "@repo/workspace/workspace/workspace-runtime";
 import { setAccountPort } from "@repo/workspace/workspace/account-host";
 
 import { uploadHostAsset } from "@/lib/asset-upload";
@@ -36,6 +37,7 @@ function hostSocketUrl(): string {
 export default function WorkspaceMount({ email }: { email: string }) {
   const [status, setStatus] = useState<WsBridgeStatus>("connecting");
   const [ready, setReady] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const transport = createWsBridge({
@@ -49,13 +51,20 @@ export default function WorkspaceMount({ email }: { email: string }) {
     installAssetUpload(uploadHostAsset);
     // Sign-out is deliberately NOT a Bridge call: it invalidates the very
     // credential that socket authenticated with, so it belongs to the surface
-    // holding it. A full reload rather than a router navigate — every store in
-    // the workspace is scoped to the account that just ended.
+    // holding it.
+    //
+    // The open note is flushed and every account-scoped store is reset FIRST
+    // (@repo/workspace/workspace/workspace-runtime), while the socket is still
+    // live — which is what earns the router navigate. This used to be
+    // `location.assign`, and the reload was load-bearing: several stores latch
+    // on first init and never clear, so a navigate alone left the next account
+    // reading the previous one's answers.
     setAccountPort({
       email,
       signOut: async () => {
+        await endWorkspaceSession();
         await authClient.signOut();
-        window.location.assign("/app/sign-in");
+        await navigate({ to: "/app/sign-in" });
       },
       // A same-origin path, not a fetch: the host streams a zip of the whole
       // vault and the browser writes it straight to disk.
@@ -67,13 +76,14 @@ export default function WorkspaceMount({ email }: { email: string }) {
       deleteAccount: async (password) => {
         const { error } = await authClient.deleteUser(password === null ? {} : { password });
         if (error !== null) return { ok: false, error: authErrorMessage(error) };
-        window.location.assign("/app/sign-in");
+        await endWorkspaceSession();
+        await navigate({ to: "/app/sign-in" });
         return { ok: true };
       },
     });
     setReady(true);
     return transport.dispose;
-  }, [email]);
+  }, [email, navigate]);
 
   // Terminal: the session behind the ticket is gone and the bridge's supervisor
   // has stopped, so a live UI would sit there hanging. Replace it with the one

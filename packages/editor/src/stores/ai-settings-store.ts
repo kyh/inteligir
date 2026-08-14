@@ -24,16 +24,25 @@ type AiSettingsState = {
   init: () => Promise<void>;
   setGhostTextEnabled: (enabled: boolean) => Promise<void>;
   setGhostTextModel: (id: string | null) => Promise<void>;
+  /** Drop this account's settings (./workspace-runtime disposes on sign-out). */
+  reset: () => void;
 };
 
 let initStarted = false;
 
-export const useAiSettingsStore = create<AiSettingsState>()((set) => ({
+const INITIAL: Pick<
+  AiSettingsState,
+  "loaded" | "ghostTextEnabled" | "ghostTextModel" | "models" | "defaultModelId"
+> = {
   loaded: false,
   ghostTextEnabled: true,
   ghostTextModel: null,
   models: [],
   defaultModelId: null,
+};
+
+export const useAiSettingsStore = create<AiSettingsState>()((set) => ({
+  ...INITIAL,
 
   init: async () => {
     if (initStarted) return;
@@ -65,5 +74,10 @@ export const useAiSettingsStore = create<AiSettingsState>()((set) => ({
     set({ ghostTextModel: id });
     // `undefined` clears the key — the host falls back to its default tier.
     await getBridge().setUiState({ key: GHOST_TEXT_MODEL_UI_STATE, value: id ?? undefined });
+  },
+
+  reset: () => {
+    initStarted = false;
+    set(INITIAL);
   },
 }));

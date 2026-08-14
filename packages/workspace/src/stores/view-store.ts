@@ -26,6 +26,7 @@ type ViewStore = {
   /** The read-only past-chat browser dialog (palette: "Browse past chats"). */
   pastChatsOpen: boolean;
   setPastChatsOpen: (open: boolean) => void;
+  reset: () => void;
 };
 
 export const useViewStore = create<ViewStore>()((set) => ({
@@ -36,4 +37,5 @@ export const useViewStore = create<ViewStore>()((set) => ({
   setSurface: (surface) => set({ surface }),
   pastChatsOpen: false,
   setPastChatsOpen: (pastChatsOpen) => set({ pastChatsOpen }),
+  reset: () => set({ responsePinned: false, surface: "editor", pastChatsOpen: false }),
 }));
