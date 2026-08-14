@@ -950,6 +950,43 @@ export` over `src/worker/db/schema.ts`, so the suite always runs the schema the
   bulk content mutation disguised as a filter-chip action. Edit the notes (or
   ask the agent).
 
+- **The workspace's stores are module singletons, and a SESSION is what they
+  are scoped to — not an account.** `endWorkspaceSession`
+  (`workspace/workspace-runtime.ts`) is the one place a session ends: it flushes
+  the open note while its bridge is still live, then resets every
+  account-scoped store. That is what earns a reload-free sign-out, and it is
+  what was actually BROKEN — several stores latch on first init and never
+  clear (`initStarted` in both AI stores, `initPromise` in ui-state, the
+  ui-state flush timers, `chatGeneration`), so the old `location.assign` was
+  load-bearing rather than lazy. Instancing the stores per runtime
+  (`createStore()` + `useStore(runtime.stores.x, …)`) would additionally buy
+  account SWITCHING, and its cost is measured rather than guessed: 159
+  `.getState()`/`.setState()`/`.subscribe()` call sites that cannot read React
+  context, because they live in Plate node components and in non-React services
+  (the voice pipeline, read-aloud, the AI session). Threading a runtime through
+  all of them to support two accounts in one document is a capability this
+  product has never needed. Revisit when it does.
+
+- **The frontend packages stay split, and `@repo/ui` especially.** The tempting
+  collapse — `ui` + `editor` + `workspace` are consumed only by `apps/web`, so
+  fold them in — is REJECTED on two facts. `@repo/ui` is not
+  workspace-internal: nine files in the SSR marketing and auth half of
+  `apps/web` import it, so it is genuinely shared across two surfaces with
+  different rendering models. And the `@repo/workspace` boundary is what keeps
+  Plate's ~30 packages behind ONE dynamic import (`app/workspace-mount.tsx`
+  says so at the import site): the marketing route's bundle and the SSR Worker
+  must never pay for them, and a package edge makes that checkable where a
+  directory does not. The collapse is also 283 files and 769 cross-package
+  import statements of pure churn. What the collapse was really after — the
+  1,338-line fixture Bridge — is a SEPARATE piece of work that the collapse
+  would not have finished anyway: three of the five suites mounting it are
+  React component tests, and `apps/web`'s vitest runs in the Workers pool,
+  which has no DOM. Retiring it means giving those three narrow per-test
+  adapters (a handful of methods each, not all 76) and rebuilding the two
+  logic suites as real-host integration tests under `AGENT_RUNTIME=scripted` —
+  a test-strategy change, not a file move, and the reason the fixture is still
+  here.
+
 - **React Compiler is deliberately not adopted** (~150 memo call sites).
   react.dev recommends it for _new_ apps and says existing apps should "roll out
   at your own pace." If it is ever adopted, annotation mode on leaf components
