@@ -53,7 +53,7 @@ vi.mock("@repo/ui/components/sonner", () => ({
 const { chunkForSpeech, editorPlainText, startReadAloud, stopReadAloud, useReadAloud } =
   await import("@repo/workspace/voice/read-aloud");
 const { useOpenNote } = await import("@repo/editor/note/open-note-store");
-const { registerOpenNotePrivacy } = await import("@repo/editor/note/open-note-flush");
+const { setOpenNoteFlush } = await import("@repo/editor/note/open-note-flush");
 const { useVoiceStore } = await import("@repo/workspace/stores/voice-store");
 const { EDITOR_KIT } = await import("@repo/editor/kits/editor-kit");
 const { parseMarkdown } = await import("@repo/editor/markdown/markdown-doc");
@@ -63,6 +63,9 @@ function setOpenMarkdown(path: string, content: string): void {
   useOpenNote.setState({
     openPath: path,
     editor: { root: "/vault", path, content, dirty: false, saving: false },
+    // A live session is what makes a buffer readable at all (./open-note-flush
+    // fails closed without one).
+    flush: () => Promise.resolve(true),
     openDoc: {
       kind: "markdown",
       path,
@@ -72,17 +75,12 @@ function setOpenMarkdown(path: string, content: string): void {
   });
 }
 
-/** Register the SAME privacy read VaultProvider wires: fail-closed over the
- * live buffer (indeterminate counts as private). */
-function registerPrivacyOver(content: string): void {
-  registerOpenNotePrivacy(() => notePrivacy(content) !== "public");
-}
-
 function closeNote(): void {
   useOpenNote.setState({
     openPath: null,
     editor: { root: "", path: null, content: "", dirty: false, saving: false },
     openDoc: { kind: "none" },
+    flush: null,
   });
 }
 
@@ -94,7 +92,7 @@ beforeEach(() => {
 
 afterEach(() => {
   stopReadAloud();
-  registerOpenNotePrivacy(null);
+  setOpenNoteFlush(null);
   closeNote();
   useVoiceStore.setState({ state: { kind: "idle" } });
 });
@@ -143,7 +141,6 @@ describe("startReadAloud — privacy (fail-closed)", () => {
   it("refuses a `private: true` note", async () => {
     const content = "---\nprivate: true\n---\n\nSecret plans.\n";
     setOpenMarkdown("secret.md", content);
-    registerPrivacyOver(content);
 
     await startReadAloud();
 
@@ -155,7 +152,6 @@ describe("startReadAloud — privacy (fail-closed)", () => {
     const content = "---\nfoo: [unclosed\n---\n\nBody text.\n";
     expect(notePrivacy(content)).toBe("indeterminate");
     setOpenMarkdown("broken.md", content);
-    registerPrivacyOver(content);
 
     await startReadAloud();
 
@@ -163,9 +159,11 @@ describe("startReadAloud — privacy (fail-closed)", () => {
     expect(useReadAloud.getState().active).toBe(false);
   });
 
-  it("refuses when no privacy provider is registered (fail-closed default)", async () => {
+  it("refuses when no session is mounted (fail-closed default)", async () => {
     setOpenMarkdown("plain.md", "Hello world.\n");
-    // No registerOpenNotePrivacy call — the unregistered read must be private.
+    // State can outlive the provider that published it, so a buffer with no
+    // live session must read private however public its bytes look.
+    setOpenNoteFlush(null);
 
     await startReadAloud();
 
@@ -178,7 +176,6 @@ describe("startReadAloud — availability", () => {
   it("refuses while TTS is unavailable", async () => {
     const content = "Hello world.\n";
     setOpenMarkdown("plain.md", content);
-    registerPrivacyOver(content);
     helpers.bridge.isTtsAvailable.mockResolvedValue(false);
 
     await startReadAloud();
@@ -193,7 +190,6 @@ describe("startReadAloud — session", () => {
 
   function openPublicNote(): void {
     setOpenMarkdown("note.md", content);
-    registerPrivacyOver(content);
   }
 
   it("chunks the note (frontmatter stripped) into ttsSend calls and flushes", async () => {

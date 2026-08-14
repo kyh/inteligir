@@ -65,6 +65,15 @@ export type OpenNoteState = {
   back: string[];
   /** Where Back came from, newest LAST. Cleared by any fresh navigation. */
   forward: string[];
+  /**
+   * Persist the live buffer, installed by the session that owns it.
+   *
+   * An ACTION rather than state, but it lives here because it is scoped to
+   * exactly the note this store describes: a session ending clears it with
+   * everything else, so no separate teardown can forget to. `null` means no
+   * session is mounted, which ./open-note-flush reads as "nothing to flush".
+   */
+  flush: (() => Promise<boolean>) | null;
 };
 
 const INITIAL_ANALYZED: Analyzed = { rawReason: null, content: "", path: null };
@@ -77,6 +86,7 @@ const INITIAL_STATE: OpenNoteState = {
   openDoc: { kind: "none" },
   back: [],
   forward: [],
+  flush: null,
 };
 
 /** Deepest history either direction keeps. A workspace open for a week would

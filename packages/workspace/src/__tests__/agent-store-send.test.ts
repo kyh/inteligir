@@ -10,11 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { emptyChatLog } from "@repo/bridge/chat-log";
-import {
-  registerOpenNoteFlush,
-  registerOpenNotePath,
-  registerOpenNotePrivacy,
-} from "@repo/editor/note/open-note-flush";
+import { useOpenNote } from "@repo/editor/note/open-note-store";
 
 const helpers = vi.hoisted(
   (): {
@@ -101,20 +97,29 @@ describe("agent-store send", () => {
     expect(part?.type === "text" ? part.text : "").toContain("Agent unavailable");
   });
 });
-/** Simulate an open note the buffer reads as `private: true` or not. The
+/** Simulate an open note whose BUFFER reads as `private: true` or not. The
  * buffer is the ONLY gate — the host models no note privacy — so this is the
- * whole input to the context-hint decision. */
-function openNote(path: string, isPrivate: boolean): void {
-  registerOpenNoteFlush(() => Promise.resolve(true));
-  registerOpenNotePath(() => path);
-  registerOpenNotePrivacy(() => isPrivate);
+ * whole input to the context-hint decision, and the privacy verdict is derived
+ * from these bytes rather than stubbed beside them. */
+function openNote(path: string, isPrivate: boolean, flushes = true): void {
+  useOpenNote.setState({
+    editor: {
+      root: "/vault",
+      path,
+      content: isPrivate ? "---\nprivate: true\n---\n\n# Note\n" : "# Note\n",
+      dirty: false,
+      saving: false,
+    },
+    flush: () => Promise.resolve(flushes),
+  });
 }
 
 describe("agent-store send — the open-note context hint", () => {
   afterEach(() => {
-    registerOpenNoteFlush(null);
-    registerOpenNotePath(null);
-    registerOpenNotePrivacy(null);
+    useOpenNote.setState({
+      editor: { root: "", path: null, content: "", dirty: false, saving: false },
+      flush: null,
+    });
   });
 
   it("attaches the open note's path", async () => {
@@ -142,9 +147,7 @@ describe("agent-store send — the open-note context hint", () => {
     // A failed save would point the agent at bytes that are not what the user
     // is looking at.
     helpers.bridgeMock.sendAgentCommand.mockResolvedValue(undefined);
-    registerOpenNoteFlush(() => Promise.resolve(false));
-    registerOpenNotePath(() => "notes/unsaved.md");
-    registerOpenNotePrivacy(() => false);
+    openNote("notes/unsaved.md", false, false);
 
     await useAgentStore.getState().send("hello");
 

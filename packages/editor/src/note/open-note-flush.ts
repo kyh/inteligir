@@ -1,65 +1,77 @@
-// A module-level handle to flush the currently-open note to the vault, registered by
-// the live VaultProvider. Lets non-React callers — specifically the voice
-// transcript path in agent-store, which runs outside the component tree — make
-// sure the agent reads the latest bytes from `./vault` before a turn, the same
-// way the composer flushes before a typed send.
+// ---------------------------------------------------------------------------
+// What a NON-REACT caller may ask about the open note.
 //
-// Mirrors the registered-callback seam used by the delegation notifier: the
-// provider owns the implementation, this module is just the wire.
+// The voice transcript path and the agent store both run outside the component
+// tree and need three things before a turn: the buffer persisted, which file
+// "this note" means, and whether that file is private. This module is the whole
+// answer, and it is deliberately thin — everything here reads
+// ./open-note-store, which is the open note's ONE home.
+//
+// It used to be three module-level slots the provider registered and cleared.
+// Two of them were state the store already held and were re-published by hand;
+// the third is an ACTION only the live session can perform, so it is held in
+// the store beside the state it acts on rather than in a slot of its own —
+// which means a session that ends clears it the same way it clears everything
+// else, instead of needing its own teardown line.
+// ---------------------------------------------------------------------------
 
-let flushImpl: (() => Promise<boolean>) | null = null;
-let pathImpl: (() => string | null) | null = null;
-let privacyImpl: (() => boolean) | null = null;
+import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
-// Upper bound on how long a flush may take before callers give up on it. A flush
-// is one write to the host; if it somehow never settles, a serialized
+import { openNoteState, useOpenNote } from "@repo/editor/note/open-note-store";
+
+// Upper bound on how long a flush may take before callers give up on it. A
+// flush is one write to the host; if it somehow never settles, a serialized
 // caller (the voice chain) must not wedge forever behind it.
 const FLUSH_TIMEOUT_MS = 5000;
 
-/** Wire (or clear, with null) the open-note flush. Called by VaultProvider. */
-export function registerOpenNoteFlush(fn: (() => Promise<boolean>) | null): void {
-  flushImpl = fn;
-}
-
-/** Wire (or clear, with null) a live getter for the open note's path. Called by
- * VaultProvider so non-React callers can tag a turn with the active note. */
-export function registerOpenNotePath(fn: (() => string | null) | null): void {
-  pathImpl = fn;
+/** Wire (or clear, with null) the live session's flush. The session owns the
+ * only implementation; nothing else may install one. */
+export function setOpenNoteFlush(flush: (() => Promise<boolean>) | null): void {
+  useOpenNote.setState({ flush });
 }
 
 /** The path of the note currently open in the editor, or null. */
 export function openNotePath(): string | null {
-  return pathImpl ? pathImpl() : null;
+  return openNoteState().editor.path;
 }
 
-/** Wire (or clear, with null) a live getter for the open note's AI-privacy
- * verdict. Called by VaultProvider alongside registerOpenNotePath. */
-export function registerOpenNotePrivacy(fn: (() => boolean) | null): void {
-  privacyImpl = fn;
-}
-
-/** Whether the open note is private for AI purposes (indeterminate counts as
- * private). FAIL-CLOSED: unregistered (no provider mounted) reads true, so a
- * caller can never attach a note path it couldn't clear. */
+/**
+ * Whether the open note is private for AI purposes.
+ *
+ * FAIL-CLOSED three ways, and all three are load-bearing: indeterminate
+ * frontmatter counts as private, no note open counts as private, and NO LIVE
+ * SESSION counts as private. The last one is why `flush` is the mount signal
+ * rather than incidental — state can outlive the provider that published it,
+ * and reading a stale buffer as "public" would attach a path nobody is looking
+ * at any more.
+ *
+ * Reads the live BUFFER rather than the saved file, so a just-typed
+ * `private: true` is honored on the very next send. The buffer is the only
+ * gate: this is a leak-prevention gesture on the client, not a boundary the
+ * host enforces.
+ */
 export function openNoteIsPrivate(): boolean {
-  return privacyImpl ? privacyImpl() : true;
+  const { editor, flush } = openNoteState();
+  if (flush === null || editor.path === null) return true;
+  return notePrivacy(editor.content) !== "public";
 }
 
 /** Flush the open note. Resolves true when the buffer is clean afterward (or
- * there's no provider / nothing to flush). Never rejects, and always settles
+ * there's no session / nothing to flush). Never rejects, and always settles
  * within FLUSH_TIMEOUT_MS (resolving false on timeout) so a hung flush can't
- * deadlock a serialized caller. The timer is cleared once the race settles so it
- * never leaks. (JS can't cancel the underlying write; a flush slow enough to time
- * out — a >5s round trip to the host — could still land late, the documented
- * last-write-wins residual. The timeout only bounds the
- * caller's wait, it doesn't abort the write.) */
+ * deadlock a serialized caller. The timer is cleared once the race settles so
+ * it never leaks. (JS can't cancel the underlying write; a flush slow enough to
+ * time out — a >5s round trip to the host — could still land late, the
+ * documented last-write-wins residual. The timeout bounds the caller's wait, it
+ * does not abort the write.) */
 export function flushOpenNote(): Promise<boolean> {
-  if (!flushImpl) return Promise.resolve(true);
+  const flush = openNoteState().flush;
+  if (flush === null) return Promise.resolve(true);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), FLUSH_TIMEOUT_MS);
   });
-  return Promise.race([flushImpl().catch(() => false), timeout]).finally(() => {
+  return Promise.race([flush().catch(() => false), timeout]).finally(() => {
     if (timer !== undefined) clearTimeout(timer);
   });
 }

@@ -9,12 +9,7 @@ import { ConnectionsPanel } from "@repo/workspace/workspace/connections-panel";
 import { hasTransientSuggestions } from "@repo/editor/ai/suggestions";
 import { hasTransientAiState } from "@repo/editor/ai/transient";
 import { settleTransients } from "@repo/editor/ai/transient-settle";
-import {
-  registerOpenNoteFlush,
-  registerOpenNotePath,
-  registerOpenNotePrivacy,
-} from "@repo/editor/note/open-note-flush";
-import { notePrivacy } from "@repo/notes/markdown/frontmatter";
+import { setOpenNoteFlush } from "@repo/editor/note/open-note-flush";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { createCaptureApplier, insertCaptureLine } from "@repo/workspace/workspace/capture-apply";
 import { openNoteState, publishEditor, publishOpenPath } from "@repo/editor/note/open-note-store";
@@ -149,28 +144,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     };
   }, [session]);
 
-  // Expose the flush + open-note path to non-React callers (the voice
-  // transcript path) so a dictated turn persists the open note AND tags the
-  // agent with which file "this note" means — same as the typed composer. The
-  // getters read the published state, so they stay correct without
-  // re-registering per open.
+  // The one thing a non-React caller cannot derive from the store: persisting
+  // the live buffer, which only the mounted session can do. Path and privacy
+  // are READ from the store by ./open-note-flush rather than re-published here,
+  // so they cannot go stale between opens.
   useEffect(() => {
-    registerOpenNoteFlush(session.actions.flush);
-    registerOpenNotePath(() => openNoteState().editor.path);
-    // AI-path privacy read (fail-closed: indeterminate counts as private) —
-    // agent-store omits the note-context hint for a private note. Reads the
-    // live buffer, not the saved file, so a just-typed `private: true` is
-    // honored on the very next send, and the buffer is the ONLY gate: this is a
-    // leak-prevention gesture on the client, not a boundary the host enforces.
-    registerOpenNotePrivacy(() => {
-      const { editor } = openNoteState();
-      if (editor.path === null) return true; // no note → nothing to attach anyway
-      return notePrivacy(editor.content) !== "public";
-    });
+    setOpenNoteFlush(session.actions.flush);
     return () => {
-      registerOpenNoteFlush(null);
-      registerOpenNotePath(null);
-      registerOpenNotePrivacy(null);
+      setOpenNoteFlush(null);
     };
   }, [session]);
 
