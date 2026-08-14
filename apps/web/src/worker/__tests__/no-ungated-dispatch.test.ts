@@ -90,7 +90,7 @@ function indicesOf(lines: string[], needle: string): number[] {
 }
 
 const GATE = "host/socket-gate.ts";
-const HOST = "host/user-host.ts";
+const TRANSPORT = "host/socket-transport.ts";
 
 const gate = linesOf(GATE);
 
@@ -136,8 +136,8 @@ describe("the gate has one way in and one way out", () => {
     // write to one, whatever it does with the handler map.
     expect(
       modulesMatching(/\b(?:getWebSockets|acceptWebSocket)\(|\bnew WebSocketPair\b/),
-      "sockets belong to UserHost — take them from it, do not enumerate your own",
-    ).toEqual([HOST]);
+      "sockets belong to SocketTransport — take them from it, do not enumerate your own",
+    ).toEqual([TRANSPORT]);
   });
 
   it("names the handler map in exactly the four places it crosses", () => {
@@ -146,7 +146,13 @@ describe("the gate has one way in and one way out", () => {
     expect(
       modulesMatching(/\bHostHandlers\b|\bWireHandler\b|\.handlers\b/),
       "the handler map is SocketGate's — resolve through the gate instead of indexing it",
-    ).toEqual(["host/handler-registry.ts", "host/host-composition.ts", GATE, HOST]);
+    ).toEqual([
+      "host/handler-registry.ts",
+      "host/host-composition.ts",
+      GATE,
+      TRANSPORT,
+      "host/user-host.ts",
+    ]);
   });
 
   it("resolves handlers in exactly one place", () => {
@@ -200,7 +206,7 @@ describe("the gate has one way in and one way out", () => {
     // resolve(), the welcome frame by authentication itself.
     const OWNED_WRITES: Record<string, readonly string[]> = {
       [GATE]: ["WebSocket.READY_STATE_OPEN) socket.send(frame)"],
-      [HOST]: ['ws.send(encodeFrame({ t: "res"', 'ws.send(encodeFrame({ t: "welcome" }))'],
+      [TRANSPORT]: ['ws.send(encodeFrame({ t: "res"', 'ws.send(encodeFrame({ t: "welcome" }))'],
     };
     // Receiver-shaped rather than a bare `.send(`: the Worker's other senders
     // are an email binding, the container port and a voice session, and a rule

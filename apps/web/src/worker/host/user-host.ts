@@ -1,15 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
-import { binaryChannelForTag } from "@repo/bridge/channel-policy";
-import { toErrorMessage } from "@repo/bridge/wire-helpers";
-import {
-  decodeBinaryFrame,
-  encodeFrame,
-  parseClientFrame,
-  WS_CLOSE_UNAUTHORIZED,
-  type ReqFrame,
-  type SendFrame,
-} from "@repo/bridge/ws-protocol";
+import { WS_CLOSE_UNAUTHORIZED } from "@repo/bridge/ws-protocol";
 
 import type { AgentComposition } from "../agent/agent-composition";
 import { isOAuthCallbackPath, matchAgentReportPath } from "../agent/agent-route";
@@ -28,16 +19,8 @@ import { handleVaultExport } from "./vault-export";
 import { INDEX_CONTINUATION_MS, type UserKnowledge } from "./knowledge/user-knowledge";
 import type { UserVault } from "./vault/user-vault";
 import { matchHostLeaf, type HostLeaf } from "./host-route";
-import { SocketGate } from "./socket-gate";
 import { handleTicketMint } from "./ticket-route";
-import {
-  authedState,
-  pendingState,
-  readSocketState,
-  writeSocketState,
-  type AuthedSocketState,
-  type PendingSocketState,
-} from "./socket-state";
+import { SocketTransport, WS_CLOSE_INTERNAL_ERROR } from "./socket-transport";
 
 // ---------------------------------------------------------------------------
 // UserHost — one Durable Object per user, serving that user's Bridge (every
@@ -73,38 +56,6 @@ import {
 // a request can do — and an object nobody can name serves nobody.
 // ---------------------------------------------------------------------------
 
-/**
- * How long a socket may sit unauthenticated. Enforced by a DO ALARM, not a
- * `setTimeout`: a pending timer pins the object in memory, which is exactly
- * the hibernation the transport exists to get. The alarm survives eviction,
- * so a socket that connects and then says nothing at all is still reaped —
- * which a "check it on the first message" deadline would never do, that being
- * the one client this bound exists for.
- */
-const AUTH_DEADLINE_MS = 10_000;
-
-/** Sockets allowed to sit unauthenticated at once. An `auth` frame follows the
- * handshake immediately, so a queue of pending sockets is not a real client. */
-const PRE_AUTH_MAX_SOCKETS = 8;
-
-/** An `auth` frame is ~100 bytes. Anything larger is not something worth
- * parsing on behalf of a caller who has not identified themselves. */
-const PRE_AUTH_MAX_FRAME_CHARS = 4096;
-
-/** Immutable at accept time, so only facts already settled belong here — which
- * is precisely why the auth state does not. It marks the wire protocol this
- * socket speaks, so a second frame vocabulary can enumerate its predecessors. */
-const SOCKET_TAG_V1 = "v1";
-
-// RFC 6455 close codes used below; the 44xx application codes live in
-// ws-protocol beside the frames they refuse.
-const WS_CLOSE_NORMAL = 1000;
-const WS_CLOSE_ABNORMAL = 1006;
-const WS_CLOSE_POLICY_VIOLATION = 1008;
-const WS_CLOSE_MESSAGE_TOO_BIG = 1009;
-const WS_CLOSE_INTERNAL_ERROR = 1011;
-const WS_CLOSE_SERVICE_RESTART = 1012;
-
 export class UserHost extends DurableObject<Env> {
   /** This user's whole wiring graph, built in one place (./host-composition). */
   private readonly host: HostComposition;
@@ -132,8 +83,9 @@ export class UserHost extends DurableObject<Env> {
   readonly captureInbox: CaptureInbox;
   readonly capture: CaptureService;
 
-  /** What a socket may ask, and what it may be told (./socket-gate). */
-  private readonly gate: SocketGate;
+  /** The Bridge socket, whole: accept, authenticate, dispatch, gated push
+   * (./socket-transport). */
+  private readonly sockets: SocketTransport;
 
   /** Every deadline this host keeps, multiplexed onto its one alarm
    * (./host-alarm). */
@@ -152,7 +104,7 @@ export class UserHost extends DurableObject<Env> {
       // called by something serving a request, which cannot happen until this
       // constructor has returned.
       emit: (method, payload) => {
-        this.gate.broadcast(method, payload);
+        this.sockets.broadcast(method, payload);
       },
       onDeadlineChanged: () => this.alarms.markDirty(),
     });
@@ -163,9 +115,19 @@ export class UserHost extends DurableObject<Env> {
     this.voice = this.host.voice;
     this.captureInbox = this.host.captureInbox;
     this.capture = this.host.capture;
-    this.gate = new SocketGate({
+    this.sockets = new SocketTransport({
+      ctx,
       handlers: this.host.handlers,
-      sockets: () => ctx.getWebSockets(),
+      tickets: this.host.tickets,
+      onDeadlineChanged: () => this.alarms.markDirty(),
+      // A brand-new account lands in a workspace, not an empty one. Seeded on
+      // AUTHENTICATION rather than at construction because merely NAMING a host
+      // instantiates one, and a vault written for a caller who never proved who
+      // they are is a vault written for a stranger.
+      onAuthenticated: async (origin) => {
+        await this.host.seedVault();
+        this.host.rememberOrigin(origin);
+      },
     });
     this.alarms = new HostAlarm({
       storage: ctx.storage,
@@ -186,7 +148,10 @@ export class UserHost extends DurableObject<Env> {
     const { vault, knowledge, captureInbox, tickets, agent } = this.host;
     return [
       // A socket that connected and then said nothing at all.
-      { sweep: (now) => this.reapPendingSockets(now), dueAt: (now) => this.authDeadline(now) },
+      {
+        sweep: (now) => this.sockets.reapPending(now),
+        dueAt: (now) => this.sockets.nextDeadline(now),
+      },
       { sweep: (now) => tickets.sweep(now), dueAt: () => null },
       {
         sweep: async (now) => {
@@ -251,9 +216,7 @@ export class UserHost extends DurableObject<Env> {
   async purgeAccount(): Promise<void> {
     // Nothing may arrive on a socket after this: the handlers behind it read
     // tables that are about to stop existing.
-    for (const ws of this.ctx.getWebSockets()) {
-      ws.close(WS_CLOSE_UNAUTHORIZED, "account deleted");
-    }
+    this.sockets.closeAll(WS_CLOSE_UNAUTHORIZED, "account deleted");
     await this.host.agent.destroyContainers();
     await purgeR2Prefix(this.env.VAULT_FILES, this.host.prefix);
     // Deletes the SQLite tables, the KV keys AND the pending alarm in one
@@ -326,7 +289,7 @@ export class UserHost extends DurableObject<Env> {
       case "ticket":
         return await handleTicketMint(request, this.env, tickets, this.ctx.id.name);
       case "ws":
-        return await this.upgrade(request);
+        return this.upgrade(request);
       case "assets": {
         const response = await handleAssetUpload(request, this.env, vault, this.ctx.id.name);
         // Project what the upload wrote before answering, so the index is never
@@ -354,31 +317,15 @@ export class UserHost extends DurableObject<Env> {
     }
   }
 
-  private async upgrade(request: Request): Promise<Response> {
-    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-      return new Response("expected a websocket upgrade", { status: 426 });
-    }
-    if (this.pendingSocketCount() >= PRE_AUTH_MAX_SOCKETS) {
-      return new Response("too many pending connections", { status: 429 });
-    }
-
-    const pair = new WebSocketPair();
-    const server = pair[1];
-    this.ctx.acceptWebSocket(server, [SOCKET_TAG_V1]);
-    writeSocketState(server, pendingState(Date.now(), new URL(request.url).origin));
-    // The socket is in `ctx.getWebSockets()` the moment it is accepted, so the
-    // auth-deadline concern can already see it: this arms nothing itself, it
-    // says a deadline appeared and `fetch`'s `finally` folds it in with every
-    // other.
-    this.alarms.markDirty();
-    return new Response(null, { status: 101, webSocket: pair[0] });
+  private upgrade(request: Request): Response {
+    return this.sockets.upgrade(request);
   }
 
   // ---- socket lifecycle ----------------------------------------------------
 
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     try {
-      await this.dispatchMessage(ws, message);
+      await this.sockets.message(ws, message);
       await this.host.knowledge.flush();
     } catch (error) {
       logUnhandledCallback("user-host", "webSocketMessage", error);
@@ -390,42 +337,8 @@ export class UserHost extends DurableObject<Env> {
     }
   }
 
-  private async dispatchMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
-    const state = readSocketState(ws);
-    if (state === null) {
-      // An attachment this build cannot read belongs to another deploy's
-      // format. It must never be treated as authenticated, and the client's
-      // supervisor reconnects into the current one.
-      ws.close(WS_CLOSE_SERVICE_RESTART, "reconnect required");
-      return;
-    }
-    if (state.phase === "pending") {
-      await this.handlePreAuth(ws, state, message);
-      return;
-    }
-    if (typeof message !== "string") {
-      this.handleBinary(ws, state, message);
-      return;
-    }
-    const frame = parseClientFrame(message);
-    if (frame === null) return;
-    if (frame.t === "req") {
-      await this.handleReq(ws, state, frame);
-      return;
-    }
-    if (frame.t === "send") this.handleSend(state, frame);
-  }
-
   override webSocketClose(ws: WebSocket, code: number, reason: string): void {
-    // Nothing to release: a socket's whole state is its attachment, and the
-    // broadcast set is rebuilt per push. The close is echoed only to finish the
-    // handshake — 1006 is never sendable, so a peer that vanished is answered
-    // as a normal close.
-    try {
-      ws.close(code === WS_CLOSE_ABNORMAL ? WS_CLOSE_NORMAL : code, reason);
-    } catch {
-      // The peer already completed the handshake.
-    }
+    this.sockets.closed(ws, code, reason);
   }
 
   override webSocketError(_ws: WebSocket, error: unknown): void {
@@ -435,133 +348,5 @@ export class UserHost extends DurableObject<Env> {
   override async alarm(): Promise<void> {
     if (this.purged) return;
     await this.alarms.fire();
-  }
-
-  /** Close every pending socket past its auth deadline. */
-  private reapPendingSockets(now: number): void {
-    for (const ws of this.ctx.getWebSockets()) {
-      const state = readSocketState(ws);
-      if (state === null || state.phase !== "pending") continue;
-      if (state.since + AUTH_DEADLINE_MS <= now) {
-        ws.close(WS_CLOSE_UNAUTHORIZED, "authentication deadline elapsed");
-      }
-    }
-  }
-
-  /** The earliest pending socket's auth deadline, or null when none is owed. */
-  private authDeadline(now: number): number | null {
-    let earliest: number | null = null;
-    for (const ws of this.ctx.getWebSockets()) {
-      const state = readSocketState(ws);
-      if (state === null || state.phase !== "pending") continue;
-      const deadline = state.since + AUTH_DEADLINE_MS;
-      if (deadline > now && (earliest === null || deadline < earliest)) earliest = deadline;
-    }
-    return earliest;
-  }
-
-  private pendingSocketCount(): number {
-    let count = 0;
-    for (const ws of this.ctx.getWebSockets()) {
-      if (readSocketState(ws)?.phase === "pending") count += 1;
-    }
-    return count;
-  }
-
-  // ---- auth ----------------------------------------------------------------
-
-  private async handlePreAuth(
-    ws: WebSocket,
-    state: PendingSocketState,
-    message: string | ArrayBuffer,
-  ): Promise<void> {
-    if (typeof message !== "string") {
-      ws.close(WS_CLOSE_POLICY_VIOLATION, "binary frame before auth");
-      return;
-    }
-    if (message.length > PRE_AUTH_MAX_FRAME_CHARS) {
-      ws.close(WS_CLOSE_MESSAGE_TOO_BIG, "pre-auth frame too large");
-      return;
-    }
-    const frame = parseClientFrame(message);
-    if (frame === null || frame.t !== "auth") {
-      // The FIRST frame must be the auth frame. Anything else — a req a client
-      // sent optimistically, a malformed frame — closes rather than waiting:
-      // there is no state here worth keeping for a peer that did not say who
-      // it is.
-      ws.close(WS_CLOSE_UNAUTHORIZED, "not authenticated");
-      return;
-    }
-    // The class comes from the ticket, never from the wire: this object minted
-    // it against a verified session under the Origin rules (./client-class),
-    // and spending it is atomic, so a second socket presenting the same one is
-    // refused.
-    const clientClass = this.host.tickets.consume(frame.ticket, Date.now());
-    if (clientClass === null) {
-      ws.close(WS_CLOSE_UNAUTHORIZED, "invalid ticket");
-      return;
-    }
-    const admitted = authedState(clientClass, Date.now());
-    // A brand-new account lands in a workspace, not an empty one. Seeded HERE
-    // rather than at construction because merely NAMING a host instantiates
-    // one, and a vault written for a caller who never proved who they are is a
-    // vault written for a stranger.
-    //
-    // Before this socket is marked authed, so the seed's own change events
-    // never arrive ahead of its `welcome` — a client that has not been welcomed
-    // has not subscribed to anything yet.
-    await this.host.seedVault();
-    this.host.rememberOrigin(state.origin);
-    writeSocketState(ws, admitted);
-    ws.send(encodeFrame({ t: "welcome" }));
-    await this.gate.hydrate(ws, admitted);
-  }
-
-  // ---- dispatch ------------------------------------------------------------
-
-  private async handleReq(ws: WebSocket, state: AuthedSocketState, frame: ReqFrame): Promise<void> {
-    const resolved = this.gate.resolve(state, frame.method);
-    if (!resolved.ok) {
-      const error =
-        resolved.reason === "forbidden"
-          ? `${frame.method} is not available to this client`
-          : `${frame.method} is not available on this host`;
-      ws.send(encodeFrame({ t: "res", id: frame.id, ok: false, error }));
-      return;
-    }
-    try {
-      const result = await resolved.handler(frame.payload);
-      ws.send(encodeFrame({ t: "res", id: frame.id, ok: true, result }));
-    } catch (error) {
-      // Message only — never a stack over the wire.
-      ws.send(encodeFrame({ t: "res", id: frame.id, ok: false, error: toErrorMessage(error) }));
-    }
-  }
-
-  private handleSend(state: AuthedSocketState, frame: SendFrame): void {
-    const resolved = this.gate.resolve(state, frame.method);
-    if (!resolved.ok) return;
-    try {
-      resolved.handler(frame.payload);
-    } catch (error) {
-      logUnhandledCallback("user-host", `send:${frame.method}`, error);
-    }
-  }
-
-  private handleBinary(ws: WebSocket, state: AuthedSocketState, message: ArrayBuffer): void {
-    const decoded = decodeBinaryFrame(message);
-    if (decoded === null) return;
-    const channel = binaryChannelForTag(decoded.tag);
-    if (channel === undefined) {
-      ws.close(WS_CLOSE_POLICY_VIOLATION, "unknown binary channel");
-      return;
-    }
-    const resolved = this.gate.resolve(state, channel.method);
-    if (!resolved.ok) return;
-    try {
-      resolved.handler(decoded.payload);
-    } catch (error) {
-      logUnhandledCallback("user-host", `binary:${channel.method}`, error);
-    }
   }
 }
