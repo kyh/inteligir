@@ -8,7 +8,7 @@
 
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";
 
-import type { GateReason } from "@repo/editor/markdown/markdown-doc";
+import type { GateReason } from "@repo/editor/note/markdown-gate";
 
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.

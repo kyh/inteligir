@@ -22,10 +22,9 @@ import { toast } from "@repo/ui/components/sonner";
 
 import {
   type GateReason,
-  analyzeMarkdown,
   describeGateReason,
-  gateReasonFor,
-} from "@repo/editor/markdown/markdown-doc";
+  safeGateReason,
+} from "@repo/editor/note/markdown-gate";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
 import { type OpenDoc, deriveOpenDoc, isMarkdownPath } from "@repo/editor/note/open-doc";
 
@@ -126,25 +125,6 @@ function apply(
         });
     return merged;
   });
-}
-
-// Gate policy: classify SAVED bytes with the full round-trip oracle
-// (parse + serialize + bounded fixpoint + content-loss check) so a serializer
-// bug gates the file to Raw instead of letting the first Rich save persist
-// corrupted bytes. A pipeline THROW —
-// markdown-doc deliberately rethrows non-depth errors as real bugs — degrades
-// to Raw here too, rather than crashing the surface (the seedValue
-// never-crash precedent). Residual window: the oracle sees bytes at open and
-// save-settle; a bug triggered only by newly-typed content still lands ONE
-// corrupt save before the post-save re-analysis flips the gate ("file went
-// Raw mid-session" in triage = that save may already be on disk).
-function safeGateReason(md: string): GateReason | null {
-  try {
-    return gateReasonFor(analyzeMarkdown(md));
-  } catch (error) {
-    console.error("Markdown gate analysis failed", error);
-    return { kind: "parse-error", line: null, message: "Editor pipeline error" };
-  }
 }
 
 // Pending deferred same-path analysis target — the microtask's identity check
