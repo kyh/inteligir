@@ -19,6 +19,7 @@ import { handleVaultExport } from "./vault-export";
 import { INDEX_CONTINUATION_MS, type UserKnowledge } from "./knowledge/user-knowledge";
 import type { UserVault } from "./vault/user-vault";
 import { matchHostLeaf, type HostLeaf } from "./host-route";
+import { handleScriptedRoute } from "./scripted-route";
 import { handleTicketMint } from "./ticket-route";
 import { SocketTransport, WS_CLOSE_INTERNAL_ERROR } from "./socket-transport";
 
@@ -306,6 +307,11 @@ export class UserHost extends DurableObject<Env> {
         await knowledge.flush();
         return response;
       }
+      case "scripted":
+        return await handleScriptedRoute(request, {
+          scripted: this.host.agent.scripted,
+          systemPrompt: () => this.host.agent.runner.systemPrompt(),
+        });
       case "export":
         return await handleVaultExport(
           request,

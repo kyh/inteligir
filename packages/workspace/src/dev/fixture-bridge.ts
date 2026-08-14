@@ -105,9 +105,6 @@ class Emitter<T> {
   }
 }
 
-const unavailable = (feature: string) =>
-  new Error(`${feature} is not available in the fixture Bridge`);
-
 // Canned STT transcript, streamed partial → partial → final (harness stub —
 // no recognizer runs) so the composer's listening capsule is demoable in a
 // plain browser tab.
@@ -561,16 +558,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
         : { ok: false, error: `No session with id "${id}"` };
     },
     reauthenticate: async () => ({ ok: true }),
-    setFauxAgentScript: async () => {
-      throw unavailable(
-        "agent scripting (run the real host: pnpm dev:web with AGENT_RUNTIME=scripted)",
-      );
-    },
-    getAgentSystemPrompt: async () => {
-      throw unavailable(
-        "agent system-prompt inspection (run the real host: pnpm dev:web with AGENT_RUNTIME=scripted)",
-      );
-    },
 
     // AI provider — the in-memory mirror above; switch/connect/disconnect all
     // mutate it so the Settings section's states are exercisable.

@@ -331,8 +331,6 @@ export const AGENT_NEVER_GRANTED = [
       "getAgentHistory",
       "listChatSessions",
       "readChatSession",
-      "getAgentSystemPrompt",
-      "setFauxAgentScript",
       "generateInlineAi",
       "cancelInlineAi",
       "classifyAiIntent",

@@ -77,21 +77,6 @@ export function registerAgentHandlers(handle: HandlerRegistrar, services: AgentS
     };
   });
 
-  // The scripted runtime's response queue, fail-closed: a deployment running a
-  // real container has no queue to script.
-  //
-  // BOTH lanes take the script. A drive that delegates a checkbox needs the
-  // unattended container to answer too, and the caller has no way to name a
-  // lane — nor should it, since the lane is a fact of how a turn was started.
-  handle("setFauxAgentScript", (script) => {
-    const chat = services.scripted("chat");
-    if (chat === null) throw new Error("setFauxAgentScript requires AGENT_RUNTIME=scripted");
-    chat.setScript(script);
-    services.scripted("background")?.setScript(script);
-  });
-
-  handle("getAgentSystemPrompt", () => services.runner.systemPrompt());
-
   handle("resolveAgentConfirmation", ({ id, confirmed }) => {
     services.runner.resolveConfirmation(id, confirmed);
   });

@@ -47,6 +47,9 @@ const HOUR = 60 * MINUTE;
  *   leaf whose cost scales with the account's size rather than the request's,
  *   and the one a cross-site page can provoke without reading the result — so
  *   its budget is the tightest thing here and is stated in hours.
+ * - `scripted` seeds the fake container's queue, so it is bounded like the
+ *   socket it drives: a drive re-scripts before every turn. It answers 404 off
+ *   the scripted runtime, so on a real deployment this budget is unreachable.
  */
 const BUDGETS: Readonly<Record<HostLeaf, Budget>> = {
   ticket: { max: 240, windowMs: 5 * MINUTE },
@@ -54,6 +57,7 @@ const BUDGETS: Readonly<Record<HostLeaf, Budget>> = {
   assets: { max: 120, windowMs: 5 * MINUTE },
   link: { max: 120, windowMs: 5 * MINUTE },
   export: { max: 5, windowMs: HOUR },
+  scripted: { max: 240, windowMs: 5 * MINUTE },
 };
 
 type WindowRow = { readonly count: number; readonly window_started: number };

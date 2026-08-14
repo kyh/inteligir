@@ -33,6 +33,25 @@ schema and mint an invite; the account itself is made in the browser at
 
 ## Drive it
 
+Scripting is NOT a Bridge channel — a capability only the scripted runtime has
+has no place in the contract every client bundles. It is a leaf on the same
+session the socket uses, so one fetch from the signed-in page does it:
+
+```js
+const script = (steps) =>
+  fetch("/v1/host/scripted?verb=script", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ steps }),
+  }).then((r) => {
+    if (!r.ok) throw new Error(`script failed: ${r.status}`);
+  });
+```
+
+`fetch("/v1/host/scripted?verb=system-prompt").then(r => r.json())` returns
+`{ prompt }` — the chat agent's composed system prompt, for byte-exact
+assertions. Both answer 404 off `AGENT_RUNTIME=scripted`.
+
 Call ANY Bridge method from `agent-browser eval` on the signed-in page.
 **Use the snippet in `docs/e2e-driving.md` verbatim** — the credential is a
 single-use ticket minted at `POST /v1/host/ticket` against the session cookie,
@@ -40,10 +59,10 @@ spent as `{t:"auth", ticket}` in the socket's first frame on
 `wss://<host>/v1/host/ws`. There is no userId in the URL, no session token in
 the page, and `/api/auth/get-session` yields nothing the socket accepts.
 
-- **Chat**: `setFauxAgentScript({steps:[{text:"MARKER"}]})` → type in the
+- **Chat**: `script([{text:"MARKER"}])` → type in the
   composer, press Enter → assert `MARKER` in the UI.
 - **Delegation**: `writeVaultFile` a note with a `[ ]` checkbox, then
-  `setFauxAgentScript` with a `toggle_task` tool-call step followed by a final
+  `script(…)` with a `toggle_task` tool-call step followed by a final
   text step, then `createDelegation({sourceFile, ordinal:0})`, then poll
   `listDelegations` for `status:"done"`, then `readVaultFile` to confirm the box
   is checked.
@@ -68,7 +87,7 @@ never as a bug in what you changed.
 Restore the echo and clean up what you wrote, before killing the dev server:
 
 ```js
-await call("setFauxAgentScript", { steps: [] });
+await script([]);
 await call("deleteVaultEntry", { path: "<the throwaway note>" });
 ```
 

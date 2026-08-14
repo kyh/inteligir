@@ -39,6 +39,8 @@ const HOST_LEAVES = {
   link: "POST",
   /** The whole vault as a streamed zip — a navigation, so it is a GET. */
   export: "GET",
+  /** The drive seam, served only under AGENT_RUNTIME=scripted (./scripted-route). */
+  scripted: "POST",
 } as const;
 
 export type HostLeaf = keyof typeof HOST_LEAVES;

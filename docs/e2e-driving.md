@@ -87,13 +87,24 @@ line and each eval has to re-mint and re-dial inside its own IIFE.
   await welcomed;
   // Parked so the flows below can be their own evals against this same socket.
   window.call = call;
+  // Scripting is a LEAF, not a channel: a capability only the scripted runtime
+  // has does not belong in the contract every client bundles. Same session the
+  // socket authenticated with, so it needs no credential of its own.
+  window.script = (steps) =>
+    fetch("/v1/host/scripted?verb=script", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ steps }),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`script failed: ${r.status}`);
+    });
   return await call("readVaultFile", { path: "Welcome.md" });
 })();
 ```
 
 ## Flow 1 — a chat turn
 
-`setFauxAgentScript` replaces the scripted container's response queue; one step
+`POST /v1/host/scripted?verb=script` replaces the container's response queue; one step
 is consumed per assistant turn, and BOTH lanes are seeded with the same steps —
 two independent queues, each drained on its own, so a stray chat turn does not
 eat the background lane's step. Script, then drive exactly one flow before
@@ -114,14 +125,15 @@ IMMEDIATELY before the turn, and read an echoed reply (`[scripted] <your
 message>`) as "the script was dropped, re-script and retry", never as a bug in
 whatever you just changed.
 
-`getAgentSystemPrompt` is the assertion seam beside it: a payload-free call that
+`GET`-less `POST /v1/host/scripted?verb=system-prompt` is the assertion seam
+beside it: a call that
 composes and returns the chat agent's system prompt from the current vault
 (always a `string`, on any runtime, before any turn has run), so a
 prompt-shaping change can be asserted byte-for-byte instead of inferred from
 model behavior.
 
 1. Script the reply, over the Bridge:
-   `call("setFauxAgentScript", { steps: [{ text: "SCRIPTED_CHAT_REPLY_42" }] })`
+   `script([{ text: "SCRIPTED_CHAT_REPLY_42" }])`
 2. Type into the composer and submit (agent-browser): click "Ask the agent…",
    type into the "Ask the agent to edit your notes…" textbox, press Enter.
 3. Assert the UI streamed it: poll until `document.body.textContent` contains
@@ -134,7 +146,7 @@ performs the checkbox write-back. The delegation completes when the turn ends
 AND the file is edited, so seed the note with known content first.
 
 The body below still needs its own `async () => { … }` wrapper per eval (top-
-level `await` is unavailable); `call` is the one the snippet parked on `window`.
+level `await` is unavailable); `call` and `script` are the two the snippet parked on `window`.
 
 ```js
 const file = "scripted-delegation-test.md";
@@ -143,20 +155,18 @@ await call("writeVaultFile", { path: file, content: "# T\n\n- [ ] scripted deleg
 // Step 1 carries the tool call; step 2 is the follow-up summary turn. The tool
 // names and argument shapes are the manifest's own — `agentToolManifest` in
 // apps/web/src/worker/agent/agent-tools.ts is the list.
-await call("setFauxAgentScript", {
-  steps: [
-    {
-      text: "Completing the task.",
-      toolCalls: [
-        {
-          name: "toggle_task",
-          arguments: { path: file, ordinal: 0, expectedRaw: "- [ ] scripted delegation task" },
-        },
-      ],
-    },
-    { text: "Checked the box and recorded the result." },
-  ],
-});
+await script([
+  {
+    text: "Completing the task.",
+    toolCalls: [
+      {
+        name: "toggle_task",
+        arguments: { path: file, ordinal: 0, expectedRaw: "- [ ] scripted delegation task" },
+      },
+    ],
+  },
+  { text: "Checked the box and recorded the result." },
+]);
 
 // ordinal = the checkbox's position among the doc's todo checkboxes (0 = first).
 await call("createDelegation", { sourceFile: file, ordinal: 0 });
@@ -164,13 +174,13 @@ await call("createDelegation", { sourceFile: file, ordinal: 0 });
 // then readVaultFile({ path: file }) to confirm "- [x] …".
 
 // Clean up:
-await call("setFauxAgentScript", { steps: [] }); // restore the echo
+await script([]); // restore the echo
 await call("deleteVaultEntry", { path: file });
 ```
 
 ## Teardown
 
-Restore the echo (`setFauxAgentScript({ steps: [] })`) and delete anything the
+Restore the echo (`script([])`) and delete anything the
 run wrote. A scripted queue left primed makes the NEXT flow's first turn answer
 with the previous flow's script, which reads as a bug in whatever you drive
 next.
