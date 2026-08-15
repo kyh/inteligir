@@ -196,6 +196,55 @@ describe("a doc whose BODY alone is too big", () => {
   });
 });
 
+describe("search", () => {
+  it("ranks a title hit above a body hit and prefix-matches the last token", async () => {
+    await withHost("knowledge-search", async ({ vault, knowledge }) => {
+      await seed(vault, knowledge, {
+        "quarterly.md": "# Quarterly review\n\nNothing else here.\n",
+        "mentions.md": "# Standup\n\nWe should schedule the quarterly review soon.\n",
+        "unrelated.md": "# Gardening\n\nTomatoes need staking.\n",
+      });
+
+      // Title tier outranks body tier — core's bm25 weights, over workerd's own
+      // FTS5 build.
+      expect((await knowledge.search({ query: "quarterly" })).map((hit) => hit.path)).toEqual([
+        "quarterly.md",
+        "mentions.md",
+      ]);
+      // Tokens AND together, and the last one is a prefix (search-as-you-type).
+      expect((await knowledge.search({ query: "quarterly rev" })).map((hit) => hit.path)).toEqual([
+        "quarterly.md",
+        "mentions.md",
+      ]);
+      expect(await knowledge.search({ query: "quarterly gardening" })).toEqual([]);
+      // A hit carries the matched line, not just the path.
+      expect((await knowledge.search({ query: "staking" }))[0]?.snippet).toContain("staking");
+    });
+  });
+
+  it("narrows a search to one tag, and lists a tag with no text at all", async () => {
+    await withHost("knowledge-tags", async ({ vault, knowledge }) => {
+      await seed(vault, knowledge, {
+        "work-plan.md": "# Plan\n\n#work the roadmap review.\n",
+        "home-plan.md": "# Plan\n\n#home the roadmap review.\n",
+      });
+
+      expect((await knowledge.search({ query: "roadmap" })).map((hit) => hit.path)).toEqual([
+        "home-plan.md",
+        "work-plan.md",
+      ]);
+      expect(
+        (await knowledge.search({ query: "roadmap", tag: "work" })).map((hit) => hit.path),
+      ).toEqual(["work-plan.md"]);
+      // Tag alone is a listing, not a search for nothing.
+      expect((await knowledge.search({ query: "", tag: "home" })).map((hit) => hit.path)).toEqual([
+        "home-plan.md",
+      ]);
+      expect(await knowledge.search({ query: "", tag: "" })).toEqual([]);
+    });
+  });
+});
+
 describe("the index is a cache over a database it shares", () => {
   it("rebuilds from the vault on a projection-version mismatch, manifest intact", async () => {
     await withHost("knowledge-wipe", async ({ vault, knowledge, state }) => {

@@ -413,10 +413,19 @@ describe("the scripted drive seam", () => {
   });
 
   it("refuses a verb it does not serve", async () => {
+    // A VALID body, so the 400 can only come from the verb branch — an empty
+    // body would make the json parse fail first and answer 400 for a reason
+    // this test does not name.
     const response = await SELF.fetch(`${ORIGIN}/v1/host/scripted?verb=nope`, {
       method: "POST",
-      headers: new Headers({ cookie: owner.cookie, origin: WEB_ORIGIN }),
+      headers: new Headers({
+        cookie: owner.cookie,
+        origin: WEB_ORIGIN,
+        "content-type": "application/json",
+      }),
+      body: JSON.stringify({ steps: [] }),
     });
     expect(response.status).toBe(400);
+    expect(await response.text()).toContain("unknown verb");
   });
 });

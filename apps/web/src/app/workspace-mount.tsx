@@ -56,17 +56,23 @@ export default function WorkspaceMount({ email }: { email: string }) {
     // credential that socket authenticated with, so it belongs to the surface
     // holding it.
     //
-    // The open note is flushed and every account-scoped store is reset FIRST
-    // (@repo/workspace/workspace/workspace-runtime), while the socket is still
-    // live. That teardown is what earns a router navigate here rather than a
-    // full reload: several stores latch on first init and never clear on their
-    // own, so a navigate WITHOUT it leaves the next account in this document
-    // reading the previous one's answers.
+    // Both verbs below follow the same order, and the order is the whole
+    // subtlety: FLUSH while the socket is still live, then make the fallible
+    // call, and only tear down once it has succeeded.
+    //
+    // The teardown (@repo/workspace/workspace/workspace-runtime) is what earns
+    // a router navigate instead of a full reload — several stores latch on
+    // first init and never clear on their own, so a navigate without it leaves
+    // the next account in this document reading the previous one's answers.
+    // But it is not free to run early: it empties ui-state, which re-applies
+    // the default appearance, blanks the editor and clears the transcript. Run
+    // before a call that can fail, that is what the user is left staring at.
     setAccountPort({
       email,
       signOut: async () => {
-        await endWorkspaceSession();
+        await flushOpenNoteOnly();
         await authClient.signOut();
+        await endWorkspaceSession();
         await navigate({ to: "/app/sign-in" });
       },
       // A same-origin path, not a fetch: the host streams a zip of the whole

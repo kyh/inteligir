@@ -13,10 +13,20 @@
 // named below with a reason. The point is not that every store must reset — it
 // is that leaving one out has to be a DECISION somebody wrote down.
 //
-// The check keys on the store's MODULE rather than its name: a store is torn
-// down through whatever its module exports for the purpose (`resetOpenNote`,
-// `stopReadAloud`, `consumeSearchRequest`), and matching the store's own
-// identifier would miss every one of those.
+// The check keys on the store's MODULE rather than its name, because a store is
+// torn down through whatever its module exports for the purpose
+// (`resetOpenNote`, `stopReadAloud`, `consumeSearchRequest`) and matching the
+// store's own identifier would miss every one of those. Two details are
+// load-bearing, and both were wrong first time round:
+//
+//   * the module is matched as a PATH SEGMENT. A bare `includes` lets
+//     "ai-review-store" satisfy "view-store", which silently exempted an entire
+//     store.
+//   * a mention in the IMPORTS is not evidence. A reset dropped in a refactor
+//     leaves its import behind, and a whole-file match reads that leftover as
+//     proof the store is handled — precisely the failure this guard exists to
+//     catch. So the imports say WHICH names come from a store's module, and the
+//     function body has to actually use one of them.
 // ---------------------------------------------------------------------------
 
 import fs from "node:fs";
@@ -67,6 +77,32 @@ function declaredStores(): { name: string; module: string }[] {
     .toSorted((a, b) => (a.name < b.name ? -1 : 1));
 }
 
+/**
+ * `endWorkspaceSession`'s body alone — imports and every other export excluded,
+ * so a leftover import cannot stand in for a call that was removed.
+ */
+function teardownBody(source: string): string {
+  const start = source.indexOf("export async function endWorkspaceSession");
+  if (start === -1) throw new Error("session-teardown: endWorkspaceSession not found");
+  const end = source.indexOf("\n}", start);
+  if (end === -1)
+    throw new Error("session-teardown: could not find the end of endWorkspaceSession");
+  return source.slice(start, end);
+}
+
+/** Every name the runtime imports, grouped by the module it came from. The
+ * module is keyed by its BASENAME as a path segment, so one module's name
+ * cannot be a substring of another's and quietly exempt it. */
+function importsByModule(source: string): Map<string, string[]> {
+  const byModule = new Map<string, string[]>();
+  for (const match of source.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']([^"']+)["']/g)) {
+    const names = (match[1] ?? "").split(",").map((name) => name.replace(/^type\s+/, "").trim());
+    const module = (match[2] ?? "").split("/").pop() ?? "";
+    byModule.set(module, [...(byModule.get(module) ?? []), ...names.filter(Boolean)]);
+  }
+  return byModule;
+}
+
 describe("ending a session accounts for every store", () => {
   it("sweeps both packages", () => {
     // A floor: a moved tree or a changed declaration shape would otherwise make
@@ -78,9 +114,17 @@ describe("ending a session accounts for every store", () => {
   });
 
   it("tears down, or explicitly exempts, every module-scope store", () => {
-    const runtime = fs.readFileSync(RUNTIME, "utf8");
+    const source = fs.readFileSync(RUNTIME, "utf8");
+    const body = teardownBody(source);
+    const imported = importsByModule(source);
     const unaccounted = declaredStores()
-      .filter(({ name, module }) => !runtime.includes(module) && !(name in NOT_ACCOUNT_SCOPED))
+      .filter(({ name, module }) => {
+        if (name in NOT_ACCOUNT_SCOPED) return false;
+        // Something from this store's module has to be USED in the teardown —
+        // the store itself, or whatever its module exports for the purpose.
+        const names = imported.get(module) ?? [];
+        return !names.some((exported) => new RegExp(`\\b${exported}\\b`).test(body));
+      })
       .map(({ name }) => name);
 
     expect(
