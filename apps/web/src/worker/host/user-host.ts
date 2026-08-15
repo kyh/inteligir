@@ -250,14 +250,15 @@ export class UserHost extends DurableObject<Env> {
   }
 
   private async route(request: Request): Promise<Response> {
-    // Six ways in, and the split is the transport or the CREDENTIAL, never the
-    // capability: the ticket mint (./ticket-route), the Bridge socket, the
+    // Eight ways in, and the split is the transport or the CREDENTIAL, never
+    // the capability: the ticket mint (./ticket-route), the Bridge socket, the
     // attachment upload that cannot fit in one of its frames (./asset-route),
     // the deep link that arrives as a navigation rather than a frame
-    // (../capture/deep-link-route), the container's report
-    // (./agent-endpoints), and the provider's OAuth redirect. The last two
-    // carry a token this Worker minted rather than a session, because neither
-    // caller has one.
+    // (../capture/deep-link-route), the vault export that arrives as one
+    // (./vault-export), the scripted drive seam (./scripted-route, 404 off
+    // that runtime), the container's report (./agent-endpoints), and the
+    // provider's OAuth redirect. The last two carry a token this Worker minted
+    // rather than a session, because neither caller has one.
     const pathname = new URL(request.url).pathname;
     const leaf = matchHostLeaf(request.method, pathname);
     if (leaf !== null) return await this.handleLeaf(leaf, request);

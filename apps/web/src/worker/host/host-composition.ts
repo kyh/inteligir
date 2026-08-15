@@ -281,7 +281,6 @@ export function composeHost(deps: HostCompositionDeps): HostComposition {
         providers: agent.providers,
         credentials: agent.credentials,
         origin: publicOrigin,
-        scripted: agent.scripted,
         announce: announceProviders,
       },
       background: {

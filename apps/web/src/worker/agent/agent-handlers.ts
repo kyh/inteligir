@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The agent's twelve Bridge handlers, over this object's own runner.
+// The agent's Bridge handlers, over this object's own runner.
 //
 // Everything here is a thin await around ./agent-runner, ./chat-store and
 // ./provider-credentials — the composition that could differ between hosts is
@@ -16,9 +16,8 @@
 
 import type { HandlerRegistrar } from "../host/handler-registry";
 
-import type { AgentLane, AgentRunner } from "./agent-runner";
+import type { AgentRunner } from "./agent-runner";
 import type { ChatStore } from "./chat-store";
-import type { FakeSandbox } from "./fake-sandbox";
 import type { ProviderCredentials } from "./provider-credentials";
 import type { ProviderService } from "./provider-service";
 import { startAuthorization } from "./provider-oauth";
@@ -37,9 +36,6 @@ export type AgentServices = {
    * off the socket that authenticated, because a Durable Object has no notion
    * of the hostname its Worker was called at. */
   readonly origin: () => string;
-  /** A lane's scripted container, where one is running. `null` on the real
-   * runtime, which is what makes the script channel fail closed. */
-  readonly scripted: (lane: AgentLane) => FakeSandbox | null;
   /** Push the provider snapshot to every socket. A selection is per ACCOUNT,
    * not per tab, so returning it only to the caller leaves a second tab
    * rendering a provider the next turn will not run on. */

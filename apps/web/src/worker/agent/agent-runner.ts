@@ -234,17 +234,6 @@ export class AgentRunner {
     return composeInstructions(this.deps.vault);
   }
 
-  /**
-   * Why no turn can run right now, or null.
-   *
-   * One sentence for every surface — the composer, a delegation create, a
-   * routine tick — because the fix is the same one in all three and a second
-   * phrasing would only be a second thing to keep true.
-   */
-  providerRefusal(): string | null {
-    return this.deps.providers.refusal();
-  }
-
   // ---- the outbound half ----------------------------------------------------
 
   /**

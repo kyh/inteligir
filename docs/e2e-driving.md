@@ -108,8 +108,9 @@ line and each eval has to re-mint and re-dial inside its own IIFE.
 is consumed per assistant turn, and BOTH lanes are seeded with the same steps —
 two independent queues, each drained on its own, so a stray chat turn does not
 eat the background lane's step. Script, then drive exactly one flow before
-re-scripting. Empty `steps` restores the self-refilling echo. It throws unless
-the runtime is scripted, so it does nothing on a real deployment.
+re-scripting. Empty `steps` restores the self-refilling echo. The route answers
+404 unless the runtime is scripted, so it is not there at all on a real
+deployment.
 
 A step carries three things, and the difference between the last two is the
 whole shape of the agent: `text` is what the model said, `toolCalls` are the
@@ -127,12 +128,12 @@ whatever you just changed.
 
 `POST /v1/host/scripted?verb=system-prompt` is the assertion seam beside it:
 a call that
-composes and returns the chat agent's system prompt from the current vault
-(always a `string`, on any runtime, before any turn has run), so a
-prompt-shaping change can be asserted byte-for-byte instead of inferred from
-model behavior.
+composes and returns the chat agent's system prompt from the current vault —
+answered before any turn has run, and 404 off the scripted runtime like its
+sibling — so a prompt-shaping change can be asserted byte-for-byte instead of
+inferred from model behavior.
 
-1. Script the reply, over the Bridge:
+1. Script the reply, over the leaf:
    `script([{ text: "SCRIPTED_CHAT_REPLY_42" }])`
 2. Type into the composer and submit (agent-browser): click "Ask the agent…",
    type into the "Ask the agent to edit your notes…" textbox, press Enter.

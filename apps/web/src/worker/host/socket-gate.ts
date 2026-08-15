@@ -9,9 +9,11 @@
 // an event its class never named.
 //
 // So this class owns both, plus everything that would otherwise have to
-// re-implement them: the dispatch map, the socket enumeration, event encoding,
-// the broadcast fan-out and the reconnect hydration push. Nothing outside it
-// looks up a handler or writes an event frame.
+// re-implement them: the dispatch map, event encoding, the broadcast fan-out
+// and the reconnect hydration push. Nothing outside it looks up a handler or
+// writes an event frame. The socket SET is injected (./socket-transport owns
+// every `getWebSockets`), which is what lets a test drive both directions
+// through a fake one.
 //
 // `__tests__/socket-gate.test.ts` drives both directions through a fake socket
 // — inverting either predicate turns it red.
