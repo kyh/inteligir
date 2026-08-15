@@ -51,7 +51,7 @@ src/
     server.ts            Worker entry: path split + the Durable Object export
     index.ts             The API route table; `ownsPath` is the split
     host/                THE WORKSPACE HOST — one Durable Object per user
-      user-host.ts       Durable Object: hibernatable sockets, auth, dispatch
+      user-host.ts       Durable Object: the entry points, and nothing else
       host-composition.ts the ONE wiring graph — every part, and the handler map
       host-alarm.ts      the ONE alarm: a list of concerns, re-armed at the earliest
       host-route.ts      The ONE Worker leg: credential → object name → forward
@@ -61,11 +61,13 @@ src/
       origins.ts         The exact-match origin allowlist (on the mint)
       client-class.ts    ClientClass, how it is decided, + the two capability gates
       socket-state.ts    The socket attachment: the only state a wake can read
+      socket-transport.ts the socket WHOLE: accept, authenticate, dispatch, gated push
       socket-gate.ts     the TWO chokepoints: dispatch in, broadcast + hydration out
       session.ts         readCredential + verifyHostSession — the one auth read
       handler-registry.ts collectHandlers(): the completeness guard
       handlers.ts        every channel's implementation, grouped by feature
       host-limits.ts     the per-account budget each HTTP leaf charges
+      scripted-route.ts  POST /v1/host/scripted: the drive seam, 404 off the scripted runtime
       vault-export.ts    GET /v1/host/export: the whole vault as a streamed zip
       vault-handlers.ts  the vault's ten channels
       knowledge-handlers.ts the index's seven channels, incl. the guarded toggle
@@ -463,15 +465,19 @@ client.
   allowlist between a user's session and that user's own object protects
   nothing the session does not already own. A capability that ever reaches
   outside the tenancy needs its own class.
-- **Two chokepoints, in one module that owns both.** `SocketGate`
-  (`host/socket-gate.ts`) holds the dispatch map, the socket enumeration, the
+- **One module owns the socket; two chokepoints live inside it.**
+  `SocketTransport` (`host/socket-transport.ts`) runs accept → authenticate →
+  dispatch → gated push, and holds `SocketGate` (`host/socket-gate.ts`)
+  internally. The gate holds the dispatch map, the socket enumeration, the
   broadcast fan-out and the reconnect hydration, so `resolve()` is the only
   reader of the map and `push()` the only pusher of an event frame — hydration
   included, which resolves a getter server-side and would otherwise volunteer
-  state the method gate forbids asking for. Its socket seam is structural, so
-  `__tests__/socket-gate.test.ts` drives both directions with a fake socket and
-  asserts what a client was NOT sent; `__tests__/no-ungated-dispatch.test.ts` is
-  the backstop that fails when a third path appears.
+  state the method gate forbids asking for. `UserHost` forwards the platform
+  callbacks and implements none of it. `__tests__/socket-gate.test.ts` drives
+  both directions with a fake socket and asserts what a client was NOT sent;
+  `__tests__/no-ungated-dispatch.test.ts` is the backstop that fails when
+  another path appears, and derives its HTTP-leaf coverage from the leaf table
+  so a new route cannot ship ungated.
 - **Every host method is implemented, and there is no second pile.**
   `collectHandlers` throws at construction if any is unregistered. A capability
   this host does not have has no channel either: a method that answers only by

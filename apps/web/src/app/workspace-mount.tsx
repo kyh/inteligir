@@ -74,9 +74,14 @@ export default function WorkspaceMount({ email }: { email: string }) {
       // credential. Better Auth's own hook is what purges the host (see the
       // Worker's auth.ts).
       deleteAccount: async (password) => {
+        // Ended BEFORE the delete, unlike everything else here. `purgeAccount`
+        // closes every socket with 4401 as its first act, so a flush aimed
+        // after it waits out the whole FLUSH_TIMEOUT_MS against a host that no
+        // longer exists — five seconds of dead UI to save bytes into a vault
+        // being erased on purpose.
+        await endWorkspaceSession();
         const { error } = await authClient.deleteUser(password === null ? {} : { password });
         if (error !== null) return { ok: false, error: authErrorMessage(error) };
-        await endWorkspaceSession();
         await navigate({ to: "/app/sign-in" });
         return { ok: true };
       },

@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
 // The Bridge socket, whole: accept → authenticate → dispatch → gated push.
 //
-// The seam used to start AFTER authentication — the gate owned dispatch and
-// broadcast while the upgrade, the pre-auth policing, the ticket spend and the
-// deadline reap sat in `UserHost` — so "how does a socket work" was answered by
-// reading five modules and 210 lines of the object. It is one module now, and
-// the object forwards platform callbacks into it.
+// ONE module answers "how does a socket work", from the upgrade through the
+// pre-auth policing, the ticket spend, dispatch and the deadline reap. The
+// object forwards platform callbacks into it and implements none of the
+// protocol itself — a seam that began after authentication would leave half
+// the answer in the class and half here.
 //
 // HIBERNATION IS THE POINT, and it shapes everything here. Sockets are accepted
 // with `ctx.acceptWebSocket` and served through the object's `webSocket*`

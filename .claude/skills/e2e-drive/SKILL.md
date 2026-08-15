@@ -48,7 +48,7 @@ const script = (steps) =>
   });
 ```
 
-`fetch("/v1/host/scripted?verb=system-prompt").then(r => r.json())` returns
+`fetch("/v1/host/scripted?verb=system-prompt", { method: "POST" }).then(r => r.json())` returns
 `{ prompt }` — the chat agent's composed system prompt, for byte-exact
 assertions. Both answer 404 off `AGENT_RUNTIME=scripted`.
 

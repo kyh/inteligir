@@ -7,12 +7,11 @@
 // answer, and it is deliberately thin — everything here reads
 // ./open-note-store, which is the open note's ONE home.
 //
-// It used to be three module-level slots the provider registered and cleared.
-// Two of them were state the store already held and were re-published by hand;
-// the third is an ACTION only the live session can perform, so it is held in
-// the store beside the state it acts on rather than in a slot of its own —
-// which means a session that ends clears it the same way it clears everything
-// else, instead of needing its own teardown line.
+// Path and privacy are DERIVED from that store rather than republished into
+// slots of their own, so they cannot go stale between opens. The flush is an
+// ACTION only the live session can perform, so it is held in the store beside
+// the state it acts on: a session that ends clears it the same way it clears
+// everything else, instead of needing a teardown line that can be forgotten.
 // ---------------------------------------------------------------------------
 
 import { notePrivacy } from "@repo/notes/markdown/frontmatter";

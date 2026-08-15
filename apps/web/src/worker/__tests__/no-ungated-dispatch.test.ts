@@ -17,16 +17,21 @@
 // If you are here because this failed: do not add your call site to the set.
 // Route it through SocketGate — that is the fix.
 //
-// The socket is not the only way in. Three HTTP leaves reach the same vault and
-// cannot pass through the gate (there is no frame to resolve and no socket to
-// push to), so each carries the check itself, named as the registry METHOD it
-// stands in for. That is a different fact from the socket chokepoint and is
-// pinned as one: the leaves are a table here, and a route that reaches a
-// capability without naming it — or a leaf that quietly drops its check — is
-// what the closure below catches.
+// The socket is not the only way in. Several HTTP leaves reach the same vault
+// and cannot pass through the gate (there is no frame to resolve and no socket
+// to push to), so each carries the check itself, named as the registry METHOD
+// it stands in for. That is a different fact from the socket chokepoint and is
+// pinned as one.
+//
+// The COVERAGE is derived from `HOST_LEAVES` rather than listed, because a
+// hand-written list is exactly what let a leaf ship ungated: adding a route
+// there now fails this file until it is either gated or declared part of the
+// socket path.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
+
+import { HOST_LEAVES, type HostLeaf } from "../host/host-route";
 
 /**
  * Every module the Worker ships, keyed by its path under `src/worker/`.
@@ -102,18 +107,26 @@ const gate = linesOf(GATE);
  * capability over two transports, so a route gated on something of its own
  * would be a second policy for the same thing — and the two would drift.
  */
+/** The two leaves that ARE the socket path rather than a capability over a
+ * second transport: the mint decides the class, and the upgrade carries it in
+ * the attachment. Everything else must name the method it stands in for. */
+const SOCKET_PATH_LEAVES = new Set<HostLeaf>(["ticket", "ws"]);
+
 const HTTP_LEAVES = [
   {
+    leaf: "assets" as HostLeaf,
     file: "host/asset-route.ts",
     gate: 'mayInvoke(clientClass, "writeVaultAsset")',
     why: "an upload too large for a frame is the write channel over a second transport",
   },
   {
+    leaf: "link" as HostLeaf,
     file: "capture/deep-link-route.ts",
     gate: 'mayInvoke(clientClass, "ackCapture")',
     why: "a capture writes to the vault, so a class that may not ack one may not create one",
   },
   {
+    leaf: "scripted" as HostLeaf,
     file: "host/scripted-route.ts",
     gate: 'mayInvoke(clientClass, "sendAgentCommand")',
     why:
@@ -121,6 +134,7 @@ const HTTP_LEAVES = [
       "sendAgentCommand's outcome over a second transport",
   },
   {
+    leaf: "export" as HostLeaf,
     file: "host/vault-export.ts",
     gate: 'mayInvoke("mobile", "readVaultFile")',
     why:
@@ -130,6 +144,17 @@ const HTTP_LEAVES = [
 ];
 
 describe("the gate has one way in and one way out", () => {
+  it("gates every host leaf that is not the socket path itself", () => {
+    const declared = new Set(HTTP_LEAVES.map((entry) => entry.leaf));
+    const ungated = (Object.keys(HOST_LEAVES) as HostLeaf[]).filter(
+      (leaf) => !SOCKET_PATH_LEAVES.has(leaf) && !declared.has(leaf),
+    );
+    expect(
+      ungated,
+      `a host leaf reaches a capability with no gate named for it: ${ungated.join(", ")}`,
+    ).toEqual([]);
+  });
+
   it("sweeps the whole Worker", () => {
     // A floor: a moved source tree or a glob that stops matching would make
     // every set below trivially satisfied.
@@ -147,9 +172,11 @@ describe("the gate has one way in and one way out", () => {
     ).toEqual([TRANSPORT]);
   });
 
-  it("names the handler map in exactly the four places it crosses", () => {
-    // Built, held, handed over, consumed. A fifth module naming it is a module
-    // that can dispatch a method without the class gate ever answering.
+  it("names the handler map only where it is built, held, handed over or used", () => {
+    // Built (handler-registry), assembled (host-composition), handed to the
+    // transport (user-host), held and resolved (socket-transport, socket-gate).
+    // A module outside this set naming it is a module that can dispatch a
+    // method without the class gate ever answering.
     expect(
       modulesMatching(/\bHostHandlers\b|\bWireHandler\b|\.handlers\b/),
       "the handler map is SocketGate's — resolve through the gate instead of indexing it",

@@ -1,20 +1,20 @@
 // ---------------------------------------------------------------------------
 // A DocProjection across the SQL boundary, as ONE json column.
 //
-// The projection used to be shredded into five FK-cascaded child tables and
-// reassembled on read. Nothing ever queried them: link, tag and name RESOLUTION
-// all happen in the in-memory LinkGraphIndex, so the child rows were read only
-// by hydration's per-table sweeps — a serialize/deserialize of a value object,
-// spelled as a relational schema.
+// The projection is stored whole rather than shredded into child tables,
+// because nothing queries its parts: link, tag and name RESOLUTION all happen
+// in the in-memory LinkGraphIndex, so child rows would be read only by
+// hydration's own sweeps — a value object spelled as a relational schema.
 //
-// It also multiplied the exact cost the store is shaped around: Durable Object
-// SQLite bills rows WRITTEN, so one doc with 30 links, 12 headings, 5 tags and
-// 8 tasks was 56 billed writes where one row is one.
+// It is also the cost the store is shaped around: Durable Object SQLite bills
+// rows WRITTEN, so one doc with 30 links, 12 headings, 5 tags and 8 tasks is
+// one billed write here and 56 shredded.
 //
-// Parsing is TOTAL and THROWS, matching the column parsers it replaces: the
-// store's guards treat any malformed row as corruption and wipe-rebuild, which
-// is safe precisely because nothing durable lives in the index tables. So the
-// failure mode of a validator that is too strict is a rebuild, never a loss.
+// Parsing is TOTAL and THROWS: the store's guards treat any malformed row as
+// corruption and wipe-rebuild, which is safe precisely because nothing durable
+// lives in the index tables. So a validator that is too strict costs a rebuild,
+// never data — which is why it checks every field rather than trusting the
+// build that wrote them.
 // ---------------------------------------------------------------------------
 
 import type { StoredLink } from "./projection";

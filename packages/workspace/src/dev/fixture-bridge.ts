@@ -451,8 +451,6 @@ export function createFixtureBridge(openKnowledgeStore: (root: string) => Knowle
   // fixture search ranks exactly like the product's.
   const linkGraph = new LinkGraphIndex();
   const knowledgeStore = openKnowledgeStore(FIXTURE_ROOT);
-  // Stat identity is fabricated (no filesystem behind the Map): a fresh
-
   // A real last-modified for the fixture vault, not a canned constant.
   const writtenAtMs = new Map<string, number>();
   const indexEntry = (path: string): void => {

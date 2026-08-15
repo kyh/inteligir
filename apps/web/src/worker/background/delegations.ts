@@ -56,8 +56,6 @@ import type {
  * vanish with no feedback. */
 const MAX_DELEGATIONS = 200;
 
-/** Longest result summary kept on the record. */
-
 /** Why the anchor yielded nothing to delegate, as the user reads it. Two
  * causes, two sentences: an ordinal that names no task means the file moved
  * under them, while one that names a finished task means there is nothing left

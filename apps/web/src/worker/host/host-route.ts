@@ -28,7 +28,7 @@ import { addressedUserId, readCredential } from "./session";
  * same table — a leaf the object handles but the Worker never forwards is a
  * capability nobody can reach, and the reverse is a request nobody answers.
  */
-const HOST_LEAVES = {
+export const HOST_LEAVES = {
   /** Mint the single-use ticket a socket authenticates with. */
   ticket: "POST",
   /** The Bridge socket itself. */

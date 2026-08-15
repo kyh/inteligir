@@ -236,10 +236,11 @@ chat transcript, the background lane, the tickets and the budgets.
   have has no channel at all — a method that answers only by refusing satisfies
   both that guard and `no-dead-channels` while failing at runtime. Adding a
   channel is the LAST step of building a capability; retiring one deletes it.
-- **Six ways in besides the socket**, split by transport or credential, never by
-  capability: the ticket mint, the asset upload too large for a frame, the deep
-  link the `/app/link` page POSTs, the vault export that arrives as a
-  navigation, the container's report, and the provider's OAuth redirect. The
+- **Seven ways in besides the socket**, split by transport or credential, never
+  by capability: the ticket mint, the asset upload too large for a frame, the
+  deep link the `/app/link` page POSTs, the vault export that arrives as a
+  navigation, the scripted drive seam (`AGENT_RUNTIME=scripted` only, 404
+  otherwise), the container's report, and the provider's OAuth redirect. The
   last two carry a token this Worker minted, because neither caller has a
   session.
 
@@ -960,17 +961,19 @@ export` over `src/worker/db/schema.ts`, so the suite always runs the schema the
   ui-state flush timers, `chatGeneration`), so the old `location.assign` was
   load-bearing rather than lazy. Instancing the stores per runtime
   (`createStore()` + `useStore(runtime.stores.x, …)`) would additionally buy
-  account SWITCHING, and its cost is measured rather than guessed: 159
-  `.getState()`/`.setState()`/`.subscribe()` call sites that cannot read React
-  context, because they live in Plate node components and in non-React services
-  (the voice pipeline, read-aloud, the AI session). Threading a runtime through
-  all of them to support two accounts in one document is a capability this
-  product has never needed. Revisit when it does.
+  account SWITCHING. The obstacle is not the call-site count — 31 static
+  `.getState()`/`.setState()`/`.subscribe()` sites across 10 non-test files —
+  but WHERE they are: imperative modules with no React context to read from
+  (the voice pipeline, read-aloud, the agent store, the AI session). Each would
+  have to take the runtime as a parameter, which changes its public signature
+  and every caller, and several are reached from inside the Plate tree. That is
+  a real refactor for a capability this product has never needed. Revisit when
+  it does.
 
 - **The frontend packages stay split, and `@repo/ui` especially.** The tempting
   collapse — `ui` + `editor` + `workspace` are consumed only by `apps/web`, so
   fold them in — is REJECTED on two facts. `@repo/ui` is not
-  workspace-internal: nine files in the SSR marketing and auth half of
+  workspace-internal: eight files in the SSR marketing and auth half of
   `apps/web` import it, so it is genuinely shared across two surfaces with
   different rendering models. And the `@repo/workspace` boundary is what keeps
   Plate's ~30 packages behind ONE dynamic import (`app/workspace-mount.tsx`
@@ -978,7 +981,7 @@ export` over `src/worker/db/schema.ts`, so the suite always runs the schema the
   must never pay for them, and a package edge makes that checkable where a
   directory does not. The collapse is also 283 files and 769 cross-package
   import statements of pure churn. What the collapse was really after — the
-  1,338-line fixture Bridge — is a SEPARATE piece of work that the collapse
+  1,207-line fixture Bridge — is a SEPARATE piece of work that the collapse
   would not have finished anyway: three of the five suites mounting it are
   React component tests, and `apps/web`'s vitest runs in the Workers pool,
   which has no DOM. Retiring it means giving those three narrow per-test

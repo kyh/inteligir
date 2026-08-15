@@ -1,13 +1,12 @@
 // ---------------------------------------------------------------------------
 // Ending an account's session inside one document.
 //
-// Sign-out used to be `window.location.assign` — correct only because it was a
-// sledgehammer. The workspace's state is a constellation of module-scope stores
-// and latches, and several of them are WRITE-ONCE: `initStarted` in the two AI
-// stores is set on first init and never cleared, `initPromise` in ui-state is
-// memoized forever, `chatGeneration` counts a surface that a reload discards.
-// A router navigate would have left every one of them holding the previous
-// account's answers, so the reload was load-bearing rather than lazy.
+// The workspace's state is a constellation of module-scope stores and latches,
+// and several are WRITE-ONCE: `initStarted` in the two AI stores, `initPromise`
+// in ui-state, `subscribed` on the provider snapshot. Nothing about leaving a
+// route clears them, so ending a session has to be an explicit act — without
+// one, the next sign-in in the same document reads the previous account's
+// answers, and a full page reload is the only alternative that works.
 //
 // This is the one place that ends a session, so the list below is the whole
 // answer to "what belongs to the account rather than to the app". A store that

@@ -3,16 +3,15 @@
 //
 // Two capabilities exist only under `AGENT_RUNTIME=scripted`: seeding the fake
 // container's response queue, and reading back the chat agent's composed system
-// prompt. They used to be Bridge channels, which put them in the contract every
-// client bundles, in the host's required-handler set, in the agent grant table
-// and in the fixture Bridge — and one of them threw on the real runtime, against
-// the registry's own rule that a capability this host does not have has no
-// channel at all.
+// prompt. Neither is a Bridge channel, and that is the registry's own rule
+// rather than a preference: a capability this host may not have has no channel
+// at all, or the contract every client bundles carries a method that throws on
+// the runtime it ships to.
 //
-// A leaf instead. It costs nothing the socket was paying: `routeHost` already
-// proves a session and addresses the caller's own object before this runs, so
-// there is no userId on the path and no second derivation to keep honest — the
-// same admission every other leaf gets.
+// A leaf costs nothing the socket was paying. `routeHost` proves a session and
+// addresses the caller's own object before this runs, so there is no userId on
+// the path and no second derivation to keep honest — the same admission every
+// other leaf gets.
 //
 // Fail-closed on the runtime, not on the caller: a deployment running a real
 // container has no queue to seed, and answers 404 as if the leaf were not

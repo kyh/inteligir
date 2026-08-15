@@ -1,12 +1,13 @@
 // ---------------------------------------------------------------------------
 // The AI provider lifecycle, in one place.
 //
-// "Which provider runs" is ONE question, and before this module seven readers
-// answered it by recombining the catalog, the stored selection and the
-// connection state themselves — so a turn could resolve it three times per
-// message and Settings could disagree with the link beside the message.
-// CLAUDE.md § Decisions states the rule ("ONE resolution decides which AI
-// provider runs"); this is where it is enforced rather than restated.
+// "Which provider runs" is ONE question, and this is the only place that
+// answers it. Every other surface — a turn, a boot, Settings, the editor's ⌘J —
+// consumes the answer rather than recomposing it from the catalog, the stored
+// selection and the connection state. CLAUDE.md § Decisions states the rule
+// ("ONE resolution decides which AI provider runs"); this is where it is
+// enforced rather than restated: two readers combining those parts themselves
+// is how Settings comes to disagree with the message beside it.
 //
 // The seam is deliberately narrow: `credentials.selection()` is read HERE and
 // nowhere else, so a new reader has to come through `turnFacts()` or `refusal()`
@@ -38,8 +39,9 @@ export type ProviderServiceDeps = {
 };
 
 /** The provider facts a turn is dispatched with, resolved once. Carrying the
- * modelId with the entry is the point: `bootPins` used to recompute it from the
- * raw selection and discard the one the choice had already resolved. */
+ * modelId with the entry is the point: a boot that recomputed it from the raw
+ * selection could configure the container with a different model than the turn
+ * was admitted on. */
 export type TurnProvider = {
   readonly entry: ProviderEntry;
   readonly modelId: string;

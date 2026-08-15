@@ -125,8 +125,8 @@ IMMEDIATELY before the turn, and read an echoed reply (`[scripted] <your
 message>`) as "the script was dropped, re-script and retry", never as a bug in
 whatever you just changed.
 
-`GET`-less `POST /v1/host/scripted?verb=system-prompt` is the assertion seam
-beside it: a call that
+`POST /v1/host/scripted?verb=system-prompt` is the assertion seam beside it:
+a call that
 composes and returns the chat agent's system prompt from the current vault
 (always a `string`, on any runtime, before any turn has run), so a
 prompt-shaping change can be asserted byte-for-byte instead of inferred from

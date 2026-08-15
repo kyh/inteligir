@@ -143,6 +143,40 @@ describe("the store runs unchanged over Durable Object storage", () => {
     });
   });
 
+  // THE property the schema bump rests on. `reset()` drops the tables the DRIVER
+  // RECORDED, never a list written in the DDL — which is the only reason
+  // removing a table from the schema does not strand it. A v8 database carried
+  // links/headings/tags/aliases/tasks; v9's DDL creates none of them, so a
+  // hardcoded drop-list would have left five orphans holding the previous
+  // shape's rows forever, in the same database as the durable vault manifest.
+  it("drops a recorded table the current schema no longer creates", async () => {
+    await withStore("driver-orphan", ({ store, sql, state }) => {
+      seed(store, { "a.md": "# A\n" });
+      // Stand in for a table an OLDER schema version created and registered.
+      sql.exec("CREATE TABLE IF NOT EXISTS legacy_children (path TEXT PRIMARY KEY)");
+      sql.exec("INSERT INTO knowledge_objects (name) VALUES ('legacy_children')");
+      // And one the store never created, which must survive — the vault
+      // manifest shares this database.
+      sql.exec("CREATE TABLE IF NOT EXISTS neighbour (id TEXT PRIMARY KEY)");
+
+      const tables = (): string[] =>
+        sql
+          .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .toArray()
+          .map((row) => row.name);
+      expect(tables()).toContain("legacy_children");
+
+      // A version bump is what forces the wipe, exactly as 8 -> 9 did.
+      sql.exec("UPDATE knowledge_driver SET value = '9999' WHERE key = 'schema_version'");
+      createSqlKnowledgeStore(createDoSqlDriver(state.storage), ROOT);
+
+      expect(tables(), "an orphan from a retired schema survived the bump").not.toContain(
+        "legacy_children",
+      );
+      expect(tables(), "the store dropped a table it never created").toContain("neighbour");
+    });
+  });
+
   it("resets only the tables it created", async () => {
     await withStore("driver-reset", ({ store, sql }) => {
       // A table the store knows nothing about, standing in for the vault
