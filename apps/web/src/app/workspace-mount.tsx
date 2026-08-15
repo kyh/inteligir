@@ -58,9 +58,9 @@ export default function WorkspaceMount({ email }: { email: string }) {
     //
     // The open note is flushed and every account-scoped store is reset FIRST
     // (@repo/workspace/workspace/workspace-runtime), while the socket is still
-    // live — which is what earns the router navigate. This used to be
-    // `location.assign`, and the reload was load-bearing: several stores latch
-    // on first init and never clear, so a navigate alone left the next account
+    // live. That teardown is what earns a router navigate here rather than a
+    // full reload: several stores latch on first init and never clear on their
+    // own, so a navigate WITHOUT it leaves the next account in this document
     // reading the previous one's answers.
     setAccountPort({
       email,

@@ -140,9 +140,9 @@ describe("completing it on the callback", () => {
   });
 
   // The state every connected account starts in, and the one the chat's
-  // Re-authenticate link used to refuse from: completing an authorization seals
-  // the credential and writes no selection, so an account that never opened the
-  // model dropdown has `null` there forever.
+  // Re-authenticate link must not refuse from: completing an authorization
+  // seals the credential and writes no selection, so an account that never
+  // opened the model dropdown has `null` there forever.
   it("stores no selection, and the one resolution still names what was connected", async () => {
     const credentials = credentialsWith(grant);
     const { state } = await begin(credentials);

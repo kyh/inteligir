@@ -73,6 +73,8 @@ export async function routeHost(
   return env.UserHost.getByName(userHostName(userId)).fetch(request);
 }
 
-function isHostLeaf(leaf: string): leaf is HostLeaf {
+/** Whether `leaf` names one. Exported so a guard can narrow `Object.keys`
+ * without asserting its way to the type. */
+export function isHostLeaf(leaf: string): leaf is HostLeaf {
   return Object.hasOwn(HOST_LEAVES, leaf);
 }

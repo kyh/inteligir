@@ -31,7 +31,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { HOST_LEAVES, type HostLeaf } from "../host/host-route";
+import { HOST_LEAVES, isHostLeaf, type HostLeaf } from "../host/host-route";
 
 /**
  * Every module the Worker ships, keyed by its path under `src/worker/`.
@@ -112,21 +112,26 @@ const gate = linesOf(GATE);
  * the attachment. Everything else must name the method it stands in for. */
 const SOCKET_PATH_LEAVES = new Set<HostLeaf>(["ticket", "ws"]);
 
-const HTTP_LEAVES = [
+const HTTP_LEAVES: readonly {
+  readonly leaf: HostLeaf;
+  readonly file: string;
+  readonly gate: string;
+  readonly why: string;
+}[] = [
   {
-    leaf: "assets" as HostLeaf,
+    leaf: "assets",
     file: "host/asset-route.ts",
     gate: 'mayInvoke(clientClass, "writeVaultAsset")',
     why: "an upload too large for a frame is the write channel over a second transport",
   },
   {
-    leaf: "link" as HostLeaf,
+    leaf: "link",
     file: "capture/deep-link-route.ts",
     gate: 'mayInvoke(clientClass, "ackCapture")',
     why: "a capture writes to the vault, so a class that may not ack one may not create one",
   },
   {
-    leaf: "scripted" as HostLeaf,
+    leaf: "scripted",
     file: "host/scripted-route.ts",
     gate: 'mayInvoke(clientClass, "sendAgentCommand")',
     why:
@@ -135,7 +140,7 @@ const HTTP_LEAVES = [
       "exclusion — a companion bearer may drive a turn here as on the socket",
   },
   {
-    leaf: "export" as HostLeaf,
+    leaf: "export",
     file: "host/vault-export.ts",
     gate: 'mayInvoke("mobile", "readVaultFile")',
     why:
@@ -147,9 +152,9 @@ const HTTP_LEAVES = [
 describe("the gate has one way in and one way out", () => {
   it("gates every host leaf that is not the socket path itself", () => {
     const declared = new Set(HTTP_LEAVES.map((entry) => entry.leaf));
-    const ungated = (Object.keys(HOST_LEAVES) as HostLeaf[]).filter(
-      (leaf) => !SOCKET_PATH_LEAVES.has(leaf) && !declared.has(leaf),
-    );
+    const ungated = Object.keys(HOST_LEAVES)
+      .filter(isHostLeaf)
+      .filter((leaf) => !SOCKET_PATH_LEAVES.has(leaf) && !declared.has(leaf));
     expect(
       ungated,
       `a host leaf reaches a capability with no gate named for it: ${ungated.join(", ")}`,

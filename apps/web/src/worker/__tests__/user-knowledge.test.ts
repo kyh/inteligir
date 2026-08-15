@@ -121,10 +121,10 @@ describe("projection follows the vault", () => {
 describe("a doc the store cannot hold", () => {
   // The projection is ONE column, so a link- or task-dense note big enough to
   // pass SQLite's per-value ceiling answers SQLITE_TOOBIG on write. That throw
-  // used to escape `project()` and be read one level up as a corrupt cache,
-  // which nukes the whole store — and since the note stays in the vault, every
-  // later query re-read it and nuked again. One unindexable doc must cost that
-  // doc, never the account's search, backlinks, tags and tasks.
+  // must not escape `project()`: one level up it reads as a corrupt cache and
+  // nukes the whole store, and since the note stays in the vault every later
+  // query would re-read it and nuke again. One unindexable doc costs that doc,
+  // never the account's search, backlinks, tags and tasks.
   it("skips it and leaves every other doc indexed", { timeout: 30_000 }, async () => {
     await withHost("knowledge-toobig", async ({ vault, knowledge }) => {
       // Task-dense: `raw` + `text` are stored per item, so this amplifies well
