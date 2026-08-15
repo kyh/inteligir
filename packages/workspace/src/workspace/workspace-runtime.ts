@@ -40,13 +40,6 @@ import { stopReadAloud } from "../voice/read-aloud";
 import { useVoiceStore } from "../stores/voice-store";
 
 /**
- * Tear down everything scoped to the account whose session just ended.
- *
- * Resolves once the open note's bytes are safe and every account-scoped store
- * is back at its initial state, so the next sign-in in the same document starts
- * from the same place a fresh load would.
- */
-/**
  * Persist the live buffer, and nothing else.
  *
  * Split out because one caller needs the flush WITHOUT the teardown: deleting
@@ -58,6 +51,13 @@ export function flushOpenNoteOnly(): Promise<boolean> {
   return flushOpenNote();
 }
 
+/**
+ * Tear down everything scoped to the account whose session just ended.
+ *
+ * Resolves once the open note's bytes are safe and every account-scoped store
+ * is back at its initial state, so the next sign-in in the same document starts
+ * from the same place a fresh load would.
+ */
 export async function endWorkspaceSession(): Promise<void> {
   // While the bridge is still live. A refusal here is not a reason to keep the
   // session open — the user asked to leave — but it must be attempted.
