@@ -478,15 +478,14 @@ export class UserKnowledge {
     // again — once per wake, inside that pass's read budget, exactly as an
     // unreadable doc is retried below. That is deliberate: the note may be
     // edited down to a size that fits.
-    let projection;
     try {
-      projection = projectDoc(path, text);
+      const projection = projectDoc(path, text);
+      this.store.upsertDoc({ path, contentHash, projection }, text);
+      this.graph.applyDoc(path, projection);
     } catch (err) {
       console.warn(`[knowledge] could not index ${path}:`, messageOf(err));
       return;
     }
-    this.store.upsertDoc({ path, contentHash, projection }, text);
-    this.graph.applyDoc(path, projection);
     this.hashes.set(path, contentHash);
     this.others.delete(path);
   }
