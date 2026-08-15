@@ -30,6 +30,7 @@ import { useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
 import { useAiSettingsStore } from "@repo/editor/stores/ai-settings-store";
 import { useDelegationStore } from "@repo/editor/stores/delegation-store";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
+import { resetOpenNote } from "@repo/editor/note/open-note-store";
 import { consumeSearchRequest } from "@repo/editor/search-request";
 
 import { useAgentStore } from "../stores/agent-store";
@@ -60,6 +61,9 @@ export async function endWorkspaceSession(): Promise<void> {
   stopReadAloud();
   useVoiceStore.getState().reset();
 
+  // FIRST among the resets, and after the flush above: it holds the previous
+  // account's note bytes, which every editor surface renders directly.
+  resetOpenNote();
   useAgentStore.getState().reset();
   useUiStateStore.getState().reset();
   useViewStore.getState().reset();

@@ -309,6 +309,8 @@ export class UserHost extends DurableObject<Env> {
       }
       case "scripted":
         return await handleScriptedRoute(request, {
+          env: this.env,
+          hostName: this.ctx.id.name,
           scripted: this.host.agent.scripted,
           systemPrompt: () => this.host.agent.runner.systemPrompt(),
         });

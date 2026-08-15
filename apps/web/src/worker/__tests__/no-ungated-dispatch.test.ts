@@ -114,6 +114,13 @@ const HTTP_LEAVES = [
     why: "a capture writes to the vault, so a class that may not ack one may not create one",
   },
   {
+    file: "host/scripted-route.ts",
+    gate: 'mayInvoke(clientClass, "sendAgentCommand")',
+    why:
+      "seeding the scripted queue decides what the agent says next, which is " +
+      "sendAgentCommand's outcome over a second transport",
+  },
+  {
     file: "host/vault-export.ts",
     gate: 'mayInvoke("mobile", "readVaultFile")',
     why:

@@ -118,6 +118,46 @@ describe("projection follows the vault", () => {
   });
 });
 
+describe("a doc the store cannot hold", () => {
+  // The projection is ONE column, so a link- or task-dense note big enough to
+  // pass SQLite's per-value ceiling answers SQLITE_TOOBIG on write. That throw
+  // used to escape `project()` and be read one level up as a corrupt cache,
+  // which nukes the whole store — and since the note stays in the vault, every
+  // later query re-read it and nuked again. One unindexable doc must cost that
+  // doc, never the account's search, backlinks, tags and tasks.
+  it("skips it and leaves every other doc indexed", { timeout: 30_000 }, async () => {
+    await withHost("knowledge-toobig", async ({ vault, knowledge }) => {
+      // Task-dense: `raw` + `text` are stored per item, so this amplifies well
+      // past the ceiling while the file itself stays far under the read cap.
+      // Fewer, LONGER items: the ceiling is about stored bytes, and per-item
+      // parse cost is what makes this test slow — so the padding does the work.
+      const item = `- [ ] a task that links [[Target]] and carries ${"x".repeat(240)}\n`;
+      const huge = `# Huge\n\n${item.repeat(4000)}`;
+      await seed(vault, knowledge, {
+        "target.md": "# Target\n",
+        "ordinary.md": "# Ordinary\n\nLinks [[Target]].\n",
+        "huge.md": huge,
+      });
+
+      // The oversized doc is absent from the index...
+      expect(await knowledge.search({ query: "Huge" })).toEqual([]);
+      // ...and everything else still answers.
+      expect((await knowledge.search({ query: "Ordinary" })).map((r) => r.path)).toEqual([
+        "ordinary.md",
+      ]);
+      expect((await knowledge.backlinks("target.md")).map((b) => b.sourcePath)).toEqual([
+        "ordinary.md",
+      ]);
+
+      // And it stays that way: a second pass must not re-throw and re-nuke.
+      await knowledge.flush();
+      expect((await knowledge.search({ query: "Ordinary" })).map((r) => r.path)).toEqual([
+        "ordinary.md",
+      ]);
+    });
+  });
+});
+
 describe("search", () => {
   it("ranks a title hit above a body hit and prefix-matches the last token", async () => {
     await withHost("knowledge-search", async ({ vault, knowledge }) => {

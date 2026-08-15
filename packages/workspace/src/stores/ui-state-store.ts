@@ -31,7 +31,14 @@ function scheduleFlush(key: string, value: unknown): void {
     key,
     setTimeout(() => {
       flushTimers.delete(key);
-      void getBridge().setUiState({ key, value });
+      // A debounced write can fire in the window between the transport being
+      // disposed and this timer being cleared — a sign-out is exactly that
+      // race. The write belongs to the session that just ended, so losing it
+      // is correct; letting it reject is not, because an unhandled rejection
+      // on every sign-out trains everyone to ignore the console.
+      void getBridge()
+        .setUiState({ key, value })
+        .catch(() => {});
     }, FLUSH_DELAY_MS),
   );
 }

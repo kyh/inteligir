@@ -50,7 +50,7 @@ import {
   type VaultTaskEntry,
   type WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
-import { projectDoc, type DocProjection } from "@repo/notes/knowledge/projection";
+import { projectDoc } from "@repo/notes/knowledge/projection";
 import { relatedNotes, type RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import {
   createSqlKnowledgeStore,
@@ -462,17 +462,25 @@ export class UserKnowledge {
   }
 
   private project(path: string, text: string, contentHash: string): void {
-    let projection: DocProjection;
+    // ONE doc must never take the index down, and there are two ways it can
+    // try. The parser can choke on it — and so can the STORE, which holds a
+    // doc's whole projection in one column: a link- or task-dense note big
+    // enough to pass SQLite's per-value ceiling answers SQLITE_TOOBIG on write.
+    //
+    // Both are the same fact — this doc cannot be indexed — and neither may
+    // escape, because an escaping throw is caught in `pass()` as a corrupt
+    // cache and answered with `recover()`, which NUKES the whole store. The
+    // doc would then be re-read and re-thrown on the next query, so the account
+    // would lose search, backlinks, tags and tasks for good while the note
+    // stayed in the vault. Skipping it costs that one doc's derived rows.
     try {
-      projection = projectDoc(path, text);
+      const projection = projectDoc(path, text);
+      this.store.upsertDoc({ path, contentHash, projection }, text);
+      this.graph.applyDoc(path, projection);
     } catch (err) {
-      // A doc the parser chokes on stays unindexed rather than taking the pass
-      // (and every other doc in it) down.
       console.warn(`[knowledge] could not index ${path}:`, messageOf(err));
       return;
     }
-    this.store.upsertDoc({ path, contentHash, projection }, text);
-    this.graph.applyDoc(path, projection);
     this.hashes.set(path, contentHash);
     this.others.delete(path);
   }

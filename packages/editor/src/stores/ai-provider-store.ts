@@ -117,11 +117,15 @@ export const useAiProviderStore = create<AiProviderStore>()((set, get) => ({
   },
 
   reset: () => {
-    // `subscribed` deliberately survives: the onAiProviderChanged handler is
-    // installed on the BRIDGE, and a sign-out disposes that transport with the
-    // subscription on it. Re-latching here would install a second handler on
-    // the next account's socket.
+    // BOTH latches clear. The onAiProviderChanged handler was installed on the
+    // BRIDGE, and a sign-out disposes that transport with the subscription on
+    // it — so the next session's bridge is a different object with no
+    // subscribers at all. Keeping `subscribed` latched would mean never
+    // installing one, and since that push is the only thing that settles an
+    // `awaiting` connect, the second session's Connect button would spin
+    // forever with editor AI gated off behind it.
     initStarted = false;
+    subscribed = false;
     set({ settings: null, connect: IDLE });
   },
 

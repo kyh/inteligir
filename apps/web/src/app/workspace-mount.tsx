@@ -87,7 +87,14 @@ export default function WorkspaceMount({ email }: { email: string }) {
 
   // Terminal: the session behind the ticket is gone and the bridge's supervisor
   // has stopped, so a live UI would sit there hanging. Replace it with the one
-  // action that can help.
+  // action that can help — but END THE SESSION first. Signing out is not the
+  // only way one ends: an expired session lands here, and the sign-in that
+  // follows renders in the SAME document, so without this every store would
+  // still hold the previous account's answers.
+  useEffect(() => {
+    if (status === "unauthorized") void endWorkspaceSession();
+  }, [status]);
+
   if (status === "unauthorized") return <SessionRejected />;
   if (!ready) return <Connecting />;
 

@@ -24,8 +24,15 @@ import { Value } from "@sinclair/typebox/value";
 
 import type { AgentLane } from "../agent/agent-runner";
 import type { FakeSandbox } from "../agent/fake-sandbox";
+import { clientClassFor, mayInvoke } from "./client-class";
+import { allowedOrigins } from "./origins";
+import { readCredential, verifyHostSession } from "./session";
 
 export type ScriptedRouteDeps = {
+  readonly env: Env;
+  /** This object's own name, so the session is verified to BE this account's
+   * rather than merely valid — the same check every other leaf makes. */
+  readonly hostName: string | undefined;
   /** A lane's scripted container, or `null` on the real runtime — the same
    * accessor the agent handlers take, so "is this deployment scripted" has one
    * answer. */
@@ -46,6 +53,30 @@ export async function handleScriptedRoute(
 ): Promise<Response> {
   const chat = deps.scripted("chat");
   if (chat === null) return notScripted();
+
+  // Gated like every other HTTP leaf, and on the method it STANDS IN FOR:
+  // seeding the queue decides what the agent says next, which is
+  // `sendAgentCommand`'s outcome reached over a second transport. That method
+  // is in REMOTE_ALLOWED_METHODS, so without this a companion-class bearer
+  // could drive turns on a scripted deployment through a route that asked it
+  // nothing.
+  const credential = readCredential(request.headers);
+  if (credential === null) return new Response("unauthorized", { status: 401 });
+  const session = await verifyHostSession(
+    deps.env,
+    new URL(request.url).origin,
+    credential,
+    deps.hostName,
+  );
+  if (session === null) return new Response("unauthorized", { status: 401 });
+  const clientClass = clientClassFor(
+    credential,
+    request.headers.get("origin"),
+    allowedOrigins(deps.env),
+  );
+  if (clientClass === null || !mayInvoke(clientClass, "sendAgentCommand")) {
+    return new Response("forbidden", { status: 403 });
+  }
 
   const verb = new URL(request.url).searchParams.get("verb");
   if (verb === "system-prompt") {

@@ -102,6 +102,18 @@ function capped(stack: readonly string[]): string[] {
  * keeps a keystroke from re-rendering the whole app. */
 export const useOpenNote = create<OpenNoteState>()(() => INITIAL_STATE);
 
+/**
+ * Drop everything belonging to the account whose session just ended.
+ *
+ * REPLACES rather than merges: every field here is the previous account's — the
+ * buffer, the gate verdict, the back/forward stacks — and a merge would leave
+ * whichever ones a later shape adds. `flush` goes with it, so the fail-closed
+ * privacy read (./open-note-flush) sees no live session until one mounts.
+ */
+export function resetOpenNote(): void {
+  useOpenNote.setState(INITIAL_STATE, true);
+}
+
 /** Imperative live read for action-time consumers (e.g. the palette's
  * private-toggle reads `editor.content` at click time instead of subscribing
  * to every keystroke). Always the CURRENT value — never capture the result
