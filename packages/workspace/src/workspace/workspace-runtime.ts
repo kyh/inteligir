@@ -26,6 +26,7 @@
 // ---------------------------------------------------------------------------
 
 import { useAiProviderStore } from "@repo/editor/stores/ai-provider-store";
+import { useAiReviewStore } from "@repo/editor/stores/ai-review-store";
 import { useAiSettingsStore } from "@repo/editor/stores/ai-settings-store";
 import { useDelegationStore } from "@repo/editor/stores/delegation-store";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
@@ -81,5 +82,6 @@ export async function endWorkspaceSession(): Promise<void> {
   useAiProviderStore.getState().reset();
   useAiSettingsStore.getState().reset();
   useDelegationStore.getState().reset();
+  useAiReviewStore.getState().reset();
   consumeSearchRequest();
 }

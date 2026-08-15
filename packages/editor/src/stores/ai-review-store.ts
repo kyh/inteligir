@@ -12,6 +12,11 @@ import { create } from "zustand";
 type AiReviewStore = {
   reviewing: ReadonlySet<string>;
   setReviewing: (path: string, reviewing: boolean) => void;
+  /** Drop this account's paths (./workspace-runtime disposes on sign-out).
+   * The editor clears its own entry on unmount, so this is the belt to that
+   * brace: the set is keyed by VAULT PATH, and one left behind would have the
+   * next account's status bar reading a file it cannot see. */
+  reset: () => void;
 };
 
 export const useAiReviewStore = create<AiReviewStore>()((set, get) => ({
@@ -24,4 +29,5 @@ export const useAiReviewStore = create<AiReviewStore>()((set, get) => ({
     else next.delete(path);
     set({ reviewing: next });
   },
+  reset: () => set({ reviewing: new Set<string>() }),
 }));

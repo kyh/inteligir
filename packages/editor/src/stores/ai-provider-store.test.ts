@@ -123,6 +123,52 @@ describe("useAiProviderStore.init — a transient fetch failure must not latch f
   });
 });
 
+// Ending a session and starting another happens in ONE document now, so the
+// store's two module-level latches have to clear together. `subscribed` is the
+// subtle one: the push handler was installed on the previous BRIDGE, which the
+// sign-out disposed along with the subscription — so a latch that survived
+// would mean the next session never subscribes at all, and the push is the only
+// thing that settles an `awaiting` connect.
+describe("useAiProviderStore.reset — the next session must re-subscribe", () => {
+  it("clears both latches, so a later init() fetches AND subscribes again", async () => {
+    let subscriptions = 0;
+    const freshBridge = {
+      ...bridge,
+      onAiProviderChanged: (listener: (settings: AiProviderSettings) => void) => {
+        subscriptions += 1;
+        push = listener;
+        return () => {};
+      },
+    };
+    getBridge.mockReturnValue(freshBridge);
+    // The latches are MODULE state, so an earlier test in this file may hold
+    // them. Starting from a reset is both the honest baseline and the first
+    // half of what is under test.
+    useAiProviderStore.getState().reset();
+
+    const first = settings([{ id: "openai-codex", requiresAuth: true, connected: true }]);
+    fetchSettings.mockResolvedValue(first);
+    await useAiProviderStore.getState().init();
+    expect(subscriptions).toBe(1);
+
+    useAiProviderStore.getState().reset();
+    expect(useAiProviderStore.getState().settings).toBeNull();
+
+    // The next session's bridge is a DIFFERENT object with no subscribers.
+    const second = settings([{ id: "anthropic", requiresAuth: true, connected: true }]);
+    fetchSettings.mockResolvedValue(second);
+    await useAiProviderStore.getState().init();
+
+    expect(useAiProviderStore.getState().settings).toEqual(second);
+    expect(subscriptions, "the second session never subscribed to onAiProviderChanged").toBe(2);
+
+    // And the handler it installed is live: a push settles state as it should.
+    const pushed = settings([{ id: "anthropic", requiresAuth: true, connected: false }]);
+    push(pushed);
+    expect(useAiProviderStore.getState().settings).toEqual(pushed);
+  });
+});
+
 // The connect flow is the one that spans two tabs: this store starts it, a
 // browser leaves for the provider, and the host finishes it on its own callback
 // and pushes a snapshot back. Nothing here can be observed by awaiting the
