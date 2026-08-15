@@ -55,10 +55,15 @@ export async function handleScriptedRoute(
 
   // Gated like every other HTTP leaf, and on the method it STANDS IN FOR:
   // seeding the queue decides what the agent says next, which is
-  // `sendAgentCommand`'s outcome reached over a second transport. That method
-  // is in REMOTE_ALLOWED_METHODS, so without this a companion-class bearer
-  // could drive turns on a scripted deployment through a route that asked it
-  // nothing.
+  // `sendAgentCommand`'s outcome reached over a second transport.
+  //
+  // What this actually buys is ORIGIN CORROBORATION, not class exclusion:
+  // `sendAgentCommand` is in REMOTE_ALLOWED_METHODS, so a companion bearer
+  // passes `mayInvoke` exactly as it would on the socket — deliberately, since
+  // driving a turn is a thing that client may do. `clientClassFor` refuses a
+  // COOKIE that arrives without an allowlisted Origin, and a cookie is the one
+  // credential a cross-site page can make a browser send. Without it, any page
+  // could POST here on a scripted deployment and script the agent.
   const credential = readCredential(request.headers);
   if (credential === null) return new Response("unauthorized", { status: 401 });
   const session = await verifyHostSession(

@@ -4,7 +4,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { installAssetUpload, installBridge } from "@repo/bridge/client";
 import { createWsBridge, type WsBridgeStatus } from "@repo/bridge/ws-bridge";
 import { App } from "@repo/workspace/app-root";
-import { endWorkspaceSession } from "@repo/workspace/workspace/workspace-runtime";
+import {
+  endWorkspaceSession,
+  flushOpenNoteOnly,
+} from "@repo/workspace/workspace/workspace-runtime";
 import { setAccountPort } from "@repo/workspace/workspace/account-host";
 
 import { uploadHostAsset } from "@/lib/asset-upload";
@@ -74,14 +77,19 @@ export default function WorkspaceMount({ email }: { email: string }) {
       // credential. Better Auth's own hook is what purges the host (see the
       // Worker's auth.ts).
       deleteAccount: async (password) => {
-        // Ended BEFORE the delete, unlike everything else here. `purgeAccount`
-        // closes every socket with 4401 as its first act, so a flush aimed
-        // after it waits out the whole FLUSH_TIMEOUT_MS against a host that no
-        // longer exists — five seconds of dead UI to save bytes into a vault
-        // being erased on purpose.
-        await endWorkspaceSession();
+        // Only the FLUSH precedes the delete: `purgeAccount` closes every
+        // socket with 4401 as its first act, so a flush aimed after it waits
+        // out the whole timeout against a host that no longer exists.
+        //
+        // The rest of the teardown must NOT precede it. This call fails on an
+        // ordinary wrong password, and the caller keeps the workspace mounted
+        // to show the error — a workspace whose stores had already been reset
+        // would still be sitting there, with no open note and no way back
+        // short of a reload.
+        await flushOpenNoteOnly();
         const { error } = await authClient.deleteUser(password === null ? {} : { password });
         if (error !== null) return { ok: false, error: authErrorMessage(error) };
+        await endWorkspaceSession();
         await navigate({ to: "/app/sign-in" });
         return { ok: true };
       },

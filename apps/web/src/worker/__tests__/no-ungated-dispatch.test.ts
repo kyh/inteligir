@@ -130,8 +130,9 @@ const HTTP_LEAVES = [
     file: "host/scripted-route.ts",
     gate: 'mayInvoke(clientClass, "sendAgentCommand")',
     why:
-      "seeding the scripted queue decides what the agent says next, which is " +
-      "sendAgentCommand's outcome over a second transport",
+      "seeding the scripted queue is sendAgentCommand's outcome over a second " +
+      "transport; the gate buys Origin corroboration on the cookie, not class " +
+      "exclusion — a companion bearer may drive a turn here as on the socket",
   },
   {
     leaf: "export" as HostLeaf,

@@ -45,6 +45,18 @@ import { useVoiceStore } from "../stores/voice-store";
  * is back at its initial state, so the next sign-in in the same document starts
  * from the same place a fresh load would.
  */
+/**
+ * Persist the live buffer, and nothing else.
+ *
+ * Split out because one caller needs the flush WITHOUT the teardown: deleting
+ * an account must save the buffer before the host is purged, but the delete
+ * fails on an ordinary wrong password and leaves the workspace mounted — so
+ * the resets have to wait until it is known to have succeeded.
+ */
+export function flushOpenNoteOnly(): Promise<boolean> {
+  return flushOpenNote();
+}
+
 export async function endWorkspaceSession(): Promise<void> {
   // While the bridge is still live. A refusal here is not a reason to keep the
   // session open — the user asked to leave — but it must be attempted.

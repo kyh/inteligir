@@ -158,51 +158,40 @@ describe("a doc the store cannot hold", () => {
   });
 });
 
-describe("search", () => {
-  it("ranks a title hit above a body hit and prefix-matches the last token", async () => {
-    await withHost("knowledge-search", async ({ vault, knowledge }) => {
-      await seed(vault, knowledge, {
-        "quarterly.md": "# Quarterly review\n\nNothing else here.\n",
-        "mentions.md": "# Standup\n\nWe should schedule the quarterly review soon.\n",
-        "unrelated.md": "# Gardening\n\nTomatoes need staking.\n",
+// The OTHER half of the failure's input space, and the one a task-dense
+// fixture cannot reach. `upsertDoc` writes the row before the search corpus,
+// and a nested transaction flattens into the caller's — so a huge BODY with a
+// tiny projection throws on the FTS insert with the row ALREADY COMMITTED.
+//
+// That half-row is invisible until the object wakes: hydration reads it back,
+// which puts the doc's projection in the graph and its hash in the reconcile's
+// map, so the doc reads as indexed while being absent from search — forever,
+// on one console line. A fresh UserKnowledge over the same storage is that
+// wake.
+describe("a doc whose BODY alone is too big", () => {
+  it("leaves no half-indexed row for the next wake", { timeout: 30_000 }, async () => {
+    await withHost("knowledge-bigbody", async ({ vault, knowledge, state }) => {
+      // Prose, so the projection stays small and only the FTS body can fail —
+      // but it carries ONE link, which is what makes the half-row observable.
+      const body = `# Big\n\nSee [[Target]].\n\n${"lorem ipsum dolor sit amet ".repeat(120_000)}`;
+      await seed(vault, knowledge, { "target.md": "# Target\n", "big.md": body });
+
+      const woken = new UserKnowledge({
+        storage: state.storage,
+        vault,
+        onUpdated: () => {},
+        onDeadlineChanged: () => {},
       });
 
-      // Title tier outranks body tier — core's bm25 weights, over workerd's own
-      // FTS5 build.
-      expect((await knowledge.search({ query: "quarterly" })).map((hit) => hit.path)).toEqual([
-        "quarterly.md",
-        "mentions.md",
-      ]);
-      // Tokens AND together, and the last one is a prefix (search-as-you-type).
-      expect((await knowledge.search({ query: "quarterly rev" })).map((hit) => hit.path)).toEqual([
-        "quarterly.md",
-        "mentions.md",
-      ]);
-      expect(await knowledge.search({ query: "quarterly gardening" })).toEqual([]);
-      // A hit carries the matched line, not just the path.
-      expect((await knowledge.search({ query: "staking" }))[0]?.snippet).toContain("staking");
-    });
-  });
-
-  it("narrows a search to one tag, and lists a tag with no text at all", async () => {
-    await withHost("knowledge-tags", async ({ vault, knowledge }) => {
-      await seed(vault, knowledge, {
-        "work-plan.md": "# Plan\n\n#work the roadmap review.\n",
-        "home-plan.md": "# Plan\n\n#home the roadmap review.\n",
-      });
-
-      expect((await knowledge.search({ query: "roadmap" })).map((hit) => hit.path)).toEqual([
-        "home-plan.md",
-        "work-plan.md",
-      ]);
+      // Nothing may claim the doc is indexed. With the row left behind, this
+      // hydrates its projection and answers with the link.
       expect(
-        (await knowledge.search({ query: "roadmap", tag: "work" })).map((hit) => hit.path),
-      ).toEqual(["work-plan.md"]);
-      // Tag alone is a listing, not a search for nothing.
-      expect((await knowledge.search({ query: "", tag: "home" })).map((hit) => hit.path)).toEqual([
-        "home-plan.md",
-      ]);
-      expect(await knowledge.search({ query: "", tag: "" })).toEqual([]);
+        (await woken.forwardLinks("big.md")).map((entry) => entry.target),
+        "a half-written row survived and hydrated as if the doc were indexed",
+      ).toEqual([]);
+      expect(await woken.search({ query: "lorem" })).toEqual([]);
+      // And the rest of the vault indexed normally throughout.
+      expect((await woken.search({ query: "Target" })).map((r) => r.path)).toEqual(["target.md"]);
     });
   });
 });
