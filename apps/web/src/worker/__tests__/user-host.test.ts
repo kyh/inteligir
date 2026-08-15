@@ -363,3 +363,60 @@ describe("hibernation", () => {
     ws.close(1000, "done");
   });
 });
+
+// The scripted drive seam. Its gate is asserted structurally by
+// no-ungated-dispatch, which can only see that the string is present — this is
+// what happens when a request actually arrives. What the gate buys is ORIGIN
+// corroboration on the cookie: `sendAgentCommand` is remote-allowed, so no
+// client class is excluded, but a cross-site page must not be able to script
+// the agent on a deployment that is running the scripted container.
+describe("the scripted drive seam", () => {
+  it("admits a cookie from an allowed origin", async () => {
+    const response = await SELF.fetch(`${ORIGIN}/v1/host/scripted?verb=script`, {
+      method: "POST",
+      headers: new Headers({
+        cookie: owner.cookie,
+        origin: WEB_ORIGIN,
+        "content-type": "application/json",
+      }),
+      body: JSON.stringify({ steps: [] }),
+    });
+    expect(response.status).toBe(204);
+  });
+
+  it("refuses a cookie with no corroborating Origin — the CSRF shape", async () => {
+    const response = await SELF.fetch(`${ORIGIN}/v1/host/scripted?verb=script`, {
+      method: "POST",
+      headers: new Headers({ cookie: owner.cookie, "content-type": "application/json" }),
+      body: JSON.stringify({ steps: [] }),
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it("refuses a request carrying no credential at all", async () => {
+    const response = await SELF.fetch(`${ORIGIN}/v1/host/scripted?verb=script`, {
+      method: "POST",
+      headers: new Headers({ "content-type": "application/json" }),
+      body: JSON.stringify({ steps: [] }),
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it("answers the composed system prompt to an admitted caller", async () => {
+    const response = await SELF.fetch(`${ORIGIN}/v1/host/scripted?verb=system-prompt`, {
+      method: "POST",
+      headers: new Headers({ cookie: owner.cookie, origin: WEB_ORIGIN }),
+    });
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ prompt: expect.any(String) });
+  });
+
+  it("refuses a verb it does not serve", async () => {
+    const response = await SELF.fetch(`${ORIGIN}/v1/host/scripted?verb=nope`, {
+      method: "POST",
+      headers: new Headers({ cookie: owner.cookie, origin: WEB_ORIGIN }),
+    });
+    expect(response.status).toBe(400);
+  });
+});

@@ -33,23 +33,33 @@ function scheduleFlush(key: string, value: unknown): void {
       flushTimers.delete(key);
       // A debounced write can fire in the window between the transport being
       // disposed and this timer being cleared — a sign-out is exactly that
-      // race. The write belongs to the session that just ended, so losing it
-      // is correct; letting it reject is not, because an unhandled rejection
-      // on every sign-out trains everyone to ignore the console.
+      // race, and losing that write is correct because the session it belonged
+      // to is over. Everything else is a REAL failure (a refused payload, a
+      // rate limit) against a key the appearance record and the open note both
+      // live under, so it is reported rather than swallowed: a blanket catch
+      // here would make the whole store fail silently.
       void getBridge()
         .setUiState({ key, value })
-        .catch(() => {});
+        .catch((err: unknown) => {
+          if (sessionEnded) return;
+          console.warn(`[ui-state] could not persist ${key}:`, err);
+        });
     }, FLUSH_DELAY_MS),
   );
 }
 
 let initPromise: Promise<void> | null = null;
 
+/** Set by `reset()`. A write that loses its transport AFTER a session ends is
+ * expected; one before it is a fault worth seeing. */
+let sessionEnded = false;
+
 export const useUiStateStore = create<UiStateStore>()((set) => ({
   values: {},
   loaded: false,
 
   init: () => {
+    sessionEnded = false;
     if (initPromise) return initPromise;
     initPromise = workspaceBoot()
       .then((boot) => set({ values: boot.uiState, loaded: true }))
@@ -66,6 +76,7 @@ export const useUiStateStore = create<UiStateStore>()((set) => ({
   },
 
   reset: () => {
+    sessionEnded = true;
     // Cancelled, never flushed: a debounced write belongs to the account whose
     // socket just closed, and firing it after sign-out either fails or lands on
     // the next account's host.

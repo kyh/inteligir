@@ -221,16 +221,21 @@ chat transcript, the background lane, the tickets and the budgets.
   (§ Decisions), minted at `POST /v1/host/ticket` against the session. The
   ticket is where the capability class is decided, once, from which credential
   carried the session.
-- **Two chokepoints, in one module that owns both.** `SocketGate`
-  (`host/socket-gate.ts`) holds the dispatch map, the socket enumeration, the
-  broadcast fan-out and the reconnect hydration, so `resolve()` is the only
-  reader of the map and `push()` the only pusher of an event frame — hydration
-  included, which resolves a getter host-side and would otherwise volunteer
-  state the method gate forbids asking for. Its socket seam is structural
-  (attachment + readyState + send), so `__tests__/socket-gate.test.ts` drives
-  BOTH directions with a fake socket and asserts what was withheld;
-  `__tests__/no-ungated-dispatch.test.ts` is the backstop that fails when a
-  third path appears.
+- **One module owns the socket; two chokepoints live inside it.**
+  `SocketTransport` (`host/socket-transport.ts`) runs accept → authenticate →
+  dispatch → gated push, and is the ONLY module that enumerates or accepts a
+  socket. It holds `SocketGate` (`host/socket-gate.ts`) internally, and the
+  gate holds the dispatch map, the broadcast fan-out and the reconnect
+  hydration over an INJECTED socket set — so `resolve()` is the only reader of
+  the map and `push()` the only pusher of an event frame, hydration included,
+  which resolves a getter host-side and would otherwise volunteer state the
+  method gate forbids asking for. `UserHost` forwards the platform callbacks
+  and implements none of it. The gate's socket seam is structural (attachment +
+  readyState + send), so `__tests__/socket-gate.test.ts` drives BOTH directions
+  with a fake socket and asserts what was withheld;
+  `__tests__/no-ungated-dispatch.test.ts` is the backstop that fails when
+  another path appears, and derives its HTTP-leaf coverage from the leaf table
+  so a new route cannot ship ungated.
 - **Every registry method is implemented for real.** `collectHandlers` throws
   at construction if one is unregistered, and a capability this host does not
   have has no channel at all — a method that answers only by refusing satisfies
