@@ -473,14 +473,20 @@ export class UserKnowledge {
     // doc would then be re-read and re-thrown on the next query, so the account
     // would lose search, backlinks, tags and tasks for good while the note
     // stayed in the vault. Skipping it costs that one doc's derived rows.
+    //
+    // No hash is recorded, so the next RECONCILE finds it unindexed and tries
+    // again — once per wake, inside that pass's read budget, exactly as an
+    // unreadable doc is retried below. That is deliberate: the note may be
+    // edited down to a size that fits.
+    let projection;
     try {
-      const projection = projectDoc(path, text);
-      this.store.upsertDoc({ path, contentHash, projection }, text);
-      this.graph.applyDoc(path, projection);
+      projection = projectDoc(path, text);
     } catch (err) {
       console.warn(`[knowledge] could not index ${path}:`, messageOf(err));
       return;
     }
+    this.store.upsertDoc({ path, contentHash, projection }, text);
+    this.graph.applyDoc(path, projection);
     this.hashes.set(path, contentHash);
     this.others.delete(path);
   }
