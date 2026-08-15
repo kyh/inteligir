@@ -34,14 +34,18 @@ export type ScriptedRouteDeps = {
   readonly systemPrompt: () => Promise<string>;
 };
 
-const NOT_SCRIPTED = new Response("not found", { status: 404 });
+/** Built per call, never hoisted to module scope: a `Response` carries a body
+ * stream, and an I/O object created in one Durable Object's context throws when
+ * a different object in the same isolate touches it. One isolate serves many
+ * tenants, so a shared Response is a cross-tenant fault, not a constant. */
+const notScripted = (): Response => new Response("not found", { status: 404 });
 
 export async function handleScriptedRoute(
   request: Request,
   deps: ScriptedRouteDeps,
 ): Promise<Response> {
   const chat = deps.scripted("chat");
-  if (chat === null) return NOT_SCRIPTED;
+  if (chat === null) return notScripted();
 
   const verb = new URL(request.url).searchParams.get("verb");
   if (verb === "system-prompt") {
