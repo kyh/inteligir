@@ -3,6 +3,7 @@
 // statuses here; anything unexpected falls through to the API's generic 500.
 
 import { apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
+import type { VaultRenameResponse } from "@repo/server-contract/vault";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import { VaultPathError } from "./vault-paths";
 import type { VaultRuntime } from "./vault-runtime";
@@ -22,7 +23,7 @@ function classifyVaultError(error: unknown): { code: VaultRefusal; body: ApiErro
 
 /** The composed rename (link rewrite riding the service's rename); refusals
  *  surface as the same VaultPathError/VaultServiceError the service throws. */
-export type RenameNote = (from: string, to: string) => Promise<{ path: string }>;
+export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
 export function registerVaultRoutes(
   registrars: Pick<TypedRoutesRegistrars, "get" | "post" | "put">,

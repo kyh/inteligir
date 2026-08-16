@@ -1,23 +1,23 @@
 // Rename + link rewrite — the user-facing rename, over the vault service's
 // rename primitive.
 //
-// The byte surgery is NOT reimplemented here: `computeRenameEdits` and
-// `addFrontmatterAlias` are pure and platform-neutral by package contract, so
-// the spans this host rewrites are the ones @repo/notes computes and tests.
-// What this module owns is the ORDER, and the order is the safety model:
+// The knowledge-domain logic is NOT implemented here: candidate selection
+// (@repo/notes/knowledge/rename-candidates), the byte surgery
+// (computeRenameEdits) and the alias writer (addFrontmatterAlias) are pure
+// engine functions. What this module owns is the ORDER, and the order is the
+// safety model:
 //
-//   1. ask the knowledge index which docs this rename can possibly touch, and
-//      snapshot THOSE before the move — edits are computed from those exact
-//      bytes, so a stale read can never corrupt a file;
+//   1. ask the engine which docs this rename can possibly touch, and snapshot
+//      THOSE before the move — edits are computed from those exact bytes;
 //   2. move the file — the source of truth. If it fails, nothing is rewritten;
-//   3. write each edit only if the doc still holds its snapshot bytes. A doc
-//      that changed under the rename loses its rewrite rather than its
-//      content. (The compare-then-write window is unguarded — local-first
-//      single-writer usage makes it a non-event, same stance as the service's
-//      own directory rename.)
+//   3. apply each edit through `writeIfUnchanged`, which re-reads and compares
+//      INSIDE one turn of the vault's mutation lock — a doc that changed under
+//      the rename loses its rewrite (reported as skipped), never its content.
+//      An external editor writes outside that lock; the residue of that race
+//      is accepted for a local-first single-writer vault.
 //   4. record the old stem as a frontmatter alias on the moved doc — the
-//      fallback for any link the surgery missed, so it runs even when no
-//      rewrite touched the moved doc.
+//      fallback for any link the surgery missed OR skipped, so it must never
+//      be suppressed by an unrelated skip.
 //
 // Every write goes through the vault service, so git, the watcher's echo
 // suppression, the notifier and the knowledge projection all see ordinary
@@ -28,6 +28,7 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
+import type { VaultRenameResponse, VaultRenameSkipReason } from "@repo/server-contract/vault";
 import { normalizeVaultPath } from "../vault/vault-paths";
 import type { VaultService } from "../vault/vault-service";
 import type { KnowledgeRuntime } from "./knowledge-runtime";
@@ -39,7 +40,9 @@ export interface RenameNoteArgs {
   to: string;
 }
 
-export async function renameNoteWithLinkRewrite(args: RenameNoteArgs): Promise<{ path: string }> {
+export async function renameNoteWithLinkRewrite(
+  args: RenameNoteArgs,
+): Promise<VaultRenameResponse> {
   const { service, knowledge } = args;
   const toPath = normalizeVaultPath(args.to);
   const requested = normalizeVaultPath(args.from);
@@ -53,19 +56,22 @@ export async function renameNoteWithLinkRewrite(args: RenameNoteArgs): Promise<{
     tree.entries.find((entry) => entry.path === requested) ??
     tree.entries.find((entry) => entry.path.toLowerCase() === requested.toLowerCase());
   if (source === undefined || source.kind !== "file") {
-    return service.rename(requested, toPath);
+    const plain = await service.rename(requested, toPath);
+    return { path: plain.path, rewritten: [], skipped: [] };
   }
   const fromPath = source.path;
 
   const candidates = await knowledge.renameCandidates(fromPath, toPath);
   const docs = new Map<string, string>();
+  const skipped: Array<{ path: string; reason: VaultRenameSkipReason }> = [];
   for (const candidate of candidates) {
     if (!isDocPath(candidate)) continue;
     try {
       docs.set(candidate, (await service.read(candidate)).content);
     } catch {
-      // A candidate that cannot be read (vanished, over the cap) is simply
-      // not rewritten; the recorded alias below still covers its links.
+      // A candidate that cannot be snapshotted (vanished, over the read cap)
+      // is not rewritten; the recorded alias below still covers its links.
+      skipped.push({ path: candidate, reason: "unreadable" });
     }
   }
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
@@ -83,37 +89,35 @@ export async function renameNoteWithLinkRewrite(args: RenameNoteArgs): Promise<{
     oldStem.toLowerCase() !== titleFromPath(renamed.path).toLowerCase();
 
   const edits = computeRenameEdits(docs, allFiles, fromPath, renamed.path);
+  const rewritten: string[] = [];
+  let aliasRecorded = false;
 
   for (const [postPath, content] of edits) {
     // The moved doc's own edit is keyed at `to`; its snapshot sits at `from`.
     const isMovedDoc = postPath === renamed.path;
     const snapshot = docs.get(isMovedDoc ? fromPath : postPath);
     if (snapshot === undefined) continue;
-    if (!(await holdsSnapshotBytes(service, postPath, snapshot))) continue;
-    const next =
+    const withAlias =
       recordAlias && isMovedDoc ? (addFrontmatterAlias(content, oldStem) ?? content) : content;
-    await service.write(postPath, next);
+    const result = await service.writeIfUnchanged(postPath, snapshot, withAlias);
+    if (result.applied) {
+      rewritten.push(postPath);
+      if (isMovedDoc) aliasRecorded = true;
+    } else {
+      skipped.push({ path: postPath, reason: result.reason });
+    }
   }
 
-  if (recordAlias && !edits.has(renamed.path)) {
+  // The alias is the fallback for everything skipped or missed, so it lands
+  // even when the moved doc's own rewrite did not (or never existed).
+  if (recordAlias && !aliasRecorded) {
     await recordAliasStandalone(service, renamed.path, oldStem);
   }
-  return renamed;
+  return { path: renamed.path, rewritten, skipped };
 }
 
-async function holdsSnapshotBytes(
-  service: VaultService,
-  path: string,
-  snapshot: string,
-): Promise<boolean> {
-  try {
-    return (await service.read(path)).content === snapshot;
-  } catch {
-    return false;
-  }
-}
-
-/** No rewrite touched the moved doc, so the alias is written on its own. */
+/** Record the alias on the moved doc's CURRENT bytes; a concurrent edit in
+ * the window loses the alias rather than its content. */
 async function recordAliasStandalone(
   service: VaultService,
   to: string,
@@ -122,7 +126,7 @@ async function recordAliasStandalone(
   try {
     const current = (await service.read(to)).content;
     const withAlias = addFrontmatterAlias(current, oldStem);
-    if (withAlias !== null) await service.write(to, withAlias);
+    if (withAlias !== null) await service.writeIfUnchanged(to, current, withAlias);
   } catch {
     // The alias is a fallback; losing it never fails the rename.
   }

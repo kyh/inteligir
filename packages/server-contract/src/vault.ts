@@ -78,7 +78,27 @@ export const vaultRenameRequestSchema = z
   .strict();
 export type VaultRenameRequest = z.infer<typeof vaultRenameRequestSchema>;
 
-export const vaultRenameResponseSchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultRenameSkipReasonSchema = z.enum(["changed", "not_found", "unreadable"]);
+export type VaultRenameSkipReason = z.infer<typeof vaultRenameSkipReasonSchema>;
+
+export const vaultRenameResponseSchema = z
+  .object({
+    path: z.string().min(1),
+    /** Candidate docs whose links were rewritten, by post-rename path. */
+    rewritten: z.array(z.string().min(1)),
+    /** Candidate docs whose rewrite was SKIPPED, with why — the client's
+     *  "N links not updated" notice. A skip never fails the rename: the moved
+     *  doc's recorded alias keeps the skipped links resolving. */
+    skipped: z.array(
+      z
+        .object({
+          path: z.string().min(1),
+          reason: vaultRenameSkipReasonSchema,
+        })
+        .strict(),
+    ),
+  })
+  .strict();
 export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 
 export const vaultDeleteRequestSchema = z.object({ path: z.string().min(1) }).strict();

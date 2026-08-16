@@ -183,7 +183,7 @@ describe("the vault routes", () => {
       jsonRequest("POST", { from: "old.md", to: "nested/new.md" }),
     );
     expect(rename.status).toBe(200);
-    expect(await rename.json()).toEqual({ path: "nested/new.md" });
+    expect(await rename.json()).toEqual({ path: "nested/new.md", rewritten: [], skipped: [] });
 
     const remove = await app.request(
       "/api/v1/vault/delete",

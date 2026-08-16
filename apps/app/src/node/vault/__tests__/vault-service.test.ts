@@ -104,6 +104,23 @@ describe("vault CRUD", () => {
     await expect(service.rename("../a.md", "b.md")).rejects.toThrow(VaultPathError);
     await expect(service.remove("nested/../../escape")).rejects.toThrow(VaultPathError);
     await expect(service.createDir("/abs")).rejects.toThrow(VaultPathError);
+    await expect(service.writeIfUnchanged("../e.md", "a", "b")).rejects.toThrow(VaultPathError);
+  });
+
+  it("writeIfUnchanged applies only over the exact expected bytes", async () => {
+    const { root, service } = bootService();
+    await service.write("note.md", "original");
+
+    const applied = await service.writeIfUnchanged("note.md", "original", "rewritten");
+    expect(applied).toEqual({ applied: true, path: "note.md" });
+    expect(await readFile(join(root, "note.md"), "utf8")).toBe("rewritten");
+
+    const stale = await service.writeIfUnchanged("note.md", "original", "clobber");
+    expect(stale).toEqual({ applied: false, reason: "changed" });
+    expect(await readFile(join(root, "note.md"), "utf8")).toBe("rewritten");
+
+    const missing = await service.writeIfUnchanged("ghost.md", "x", "y");
+    expect(missing).toEqual({ applied: false, reason: "not_found" });
   });
 
   it("runs every mutation through the injected lock, serialized", async () => {

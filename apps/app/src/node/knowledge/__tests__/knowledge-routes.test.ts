@@ -111,6 +111,7 @@ describe("the knowledge routes", () => {
     const tags = await app.request("/api/v1/knowledge/tags");
     expect(knowledgeTagsResponseSchema.parse(await tags.json())).toEqual({
       tags: [{ tag: "project", count: 1 }],
+      total: 1,
     });
   });
 
@@ -123,13 +124,18 @@ describe("the knowledge routes", () => {
       "/api/v1/knowledge/rename-candidates?from=target.md&to=moved.md",
     );
     expect(response.status).toBe(200);
-    const { candidates } = renameCandidatesResponseSchema.parse(await response.json());
+    const { candidates, total } = renameCandidatesResponseSchema.parse(await response.json());
     expect(candidates.toSorted()).toEqual(["linker.md", "target.md"]);
+    expect(total).toBe(2);
 
     const hostile = await app.request(
       "/api/v1/knowledge/rename-candidates?from=..%2Fescape.md&to=x.md",
     );
     expect(hostile.status).toBe(400);
     expect(apiErrorResponseSchema.parse(await hostile.json()).error).toBe("invalid_path");
+
+    const hostileBacklinks = await app.request("/api/v1/knowledge/backlinks?path=..%2Fescape.md");
+    expect(hostileBacklinks.status).toBe(400);
+    expect(apiErrorResponseSchema.parse(await hostileBacklinks.json()).error).toBe("invalid_path");
   });
 });

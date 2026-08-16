@@ -6,6 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/db/notifier";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { createVaultService, type VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
@@ -131,18 +132,79 @@ describe("the knowledge runtime", () => {
     expect(hits.map((h) => h.path)).toEqual(["pulled.md"]);
   });
 
-  it("survives an index corruption by rebuilding from the vault", async () => {
+  it("rebuilds from the vault when the index file was corrupted between runs", async () => {
+    const dirs = makeDirs();
+    writeFileSync(join(dirs.root, "note.md"), "# Note\n\nPangolin data.\n");
+    const first = boot(dirs);
+    await first.knowledge.settle();
+    expect(first.knowledge.lastReconcile?.projected).toBe(1);
+    // Dispose closes the connection — no pre-corruption statement cache or
+    // page cache can satisfy the second boot.
+    await first.knowledge.dispose();
+
+    writeFileSync(join(dirs.dataDir, "knowledge.db"), "garbage bytes");
+
+    const second = boot(dirs);
+    await second.knowledge.settle();
+    // Proof the store was actually reset: nothing hydrated, everything
+    // re-projected from the vault. A surviving cache would report
+    // unchanged: 1, projected: 0.
+    expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
+    const hits = await second.knowledge.search({ query: "pangolin", limit: 10 });
+    expect(hits.map((h) => h.path)).toEqual(["note.md"]);
+  });
+
+  it("converges a doc that crosses the read-cap boundary in both directions", async () => {
     const dirs = makeDirs();
     const { service, knowledge } = boot(dirs);
-    await service.write("note.md", "# Note\n\nPangolin data.\n");
+    const oversized = `# Big\n\n${"x".repeat(VAULT_MAX_CONTENT_LENGTH)}`;
+
+    writeFileSync(join(dirs.root, "big.md"), oversized);
+    knowledge.noteVaultChange({ kind: "paths", paths: ["big.md"] });
+    await knowledge.settle();
+    expect(await knowledge.search({ query: "big", limit: 10 })).toEqual([]);
+
+    await service.write("big.md", "# Big\n\nNow small ocelot.\n");
+    const found = await knowledge.search({ query: "ocelot", limit: 10 });
+    expect(found.map((h) => h.path)).toEqual(["big.md"]);
+
+    // The step that used to leave stale state: back over the cap, the doc
+    // bookkeeping (hash + search row) must be left, not shadowed.
+    writeFileSync(join(dirs.root, "big.md"), oversized);
+    knowledge.noteVaultChange({ kind: "paths", paths: ["big.md"] });
+    await knowledge.settle();
+    expect(await knowledge.search({ query: "ocelot", limit: 10 })).toEqual([]);
+  });
+
+  it("rebuilds before answering the query whose pass failed", async () => {
+    const dirs = makeDirs();
+    writeFileSync(join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
+    const service = createVaultService({ root: dirs.root, notifier: noopNotifier });
+    let failNextRead = false;
+    const flaky: Pick<VaultService, "listTree" | "read"> = {
+      listTree: () => service.listTree(),
+      read: (path) => {
+        if (failNextRead) {
+          failNextRead = false;
+          return Promise.reject(new Error("transient io failure"));
+        }
+        return service.read(path);
+      },
+    };
+    const knowledge = createKnowledgeRuntime({
+      dataDir: dirs.dataDir,
+      vault: flaky,
+      vaultRoot: dirs.root,
+    });
+    cleanups.push(() => knowledge.dispose());
     await knowledge.settle();
 
-    // Corrupt the cache file under the runtime, then force it to touch it.
-    writeFileSync(join(dirs.dataDir, "knowledge.db"), "garbage bytes");
-    knowledge.noteVaultChange({ kind: "unknown" });
-    await knowledge.settle();
-
-    const hits = await knowledge.search({ query: "pangolin", limit: 10 });
-    expect(hits.map((h) => h.path)).toEqual(["note.md"]);
+    writeFileSync(join(dirs.root, "b.md"), "# B\n\nHeron notes.\n");
+    failNextRead = true;
+    knowledge.noteVaultChange({ kind: "paths", paths: ["b.md"] });
+    // The pass this settle flushes fails mid-read; the answer must come from
+    // the rebuilt index, never from the just-nuked (empty) one.
+    const hits = await knowledge.search({ query: "heron", limit: 10 });
+    expect(hits.map((h) => h.path)).toEqual(["b.md"]);
   });
 });

@@ -54,7 +54,9 @@ describe("rename with link rewrite", () => {
       from: "notes/target.md",
       to: "archive/moved.md",
     });
-    expect(result).toEqual({ path: "archive/moved.md" });
+    expect(result.path).toBe("archive/moved.md");
+    expect(result.rewritten.toSorted()).toEqual(["a.md", "b.md"]);
+    expect(result.skipped).toEqual([]);
 
     expect(readFileSync(join(root, "a.md"), "utf8")).toBe("Links to [[moved]] today.\n");
     expect(readFileSync(join(root, "b.md"), "utf8")).toBe(
@@ -105,7 +107,41 @@ describe("rename with link rewrite", () => {
       from: "dir",
       to: "moved-dir",
     });
-    expect(result).toEqual({ path: "moved-dir" });
+    expect(result).toEqual({ path: "moved-dir", rewritten: [], skipped: [] });
     expect(readFileSync(join(root, "moved-dir", "inner.md"), "utf8")).toBe("# Inner\n");
+  });
+
+  it("skips a candidate edited between snapshot and rewrite, and still records the alias", async () => {
+    const { root, service, knowledge } = boot();
+    await service.write("target.md", "# Target\n");
+    await service.write("a.md", "Links to [[target]].\n");
+    await knowledge.settle();
+
+    // A concurrent edit landing right after the move: the racing service
+    // performs it inside the rename step, before any rewrite runs.
+    const racing: VaultService = {
+      ...service,
+      rename: async (from, to) => {
+        const moved = await service.rename(from, to);
+        await service.write("a.md", "Edited concurrently [[target]].\n");
+        return moved;
+      },
+    };
+
+    const result = await renameNoteWithLinkRewrite({
+      service: racing,
+      knowledge,
+      from: "target.md",
+      to: "moved.md",
+    });
+    expect(result.rewritten).toEqual([]);
+    expect(result.skipped).toEqual([{ path: "a.md", reason: "changed" }]);
+    // The concurrent edit survived — never overwritten with snapshot bytes.
+    expect(readFileSync(join(root, "a.md"), "utf8")).toBe("Edited concurrently [[target]].\n");
+    // The alias fallback still landed despite the unrelated skip, so the
+    // un-rewritten link keeps resolving.
+    const moved = readFileSync(join(root, "moved.md"), "utf8");
+    expect(moved).toContain("aliases:");
+    expect(moved).toContain("target");
   });
 });

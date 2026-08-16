@@ -1,8 +1,16 @@
 // The knowledge wire contract: read-only queries over the derived vault index
 // (search, backlinks, tags, rename candidates). Every schema here MIRRORS an
 // engine type from @repo/notes — the handlers assign engine values straight
-// into these shapes, so a drifted field is a compile error in the handler, not
-// a silent wire change.
+// into these shapes. A field the engine RENAMES or removes fails the handler's
+// compile; a field the engine ADDS is invisible to the compiler (structural
+// assignment allows excess members) and is caught at the other end: the route
+// tests parse live responses with these strict schemas, so an undeclared
+// field on the wire fails the suite.
+//
+// Unbounded collections are CAPPED here, in the contract, so the bound is a
+// declared fact rather than a handler habit: each capped response carries
+// `total` (what the whole vault holds), and `array.length < total` IS the
+// truncation test — no second flag can disagree with the arrays.
 
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
@@ -15,6 +23,9 @@ import { z } from "zod";
 import type { ApiErrorResponse } from "./routes";
 
 export const KNOWLEDGE_SEARCH_MAX_LIMIT = 100;
+export const KNOWLEDGE_BACKLINKS_MAX = 500;
+export const KNOWLEDGE_TAGS_MAX = 1000;
+export const KNOWLEDGE_RENAME_CANDIDATES_MAX = 200;
 
 /**
  * ONE search route: `q` is the raw box text, parsed ENGINE-side
@@ -69,7 +80,9 @@ export type KnowledgeBacklinksRequest = z.infer<typeof knowledgeBacklinksRequest
 export const knowledgeBacklinksResponseSchema = z
   .object({
     path: z.string().min(1),
-    backlinks: z.array(backlinkEntrySchema),
+    backlinks: z.array(backlinkEntrySchema).max(KNOWLEDGE_BACKLINKS_MAX),
+    /** Backlinks the whole vault holds; `backlinks.length < total` means cut. */
+    total: z.number().int().min(0),
   })
   .strict();
 export type KnowledgeBacklinksResponse = z.infer<typeof knowledgeBacklinksResponseSchema>;
@@ -82,7 +95,13 @@ export const tagCountSchema = z
   .strict();
 export type TagCountWire = z.infer<typeof tagCountSchema>;
 
-export const knowledgeTagsResponseSchema = z.object({ tags: z.array(tagCountSchema) }).strict();
+export const knowledgeTagsResponseSchema = z
+  .object({
+    /** Most-used first, so the cap keeps the tags that matter. */
+    tags: z.array(tagCountSchema).max(KNOWLEDGE_TAGS_MAX),
+    total: z.number().int().min(0),
+  })
+  .strict();
 export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
 
 export const renameCandidatesRequestSchema = z
@@ -96,7 +115,10 @@ export type RenameCandidatesRequest = z.infer<typeof renameCandidatesRequestSche
 /** A SUPERSET of the docs a rename would actually rewrite — what a client can
  * show as "N linked notes will be updated". */
 export const renameCandidatesResponseSchema = z
-  .object({ candidates: z.array(z.string().min(1)) })
+  .object({
+    candidates: z.array(z.string().min(1)).max(KNOWLEDGE_RENAME_CANDIDATES_MAX),
+    total: z.number().int().min(0),
+  })
   .strict();
 export type RenameCandidatesResponse = z.infer<typeof renameCandidatesResponseSchema>;
 

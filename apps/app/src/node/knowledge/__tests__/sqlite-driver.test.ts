@@ -1,20 +1,22 @@
-// Driver conformance: @repo/notes' SQL KnowledgeStore drives the
-// better-sqlite3 binding exactly as it drives every other platform's, so
-// these tests exercise the store's own statements — schema init, FTS5 search,
-// hydration paging, the version/root guards and the reset primitive — over a
-// real file on disk.
+// Driver conformance, two layers. The driver-level suite exercises the
+// binding itself: parameter binding, error propagation, the reset primitive,
+// and the recovery ladder that must never let a bad file abort product boot.
+// The store-level suite drives @repo/notes' SQL KnowledgeStore over the
+// driver exactly as it drives every other platform's — schema init, FTS5
+// search, hydration paging, the version/root guards.
 
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DocProjection } from "@repo/notes/knowledge/projection";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import {
   createSqlKnowledgeStore,
+  type SqlDriver,
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
 import { afterEach, describe, expect, it } from "vitest";
-import { sha256Hex } from "../knowledge-runtime";
 import { createSqliteDriver } from "../sqlite-driver";
 
 const cleanups: Array<() => void> = [];
@@ -23,10 +25,21 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0).toReversed()) cleanup();
 });
 
-function makeDbPath(): string {
+function makeDbDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "inteligir-knowledge-driver-"));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-  return join(dir, "knowledge.db");
+  cleanups.push(() => {
+    chmodSync(dir, 0o755);
+    rmSync(dir, { recursive: true, force: true });
+  });
+  return dir;
+}
+
+function makeDbPath(): string {
+  return join(makeDbDir(), "knowledge.db");
+}
+
+function sha256Hex(content: string): string {
+  return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
 function openStore(dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore {
@@ -56,6 +69,72 @@ function seed(store: SqlKnowledgeStore): void {
   store.upsertDoc(beta.row, beta.body);
   store.upsertOther("img/pic.png");
 }
+
+describe("the sqlite driver", () => {
+  function openDriver(dbPath: string): SqlDriver {
+    const driver = createSqliteDriver(dbPath);
+    cleanups.push(() => {
+      try {
+        driver.close();
+      } catch {
+        // already closed by the test
+      }
+    });
+    return driver;
+  }
+
+  it("binds null, integer, float and text and reads them back", () => {
+    const driver = openDriver(makeDbPath());
+    driver.exec("CREATE TABLE t (a, b, c, d)");
+    driver.run("INSERT INTO t (a, b, c, d) VALUES (?, ?, ?, ?)", [null, 42, 1.5, "text"]);
+    expect(driver.all("SELECT a, b, c, d FROM t", [])).toEqual([
+      { a: null, b: 42, c: 1.5, d: "text" },
+    ]);
+  });
+
+  it("propagates errors from bad SQL on every entry point", () => {
+    const driver = openDriver(makeDbPath());
+    expect(() => driver.exec("NOT SQL")).toThrow();
+    expect(() => driver.run("INSERT INTO missing VALUES (?)", [1])).toThrow();
+    expect(() => driver.all("SELECT * FROM missing", [])).toThrow();
+  });
+
+  it("reset() drops the file's contents and stays usable", () => {
+    const dbPath = makeDbPath();
+    const driver = openDriver(dbPath);
+    driver.exec("CREATE TABLE t (a)");
+    driver.run("INSERT INTO t (a) VALUES (?)", ["kept?"]);
+    driver.reset();
+    expect(driver.all("SELECT name FROM sqlite_master WHERE name = 't'", [])).toEqual([]);
+    driver.exec("CREATE TABLE t (a)");
+    expect(driver.all("SELECT count(*) AS n FROM t", [])).toEqual([{ n: 0 }]);
+    expect(existsSync(dbPath)).toBe(true);
+  });
+
+  it("recovers a corrupt file at open by discarding it", () => {
+    const dbPath = makeDbPath();
+    writeFileSync(dbPath, "this is not a sqlite database, not even close");
+    const driver = openDriver(dbPath);
+    driver.exec("CREATE TABLE t (a)");
+    driver.run("INSERT INTO t (a) VALUES (?)", ["fresh"]);
+    expect(driver.all("SELECT a FROM t", [])).toEqual([{ a: "fresh" }]);
+  });
+
+  it("falls back to memory when the corrupt file can be neither deleted nor renamed", () => {
+    const dir = makeDbDir();
+    const dbPath = join(dir, "knowledge.db");
+    writeFileSync(dbPath, "garbage that will not open");
+    // A read-only parent refuses unlink AND rename — the ladder's last rung.
+    chmodSync(dir, 0o555);
+    const driver = openDriver(dbPath);
+    chmodSync(dir, 0o755);
+    driver.exec("CREATE TABLE t (a)");
+    driver.run("INSERT INTO t (a) VALUES (?)", ["in-memory"]);
+    expect(driver.all("SELECT a FROM t", [])).toEqual([{ a: "in-memory" }]);
+    // Boot survived; the corrupt file is still there, untouched.
+    expect(readdirSync(dir)).toContain("knowledge.db");
+  });
+});
 
 describe("the better-sqlite3 knowledge store", () => {
   it("round-trips docs through upsert, search and loadAll", () => {
@@ -125,6 +204,15 @@ describe("the better-sqlite3 knowledge store", () => {
 
     const second = openStore(dbPath, "/vault-b");
     expect(second.loadAll().docs).toEqual([]);
+  });
+
+  it("opens over a corrupt file as an empty store instead of failing boot", () => {
+    const dbPath = makeDbPath();
+    writeFileSync(dbPath, "not a sqlite file at all");
+    const store = openStore(dbPath);
+    expect(store.loadAll()).toEqual({ docs: [], others: [] });
+    seed(store);
+    expect(store.search("zebras", 10).map((h) => h.path)).toEqual(["alpha.md"]);
   });
 
   it("nuke() deletes the files and leaves a working empty store", () => {

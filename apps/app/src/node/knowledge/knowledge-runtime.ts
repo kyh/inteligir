@@ -23,8 +23,8 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { LinkGraphIndex, type BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import {
   createSqlKnowledgeStore,
@@ -67,8 +67,10 @@ export interface KnowledgeRuntime {
   /** The vault runtime's change hook. Named paths queue a targeted pass; a
    * change that names none queues a reconcile. */
   noteVaultChange(change: VaultFilesChange): void;
-  /** Flush pending work and wait for the index to be current. Never rejects —
-   * an index failure recovers by rebuilding, not by failing the caller. */
+  /** Flush pending work and wait for the index to be current. An index
+   * failure recovers by nuking and rebuilding BEFORE this resolves; it
+   * rejects only when even that rebuild failed — never resolving over a
+   * silently emptied index. */
   settle(): Promise<void>;
   search(params: { query: string; tag?: string; limit: number }): Promise<SearchResult[]>;
   backlinks(path: string): Promise<BacklinkEntry[]>;
@@ -80,7 +82,7 @@ export interface KnowledgeRuntime {
   dispose(): Promise<void>;
 }
 
-export function sha256Hex(content: string): string {
+function sha256Hex(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
@@ -107,19 +109,42 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
   const pendingPaths = new Set<string>();
   let debounceTimer: NodeJS.Timeout | null = null;
-  let queue: Promise<void> = Promise.resolve();
   let disposed = false;
 
+  // Pass scheduling is COALESCED: at most one pass runs and at most one more
+  // is queued behind it. Triggers arriving while one is queued fold into it
+  // (the pending set and the flags are the dirty state a pass consumes), so a
+  // burst of queries can never build an unbounded chain of no-op passes.
+  let runningPass: Promise<void> | null = null;
+  let queuedPass: Promise<void> | null = null;
+
   function enqueuePass(): Promise<void> {
-    queue = queue.then(pass);
-    return queue;
+    if (runningPass !== null) {
+      queuedPass ??= runningPass
+        .catch(() => {
+          // The queued pass runs regardless of how the running one ended.
+        })
+        .then(() => {
+          queuedPass = null;
+          return enqueuePass();
+        });
+      return queuedPass;
+    }
+    const run = pass().finally(() => {
+      if (runningPass === run) runningPass = null;
+    });
+    runningPass = run;
+    return run;
   }
 
   function scheduleDebounced(): void {
     if (disposed || debounceTimer !== null) return;
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
-      void enqueuePass();
+      enqueuePass().catch(() => {
+        // Already logged inside the pass; a background trigger has no caller
+        // to surface the rebuild failure to.
+      });
     }, CHANGE_DEBOUNCE_MS);
     debounceTimer.unref?.();
   }
@@ -127,24 +152,39 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
   async function pass(): Promise<void> {
     if (disposed) return;
     try {
-      if (!hydrated) await hydrateMirrors();
-      if (needsReconcile) {
-        // A reconcile subsumes every named path, so the pending set drains
-        // into it rather than being processed twice.
-        pendingPaths.clear();
-        needsReconcile = false;
-        lastReconcile = await reconcile();
-      }
-      if (pendingPaths.size > 0) {
-        const paths = [...pendingPaths].toSorted();
-        pendingPaths.clear();
-        await applyChangedPaths(paths);
-      }
+      await passWork();
     } catch (err) {
-      // The store is a cache: any failure mid-pass recovers by dropping it and
-      // rebuilding from the vault on the next pass.
+      // The store is a cache: drop it and rebuild from the vault — but BEFORE
+      // this pass resolves, because a caller awaiting it must never read the
+      // just-nuked index as a success. A rebuild that itself fails surfaces
+      // as this pass's rejection: a failed query beats an empty-index answer.
       console.warn("[knowledge] pass failed — rebuilding the index:", messageOf(err));
       recover();
+      await passWork();
+    }
+  }
+
+  async function passWork(): Promise<void> {
+    if (!hydrated) await hydrateMirrors();
+    if (needsReconcile) {
+      // A reconcile subsumes every named path, so the pending set drains
+      // into it rather than being processed twice.
+      pendingPaths.clear();
+      needsReconcile = false;
+      try {
+        lastReconcile = await reconcile();
+      } catch (err) {
+        needsReconcile = true; // the mark survives the failure
+        throw err;
+      }
+      console.log(
+        `[knowledge] reconcile: projected ${lastReconcile.projected}, removed ${lastReconcile.removed}, unchanged ${lastReconcile.unchanged}`,
+      );
+    }
+    if (pendingPaths.size > 0) {
+      const paths = [...pendingPaths].toSorted();
+      pendingPaths.clear();
+      await applyChangedPaths(paths);
     }
   }
 
@@ -198,6 +238,7 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
           update.content,
         );
         graph.applyDoc(update.path, projection);
+        others.delete(update.path); // the class-transition twin of indexOther
         hashes.set(update.path, update.hash);
       }
     });
@@ -212,7 +253,11 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
   }
 
   function indexOther(path: string): void {
-    if (others.has(path)) return;
+    // A path can CHANGE class (an oversized doc degrades to "other" and back),
+    // so entering one class always leaves the doc bookkeeping — otherwise a
+    // stale hash would satisfy the reconcile diff forever.
+    const wasDoc = hashes.delete(path);
+    if (!wasDoc && others.has(path)) return;
     store.upsertOther(path);
     graph.setOther(path);
     others.add(path);
@@ -230,7 +275,6 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       if (err.code === "too_large") {
         // Over the read cap: unsearchable, but the path stays in the
         // link-resolution universe like any non-doc file.
-        hashes.delete(path);
         indexOther(path);
       } else {
         removeIndexed(path);
@@ -338,13 +382,24 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
     async search(params) {
       await settle();
-      return searchVaultNotes(
-        {
-          search: (query, limit) => store.search(query, limit),
-          notesWithTag: (tag) => graph.notesWithTag(tag),
-        },
-        { query: params.query, tag: params.tag, limit: params.limit },
-      );
+      const run = (): SearchResult[] =>
+        searchVaultNotes(
+          {
+            search: (query, limit) => store.search(query, limit),
+            notesWithTag: (tag) => graph.notesWithTag(tag),
+          },
+          { query: params.query, tag: params.tag, limit: params.limit },
+        );
+      try {
+        return run();
+      } catch (err) {
+        // The only SQL-backed read path: a corrupt-read rejection gets one
+        // nuke-and-rebuild, then one retry. A second failure propagates.
+        console.warn("[knowledge] search failed — rebuilding the index:", messageOf(err));
+        recover();
+        await settle();
+        return run();
+      }
     },
 
     async backlinks(path) {
@@ -357,50 +412,11 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       return graph.tags();
     },
 
-    /**
-     * The docs a `from` → `to` rename may have to rewrite — a SUPERSET of the
-     * ones that actually change, computed with no reads at all: the moved doc
-     * itself, every doc whose links resolve to `from` today (backlinks,
-     * exactly), and every doc holding a link that would resolve to `to`
-     * AFTERWARDS — the shadow population, which is why the answer is not just
-     * backlinks. Only the renamed path changes, so a link whose resolution
-     * moves must land on `to` — the post-rename resolver is the exact test.
-     */
+    // The selection policy is the engine's (rename-candidates.ts, beside the
+    // byte surgery it feeds); this shell only supplies its graph.
     async renameCandidates(from, to) {
       await settle();
-      const fromPath = normalizePath(from);
-      const toPath = normalizePath(to);
-      const candidates = new Set<string>([fromPath]);
-      for (const entry of graph.backlinks(fromPath)) candidates.add(entry.sourcePath);
-
-      const targets = graph.wikiTargets();
-      const postPathOf = (path: string): string => (path === fromPath ? toPath : path);
-      const aliasEntries = targets.flatMap((target) =>
-        (target.aliases ?? []).map((alias): readonly [string, string] => [
-          alias,
-          postPathOf(target.path),
-        ]),
-      );
-      const postResolver = buildResolver(
-        targets.map((target) => postPathOf(target.path)),
-        aliasEntries,
-      );
-
-      for (const target of targets) {
-        if (target.type !== "doc" || candidates.has(target.path)) continue;
-        const sourcePost = postPathOf(target.path);
-        for (const link of graph.forwardLinks(target.path)) {
-          const hit =
-            link.kind === "wiki"
-              ? postResolver.resolveWiki(link.target)
-              : postResolver.resolveMd(link.target, sourcePost);
-          if (hit === toPath) {
-            candidates.add(target.path);
-            break;
-          }
-        }
-      }
-      return [...candidates];
+      return renameCandidates(graph, from, to);
     },
 
     get lastReconcile() {
@@ -413,7 +429,8 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
         clearTimeout(debounceTimer);
         debounceTimer = null;
       }
-      await queue.catch(() => {});
+      await queuedPass?.catch(() => {});
+      await runningPass?.catch(() => {});
       store.dispose();
     },
   };

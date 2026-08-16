@@ -121,10 +121,25 @@ export interface VaultServiceArgs {
   onMutated?: (paths: readonly string[]) => void;
 }
 
+type ConditionalWriteResult =
+  | { applied: true; path: string }
+  | { applied: false; reason: "changed" | "not_found" };
+
 export interface VaultService {
   listTree(): Promise<VaultTreeResponse>;
   read(path: string): Promise<{ path: string; content: string }>;
   write(path: string, content: string): Promise<{ path: string }>;
+  /** Write `content` only if the file still holds exactly `expected`, with the
+   *  read and the write inside ONE turn of the mutation lock — the rename
+   *  rewrite's guard against clobbering a concurrent service edit. A writer
+   *  outside the service (an external editor) is not serialized by the lock
+   *  and can still race the window; that residue is accepted for a
+   *  local-first single-writer vault. */
+  writeIfUnchanged(
+    path: string,
+    expected: string,
+    content: string,
+  ): Promise<ConditionalWriteResult>;
   rename(from: string, to: string): Promise<{ path: string }>;
   remove(path: string): Promise<void>;
   createDir(path: string): Promise<{ path: string }>;
@@ -174,6 +189,40 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     args.onMutated?.(paths);
   }
 
+  /** The one atomic write: tmp file + fsync + rename, then the announcement.
+   * Callers hold the lock and have already validated the leaf. */
+  async function performAtomicWrite(
+    relPath: string,
+    absPath: string,
+    content: string,
+  ): Promise<void> {
+    try {
+      await mkdir(dirname(absPath), { recursive: true });
+    } catch (error) {
+      if (errnoCode(error) === "ENOTDIR") {
+        throw new VaultServiceError("conflict", `A file shadows a parent folder of ${relPath}`);
+      }
+      throw error;
+    }
+    const tmpPath = join(dirname(absPath), `${VAULT_TMP_PREFIX}${randomBytes(8).toString("hex")}`);
+    try {
+      const handle = await open(tmpPath, "w");
+      try {
+        await handle.writeFile(content, "utf8");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await rename(tmpPath, absPath);
+    } catch (error) {
+      await unlink(tmpPath).catch(() => {});
+      throw error;
+    }
+    await fsyncDirBestEffort(dirname(absPath));
+    args.notifier.notifyDoc(relPath, ["content-changed"]);
+    announceMutation([relPath]);
+  }
+
   return {
     async listTree() {
       const entries: VaultEntry[] = [];
@@ -212,35 +261,28 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
-        try {
-          await mkdir(dirname(absPath), { recursive: true });
-        } catch (error) {
-          if (errnoCode(error) === "ENOTDIR") {
-            throw new VaultServiceError("conflict", `A file shadows a parent folder of ${relPath}`);
-          }
-          throw error;
-        }
-        const tmpPath = join(
-          dirname(absPath),
-          `${VAULT_TMP_PREFIX}${randomBytes(8).toString("hex")}`,
-        );
-        try {
-          const handle = await open(tmpPath, "w");
-          try {
-            await handle.writeFile(content, "utf8");
-            await handle.sync();
-          } finally {
-            await handle.close();
-          }
-          await rename(tmpPath, absPath);
-        } catch (error) {
-          await unlink(tmpPath).catch(() => {});
-          throw error;
-        }
-        await fsyncDirBestEffort(dirname(absPath));
-        args.notifier.notifyDoc(relPath, ["content-changed"]);
-        announceMutation([relPath]);
+        await performAtomicWrite(relPath, absPath, content);
         return { path: relPath };
+      });
+    },
+
+    writeIfUnchanged(path, expected, content) {
+      return lock(async (): Promise<ConditionalWriteResult> => {
+        const { relPath, absPath } = resolveVaultPath(rootReal, path);
+        await assertAncestryInsideVault(absPath);
+        const existing = await lstatRefusingSymlink(absPath, relPath);
+        if (existing === null || existing.isDirectory()) {
+          return { applied: false, reason: "not_found" };
+        }
+        const current = await readFile(absPath, "utf8").catch(() => null);
+        if (current === null) {
+          return { applied: false, reason: "not_found" };
+        }
+        if (current !== expected) {
+          return { applied: false, reason: "changed" };
+        }
+        await performAtomicWrite(relPath, absPath, content);
+        return { applied: true, path: relPath };
       });
     },
 
