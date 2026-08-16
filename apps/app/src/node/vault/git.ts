@@ -71,6 +71,26 @@ export function runGit(
   });
 }
 
+/**
+ * Strip userinfo before a remote URL reaches a log line or a status response:
+ * an https remote is where a token rides (https://user:ghp_…@github.com/…).
+ * Non-URL forms (scp-like git@host:path) pass through — that syntax has no
+ * password slot.
+ */
+export function redactRemoteUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.username === "" && parsed.password === "") {
+      return url;
+    }
+    parsed.username = "";
+    parsed.password = "";
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 function identityEnv(author?: CommitAuthor): Record<string, string> {
   return {
     GIT_AUTHOR_NAME: author?.name ?? ENGINE_IDENTITY.name,
@@ -157,6 +177,14 @@ export interface GitEngine {
   /** One full sync pass; coalesces with an in-flight one. */
   syncNow(): Promise<VaultStatusResponse>;
   status(): Promise<VaultStatusResponse>;
+  /** True while a sync pass runs; the runtime suppresses watcher fan-out under it. */
+  isSyncing(): boolean;
+  /**
+   * Serialize repo-touching work behind the same lock commits and syncs hold.
+   * Vault mutations run through this so a write can never interleave a
+   * rebase's checkout/abort window.
+   */
+  runExclusive<T>(work: () => Promise<T>): Promise<T>;
   startAutoSync(intervalMs: number): void;
   dispose(): Promise<void>;
 }
@@ -169,6 +197,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   let lastSyncAt: number | null = null;
   let lastError: string | null = null;
   let lastConflict: VaultConflict | null = null;
+  /** Set when a failed rebase could not be aborted; syncs stop until repaired. */
+  let broken = false;
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -221,7 +251,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     try {
       const { stdout } = await run(["symbolic-ref", "--short", "-q", "HEAD"]);
       const branch = stdout.trim();
-      return branch.length > 0 ? branch : null;
+      // git itself refuses "-"-leading ref names, so this only guards a
+      // corrupted HEAD from ever reaching an argv slot.
+      return branch.length > 0 && !branch.startsWith("-") ? branch : null;
     } catch {
       return null;
     }
@@ -235,10 +267,12 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     } catch {
       existing = null;
     }
+    // "--" terminates option parsing: the URL is config-validated, but a
+    // positional that can never read as an option needs no trust in that.
     if (existing === null) {
-      await run(["remote", "add", "origin", url]);
+      await run(["remote", "add", "--", "origin", url]);
     } else if (existing !== url) {
-      await run(["remote", "set-url", "origin", url]);
+      await run(["remote", "set-url", "--", "origin", url]);
     }
   }
 
@@ -254,28 +288,24 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return Number.parseInt(stdout.trim(), 10) || 0;
   }
 
-  async function changedSince(base: string, tip: string): Promise<Set<string>> {
-    const { stdout } = await run(["diff", "--name-only", base, tip]);
-    return new Set(stdout.split("\n").filter((line) => line.length > 0));
-  }
-
-  async function computeConflict(branch: string): Promise<VaultConflict | null> {
-    const remoteRef = `refs/remotes/origin/${branch}`;
-    const oursCommits = await revListCount(`${remoteRef}..HEAD`);
-    const theirsCommits = await revListCount(`HEAD..${remoteRef}`);
-    if (oursCommits === 0 && theirsCommits === 0) {
-      return null;
+  /** The files git itself marks unmerged (UU/AA/DD/…): the honest conflict
+   *  set, read from the halted rebase before it is aborted. */
+  async function unmergedPaths(): Promise<string[]> {
+    const { stdout } = await run(["--no-optional-locks", "status", "--porcelain"]);
+    const files: string[] = [];
+    for (const line of stdout.split("\n")) {
+      if (line.length < 4) {
+        continue;
+      }
+      const x = line[0];
+      const y = line[1];
+      const unmerged =
+        x === "U" || y === "U" || (x === "A" && y === "A") || (x === "D" && y === "D");
+      if (unmerged) {
+        files.push(line.slice(3));
+      }
     }
-    const { stdout } = await run(["merge-base", "HEAD", remoteRef]);
-    const mergeBase = stdout.trim();
-    const ours = await changedSince(mergeBase, "HEAD");
-    const theirs = await changedSince(mergeBase, remoteRef);
-    const files = [...ours].filter((file) => theirs.has(file)).toSorted();
-    return {
-      files,
-      ours: { commits: oursCommits },
-      theirs: { commits: theirsCommits },
-    };
+    return files.toSorted();
   }
 
   function isMissingRemoteRef(error: unknown): boolean {
@@ -319,15 +349,33 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
           `refs/remotes/origin/${branch}`,
         ]);
       } catch (error) {
+        // Capture git's own unmerged set BEFORE the abort wipes it — that
+        // list, not a branch-diff heuristic, is what a conflict IS.
+        const conflictFiles = rebaseInProgress() ? await unmergedPaths().catch(() => []) : [];
         if (rebaseInProgress()) {
           // NEVER leave the repo mid-rebase: abort first, report after.
           await run(["rebase", "--abort"]).catch(() => {});
         }
-        const conflict = await computeConflict(branch).catch(() => null);
-        if (conflict !== null) {
-          lastConflict = conflict;
+        // A swallowed failed abort would leave every later commit landing in
+        // rebase state; verify, and stop syncing if the repo is truly stuck.
+        if (rebaseInProgress() || (await unmergedPaths().catch(() => ["unknown"])).length > 0) {
+          broken = true;
+          lastError =
+            `a failed rebase could not be aborted; manual recovery needed: ` +
+            `run \`git rebase --abort\` in ${root}, then restart inteligir`;
           return;
         }
+        if (conflictFiles.length > 0) {
+          const remoteRef = `refs/remotes/origin/${branch}`;
+          lastConflict = {
+            files: conflictFiles,
+            ours: { commits: await revListCount(`${remoteRef}..HEAD`).catch(() => 0) },
+            theirs: { commits: await revListCount(`HEAD..${remoteRef}`).catch(() => 0) },
+          };
+          return;
+        }
+        // The rebase failed for a non-conflict reason: an honest error, not a
+        // conflict that names no files.
         throw error;
       }
       lastConflict = null;
@@ -347,38 +395,48 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     if (remoteUrl === null) {
       return { state: "no-remote", lastSyncAt, lastError };
     }
+    // Status responses carry the redacted remote: an https remote is where a
+    // token rides, and this string reaches logs and the UI.
+    const remote = redactRemoteUrl(remoteUrl);
     if (syncing) {
-      return { state: "syncing", remote: remoteUrl, lastSyncAt, lastError };
+      return { state: "syncing", remote, lastSyncAt, lastError };
+    }
+    if (broken) {
+      return { state: "broken", remote, lastSyncAt, lastError };
     }
     if (lastConflict !== null) {
       return {
         state: "conflict",
-        remote: remoteUrl,
+        remote,
         conflict: lastConflict,
         lastSyncAt,
         lastError,
       };
     }
-    const dirtyPaths = await countDirtyPaths().catch(() => 0);
-    let unpushed = 0;
-    if (dirtyPaths === 0) {
-      const branch = await currentBranch();
-      if (branch !== null) {
-        // No remote-tracking ref yet means everything local is unpushed.
-        unpushed = await revListCount(`refs/remotes/origin/${branch}..HEAD`).catch(() => 1);
+    // The porcelain reads run behind the repo lock, so a status can never
+    // report the half-way tree of a sync or commit in flight.
+    return withRepoLock(async () => {
+      const dirtyPaths = await countDirtyPaths().catch(() => 0);
+      let unpushed = 0;
+      if (dirtyPaths === 0) {
+        const branch = await currentBranch();
+        if (branch !== null) {
+          // No remote-tracking ref yet means everything local is unpushed.
+          unpushed = await revListCount(`refs/remotes/origin/${branch}..HEAD`).catch(() => 1);
+        }
       }
-    }
-    if (dirtyPaths > 0 || unpushed > 0) {
-      return { state: "dirty", remote: remoteUrl, lastSyncAt, lastError };
-    }
-    return { state: "clean", remote: remoteUrl, lastSyncAt, lastError };
+      if (dirtyPaths > 0 || unpushed > 0) {
+        return { state: "dirty", remote, lastSyncAt, lastError };
+      }
+      return { state: "clean", remote, lastSyncAt, lastError };
+    });
   }
 
   function syncNow(): Promise<VaultStatusResponse> {
     if (inflightSync !== null) {
       return inflightSync;
     }
-    if (remoteUrl === null) {
+    if (remoteUrl === null || broken) {
       return statusSnapshot();
     }
     syncing = true;
@@ -411,6 +469,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     },
     syncNow,
     status: statusSnapshot,
+    isSyncing: () => syncing,
+    runExclusive: withRepoLock,
     startAutoSync(intervalMs: number) {
       if (disposed || remoteUrl === null || autoSyncTimer !== null) {
         return;
@@ -427,7 +487,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         clearInterval(autoSyncTimer);
         autoSyncTimer = null;
       }
-      await repoChain.catch(() => undefined);
+      // Flush, never cancel: dirt at shutdown is exactly what auto-commit
+      // exists for, and the debounce it was waiting on dies with the process.
+      await withRepoLock(() => commitIfDirty()).catch(() => undefined);
     },
   };
 }

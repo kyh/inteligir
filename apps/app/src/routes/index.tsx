@@ -38,6 +38,8 @@ function syncBadge(status: VaultStatusResponse) {
   switch (status.state) {
     case "no-remote":
       return <Badge variant="outline">local only</Badge>;
+    case "broken":
+      return <Badge variant="destructive">needs repair</Badge>;
     case "clean":
       return <Badge>synced</Badge>;
     case "dirty":

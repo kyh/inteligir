@@ -4,7 +4,7 @@
 // without taking the server down.
 
 import { realpathSync } from "node:fs";
-import { relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 import { createForkChannel } from "./watcher/fork-channel";
 import type { ParcelAsyncSubscription, ParcelWatcherBackend } from "./watcher/parcel-backend";
@@ -20,8 +20,6 @@ const RESUBSCRIBE_MAX_DELAY_MS = 30_000;
 export interface VaultWatcherArgs {
   /** Absolute vault root; must exist before start(). */
   root: string;
-  /** Absolute paths inside the root whose events are dropped (a nested data dir). */
-  ignoreAbsPaths?: readonly string[];
   /** Vault-relative paths that changed, deduplicated, after the debounce window. */
   onChanged: (paths: readonly string[]) => void;
   onError?: (message: string) => void;
@@ -40,13 +38,6 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
   // (macOS /var → /private/var), and a root that kept the symlink spelling
   // would make every event compute as outside the vault.
   const root = realpathSync(resolve(args.root));
-  const ignoreAbsPaths = (args.ignoreAbsPaths ?? []).map((path) => {
-    try {
-      return realpathSync(resolve(path));
-    } catch {
-      return resolve(path);
-    }
-  });
 
   let ownedProxy: ParcelWatcherProxy | null = null;
   const backend =
@@ -76,13 +67,10 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
   });
 
   function toVaultRelativePath(absPath: string): string | null {
-    for (const ignored of ignoreAbsPaths) {
-      if (absPath === ignored || absPath.startsWith(ignored + sep)) {
-        return null;
-      }
-    }
     const rel = relative(root, absPath);
-    if (rel.length === 0 || rel.startsWith("..")) {
+    // A bare startsWith("..") would also eat a legal root entry named
+    // "..draft.md" — outside-the-root is exactly these three shapes.
+    if (rel.length === 0 || rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) {
       return null;
     }
     const segments = rel.split(sep);

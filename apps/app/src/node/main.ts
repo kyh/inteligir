@@ -13,6 +13,7 @@ import { createApp, type AppFallback } from "./app";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { listenWithRetry } from "./listen";
+import { redactRemoteUrl } from "./vault/git";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
 
@@ -141,5 +142,5 @@ const { port, server } = await listenWithRetry({
 });
 injectWebSocket(server);
 console.log(
-  `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}`,
+  `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,
 );

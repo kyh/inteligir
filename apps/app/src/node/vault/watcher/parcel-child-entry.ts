@@ -24,7 +24,13 @@ process.on("message", (message) => {
   }
 });
 
+const DISPOSE_TIMEOUT_MS = 2_000;
+
 process.on("disconnect", () => {
+  // Bounded: a wedged native unsubscribe must not orphan this child — the
+  // whole design assumes a stuck watcher dies and is respawned.
+  const deadline = setTimeout(() => process.exit(0), DISPOSE_TIMEOUT_MS);
+  deadline.unref?.();
   void handler.dispose().finally(() => process.exit(0));
 });
 

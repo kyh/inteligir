@@ -30,7 +30,11 @@ describe("data dir", () => {
     const a = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
     const b = resolveAppConfig({ checkoutPath: "/checkout/b", env: {}, homeDir });
 
-    expect(a.dataDir).toBe(join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId("/checkout/a")));
+    const instanceDir = join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId("/checkout/a"));
+    expect(a.dataDir).toBe(join(instanceDir, "data"));
+    // Siblings under the instance dir: the vault is a git repo the sync loop
+    // pushes, so it and the data dir must be disjoint.
+    expect(a.vaultDir).toBe(join(instanceDir, "vault"));
     expect(a.dataDir).not.toBe(b.dataDir);
     expect(a.port).toBe(resolveDevDefaultPort("/checkout/a"));
     expect(a.port).not.toBe(b.port);
@@ -155,5 +159,69 @@ describe("port layering: env → managed file → default", () => {
         homeDir: makeTempDir("inteligir-config-test-"),
       }),
     ).toThrow(/INTELIGIR_PORT/);
+  });
+});
+
+describe("the vault dir and remote", () => {
+  it("prod defaults the vault to ~/Inteligir; INTELIGIR_VAULT_DIR overrides", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const prod = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { NODE_ENV: "production" },
+      homeDir,
+    });
+    expect(prod.vaultDir).toBe(join(homeDir, "Inteligir"));
+    expect(prod.vaultRemote).toBeNull();
+
+    const overridden = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_VAULT_DIR: "~/Notes" },
+      homeDir,
+    });
+    expect(overridden.vaultDir).toBe(join(homeDir, "Notes"));
+  });
+
+  it("refuses a vault nested in the data dir (and the reverse)", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
+    expect(() =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_VAULT_DIR: join(dataDir, "vault") },
+        homeDir,
+      }),
+    ).toThrow(/must be disjoint/);
+    expect(() =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_DATA_DIR: join(homeDir, "Vault", "data"), INTELIGIR_VAULT_DIR: "~/Vault" },
+        homeDir,
+      }),
+    ).toThrow(/must be disjoint/);
+  });
+
+  it("accepts the git remote shapes git dials and refuses the rest", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const resolveWithRemote = (remote: string) =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_VAULT_REMOTE: remote },
+        homeDir,
+      });
+
+    expect(resolveWithRemote("https://github.com/kyh/vault.git").vaultRemote).toBe(
+      "https://github.com/kyh/vault.git",
+    );
+    expect(resolveWithRemote("ssh://git@github.com/kyh/vault.git").vaultRemote).toBe(
+      "ssh://git@github.com/kyh/vault.git",
+    );
+    expect(resolveWithRemote("git@github.com:kyh/vault.git").vaultRemote).toBe(
+      "git@github.com:kyh/vault.git",
+    );
+
+    // A value git would parse as an OPTION must never reach an argv slot.
+    expect(() => resolveWithRemote("--upload-pack=/bin/evil")).toThrow(/INTELIGIR_VAULT_REMOTE/);
+    expect(() => resolveWithRemote("/plain/local/path")).toThrow(/INTELIGIR_VAULT_REMOTE/);
+    expect(() => resolveWithRemote("ext::sh -c evil")).toThrow(/INTELIGIR_VAULT_REMOTE/);
   });
 });

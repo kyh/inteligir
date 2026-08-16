@@ -1,5 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,6 +14,14 @@ afterEach(() => {
     cleanup();
   }
 });
+
+function deferred(): { promise: Promise<void>; release: () => void } {
+  let release: (() => void) | undefined;
+  const promise = new Promise<void>((resolvePromise) => {
+    release = resolvePromise;
+  });
+  return { promise, release: () => release?.() };
+}
 
 function bootService() {
   const root = mkdtempSync(join(tmpdir(), "inteligir-vault-test-"));
@@ -98,20 +106,29 @@ describe("vault CRUD", () => {
     await expect(service.createDir("/abs")).rejects.toThrow(VaultPathError);
   });
 
-  it("keeps a nested data dir out of the listing", async () => {
+  it("runs every mutation through the injected lock, serialized", async () => {
     const root = mkdtempSync(join(tmpdir(), "inteligir-vault-test-"));
     cleanups.push(() => rmSync(root, { recursive: true, force: true }));
-    await mkdir(join(root, ".data"), { recursive: true });
-    await writeFile(join(root, ".data", "inteligir.db"), "sqlite");
-    const service = createVaultService({
-      root,
-      notifier: createNotifierRecorder(),
-      ignoreAbsPaths: [join(root, ".data")],
-    });
-    await service.write("note.md", "x");
-    expect((await service.listTree()).entries).toEqual([
-      { kind: "file", path: "note.md", size: 1 },
-    ]);
+    // The same promise-chain lock shape the git engine hands the runtime.
+    let chain: Promise<unknown> = Promise.resolve();
+    const lock = <T>(work: () => Promise<T>): Promise<T> => {
+      const next = chain.then(work, work);
+      chain = next.catch(() => undefined);
+      return next;
+    };
+    const service = createVaultService({ root, notifier: createNotifierRecorder(), lock });
+
+    // Hold the lock (a sync in flight); a write issued under it must not
+    // touch disk until the holder releases.
+    const holder = deferred();
+    void lock(() => holder.promise);
+    const write = service.write("held.md", "waited for the lock");
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+    await expect(stat(join(root, "held.md"))).rejects.toThrow();
+
+    holder.release();
+    await write;
+    expect(await readFile(join(root, "held.md"), "utf8")).toBe("waited for the lock");
   });
 });
 
@@ -137,12 +154,66 @@ describe("atomic writes and crash artifacts", () => {
     expect(names.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([]);
   });
 
-  it("an overwrite is whole-or-not: the target never holds a partial mix", async () => {
+  it("an overwrite lands the staged content exactly, shorter than the original included", async () => {
+    // What this proves: the rename swap replaces the whole entry — nothing of
+    // the longer original survives. The mid-write failure window itself is
+    // covered by the crash-artifact test above (tmp never visible as the note).
     const { root, service } = bootService();
     await service.write("note.md", "aaaaaaaaaa");
     await service.write("note.md", "bb");
     const content = await readFile(join(root, "note.md"), "utf8");
     expect(content).toBe("bb");
     expect((await stat(join(root, "note.md"))).size).toBe(2);
+  });
+});
+
+describe("physical containment (symlinks)", () => {
+  function outsideDir(): string {
+    const dir = mkdtempSync(join(tmpdir(), "inteligir-outside-"));
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    return dir;
+  }
+
+  it("refuses a symlink LEAF on every surface — a pulled link must never read outside bytes", async () => {
+    const { root, service } = bootService();
+    const outside = outsideDir();
+    await writeFile(join(outside, "id_ed25519"), "SECRET KEY MATERIAL");
+    // Created externally, exactly as a git pull would materialize it.
+    await symlink(join(outside, "id_ed25519"), join(root, "notes.md"));
+
+    await expect(service.read("notes.md")).rejects.toThrow(VaultPathError);
+    await expect(service.write("notes.md", "overwrite")).rejects.toThrow(VaultPathError);
+    await expect(service.remove("notes.md")).rejects.toThrow(VaultPathError);
+    await expect(service.rename("notes.md", "elsewhere.md")).rejects.toThrow(VaultPathError);
+    expect(await readFile(join(outside, "id_ed25519"), "utf8")).toBe("SECRET KEY MATERIAL");
+  });
+
+  it("refuses operating THROUGH a symlinked folder — nothing lands or reads outside", async () => {
+    const { root, service } = bootService();
+    const outside = outsideDir();
+    await writeFile(join(outside, "readable.txt"), "outside content");
+    await symlink(outside, join(root, "evil"), "dir");
+
+    await expect(service.write("evil/x.md", "escape")).rejects.toThrow(VaultPathError);
+    await expect(service.write("evil/deep/x.md", "escape")).rejects.toThrow(VaultPathError);
+    await expect(service.createDir("evil/newdir")).rejects.toThrow(VaultPathError);
+    await expect(service.read("evil/readable.txt")).rejects.toThrow(VaultPathError);
+    await expect(service.rename("evil/readable.txt", "stolen.md")).rejects.toThrow(VaultPathError);
+
+    expect(await readdir(outside)).toEqual(["readable.txt"]);
+    expect(await readFile(join(outside, "readable.txt"), "utf8")).toBe("outside content");
+  });
+
+  it("keeps symlinks out of the listing entirely", async () => {
+    const { root, service } = bootService();
+    const outside = outsideDir();
+    await writeFile(join(outside, "secret.txt"), "s");
+    await symlink(join(outside, "secret.txt"), join(root, "file-link.md"));
+    await symlink(outside, join(root, "dir-link"), "dir");
+    await service.write("real.md", "x");
+
+    expect((await service.listTree()).entries).toEqual([
+      { kind: "file", path: "real.md", size: 1 },
+    ]);
   });
 });

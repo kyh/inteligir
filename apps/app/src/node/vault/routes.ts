@@ -2,13 +2,13 @@
 // refusals (bad path, missing entry, overwrite) answer with their declared
 // statuses here; anything unexpected falls through to the API's generic 500.
 
-import { apiRoutes, type ApiErrorResponse, type ApiSchema } from "@repo/server-contract/routes";
+import { apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import { VaultPathError } from "./vault-paths";
 import type { VaultRuntime } from "./vault-runtime";
 import { VaultServiceError } from "./vault-service";
 
-type VaultRefusal = "invalid_path" | "not_found" | "conflict";
+type VaultRefusal = "invalid_path" | "not_found" | "conflict" | "too_large";
 
 function classifyVaultError(error: unknown): { code: VaultRefusal; body: ApiErrorResponse } | null {
   if (error instanceof VaultPathError) {
@@ -21,7 +21,7 @@ function classifyVaultError(error: unknown): { code: VaultRefusal; body: ApiErro
 }
 
 export function registerVaultRoutes(
-  registrars: Pick<TypedRoutesRegistrars<ApiSchema>, "get" | "post" | "put">,
+  registrars: Pick<TypedRoutesRegistrars, "get" | "post" | "put">,
   vault: VaultRuntime,
 ): void {
   const { get, post, put } = registrars;
@@ -38,6 +38,9 @@ export function registerVaultRoutes(
       }
       if (refusal?.code === "not_found") {
         return c.json(refusal.body, 404);
+      }
+      if (refusal?.code === "too_large") {
+        return c.json(refusal.body, 413);
       }
       throw error;
     }

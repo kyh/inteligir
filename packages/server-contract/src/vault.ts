@@ -40,6 +40,14 @@ export const vaultTreeResponseSchema = z
   .strict();
 export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
 
+/**
+ * Bound on a note's content, write and read alike. Measured in UTF-16 code
+ * units on the write schema (what z.string().max counts) and in bytes on the
+ * read side — the same order of magnitude either way, and the point is a
+ * bound, not a byte-exact quota.
+ */
+export const VAULT_MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
+
 export const vaultReadRequestSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
 
@@ -54,7 +62,7 @@ export type VaultReadResponse = z.infer<typeof vaultReadResponseSchema>;
 export const vaultWriteRequestSchema = z
   .object({
     path: z.string().min(1),
-    content: z.string(),
+    content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
   })
   .strict();
 export type VaultWriteRequest = z.infer<typeof vaultWriteRequestSchema>;
@@ -99,6 +107,16 @@ const syncFieldsShape = {
 
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("no-remote"), ...syncFieldsShape }).strict(),
+  /** A sync left rebase state behind that even `rebase --abort` could not
+   *  clear; `lastError` names the manual recovery. The engine never syncs
+   *  again while broken. */
+  z
+    .object({
+      state: z.literal("broken"),
+      remote: z.string().min(1),
+      ...syncFieldsShape,
+    })
+    .strict(),
   z
     .object({
       state: z.literal("clean"),
@@ -146,6 +164,7 @@ export const vaultRoutes = {
       jsonResponse<VaultReadResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
+      jsonResponse<ApiErrorResponse, 413>({ status: 413 }),
     ],
   }),
   write: defineRoute({

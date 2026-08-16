@@ -1,14 +1,16 @@
 // The vault API surface over the composed app: contract row → handler →
 // service → disk, plus the ws invalidation a mutation must produce.
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createConnection } from "@repo/db/connection";
+import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { apiErrorResponseSchema } from "@repo/server-contract/routes";
 import {
+  VAULT_MAX_CONTENT_LENGTH,
   vaultReadResponseSchema,
   vaultStatusResponseSchema,
   vaultTreeResponseSchema,
@@ -28,12 +30,14 @@ afterEach(async () => {
 });
 
 async function bootVaultApp() {
-  const dataDir = mkdtempSync(join(tmpdir(), "inteligir-vault-routes-"));
-  cleanups.push(() => rmSync(dataDir, { recursive: true, force: true }));
+  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-vault-routes-"));
+  cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+  const dataDir = join(instanceDir, "data");
+  const vaultDir = join(instanceDir, "vault");
+  mkdirSync(dataDir, { recursive: true });
   const db = createConnection(join(dataDir, "inteligir.db"));
   runMigrations(db);
   const bus = new WsBus({ version: "0.1.0-test" });
-  const vaultDir = join(dataDir, "vault");
   const vault = await createVaultRuntime({
     vaultDir,
     vaultRemote: null,
@@ -56,8 +60,8 @@ async function bootVaultApp() {
       vaultDir,
       vaultRemote: null,
     },
-    db,
     fallback: { kind: "none" },
+    schemaVersion: getSchemaVersion(db),
     startedAt: Date.now(),
     vault,
     version: "0.1.0-test",
@@ -87,7 +91,9 @@ describe("the vault routes", () => {
     const tree = await app.request("/api/v1/vault/tree");
     expect(tree.status).toBe(200);
     const parsedTree = vaultTreeResponseSchema.parse(await tree.json());
-    expect(parsedTree.root).toBe(vaultDir);
+    // The service reports its PHYSICAL root (symlinks resolved) — on macOS
+    // tmpdir() itself is spelled through /var → /private/var.
+    expect(parsedTree.root).toBe(realpathSync(vaultDir));
     expect(parsedTree.entries).toEqual([
       { kind: "dir", path: "notes" },
       { kind: "file", path: "notes/api.md", size: 10 },
@@ -132,6 +138,29 @@ describe("the vault routes", () => {
       jsonRequest("POST", { path: "ghost.md" }),
     );
     expect(removeMiss.status).toBe(404);
+
+    const oversized = await app.request(
+      "/api/v1/vault/file",
+      jsonRequest("PUT", { path: "big.md", content: "x".repeat(VAULT_MAX_CONTENT_LENGTH + 1) }),
+    );
+    expect(oversized.status).toBe(400);
+    expect(apiErrorResponseSchema.parse(await oversized.json()).error).toBe("invalid_request");
+  });
+
+  it("refuses a vault nested in the data dir at composition time", async () => {
+    const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-vault-routes-"));
+    cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+    await expect(
+      createVaultRuntime({
+        vaultDir: join(instanceDir, "vault"),
+        vaultRemote: null,
+        dataDir: instanceDir,
+        notifier: new WsBus({ version: "0.1.0-test" }),
+        watch: false,
+        syncIntervalMs: null,
+        gitEnv: hermeticGitEnv(),
+      }),
+    ).rejects.toThrow(/must be disjoint/);
   });
 
   it("renames and deletes through the API", async () => {

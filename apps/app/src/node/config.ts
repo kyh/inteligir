@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, resolve, sep } from "node:path";
 import { z } from "zod";
 import { errnoCode } from "./errno";
 
@@ -12,7 +12,12 @@ type RuntimeMode = "dev" | "prod";
 export const PROD_DATA_DIR_NAME = ".inteligir";
 export const DEV_DATA_ROOT_DIR = ".inteligir-dev";
 const PROD_VAULT_DIR_NAME = "Inteligir";
-const DEV_VAULT_DIR_NAME = "vault";
+// Dev instance layout: data/ and vault/ are SIBLINGS under one per-checkout
+// instance dir, because the vault and the data dir must be disjoint (the
+// vault is a git repo the sync loop pushes — a nested data dir would stage
+// the SQLite file into it).
+const DEV_INSTANCE_DATA_DIR_NAME = "data";
+const DEV_INSTANCE_VAULT_DIR_NAME = "vault";
 const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
 const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
@@ -54,8 +59,10 @@ function parseDataDirValue(name: string, rawValue: string, homeDir: string): str
 
 /**
  * Git remote "URLs" include scp-like forms (git@host:path) that no URL parser
- * accepts, so the only structural check is non-empty and whitespace-free —
- * git itself is the validator that matters.
+ * accepts, so validation is an allowlist of the shapes git actually dials:
+ * https/ssh/git/file schemes plus scp-like user@host:path. Everything else is
+ * refused — in particular anything a git invocation could parse as an OPTION
+ * (a leading "-"), which no allowed shape can start with.
  */
 function parseRemoteUrlValue(name: string, rawValue: string): string {
   const trimmed = rawValue.trim();
@@ -65,7 +72,35 @@ function parseRemoteUrlValue(name: string, rawValue: string): string {
   if (/\s/u.test(trimmed)) {
     throw new Error(`${name} must not contain whitespace`);
   }
+  const hasAllowedScheme = /^(?:https|ssh|git|file):\/\/./u.test(trimmed);
+  const isScpLike = /^[\w.-]+@[\w.-]+:.+$/u.test(trimmed);
+  if (!hasAllowedScheme && !isScpLike) {
+    throw new Error(
+      `${name} must be an https://, ssh://, git://, file:// URL or user@host:path (got "${trimmed}")`,
+    );
+  }
   return trimmed;
+}
+
+function pathContains(parent: string, child: string): boolean {
+  return child === parent || child.startsWith(parent + sep);
+}
+
+/**
+ * The vault is a git repo the sync loop pushes; a data dir inside it would be
+ * staged and shipped (SQLite, config, secrets), and a vault inside the data
+ * dir would be swept by data-dir tooling. Neither nesting has a sane meaning,
+ * so the configuration is refused at boot instead of half-guarded at runtime.
+ */
+function assertVaultAndDataDirDisjoint(vaultDir: string, dataDir: string): void {
+  const vault = resolve(vaultDir);
+  const data = resolve(dataDir);
+  if (pathContains(vault, data) || pathContains(data, vault)) {
+    throw new Error(
+      `The vault directory and the data directory must be disjoint, but vault "${vault}" and data dir "${data}" nest. ` +
+        `Set INTELIGIR_VAULT_DIR (or config.json's vaultDir) to a folder outside the data dir.`,
+    );
+  }
 }
 
 function parsePortValue(name: string, rawPort: string): number {
@@ -152,7 +187,9 @@ function createCheckoutHash(checkoutPath: string): string {
  * per checkout, keyed by sha256 of the checkout path, so parallel worktrees
  * never share a database or collide on a socket:
  *
- *   data dir  = ~/.inteligir-dev/<hash truncated to 12 hex chars>
+ *   instance  = ~/.inteligir-dev/<hash truncated to 12 hex chars>
+ *   data dir  = <instance>/data     (vault default = <instance>/vault — siblings,
+ *                                    because the two must be disjoint)
  *   port      = 21000 + (first 8 hex chars of hash % 8000)   → 21000–28999
  *
  * A derived port that turns out taken is probed upward at listen time
@@ -195,12 +232,13 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
   const homeDir = args.homeDir ?? homedir();
   const mode: RuntimeMode = args.env.NODE_ENV === "production" ? "prod" : "dev";
 
+  const devInstanceDir = join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(args.checkoutPath));
   const envDataDir = readEnvVar(ENV_VARS.dataDir, args.env, homeDir);
   const dataDir =
     envDataDir ??
     (mode === "prod"
       ? join(homeDir, PROD_DATA_DIR_NAME)
-      : join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(args.checkoutPath)));
+      : join(devInstanceDir, DEV_INSTANCE_DATA_DIR_NAME));
 
   const managed = readManagedConfig(dataDir);
 
@@ -216,7 +254,10 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     (managed.vaultDir === undefined
       ? undefined
       : parseDataDirValue("config.json vaultDir", managed.vaultDir, homeDir)) ??
-    (mode === "prod" ? join(homeDir, PROD_VAULT_DIR_NAME) : join(dataDir, DEV_VAULT_DIR_NAME));
+    (mode === "prod"
+      ? join(homeDir, PROD_VAULT_DIR_NAME)
+      : join(devInstanceDir, DEV_INSTANCE_VAULT_DIR_NAME));
+  assertVaultAndDataDirDisjoint(vaultDir, dataDir);
 
   const envVaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir);
   const vaultRemote =
