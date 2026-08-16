@@ -43,6 +43,14 @@ export const agentStatusSchema = z
   .strict();
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 
+/**
+ * The built-in agent guide: a SKILL.md-shaped manual for the `inteligir` CLI,
+ * served by the app so an agent (or a human) can always fetch the manual that
+ * matches the running build. The CLI's `guide` command prints it.
+ */
+export const guideResponseSchema = z.object({ markdown: z.string().min(1) }).strict();
+export type GuideResponse = z.infer<typeof guideResponseSchema>;
+
 export const systemStatusResponseSchema = z
   .object({
     /** Version of the running @repo/app package, read from its package.json. */
@@ -77,6 +85,12 @@ export const apiRoutes = {
       response: jsonResponse<SystemStatusResponse>(),
     }),
   },
+  guide: defineRoute({
+    path: "/guide",
+    method: "get",
+    request: noRequest(),
+    response: jsonResponse<GuideResponse>(),
+  }),
   knowledge: knowledgeRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,

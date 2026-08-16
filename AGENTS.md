@@ -35,6 +35,18 @@ deterministic driver over the REAL ingest/timeline/vault/commit paths — send a
 thread message, watch the turn stream, find the note in the vault with an
 agent-attributed commit. `INTELIGIR_AGENT_MODEL` passes a model through.
 
+**The `inteligir` CLI drives a running instance from the shell** — often
+faster than the browser for vault/search/thread checks:
+
+```sh
+pnpm cli status            # discovers the per-checkout instance and probes it
+pnpm cli guide             # the agent manual the app serves (GET /api/v1/guide)
+```
+
+Every leaf takes `--json`. `INTELIGIR_SERVER_URL` pins the target explicitly
+(agent shells get it injected, plus `INTELIGIR_THREAD_ID` for their own
+thread).
+
 The marketing/auth Worker is separate:
 
 ```sh
@@ -122,6 +134,7 @@ rather than moving the app somewhere the docs don't name.
 ```
 apps/app                 THE PRODUCT: local Node server — Start SPA +
                          /api/v1 + /ws + SQLite                      @repo/app
+apps/cli                 The `inteligir` CLI over the typed client   @repo/cli
 apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
 packages/typed-routes    Contract-first Hono route machinery (bb)    @repo/typed-routes
 packages/server-contract The wire contract: route table + ws proto   @repo/server-contract

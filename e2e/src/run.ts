@@ -12,11 +12,18 @@ import { ScenarioSkip } from "./harness/assert";
 import { killAllLiveGroups, type AppInstance, type BootMode } from "./harness/instance";
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { browserSmoke } from "./scenarios/browser-smoke";
+import { cliDrive } from "./scenarios/cli-drive";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
 import { vaultSync } from "./scenarios/vault-sync";
 
-const SCENARIOS: readonly Scenario[] = [vaultCrud, vaultSync, threadsScripted, browserSmoke];
+const SCENARIOS: readonly Scenario[] = [
+  vaultCrud,
+  vaultSync,
+  threadsScripted,
+  cliDrive,
+  browserSmoke,
+];
 
 const USAGE = `Usage: pnpm e2e [--prod] [--only <names>] [--keep] [--list]
 

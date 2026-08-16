@@ -1,0 +1,385 @@
+// Command output goldens against an in-process served contract app: exact
+// stdout bytes for the human renderings, parsed JSON for --json, and the
+// error paths' exit codes. The timeline fixture exercises the shared
+// @repo/thread-view renderer end to end through `thread show`.
+
+import type { ThreadTimeline } from "@repo/server-contract/thread-timeline";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  makeFixtureState,
+  makeThread,
+  serveFixture,
+  type FixtureServer,
+  type FixtureState,
+} from "./fixture-server";
+import { runCliForTest } from "./run-cli";
+
+const cleanups: Array<() => Promise<void>> = [];
+
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).toReversed()) {
+    await cleanup();
+  }
+});
+
+async function boot(state: FixtureState): Promise<FixtureServer> {
+  const server = await serveFixture(state);
+  cleanups.push(() => server.close());
+  return server;
+}
+
+function seededState(): FixtureState {
+  const state = makeFixtureState();
+  state.vault.set("Welcome.md", "# Welcome\n");
+  state.vault.set("notes/hello.md", "# Hello\n\nBody.\n");
+  state.searchResults = [{ path: "notes/hello.md", title: "hello", snippet: "…Body…", score: 1.5 }];
+  state.tags = [
+    { tag: "project", count: 3 },
+    { tag: "idea", count: 1 },
+  ];
+  state.backlinks = [
+    {
+      sourcePath: "Welcome.md",
+      line: 3,
+      snippet: "see [[hello]]",
+      kind: "wiki",
+      embed: false,
+    },
+  ];
+  return state;
+}
+
+const SHOW_TIMELINE: ThreadTimeline = {
+  rows: [
+    {
+      kind: "conversation",
+      role: "user",
+      id: "user:1",
+      threadId: "thr_1",
+      turnId: null,
+      text: "Write me a note",
+      sourceSeqStart: 1,
+      sourceSeqEnd: 1,
+      createdAt: 1_700_000_000_001,
+    },
+    {
+      kind: "turn",
+      id: "turn:turn_1",
+      threadId: "thr_1",
+      turnId: "turn_1",
+      status: "completed",
+      completedAt: 1_700_000_000_005,
+      children: [
+        {
+          kind: "work",
+          workKind: "file-change",
+          id: "item:turn_1:file",
+          threadId: "thr_1",
+          turnId: "turn_1",
+          status: "completed",
+          changes: [{ path: "notes/a.md", kind: "add", movePath: null, diff: null }],
+          approvalStatus: null,
+          sourceSeqStart: 2,
+          sourceSeqEnd: 2,
+          createdAt: 1_700_000_000_002,
+        },
+      ],
+      sourceSeqStart: 2,
+      sourceSeqEnd: 3,
+      createdAt: 1_700_000_000_002,
+    },
+    {
+      kind: "conversation",
+      role: "assistant",
+      id: "item:turn_1:msg",
+      threadId: "thr_1",
+      turnId: "turn_1",
+      text: "Done",
+      sourceSeqStart: 3,
+      sourceSeqEnd: 3,
+      createdAt: 1_700_000_000_003,
+    },
+  ],
+  maxSequence: 3,
+  tokenUsage: null,
+};
+
+describe("vault commands", () => {
+  it("lists the tree, dirs marked, and filters by dir", async () => {
+    const server = await boot(seededState());
+    const all = await runCliForTest({ argv: ["vault", "list"], baseUrl: server.baseUrl });
+    expect(all.code).toBe(0);
+    expect(all.stdout).toBe("notes/\nWelcome.md\nnotes/hello.md\n");
+
+    const scoped = await runCliForTest({
+      argv: ["vault", "list", "notes"],
+      baseUrl: server.baseUrl,
+    });
+    expect(scoped.stdout).toBe("notes/\nnotes/hello.md\n");
+  });
+
+  it("reads a file byte-exactly and errors 1 on a miss", async () => {
+    const server = await boot(seededState());
+    const read = await runCliForTest({
+      argv: ["vault", "read", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(read.code).toBe(0);
+    expect(read.stdout).toBe("# Hello\n\nBody.\n");
+
+    const miss = await runCliForTest({
+      argv: ["vault", "read", "nope.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(miss.code).toBe(1);
+    expect(miss.stderr).toBe("Error: No file at nope.md (not_found)\n");
+  });
+
+  it("writes via --content and reports the path", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const write = await runCliForTest({
+      argv: ["vault", "write", "notes/new.md", "--content", "# New\n"],
+      baseUrl: server.baseUrl,
+    });
+    expect(write.code).toBe(0);
+    expect(write.stdout).toBe("Wrote notes/new.md\n");
+    expect(state.vault.get("notes/new.md")).toBe("# New\n");
+  });
+
+  it("renames, deletes, mkdirs and renders sync status", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const rename = await runCliForTest({
+      argv: ["vault", "rename", "notes/hello.md", "notes/renamed.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(rename.stdout).toBe("Renamed notes/hello.md -> notes/renamed.md\n");
+    expect(state.vault.has("notes/renamed.md")).toBe(true);
+
+    const remove = await runCliForTest({
+      argv: ["vault", "delete", "notes/renamed.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(remove.stdout).toBe("Deleted notes/renamed.md\n");
+
+    const mkdir = await runCliForTest({
+      argv: ["vault", "mkdir", "projects"],
+      baseUrl: server.baseUrl,
+    });
+    expect(mkdir.stdout).toBe("Created projects/\n");
+
+    const status = await runCliForTest({ argv: ["vault", "status"], baseUrl: server.baseUrl });
+    expect(status.stdout).toBe("state: no-remote\nlast sync: never\n");
+
+    const sync = await runCliForTest({
+      argv: ["vault", "sync", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(sync.stdout)).toEqual({
+      state: "no-remote",
+      lastSyncAt: null,
+      lastError: null,
+    });
+  });
+});
+
+describe("knowledge commands", () => {
+  it("renders search results and their --json twin", async () => {
+    const server = await boot(seededState());
+    const human = await runCliForTest({
+      argv: ["search", "Body"],
+      baseUrl: server.baseUrl,
+    });
+    expect(human.code).toBe(0);
+    expect(human.stdout).toBe("notes/hello.md  hello\n  …Body…\n");
+
+    const json = await runCliForTest({
+      argv: ["search", "Body", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(json.stdout)).toEqual({
+      results: [{ path: "notes/hello.md", title: "hello", snippet: "…Body…", score: 1.5 }],
+    });
+  });
+
+  it("says so when nothing matches, and refuses a bad --limit", async () => {
+    const state = seededState();
+    state.searchResults = [];
+    const server = await boot(state);
+    const empty = await runCliForTest({ argv: ["search", "zzz"], baseUrl: server.baseUrl });
+    expect(empty.stdout).toBe("No results.\n");
+
+    const bad = await runCliForTest({
+      argv: ["search", "x", "--limit", "0"],
+      baseUrl: server.baseUrl,
+    });
+    expect(bad.code).toBe(1);
+    expect(bad.stderr).toContain("--limit must be a positive integer");
+  });
+
+  it("renders backlinks and tags", async () => {
+    const server = await boot(seededState());
+    const backlinks = await runCliForTest({
+      argv: ["backlinks", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(backlinks.stdout).toBe("Welcome.md:3  see [[hello]]\n");
+
+    const tags = await runCliForTest({ argv: ["tags"], baseUrl: server.baseUrl });
+    expect(tags.stdout).toBe("project  3\nidea  1\n");
+  });
+});
+
+describe("thread commands", () => {
+  it("lists threads and shows one with the compact timeline", async () => {
+    const state = seededState();
+    state.threads.push({
+      thread: makeThread({ id: "thr_1", title: "Note writing", status: "idle" }),
+      pendingInteractions: [],
+      timeline: SHOW_TIMELINE,
+    });
+    const server = await boot(state);
+
+    const list = await runCliForTest({ argv: ["thread", "list"], baseUrl: server.baseUrl });
+    expect(list.stdout).toBe("thr_1  idle  Note writing\n");
+
+    const show = await runCliForTest({
+      argv: ["thread", "show", "thr_1"],
+      baseUrl: server.baseUrl,
+    });
+    expect(show.code).toBe(0);
+    expect(show.stdout).toBe(
+      [
+        "Thread thr_1 — idle",
+        "Title: Note writing",
+        "",
+        "── user ──",
+        "Write me a note",
+        "",
+        "── turn (completed) ──",
+        "  ~ add notes/a.md",
+        "",
+        "── agent ──",
+        "Done",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("creates a thread and sends the first turn", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["thread", "new", "Summarize my inbox"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe("Thread thr_created_1\nTurn turn_for_thr_created_1 started\n");
+
+    const half = await runCliForTest({
+      argv: ["thread", "new", "x", "--doc", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(half.code).toBe(1);
+    expect(half.stderr).toContain("--doc and --anchor must be provided together");
+  });
+
+  it("sends follow-ups and archives", async () => {
+    const state = seededState();
+    state.threads.push({
+      thread: makeThread({ id: "thr_1" }),
+      pendingInteractions: [],
+      timeline: SHOW_TIMELINE,
+    });
+    const server = await boot(state);
+    const send = await runCliForTest({
+      argv: ["thread", "send", "thr_1", "and then?"],
+      baseUrl: server.baseUrl,
+    });
+    expect(send.stdout).toBe("Turn turn_for_thr_1 started\n");
+
+    const archive = await runCliForTest({
+      argv: ["thread", "archive", "thr_1"],
+      baseUrl: server.baseUrl,
+    });
+    expect(archive.stdout).toBe("Archived thr_1\n");
+  });
+});
+
+describe("interactions commands", () => {
+  it("lists across threads and answers by scanning for the owner", async () => {
+    const state = seededState();
+    state.threads.push({
+      thread: makeThread({ id: "thr_1", status: "active" }),
+      pendingInteractions: [
+        {
+          id: "int_1",
+          threadId: "thr_1",
+          turnId: "turn_1",
+          requestKey: "req_1",
+          status: "pending",
+          payload: null,
+          resolution: null,
+          createdAt: 1_700_000_000_000,
+          resolvedAt: null,
+        },
+      ],
+      timeline: SHOW_TIMELINE,
+    });
+    const server = await boot(state);
+
+    const list = await runCliForTest({
+      argv: ["interactions", "list"],
+      baseUrl: server.baseUrl,
+    });
+    expect(list.stdout).toBe("int_1  thr_1  pending\n");
+
+    const answer = await runCliForTest({
+      argv: ["interactions", "answer", "int_1", "allow_once"],
+      baseUrl: server.baseUrl,
+    });
+    expect(answer.code).toBe(0);
+    expect(answer.stdout).toBe("Interaction int_1 resolved\n");
+  });
+});
+
+describe("status, guide and help", () => {
+  it("renders system status with the thread context", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["status"],
+      baseUrl: server.baseUrl,
+      env: { INTELIGIR_THREAD_ID: "thr_ctx" },
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe(
+      [
+        `inteligir 9.9.9-fixture — ${server.baseUrl}`,
+        "Data dir: /fixture/data",
+        "Schema: v3 — uptime 65s",
+        "Agent: codex (mode auto)",
+        "Thread context: thr_ctx",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("prints the served guide verbatim", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({ argv: ["guide"], baseUrl: server.baseUrl });
+    expect(result.stdout).toBe("# Fixture guide\n\nBe kind to the vault.\n\n");
+  });
+
+  it("prints the env context in --help", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["--help"],
+      baseUrl: server.baseUrl,
+      env: { INTELIGIR_THREAD_ID: "thr_ctx" },
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("INTELIGIR_SERVER_URL");
+    expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
+  });
+});

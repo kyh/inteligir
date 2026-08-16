@@ -6,6 +6,7 @@ import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import {
   apiErrorResponseSchema,
+  guideResponseSchema,
   healthResponseSchema,
   systemStatusResponseSchema,
 } from "@repo/server-contract/routes";
@@ -58,6 +59,15 @@ describe("the API over the in-process app", () => {
     expect(status.dataDir).toBe(args.config.dataDir);
     expect(status.schemaVersion).toBe(3);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("serves the CLI manual on /api/v1/guide per the contract", async () => {
+    const { composed } = await bootApp();
+    const response = await composed.app.request("/api/v1/guide");
+    expect(response.status).toBe(200);
+    const guide = guideResponseSchema.parse(await response.json());
+    expect(guide.markdown).toContain("# The inteligir CLI");
+    expect(guide.markdown).toContain("inteligir thread wait");
   });
 
   it("404s unmatched paths when no UI fallback is mounted", async () => {

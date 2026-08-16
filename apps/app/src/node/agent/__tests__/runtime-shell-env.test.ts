@@ -1,0 +1,98 @@
+// The CLI-driving seam: the manager must hand the runtime the shellEnv the
+// host resolved (INTELIGIR_SERVER_URL, known only after listen) and the
+// session instructions must point the model at the CLI. The runtime's own
+// halves are covered elsewhere (buildThreadShellEnvironment adds
+// INTELIGIR_THREAD_ID; the codex adapter turns envVars into
+// shell_environment_policy config) — what this suite pins is the wiring in
+// between, which no type forces because the field is optional.
+
+import type { AgentRuntime } from "@repo/agent-runtime/types";
+import type { createAgentRuntimeWithAdapters } from "@repo/agent-runtime/runtime";
+import { afterEach, describe, expect, it } from "vitest";
+import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
+import { createCodexRuntimeManager } from "../runtime-manager";
+import { bootAgentApp, createThread, waitFor } from "./agent-test-harness";
+
+const cleanups: Array<() => void | Promise<void>> = [];
+
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).toReversed()) {
+    await cleanup();
+  }
+});
+
+type RuntimeOptions = Parameters<typeof createAgentRuntimeWithAdapters>[0];
+type StartThreadArgs = Parameters<AgentRuntime["startThread"]>[0];
+
+interface Recorded {
+  options: RuntimeOptions[];
+  startThreads: StartThreadArgs[];
+}
+
+function recordingCreateRuntime(recorded: Recorded): typeof createAgentRuntimeWithAdapters {
+  return (options) => {
+    recorded.options.push(options);
+    const runtime: AgentRuntime = {
+      ensureProvider: async () => {},
+      startThread: async (args) => {
+        recorded.startThreads.push(args);
+        return { providerThreadId: "prov_1" };
+      },
+      resumeThread: async () => ({ providerThreadId: "prov_1" }),
+      runTurn: async () => {},
+      steerTurn: async () => ({ status: "stale", activeTurnId: null }),
+      stopThread: async () => {},
+      listModels: async () => ({ models: [] }),
+      listRunningProviders: () => [],
+      getActiveTurnId: () => null,
+      waitForActiveTurn: async () => null,
+      getProviderSession: () => null,
+      reapIdleProviderSessions: async () => ({ reapedSessions: [] }),
+      hasThread: () => false,
+      getLiveThreadIds: () => [],
+      shutdown: async () => {},
+    };
+    return runtime;
+  };
+}
+
+describe("codex runtime shell env wiring", () => {
+  it("constructs the runtime with the resolved shellEnv and CLI-pointing instructions", async () => {
+    const recorded: Recorded = { options: [], startThreads: [] };
+    const shellEnv: Record<string, string> = {};
+    const harness = await bootAgentApp({
+      agent: { mode: "codex", runtime: "codex", detail: null },
+      cleanups,
+      makeDriver: ({ db, bus, vault, vaultDir }) => {
+        const manager = createCodexRuntimeManager({
+          db,
+          notifier: bus,
+          vaultDir,
+          git: vault.git,
+          model: null,
+          shellEnv: () => ({ ...shellEnv }),
+          createRuntime: recordingCreateRuntime(recorded),
+          reapIntervalMs: null,
+        });
+        return { createTurnDriver: manager.createTurnDriver, dispose: () => manager.dispose() };
+      },
+    });
+
+    // What main.ts does after listen: the getter observes the late binding.
+    shellEnv.INTELIGIR_SERVER_URL = "http://127.0.0.1:21999";
+
+    const threadId = await createThread(harness.client);
+    const send = await harness.client.threads.send.$post({
+      json: { threadId, text: "drive the CLI", mode: "steer-if-active" },
+    });
+    expect(send.status).toBe(200);
+
+    const options = await waitFor(() => recorded.options[0], "the runtime to be constructed");
+    expect(options.shellEnv).toEqual({ INTELIGIR_SERVER_URL: "http://127.0.0.1:21999" });
+    expect(options.workspacePath).toBe(harness.vaultDir);
+
+    const started = await waitFor(() => recorded.startThreads[0], "the session to start");
+    expect(started.instructions).toBe(CLI_POINTER_INSTRUCTIONS);
+    expect(started.instructions).toContain("inteligir guide");
+  });
+});

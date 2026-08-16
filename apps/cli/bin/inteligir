@@ -1,0 +1,11 @@
+#!/bin/sh
+# In a checkout, always run the SOURCE under tsx — a previously-built dist/
+# must never shadow fresh edits during dev. The built bundle is what a
+# packaged install runs, where src/ does not ship.
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SRC_ENTRY="$SCRIPT_DIR/../src/index.ts"
+TSX_BIN="$SCRIPT_DIR/../node_modules/.bin/tsx"
+if [ -f "$SRC_ENTRY" ] && [ -x "$TSX_BIN" ]; then
+  exec "$TSX_BIN" "$SRC_ENTRY" "$@"
+fi
+exec node "$SCRIPT_DIR/../dist/index.js" "$@"

@@ -23,6 +23,7 @@ import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
+import { CLI_SKILL_MD } from "./guide/cli-skill";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
@@ -150,6 +151,7 @@ export function createApp(args: CreateAppArgs) {
       agent: args.agent,
     }),
   );
+  get(apiRoutes.guide, (c) => c.json({ markdown: CLI_SKILL_MD }));
   registerVaultRoutes(registrars, args.vault, (from, to) =>
     renameNoteWithLinkRewrite({
       service: args.vault.service,

@@ -145,7 +145,16 @@ const knowledge = createKnowledgeRuntime({
 knowledgeRef = knowledge;
 const fallback = await fallbackPromise;
 
-const agentDriver = resolveAgentDriver({ config, db, notifier: bus, vault });
+// Filled in after listen (the bound port may be a probed one); read lazily by
+// the codex runtime on the first turn, which an HTTP request precedes.
+const agentShellEnv: Record<string, string> = {};
+const agentDriver = resolveAgentDriver({
+  config,
+  db,
+  notifier: bus,
+  vault,
+  shellEnv: () => ({ ...agentShellEnv }),
+});
 
 const { app, injectWebSocket } = createApp({
   agent: agentDriver.status,
@@ -168,6 +177,7 @@ const { port, server } = await listenWithRetry({
   probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
 });
 injectWebSocket(server);
+agentShellEnv.INTELIGIR_SERVER_URL = `http://127.0.0.1:${port}`;
 console.log(
   `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,
 );

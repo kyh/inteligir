@@ -1,0 +1,34 @@
+{
+  "name": "@repo/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The `inteligir` CLI: drives a running local app over the typed API client — vault CRUD, knowledge search, agent threads, approvals. Agent-facing by design: every leaf takes --json, the server serves the manual (GET /api/v1/guide), and agent shells get INTELIGIR_SERVER_URL/INTELIGIR_THREAD_ID injected.",
+  "bin": {
+    "inteligir": "./bin/inteligir"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/app": "workspace:*",
+    "@repo/domain": "workspace:*",
+    "@repo/server-contract": "workspace:*",
+    "@repo/thread-view": "workspace:*",
+    "commander": "^14.0.0",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hono/node-server": "catalog:",
+    "@repo/typed-routes": "workspace:*",
+    "@types/node": "catalog:",
+    "esbuild": "^0.28.1",
+    "hono": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
