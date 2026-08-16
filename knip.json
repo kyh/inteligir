@@ -1,34 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": [".design-sync/**"],
-  // `includeEntryExports: true` on every `packages/*` workspace, and it is
-  // load-bearing rather than a preference. These packages publish each source
-  // file as its own subpath export (some through a `./*` wildcard), so knip
-  // reads EVERY file as an entry — and knip's default is to trust an entry's
-  // exports as the public API. The combination turned unused-export reporting
-  // off across the whole of `packages/`, which is how a module can keep a dead
-  // half for months with a green gate. A workspace package's consumers are all
-  // in this repo, so "no importer" is a fact knip can prove; nothing needs to
-  // be taken on trust.
+  // The `packages/*` workspaces publish each source file as its own subpath
+  // export (some through a `./*` wildcard), so knip reads EVERY file as an
+  // entry — and knip's default is to trust an entry's exports as the public
+  // API, which turns unused-export reporting off for the whole package. Each
+  // workspace below states which side of that trade it is on, and why.
   "workspaces": {
     ".": {},
-    "apps/desktop": {
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
-    },
-    "apps/mobile": {
-      "entry": ["src/app/**/*.tsx", "src/lib/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"]
-      // No `ignoreDependencies` here on purpose. knip's Expo plugin SYNTHESIZES
-      // an `expo-updates` dependency for any app config that doesn't say
-      // `updates: { enabled: false }` (knip/dist/plugins/expo/helpers.js), and
-      // apps/mobile neither declares nor references that package — without the
-      // opt-out, knip demands an ignore for a package nothing installs.
-      // app.config.js declares that opt-out, which is true (no OTA updates, not
-      // registered with EAS) and makes the suppression unnecessary. If knip
-      // reports expo-updates, the opt-out is missing from app.config.js — put
-      // it back there rather than adding an ignore here.
-    },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it
       // from wrangler.jsonc's `main`. `src/worker/index.ts` is the test suite's
@@ -43,27 +22,13 @@
       // `cloudflare` package would be worse.
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },
-    // The agent container image is its own npm project, built from this repo by
-    // the Dockerfile. The daemon entry is resolved from the package's `bin`
-    // field; `src/protocol.ts` is the pure wire contract @repo/web imports.
-    "apps/web/container": {
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": true
-    },
-    "packages/bridge": {
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": true
-    },
-    "packages/editor": {
-      "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
-      "project": ["src/**/*.{ts,tsx}"],
-      "includeEntryExports": true
-    },
+    // Carried ahead of its v3 consumers (issue #542): the package's public
+    // surface is deliberately wider than today's importers, so its entry
+    // exports are trusted as API rather than reported. Flip this back to
+    // `includeEntryExports: true` once the v3 features consume it in-repo.
     "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": true
+      "project": ["src/**/*.ts"]
     },
     // The ONE package that keeps knip's default `includeEntryExports: false`,
     // and the reason is the package rather than the findings. `src/components`
@@ -83,15 +48,6 @@
       "entry": [],
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": false
-    },
-    "packages/workspace": {
-      "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
-      "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
-      "includeEntryExports": true
-    },
-    "tools/repo-guards": {
-      "entry": ["src/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
     }
   }
 }

@@ -26,16 +26,11 @@
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
-    ".output",
     ".tanstack",
-    "out",
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
     ".design-sync",
-    ".ds-sync",
-    ".expo",
-    "expo-env.d.ts",
-    "nativewind-env.d.ts"
+    ".ds-sync"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "categories": {
@@ -144,41 +139,8 @@
           {
             "patterns": [
               {
-                "group": [
-                  "node:*",
-                  "electron",
-                  "electron/*",
-                  "react",
-                  "react-dom",
-                  "react/*",
-                  "@repo/bridge",
-                  "@repo/bridge/*",
-                  "@repo/editor",
-                  "@repo/editor/*",
-                  "@repo/ui",
-                  "@repo/ui/*",
-                  "@repo/workspace",
-                  "@repo/workspace/*",
-                  "@repo/desktop",
-                  "@repo/desktop/*"
-                ],
-                "message": "@repo/notes is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/bridge/src/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "@repo/bridge is the isomorphic wire contract — it loads in a browser, in React Native and on workerd alike, so no node/electron imports"
+                "group": ["node:*", "react", "react-dom", "react/*", "@repo/ui", "@repo/ui/*"],
+                "message": "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities"
               }
             ]
           }

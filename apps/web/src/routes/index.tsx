@@ -1,4 +1,4 @@
-import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
+import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
 import { HeroOrb } from "@/components/hero-orb";
@@ -68,9 +68,8 @@ function Page() {
   const downloadUrl = Route.useLoaderData();
 
   return (
-    // The theme provider lives on the page, not in the document shell: the
-    // workspace mounts its own, and two nested providers fight over the `.dark`
-    // class on <html>. See __root.tsx.
+    // The theme provider lives on the page, not in the document shell — see
+    // __root.tsx.
     <ThemeProvider>
       <SiteHeader />
       <main className="flex min-h-dvh w-full flex-col">
@@ -91,9 +90,6 @@ function Page() {
             Download for Mac
           </a>
           <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
-          <Link to="/app" className="text-xs text-foreground/60 underline underline-offset-4">
-            Or open it in your browser
-          </Link>
         </div>
       </main>
     </ThemeProvider>

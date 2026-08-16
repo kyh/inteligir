@@ -78,8 +78,8 @@ jobs:
     #
     # It is not the CI gate — the `workflow_run` trigger is, so a red tree
     # never reaches inteligir.com. @repo/web is ONE Worker carrying the
-    # marketing site AND the backend, so this publishes the API, the Durable
-    # Object and the site together — there is no separate manual deploy left.
+    # marketing site AND the auth API, so this publishes both together — there
+    # is no separate manual deploy left.
     environment:
       name: production
       url: https://inteligir.com

@@ -33,7 +33,7 @@ async function refusalMessage(response: Response): Promise<string> {
 export const Route = createFileRoute("/app/sign-up")({
   ssr: ssrWhenSignedOut,
   beforeLoad: async () => {
-    if ((await currentSession()) !== null) throw redirect({ to: "/app" });
+    if ((await currentSession()) !== null) throw redirect({ to: "/" });
   },
   component: SignUpPage,
 });
@@ -64,7 +64,7 @@ function SignUpPage() {
         setBusy(false);
         return;
       }
-      await router.navigate({ to: "/app" });
+      await router.navigate({ to: "/" });
     })();
   };
 

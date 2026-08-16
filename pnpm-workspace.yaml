@@ -1,21 +1,11 @@
 packages:
   - apps/*
-  # The agent container image is built from this repo and is its own npm
-  # project (the Dockerfile installs it), so it is a workspace member rather
-  # than a folder inside @repo/web — that is what typechecks it and what lets
-  # `pnpm deploy` produce the image's node_modules.
-  - apps/web/container
   - packages/*
-  - tools/*
 
 catalog:
   "@base-ui/react": ^1.6.0
   "@cloudflare/vite-plugin": ^1.47.0
   "@cloudflare/vitest-pool-workers": ^0.18.8
-  "@earendil-works/pi-ai": ^0.82.0
-  "@earendil-works/pi-coding-agent": ^0.82.0
-  "@expo/metro-runtime": ~57.0.7
-  "@sinclair/typebox": ^0.34.52
   "@tailwindcss/vite": ^4.3.3
   "@tanstack/react-router": ^1.170.18
   "@tanstack/react-start": ^1.168.32
@@ -27,24 +17,9 @@ catalog:
   better-auth: ^1.6.25
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
-  expo: ~57.0.8
-  expo-constants: ~57.0.7
-  expo-dev-client: ~57.0.9
-  expo-linking: ~57.0.4
-  expo-router: ~57.0.8
-  expo-secure-store: ~57.0.1
-  expo-splash-screen: ~57.0.5
-  expo-status-bar: ~57.0.1
-  expo-system-ui: ~57.0.1
   lucide-react: ^1.26.0
   react: ^19.2.8
   react-dom: ^19.2.8
-  react-native: ~0.86.0
-  react-native-gesture-handler: ~2.32.0
-  react-native-reanimated: 4.5.1
-  react-native-safe-area-context: ~5.7.0
-  react-native-screens: ~4.26.2
-  react-native-worklets: 0.10.1
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
@@ -61,10 +36,6 @@ catalog:
 # that major. CI installs --frozen-lockfile, so this only affects resolution
 # during a local `pnpm add`/`pnpm update`.
 minimumReleaseAge: 1440
-# pi ships fast and the desktop release gate couples to a pi model id, so a
-# day-long hold on @earendil-works/* would block the very thing we upgrade for.
-minimumReleaseAgeExclude:
-  - "@earendil-works/*"
 
 # A transitive dep resolved from git/a tarball/a URL bypasses both the cooldown
 # above and the registry integrity the lockfile records. Direct deps may still
@@ -73,8 +44,5 @@ blockExoticSubdeps: true
 
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"
-  - electron
-  - electron-winstaller
   - esbuild
-  - sharp
   - workerd

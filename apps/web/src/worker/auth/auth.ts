@@ -4,7 +4,6 @@ import { bearer } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
-import { userHostName } from "../host/host-address";
 import { sendResetEmail } from "./reset-email";
 
 // ---------------------------------------------------------------------------
@@ -28,16 +27,13 @@ import { sendResetEmail } from "./reset-email";
 // preview, and prod all work with zero config.
 // ---------------------------------------------------------------------------
 
-/** Extra trusted origins for the native clients' own schemes. */
+/** Extra trusted origins, appended via a comma-separated
+ * `BETTER_AUTH_TRUSTED_ORIGINS` var without a code change. */
 function trustedOrigins(env: Env): string[] {
-  // `expo://` is the mobile app's deep-link scheme and `inteligir://` the
-  // shell's — the redirect targets a native social flow would have to name.
-  // More origins can be appended via a comma-separated
-  // `BETTER_AUTH_TRUSTED_ORIGINS` var without a code change.
   const extra = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin !== "");
-  return ["expo://", "inteligir://", ...(extra ?? [])];
+  return extra ?? [];
 }
 
 /**
@@ -169,18 +165,12 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
     user: {
       deleteUser: {
         enabled: true,
-        // BEFORE, not after. Everything the user made is in their Durable
-        // Object and under their R2 prefix, and `afterDelete` runs once the
-        // account row is already gone — so a purge that failed there would
-        // leave data with no account to ask for it again. Here a failure aborts
-        // the whole deletion: the account survives, both steps below are
-        // idempotent, and pressing the button again resumes it.
-        //
-        // Better Auth has already checked the password (or the session's
-        // freshness) by the time this runs, which is what makes naming the
-        // object safe — see UserHost.purgeAccount.
+        // BEFORE, not after: a failure here aborts the whole deletion, the
+        // account survives, and the step is idempotent — pressing the button
+        // again resumes it. `afterDelete` would run once the account row is
+        // already gone, leaving the invite pointing at nobody with no account
+        // left to ask again.
         beforeDelete: async (user) => {
-          await env.UserHost.getByName(userHostName(user.id)).purgeAccount();
           await forgetInviteRedeemer(env, user.email);
         },
       },

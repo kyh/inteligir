@@ -1,5 +1,0 @@
-<Steps>
-
-step body
-
-</Steps>

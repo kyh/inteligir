@@ -1,3 +1,0 @@
-<Foo>
-
-never closed

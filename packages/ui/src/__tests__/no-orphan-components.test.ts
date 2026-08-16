@@ -35,6 +35,31 @@ const SKIP_DIR_NAMES = new Set([
   ".git",
 ]);
 
+// Carried ahead of their v3 consumers (issue #542): the package rides through
+// the rewrite whole, so these components have no importer YET. Strike a name
+// off as a v3 surface consumes it; a component that v3 never picks up gets
+// deleted with this list's last entry. Names not on this list are still
+// guarded.
+const CARRIED_FOR_V3 = new Set([
+  "attachment",
+  "badge",
+  "breadcrumb",
+  "bubble",
+  "checkbox",
+  "collapsible",
+  "command",
+  "confirm-dialog",
+  "dropdown-menu",
+  "message",
+  "message-scroller",
+  "native-select",
+  "popover",
+  "sidebar",
+  "sonner",
+  "spinner",
+  "switch",
+]);
+
 /** Every source file in the repo that could import a component, excluding the
  * component files themselves (a component importing a sibling keeps it alive,
  * so those ARE included — see `intraPackage` below). */
@@ -54,7 +79,8 @@ describe("no orphan components", () => {
     const components = fs
       .readdirSync(COMPONENTS_DIR, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx"))
-      .map((entry) => entry.name.replace(/\.tsx$/, ""));
+      .map((entry) => entry.name.replace(/\.tsx$/, ""))
+      .filter((name) => !CARRIED_FOR_V3.has(name));
 
     const files: string[] = [];
     for (const workspace of ["apps", "packages"]) {

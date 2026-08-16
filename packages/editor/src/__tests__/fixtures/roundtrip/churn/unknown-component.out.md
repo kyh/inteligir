@@ -1,3 +1,0 @@
-<Steps>
-  step body
-</Steps>
