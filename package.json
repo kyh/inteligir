@@ -7,6 +7,7 @@
     "clean:workspaces": "turbo run clean",
     "dev": "turbo watch dev -F @repo/app...",
     "dev:site": "turbo watch dev -F @repo/web...",
+    "e2e": "pnpm --filter @repo/e2e e2e",
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
     "knip": "knip",

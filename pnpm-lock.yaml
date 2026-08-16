@@ -293,6 +293,22 @@ importers:
         specifier: 'catalog:'
         version: 4.114.0
 
+  e2e:
+    dependencies:
+      '@repo/server-contract':
+        specifier: workspace:*
+        version: link:../packages/server-contract
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.12
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+
   packages/db:
     dependencies:
       '@repo/domain':

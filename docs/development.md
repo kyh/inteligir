@@ -76,3 +76,7 @@ red format cannot hide test regressions behind it.
 - `pnpm --filter @repo/web test` — the Worker, against real in-process
   miniflare (D1 + Better Auth): the invite gate and the password-reset flow.
 - `pnpm --filter @repo/ui test` — component provenance + no-orphan-components.
+
+End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
+vaults, scratch git remotes, a headless browser) and is deliberately outside
+`pnpm verify` — `e2e/README.md` is the one-pager.
