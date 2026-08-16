@@ -21,16 +21,13 @@ import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import type { SqlDriver, SqlRow } from "@repo/notes/knowledge/sql-knowledge-store";
+import { messageOf } from "./message-of";
 
 function isSqlRow(row: unknown): row is SqlRow {
   return typeof row === "object" && row !== null;
 }
 
 const SIDE_SUFFIXES = ["", "-wal", "-shm"] as const;
-
-function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 function openAt(target: string): Database.Database {
   const opened = new Database(target);

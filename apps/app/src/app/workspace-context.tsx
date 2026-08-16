@@ -7,7 +7,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
 import type { ChangedMessage } from "@repo/server-contract/notifications";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { createWorkspaceApiClient, queryKeys } from "./api";
 import {
   browserInvalidationSocket,
@@ -26,7 +26,6 @@ interface DocEvents {
 
 export interface WorkspaceRuntime {
   api: ReturnType<typeof createWorkspaceApiClient>;
-  queryClient: QueryClient;
   docEvents: DocEvents;
 }
 
@@ -69,6 +68,8 @@ function applyChangedMessage(
 }
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
+  // The runtime — client, query cache, doc-event hub, the context value —
+  // is built ONCE here; nothing about it depends on a render.
   const [runtime] = useState(() => {
     const queryClient = new QueryClient();
     const docListeners = new Set<DocListener>();
@@ -85,12 +86,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         };
       },
     };
-    return {
-      api: createWorkspaceApiClient(),
-      queryClient,
-      docEvents,
-      notifyDoc,
-    };
+    const contextValue: WorkspaceRuntime = { api: createWorkspaceApiClient(), docEvents };
+    return { queryClient, notifyDoc, contextValue };
   });
 
   // The client is constructed INSIDE the effect, symmetric with its
@@ -123,16 +120,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setThemeState(next);
   };
 
-  const contextValue = useMemo<WorkspaceRuntime>(
-    () => ({ api: runtime.api, queryClient: runtime.queryClient, docEvents: runtime.docEvents }),
-    [runtime],
-  );
-
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <EditorThemeCarrier />
       <QueryClientProvider client={runtime.queryClient}>
-        <WorkspaceContext value={contextValue}>{children}</WorkspaceContext>
+        <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
       </QueryClientProvider>
     </ThemeProvider>
   );

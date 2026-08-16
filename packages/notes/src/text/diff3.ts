@@ -3,11 +3,11 @@
 // region changed on one side takes that side; a region both sides changed
 // identically merges silently; a genuine overlap keeps MINE (the buffer is
 // the user's work) and reports the conflict so the caller can surface it.
-// Line diffs come from the shared Myers walk in @repo/notes; unstable regions
+// Line diffs come from the Myers walk beside this module; unstable regions
 // not separated by at least one stable line are grouped, as classic diff3
 // does — interleaving adjacent edits would be ambiguous.
 
-import { diffLines, splitLines, type DiffHunk } from "@repo/notes/text/line-diff";
+import { diffLines, splitLines, type DiffHunk } from "./line-diff";
 
 export interface Diff3Result {
   merged: string;

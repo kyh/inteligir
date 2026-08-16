@@ -11,7 +11,7 @@
 // mid-flight (external adopt/merge) must never be clobbered by a stale
 // resolution.
 
-import { diff3 } from "./diff3";
+import { diff3 } from "@repo/notes/text/diff3";
 
 /** The slice of the editor handle the controller drives. */
 export interface NoteBuffer {

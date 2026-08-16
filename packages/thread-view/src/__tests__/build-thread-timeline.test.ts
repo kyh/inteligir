@@ -326,6 +326,20 @@ describe("buildThreadTimeline", () => {
   });
 });
 
+const findReasoningText = (timeline: ReturnType<typeof buildThreadTimeline>): string => {
+  for (const row of timeline.rows) {
+    if (row.kind !== "turn") {
+      continue;
+    }
+    for (const child of row.children) {
+      if (child.kind === "work" && child.workKind === "reasoning") {
+        return child.text;
+      }
+    }
+  }
+  throw new Error("no reasoning row");
+};
+
 describe("reasoning text preference", () => {
   it("settled reasoning prefers summary, falls back to content, then the stream buffer", () => {
     const base = {
@@ -351,20 +365,6 @@ describe("reasoning text preference", () => {
           { type: "turn/completed", ...base, status: "completed" },
         ]),
       );
-
-    const findReasoningText = (timeline: ReturnType<typeof buildThreadTimeline>): string => {
-      for (const row of timeline.rows) {
-        if (row.kind !== "turn") {
-          continue;
-        }
-        for (const child of row.children) {
-          if (child.kind === "work" && child.workKind === "reasoning") {
-            return child.text;
-          }
-        }
-      }
-      throw new Error("no reasoning row");
-    };
 
     expect(findReasoningText(build({ summary: ["visible"], content: ["raw"] }))).toBe("visible");
     expect(findReasoningText(build({ summary: [], content: ["raw"] }))).toBe("raw");

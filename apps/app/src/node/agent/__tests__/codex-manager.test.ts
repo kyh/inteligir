@@ -5,50 +5,36 @@
 // the settle-before-drain race.
 
 import { execFile } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import {
   createFakeCodexAdapterFactory,
   type FakeCodexMode,
 } from "@repo/agent-runtime/test-support/fake-codex-adapter";
-import type { PendingInteractionPayload } from "@repo/agent-runtime/domain/pending-interactions";
-import { getThread } from "@repo/db/threads";
-import { afterEach, describe, expect, it } from "vitest";
-import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
-import { createCodexRuntimeManager, parseInteractionResolution } from "../runtime-manager";
 import {
-  bootAgentApp,
+  parseApprovalResolution,
+  type PendingInteractionPayload,
+} from "@repo/agent-runtime/domain/pending-interactions";
+import { getThread } from "@repo/db/threads";
+import { describe, expect, it } from "vitest";
+import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
+import { createCodexRuntimeManager } from "../runtime-manager";
+import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
+import { makeTempDir } from "../../__tests__/temp-dir";
+import {
   createThread,
   fetchTimelineRows,
   flattenTimelineRows,
   getThreadDetail,
   sendMessage,
   waitFor,
-  type AgentAppHarness,
 } from "./agent-test-harness";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 const execFileAsync = promisify(execFile);
 
-function makeMarkerDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-codex-marker-"));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-  return dir;
-}
-
-async function bootWithManager(mode: FakeCodexMode, markerPath?: string): Promise<AgentAppHarness> {
-  return bootAgentApp({
+async function bootWithManager(mode: FakeCodexMode, markerPath?: string): Promise<BootedTestApp> {
+  return bootTestApp({
     agent: { mode: "codex", runtime: "codex", detail: null },
-    cleanups,
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const manager = createCodexRuntimeManager({
         db,
@@ -71,7 +57,7 @@ async function bootWithManager(mode: FakeCodexMode, markerPath?: string): Promis
 }
 
 async function awaitThreadStatus(
-  harness: AgentAppHarness,
+  harness: BootedTestApp,
   threadId: string,
   wanted: string,
 ): Promise<void> {
@@ -95,7 +81,7 @@ async function headCommit(
   return { author, email, files: rest.filter((line) => line.length > 0) };
 }
 
-describe("parseInteractionResolution", () => {
+describe("parseApprovalResolution", () => {
   const commandPayload: PendingInteractionPayload = {
     kind: "approval",
     subject: {
@@ -122,32 +108,49 @@ describe("parseInteractionResolution", () => {
   };
 
   it("accepts bare verbs and the full resolution JSON, refuses the rest", () => {
-    expect(parseInteractionResolution("deny", commandPayload)).toEqual({ decision: "deny" });
-    expect(parseInteractionResolution("allow_once", commandPayload)).toEqual({
-      decision: "allow_once",
-      grantedPermissions: null,
+    expect(parseApprovalResolution("deny", commandPayload)).toEqual({
+      ok: true,
+      resolution: { decision: "deny" },
+    });
+    expect(parseApprovalResolution("allow_once", commandPayload)).toEqual({
+      ok: true,
+      resolution: { decision: "allow_once", grantedPermissions: null },
     });
     // JSON form; the null grant on a permission_grant subject is filled from
     // the requested profile (the fallback the next test pins for bare verbs).
     expect(
-      parseInteractionResolution(
+      parseApprovalResolution(
         JSON.stringify({ decision: "allow_for_session", grantedPermissions: null }),
         grantPayload,
       ),
     ).toEqual({
-      decision: "allow_for_session",
-      grantedPermissions: { network: { enabled: true }, fileSystem: null },
+      ok: true,
+      resolution: {
+        decision: "allow_for_session",
+        grantedPermissions: { network: { enabled: true }, fileSystem: null },
+      },
     });
     // The request never offered allow_for_session: out-of-set is refused.
-    expect(parseInteractionResolution("allow_for_session", commandPayload)).toBeNull();
-    expect(parseInteractionResolution("approve!!", commandPayload)).toBeNull();
-    expect(parseInteractionResolution('{"decision":"maybe"}', commandPayload)).toBeNull();
+    expect(parseApprovalResolution("allow_for_session", commandPayload).ok).toBe(false);
+    expect(parseApprovalResolution("approve!!", commandPayload).ok).toBe(false);
+    expect(parseApprovalResolution('{"decision":"maybe"}', commandPayload).ok).toBe(false);
+    // A valid decision with wrong-shape grantedPermissions is refused, never
+    // parsed down to its decision alone.
+    expect(
+      parseApprovalResolution(
+        JSON.stringify({ decision: "allow_once", grantedPermissions: { bogus: true } }),
+        commandPayload,
+      ).ok,
+    ).toBe(false);
   });
 
   it("an allow with no explicit grant falls back to the requested permissions", () => {
-    expect(parseInteractionResolution("allow_for_session", grantPayload)).toEqual({
-      decision: "allow_for_session",
-      grantedPermissions: { network: { enabled: true }, fileSystem: null },
+    expect(parseApprovalResolution("allow_for_session", grantPayload)).toEqual({
+      ok: true,
+      resolution: {
+        decision: "allow_for_session",
+        grantedPermissions: { network: { enabled: true }, fileSystem: null },
+      },
     });
   });
 });
@@ -187,7 +190,7 @@ describe("the codex runtime manager over real HTTP", () => {
   });
 
   it("survives the account-restart window: a turn dispatched into it lands on the replacement", async () => {
-    const marker = join(makeMarkerDir(), "auth-restored");
+    const marker = join(makeTempDir("inteligir-codex-marker-"), "auth-restored");
     const harness = await bootWithManager("auth-once", marker);
     const threadId = await createThread(harness.client);
 
@@ -273,6 +276,17 @@ describe("the codex runtime manager over real HTTP", () => {
       json: { threadId, interactionId: interaction.id, resolution: "allow_for_session" },
     });
     expect(outOfSet.status).toBe(400);
+
+    // A valid decision wrapped around wrong-shape grantedPermissions is 400
+    // at the route — never accepted here and silently denied downstream.
+    const wrongShape = await harness.client.threads.interaction.answer.$post({
+      json: {
+        threadId,
+        interactionId: interaction.id,
+        resolution: JSON.stringify({ decision: "allow_once", grantedPermissions: { bogus: 1 } }),
+      },
+    });
+    expect(wrongShape.status).toBe(400);
 
     const answered = await harness.client.threads.interaction.answer.$post({
       json: { threadId, interactionId: interaction.id, resolution: "allow_once" },

@@ -8,7 +8,7 @@
 // pulled `notes.md -> ~/.ssh/id_ed25519` must never read the key, and a
 // symlinked folder must never let a write land outside the vault.
 
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import {
   link,
@@ -25,6 +25,7 @@ import {
 import { dirname, join, resolve, sep } from "node:path";
 import type { DbNotifier } from "@repo/db/notifier";
 import {
+  contentHashHex,
   VAULT_MAX_CONTENT_LENGTH,
   type VaultEntry,
   type VaultTreeResponse,
@@ -138,13 +139,6 @@ type GuardedWriteResult =
       current: { content: string; hash: string } | null;
     }
   | { applied: false; reason: "exists" };
-
-/** sha-256 hex over UTF-8 bytes — must agree with the client's
- *  crypto.subtle.digest over TextEncoder output, and it does: both hash the
- *  UTF-8 encoding of the string. */
-export function contentHash(content: string): string {
-  return createHash("sha256").update(content, "utf8").digest("hex");
-}
 
 export interface VaultService {
   listTree(): Promise<VaultTreeResponse>;
@@ -337,11 +331,12 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
           // The base the client hashed no longer exists at all.
           return { applied: false, reason: "hash_mismatch", current: null };
         }
-        if (contentHash(current) !== guard.expectedHash) {
+        const currentHash = await contentHashHex(current);
+        if (currentHash !== guard.expectedHash) {
           return {
             applied: false,
             reason: "hash_mismatch",
-            current: { content: current, hash: contentHash(current) },
+            current: { content: current, hash: currentHash },
           };
         }
         await performAtomicWrite(relPath, absPath, content);

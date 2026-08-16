@@ -153,6 +153,15 @@ export const answerInteractionRequestSchema = z
   .object({
     threadId: z.string().min(1),
     interactionId: z.string().min(1),
+    /**
+     * The approval-resolution grammar, owned by
+     * `@repo/agent-runtime/domain/pending-interactions` (`parseApprovalResolution`
+     * is the one parser, shared by the route's 400 gate and the runtime): a
+     * bare decision verb — `"allow_once"`, `"allow_for_session"`, `"deny"` —
+     * or the JSON of `approvalPendingInteractionResolutionSchema`. Anything
+     * else answers 400; it stays a string here because the row stores and
+     * replays it verbatim.
+     */
     resolution: z.string().min(1),
   })
   .strict();

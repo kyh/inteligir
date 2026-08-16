@@ -1,9 +1,8 @@
 // Minimal settings: what the server already answers (vault location, git
-// remote, sync state, the About block the old index cards became) plus the
-// one client-side preference that exists today (theme). The remote is
-// display-only — changing it rides INTELIGIR_VAULT_REMOTE / config.json until
-// a config route exists; the agent section states plainly that the Codex
-// adapter is not wired yet (#549).
+// remote, sync state, the agent block of /system/status, the About block)
+// plus the one client-side preference that exists today (theme). The remote
+// is display-only — changing it rides INTELIGIR_VAULT_REMOTE / config.json
+// until a config route exists.
 
 import { Button } from "@repo/ui/components/button";
 import {
@@ -121,9 +120,19 @@ export function SettingsDialog({ open, onOpenChange, onSyncNow }: SettingsDialog
           <Separator />
           <section className="space-y-2">
             <SectionHeading>Agent</SectionHeading>
-            <p className="text-sm text-muted-foreground">
-              Not connected yet — the Codex adapter arrives with the agent runtime (#549).
-            </p>
+            <dl className="space-y-1.5">
+              <Row label="Mode">
+                <span className="font-mono text-xs">{system?.agent.mode ?? "…"}</span>
+              </Row>
+              <Row label="Runtime">
+                <span className="font-mono text-xs">{system?.agent.runtime ?? "…"}</span>
+              </Row>
+              {system !== undefined && system.agent.detail !== null ? (
+                <Row label="Detail">
+                  <span className="text-xs text-muted-foreground">{system.agent.detail}</span>
+                </Row>
+              ) : null}
+            </dl>
           </section>
           <Separator />
           <section className="space-y-2">

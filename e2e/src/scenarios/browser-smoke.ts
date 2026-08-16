@@ -1,7 +1,7 @@
-// Drives a real headless browser over the agent-browser CLI. Deliberately
-// shallow — the page loads, the SPA mounts, it reaches the API, and the
-// console stays clean — matching the surface the app serves today (#551
-// tracks the workspace UI this scenario deepens against).
+// Drives a real headless browser over the agent-browser CLI. The invariants:
+// the page loads, the SPA mounts (sidebar + editor), the virgin boot opens
+// the seeded welcome note, the page reaches the API, and the console stays
+// clean.
 //
 // The environment probe and the product assertions are SEPARATE: about:blank
 // needs only the browser, so a failure there is an environment gap and

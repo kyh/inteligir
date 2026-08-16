@@ -4,20 +4,19 @@
 // domain's ONE gate (@repo/notes checkNoteName) — reject, never sanitize.
 
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
+import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useRef, useState } from "react";
 
 export function noteStem(path: string): string {
-  const name = path.slice(path.lastIndexOf("/") + 1);
+  const name = basenamePath(path);
   return name.endsWith(".md") ? name.slice(0, -".md".length) : name;
 }
 
 export function pathWithStem(path: string, stem: string): string {
-  const slash = path.lastIndexOf("/");
-  const dir = slash === -1 ? "" : path.slice(0, slash);
-  const name = path.slice(slash + 1);
+  const name = basenamePath(path);
   const fileName = name.endsWith(".md") ? `${stem}.md` : stem;
-  return dir === "" ? fileName : `${dir}/${fileName}`;
+  return joinPath(dirnamePath(path), fileName);
 }
 
 export interface NoteTitleProps {
@@ -53,7 +52,7 @@ export function NoteTitle({ path, onRename, onSubmit }: NoteTitleProps) {
       setDraft(stem);
       return;
     }
-    const isMd = path.slice(path.lastIndexOf("/") + 1).endsWith(".md");
+    const isMd = basenamePath(path).endsWith(".md");
     const verdict = checkNoteName(isMd ? `${trimmed}.md` : trimmed);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));

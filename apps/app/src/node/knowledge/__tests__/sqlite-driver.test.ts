@@ -6,8 +6,7 @@
 // search, hydration paging, the version/root guards.
 
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DocProjection } from "@repo/notes/knowledge/projection";
 import { projectDoc } from "@repo/notes/knowledge/projection";
@@ -17,6 +16,7 @@ import {
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
 
 const cleanups: Array<() => void> = [];
@@ -26,11 +26,10 @@ afterEach(() => {
 });
 
 function makeDbDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-knowledge-driver-"));
-  cleanups.push(() => {
-    chmodSync(dir, 0o755);
-    rmSync(dir, { recursive: true, force: true });
-  });
+  const dir = makeTempDir("inteligir-knowledge-driver-");
+  // A test drops the dir's write bit; restore it here (this hook runs before
+  // the shared temp-dir removal) so the removal can succeed.
+  cleanups.push(() => chmodSync(dir, 0o755));
   return dir;
 }
 

@@ -1,6 +1,8 @@
-// CodeMirror measures layout through APIs jsdom does not implement. These
-// stubs return empty geometry — enough for EditorView to mount, render and
-// dispatch; anything asserting on real pixel layout belongs in a browser.
+// CodeMirror measures layout through APIs jsdom does not implement. The
+// shared test-support stubs cover the window-level ones; the Range stubs are
+// CodeMirror-specific and stay here.
+
+import "../test-support/jsdom-stubs";
 
 const emptyRect: DOMRect = {
   x: 0,
@@ -22,29 +24,3 @@ const emptyRectList = (): DOMRectList => ({
 
 Range.prototype.getBoundingClientRect = () => emptyRect;
 Range.prototype.getClientRects = emptyRectList;
-
-if (typeof Element.prototype.scrollIntoView !== "function") {
-  Element.prototype.scrollIntoView = () => {};
-}
-
-if (typeof window.matchMedia !== "function") {
-  window.matchMedia = (query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  });
-}
-
-if (typeof globalThis.ResizeObserver !== "function") {
-  class ResizeObserverStub {
-    observe(): void {}
-    unobserve(): void {}
-    disconnect(): void {}
-  }
-  globalThis.ResizeObserver = ResizeObserverStub;
-}

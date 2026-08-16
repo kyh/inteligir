@@ -48,6 +48,17 @@ export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
  */
 export const VAULT_MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
 
+/**
+ * THE content-hash convention behind the write CAS: sha-256 hex over the
+ * UTF-8 bytes of the content string. Lives beside the schema that carries it
+ * so client and server cannot hash differently; crypto.subtle keeps it
+ * isomorphic (browser and node alike), which is why it is async.
+ */
+export async function contentHashHex(content: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export const vaultReadRequestSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
 

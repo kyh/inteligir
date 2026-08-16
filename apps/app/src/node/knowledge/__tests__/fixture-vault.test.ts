@@ -2,11 +2,11 @@
 // everything, and the index answers correctly afterwards. A correctness
 // check at realistic scale, not a benchmark.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/db/notifier";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
 
@@ -20,8 +20,7 @@ afterEach(async () => {
 
 describe("a 300-file vault", () => {
   it("boots, reconciles once, and answers search/backlinks/tags", async () => {
-    const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-knowledge-fixture-"));
-    cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+    const instanceDir = makeTempDir("inteligir-knowledge-fixture-");
     const root = join(instanceDir, "vault");
     const dataDir = join(instanceDir, "data");
     mkdirSync(join(root, "notes"), { recursive: true });

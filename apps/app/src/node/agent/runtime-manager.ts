@@ -31,7 +31,7 @@ import type { AgentRuntime, AgentRuntimeExecutionOptions } from "@repo/agent-run
 import type { ThreadEvent as RuntimeThreadEvent } from "@repo/agent-runtime/domain/provider-event";
 import {
   approvalPendingInteractionPayloadSchema,
-  approvalPendingInteractionResolutionSchema,
+  parseApprovalResolution,
   type PendingInteractionCreate,
   type PendingInteractionPayload,
   type PendingInteractionResolution,
@@ -80,7 +80,6 @@ export interface CodexRuntimeManagerDeps {
   adapterFactory?: ProviderAdapterFactory;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
-  idleReapMs?: number;
   onDebug?: (message: string) => void;
 }
 
@@ -120,50 +119,6 @@ function executionOptionsFor(model: string | null): AgentRuntimeExecutionOptions
     approvalReviewer: "user",
     permissionEscalation: "ask",
   };
-}
-
-/**
- * The client answers with either a bare decision verb ("deny", "allow_once",
- * "allow_for_session") or the full resolution JSON. A permission-grant
- * approval whose allow carries no explicit grant falls back to granting
- * exactly what the payload requested.
- */
-export function parseInteractionResolution(
-  raw: string,
-  payload: PendingInteractionPayload,
-): PendingInteractionResolution | null {
-  const trimmed = raw.trim();
-  let parsed: PendingInteractionResolution;
-  if (trimmed === "deny") {
-    parsed = { decision: "deny" };
-  } else if (trimmed === "allow_once" || trimmed === "allow_for_session") {
-    parsed = { decision: trimmed, grantedPermissions: null };
-  } else {
-    let json: unknown;
-    try {
-      json = JSON.parse(trimmed);
-    } catch {
-      return null;
-    }
-    const result = approvalPendingInteractionResolutionSchema.safeParse(json);
-    if (!result.success) {
-      return null;
-    }
-    parsed = result.data;
-  }
-  // Deny is always acceptable (it is the runtime's own fallback); an allow
-  // must be one the request actually offered.
-  if (parsed.decision !== "deny" && !payload.availableDecisions.includes(parsed.decision)) {
-    return null;
-  }
-  if (
-    parsed.decision !== "deny" &&
-    parsed.grantedPermissions === null &&
-    payload.subject.kind === "permission_grant"
-  ) {
-    return { decision: parsed.decision, grantedPermissions: payload.subject.permissions };
-  }
-  return parsed;
 }
 
 class CodexTurnDriver implements TurnDriver {
@@ -236,12 +191,11 @@ class CodexTurnDriver implements TurnDriver {
     this.runtime = runtime;
     const reapIntervalMs = this.deps.reapIntervalMs;
     if (reapIntervalMs !== null) {
-      const idleForMs = this.deps.idleReapMs ?? DEFAULT_IDLE_REAP_MS;
       this.reapTimer = setInterval(() => {
         void (async () => {
           try {
             const result = await runtime.reapIdleProviderSessions({
-              idleForMs,
+              idleForMs: DEFAULT_IDLE_REAP_MS,
               nowMs: Date.now(),
             });
             for (const reaped of result.reapedSessions) {
@@ -380,18 +334,18 @@ class CodexTurnDriver implements TurnDriver {
       return;
     }
     this.waitersByInteractionId.delete(interaction.id);
-    const resolution =
+    const parsed =
       interaction.resolution === null
         ? null
-        : parseInteractionResolution(interaction.resolution, waiter.payload);
-    if (resolution === null) {
+        : parseApprovalResolution(interaction.resolution, waiter.payload);
+    if (parsed === null || !parsed.ok) {
       this.debug(
         `interaction ${interaction.id} resolved with an unparseable resolution; denying the provider`,
       );
       waiter.resolve({ decision: "deny" });
       return;
     }
-    waiter.resolve(resolution);
+    waiter.resolve(parsed.resolution);
   }
 
   private onRuntimeEvent(event: RuntimeThreadEvent): void {
@@ -484,7 +438,8 @@ class CodexTurnDriver implements TurnDriver {
       payload: JSON.stringify(payload),
     });
     if (row.status === "resolved" && row.resolution !== null) {
-      return parseInteractionResolution(row.resolution, payload) ?? { decision: "deny" };
+      const parsed = parseApprovalResolution(row.resolution, payload);
+      return parsed.ok ? parsed.resolution : { decision: "deny" };
     }
     if (row.status === "interrupted") {
       return { decision: "deny" };
@@ -519,13 +474,13 @@ class CodexTurnDriver implements TurnDriver {
     });
   }
 
-  /** Deny every parked approval for the thread; their rows are interrupted
-   *  by the caller's `interruptOpenPendingInteractions`. */
-  private cancelThreadWaiters(threadId: string): void {
+  /** Deny every parked approval — for one thread (a settle; its rows are
+   *  interrupted by the caller) or for all of them (dispose). */
+  private cancelWaiters(threadId?: string): void {
     // Snapshot first: the loop deletes entries mid-iteration.
     const waiters = Array.from(this.waitersByInteractionId);
     for (const [id, waiter] of waiters) {
-      if (waiter.threadId !== threadId) {
+      if (threadId !== undefined && waiter.threadId !== threadId) {
         continue;
       }
       this.waitersByInteractionId.delete(id);
@@ -540,7 +495,7 @@ class CodexTurnDriver implements TurnDriver {
     }
     state.settled = true;
     this.turnsByThreadId.delete(threadId);
-    this.cancelThreadWaiters(threadId);
+    this.cancelWaiters(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
     void state.commit.finish().catch((error: unknown) => {
       this.debug(
@@ -587,11 +542,7 @@ class CodexTurnDriver implements TurnDriver {
       clearInterval(this.reapTimer);
       this.reapTimer = null;
     }
-    const waiters = Array.from(this.waitersByInteractionId);
-    for (const [id, waiter] of waiters) {
-      this.waitersByInteractionId.delete(id);
-      waiter.resolve({ decision: "deny" });
-    }
+    this.cancelWaiters();
     if (this.runtime !== null) {
       await this.runtime.shutdown();
       this.runtime = null;
@@ -603,9 +554,13 @@ export function createCodexRuntimeManager(deps: CodexRuntimeManagerDeps): CodexR
   let driver: CodexTurnDriver | null = null;
   return {
     createTurnDriver: (sink) => {
-      const created = new CodexTurnDriver(sink, deps);
-      driver = created;
-      return created;
+      // Single-assignment: a second service over the same manager would leave
+      // the first driver running unreachably and undisposed.
+      if (driver !== null) {
+        throw new Error("createTurnDriver was already called on this runtime manager");
+      }
+      driver = new CodexTurnDriver(sink, deps);
+      return driver;
     },
     async dispose() {
       await driver?.dispose();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diff3 } from "../diff3";
+import { diff3 } from "../text/diff3";
 
 const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;
 

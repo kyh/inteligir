@@ -22,7 +22,7 @@ import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { WsBus, type BusSocket } from "../../ws-bus";
 import { createVaultRuntime } from "../vault-runtime";
-import { contentHash } from "../vault-service";
+import { contentHashHex } from "@repo/server-contract/vault";
 import { hermeticGitEnv } from "./git-test-env";
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -201,7 +201,7 @@ describe("the vault routes", () => {
   it("applies a compare-and-swap write whose hash matches, refuses a stale one with current", async () => {
     const { app } = await bootVaultApp();
     await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "cas.md", content: "v1" }));
-    const v1Hash = contentHash("v1");
+    const v1Hash = await contentHashHex("v1");
 
     const applied = await app.request(
       "/api/v1/vault/file",
@@ -216,7 +216,7 @@ describe("the vault routes", () => {
     expect(stale.status).toBe(409);
     const refused = vaultWriteConflictSchema.parse(await stale.json());
     expect(refused.error).toBe("cas_mismatch");
-    expect(refused.current).toEqual({ content: "v2", hash: contentHash("v2") });
+    expect(refused.current).toEqual({ content: "v2", hash: await contentHashHex("v2") });
 
     const missing = await app.request(
       "/api/v1/vault/file",
@@ -249,7 +249,7 @@ describe("the vault routes", () => {
         path: "fresh.md",
         content: "x",
         ifAbsent: true,
-        expectedHash: contentHash("new"),
+        expectedHash: await contentHashHex("new"),
       }),
     );
     expect(both.status).toBe(400);

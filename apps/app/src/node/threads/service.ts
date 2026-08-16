@@ -15,6 +15,10 @@
 // cannot nest; a dispatch failure is folded back in its own transaction
 // (provider/error + run.failed), so a driver crash cannot wedge `starting`.
 
+import {
+  approvalPendingInteractionPayloadSchema,
+  parseApprovalResolution,
+} from "@repo/agent-runtime/domain/pending-interactions";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   appendEventsInTransaction,
@@ -524,67 +528,25 @@ export class ThreadService implements ProviderEventSink {
   }
 }
 
-const approvalDecisionValues = ["allow_once", "allow_for_session", "deny"] as const;
-type ApprovalDecision = (typeof approvalDecisionValues)[number];
-
-function isApprovalDecision(value: unknown): value is ApprovalDecision {
-  return approvalDecisionValues.some((decision) => decision === value);
-}
-
-/** The decision a resolution string names: a bare verb or `{"decision":…}`. */
-function resolutionDecision(raw: string): ApprovalDecision | null {
-  const trimmed = raw.trim();
-  if (isApprovalDecision(trimmed)) {
-    return trimmed;
-  }
-  try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "decision" in parsed &&
-      isApprovalDecision(parsed.decision)
-    ) {
-      return parsed.decision;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
 /**
- * Refuse an answer whose decision the request never offered (deny is always
- * offerable — it is what every cancel path answers with). Rows whose payload
- * carries no decision set (not an approval) skip the check.
+ * Refuse an answer the shared approval grammar rejects — the SAME parse the
+ * runtime's answer path runs, so a resolution this gate passes can never be
+ * silently denied downstream. Rows whose payload is not a parseable approval
+ * skip the check.
  */
 function invalidResolutionMessage(payloadJson: string, resolution: string): string | null {
-  let payload: unknown;
+  let payloadRaw: unknown;
   try {
-    payload = JSON.parse(payloadJson);
+    payloadRaw = JSON.parse(payloadJson);
   } catch {
     return null;
   }
-  if (
-    typeof payload !== "object" ||
-    payload === null ||
-    !("availableDecisions" in payload) ||
-    !Array.isArray(payload.availableDecisions)
-  ) {
+  const payload = approvalPendingInteractionPayloadSchema.safeParse(payloadRaw);
+  if (!payload.success) {
     return null;
   }
-  const offered = payload.availableDecisions.filter(isApprovalDecision);
-  if (offered.length === 0) {
-    return null;
-  }
-  const decision = resolutionDecision(resolution);
-  if (decision === null) {
-    return "The resolution names no known decision";
-  }
-  if (decision !== "deny" && !offered.includes(decision)) {
-    return `The request offers ${offered.join(", ")}; "${decision}" is not among them`;
-  }
-  return null;
+  const parsed = parseApprovalResolution(resolution, payload.data);
+  return parsed.ok ? null : parsed.reason;
 }
 
 function lifecycleEventFor(event: ThreadEvent): ThreadLifecycleEvent | null {

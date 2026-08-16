@@ -9,6 +9,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
+import { API_BASE_PATH, apiRoutes, healthResponseSchema } from "@repo/server-contract/routes";
 import { hermeticProcessEnv } from "./exec";
 import { reserveFreePorts } from "./ports";
 
@@ -164,9 +165,11 @@ async function pollGroupGone(pgid: number, graceMs: number): Promise<boolean> {
   }
 }
 
+const HEALTH_PATH = `${API_BASE_PATH}${apiRoutes.health.path}`;
+
 async function healthAnswered(baseUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(`${baseUrl}/api/v1/health`, {
+    const response = await fetch(`${baseUrl}${HEALTH_PATH}`, {
       signal: AbortSignal.timeout(2_000),
     });
     if (!response.ok) {
@@ -175,7 +178,7 @@ async function healthAnswered(baseUrl: string): Promise<boolean> {
     // The body shape, not just a 2xx: a proxy or a wrong process on the port
     // can answer 200 with anything.
     const body: unknown = await response.json().catch(() => undefined);
-    return typeof body === "object" && body !== null && "ok" in body && body.ok === true;
+    return healthResponseSchema.safeParse(body).success;
   } catch {
     return false;
   }
@@ -338,7 +341,7 @@ async function attemptLaunch(
       const tail = instance.outputTail();
       await instance.stop();
       throw new Error(
-        `instance "${args.name}" did not answer /api/v1/health within ${HEALTH_DEADLINE_MS[args.mode]}ms\n${tail}`,
+        `instance "${args.name}" did not answer ${HEALTH_PATH} within ${HEALTH_DEADLINE_MS[args.mode]}ms\n${tail}`,
       );
     }
     await delay(HEALTH_POLL_INTERVAL_MS);

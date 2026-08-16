@@ -1,12 +1,6 @@
 // The knowledge API surface over the composed app: contract row → handler →
 // runtime → index, fed by the vault runtime's change announcements.
 
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { createConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
 import {
   knowledgeBacklinksResponseSchema,
   knowledgeSearchResponseSchema,
@@ -14,69 +8,12 @@ import {
   renameCandidatesResponseSchema,
 } from "@repo/server-contract/knowledge";
 import { apiErrorResponseSchema } from "@repo/server-contract/routes";
-import { afterEach, describe, expect, it } from "vitest";
-import { createApp } from "../../app";
-import { unavailableTurnDriver } from "../../threads/turn-driver";
-import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
-import { createVaultRuntime } from "../../vault/vault-runtime";
-import { WsBus } from "../../ws-bus";
-import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
-});
+import { describe, expect, it } from "vitest";
+import { bootTestApp } from "../../__tests__/boot-app";
 
 async function bootApp() {
-  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-knowledge-routes-"));
-  cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
-  const dataDir = join(instanceDir, "data");
-  const vaultDir = join(instanceDir, "vault");
-  mkdirSync(dataDir, { recursive: true });
-  const db = createConnection(join(dataDir, "inteligir.db"));
-  runMigrations(db);
-  const bus = new WsBus({ version: "0.1.0-test" });
-  let sink: KnowledgeRuntime | null = null;
-  const vault = await createVaultRuntime({
-    vaultDir,
-    vaultRemote: null,
-    dataDir,
-    notifier: bus,
-    onFilesChanged: (change) => sink?.noteVaultChange(change),
-    watch: false,
-    syncIntervalMs: null,
-    gitEnv: hermeticGitEnv(),
-  });
-  cleanups.push(() => vault.dispose());
-  const knowledge = createKnowledgeRuntime({ dataDir, vault: vault.service, vaultRoot: vaultDir });
-  sink = knowledge;
-  cleanups.push(() => knowledge.dispose());
-  const { app } = createApp({
-    agent: { mode: "off", runtime: "off", detail: null },
-    bus,
-    createTurnDriver: () => unavailableTurnDriver,
-    db,
-    config: {
-      databasePath: join(dataDir, "inteligir.db"),
-      dataDir,
-      dataDirSource: "env",
-      mode: "dev",
-      port: 0,
-      portSource: "env",
-      vaultDir,
-      vaultRemote: null,
-      agent: "off",
-      agentModel: null,
-    },
-    fallback: { kind: "none" },
-    knowledge,
-    schemaVersion: getSchemaVersion(db),
-    startedAt: Date.now(),
-    vault,
-    version: "0.1.0-test",
-  });
-  return { app };
+  const { composed } = await bootTestApp();
+  return { app: composed.app };
 }
 
 function putNote(path: string, content: string): RequestInit {

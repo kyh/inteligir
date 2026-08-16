@@ -3,17 +3,10 @@
 // and a send answers 503 with that same actionable message.
 
 import { systemStatusResponseSchema } from "@repo/server-contract/routes";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { codexBinaryOnPath, resolveAgentDriver } from "../agent-driver";
-import { bootAgentApp, createThread } from "./agent-test-harness";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
+import { bootTestApp } from "../../__tests__/boot-app";
+import { createThread } from "./agent-test-harness";
 
 describe("agent driver resolution", () => {
   it("finds no codex on an empty PATH", () => {
@@ -22,9 +15,8 @@ describe("agent driver resolution", () => {
 
   it("binary-absent boot surfaces unavailable and 503s a send, without crashing", async () => {
     let resolvedDetail: string | null = null;
-    const harness = await bootAgentApp({
+    const harness = await bootTestApp({
       agent: { mode: "codex", runtime: "unavailable", detail: "placeholder" },
-      cleanups,
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
           config: { agent: "codex", agentModel: null, vaultDir },
@@ -51,9 +43,8 @@ describe("agent driver resolution", () => {
   });
 
   it("the off mode reads as off on /system/status", async () => {
-    const harness = await bootAgentApp({
+    const harness = await bootTestApp({
       agent: { mode: "off", runtime: "off", detail: "The agent is disabled (INTELIGIR_AGENT=off)" },
-      cleanups,
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
           config: { agent: "off", agentModel: null, vaultDir },

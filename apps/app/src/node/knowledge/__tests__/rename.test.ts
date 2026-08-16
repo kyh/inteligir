@@ -3,11 +3,11 @@
 // stem as a frontmatter alias, and a shadowing rename qualifies the links it
 // would steal.
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/db/notifier";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService, type VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "../rename";
@@ -19,8 +19,7 @@ afterEach(async () => {
 });
 
 function boot(): { root: string; service: VaultService; knowledge: KnowledgeRuntime } {
-  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-knowledge-rename-"));
-  cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+  const instanceDir = makeTempDir("inteligir-knowledge-rename-");
   const root = join(instanceDir, "vault");
   const dataDir = join(instanceDir, "data");
   mkdirSync(root, { recursive: true });

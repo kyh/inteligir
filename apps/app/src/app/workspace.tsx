@@ -55,37 +55,38 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [onOpenNote],
   );
 
-  // Boot restore: no note in the URL → reopen the last one, once.
-  const restoredRef = useRef(false);
+  // Boot restore, one outcome ref: null until the restore ran; "none" while a
+  // virgin boot still waits on the tree; "done" once a note was opened (URL,
+  // localStorage, or the virgin fallback below).
+  const restoreOutcomeRef = useRef<"done" | "none" | null>(null);
   useEffect(() => {
-    if (restoredRef.current) {
+    if (restoreOutcomeRef.current !== null) {
       return;
     }
-    restoredRef.current = true;
-    if (openNote === null) {
-      const last = readLastOpenNote();
-      if (last !== null) {
-        onOpenNote(last);
-      }
+    if (openNote !== null) {
+      restoreOutcomeRef.current = "done";
+      return;
     }
+    const last = readLastOpenNote();
+    if (last !== null) {
+      restoreOutcomeRef.current = "done";
+      onOpenNote(last);
+      return;
+    }
+    restoreOutcomeRef.current = "none";
   }, [openNote, onOpenNote]);
 
   // Virgin boot (nothing restored): open the first note in the vault root so
   // the app never lands on an empty pane. Waits for the tree, runs once.
-  const firstBootRef = useRef(false);
   useEffect(() => {
-    if (firstBootRef.current || !restoredRef.current || openNote !== null) {
-      return;
-    }
-    if (readLastOpenNote() !== null) {
-      firstBootRef.current = true;
+    if (restoreOutcomeRef.current !== "none" || openNote !== null) {
       return;
     }
     const entries = treeQuery.data?.entries;
     if (entries === undefined) {
       return;
     }
-    firstBootRef.current = true;
+    restoreOutcomeRef.current = "done";
     const firstNote = entries.find(
       (entry) => entry.kind === "file" && !entry.path.includes("/") && entry.path.endsWith(".md"),
     );

@@ -194,6 +194,66 @@ export function isApprovalPendingInteractionResolution(
   return "decision" in resolution;
 }
 
+export type ApprovalResolutionParse =
+  | { ok: true; resolution: ApprovalPendingInteractionResolution }
+  | { ok: false; reason: string };
+
+/**
+ * THE interaction-resolution grammar, shared by the answer route's 400 gate
+ * and the runtime's answer path so the two can never drift: a bare decision
+ * verb ("deny", "allow_once", "allow_for_session") or the full resolution
+ * JSON. Deny is always acceptable (it is what every cancel path answers
+ * with); any other decision must be one the request offered. A
+ * permission-grant allow with no explicit grant falls back to granting
+ * exactly what the payload requested.
+ */
+export function parseApprovalResolution(
+  raw: string,
+  payload: ApprovalPendingInteractionPayload,
+): ApprovalResolutionParse {
+  const trimmed = raw.trim();
+  let parsed: ApprovalPendingInteractionResolution;
+  if (trimmed === "deny") {
+    parsed = { decision: "deny" };
+  } else if (trimmed === "allow_once" || trimmed === "allow_for_session") {
+    parsed = { decision: trimmed, grantedPermissions: null };
+  } else {
+    let json: unknown;
+    try {
+      json = JSON.parse(trimmed);
+    } catch {
+      return { ok: false, reason: "The resolution names no known decision" };
+    }
+    const result = approvalPendingInteractionResolutionSchema.safeParse(json);
+    if (!result.success) {
+      return {
+        ok: false,
+        reason: `The resolution does not match the approval grammar: ${
+          result.error.issues[0]?.message ?? "invalid shape"
+        }`,
+      };
+    }
+    parsed = result.data;
+  }
+  if (parsed.decision !== "deny" && !payload.availableDecisions.includes(parsed.decision)) {
+    return {
+      ok: false,
+      reason: `The request offers ${payload.availableDecisions.join(", ")}; "${parsed.decision}" is not among them`,
+    };
+  }
+  if (
+    parsed.decision !== "deny" &&
+    parsed.grantedPermissions === null &&
+    payload.subject.kind === "permission_grant"
+  ) {
+    return {
+      ok: true,
+      resolution: { decision: parsed.decision, grantedPermissions: payload.subject.permissions },
+    };
+  }
+  return { ok: true, resolution: parsed };
+}
+
 export const pendingInteractionCreateSchema = z.object({
   threadId: z.string().min(1),
   turnId: z.string().min(1),

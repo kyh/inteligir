@@ -5,6 +5,8 @@
 // the filename tiers below as the zero-query view and the fallback when the
 // index answers nothing or errors.
 
+import { basenamePath } from "@repo/notes/knowledge/vault-path";
+
 export interface NoteSearchHit {
   path: string;
   /** The doc's title when the source knows one (the knowledge index does). */
@@ -16,10 +18,6 @@ export interface NoteSearchHit {
 export type NoteSearchSource = (query: string) => Promise<NoteSearchHit[]>;
 
 export const NOTE_SEARCH_LIMIT = 12;
-
-function basename(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
 
 /** True when every character of `query` appears in `text` in order. */
 function isSubsequence(query: string, text: string): boolean {
@@ -49,7 +47,7 @@ export function searchNotesByFilename(
   const tiers: string[][] = [[], [], [], []];
   for (const path of sorted) {
     const lowerPath = path.toLowerCase();
-    const name = basename(lowerPath);
+    const name = basenamePath(lowerPath);
     if (name.startsWith(needle)) {
       tiers[0]?.push(path);
     } else if (name.includes(needle)) {

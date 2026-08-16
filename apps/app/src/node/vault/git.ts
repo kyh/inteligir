@@ -280,11 +280,10 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       if (token === undefined || token.length < 4) {
         continue;
       }
-      const statusCode = token.slice(0, 2);
       dirty.push(token.slice(3));
-      // A rename/copy entry is followed by its ORIGIN path as its own token;
-      // both sides belong to the commit.
-      if (statusCode.includes("R") || statusCode.includes("C")) {
+      // A rename/copy entry (an R or C in the two status columns) is followed
+      // by its ORIGIN path as its own token; both sides belong to the commit.
+      if (/[RC]/u.test(token.slice(0, 2))) {
         const origin = tokens[index + 1];
         if (origin !== undefined && origin.length > 0) {
           dirty.push(origin);

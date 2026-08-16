@@ -7,11 +7,11 @@ import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { resolveAgentDriver } from "../agent-driver";
 import { scriptedNotePath } from "../scripted-driver";
+import { bootTestApp } from "../../__tests__/boot-app";
 import {
-  bootAgentApp,
   createThread,
   fetchTimelineRows,
   flattenTimelineRows,
@@ -22,13 +22,6 @@ import {
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 
 const execFileAsync = promisify(execFile);
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 async function gitLogHead(vaultDir: string): Promise<string> {
   const { stdout } = await execFileAsync(
@@ -41,9 +34,8 @@ async function gitLogHead(vaultDir: string): Promise<string> {
 
 describe("the scripted driver over real HTTP", () => {
   it("runs the deterministic turn: timeline, vault file, agent-attributed commit", async () => {
-    const harness = await bootAgentApp({
+    const harness = await bootTestApp({
       agent: { mode: "scripted", runtime: "scripted", detail: null },
-      cleanups,
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
           config: { agent: "scripted", agentModel: null, vaultDir },

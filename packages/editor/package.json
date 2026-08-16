@@ -8,7 +8,8 @@
     "./create-markdown-editor": "./src/create-markdown-editor.ts",
     "./external-replace": "./src/external-replace.ts",
     "./editor-theme": "./src/editor-theme.ts",
-    "./react/markdown-editor": "./src/react/markdown-editor.tsx"
+    "./react/markdown-editor": "./src/react/markdown-editor.tsx",
+    "./test-support/jsdom-stubs": "./src/test-support/jsdom-stubs.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

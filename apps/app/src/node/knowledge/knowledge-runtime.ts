@@ -19,7 +19,6 @@
 // That is also why no `knowledge` ws change kind exists — the existing vault
 // invalidation plus settle-on-query keeps every consumer current.
 
-import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
@@ -33,9 +32,10 @@ import {
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
-import type { VaultEntry } from "@repo/server-contract/vault";
+import { contentHashHex, type VaultEntry } from "@repo/server-contract/vault";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-runtime";
+import { messageOf } from "./message-of";
 import { createSqliteDriver } from "./sqlite-driver";
 
 /** The index cache's own file, beside the app db — never inside it. */
@@ -80,10 +80,6 @@ export interface KnowledgeRuntime {
    * tests; null until the boot reconcile has run. */
   readonly lastReconcile: ReconcileStats | null;
   dispose(): Promise<void>;
-}
-
-function sha256Hex(content: string): string {
-  return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
 function yieldTurn(): Promise<void> {
@@ -281,7 +277,7 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       }
       return "gone";
     }
-    const hash = sha256Hex(content);
+    const hash = await contentHashHex(content);
     if (hashes.get(path) === hash) return "unchanged";
     updates.push({ path, content, hash });
     if (updates.length >= BATCH_DOCS) {
@@ -434,8 +430,4 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       store.dispose();
     },
   };
-}
-
-function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

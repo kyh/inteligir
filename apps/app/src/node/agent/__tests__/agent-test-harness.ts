@@ -1,16 +1,8 @@
-// Boots the REAL app (routes, ThreadService, vault runtime with git, ws bus)
-// around an injected agent driver — the shared harness for the driver e2e
-// suites. HTTP goes through the composed hono app, exactly as production
-// serves it.
+// Thread-domain helpers for the driver e2e suites over the shared
+// `bootTestApp` (../../__tests__/boot-app): create/send/poll/read against the
+// typed client, exactly as production serves it.
 
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { createConnection, type DbConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import type { AgentStatus } from "@repo/server-contract/routes";
+import type { ApiClient } from "@repo/server-contract/client";
 import {
   threadSchema,
   pendingInteractionSchema,
@@ -21,29 +13,6 @@ import {
 import type { TimelineRow } from "@repo/server-contract/thread-timeline";
 import { expect } from "vitest";
 import { z } from "zod";
-import { createApp } from "../../app";
-import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
-import type { CreateTurnDriver } from "../../threads/turn-driver";
-import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
-import { createVaultRuntime, type VaultRuntime } from "../../vault/vault-runtime";
-import { WsBus } from "../../ws-bus";
-
-export interface AgentAppHarness {
-  bus: WsBus;
-  client: ApiClient;
-  db: DbConnection;
-  vault: VaultRuntime;
-  vaultDir: string;
-}
-
-export interface BootAgentAppArgs {
-  agent: AgentStatus;
-  cleanups: Array<() => void | Promise<void>>;
-  makeDriver: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
-    createTurnDriver: CreateTurnDriver;
-    dispose?: () => Promise<void>;
-  };
-}
 
 const threadEnvelopeSchema = z.object({ thread: threadSchema });
 const threadDetailSchema = z.object({
@@ -51,66 +20,6 @@ const threadDetailSchema = z.object({
   pendingInteractions: z.array(pendingInteractionSchema),
 });
 const startedResponseSchema = z.object({ kind: z.literal("started"), turnId: z.string().min(1) });
-
-export async function bootAgentApp(args: BootAgentAppArgs): Promise<AgentAppHarness> {
-  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-agent-test-"));
-  args.cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
-  const dataDir = join(instanceDir, "data");
-  const vaultDir = join(instanceDir, "vault");
-  mkdirSync(dataDir, { recursive: true });
-  const databasePath = join(dataDir, "inteligir.db");
-  const db = createConnection(databasePath);
-  runMigrations(db);
-
-  const bus = new WsBus({ version: "0.1.0-test" });
-  const vault = await createVaultRuntime({
-    vaultDir,
-    vaultRemote: null,
-    dataDir,
-    notifier: bus,
-    watch: false,
-    syncIntervalMs: null,
-    gitEnv: hermeticGitEnv(),
-  });
-  args.cleanups.push(() => vault.dispose());
-  const knowledge = createKnowledgeRuntime({ dataDir, vault: vault.service, vaultRoot: vaultDir });
-  args.cleanups.push(() => knowledge.dispose());
-
-  const driver = args.makeDriver({ db, bus, vault, vaultDir });
-  if (driver.dispose !== undefined) {
-    const dispose = driver.dispose;
-    args.cleanups.push(() => dispose());
-  }
-
-  const composed = createApp({
-    agent: args.agent,
-    bus,
-    config: {
-      databasePath,
-      dataDir,
-      dataDirSource: "env",
-      mode: "dev",
-      port: 0,
-      portSource: "env",
-      vaultDir,
-      vaultRemote: null,
-      agent: args.agent.mode,
-      agentModel: null,
-    },
-    createTurnDriver: driver.createTurnDriver,
-    db,
-    fallback: { kind: "none" },
-    knowledge,
-    schemaVersion: getSchemaVersion(db),
-    startedAt: Date.now(),
-    vault,
-    version: "0.1.0-test",
-  });
-  const client = createApiClient("http://agent.test", {
-    fetch: async (input, init) => composed.app.request(input, init),
-  });
-  return { bus, client, db, vault, vaultDir };
-}
 
 export async function createThread(client: ApiClient): Promise<string> {
   const response = await client.threads.create.$post({ json: {} });

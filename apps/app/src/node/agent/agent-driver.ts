@@ -24,7 +24,6 @@ export interface ResolveAgentDriverArgs {
   notifier: DbNotifier;
   vault: VaultRuntime;
   env?: NodeJS.ProcessEnv;
-  onDebug?: (message: string) => void;
 }
 
 export interface ResolvedAgentDriver {
@@ -65,9 +64,9 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
       dispose: noDispose,
     };
   }
-  // The bounded default keeps a chatty provider VISIBLE without flooding:
-  // first occurrence per stripped-id key logs in full, repeats log a count.
-  const onDebug = args.onDebug ?? createBoundedAgentLog();
+  // The bounded log keeps a chatty provider VISIBLE without flooding: first
+  // occurrence per stripped-id key logs in full, repeats log a count.
+  const onDebug = createBoundedAgentLog();
   if (mode === "scripted") {
     return {
       status: { mode, runtime: "scripted", detail: null },

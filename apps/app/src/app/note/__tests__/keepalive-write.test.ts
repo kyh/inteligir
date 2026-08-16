@@ -10,7 +10,8 @@ describe("sendKeepaliveWrite", () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
     sendKeepaliveWrite("http://127.0.0.1:4664", "notes/a.md", "content\n", fetchImpl);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchImpl.mock.calls[0] ?? [];
+    const [input, init] = fetchImpl.mock.calls[0] ?? [];
+    const url = input instanceof URL || input instanceof Request ? null : input;
     expect(url).toBe("http://127.0.0.1:4664/api/v1/vault/file");
     expect(init).toMatchObject({ method: "PUT", keepalive: true });
     const body: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : null;

@@ -1,5 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createConnection, type DbConnection } from "@repo/db/connection";
@@ -28,6 +27,7 @@ import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
 import { createVaultRuntime } from "../vault/vault-runtime";
 import { WsBus } from "../ws-bus";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
+import { makeTempDir } from "./temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -61,8 +61,7 @@ interface ThreadsHarness {
 async function bootThreadsApp(
   driverOptions: FakeTurnDriverOptions | null,
 ): Promise<ThreadsHarness> {
-  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-threads-test-"));
-  cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+  const instanceDir = makeTempDir("inteligir-threads-test-");
   const dataDir = join(instanceDir, "data");
   const vaultDir = join(instanceDir, "vault");
   mkdirSync(dataDir, { recursive: true });

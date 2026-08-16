@@ -13,6 +13,7 @@ import {
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
+import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -45,27 +46,22 @@ function buildTree(entries: readonly VaultEntry[]): TreeNode[] {
   const roots: TreeNode[] = [];
   const byPath = new Map<string, TreeNode>();
   for (const entry of entries) {
-    const slash = entry.path.lastIndexOf("/");
     const node: TreeNode = {
       path: entry.path,
-      name: slash === -1 ? entry.path : entry.path.slice(slash + 1),
+      name: basenamePath(entry.path),
       kind: entry.kind,
       children: [],
     };
     byPath.set(entry.path, node);
-    const parent = slash === -1 ? undefined : byPath.get(entry.path.slice(0, slash));
+    const parentDir = dirnamePath(entry.path);
+    const parent = parentDir === "" ? undefined : byPath.get(parentDir);
     (parent?.children ?? roots).push(node);
   }
   return roots;
 }
 
-function parentDirOf(path: string): string {
-  const slash = path.lastIndexOf("/");
-  return slash === -1 ? "" : path.slice(0, slash);
-}
-
 type EditingState =
-  | { mode: "rename"; path: string; kind: "dir" | "file" }
+  | { mode: "rename"; path: string }
   | { mode: "create"; kind: "dir" | "file"; parentDir: string };
 
 type Row = { kind: "node"; node: TreeNode; depth: number } | { kind: "editor"; depth: number };
@@ -254,7 +250,7 @@ export function FileTree({
             toggleDir(node.path);
           } else {
             const next = nodeRows[index + 1];
-            if (next && parentDirOf(next.node.path) === node.path) {
+            if (next && dirnamePath(next.node.path) === node.path) {
               focusPath(next.node.path);
             }
           }
@@ -265,7 +261,7 @@ export function FileTree({
         if (node.kind === "dir" && expanded.has(node.path)) {
           toggleDir(node.path);
         } else {
-          const parent = parentDirOf(node.path);
+          const parent = dirnamePath(node.path);
           if (parent !== "") {
             focusPath(parent);
           }
@@ -292,7 +288,7 @@ export function FileTree({
         break;
       }
       case "F2": {
-        setEditing({ mode: "rename", path: node.path, kind: node.kind });
+        setEditing({ mode: "rename", path: node.path });
         break;
       }
       default:
@@ -304,8 +300,7 @@ export function FileTree({
 
   const commitRename = (node: { path: string }, newName: string): void => {
     setEditing(null);
-    const parent = parentDirOf(node.path);
-    const toPath = parent === "" ? newName : `${parent}/${newName}`;
+    const toPath = joinPath(dirnamePath(node.path), newName);
     if (toPath !== node.path) {
       // Follow the rename with the tab stop; the reconcile effect clears it
       // if the rename never lands.
@@ -317,7 +312,7 @@ export function FileTree({
   const commitCreate = (state: EditingState & { mode: "create" }, name: string): void => {
     setEditing(null);
     const fileName = state.kind === "file" && !name.includes(".") ? `${name}.md` : name;
-    const path = state.parentDir === "" ? fileName : `${state.parentDir}/${fileName}`;
+    const path = joinPath(state.parentDir, fileName);
     if (state.kind === "file") {
       ops.createNote(path);
     } else {
@@ -468,7 +463,7 @@ export function FileTree({
               onClick={() => {
                 const target = menu.node;
                 setMenu(null);
-                setEditing({ mode: "rename", path: target.path, kind: target.kind });
+                setEditing({ mode: "rename", path: target.path });
               }}
             >
               Rename

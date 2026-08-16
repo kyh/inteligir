@@ -7,6 +7,7 @@
   "exports": {
     "./daily-path": "./src/daily-path.ts",
     "./text/line-diff": "./src/text/line-diff.ts",
+    "./text/diff3": "./src/text/diff3.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
     "./knowledge/link-extract": "./src/knowledge/link-extract.ts",

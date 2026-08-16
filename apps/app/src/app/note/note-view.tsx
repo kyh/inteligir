@@ -13,12 +13,12 @@ import { MarkdownEditor } from "@repo/editor/react/markdown-editor";
 import type { MarkdownEditor as MarkdownEditorHandle } from "@repo/editor/create-markdown-editor";
 import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { contentHashHex } from "@repo/server-contract/vault";
 import { ApiError, queryKeys, unwrap } from "../api";
 import { NoteController, type SaveResult } from "./note-controller";
 import { NoteTitle } from "./note-title";
-import { contentHashHex } from "./content-hash";
 import { sendKeepaliveWrite } from "./keepalive-write";
 import { useWorkspace } from "../workspace-context";
 
@@ -83,7 +83,8 @@ function OpenNote({
    * reconciles the moment the refetch lands. */
   diskContent: string;
 }) {
-  const { api, queryClient, docEvents } = useWorkspace();
+  const { api, docEvents } = useWorkspace();
+  const queryClient = useQueryClient();
   const controllerRef = useRef<NoteController | null>(null);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
   // While our own rename is in flight the old path 404s by design; the

@@ -2,12 +2,12 @@
 // paths → projectDoc → store write → queryable, plus the boot reconcile's
 // exact hash diff (unchanged docs are never re-projected).
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/db/notifier";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
+import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService, type VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
 
@@ -18,8 +18,7 @@ afterEach(async () => {
 });
 
 function makeDirs(): { root: string; dataDir: string } {
-  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-knowledge-runtime-"));
-  cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+  const instanceDir = makeTempDir("inteligir-knowledge-runtime-");
   const root = join(instanceDir, "vault");
   const dataDir = join(instanceDir, "data");
   mkdirSync(root, { recursive: true });
