@@ -1,5 +1,6 @@
 import { Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/task-ordinal";
 import { afterEach, describe, expect, test } from "vitest";
 import { createMarkdownEditor, type MarkdownEditor } from "../create-markdown-editor";
 
@@ -80,5 +81,25 @@ describe("checkbox toggle", () => {
         .replace("1. [ ] numbered task", "1. [x] numbered task")
         .replace("> - [ ] quoted task", "> - [x] quoted task"),
     );
+  });
+
+  test("every click writes exactly what the notes guarded write produces", () => {
+    // The lockstep proof: the click path and @repo/notes' ordinal-guarded
+    // write run the same grammar, so each checkbox's toggle must yield
+    // byte-identical documents through both.
+    const rawLines = [
+      "- [ ] buy milk",
+      "- [x] shipped",
+      "1. [ ] numbered task",
+      "> - [ ] quoted task",
+    ];
+    const { editor: e } = mount();
+    for (const [ordinal, raw] of rawLines.entries()) {
+      e.setDoc(doc);
+      clickNthCheckbox(e.view, ordinal);
+      const guarded = toggleTaskAtOrdinal(doc, ordinal, raw);
+      if (!guarded.ok) throw new Error(`notes refused ordinal ${String(ordinal)}`);
+      expect(e.getDoc()).toBe(guarded.content);
+    }
   });
 });

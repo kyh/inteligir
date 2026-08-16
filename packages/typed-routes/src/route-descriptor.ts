@@ -93,9 +93,7 @@ export type EndpointFromRouteDescriptor<Descriptor> =
     ? EndpointFromRouteResponse<RouteRequestInput<Request>, Response>
     : never;
 
-export type MethodKeyFromRouteMethod<Method extends RouteMethod> = Method extends "delete"
-  ? "$delete"
-  : `$${Method}`;
+export type MethodKeyFromRouteMethod<Method extends RouteMethod> = `$${Method}`;
 
 export type RouteDescriptorsIn<Value> = Value extends RouteDefinition
   ? Value

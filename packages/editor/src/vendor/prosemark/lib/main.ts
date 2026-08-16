@@ -11,8 +11,6 @@ export * from './softIndentExtension';
 export * from './tabWidthExtension';
 export * from './codeFenceExtension';
 
-export * from './basicSetup';
-
 export {
   prosemarkMarkdownFormattingKeymap,
   prosemarkMarkdownFormattingKeymapExtension,

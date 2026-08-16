@@ -117,7 +117,7 @@ describe("buffer == file", () => {
     editor = createMarkdownEditor({
       parent: document.body,
       doc: initialDoc,
-      onDocChanged: (doc) => docChanges.push(doc),
+      onDocChanged: (doc) => docChanges.push(doc.toString()),
       onOpenLink: (url) => openedLinks.push(url),
     });
     const view = editor.view;

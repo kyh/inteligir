@@ -25,7 +25,12 @@ import type { Heading, ListItem, Nodes } from "mdast";
 
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
-import { splitLines, toggleCheckboxLine, type CheckboxToggleResult } from "./source-lines";
+import {
+  checkboxMarkerAt,
+  splitLines,
+  toggleCheckboxLine,
+  type CheckboxToggleResult,
+} from "./source-lines";
 
 /** One GFM task item (`- [ ]` checkbox), as the projection records it. `raw` is
  * the exact untrimmed source line EXCLUDING its terminator (./source-lines'
@@ -72,9 +77,14 @@ export type TaskAnchorLookup =
   | { readonly ok: true; readonly anchor: TaskAnchor }
   | { readonly ok: false; readonly reason: TaskLookupRefusal };
 
-// The list marker + checkbox prefix on a task line; what's left is the item
-// text.
-const TASK_MARKER_RE = /^\s*[-*+]\s+\[[ xX]\]\s+/;
+// The item text is what follows the checkbox marker; locating the marker goes
+// through ./source-lines' one grammar, so the strip cannot drift from the
+// toggle. A raw line the grammar refuses (an item shape only the parser
+// accepts) keeps its full text rather than a half-stripped one.
+function taskTextOf(raw: string): string {
+  const marker = checkboxMarkerAt(raw);
+  return (marker === null ? raw : raw.slice(marker.checkboxIndex + 2)).trim();
+}
 
 /** Every GFM task item in `source`, in ordinal order — the counting authority.
  * The `tasks: false` frontmatter opt-out is deliberately NOT applied: it hides
@@ -100,7 +110,7 @@ export function tasksInTree(tree: Nodes, source: string): ExtractedTask[] {
     const raw = lines[startLine - 1] ?? "";
     tasks.push({
       checked,
-      text: raw.replace(TASK_MARKER_RE, "").trim(),
+      text: taskTextOf(raw),
       raw,
       line: startLine,
       ordinal,

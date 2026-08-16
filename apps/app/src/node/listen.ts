@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { errnoCode } from "./errno";
 
 type ServeOptions = Parameters<typeof serve>[0];
 type ServerType = ReturnType<typeof serve>;
@@ -21,7 +22,7 @@ export interface ListenResult {
 const MAX_PORT_PROBES = 10;
 
 function isAddrInUse(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "EADDRINUSE";
+  return errnoCode(error) === "EADDRINUSE";
 }
 
 function listenOnce(

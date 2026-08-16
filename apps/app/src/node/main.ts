@@ -6,6 +6,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createConnection } from "@repo/db/connection";
+import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
 import { createApp, type AppFallback } from "./app";
@@ -14,22 +15,35 @@ import { ensureDevDataDirOwnership } from "./data-dir";
 import { listenWithRetry } from "./listen";
 import { WsBus } from "./ws-bus";
 
+interface EntryLayout {
+  /** The app directory (where package.json and dist/ live). */
+  appDirUrl: URL;
+  /** Set only for the bundle, which carries its own migrations copy. */
+  migrationsFolder?: string;
+}
+
 /**
- * The app directory (where package.json and dist/ live), from either layout
- * this entry runs in: src/node/main.ts under tsx, or dist-node/main.js as
- * the prod bundle.
+ * The layout this entry runs in: src/node/main.ts under tsx (the app dir is
+ * two levels up, migrations come from @repo/db's own source-adjacent default)
+ * or dist-node/main.js as the prod bundle (one level up, with the committed
+ * migrations copied beside the entry by scripts/build-node-entry.mjs).
  */
-function resolveAppDirUrl(): URL {
-  const candidates = [new URL("../../", import.meta.url), new URL("../", import.meta.url)];
-  for (const candidate of candidates) {
-    if (existsSync(fileURLToPath(new URL("package.json", candidate)))) {
-      return candidate;
-    }
+function resolveEntryLayout(): EntryLayout {
+  const sourceAppDir = new URL("../../", import.meta.url);
+  if (existsSync(fileURLToPath(new URL("package.json", sourceAppDir)))) {
+    return { appDirUrl: sourceAppDir };
+  }
+  const bundleAppDir = new URL("../", import.meta.url);
+  if (existsSync(fileURLToPath(new URL("package.json", bundleAppDir)))) {
+    return {
+      appDirUrl: bundleAppDir,
+      migrationsFolder: fileURLToPath(new URL("drizzle", import.meta.url)),
+    };
   }
   throw new Error("cannot locate the app directory: no package.json beside the entry");
 }
 
-const appDirUrl = resolveAppDirUrl();
+const { appDirUrl, migrationsFolder } = resolveEntryLayout();
 
 function readAppVersion(): string {
   const raw = readFileSync(new URL("package.json", appDirUrl), "utf8");
@@ -90,18 +104,23 @@ if (config.mode === "dev" && config.dataDirSource === "default") {
   ensureDevDataDirOwnership(config.dataDir, checkoutPath);
 }
 
+// Kicked off before the synchronous db open + migrate so the Vite / Start
+// module loads overlap them; awaited once the db is ready.
+const fallbackPromise = config.mode === "dev" ? createDevFallback() : createProdFallback();
+
 const db = createConnection(config.databasePath);
-runMigrations(db);
+runMigrations(db, migrationsFolder);
+const schemaVersion = getSchemaVersion(db);
 
 const version = readAppVersion();
 const bus = new WsBus({ version });
-const fallback = config.mode === "dev" ? await createDevFallback() : await createProdFallback();
+const fallback = await fallbackPromise;
 
 const { app, injectWebSocket } = createApp({
   bus,
   config,
-  db,
   fallback,
+  schemaVersion,
   startedAt: Date.now(),
   version,
 });

@@ -6,17 +6,8 @@
   "type": "module",
   "exports": {
     "./create-markdown-editor": "./src/create-markdown-editor.ts",
-    "./markdown-editor-extensions": "./src/markdown-editor-extensions.ts",
-    "./markdown-language": "./src/markdown-language.ts",
-    "./hide-marks": "./src/hide-marks.ts",
-    "./heading-margin-marks": "./src/heading-margin-marks.ts",
-    "./task-checkbox": "./src/task-checkbox.ts",
-    "./drag-freeze": "./src/drag-freeze.ts",
-    "./decoration-update-filter": "./src/decoration-update-filter.ts",
-    "./force-parse-healer": "./src/force-parse-healer.ts",
     "./editor-theme": "./src/editor-theme.ts",
-    "./react/markdown-editor": "./src/react/markdown-editor.tsx",
-    "./prosemark": "./src/vendor/prosemark/lib/main.ts"
+    "./react/markdown-editor": "./src/react/markdown-editor.tsx"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -25,12 +16,10 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.10.4",
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
     "@codemirror/language-data": "^6.5.2",
-    "@codemirror/lint": "^6.9.7",
     "@codemirror/search": "^6.7.1",
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.8",
@@ -38,6 +27,7 @@
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.7.2",
     "@lezer/yaml": "^1.0.4",
+    "@repo/notes": "workspace:*",
     "react": "catalog:"
   },
   "devDependencies": {

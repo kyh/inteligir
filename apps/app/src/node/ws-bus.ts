@@ -6,12 +6,12 @@
 
 import type { DbNotifier } from "@repo/db/notifier";
 import {
-  changedMessageSchema,
   clientMessageSchema,
-  helloMessageSchema,
   realtimeSubscriptionTargetKey,
+  subscriptionKeysForMessage,
   type ChangedMessage,
   type DocChangeKind,
+  type HelloMessage,
   type RealtimeSubscriptionTarget,
   type SystemChangeKind,
   type ThreadChangeKind,
@@ -27,40 +27,17 @@ export interface BusSocket {
 
 const SOCKET_OPEN_STATE = 1;
 
-function subscriptionKeysForMessage(message: ChangedMessage): string[] {
-  switch (message.entity) {
-    case "system":
-      return [realtimeSubscriptionTargetKey({ kind: "system" })];
-    case "vault":
-      return [realtimeSubscriptionTargetKey({ kind: "vault" })];
-    case "doc":
-      // `vault` is the doc LIST target, so list surfaces see per-doc changes.
-      return [
-        realtimeSubscriptionTargetKey({ kind: "vault" }),
-        realtimeSubscriptionTargetKey({ kind: "doc-detail", docId: message.id }),
-      ];
-    case "thread":
-      return message.id === undefined
-        ? [realtimeSubscriptionTargetKey({ kind: "thread-list" })]
-        : [
-            realtimeSubscriptionTargetKey({ kind: "thread-list" }),
-            realtimeSubscriptionTargetKey({
-              kind: "thread-detail",
-              threadId: message.id,
-            }),
-          ];
-  }
-}
+const socketPayloadDecoder = new TextDecoder();
 
 function decodeSocketPayload(raw: unknown): string {
   if (typeof raw === "string") {
     return raw;
   }
   if (raw instanceof ArrayBuffer) {
-    return new TextDecoder().decode(raw);
+    return socketPayloadDecoder.decode(raw);
   }
   if (ArrayBuffer.isView(raw)) {
-    return new TextDecoder().decode(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength));
+    return socketPayloadDecoder.decode(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength));
   }
   throw new Error("Unsupported socket payload");
 }
@@ -84,7 +61,11 @@ export class WsBus implements DbNotifier {
     if (!this.keysBySocket.has(socket)) {
       this.keysBySocket.set(socket, new Set());
     }
-    socket.send(JSON.stringify(helloMessageSchema.parse({ type: "hello", version: this.version })));
+    // Outbound frames are house-constructed against the contract types, so
+    // they serialize directly — ws-bus.test.ts parses every frame the bus can
+    // emit against the strict schemas instead of paying a parse per send.
+    const hello: HelloMessage = { type: "hello", version: this.version };
+    socket.send(JSON.stringify(hello));
   }
 
   unregisterClient(socket: BusSocket): void {
@@ -193,12 +174,7 @@ export class WsBus implements DbNotifier {
       return;
     }
 
-    const parseResult = changedMessageSchema.safeParse(message);
-    if (!parseResult.success) {
-      console.error("Skipping invalid realtime broadcast", parseResult.error);
-      return;
-    }
-    const payload = JSON.stringify(parseResult.data);
+    const payload = JSON.stringify(message);
     for (const socket of sockets) {
       // A closing/closed socket stays registered until its onClose fires;
       // sending into it throws on ws and silently drops elsewhere.

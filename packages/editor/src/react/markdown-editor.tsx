@@ -1,4 +1,4 @@
-import type { Extension } from "@codemirror/state";
+import type { Extension, Text } from "@codemirror/state";
 import { type ReactElement, useEffect, useLayoutEffect, useRef } from "react";
 import {
   createMarkdownEditor,
@@ -9,7 +9,7 @@ export interface MarkdownEditorProps {
   /** Markdown mounted into the editor. Fixed at mount — the editor owns the
    * buffer afterwards; push external changes through the handle's setDoc. */
   initialDoc?: string;
-  onDocChanged?: (doc: string) => void;
+  onDocChanged?: (doc: Text) => void;
   onOpenLink?: (url: string) => void;
   /** Extra extensions appended after the house stack; fixed at mount. */
   extensions?: Extension[];

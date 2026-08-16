@@ -1,7 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   DEV_DATA_ROOT_DIR,
   PROD_DATA_DIR_NAME,
@@ -10,24 +9,11 @@ import {
   resolveDevDefaultPort,
   resolveDevInstanceId,
 } from "../config";
-
-const tempDirs: string[] = [];
-
-function makeTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-config-test-"));
-  tempDirs.push(dir);
-  return dir;
-}
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+import { makeTempDir } from "./temp-dir";
 
 describe("data dir", () => {
   it("prod defaults to ~/.inteligir", () => {
-    const homeDir = makeTempDir();
+    const homeDir = makeTempDir("inteligir-config-test-");
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { NODE_ENV: "production" },
@@ -40,7 +26,7 @@ describe("data dir", () => {
   });
 
   it("dev derives a per-checkout dir and port from the checkout path", () => {
-    const homeDir = makeTempDir();
+    const homeDir = makeTempDir("inteligir-config-test-");
     const a = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
     const b = resolveAppConfig({ checkoutPath: "/checkout/b", env: {}, homeDir });
 
@@ -60,7 +46,7 @@ describe("data dir", () => {
   });
 
   it("INTELIGIR_DATA_DIR overrides both modes and expands ~", () => {
-    const homeDir = makeTempDir();
+    const homeDir = makeTempDir("inteligir-config-test-");
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { INTELIGIR_DATA_DIR: "~/custom-data" },
@@ -74,7 +60,7 @@ describe("data dir", () => {
       resolveAppConfig({
         checkoutPath: "/checkout/a",
         env: { INTELIGIR_DATA_DIR: "  " },
-        homeDir: makeTempDir(),
+        homeDir: makeTempDir("inteligir-config-test-"),
       }),
     ).toThrow(/INTELIGIR_DATA_DIR/);
   });
@@ -84,18 +70,18 @@ describe("data dir", () => {
       resolveAppConfig({
         checkoutPath: "/checkout/a",
         env: { INTELIGIR_DATA_DIR: "relative/data" },
-        homeDir: makeTempDir(),
+        homeDir: makeTempDir("inteligir-config-test-"),
       }),
     ).toThrow(/INTELIGIR_DATA_DIR must be an absolute path \(got "relative\/data"\)/);
   });
 
   it("records where the data dir and port came from", () => {
-    const homeDir = makeTempDir();
+    const homeDir = makeTempDir("inteligir-config-test-");
     const derived = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
     expect(derived.dataDirSource).toBe("default");
     expect(derived.portSource).toBe("default");
 
-    const dataDir = makeTempDir();
+    const dataDir = makeTempDir("inteligir-config-test-");
     writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
     const managed = resolveAppConfig({
       checkoutPath: "/checkout/a",
@@ -116,8 +102,8 @@ describe("data dir", () => {
 
 describe("port layering: env → managed file → default", () => {
   it("reads the managed config file when no env var is set", () => {
-    const homeDir = makeTempDir();
-    const dataDir = makeTempDir();
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
     writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
@@ -128,8 +114,8 @@ describe("port layering: env → managed file → default", () => {
   });
 
   it("lets INTELIGIR_PORT beat the managed file", () => {
-    const homeDir = makeTempDir();
-    const dataDir = makeTempDir();
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
     writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
@@ -140,8 +126,8 @@ describe("port layering: env → managed file → default", () => {
   });
 
   it("tolerates unknown keys in the managed file, refuses invalid JSON", () => {
-    const homeDir = makeTempDir();
-    const dataDir = makeTempDir();
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
     writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555, futureKey: true }));
     expect(
       resolveAppConfig({
@@ -166,7 +152,7 @@ describe("port layering: env → managed file → default", () => {
       resolveAppConfig({
         checkoutPath: "/checkout/a",
         env: { INTELIGIR_PORT: "not-a-port" },
-        homeDir: makeTempDir(),
+        homeDir: makeTempDir("inteligir-config-test-"),
       }),
     ).toThrow(/INTELIGIR_PORT/);
   });

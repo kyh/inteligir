@@ -22,6 +22,10 @@ directory mark house-authored files.
   only `lib/markdown/nestedLinkAsPlainText.ts` is imported.
 - Upstream's `ajv` dependency — declared but unused by `lib/`.
 - The `codemirror` metapackage — see the `clickLink.ts` patch.
+- `lib/basicSetup.ts` — the turnkey setup this package's own
+  `markdown-editor-extensions.ts` supersedes, and the only module depending on
+  `@codemirror/autocomplete` and `@codemirror/lint`; dropping it drops both
+  dependencies. `lib/main.ts` is patched to drop its re-export.
 
 ## Local patches
 

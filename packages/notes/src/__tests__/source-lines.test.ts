@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { replaceLineGuarded, splitLines, toggleCheckboxLine } from "../knowledge/source-lines";
+import {
+  checkboxMarkerAt,
+  replaceLineGuarded,
+  splitLines,
+  toggleCheckboxLine,
+} from "../knowledge/source-lines";
 
 const LF_DOC = ["# Title", "", "- [ ] task one", "- [x] task two", ""].join("\n");
 
@@ -113,6 +118,34 @@ describe("toggleCheckboxLine", () => {
     });
   });
 
+  it("toggles ordered-list task markers (`1.` and `2)`)", () => {
+    const doc = "1. [ ] numbered\n2) [x] parenthesized\n";
+    expect(toggleCheckboxLine(doc, 0, "1. [ ] numbered")).toEqual({
+      ok: true,
+      checked: true,
+      content: "1. [x] numbered\n2) [x] parenthesized\n",
+    });
+    expect(toggleCheckboxLine(doc, 1, "2) [x] parenthesized")).toEqual({
+      ok: true,
+      checked: false,
+      content: "1. [ ] numbered\n2) [ ] parenthesized\n",
+    });
+  });
+
+  it("toggles blockquoted tasks, nesting included", () => {
+    const doc = "> - [ ] quoted\n> > 3. [x] nested ordered\n";
+    expect(toggleCheckboxLine(doc, 0, "> - [ ] quoted")).toEqual({
+      ok: true,
+      checked: true,
+      content: "> - [x] quoted\n> > 3. [x] nested ordered\n",
+    });
+    expect(toggleCheckboxLine(doc, 1, "> > 3. [x] nested ordered")).toEqual({
+      ok: true,
+      checked: false,
+      content: "> - [ ] quoted\n> > 3. [ ] nested ordered\n",
+    });
+  });
+
   it("double-toggle round-trips to the original bytes", () => {
     const once = toggleCheckboxLine(LF_DOC, 2, "- [ ] task one");
     if (!once.ok) throw new Error("first toggle failed");
@@ -120,6 +153,28 @@ describe("toggleCheckboxLine", () => {
     if (!twice.ok) throw new Error("second toggle failed");
     expect(twice.content).toBe(LF_DOC);
     expect(twice.checked).toBe(false);
+  });
+});
+
+// The one grammar's own surface: where the state char sits and what it holds.
+// The editor's click-to-toggle dispatches a one-char change at checkboxIndex,
+// so the offset is load-bearing, not informational.
+describe("checkboxMarkerAt", () => {
+  it("locates the state char across bullet, ordered and blockquoted forms", () => {
+    expect(checkboxMarkerAt("- [ ] task")).toEqual({ checkboxIndex: 3, checked: false });
+    expect(checkboxMarkerAt("  * [x] nested")).toEqual({ checkboxIndex: 5, checked: true });
+    expect(checkboxMarkerAt("1. [ ] numbered")).toEqual({ checkboxIndex: 4, checked: false });
+    expect(checkboxMarkerAt("12) [X] wide marker")).toEqual({ checkboxIndex: 5, checked: true });
+    expect(checkboxMarkerAt("> - [ ] quoted")).toEqual({ checkboxIndex: 5, checked: false });
+    expect(checkboxMarkerAt("> > - [x] nested quote")).toEqual({ checkboxIndex: 7, checked: true });
+  });
+
+  it("refuses non-task lines", () => {
+    expect(checkboxMarkerAt("- plain bullet")).toBeNull();
+    expect(checkboxMarkerAt("x [ ] not a bullet")).toBeNull();
+    expect(checkboxMarkerAt("- [ ]")).toBeNull(); // nothing after the `]`
+    expect(checkboxMarkerAt("- [y] not a state")).toBeNull();
+    expect(checkboxMarkerAt("> quoted prose")).toBeNull();
   });
 });
 

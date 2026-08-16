@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createConnection } from "@repo/db/connection";
+import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import {
   apiErrorResponseSchema,
@@ -15,6 +15,7 @@ import { serverMessageLenientSchema } from "@repo/server-contract/notifications"
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
 import { WsBus } from "../ws-bus";
+import { makeTempDir } from "./temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -27,7 +28,6 @@ afterEach(async () => {
 
 interface BootAppOptions {
   fallback?: AppFallback;
-  migrate?: boolean;
   port?: number;
 }
 
@@ -35,13 +35,10 @@ function bootApp(options: BootAppOptions = {}): {
   args: CreateAppArgs;
   composed: ReturnType<typeof createApp>;
 } {
-  const dataDir = mkdtempSync(join(tmpdir(), "inteligir-app-test-"));
-  cleanups.push(() => rmSync(dataDir, { recursive: true, force: true }));
+  const dataDir = makeTempDir("inteligir-app-test-");
   const databasePath = join(dataDir, "inteligir.db");
   const db = createConnection(databasePath);
-  if (options.migrate ?? true) {
-    runMigrations(db);
-  }
+  runMigrations(db);
   const args: CreateAppArgs = {
     bus: new WsBus({ version: "0.1.0-test" }),
     config: {
@@ -52,12 +49,26 @@ function bootApp(options: BootAppOptions = {}): {
       port: options.port ?? 0,
       portSource: "env",
     },
-    db,
     fallback: options.fallback ?? { kind: "none" },
+    schemaVersion: getSchemaVersion(db),
     startedAt: Date.now(),
     version: "0.1.0-test",
   };
   return { args, composed: createApp(args) };
+}
+
+/** A prod fallback over a fresh client dir holding the shell and one asset. */
+function makeProdFallback(): { clientDir: string; fallback: AppFallback } {
+  const clientDir = makeTempDir("inteligir-client-test-");
+  writeFileSync(join(clientDir, "_shell.html"), "<!doctype html><title>shell</title>");
+  return {
+    clientDir,
+    fallback: {
+      kind: "prod",
+      clientDir,
+      startFetch: () => Promise.resolve(new Response("start", { status: 200 })),
+    },
+  };
 }
 
 describe("the API over the in-process app", () => {
@@ -88,16 +99,7 @@ describe("the API over the in-process app", () => {
   });
 
   it("answers unmatched /api/v1 paths with JSON 404, never the SPA shell", async () => {
-    const clientDir = mkdtempSync(join(tmpdir(), "inteligir-client-test-"));
-    cleanups.push(() => rmSync(clientDir, { recursive: true, force: true }));
-    writeFileSync(join(clientDir, "_shell.html"), "<!doctype html><title>shell</title>");
-    const { composed } = bootApp({
-      fallback: {
-        kind: "prod",
-        clientDir,
-        startFetch: () => Promise.resolve(new Response("start", { status: 200 })),
-      },
-    });
+    const { composed } = bootApp({ fallback: makeProdFallback().fallback });
 
     const apiMiss = await composed.app.request("/api/v1/nope", {
       headers: { accept: "text/html" },
@@ -110,16 +112,69 @@ describe("the API over the in-process app", () => {
       headers: { accept: "text/html" },
     });
     expect(spaMiss.status).toBe(200);
+    expect(spaMiss.headers.get("cache-control")).toBe("no-store");
     expect(await spaMiss.text()).toContain("shell");
   });
 
-  it("answers handler failures with a generic 500, internals logged not echoed", async () => {
-    // Un-migrated db: the status handler's schema-version read throws.
-    const { composed } = bootApp({ migrate: false });
-    const response = await composed.app.request("/api/v1/system/status");
-    expect(response.status).toBe(500);
-    const body = apiErrorResponseSchema.parse(await response.json());
-    expect(body).toEqual({ error: "internal", message: "Internal server error" });
+  it("refuses to boot on an un-migrated database — the boot-time schema read throws", () => {
+    // The schema version is resolved once at boot (main.ts) and passed into
+    // createApp, so a broken schema fails the process loudly instead of
+    // surfacing as a 500 per status request.
+    const dataDir = makeTempDir("inteligir-app-test-");
+    const db = createConnection(join(dataDir, "inteligir.db"));
+    expect(() => getSchemaVersion(db)).toThrow(/no such table: meta/);
+  });
+});
+
+describe("the prod static layer", () => {
+  it("serves hashed assets immutable and 404s an asset miss, never the shell", async () => {
+    const { clientDir, fallback } = makeProdFallback();
+    mkdirSync(join(clientDir, "assets"));
+    writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
+    const { composed } = bootApp({ fallback });
+
+    const hit = await composed.app.request("/assets/app-abc123.js");
+    expect(hit.status).toBe(200);
+    expect(hit.headers.get("content-type")).toContain("text/javascript");
+    expect(hit.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(await hit.text()).toContain("console.log(1)");
+
+    const miss = await composed.app.request("/assets/gone.js", {
+      headers: { accept: "text/html" },
+    });
+    expect(miss.status).toBe(404);
+    expect(await miss.text()).not.toContain("shell");
+  });
+
+  it("serves non-asset files no-store and hands non-HTML misses to the Start entry", async () => {
+    const { clientDir, fallback } = makeProdFallback();
+    writeFileSync(join(clientDir, "favicon.svg"), "<svg/>");
+    const { composed } = bootApp({ fallback });
+
+    const file = await composed.app.request("/favicon.svg");
+    expect(file.status).toBe(200);
+    expect(file.headers.get("cache-control")).toBe("no-store");
+
+    const shell = await composed.app.request("/", { headers: { accept: "text/html" } });
+    expect(shell.status).toBe(200);
+    expect(shell.headers.get("cache-control")).toBe("no-store");
+    expect(await shell.text()).toContain("shell");
+
+    // A non-HTML miss and a non-GET both reach the Start entry untouched —
+    // no cache-control stamped onto its responses.
+    const startMiss = await composed.app.request("/api-docs.json");
+    expect(await startMiss.text()).toBe("start");
+    expect(startMiss.headers.get("cache-control")).toBeNull();
+
+    const post = await composed.app.request("/anything", { method: "POST" });
+    expect(await post.text()).toBe("start");
+  });
+
+  it("refuses traversal out of the client dir", async () => {
+    const { fallback } = makeProdFallback();
+    const { composed } = bootApp({ fallback });
+    const traversal = await composed.app.request("/assets/..%2f..%2fetc%2fpasswd");
+    expect(traversal.status).toBe(404);
   });
 });
 

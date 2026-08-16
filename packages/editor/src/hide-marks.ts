@@ -5,7 +5,7 @@ import {
   hidableNodeFacet,
   hideInlineDecoration,
 } from "./vendor/prosemark/lib/hide/core";
-import { stateWORDAt } from "./vendor/prosemark/lib/utils";
+import { selectionTouchesRange, stateWORDAt } from "./vendor/prosemark/lib/utils";
 
 const renderedLinkDecoration = Decoration.mark({ class: "cm-rendered-link" });
 const inlineCodeDecoration = Decoration.mark({ class: "cm-inline-code" });
@@ -61,11 +61,17 @@ const hideSpecs: HidableNodeSpec[] = [
     nodeName: "Escape",
     subNodeNameToHide: "EscapeMark",
     // Reveal the backslash while the caret works the surrounding word, not
-    // just the two escape characters — same zone upstream uses.
+    // just the two escape characters — same zone upstream uses. The zone is
+    // recomputed for every Escape node on every rebuild, and it only ever
+    // widens to the containing line — so when no selection range touches the
+    // line, the line itself answers (same hide/reveal outcome) and the
+    // per-cluster WORD scan is skipped.
     unhideZone: (state, node) => {
+      const line = state.doc.lineAt(node.from);
+      if (!selectionTouchesRange(state.selection.ranges, line)) return line;
       const wordAt = stateWORDAt(state, node.from);
       if (wordAt && wordAt.to > node.from + 1) return wordAt;
-      return state.doc.lineAt(node.from);
+      return line;
     },
   },
   {

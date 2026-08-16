@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   changedMessageLenientSchema,
   serverMessageLenientSchema,
+  serverMessageSchema,
 } from "@repo/server-contract/notifications";
 import { WsBus, type BusSocket } from "../ws-bus";
 
@@ -178,19 +179,27 @@ describe("handleMessage", () => {
   });
 });
 
-describe("outbound frames against the client's lenient schemas", () => {
-  it("every broadcast parses leniently, hello included", () => {
+describe("outbound frames against the contract schemas", () => {
+  // The bus serializes house-constructed frames without a per-send parse, so
+  // this is where the shape stays loud: every frame the bus can emit must
+  // parse under the STRICT schemas (and therefore the lenient ones).
+  it("every emittable frame parses strictly, hello included", () => {
     const bus = createBus();
     const socket = createFakeSocket();
     bus.registerClient(socket);
+    bus.subscribe(socket, { kind: "system" });
     bus.subscribe(socket, { kind: "vault" });
     bus.subscribe(socket, { kind: "thread-list" });
+    bus.notifySystem(["config-changed"]);
     bus.notifyVault(["files-changed"]);
     bus.notifyDoc("d1", ["content-changed"]);
     bus.notifyThread("t1", ["thread-created"]);
 
+    expect(socket.sent.length).toBe(5);
     for (const raw of socket.sent) {
-      expect(() => serverMessageLenientSchema.parse(JSON.parse(raw))).not.toThrow();
+      const frame: unknown = JSON.parse(raw);
+      expect(() => serverMessageSchema.parse(frame)).not.toThrow();
+      expect(() => serverMessageLenientSchema.parse(frame)).not.toThrow();
     }
   });
 

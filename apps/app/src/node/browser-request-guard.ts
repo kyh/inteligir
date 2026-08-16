@@ -17,11 +17,6 @@
  * request always carries the foreign page's Origin against our own Host.
  */
 
-export interface BrowserRequestProblem {
-  status: 403;
-  error: string;
-}
-
 export interface BrowserRequestHeaders {
   host: string | undefined;
   origin: string | undefined;
@@ -87,15 +82,13 @@ function isTrustedOrigin(
   return target !== null && target === originUrl.origin;
 }
 
+/** The refusal message, or null for a trusted request; the caller owns the 403. */
 export function browserRequestProblem(
   headers: BrowserRequestHeaders,
   allowedOrigins: ReadonlySet<string>,
-): BrowserRequestProblem | null {
+): string | null {
   if (headers.origin !== undefined && !isTrustedOrigin(headers.origin, headers, allowedOrigins)) {
-    return {
-      status: 403,
-      error: `origin "${headers.origin}" is not a local inteligir app origin`,
-    };
+    return `origin "${headers.origin}" is not a local inteligir app origin`;
   }
   return null;
 }

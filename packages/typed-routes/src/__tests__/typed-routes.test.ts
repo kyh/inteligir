@@ -3,24 +3,15 @@
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import type { EmptyInput, Endpoint } from "../endpoint";
+import type { EmptyInput } from "../endpoint";
 import {
   defineRoute,
   jsonRequest,
   jsonResponse,
+  noRequest,
   optionalQueryRequest,
-  type ApiSchemaFromRouteDescriptors,
 } from "../route-descriptor";
 import { typedRoutes } from "../typed-routes";
-
-type TestSchema = {
-  "/search": {
-    $get: Endpoint<{ query: { q: string } }, { q: string }>;
-  };
-  "/ping": {
-    $get: Endpoint<EmptyInput, { ok: true }>;
-  };
-};
 
 const testRoutes = {
   search: defineRoute({
@@ -29,6 +20,12 @@ const testRoutes = {
     request: optionalQueryRequest<EmptyInput, { q: string }>(z.object({ q: z.string().min(1) })),
     response: jsonResponse<{ q: string }>(),
   }),
+  ping: defineRoute({
+    path: "/ping",
+    method: "get",
+    request: noRequest(),
+    response: jsonResponse<{ ok: true }>(),
+  }),
   createNote: defineRoute({
     path: "/notes",
     method: "post",
@@ -36,8 +33,6 @@ const testRoutes = {
     response: jsonResponse<{ title: string }>({ status: 201 }),
   }),
 };
-
-type DescriptorTestSchema = ApiSchemaFromRouteDescriptors<typeof testRoutes>;
 
 function createApp() {
   const app = new Hono();
@@ -48,41 +43,9 @@ function createApp() {
 }
 
 describe("typedRoutes", () => {
-  it("parses GET query inputs instead of requiring a JSON body", async () => {
+  it("parses GET query inputs from the descriptor's own schema", async () => {
     const app = createApp();
-    const { get } = typedRoutes<TestSchema>(app, {
-      onValidationError: (message) => new Error(message),
-    });
-
-    get("/search", z.object({ q: z.string().min(1) }), (context, query) =>
-      context.json({ q: query.q }),
-    );
-
-    const success = await app.request("/search?q=needle");
-    expect(success.status).toBe(200);
-    expect(await success.json()).toEqual({ q: "needle" });
-
-    const missingQuery = await app.request("/search", { method: "GET" });
-    expect(missingQuery.status).toBe(400);
-    expect(await missingQuery.json()).toEqual({ message: "Required" });
-  });
-
-  it("supports GET handlers with no query schema", async () => {
-    const app = createApp();
-    const { get } = typedRoutes<TestSchema>(app, {
-      onValidationError: (message) => new Error(message),
-    });
-
-    get("/ping", (context) => context.json({ ok: true }));
-
-    const response = await app.request("/ping");
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true });
-  });
-
-  it("registers descriptor routes with their request schema", async () => {
-    const app = createApp();
-    const { get } = typedRoutes<DescriptorTestSchema>(app, {
+    const { get } = typedRoutes(app, {
       onValidationError: (message) => new Error(message),
     });
 
@@ -97,9 +60,22 @@ describe("typedRoutes", () => {
     expect(await missingQuery.json()).toEqual({ message: "Required" });
   });
 
+  it("supports GET descriptors with no request input", async () => {
+    const app = createApp();
+    const { get } = typedRoutes(app, {
+      onValidationError: (message) => new Error(message),
+    });
+
+    get(testRoutes.ping, (context) => context.json({ ok: true }));
+
+    const response = await app.request("/ping");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+  });
+
   it("throws loudly on a malformed descriptor", () => {
     const app = createApp();
-    const { get } = typedRoutes<DescriptorTestSchema>(app);
+    const { get } = typedRoutes(app);
 
     const missingSchema: unknown = {
       path: "/search",
@@ -115,16 +91,14 @@ describe("typedRoutes", () => {
     };
     const looseGet = get as (...args: unknown[]) => void;
     expect(() => looseGet(missingSchema, () => new Response())).toThrow(
-      /expected a path or a route definition/,
+      /expected a route definition/,
     );
-    expect(() => looseGet(badMethod, () => new Response())).toThrow(
-      /expected a path or a route definition/,
-    );
+    expect(() => looseGet(badMethod, () => new Response())).toThrow(/expected a route definition/);
   });
 
   it("throws when a descriptor is registered under the wrong method", () => {
     const app = createApp();
-    const { post } = typedRoutes<DescriptorTestSchema>(app);
+    const { post } = typedRoutes(app);
     const loosePost = post as (...args: unknown[]) => void;
     expect(() => loosePost(testRoutes.search, () => new Response())).toThrow(
       /declares method "get" but was registered as "post"/,
@@ -133,7 +107,7 @@ describe("typedRoutes", () => {
 
   it("validates JSON bodies on descriptor POST routes", async () => {
     const app = createApp();
-    const { post } = typedRoutes<DescriptorTestSchema>(app, {
+    const { post } = typedRoutes(app, {
       onValidationError: (message) => new Error(message),
     });
 

@@ -1,4 +1,4 @@
-import { EditorState, type Extension } from "@codemirror/state";
+import { EditorState, type Extension, type Text } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { type MarkdownEditorOptions, markdownEditorExtensions } from "./markdown-editor-extensions";
 
@@ -7,8 +7,11 @@ export interface MarkdownEditorConfig extends MarkdownEditorOptions {
   parent: HTMLElement;
   /** Initial markdown. The buffer IS the file: every byte round-trips. */
   doc?: string;
-  /** Called with the full buffer after every document change. */
-  onDocChanged?: (doc: string) => void;
+  /** Called with the buffer after every document change. Hands over the CM
+   * `Text` (an immutable rope) rather than a string: serializing here would
+   * copy the whole document on every keystroke — the consumer serializes at
+   * flush time. */
+  onDocChanged?: (doc: Text) => void;
   /** Extra extensions, appended after the house stack. */
   extensions?: Extension[];
 }
@@ -33,7 +36,7 @@ export const createMarkdownEditor = (config: MarkdownEditorConfig): MarkdownEdit
         markdownEditorExtensions(onOpenLink === undefined ? {} : { onOpenLink }),
         onDocChanged
           ? EditorView.updateListener.of((update) => {
-              if (update.docChanged) onDocChanged(update.state.doc.toString());
+              if (update.docChanged) onDocChanged(update.state.doc);
             })
           : [],
         extensions,

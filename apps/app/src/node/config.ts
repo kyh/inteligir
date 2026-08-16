@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
+import { errnoCode } from "./errno";
 
 type RuntimeMode = "dev" | "prod";
 
@@ -97,8 +98,7 @@ function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema>
   try {
     raw = readFileSync(join(dataDir, CONFIG_FILE_NAME), "utf8");
   } catch (error) {
-    const errorCode = error instanceof Error && "code" in error ? error.code : undefined;
-    if (errorCode === "ENOENT") {
+    if (errnoCode(error) === "ENOENT") {
       return {};
     }
     throw error;

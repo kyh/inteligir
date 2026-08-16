@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { errnoCode } from "./errno";
 
 const MARKER_FILE_NAME = "checkout-path";
 
@@ -17,8 +18,7 @@ export function ensureDevDataDirOwnership(dataDir: string, checkoutPath: string)
   try {
     existing = readFileSync(markerPath, "utf8");
   } catch (error) {
-    const errorCode = error instanceof Error && "code" in error ? error.code : undefined;
-    if (errorCode !== "ENOENT") {
+    if (errnoCode(error) !== "ENOENT") {
       throw error;
     }
     writeFileSync(markerPath, `${checkoutPath}\n`, "utf8");

@@ -2,6 +2,9 @@
 
 import { z } from "zod";
 
+/** Where the invalidation bus is served; the upgrade endpoint every client dials. */
+export const WS_PATH = "/ws";
+
 export const SYSTEM_CHANGE_KINDS = ["config-changed"] as const;
 export type SystemChangeKind = (typeof SYSTEM_CHANGE_KINDS)[number];
 
@@ -24,11 +27,8 @@ export const vaultChangeKindSchema = z.enum(VAULT_CHANGE_KINDS);
 export const docChangeKindSchema = z.enum(DOC_CHANGE_KINDS);
 export const threadChangeKindSchema = z.enum(THREAD_CHANGE_KINDS);
 
-/**
- * What a client can subscribe to. `vault` is the doc LIST target — a doc
- * change fans out to `vault` subscribers alongside its own `doc-detail`
- * subscribers, the way a thread change reaches `thread-list`.
- */
+/** What a client can subscribe to. How a changed message reaches these targets
+ * is `subscriptionKeysForMessage` below — the one fan-out mapping. */
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -110,51 +110,69 @@ export function realtimeSubscriptionTargetKey(target: RealtimeSubscriptionTarget
 }
 
 /**
- * Strict changed-message schemas validate the server's OUTGOING broadcasts —
- * the producer is in-repo, so unknown fields or kinds there are bugs and must
- * fail loudly. Message types are derived from these schemas (z.infer) so the
- * contract cannot drift from the validators.
+ * ONE factory builds each entity's changed-message pair, so the two sides
+ * cannot drift — same shape, same kinds, `changes` readonly on both.
  *
- * Clients must NOT parse inbound traffic with these: a long-lived tab talking
- * to a newer server would drop entire messages over an additive change.
- * Inbound parsing uses the lenient schemas below.
+ * `strict` validates the server's OUTGOING broadcasts — the producer is
+ * in-repo, so unknown fields or kinds there are bugs and must fail loudly.
+ * Message types are derived from the strict schemas (z.infer) so the contract
+ * cannot drift from the validators. Clients must NOT parse inbound traffic
+ * with it: a long-lived tab talking to a newer server would drop entire
+ * messages over an additive change.
+ *
+ * `lenient` parses INBOUND broadcasts on clients. It tolerates version skew
+ * against a newer server: unknown fields are stripped and unknown change
+ * kinds are filtered out instead of rejecting the whole message, so a stale
+ * client keeps receiving the kinds it understands. Its output remains
+ * assignable to the strict message type — dispatch sites enforce that at
+ * compile time.
  */
-export const systemChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("system"),
-    changes: z.array(systemChangeKindSchema).readonly(),
-  })
-  .strict();
+function changedMessagePair<
+  TEntity extends string,
+  TKind extends string,
+  TIdShape extends z.ZodRawShape,
+>(entity: TEntity, kinds: readonly [TKind, ...TKind[]], idShape: TIdShape) {
+  const known: ReadonlySet<string> = new Set(kinds);
+  return {
+    strict: z
+      .object({
+        type: z.literal("changed"),
+        entity: z.literal(entity),
+        ...idShape,
+        changes: z.array(z.enum(kinds)).readonly(),
+      })
+      .strict(),
+    lenient: z.object({
+      type: z.literal("changed"),
+      entity: z.literal(entity),
+      ...idShape,
+      changes: z
+        .array(z.string())
+        .transform((values) => values.filter((value): value is TKind => known.has(value)))
+        .readonly(),
+    }),
+  };
+}
+
+const systemChangedMessagePair = changedMessagePair("system", SYSTEM_CHANGE_KINDS, {});
+const vaultChangedMessagePair = changedMessagePair("vault", VAULT_CHANGE_KINDS, {});
+const docChangedMessagePair = changedMessagePair("doc", DOC_CHANGE_KINDS, {
+  id: z.string().min(1),
+});
+const threadChangedMessagePair = changedMessagePair("thread", THREAD_CHANGE_KINDS, {
+  id: z.string().optional(),
+});
+
+export const systemChangedMessageSchema = systemChangedMessagePair.strict;
 export type SystemChangedMessage = z.infer<typeof systemChangedMessageSchema>;
 
-export const vaultChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("vault"),
-    changes: z.array(vaultChangeKindSchema).readonly(),
-  })
-  .strict();
+export const vaultChangedMessageSchema = vaultChangedMessagePair.strict;
 export type VaultChangedMessage = z.infer<typeof vaultChangedMessageSchema>;
 
-export const docChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("doc"),
-    id: z.string().min(1),
-    changes: z.array(docChangeKindSchema).readonly(),
-  })
-  .strict();
+export const docChangedMessageSchema = docChangedMessagePair.strict;
 export type DocChangedMessage = z.infer<typeof docChangedMessageSchema>;
 
-export const threadChangedMessageSchema = z
-  .object({
-    type: z.literal("changed"),
-    entity: z.literal("thread"),
-    id: z.string().optional(),
-    changes: z.array(threadChangeKindSchema).readonly(),
-  })
-  .strict();
+export const threadChangedMessageSchema = threadChangedMessagePair.strict;
 export type ThreadChangedMessage = z.infer<typeof threadChangedMessageSchema>;
 
 export const changedMessageSchema = z.discriminatedUnion("entity", [
@@ -177,52 +195,11 @@ export type HelloMessage = z.infer<typeof helloMessageSchema>;
 export const serverMessageSchema = z.union([helloMessageSchema, changedMessageSchema]);
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
-/**
- * Lenient changed-message schemas parse INBOUND broadcasts on clients. They
- * tolerate version skew against a newer server: unknown fields are stripped
- * and unknown change kinds are filtered out instead of rejecting the whole
- * message, so a stale client keeps receiving the kinds it understands. Their
- * output remains assignable to the strict message types — dispatch sites
- * enforce that at compile time.
- */
-function lenientKinds<TKind extends string>(kinds: readonly TKind[]) {
-  const known: ReadonlySet<string> = new Set(kinds);
-  return z
-    .array(z.string())
-    .transform((values) => values.filter((value): value is TKind => known.has(value)));
-}
-
-const systemChangedMessageLenientSchema = z.object({
-  type: z.literal("changed"),
-  entity: z.literal("system"),
-  changes: lenientKinds(SYSTEM_CHANGE_KINDS),
-});
-
-const vaultChangedMessageLenientSchema = z.object({
-  type: z.literal("changed"),
-  entity: z.literal("vault"),
-  changes: lenientKinds(VAULT_CHANGE_KINDS),
-});
-
-const docChangedMessageLenientSchema = z.object({
-  type: z.literal("changed"),
-  entity: z.literal("doc"),
-  id: z.string().min(1),
-  changes: lenientKinds(DOC_CHANGE_KINDS),
-});
-
-const threadChangedMessageLenientSchema = z.object({
-  type: z.literal("changed"),
-  entity: z.literal("thread"),
-  id: z.string().optional(),
-  changes: lenientKinds(THREAD_CHANGE_KINDS),
-});
-
 export const changedMessageLenientSchema = z.discriminatedUnion("entity", [
-  systemChangedMessageLenientSchema,
-  vaultChangedMessageLenientSchema,
-  docChangedMessageLenientSchema,
-  threadChangedMessageLenientSchema,
+  systemChangedMessagePair.lenient,
+  vaultChangedMessagePair.lenient,
+  docChangedMessagePair.lenient,
+  threadChangedMessagePair.lenient,
 ]);
 
 const helloMessageLenientSchema = z.object({
@@ -234,3 +211,34 @@ export const serverMessageLenientSchema = z.union([
   helloMessageLenientSchema,
   changedMessageLenientSchema,
 ]);
+
+const SYSTEM_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "system" });
+const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
+const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
+
+/**
+ * The one entity→subscription-target fan-out: which subscription keys a
+ * changed message reaches. `vault` is the doc LIST target — a doc change fans
+ * out to `vault` subscribers alongside its own `doc-detail` subscribers, the
+ * way a thread change reaches `thread-list`.
+ */
+export function subscriptionKeysForMessage(message: ChangedMessage): string[] {
+  switch (message.entity) {
+    case "system":
+      return [SYSTEM_TARGET_KEY];
+    case "vault":
+      return [VAULT_TARGET_KEY];
+    case "doc":
+      return [
+        VAULT_TARGET_KEY,
+        realtimeSubscriptionTargetKey({ kind: "doc-detail", docId: message.id }),
+      ];
+    case "thread":
+      return message.id === undefined
+        ? [THREAD_LIST_TARGET_KEY]
+        : [
+            THREAD_LIST_TARGET_KEY,
+            realtimeSubscriptionTargetKey({ kind: "thread-detail", threadId: message.id }),
+          ];
+  }
+}

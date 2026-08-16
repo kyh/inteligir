@@ -4,17 +4,17 @@
 // invalidation bus), and a fallback — vite middlewares in dev, static client
 // + the Start server entry's fetch in prod.
 
-import { readFile, stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { extname, join, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
+import { serveStatic } from "@hono/node-server/serve-static";
 import type { HttpBindings } from "@hono/node-server";
-import { getSchemaVersion } from "@repo/db/meta";
-import type { DbConnection } from "@repo/db/connection";
-import { apiRoutes, type ApiErrorResponse, type ApiSchema } from "@repo/server-contract/routes";
+import { API_BASE_PATH, apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
+import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
-import { Hono, type Context, type Next } from "hono";
+import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
 import type { WsBus } from "./ws-bus";
@@ -41,8 +41,9 @@ export type AppFallback =
 export interface CreateAppArgs {
   bus: WsBus;
   config: AppConfig;
-  db: DbConnection;
   fallback: AppFallback;
+  /** Resolved once at boot, after migrate — not a SELECT per status request. */
+  schemaVersion: number;
   startedAt: number;
   version: string;
 }
@@ -51,78 +52,28 @@ const SPA_SHELL_FILE_NAME = "_shell.html";
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
 const STATIC_NO_STORE_CACHE_CONTROL = "no-store";
 
-const MIME_TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json",
-  ".webmanifest": "application/manifest+json",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".webp": "image/webp",
-  ".map": "application/json",
-  ".txt": "text/plain; charset=utf-8",
-};
-
-function contentTypeFor(filePath: string): string {
-  return MIME_TYPES[extname(filePath).toLowerCase()] ?? "application/octet-stream";
-}
-
-/** Resolve a URL path inside `rootDir`, refusing traversal outside it. */
-function resolveStaticFilePath(rootDir: string, urlPath: string): string | undefined {
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(urlPath);
-  } catch {
-    return undefined;
-  }
-  if (decoded.includes("\0")) {
-    return undefined;
-  }
-  const relativePath = decoded.replace(/^\/+/u, "");
-  if (relativePath.length === 0) {
-    return undefined;
-  }
-  const resolved = resolve(rootDir, relativePath);
-  if (!resolved.startsWith(rootDir + sep)) {
-    return undefined;
-  }
-  return resolved;
-}
-
-async function readFileIfExists(filePath: string | undefined): Promise<Uint8Array | undefined> {
-  if (filePath === undefined) {
-    return undefined;
-  }
-  try {
-    const stats = await stat(filePath);
-    if (!stats.isFile()) {
-      return undefined;
-    }
-    return await readFile(filePath);
-  } catch {
-    return undefined;
-  }
-}
-
-function staticResponse(body: Uint8Array, filePath: string, cacheControl: string): Response {
-  return new Response(body, {
-    headers: {
-      "content-type": contentTypeFor(filePath),
-      "cache-control": cacheControl,
-    },
-  });
-}
+/** Marks a request `serveStatic` answered, so the cache-control wrapper can
+ * tell a served file from the shell / Start fallthrough behind it. */
+type AppEnv = { Bindings: HttpBindings; Variables: { staticFilePath?: string } };
 
 function acceptsHtml(acceptHeader: string | undefined): boolean {
   return acceptHeader !== undefined && acceptHeader.includes("text/html");
 }
 
+// Set after the chain answers: serveStatic's own onFound header writes land
+// after it has already built its Response, so they never reach the wire — the
+// wrapper stamps the finalized response instead.
+const staticCacheControl =
+  (cacheControl: string): MiddlewareHandler<AppEnv> =>
+  async (c, next) => {
+    await next();
+    if (c.get("staticFilePath") !== undefined) {
+      c.res.headers.set("cache-control", cacheControl);
+    }
+  };
+
 export function createApp(args: CreateAppArgs) {
-  const app = new Hono<{ Bindings: HttpBindings }>();
+  const app = new Hono<AppEnv>();
   const nodeWebSocket = createNodeWebSocket({ app });
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
@@ -136,9 +87,9 @@ export function createApp(args: CreateAppArgs) {
     if (problem !== null) {
       const body: ApiErrorResponse = {
         error: "forbidden_origin",
-        message: problem.error,
+        message: problem,
       };
-      return c.json(body, problem.status);
+      return c.json(body, 403);
     }
     await next();
     return undefined;
@@ -162,7 +113,7 @@ export function createApp(args: CreateAppArgs) {
     };
     return context.json(body, 500);
   });
-  const { get } = typedRoutes<ApiSchema>(api, {
+  const { get } = typedRoutes(api, {
     onValidationError: (message) => new ApiValidationError(message),
   });
 
@@ -171,7 +122,7 @@ export function createApp(args: CreateAppArgs) {
     c.json({
       version: args.version,
       dataDir: args.config.dataDir,
-      schemaVersion: getSchemaVersion(args.db),
+      schemaVersion: args.schemaVersion,
       uptimeMs: Date.now() - args.startedAt,
     }),
   );
@@ -183,10 +134,10 @@ export function createApp(args: CreateAppArgs) {
     return c.json(body, 404);
   });
 
-  app.route("/api/v1", api);
+  app.route(API_BASE_PATH, api);
 
   app.get(
-    "/ws",
+    WS_PATH,
     guardBrowserRequest,
     upgradeWebSocket(() => ({
       onOpen: (_event, socket) => args.bus.registerClient(socket),
@@ -219,33 +170,44 @@ export function createApp(args: CreateAppArgs) {
 
   if (fallback.kind === "prod") {
     const clientDir = resolve(fallback.clientDir);
-    app.all("*", async (c) => {
-      const method = c.req.method;
-      if (method === "GET" || method === "HEAD") {
-        const path = c.req.path;
-        const filePath = resolveStaticFilePath(clientDir, path);
-        if (path.startsWith("/assets/")) {
-          // An asset miss must 404: answering it with the shell hands the
-          // module loader HTML and produces an opaque MIME error instead.
-          const body = await readFileIfExists(filePath);
-          return body === undefined
-            ? c.text("Not found", 404)
-            : staticResponse(body, path, STATIC_ASSET_CACHE_CONTROL);
-        }
-        const body = await readFileIfExists(filePath);
-        if (body !== undefined && filePath !== undefined) {
-          // Only /assets/* carries content hashes, so only it may be immutable.
-          return staticResponse(body, filePath, STATIC_NO_STORE_CACHE_CONTROL);
-        }
-        if (acceptsHtml(c.req.header("accept"))) {
-          const shellBody = await readFileIfExists(join(clientDir, SPA_SHELL_FILE_NAME));
-          if (shellBody !== undefined) {
-            return staticResponse(shellBody, SPA_SHELL_FILE_NAME, STATIC_NO_STORE_CACHE_CONTROL);
-          }
-        }
-      }
-      return fallback.startFetch(c.req.raw);
+    // Read once at boot: a prod build's shell is fixed for the process
+    // lifetime, and every SPA navigation answers with it. Copied into a plain
+    // ArrayBuffer-backed view — hono's `Data` refuses Buffer's ArrayBufferLike.
+    const spaShell = new Uint8Array(readFileSync(join(clientDir, SPA_SHELL_FILE_NAME)));
+    const serveClientFile = serveStatic<AppEnv>({
+      root: clientDir,
+      onFound: (path, c) => {
+        c.set("staticFilePath", path);
+      },
     });
+    // Only /assets/* carries content hashes, so only it may be immutable —
+    // and an asset miss must 404: answering it with the shell hands the
+    // module loader HTML and produces an opaque MIME error instead.
+    app.on(
+      ["GET", "HEAD"],
+      "/assets/*",
+      staticCacheControl(STATIC_ASSET_CACHE_CONTROL),
+      serveClientFile,
+      (c) => c.text("Not found", 404),
+    );
+
+    app.on(
+      ["GET", "HEAD"],
+      "*",
+      staticCacheControl(STATIC_NO_STORE_CACHE_CONTROL),
+      serveClientFile,
+      (c): Response | Promise<Response> => {
+        if (acceptsHtml(c.req.header("accept"))) {
+          return c.body(spaShell, 200, {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": STATIC_NO_STORE_CACHE_CONTROL,
+          });
+        }
+        return fallback.startFetch(c.req.raw);
+      },
+    );
+
+    app.all("*", (c) => fallback.startFetch(c.req.raw));
   }
 
   return { app, injectWebSocket };

@@ -1,6 +1,7 @@
 import type { Extension } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import type { SyntaxNodeRef } from "@lezer/common";
+import { checkboxMarkerAt } from "@repo/notes/knowledge/source-lines";
 import { foldableSyntaxFacet } from "./vendor/prosemark/lib/fold/core";
 
 class TaskCheckboxWidget extends WidgetType {
@@ -38,24 +39,19 @@ const taskReplaceRange = (node: SyntaxNodeRef): { from: number; to: number } => 
 const isTaskCheckbox = (target: EventTarget | null): target is HTMLElement =>
   target instanceof HTMLElement && target.classList.contains("cm-task-checkbox");
 
-// Matches the task prefix of a rendered line: optional indentation and
-// blockquote markers, a list mark (bullet or ordered), then `[x]`. Group 1 is
-// everything before the state character.
-const taskLinePattern = /^([ \t]*(?:>[ \t]*)*(?:[-*+]|\d+[.)])[ \t]+\[)([ xX])\]/;
-
 const toggleTaskAt = (view: EditorView, target: HTMLElement): boolean => {
   const pos = view.posAtDOM(target);
   const line = view.state.doc.lineAt(pos);
-  const match = taskLinePattern.exec(line.text);
-  const prefix = match?.[1];
-  const current = match?.[2];
-  if (prefix === undefined || current === undefined) return false;
-  const stateFrom = line.from + prefix.length;
+  // @repo/notes owns the one checkbox grammar; locating the state char through
+  // it keeps this toggle in lockstep with the guarded vault write.
+  const marker = checkboxMarkerAt(line.text);
+  if (marker === null) return false;
+  const stateFrom = line.from + marker.checkboxIndex;
   view.dispatch({
     changes: {
       from: stateFrom,
       to: stateFrom + 1,
-      insert: current === " " ? "x" : " ",
+      insert: marker.checked ? " " : "x",
     },
     userEvent: "input.toggle-checkbox",
   });

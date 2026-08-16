@@ -5,30 +5,24 @@
  *
  * Hono's built-in `.get()` / `.post()` methods infer the schema from the
  * handler (bottom-up). They never constrain the handler against a pre-declared
- * schema. These helpers close that gap: given a schema type like `ApiSchema`,
- * they extract the expected `Input` and `Output` for each route and enforce
- * both at compile time.
+ * contract. These helpers close that gap: registration takes a `defineRoute`
+ * descriptor — the table IS the contract — and enforces the handler against
+ * it at compile time.
  *
- * **Output**: the handler's `c.json()` argument must match the contract's
+ * **Output**: the handler's `c.json()` argument must match the descriptor's
  * declared Output type.
  *
- * **Input**:
- * - if the contract declares `{ json: T }`, the registration call requires a
- *   `ZodType<T>` schema. The wrapper validates the request body automatically
- *   and passes the parsed value to the handler.
- * - if the contract declares `{ query: T }`, the registration call requires a
- *   `ZodType<T>` schema. The wrapper validates the query parameters and passes
- *   the parsed value to the handler.
+ * **Input**: a descriptor declaring a `query` or `json` request carries its
+ * own Zod schema. The wrapper validates the request automatically and passes
+ * the parsed value to the handler.
  *
  * @example
  * ```ts
- * const { get, post } = typedRoutes<ApiSchema>(app);
+ * const { get, post } = typedRoutes(app);
  *
- * // Registration from a defineRoute descriptor — schema comes from the row:
+ * // Schema and validation come from the row:
  * get(apiRoutes.health, (c) => c.json({ ok: true }));
- *
- * // POST — schema required, body pre-validated, output type-checked:
- * post("/docs", createDocRequestSchema, async (c, body) => {
+ * post(apiRoutes.docs.create, async (c, body) => {
  *   const doc = createDoc(deps.db, body);
  *   return c.json(doc, 201);
  * });
@@ -47,23 +41,6 @@ import type {
   RouteParsedInput,
   RouteResponseFormat,
 } from "./route-descriptor";
-
-// ---------------------------------------------------------------------------
-// Type-level extraction
-// ---------------------------------------------------------------------------
-
-type EndpointInput<E> =
-  E extends Endpoint<infer I, unknown, number, RouteResponseFormat> ? I : never;
-
-/** Extract `T` from `{ json: T }` in the Endpoint's Input, or `never`. */
-type JsonBody<I> = "json" extends keyof I ? (I extends { json: infer J } ? J : never) : never;
-
-/** Extract `T` from `{ query: T }` in the Endpoint's Input, or `never`. */
-type QueryInput<I> = "query" extends keyof I ? (I extends { query?: infer Q } ? Q : never) : never;
-
-type RouteInputForMethod<MKey extends MethodKey, I> = MKey extends "$get"
-  ? QueryInput<I>
-  : JsonBody<I>;
 
 // ---------------------------------------------------------------------------
 // Constrained context & handler types
@@ -96,7 +73,7 @@ type TypedContext<E, Path extends string> = Omit<Context<BlankEnv, Path>, "json"
   json: (...args: TypedJsonArgs<E>) => Response;
 };
 
-/** Handler that receives context only (no request body). */
+/** Handler that receives context only (no request input). */
 type NoBodyHandler<E, Path extends string> = (c: TypedContext<E, Path>) => HandlerReturn;
 
 /** Handler that receives context + pre-validated request input. */
@@ -106,28 +83,8 @@ type WithInputHandler<E, Input, Path extends string> = (
 ) => HandlerReturn;
 
 // ---------------------------------------------------------------------------
-// Registration overloads
+// Registration
 // ---------------------------------------------------------------------------
-
-type MethodKey = "$get" | "$post" | "$patch" | "$delete" | "$put";
-type InputSource = "json" | "query";
-
-/**
- * Typed route registration.
- *
- * - If the endpoint declares `{ json: T }` or `{ query: T }` input
- *   → requires `(path, schema, handler)`
- * - Otherwise → requires `(path, handler)`
- */
-type TypedRegister<Schema, MKey extends MethodKey> = <
-  Path extends string & keyof Schema,
-  E extends (MKey extends keyof Schema[Path] ? Schema[Path][MKey] : never),
-  Input extends RouteInputForMethod<MKey, EndpointInput<E>>,
->(
-  ...args: [Input] extends [never]
-    ? [path: Path, handler: NoBodyHandler<E, Path>]
-    : [path: Path, schema: ZodType<Input>, handler: WithInputHandler<E, Input, Path>]
-) => void;
 
 type DescriptorHandler<
   Descriptor extends RouteDefinition,
@@ -146,18 +103,12 @@ type TypedDescriptorRegister<Method extends RouteMethod> = <
   handler: DescriptorHandler<Descriptor, E, ParsedInput>,
 ) => void;
 
-type TypedRegisterWithDescriptor<
-  Schema,
-  MKey extends MethodKey,
-  Method extends RouteMethod,
-> = TypedRegister<Schema, MKey> & TypedDescriptorRegister<Method>;
-
-export interface TypedRoutesRegistrars<Schema> {
-  get: TypedRegisterWithDescriptor<Schema, "$get", "get">;
-  post: TypedRegisterWithDescriptor<Schema, "$post", "post">;
-  patch: TypedRegisterWithDescriptor<Schema, "$patch", "patch">;
-  del: TypedRegisterWithDescriptor<Schema, "$delete", "delete">;
-  put: TypedRegisterWithDescriptor<Schema, "$put", "put">;
+export interface TypedRoutesRegistrars {
+  get: TypedDescriptorRegister<"get">;
+  post: TypedDescriptorRegister<"post">;
+  patch: TypedDescriptorRegister<"patch">;
+  del: TypedDescriptorRegister<"delete">;
+  put: TypedDescriptorRegister<"put">;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +220,7 @@ function createValidatedHandler(args: {
   handler: LooseHandler;
   makeError: (message: string) => Error;
   schema: ZodType;
-  source: InputSource;
+  source: "json" | "query";
 }): MountableHandler {
   return async (c) => {
     let input: unknown;
@@ -295,60 +246,33 @@ function createValidatedHandler(args: {
   };
 }
 
-function registerFromArgs(
+function registerRoute(
   deps: RegistrarDeps,
   method: RouteMethod,
-  inputSource: InputSource,
-  args: readonly unknown[],
+  descriptor: unknown,
+  handler: unknown,
 ): void {
-  const [first, second, third] = args;
-
-  if (typeof first === "string") {
-    if (isZodSchema(second)) {
-      if (!isLooseHandler(third)) {
-        throw new Error("typedRoutes: expected a handler after the schema");
-      }
-      mount(
-        deps.app,
-        method,
-        first,
-        createValidatedHandler({
-          handler: third,
-          makeError: deps.makeError,
-          schema: second,
-          source: inputSource,
-        }),
-      );
-      return;
-    }
-    if (!isLooseHandler(second)) {
-      throw new Error("typedRoutes: expected a handler or a schema");
-    }
-    mount(deps.app, method, first, second);
-    return;
-  }
-
-  if (!isRouteDefinition(first)) {
+  if (!isRouteDefinition(descriptor)) {
     throw new Error(
-      "typedRoutes: expected a path or a route definition (path + method + request + response)",
+      "typedRoutes: expected a route definition (path + method + request + response)",
     );
   }
-  if (first.method !== method) {
+  if (descriptor.method !== method) {
     throw new Error(
-      `typedRoutes: route "${first.path}" declares method "${first.method}" but was registered as "${method}"`,
+      `typedRoutes: route "${descriptor.path}" declares method "${descriptor.method}" but was registered as "${method}"`,
     );
   }
-  if (!isLooseHandler(second)) {
+  if (!isLooseHandler(handler)) {
     throw new Error("typedRoutes: expected a handler for the route definition");
   }
-  const request = first.request;
+  const request = descriptor.request;
   if (request.source === "query" || request.source === "json") {
     mount(
       deps.app,
       method,
-      first.path,
+      descriptor.path,
       createValidatedHandler({
-        handler: second,
+        handler,
         makeError: deps.makeError,
         schema: request.schema,
         source: request.source,
@@ -356,21 +280,21 @@ function registerFromArgs(
     );
     return;
   }
-  mount(deps.app, method, first.path, second);
+  mount(deps.app, method, descriptor.path, handler);
 }
 
-export function typedRoutes<Schema>(
-  app: Hono,
-  options?: TypedRoutesOptions,
-): TypedRoutesRegistrars<Schema> {
+export function typedRoutes(app: Hono, options?: TypedRoutesOptions): TypedRoutesRegistrars {
   const makeError = options?.onValidationError ?? ((message: string) => new Error(message));
   const deps: RegistrarDeps = { app, makeError };
 
   return {
-    get: (...args: readonly unknown[]) => registerFromArgs(deps, "get", "query", args),
-    post: (...args: readonly unknown[]) => registerFromArgs(deps, "post", "json", args),
-    patch: (...args: readonly unknown[]) => registerFromArgs(deps, "patch", "json", args),
-    del: (...args: readonly unknown[]) => registerFromArgs(deps, "delete", "json", args),
-    put: (...args: readonly unknown[]) => registerFromArgs(deps, "put", "json", args),
+    get: (descriptor: unknown, handler: unknown) => registerRoute(deps, "get", descriptor, handler),
+    post: (descriptor: unknown, handler: unknown) =>
+      registerRoute(deps, "post", descriptor, handler),
+    patch: (descriptor: unknown, handler: unknown) =>
+      registerRoute(deps, "patch", descriptor, handler),
+    del: (descriptor: unknown, handler: unknown) =>
+      registerRoute(deps, "delete", descriptor, handler),
+    put: (descriptor: unknown, handler: unknown) => registerRoute(deps, "put", descriptor, handler),
   };
 }
