@@ -25,6 +25,12 @@ This folder is your vault: plain markdown files that belong to you, versioned
 with git. Edit them here or with any other tool — changes show up either way.
 `;
 
+/** What a file-level change announcement can say: the vault-relative paths
+ * that moved, or "unknown" when a set of changes has no path list (the
+ * consolidated post-sync notification) — a consumer must re-diff, not re-read
+ * a named file. */
+export type VaultFilesChange = { kind: "paths"; paths: readonly string[] } | { kind: "unknown" };
+
 export interface VaultRuntimeArgs {
   vaultDir: string;
   /** null = local-only; the sync loop stays idle and status says "no-remote". */
@@ -33,6 +39,11 @@ export interface VaultRuntimeArgs {
    *  repo the sync loop pushes; a nested data dir would be staged into it). */
   dataDir: string;
   notifier: DbNotifier;
+  /** Path-level twin of the notifier's vault announcement, for consumers that
+   *  need to know WHICH files moved (the knowledge projection). Fired for
+   *  service mutations, external watcher batches, and (as "unknown") the
+   *  consolidated post-sync change. */
+  onFilesChanged?: (change: VaultFilesChange) => void;
   /** false skips the filesystem watcher (tests that only exercise CRUD). */
   watch?: boolean;
   /** null disables the interval + boot sync (tests drive syncNow directly). */
@@ -87,6 +98,8 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
       if (!gitIsSyncing() && sawChangesDuringSync) {
         sawChangesDuringSync = false;
         args.notifier.notifyVault(["files-changed"]);
+        // The batches were held back, so their paths are gone — announce that.
+        args.onFilesChanged?.({ kind: "unknown" });
         git.scheduleCommit();
       }
     },
@@ -128,6 +141,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
     lock: (work) => git.runExclusive(work),
     onMutated: (paths) => {
       noteSelfWrites(paths);
+      args.onFilesChanged?.({ kind: "paths", paths });
       git.scheduleCommit();
     },
   });
@@ -141,10 +155,12 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
           sawChangesDuringSync = true;
           return;
         }
-        if (stripSelfEchoes(paths).length === 0) {
+        const external = stripSelfEchoes(paths);
+        if (external.length === 0) {
           return;
         }
         args.notifier.notifyVault(["files-changed"]);
+        args.onFilesChanged?.({ kind: "paths", paths: external });
         git.scheduleCommit();
       },
       onError: (message) => console.error(`vault watcher: ${message}`),

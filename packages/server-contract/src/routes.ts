@@ -5,6 +5,7 @@ import {
   type ApiSchemaFromRouteDescriptors,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
+import { knowledgeRoutes } from "./knowledge";
 import { threadRoutes } from "./threads";
 import { vaultRoutes } from "./vault";
 
@@ -60,6 +61,7 @@ export const apiRoutes = {
       response: jsonResponse<SystemStatusResponse>(),
     }),
   },
+  knowledge: knowledgeRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,
 };

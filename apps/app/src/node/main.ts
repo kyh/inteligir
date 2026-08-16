@@ -12,6 +12,7 @@ import { z } from "zod";
 import { createApp, type AppFallback } from "./app";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
+import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { listenWithRetry } from "./listen";
 import { unavailableTurnDriver } from "./threads/turn-driver";
 import { redactRemoteUrl } from "./vault/git";
@@ -117,12 +118,23 @@ const schemaVersion = getSchemaVersion(db);
 
 const version = readAppVersion();
 const bus = new WsBus({ version });
+// The knowledge runtime needs the vault service the runtime hands back, so
+// the hook late-binds; changes before it exists are covered by the boot
+// reconcile the first pass always runs.
+let knowledgeRef: KnowledgeRuntime | null = null;
 const vault = await createVaultRuntime({
   vaultDir: config.vaultDir,
   vaultRemote: config.vaultRemote,
   dataDir: config.dataDir,
   notifier: bus,
+  onFilesChanged: (change) => knowledgeRef?.noteVaultChange(change),
 });
+const knowledge = createKnowledgeRuntime({
+  dataDir: config.dataDir,
+  vault: vault.service,
+  vaultRoot: config.vaultDir,
+});
+knowledgeRef = knowledge;
 const fallback = await fallbackPromise;
 
 const { app, injectWebSocket } = createApp({
@@ -131,6 +143,7 @@ const { app, injectWebSocket } = createApp({
   createTurnDriver: () => unavailableTurnDriver,
   db,
   fallback,
+  knowledge,
   schemaVersion,
   startedAt: Date.now(),
   vault,

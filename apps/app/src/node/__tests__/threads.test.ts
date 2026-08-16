@@ -21,6 +21,7 @@ import { applyTimelineDelta, type TimelineRow } from "@repo/server-contract/thre
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createApp, type CreateAppArgs } from "../app";
+import { createKnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
@@ -89,6 +90,12 @@ async function bootThreadsApp(
     gitEnv: hermeticGitEnv(),
   });
   cleanups.push(() => vault.dispose());
+  const knowledge = createKnowledgeRuntime({
+    dataDir,
+    vault: vault.service,
+    vaultRoot: vaultDir,
+  });
+  cleanups.push(() => knowledge.dispose());
   const args: CreateAppArgs = {
     bus,
     config: {
@@ -104,6 +111,7 @@ async function bootThreadsApp(
     createTurnDriver,
     db,
     fallback: { kind: "none" },
+    knowledge,
     schemaVersion: 2,
     startedAt: Date.now(),
     vault,

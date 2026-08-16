@@ -18,6 +18,9 @@ import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
+import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
+import { renameNoteWithLinkRewrite } from "./knowledge/rename";
+import { registerKnowledgeRoutes } from "./knowledge/routes";
 import { registerThreadRoutes } from "./threads/routes";
 import { ThreadService } from "./threads/service";
 import type { CreateTurnDriver } from "./threads/turn-driver";
@@ -52,6 +55,7 @@ export interface CreateAppArgs {
   /** The thread routes' store; system/status reads nothing from it (schemaVersion below). */
   db: DbConnection;
   fallback: AppFallback;
+  knowledge: KnowledgeRuntime;
   /** Resolved once at boot, after migrate — not a SELECT per status request. */
   schemaVersion: number;
   startedAt: number;
@@ -138,7 +142,15 @@ export function createApp(args: CreateAppArgs) {
       uptimeMs: Date.now() - args.startedAt,
     }),
   );
-  registerVaultRoutes(registrars, args.vault);
+  registerVaultRoutes(registrars, args.vault, (from, to) =>
+    renameNoteWithLinkRewrite({
+      service: args.vault.service,
+      knowledge: args.knowledge,
+      from,
+      to,
+    }),
+  );
+  registerKnowledgeRoutes(registrars, args.knowledge);
 
   registerThreadRoutes({
     routes: { get, post },

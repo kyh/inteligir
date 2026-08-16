@@ -19,10 +19,7 @@
         "src/node/vault/watcher/parcel-child-entry.ts"
       ],
       "project": ["src/**/*.{ts,tsx,css}"],
-      // better-sqlite3 is never imported by this app's source: the prod
-      // bundle externalizes @repo/db's import of it, so the direct dep is
-      // what makes the native module resolvable next to dist-node/main.js.
-      "ignoreDependencies": ["tailwindcss", "better-sqlite3"]
+      "ignoreDependencies": ["tailwindcss"]
     },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it

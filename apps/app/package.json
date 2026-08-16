@@ -17,6 +17,7 @@
     "@parcel/watcher": "catalog:",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
     "@repo/server-contract": "workspace:*",
     "@repo/thread-view": "workspace:*",
     "@repo/typed-routes": "workspace:*",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
+    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

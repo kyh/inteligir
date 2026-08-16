@@ -14,6 +14,7 @@ import { createApiClient } from "@repo/server-contract/client";
 import { serverMessageLenientSchema } from "@repo/server-contract/notifications";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import { createKnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
 import { createVaultRuntime } from "../vault/vault-runtime";
@@ -56,6 +57,12 @@ async function bootApp(options: BootAppOptions = {}): Promise<{
     gitEnv: hermeticGitEnv(),
   });
   cleanups.push(() => vault.dispose());
+  const knowledge = createKnowledgeRuntime({
+    dataDir,
+    vault: vault.service,
+    vaultRoot: vaultDir,
+  });
+  cleanups.push(() => knowledge.dispose());
   const args: CreateAppArgs = {
     bus,
     createTurnDriver: () => unavailableTurnDriver,
@@ -71,6 +78,7 @@ async function bootApp(options: BootAppOptions = {}): Promise<{
     },
     db,
     fallback: options.fallback ?? { kind: "none" },
+    knowledge,
     schemaVersion: getSchemaVersion(db),
     startedAt: Date.now(),
     vault,

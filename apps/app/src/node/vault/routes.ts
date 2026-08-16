@@ -20,9 +20,14 @@ function classifyVaultError(error: unknown): { code: VaultRefusal; body: ApiErro
   return null;
 }
 
+/** The composed rename (link rewrite riding the service's rename); refusals
+ *  surface as the same VaultPathError/VaultServiceError the service throws. */
+export type RenameNote = (from: string, to: string) => Promise<{ path: string }>;
+
 export function registerVaultRoutes(
   registrars: Pick<TypedRoutesRegistrars, "get" | "post" | "put">,
   vault: VaultRuntime,
+  renameNote: RenameNote,
 ): void {
   const { get, post, put } = registrars;
 
@@ -63,7 +68,7 @@ export function registerVaultRoutes(
 
   post(apiRoutes.vault.rename, async (c, body) => {
     try {
-      return c.json(await vault.service.rename(body.from, body.to));
+      return c.json(await renameNote(body.from, body.to));
     } catch (error) {
       const refusal = classifyVaultError(error);
       if (refusal?.code === "invalid_path") {

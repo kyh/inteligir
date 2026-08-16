@@ -17,6 +17,7 @@ import {
 } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
+import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { WsBus, type BusSocket } from "../../ws-bus";
 import { createVaultRuntime } from "../vault-runtime";
@@ -49,6 +50,12 @@ async function bootVaultApp() {
     gitEnv: hermeticGitEnv(),
   });
   cleanups.push(() => vault.dispose());
+  const knowledge = createKnowledgeRuntime({
+    dataDir,
+    vault: vault.service,
+    vaultRoot: vaultDir,
+  });
+  cleanups.push(() => knowledge.dispose());
   const { app } = createApp({
     bus,
     createTurnDriver: () => unavailableTurnDriver,
@@ -64,6 +71,7 @@ async function bootVaultApp() {
       vaultRemote: null,
     },
     fallback: { kind: "none" },
+    knowledge,
     schemaVersion: getSchemaVersion(db),
     startedAt: Date.now(),
     vault,
