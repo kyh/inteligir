@@ -23,8 +23,8 @@ import {
 
 import type { SyntaxNodeRef } from '@lezer/common';
 import { syntaxTree } from '@codemirror/language';
-// PATCHED: house drag-freeze seam, see decoration-update-filter.ts.
-import { allowsSelectionRebuild } from '../decoration-update-filter';
+// PATCHED: house drag-freeze seam, see src/decoration-update-filter.ts.
+import { allowsSelectionRebuild } from '../../../../decoration-update-filter';
 
 const buildDecorations = (state: EditorState) => {
   const decorations: Range<Decoration>[] = [];

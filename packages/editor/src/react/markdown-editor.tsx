@@ -1,5 +1,5 @@
 import type { Extension } from "@codemirror/state";
-import { type ReactElement, useEffect, useRef } from "react";
+import { type ReactElement, useEffect, useLayoutEffect, useRef } from "react";
 import {
   createMarkdownEditor,
   type MarkdownEditor as MarkdownEditorHandle,
@@ -26,7 +26,10 @@ export const MarkdownEditor = (props: MarkdownEditorProps): ReactElement => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const propsRef = useRef(props);
 
-  useEffect(() => {
+  // Layout effect, not a passive one: editor events can fire between the
+  // commit and passive effects (focus handlers, a queued dispatch), and a
+  // passive sync would hand them the previous render's callbacks.
+  useLayoutEffect(() => {
     propsRef.current = props;
   });
 
@@ -44,9 +47,14 @@ export const MarkdownEditor = (props: MarkdownEditorProps): ReactElement => {
       },
       extensions: propsRef.current.extensions ?? [],
     });
-    propsRef.current.onEditor?.(editor);
+    // The null on teardown must go to the SAME callback that received the
+    // handle: reading the ref at cleanup time would skip a replaced callback
+    // (the old one never learns the handle died, the new one gets a null for
+    // an editor it never saw).
+    const notifiedOnEditor = propsRef.current.onEditor;
+    notifiedOnEditor?.(editor);
     return () => {
-      propsRef.current.onEditor?.(null);
+      notifiedOnEditor?.(null);
       editor.destroy();
     };
   }, []);

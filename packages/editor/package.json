@@ -12,6 +12,7 @@
     "./heading-margin-marks": "./src/heading-margin-marks.ts",
     "./task-checkbox": "./src/task-checkbox.ts",
     "./drag-freeze": "./src/drag-freeze.ts",
+    "./decoration-update-filter": "./src/decoration-update-filter.ts",
     "./force-parse-healer": "./src/force-parse-healer.ts",
     "./editor-theme": "./src/editor-theme.ts",
     "./react/markdown-editor": "./src/react/markdown-editor.tsx",

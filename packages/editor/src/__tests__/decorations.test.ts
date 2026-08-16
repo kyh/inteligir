@@ -61,10 +61,15 @@ describe("hide decorations", () => {
     expect(hidden).toContainEqual([gone + 6, gone + 8]);
   });
 
-  test("link renders: marks and URL hide, whole link styles as a link", () => {
+  test("link renders: every mark and the URL hide, whole link styles as a link", () => {
     const link = posOf(doc, "[label](https://example.com)");
     const url = posOf(doc, "https://example.com");
+    // LinkMark by LinkMark: `[`, `]`, `(`, then the URL, then `)`.
+    expect(hidden).toContainEqual([link, link + 1]);
+    expect(hidden).toContainEqual([link + 6, link + 7]);
+    expect(hidden).toContainEqual([link + 7, link + 8]);
     expect(hidden).toContainEqual([url, url + "https://example.com".length]);
+    expect(hidden).toContainEqual([link + 27, link + 28]);
     expect(rangesWithClass(state.field(hideExtension), "cm-rendered-link")).toContainEqual([
       link,
       link + "[label](https://example.com)".length,
@@ -131,5 +136,55 @@ describe("frontmatter", () => {
       from: openingLine.to,
       to: posOf(doc, "---\n\n# Heading") + 3,
     });
+  });
+});
+
+describe("link forms", () => {
+  const linkDoc = `start here
+
+Titled [t](https://x.dev "my title") link.
+
+Full [ref link][id] reference and bare [alone] brackets.
+
+[id]: https://y.dev
+`;
+  const state = stateWithStack(linkDoc, 0);
+  const hidden = rangesWithClass(state.field(hideExtension), "cm-hidden-token");
+
+  test("a link title hides with the URL", () => {
+    const title = posOf(linkDoc, '"my title"');
+    expect(hidden).toContainEqual([title, title + '"my title"'.length]);
+  });
+
+  test("a reference link hides its label", () => {
+    const label = posOf(linkDoc, "[id] reference");
+    expect(hidden).toContainEqual([label, label + "[id]".length]);
+  });
+
+  test("bare [brackets] with no destination stay literal", () => {
+    const bare = posOf(linkDoc, "[alone]");
+    const hiddenInBareSpan = hidden.filter(
+      ([from]) => from >= bare && from < bare + "[alone]".length,
+    );
+    expect(hiddenInBareSpan).toEqual([]);
+  });
+});
+
+describe("escapes", () => {
+  const escapeDoc = `start here
+
+A real escape \\* and a literal \\a backslash and a trailing \\
+end.
+`;
+  const state = stateWithStack(escapeDoc, 0);
+  const hidden = rangesWithClass(state.field(hideExtension), "cm-hidden-token");
+
+  test("only ASCII-punctuation escapes hide their backslash", () => {
+    const real = posOf(escapeDoc, "\\*");
+    expect(hidden).toContainEqual([real, real + 1]);
+    const literal = posOf(escapeDoc, "\\a");
+    expect(hidden).not.toContainEqual([literal, literal + 1]);
+    const trailing = posOf(escapeDoc, "\\\nend");
+    expect(hidden).not.toContainEqual([trailing, trailing + 1]);
   });
 });

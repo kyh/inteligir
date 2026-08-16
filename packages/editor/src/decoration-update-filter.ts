@@ -1,9 +1,9 @@
-// House seam, NOT upstream ProseMark — see PROVENANCE.md. Upstream's hide and
-// fold StateFields rebuild on every selection change, which flickers during a
-// drag-selection; writer-computer forked ProseMark for exactly this hook. The
-// two cores consult this facet before rebuilding on a selection-only
-// transaction, so a drag-freeze extension can defer the rebuild without
-// forking the fields.
+// The seam the vendored ProseMark cores lack: upstream's hide and fold
+// StateFields rebuild on every selection change, which flickers during a
+// drag-selection (writer-computer forked ProseMark for exactly this hook).
+// The two vendored cores are patched to consult this facet before rebuilding
+// on a selection-only transaction, so a drag-freeze extension can defer the
+// rebuild without forking the fields. See vendor/prosemark/PROVENANCE.md.
 import { Facet, type Transaction } from "@codemirror/state";
 
 /**

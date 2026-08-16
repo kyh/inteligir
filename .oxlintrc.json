@@ -150,7 +150,10 @@
     {
       // VENDORED code (ProseMark core, MIT — see the dir's PROVENANCE.md):
       // upstream's style trips assertion and unicorn rules this repo enforces
-      // on house code. Kept byte-close for re-vendor diffability; only these
+      // on house code. Everything under this glob is upstream-authored files
+      // (house-authored seams live OUTSIDE src/vendor, under full house
+      // rules; the in-file patches are minimal edits, each recorded in
+      // PROVENANCE.md). Kept byte-close for re-vendor diffability; only these
       // rules relax, and only here. oxfmt ignores the same directory for the
       // same reason.
       "files": ["packages/editor/src/vendor/**"],

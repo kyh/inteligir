@@ -83,6 +83,16 @@ export const defaultHideExtensions = defaultHidableSpecs.map((spec) =>
   hidableNodeFacet.of(spec),
 );
 
+// PATCHED: upstream treated EVERY backslash as an Escape, so the hide spec
+// swallowed literal content (`\a`, a lone backslash, backslash-newline).
+// CommonMark only escapes ASCII punctuation; anything else stays plain text,
+// matching the stock Escape parser this one runs before.
+const isAsciiPunctuation = (code: number): boolean =>
+  (code >= 33 && code <= 47) ||
+  (code >= 58 && code <= 64) ||
+  (code >= 91 && code <= 96) ||
+  (code >= 123 && code <= 126);
+
 export const escapeMarkdownSyntaxExtension: MarkdownConfig = {
   defineNodes: [
     {
@@ -95,6 +105,7 @@ export const escapeMarkdownSyntaxExtension: MarkdownConfig = {
       name: 'EscapeMark',
       parse: (cx: InlineContext, next: number, pos: number): number => {
         if (next !== 92 /* \ */) return -1;
+        if (!isAsciiPunctuation(cx.char(pos + 1))) return -1;
         return cx.addElement(
           cx.elt('Escape', pos, pos + 2, [cx.elt('EscapeMark', pos, pos + 1)]),
         );

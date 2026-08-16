@@ -5,6 +5,9 @@ import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 const PARSE_OVERSHOOT = 4000;
 const PARSE_BUDGET_MS = 150;
 const DEFER_MS = 50;
+// One budget-exceeded pass on a huge document is expected; retry with backoff
+// (50/100/200/400/800ms) instead of waiting for the next viewport change.
+const MAX_ATTEMPTS = 5;
 
 /**
  * The hide/fold decorations are whole-document StateFields built from the
@@ -12,7 +15,8 @@ const DEFER_MS = 50;
  * reached yet shows undecorated raw markdown until it catches up. This healer
  * watches viewport changes and, when the tree does not cover the viewport,
  * defers a bounded `forceParsing` — deferred because parsing dispatches, which
- * is illegal mid-update.
+ * is illegal mid-update. A pass that exhausts its budget reschedules itself,
+ * bounded, so healing never depends on another scroll.
  */
 export const forceParseHealerExtension = ViewPlugin.fromClass(
   class {
@@ -20,29 +24,31 @@ export const forceParseHealerExtension = ViewPlugin.fromClass(
     private destroyed = false;
 
     constructor(readonly view: EditorView) {
-      this.schedule(view);
+      this.schedule(0);
     }
 
     update(update: ViewUpdate): void {
-      if (update.viewportChanged) this.schedule(update.view);
+      if (update.viewportChanged) this.schedule(0);
     }
 
-    schedule(view: EditorView): void {
-      const target = Math.min(view.state.doc.length, view.viewport.to + PARSE_OVERSHOOT);
-      if (syntaxTreeAvailable(view.state, target)) return;
+    target(): number {
+      return Math.min(this.view.state.doc.length, this.view.viewport.to + PARSE_OVERSHOOT);
+    }
+
+    schedule(attempt: number): void {
       if (this.pending) return;
+      if (syntaxTreeAvailable(this.view.state, this.target())) return;
       this.pending = true;
       setTimeout(() => {
         this.pending = false;
         if (this.destroyed) return;
-        const retarget = Math.min(
-          this.view.state.doc.length,
-          this.view.viewport.to + PARSE_OVERSHOOT,
-        );
-        if (!syntaxTreeAvailable(this.view.state, retarget)) {
-          forceParsing(this.view, retarget, PARSE_BUDGET_MS);
+        const retarget = this.target();
+        if (syntaxTreeAvailable(this.view.state, retarget)) return;
+        const finished = forceParsing(this.view, retarget, PARSE_BUDGET_MS);
+        if (!finished && attempt + 1 < MAX_ATTEMPTS) {
+          this.schedule(attempt + 1);
         }
-      }, DEFER_MS);
+      }, DEFER_MS << attempt);
     }
 
     destroy(): void {

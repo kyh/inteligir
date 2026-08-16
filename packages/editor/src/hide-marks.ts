@@ -1,10 +1,19 @@
-import type { Extension } from "@codemirror/state";
+import type { Extension, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
-import { type HidableNodeSpec, hidableNodeFacet } from "./vendor/prosemark/lib/hide/core";
+import {
+  type HidableNodeSpec,
+  hidableNodeFacet,
+  hideInlineDecoration,
+} from "./vendor/prosemark/lib/hide/core";
 import { stateWORDAt } from "./vendor/prosemark/lib/utils";
 
 const renderedLinkDecoration = Decoration.mark({ class: "cm-rendered-link" });
 const inlineCodeDecoration = Decoration.mark({ class: "cm-inline-code" });
+
+// The link's non-label children, hidden per child so every form renders as its
+// label alone: inline `[l](url "title")` hides URL and LinkTitle, reference
+// `[l][id]` hides the LinkLabel, and LinkMark covers the brackets and parens.
+const HIDDEN_LINK_CHILDREN = new Set(["LinkMark", "URL", "LinkTitle", "LinkLabel"]);
 
 // The first-cut hide surface, declared here rather than taken from ProseMark's
 // default list because ATX headings get the house margin-hang treatment
@@ -26,8 +35,23 @@ const hideSpecs: HidableNodeSpec[] = [
   },
   {
     nodeName: "Link",
-    subNodeNameToHide: ["LinkMark", "URL"],
-    onHide: (_state, node) => renderedLinkDecoration.range(node.from, node.to),
+    onHide: (_state, node) => {
+      const hidden: Range<Decoration>[] = [];
+      let hasDestination = false;
+      for (let child = node.node.firstChild; child; child = child.nextSibling) {
+        if (child.name === "URL" || child.name === "LinkLabel") {
+          hasDestination = true;
+        }
+        if (HIDDEN_LINK_CHILDREN.has(child.name)) {
+          hidden.push(hideInlineDecoration.range(child.from, child.to));
+        }
+      }
+      // A bare `[label]` names no destination — it is not a rendered link, so
+      // hiding its brackets would silently eat literal text.
+      if (!hasDestination) return undefined;
+      hidden.push(renderedLinkDecoration.range(node.from, node.to));
+      return hidden;
+    },
   },
   {
     nodeName: "Strikethrough",

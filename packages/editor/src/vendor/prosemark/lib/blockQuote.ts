@@ -99,6 +99,8 @@ function buildDecorationsFromMeasure(_view: EditorView, data: MeasureData) {
 export const blockQuoteExtension = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet = Decoration.none;
+    // PATCHED: see applyMeasure.
+    destroyed = false;
 
     constructor(view: EditorView) {
       this.requestMeasure(view);
@@ -126,7 +128,23 @@ export const blockQuoteExtension = ViewPlugin.fromClass(
 
     applyMeasure(data: MeasureData, view: EditorView) {
       const newDecos = buildDecorationsFromMeasure(view, data);
+      // PATCHED: upstream only assigned the field, but swapping a plugin's
+      // decorations during a measure write does not invalidate the view — the
+      // new ranges sat unrendered until an unrelated dispatch. When the set
+      // actually changed, nudge the view with an empty transaction (the same
+      // pattern softIndentExtension uses for its refresh rounds).
+      const changed = !RangeSet.eq([this.decorations], [newDecos]);
       this.decorations = newDecos;
+      if (changed) {
+        queueMicrotask(() => {
+          if (this.destroyed) return;
+          view.dispatch({});
+        });
+      }
+    }
+
+    destroy() {
+      this.destroyed = true;
     }
   },
   {

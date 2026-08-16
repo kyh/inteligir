@@ -11,8 +11,8 @@ import {
 import { syntaxTree } from '@codemirror/language';
 import type { SyntaxNodeRef } from '@lezer/common';
 import { type RangeLike, rangeTouchesRange } from '../utils';
-// PATCHED: house drag-freeze seam, see decoration-update-filter.ts.
-import { allowsSelectionRebuild } from '../decoration-update-filter';
+// PATCHED: house drag-freeze seam, see src/decoration-update-filter.ts.
+import { allowsSelectionRebuild } from '../../../../decoration-update-filter';
 
 const hideTheme = EditorView.theme({
   '.cm-hidden-token': {

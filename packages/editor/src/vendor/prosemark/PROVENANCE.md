@@ -25,29 +25,46 @@ directory mark house-authored files.
 
 ## Local patches
 
-Every patched site carries a `// PATCHED:` comment.
+Every patched site carries a `// PATCHED:` comment, with two mechanical
+exceptions listed at the end of this section: the added `override` modifiers
+and the stripped `eslint-disable` directives, which are enumerated there
+instead of marked per line.
 
 - Every file: two-line attribution header prepended.
-- `lib/decoration-update-filter.ts` — **added, house-authored** (not
-  upstream): the facet seam `hide/core.ts` and `fold/core.ts` consult before
-  rebuilding decorations on a selection-only transaction, so the house
-  drag-freeze extension can defer rebuilds without forking the fields.
 - `lib/hide/core.ts`, `lib/fold/core.ts` — the `update()` guard routes
-  selection-only rebuilds through that seam.
+  selection-only rebuilds through a house facet seam
+  (`src/decoration-update-filter.ts`, OUTSIDE this directory — it is
+  house-authored, so it lives under house rules; the vendored cores import it
+  through the patched line). The seam is what the house drag-freeze extension
+  provides values for, so rebuilds can be deferred without forking the fields.
+- `lib/hide/index.ts` — the EscapeMark inline parser accepted EVERY backslash
+  as an Escape, so the hide spec removed literal content (`\a`, a lone
+  backslash, backslash-newline). Restricted to CommonMark's ASCII-punctuation
+  escapes. Also: `firstChild!` replaced with a null guard (this repo forbids
+  non-null assertions).
+- `lib/blockQuote.ts` — upstream swapped the plugin's decorations inside a
+  measure write without invalidating the view, so new ranges sat unrendered
+  until an unrelated dispatch; the patch nudges the view with an empty
+  transaction when the set changed (softIndentExtension's own pattern), with a
+  destroy guard.
 - `lib/clickLink.ts` — imports `EditorView` from `@codemirror/view` instead of
   the `codemirror` metapackage; explicit `return undefined` in the
   `iterChildren` callback (`noImplicitReturns`).
-- `lib/hide/index.ts` — `firstChild!` replaced with a null guard (this repo
-  forbids non-null assertions).
 - `lib/fold/image.ts` — explicit `return undefined` on the no-URL path
   (`noImplicitReturns`).
-- Widget classes in `blockQuote.ts`, `codeFenceExtension.ts`,
-  `tabWidthExtension.ts` and `fold/{task,bulletList,horizontalRule,dashes,image}.ts`
-  — `override` modifiers added (`noImplicitOverride`).
-- `lib/revealBlockOnArrow.ts` — upstream `eslint-disable` directives stripped
-  (unmatched directives are errors under this repo's oxlint config).
 - `tests/*.test.ts` — ported from `bun:test` to vitest; `.ts` import
   extensions dropped (`allowImportingTsExtensions` is off here).
+
+Unmarked mechanical patches (no per-line `// PATCHED:` comments):
+
+- `override` modifiers added for this repo's `noImplicitOverride` on every
+  `WidgetType` subclass method — `Checkbox` (fold/task.ts), `BulletPoint`
+  (fold/bulletList.ts), `HorizontalRuleWidget` (fold/horizontalRule.ts),
+  `DashWidget` (fold/dashes.ts), `ImageWidget` (fold/image.ts),
+  `NestedBlockQuoteBorder` (blockQuote.ts), `FixedTabWidthWidget`
+  (tabWidthExtension.ts), `CodeBlockInfoWidget` (codeFenceExtension.ts).
+- `lib/revealBlockOnArrow.ts` — upstream `eslint-disable` directives stripped
+  (unmatched directives are errors under this repo's oxlint config).
 
 ## Re-vendor recipe
 

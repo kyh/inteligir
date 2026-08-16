@@ -1,6 +1,6 @@
 import { type Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, ViewPlugin } from "@codemirror/view";
-import { selectionRebuildFilter } from "./vendor/prosemark/lib/decoration-update-filter";
+import { selectionRebuildFilter } from "./decoration-update-filter";
 
 const setDragFreeze = StateEffect.define<boolean>();
 
@@ -28,9 +28,12 @@ const dragFreezePointerPlugin = ViewPlugin.fromClass(
   class {
     constructor(readonly view: EditorView) {
       this.view.contentDOM.addEventListener("pointerdown", this.onPointerDown);
-      // Window-level release: a drag routinely ends outside the editor.
+      // Window-level release: a drag routinely ends outside the editor, and a
+      // focus loss mid-drag (alt-tab, dialog) delivers no pointerup at all —
+      // without the blur release the freeze would hold forever.
       window.addEventListener("pointerup", this.onPointerRelease);
       window.addEventListener("pointercancel", this.onPointerRelease);
+      window.addEventListener("blur", this.onPointerRelease);
     }
 
     onPointerDown = (event: PointerEvent): void => {
@@ -47,6 +50,7 @@ const dragFreezePointerPlugin = ViewPlugin.fromClass(
       this.view.contentDOM.removeEventListener("pointerdown", this.onPointerDown);
       window.removeEventListener("pointerup", this.onPointerRelease);
       window.removeEventListener("pointercancel", this.onPointerRelease);
+      window.removeEventListener("blur", this.onPointerRelease);
     }
   },
 );

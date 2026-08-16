@@ -2,7 +2,7 @@ import { EditorSelection } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, test } from "vitest";
 import { createMarkdownEditor } from "../create-markdown-editor";
-import { selectionRebuildFilter } from "../vendor/prosemark/lib/decoration-update-filter";
+import { selectionRebuildFilter } from "../decoration-update-filter";
 import { hideExtension } from "../vendor/prosemark/lib/hide/core";
 import { posOf, rangesWithClass, stateWithStack } from "./helpers";
 
@@ -88,10 +88,21 @@ describe("drag freeze over a live view", () => {
     view = undefined;
   });
 
-  test("pointer drag freezes decorations; release rebuilds once", () => {
+  test("pointer drag freezes decorations; release restores them in one transaction", () => {
+    const transactions: { selection: boolean; docChanged: boolean }[] = [];
     const editor = createMarkdownEditor({
       parent: document.body,
       doc,
+      extensions: [
+        EditorView.updateListener.of((update) => {
+          for (const tr of update.transactions) {
+            transactions.push({
+              selection: tr.selection !== undefined,
+              docChanged: tr.docChanged,
+            });
+          }
+        }),
+      ],
     });
     view = editor.view;
     const [open] = boldMarks();
@@ -104,8 +115,32 @@ describe("drag freeze over a live view", () => {
     // Frozen mid-drag: the reveal is deferred.
     expect(hiddenRanges(view.state)).toContainEqual(open);
 
+    // The release itself is exactly ONE transaction — the selection nudge that
+    // lets the fields rebuild — and it writes nothing.
+    transactions.length = 0;
     window.dispatchEvent(new MouseEvent("pointerup"));
-    // Released: the nudge rebuilt with the settled selection.
+    expect(transactions).toEqual([{ selection: true, docChanged: false }]);
+    expect(hiddenRanges(view.state)).not.toContainEqual(open);
+
+    // A second release is a no-op: the freeze is already clear.
+    transactions.length = 0;
+    window.dispatchEvent(new MouseEvent("pointerup"));
+    expect(transactions).toEqual([]);
+  });
+
+  test("losing window focus mid-drag releases the freeze", () => {
+    const editor = createMarkdownEditor({ parent: document.body, doc });
+    view = editor.view;
+    const [open] = boldMarks();
+
+    view.contentDOM.dispatchEvent(new MouseEvent("pointerdown", { button: 0, bubbles: true }));
+    view.dispatch({
+      selection: EditorSelection.single(posOf(doc, "bold") + 1),
+    });
+    expect(hiddenRanges(view.state)).toContainEqual(open);
+
+    // No pointerup ever arrives (alt-tab mid-drag); blur must release.
+    window.dispatchEvent(new Event("blur"));
     expect(hiddenRanges(view.state)).not.toContainEqual(open);
   });
 });
