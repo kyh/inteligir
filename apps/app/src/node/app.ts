@@ -1,8 +1,8 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// bb's server composition (apps/server/src/server.ts), trimmed: one Hono root
-// splitting /api/v1 (the contract table), GET /ws (the invalidation bus), and
-// a fallback — vite middlewares in dev, static client + the Start server
-// entry's fetch in prod.
+
+// One Hono root splitting /api/v1 (the contract table), GET /ws (the
+// invalidation bus), and a fallback — vite middlewares in dev, static client
+// + the Start server entry's fetch in prod.
 
 import { readFile, stat } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -12,11 +12,15 @@ import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
 import type { HttpBindings } from "@hono/node-server";
 import { getSchemaVersion } from "@repo/db/meta";
 import type { DbConnection } from "@repo/db/connection";
-import { apiRoutes, type ApiSchema } from "@repo/server-contract/routes";
+import { apiRoutes, type ApiErrorResponse, type ApiSchema } from "@repo/server-contract/routes";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
-import { Hono } from "hono";
+import { Hono, type Context, type Next } from "hono";
+import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
 import type { WsBus } from "./ws-bus";
+
+/** Thrown by the typed-routes validation wrapper; everything else is a 500. */
+class ApiValidationError extends Error {}
 
 type NodeMiddleware = (
   req: IncomingMessage,
@@ -123,10 +127,43 @@ export function createApp(args: CreateAppArgs) {
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
 
+  const allowedOrigins = buildLocalAppOrigins(args.config.port);
+  const guardBrowserRequest = async (c: Context, next: Next) => {
+    const problem = browserRequestProblem(
+      { host: c.req.header("host"), origin: c.req.header("origin") },
+      allowedOrigins,
+    );
+    if (problem !== null) {
+      const body: ApiErrorResponse = {
+        error: "forbidden_origin",
+        message: problem.error,
+      };
+      return c.json(body, problem.status);
+    }
+    await next();
+    return undefined;
+  };
+
   const api = new Hono();
-  api.onError((error, context) => context.json({ message: error.message }, 400));
+  api.use("*", guardBrowserRequest);
+  api.onError((error, context) => {
+    if (error instanceof ApiValidationError) {
+      const body: ApiErrorResponse = {
+        error: "invalid_request",
+        message: error.message,
+      };
+      return context.json(body, 400);
+    }
+    // Never echo internals: the full error goes to the server log only.
+    console.error(`api error on ${context.req.method} ${context.req.path}`, error);
+    const body: ApiErrorResponse = {
+      error: "internal",
+      message: "Internal server error",
+    };
+    return context.json(body, 500);
+  });
   const { get } = typedRoutes<ApiSchema>(api, {
-    onValidationError: (message) => new Error(message),
+    onValidationError: (message) => new ApiValidationError(message),
   });
 
   get(apiRoutes.health, (c) => c.json({ ok: true }));
@@ -139,10 +176,18 @@ export function createApp(args: CreateAppArgs) {
     }),
   );
 
+  // Unmatched API paths answer JSON here — an API caller must never receive
+  // the SPA shell or a Vite page from the fallthrough below.
+  api.all("*", (c) => {
+    const body: ApiErrorResponse = { error: "not_found", message: "Not found" };
+    return c.json(body, 404);
+  });
+
   app.route("/api/v1", api);
 
   app.get(
     "/ws",
+    guardBrowserRequest,
     upgradeWebSocket(() => ({
       onOpen: (_event, socket) => args.bus.registerClient(socket),
       onMessage: (event, socket) => args.bus.handleMessage(socket, event.data),

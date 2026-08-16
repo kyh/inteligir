@@ -1,6 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Trimmed against upstream: the slow-query instrumentation and the large
-// cache/mmap pragmas wait for a database big enough to need them.
 
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";

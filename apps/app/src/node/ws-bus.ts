@@ -1,7 +1,8 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// bb's NotificationHub + client protocol, trimmed to this product's four
-// entities. Implements DbNotifier at the edge: the write layer announces
-// changes, the bus fans them out to the sockets whose subscriptions match.
+
+// The invalidation bus: implements DbNotifier at the edge — the write layer
+// announces changes, the bus fans them out to the sockets whose
+// subscriptions match.
 
 import type { DbNotifier } from "@repo/db/notifier";
 import {
@@ -20,8 +21,11 @@ import {
 /** Structural on purpose: production passes hono/ws WSContext, tests a fake. */
 export interface BusSocket {
   close(code?: number, reason?: string): void;
+  readyState: number;
   send(data: string): void;
 }
+
+const SOCKET_OPEN_STATE = 1;
 
 function subscriptionKeysForMessage(message: ChangedMessage): string[] {
   switch (message.entity) {
@@ -196,6 +200,11 @@ export class WsBus implements DbNotifier {
     }
     const payload = JSON.stringify(parseResult.data);
     for (const socket of sockets) {
+      // A closing/closed socket stays registered until its onClose fires;
+      // sending into it throws on ws and silently drops elsewhere.
+      if (socket.readyState !== SOCKET_OPEN_STATE) {
+        continue;
+      }
       socket.send(payload);
     }
   }

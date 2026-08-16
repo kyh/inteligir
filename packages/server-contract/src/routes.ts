@@ -9,6 +9,19 @@ import { z } from "zod";
 export const healthResponseSchema = z.object({ ok: z.literal(true) }).strict();
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+/**
+ * Every non-2xx API body. `error` is a stable machine-readable class
+ * (`invalid_request`, `forbidden_origin`, `not_found`, `internal`);
+ * `message` is safe for display — internals never reach it.
+ */
+export const apiErrorResponseSchema = z
+  .object({
+    error: z.string().min(1),
+    message: z.string(),
+  })
+  .strict();
+export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
+
 export const systemStatusResponseSchema = z
   .object({
     /** Version of the running @repo/app package, read from its package.json. */

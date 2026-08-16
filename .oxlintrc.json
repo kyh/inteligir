@@ -23,6 +23,7 @@
   },
   "ignorePatterns": [
     "dist",
+    "dist-node",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",

@@ -3,17 +3,33 @@
 // (one process, HMR untouched); prod serves dist/client and the Start server
 // entry's fetch.
 
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { serve } from "@hono/node-server";
 import { createConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
 import { createApp, type AppFallback } from "./app";
 import { resolveAppConfig } from "./config";
+import { ensureDevDataDirOwnership } from "./data-dir";
+import { listenWithRetry } from "./listen";
 import { WsBus } from "./ws-bus";
 
-const appDirUrl = new URL("../../", import.meta.url);
+/**
+ * The app directory (where package.json and dist/ live), from either layout
+ * this entry runs in: src/node/main.ts under tsx, or dist-node/main.js as
+ * the prod bundle.
+ */
+function resolveAppDirUrl(): URL {
+  const candidates = [new URL("../../", import.meta.url), new URL("../", import.meta.url)];
+  for (const candidate of candidates) {
+    if (existsSync(fileURLToPath(new URL("package.json", candidate)))) {
+      return candidate;
+    }
+  }
+  throw new Error("cannot locate the app directory: no package.json beside the entry");
+}
+
+const appDirUrl = resolveAppDirUrl();
 
 function readAppVersion(): string {
   const raw = readFileSync(new URL("package.json", appDirUrl), "utf8");
@@ -64,11 +80,15 @@ async function createProdFallback(): Promise<AppFallback> {
   };
 }
 
+const checkoutPath = process.cwd();
 const config = resolveAppConfig({
-  checkoutPath: process.cwd(),
+  checkoutPath,
   env: process.env,
 });
 mkdirSync(config.dataDir, { recursive: true });
+if (config.mode === "dev" && config.dataDirSource === "default") {
+  ensureDevDataDirOwnership(config.dataDir, checkoutPath);
+}
 
 const db = createConnection(config.databasePath);
 runMigrations(db);
@@ -86,9 +106,13 @@ const { app, injectWebSocket } = createApp({
   version,
 });
 
-const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: config.port }, (info) => {
-  console.log(
-    `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${info.port} — data: ${config.dataDir}`,
-  );
+const { port, server } = await listenWithRetry({
+  fetch: app.fetch,
+  hostname: "127.0.0.1",
+  port: config.port,
+  probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
 });
 injectWebSocket(server);
+console.log(
+  `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir}`,
+);

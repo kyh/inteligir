@@ -2,6 +2,10 @@
   "$schema": "https://turborepo.org/schema.json",
   "extends": ["//"],
   "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "dist-node/**"]
+    },
     "dev": {
       "cache": false,
       "persistent": true,

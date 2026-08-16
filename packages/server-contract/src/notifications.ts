@@ -1,5 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Adapted to this product's entities: system, vault, doc, thread.
 
 import { z } from "zod";
 
@@ -61,16 +60,26 @@ export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
 ]);
 export type RealtimeSubscriptionTarget = z.infer<typeof realtimeSubscriptionTargetSchema>;
 
-export const subscribeMessageSchema = z.object({
-  type: z.literal("subscribe"),
-  target: realtimeSubscriptionTargetSchema,
-});
+/**
+ * Client→server frames parse STRICTLY: the server owns this boundary, and an
+ * unknown field is an unknown client — close(1008), never a quiet strip. The
+ * lenient direction is server→client only (a stale tab against a newer
+ * server), parsed with the lenient schemas below.
+ */
+export const subscribeMessageSchema = z
+  .object({
+    type: z.literal("subscribe"),
+    target: realtimeSubscriptionTargetSchema,
+  })
+  .strict();
 export type SubscribeMessage = z.infer<typeof subscribeMessageSchema>;
 
-export const unsubscribeMessageSchema = z.object({
-  type: z.literal("unsubscribe"),
-  target: realtimeSubscriptionTargetSchema,
-});
+export const unsubscribeMessageSchema = z
+  .object({
+    type: z.literal("unsubscribe"),
+    target: realtimeSubscriptionTargetSchema,
+  })
+  .strict();
 export type UnsubscribeMessage = z.infer<typeof unsubscribeMessageSchema>;
 
 export const clientMessageSchema = z.discriminatedUnion("type", [

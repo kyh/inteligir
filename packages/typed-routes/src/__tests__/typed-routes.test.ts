@@ -97,6 +97,40 @@ describe("typedRoutes", () => {
     expect(await missingQuery.json()).toEqual({ message: "Required" });
   });
 
+  it("throws loudly on a malformed descriptor", () => {
+    const app = createApp();
+    const { get } = typedRoutes<DescriptorTestSchema>(app);
+
+    const missingSchema: unknown = {
+      path: "/search",
+      method: "get",
+      request: { source: "query" },
+      response: { status: 200, format: "json" },
+    };
+    const badMethod: unknown = {
+      path: "/search",
+      method: "fetch",
+      request: { source: "none" },
+      response: { status: 200, format: "json" },
+    };
+    const looseGet = get as (...args: unknown[]) => void;
+    expect(() => looseGet(missingSchema, () => new Response())).toThrow(
+      /expected a path or a route definition/,
+    );
+    expect(() => looseGet(badMethod, () => new Response())).toThrow(
+      /expected a path or a route definition/,
+    );
+  });
+
+  it("throws when a descriptor is registered under the wrong method", () => {
+    const app = createApp();
+    const { post } = typedRoutes<DescriptorTestSchema>(app);
+    const loosePost = post as (...args: unknown[]) => void;
+    expect(() => loosePost(testRoutes.search, () => new Response())).toThrow(
+      /declares method "get" but was registered as "post"/,
+    );
+  });
+
   it("validates JSON bodies on descriptor POST routes", async () => {
     const app = createApp();
     const { post } = typedRoutes<DescriptorTestSchema>(app, {

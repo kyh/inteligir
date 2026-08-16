@@ -1,5 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Adapted to this product's entities: system, vault, doc, thread.
 
 import type {
   DocChangeKind,

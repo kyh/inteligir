@@ -1,8 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Trimmed against upstream: form requests and the binary/text response
-// constructors are dropped until a route needs them, and the `any` type
-// parameters are replaced with `unknown`/constraint bounds to satisfy this
-// repo's lint gate. The wire shapes are unchanged.
 
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { ZodType } from "zod";

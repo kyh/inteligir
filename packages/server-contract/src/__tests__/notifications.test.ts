@@ -58,6 +58,15 @@ describe("strict outbound schemas", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects a subscribe message with an extra top-level field", () => {
+    const result = clientMessageSchema.safeParse({
+      type: "subscribe",
+      target: { kind: "system" },
+      extra: 1,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("lenient inbound schemas", () => {

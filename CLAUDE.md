@@ -35,8 +35,6 @@ packages/
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.
-  node-utils/    @repo/node-utils — Node-only utilities (bb's 0600 atomic
-                 secret files).
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
                  tags, tasks, rename byte-surgery) and the markdown pipeline

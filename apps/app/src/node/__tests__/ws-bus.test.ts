@@ -13,6 +13,7 @@ interface FakeSocket extends BusSocket {
 function createFakeSocket(): FakeSocket {
   const socket: FakeSocket = {
     closed: null,
+    readyState: 1,
     sent: [],
     close(code?: number, reason?: string) {
       socket.closed = { code, reason };
@@ -83,6 +84,21 @@ describe("subscribe/broadcast", () => {
     expect(socket.sent).toHaveLength(2);
   });
 
+  it("skips sockets that are no longer open", () => {
+    const bus = createBus();
+    const open = createFakeSocket();
+    const closing = createFakeSocket();
+    bus.registerClient(open);
+    bus.registerClient(closing);
+    bus.subscribe(open, { kind: "system" });
+    bus.subscribe(closing, { kind: "system" });
+    closing.readyState = 2;
+
+    bus.notifySystem(["config-changed"]);
+    expect(open.sent).toHaveLength(2);
+    expect(closing.sent).toHaveLength(1);
+  });
+
   it("stops delivering after unsubscribe and after unregister", () => {
     const bus = createBus();
     const socket = createFakeSocket();
@@ -145,6 +161,17 @@ describe("handleMessage", () => {
       JSON.stringify({ type: "subscribe", target: { kind: "nope" } }),
     );
     expect(unknownTarget.closed).toEqual({
+      code: 1008,
+      reason: "invalid-message",
+    });
+
+    const extraField = createFakeSocket();
+    bus.registerClient(extraField);
+    bus.handleMessage(
+      extraField,
+      JSON.stringify({ type: "subscribe", target: { kind: "system" }, extra: 1 }),
+    );
+    expect(extraField.closed).toEqual({
       code: 1008,
       reason: "invalid-message",
     });

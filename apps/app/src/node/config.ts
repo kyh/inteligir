@@ -1,7 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// bb's env-vars + runtime data-dir scheme, simplified: one file, two env
-// vars, and the per-checkout instance id hashes the process cwd (bb hashes a
-// supervisor-provided repo root; this process has no supervisor).
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -31,14 +28,25 @@ function defineEnvVar<TValue>(definition: EnvVarDefinition<TValue>): EnvVarDefin
   return definition;
 }
 
-function expandHomeDirectory(pathValue: string, homeDir: string): string {
-  if (pathValue === "~") {
+function parseDataDirValue(name: string, rawValue: string, homeDir: string): string {
+  const trimmed = rawValue.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${name} must not be empty`);
+  }
+  if (trimmed === "~") {
     return homeDir;
   }
-  if (pathValue.startsWith("~/")) {
-    return resolve(homeDir, pathValue.slice(2));
+  if (trimmed.startsWith("~/")) {
+    return resolve(homeDir, trimmed.slice(2));
   }
-  return resolve(pathValue);
+  // Checked BEFORE any resolve(): a relative value would silently anchor to
+  // whatever cwd this process happened to start in.
+  if (!isAbsolute(trimmed)) {
+    throw new Error(
+      `${name} must be an absolute path (got "${trimmed}"). Pass an absolute path, or a ~/ path for a home-relative one.`,
+    );
+  }
+  return resolve(trimmed);
 }
 
 function parsePortValue(name: string, rawPort: string): number {
@@ -55,17 +63,7 @@ const ENV_VARS = {
     name: "INTELIGIR_DATA_DIR",
     description:
       "Absolute (or ~-relative) data directory override; replaces both the prod and per-checkout dev defaults.",
-    parse: ({ homeDir, name, value }) => {
-      const trimmed = value.trim();
-      if (trimmed.length === 0) {
-        throw new Error(`${name} must not be empty`);
-      }
-      const expanded = expandHomeDirectory(trimmed, homeDir);
-      if (!isAbsolute(expanded)) {
-        throw new Error(`${name} must resolve to an absolute path`);
-      }
-      return expanded;
-    },
+    parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
   }),
   port: defineEnvVar({
     name: "INTELIGIR_PORT",
@@ -119,9 +117,16 @@ function createCheckoutHash(checkoutPath: string): string {
 }
 
 /**
- * One dev instance per checkout: parallel worktrees each get their own data
- * dir and default port, so two `pnpm dev`s never share a database or collide
- * on a socket.
+ * THE dev-instance derivation, whole scheme in one place. One dev instance
+ * per checkout, keyed by sha256 of the checkout path, so parallel worktrees
+ * never share a database or collide on a socket:
+ *
+ *   data dir  = ~/.inteligir-dev/<hash truncated to 12 hex chars>
+ *   port      = 21000 + (first 8 hex chars of hash % 8000)   → 21000–28999
+ *
+ * A derived port that turns out taken is probed upward at listen time
+ * (`listen.ts`), bounded; env/managed-config ports are never probed — a
+ * configured port that is busy is an error the user asked to see.
  */
 export function resolveDevInstanceId(checkoutPath: string): string {
   return createCheckoutHash(checkoutPath).slice(0, DEV_HASH_LENGTH);
@@ -135,8 +140,12 @@ export function resolveDevDefaultPort(checkoutPath: string): number {
 export interface AppConfig {
   databasePath: string;
   dataDir: string;
+  /** "default" means derived (prod dir / per-checkout dev dir). */
+  dataDirSource: "env" | "default";
   mode: RuntimeMode;
   port: number;
+  /** Where the port came from; main only probes dev-derived defaults on EADDRINUSE. */
+  portSource: "env" | "managed-config" | "default";
 }
 
 export interface ResolveAppConfigArgs {
@@ -151,23 +160,28 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
   const homeDir = args.homeDir ?? homedir();
   const mode: RuntimeMode = args.env.NODE_ENV === "production" ? "prod" : "dev";
 
+  const envDataDir = readEnvVar(ENV_VARS.dataDir, args.env, homeDir);
   const dataDir =
-    readEnvVar(ENV_VARS.dataDir, args.env, homeDir) ??
+    envDataDir ??
     (mode === "prod"
       ? join(homeDir, PROD_DATA_DIR_NAME)
       : join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(args.checkoutPath)));
 
   const managed = readManagedConfig(dataDir);
 
+  const envPort = readEnvVar(ENV_VARS.port, args.env, homeDir);
   const port =
-    readEnvVar(ENV_VARS.port, args.env, homeDir) ??
+    envPort ??
     managed.port ??
     (mode === "prod" ? PROD_SERVER_PORT : resolveDevDefaultPort(args.checkoutPath));
 
   return {
     databasePath: join(dataDir, SQLITE_DATABASE_FILE_NAME),
     dataDir,
+    dataDirSource: envDataDir === undefined ? "default" : "env",
     mode,
     port,
+    portSource:
+      envPort !== undefined ? "env" : managed.port !== undefined ? "managed-config" : "default",
   };
 }

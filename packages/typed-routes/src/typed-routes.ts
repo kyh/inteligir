@@ -1,7 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Reworked against upstream to satisfy this repo's lint gate: the runtime
-// narrows its loosely-typed arguments with type predicates instead of `as`
-// casts, and the `any`-typed generics are bounded. Behavior is unchanged.
 
 /**
  * Contract-enforced route registration for Hono.
@@ -43,6 +40,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { ZodError, type ZodType } from "zod";
 import type { Endpoint } from "./endpoint";
 import type {
+  AnyRouteRequestDescriptor,
   EndpointFromRouteDescriptor,
   RouteDefinition,
   RouteMethod,
@@ -208,13 +206,36 @@ function isZodSchema(value: unknown): value is ZodType {
   );
 }
 
+const ROUTE_METHODS: readonly RouteMethod[] = ["get", "post", "patch", "delete", "put"];
+
+function isRouteMethod(value: unknown): value is RouteMethod {
+  return typeof value === "string" && ROUTE_METHODS.some((method) => method === value);
+}
+
+function isRouteRequestDescriptor(value: unknown): value is AnyRouteRequestDescriptor {
+  if (typeof value !== "object" || value === null || !("source" in value)) {
+    return false;
+  }
+  if (value.source === "none") {
+    return true;
+  }
+  if (value.source !== "query" && value.source !== "json") {
+    return false;
+  }
+  return "schema" in value && isZodSchema(value.schema);
+}
+
 function isRouteDefinition(value: unknown): value is RouteDefinition {
   return (
     typeof value === "object" &&
     value !== null &&
     "path" in value &&
+    typeof value.path === "string" &&
+    value.path.length > 0 &&
     "method" in value &&
+    isRouteMethod(value.method) &&
     "request" in value &&
+    isRouteRequestDescriptor(value.request) &&
     "response" in value
   );
 }
@@ -308,7 +329,14 @@ function registerFromArgs(
   }
 
   if (!isRouteDefinition(first)) {
-    throw new Error("typedRoutes: expected a path or a route definition");
+    throw new Error(
+      "typedRoutes: expected a path or a route definition (path + method + request + response)",
+    );
+  }
+  if (first.method !== method) {
+    throw new Error(
+      `typedRoutes: route "${first.path}" declares method "${first.method}" but was registered as "${method}"`,
+    );
   }
   if (!isLooseHandler(second)) {
     throw new Error("typedRoutes: expected a handler for the route definition");

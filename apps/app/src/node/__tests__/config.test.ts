@@ -78,6 +78,40 @@ describe("data dir", () => {
       }),
     ).toThrow(/INTELIGIR_DATA_DIR/);
   });
+
+  it("refuses a relative INTELIGIR_DATA_DIR with an actionable message", () => {
+    expect(() =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_DATA_DIR: "relative/data" },
+        homeDir: makeTempDir(),
+      }),
+    ).toThrow(/INTELIGIR_DATA_DIR must be an absolute path \(got "relative\/data"\)/);
+  });
+
+  it("records where the data dir and port came from", () => {
+    const homeDir = makeTempDir();
+    const derived = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
+    expect(derived.dataDirSource).toBe("default");
+    expect(derived.portSource).toBe("default");
+
+    const dataDir = makeTempDir();
+    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 4555 }));
+    const managed = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_DATA_DIR: dataDir },
+      homeDir,
+    });
+    expect(managed.dataDirSource).toBe("env");
+    expect(managed.portSource).toBe("managed-config");
+
+    const env = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_PORT: "4777" },
+      homeDir,
+    });
+    expect(env.portSource).toBe("env");
+  });
 });
 
 describe("port layering: env → managed file → default", () => {
