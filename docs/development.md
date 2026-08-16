@@ -15,7 +15,7 @@ the runnable quickstart for coding agents.
 ## Running
 
 ```bash
-pnpm dev:web        # vite + miniflare — the real Worker, in-process, :5174
+pnpm dev:site        # vite + miniflare — the real Worker, in-process, :5174
 ```
 
 One command runs everything that exists: the marketing site and `/api/auth/*`
@@ -25,10 +25,10 @@ the local D1 file, push the schema, mint an invite and sign up against it.
 
 ## Where state lives
 
-| What                                | Where                                      |
-| ----------------------------------- | ------------------------------------------ |
-| Site + auth Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)               |
-| Accounts, sessions, invites         | D1 (local file under `apps/web/.wrangler`) |
+| What                                 | Where                                      |
+| ------------------------------------ | ------------------------------------------ |
+| Site + auth Worker (`pnpm dev:site`) | 5174 (pinned — `strictPort`)               |
+| Accounts, sessions, invites          | D1 (local file under `apps/web/.wrangler`) |
 
 ## Quality gates
 

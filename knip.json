@@ -8,6 +8,13 @@
   // workspace below states which side of that trade it is on, and why.
   "workspaces": {
     ".": {},
+    "apps/app": {
+      // The Start file routes are the UI roots; the router and the Node entry
+      // are already known to knip (the vite plugin and the dev script).
+      "entry": ["src/routes/**/*.tsx", "src/node/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx,css}"],
+      "ignoreDependencies": ["tailwindcss"]
+    },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it
       // from wrangler.jsonc's `main`. `src/worker/index.ts` is the test suite's
@@ -27,6 +34,22 @@
     // exports are trusted as API rather than reported. Flip this back to
     // `includeEntryExports: true` once the v3 features consume it in-repo.
     "packages/notes": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/typed-routes": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/server-contract": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/db": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/node-utils": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },

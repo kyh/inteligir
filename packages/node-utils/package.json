@@ -1,0 +1,20 @@
+{
+  "name": "@repo/node-utils",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Small Node-only utilities shared by the local server and future shells. `secret-file` is bb's 0600 atomic secret storage: read-or-create with a race-safe exclusive write, atomic overwrite via temp-file rename.",
+  "type": "module",
+  "exports": {
+    "./secret-file": "./src/secret-file.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

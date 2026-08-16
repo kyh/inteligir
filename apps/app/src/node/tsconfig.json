@@ -1,0 +1,9 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.node.json"
+  },
+  "include": ["."]
+}

@@ -14,7 +14,7 @@ own routes and deploy.
 ```sh
 pnpm install
 cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET
-pnpm dev:web        # → the real Worker on miniflare, http://localhost:5174
+pnpm dev:site        # → the real Worker on miniflare, http://localhost:5174
 ```
 
 That's the whole setup — no bootstrap script, no Docker, no cloud account.
@@ -29,7 +29,7 @@ answer at all. Any value works locally.
 This repo ships no seed script and no test account. To get one locally:
 
 ```sh
-pnpm dev:web                                       # vite dev on :5174
+pnpm dev:site                                       # vite dev on :5174
 
 # The local D1 file is materialized lazily, on the first request that touches
 # the binding — `dev` alone does not create it. So hit one, THEN push:
@@ -73,7 +73,7 @@ Runtime — drive the running site with
 
 ```sh
 npm i -g agent-browser && agent-browser install   # once, if missing
-pnpm dev:web
+pnpm dev:site
 agent-browser open http://localhost:5174/
 ```
 

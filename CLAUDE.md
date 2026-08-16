@@ -14,11 +14,29 @@ Turborepo + pnpm monorepo.
 
 ```
 apps/
+  app/           @repo/app — THE PRODUCT (issue #545): one local Node process.
+                 TanStack Start SPA (UI) served by a custom entry (src/node/,
+                 its own tsconfig program) that owns /api/v1 (the contract
+                 table on Hono), the /ws invalidation bus, and the db. Dev
+                 mounts Vite middlewareMode in-process; prod serves
+                 dist/client + the Start server entry's fetch.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
                  marketing site, the auth pages, and Better Auth on D1
                  (invite-gated sign-up). src/worker/ is its own tsconfig
                  program (no DOM — workerd's globals must win).
 packages/
+  typed-routes/  @repo/typed-routes — contract-first Hono route machinery,
+                 vendored from bb (MIT): defineRoute rows, compile-time
+                 handler enforcement, the hc client schema derivation.
+  server-contract/ @repo/server-contract — the wire contract: THE route
+                 table + payload schemas, the typed hc client, and the ws
+                 notification protocol (subscription targets, per-entity
+                 change kinds, strict outbound / lenient inbound).
+  db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
+                 committed SQL migrations applied on boot, the DbNotifier
+                 seam, prefixed-nanoid ids.
+  node-utils/    @repo/node-utils — Node-only utilities (bb's 0600 atomic
+                 secret files).
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
                  tags, tasks, rename byte-surgery) and the markdown pipeline
@@ -37,8 +55,8 @@ packages/
 ## Common Commands
 
 ```bash
-pnpm dev:web          # vite + miniflare on :5174 (pinned, strictPort)
-pnpm dev              # Every workspace
+pnpm dev              # THE PRODUCT (apps/app) — the local server, per-checkout port
+pnpm dev:site         # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)
