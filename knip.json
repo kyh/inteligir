@@ -30,6 +30,20 @@
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
+    // Same trade as packages/notes: built ahead of its v3 consumers (issue
+    // #550), so entry exports are trusted as API. Every vendored ProseMark
+    // module is an entry for the same reason packages/ui trusts its vendored
+    // components: those exports are the UPSTREAM surface, and trimming them
+    // makes the next re-vendor a conflict. dev/ is the human-eyes vite demo.
+    "packages/editor": {
+      "entry": [
+        "src/**/__tests__/**/*.test.ts",
+        "src/vendor/prosemark/lib/**/*.ts",
+        "src/vendor/prosemark/tests/*.test.ts",
+        "dev/main.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "dev/**/*.ts"]
+    },
     // The ONE package that keeps knip's default `includeEntryExports: false`,
     // and the reason is the package rather than the findings. `src/components`
     // is VENDORED shadcn: each file is copied from the registry, recorded in

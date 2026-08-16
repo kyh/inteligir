@@ -146,6 +146,22 @@
           }
         ]
       }
+    },
+    {
+      // VENDORED code (ProseMark core, MIT — see the dir's PROVENANCE.md):
+      // upstream's style trips assertion and unicorn rules this repo enforces
+      // on house code. Kept byte-close for re-vendor diffability; only these
+      // rules relax, and only here. oxfmt ignores the same directory for the
+      // same reason.
+      "files": ["packages/editor/src/vendor/**"],
+      "rules": {
+        "typescript/consistent-type-assertions": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "eslint/no-underscore-dangle": "off",
+        "unicorn/no-array-reverse": "off",
+        "unicorn/no-instanceof-builtins": "off",
+        "unicorn/prefer-add-event-listener": "off"
+      }
     }
   ]
 }
