@@ -125,6 +125,9 @@ export function jsonResponse<Output>(
   options: RouteResponseOptions<201>,
 ): RouteResponseDescriptor<Output, 201, "json">;
 export function jsonResponse<Output>(
+  options: RouteResponseOptions<400>,
+): RouteResponseDescriptor<Output, 400, "json">;
+export function jsonResponse<Output>(
   options: RouteResponseOptions<404>,
 ): RouteResponseDescriptor<Output, 404, "json">;
 export function jsonResponse<Output>(

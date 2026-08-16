@@ -15,6 +15,8 @@ import { serverMessageLenientSchema } from "@repo/server-contract/notifications"
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
 import { unavailableTurnDriver } from "../threads/turn-driver";
+import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
+import { createVaultRuntime } from "../vault/vault-runtime";
 import { WsBus } from "../ws-bus";
 import { makeTempDir } from "./temp-dir";
 
@@ -32,16 +34,30 @@ interface BootAppOptions {
   port?: number;
 }
 
-function bootApp(options: BootAppOptions = {}): {
+async function bootApp(options: BootAppOptions = {}): Promise<{
   args: CreateAppArgs;
   composed: ReturnType<typeof createApp>;
-} {
-  const dataDir = makeTempDir("inteligir-app-test-");
+}> {
+  const instanceDir = makeTempDir("inteligir-app-test-");
+  const dataDir = join(instanceDir, "data");
+  const vaultDir = join(instanceDir, "vault");
+  mkdirSync(dataDir, { recursive: true });
   const databasePath = join(dataDir, "inteligir.db");
   const db = createConnection(databasePath);
   runMigrations(db);
+  const bus = new WsBus({ version: "0.1.0-test" });
+  const vault = await createVaultRuntime({
+    vaultDir,
+    vaultRemote: null,
+    dataDir,
+    notifier: bus,
+    watch: false,
+    syncIntervalMs: null,
+    gitEnv: hermeticGitEnv(),
+  });
+  cleanups.push(() => vault.dispose());
   const args: CreateAppArgs = {
-    bus: new WsBus({ version: "0.1.0-test" }),
+    bus,
     createTurnDriver: () => unavailableTurnDriver,
     config: {
       databasePath,
@@ -50,11 +66,14 @@ function bootApp(options: BootAppOptions = {}): {
       mode: "dev",
       port: options.port ?? 0,
       portSource: "env",
+      vaultDir,
+      vaultRemote: null,
     },
     db,
     fallback: options.fallback ?? { kind: "none" },
     schemaVersion: getSchemaVersion(db),
     startedAt: Date.now(),
+    vault,
     version: "0.1.0-test",
   };
   return { args, composed: createApp(args) };
@@ -76,7 +95,7 @@ function makeProdFallback(): { clientDir: string; fallback: AppFallback } {
 
 describe("the API over the in-process app", () => {
   it("answers /api/v1/health per the contract", async () => {
-    const { composed } = bootApp();
+    const { composed } = await bootApp();
     const response = await composed.app.request("/api/v1/health");
     expect(response.status).toBe(200);
     expect(healthResponseSchema.parse(await response.json())).toEqual({
@@ -85,7 +104,7 @@ describe("the API over the in-process app", () => {
   });
 
   it("answers /api/v1/system/status from the migrated database", async () => {
-    const { args, composed } = bootApp();
+    const { args, composed } = await bootApp();
     const response = await composed.app.request("/api/v1/system/status");
     expect(response.status).toBe(200);
     const status = systemStatusResponseSchema.parse(await response.json());
@@ -96,13 +115,13 @@ describe("the API over the in-process app", () => {
   });
 
   it("404s unmatched paths when no UI fallback is mounted", async () => {
-    const { composed } = bootApp();
+    const { composed } = await bootApp();
     const response = await composed.app.request("/nope");
     expect(response.status).toBe(404);
   });
 
   it("answers unmatched /api/v1 paths with JSON 404, never the SPA shell", async () => {
-    const { composed } = bootApp({ fallback: makeProdFallback().fallback });
+    const { composed } = await bootApp({ fallback: makeProdFallback().fallback });
 
     const apiMiss = await composed.app.request("/api/v1/nope", {
       headers: { accept: "text/html" },
@@ -134,7 +153,7 @@ describe("the prod static layer", () => {
     const { clientDir, fallback } = makeProdFallback();
     mkdirSync(join(clientDir, "assets"));
     writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
-    const { composed } = bootApp({ fallback });
+    const { composed } = await bootApp({ fallback });
 
     const hit = await composed.app.request("/assets/app-abc123.js");
     expect(hit.status).toBe(200);
@@ -152,7 +171,7 @@ describe("the prod static layer", () => {
   it("serves non-asset files no-store and hands non-HTML misses to the Start entry", async () => {
     const { clientDir, fallback } = makeProdFallback();
     writeFileSync(join(clientDir, "favicon.svg"), "<svg/>");
-    const { composed } = bootApp({ fallback });
+    const { composed } = await bootApp({ fallback });
 
     const file = await composed.app.request("/favicon.svg");
     expect(file.status).toBe(200);
@@ -175,7 +194,7 @@ describe("the prod static layer", () => {
 
   it("refuses traversal out of the client dir", async () => {
     const { fallback } = makeProdFallback();
-    const { composed } = bootApp({ fallback });
+    const { composed } = await bootApp({ fallback });
     const traversal = await composed.app.request("/assets/..%2f..%2fetc%2fpasswd");
     expect(traversal.status).toBe(404);
   });
@@ -183,7 +202,7 @@ describe("the prod static layer", () => {
 
 describe("the browser-origin guard", () => {
   it("refuses a foreign Origin on the API", async () => {
-    const { composed } = bootApp();
+    const { composed } = await bootApp();
     const response = await composed.app.request("/api/v1/health", {
       headers: { origin: "http://evil.example" },
     });
@@ -192,7 +211,7 @@ describe("the browser-origin guard", () => {
   });
 
   it("passes Origin-less callers and the app's own origins", async () => {
-    const { composed } = bootApp({ port: 4664 });
+    const { composed } = await bootApp({ port: 4664 });
 
     const originless = await composed.app.request("/api/v1/health");
     expect(originless.status).toBe(200);
@@ -222,7 +241,7 @@ describe("the browser-origin guard", () => {
   });
 
   it("refuses the ws upgrade for a foreign Origin", async () => {
-    const { composed } = bootApp({ port: 4664 });
+    const { composed } = await bootApp({ port: 4664 });
 
     const foreign = await composed.app.request("/ws", {
       headers: { origin: "http://evil.example", upgrade: "websocket" },
@@ -238,7 +257,7 @@ describe("the browser-origin guard", () => {
   });
 
   it("refuses a real upgrade over the wire for a foreign Origin", async () => {
-    const { composed } = bootApp();
+    const { composed } = await bootApp();
     const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
     composed.injectWebSocket(server);
     cleanups.push(
@@ -288,7 +307,7 @@ describe("the browser-origin guard", () => {
 
 describe("the real socket upgrade", () => {
   it("serves the typed client and a live ws round-trip", async () => {
-    const { args, composed } = bootApp();
+    const { args, composed } = await bootApp();
 
     const server = serve({
       fetch: composed.app.fetch,

@@ -9,7 +9,8 @@
     "./notifications": "./src/notifications.ts",
     "./routes": "./src/routes.ts",
     "./thread-timeline": "./src/thread-timeline.ts",
-    "./threads": "./src/threads.ts"
+    "./threads": "./src/threads.ts",
+    "./vault": "./src/vault.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

@@ -21,6 +21,8 @@ import type { AppConfig } from "./config";
 import { registerThreadRoutes } from "./threads/routes";
 import { ThreadService } from "./threads/service";
 import type { CreateTurnDriver } from "./threads/turn-driver";
+import { registerVaultRoutes } from "./vault/routes";
+import type { VaultRuntime } from "./vault/vault-runtime";
 import type { WsBus } from "./ws-bus";
 
 /** Thrown by the typed-routes validation wrapper; everything else is a 500. */
@@ -53,6 +55,7 @@ export interface CreateAppArgs {
   /** Resolved once at boot, after migrate — not a SELECT per status request. */
   schemaVersion: number;
   startedAt: number;
+  vault: VaultRuntime;
   version: string;
 }
 
@@ -121,9 +124,10 @@ export function createApp(args: CreateAppArgs) {
     };
     return context.json(body, 500);
   });
-  const { get, post } = typedRoutes(api, {
+  const registrars = typedRoutes(api, {
     onValidationError: (message) => new ApiValidationError(message),
   });
+  const { get, post } = registrars;
 
   get(apiRoutes.health, (c) => c.json({ ok: true }));
   get(apiRoutes.system.status, (c) =>
@@ -134,6 +138,7 @@ export function createApp(args: CreateAppArgs) {
       uptimeMs: Date.now() - args.startedAt,
     }),
   );
+  registerVaultRoutes(registrars, args.vault);
 
   registerThreadRoutes({
     routes: { get, post },

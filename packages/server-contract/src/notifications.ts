@@ -8,7 +8,7 @@ export const WS_PATH = "/ws";
 export const SYSTEM_CHANGE_KINDS = ["config-changed"] as const;
 export type SystemChangeKind = (typeof SYSTEM_CHANGE_KINDS)[number];
 
-export const VAULT_CHANGE_KINDS = ["files-changed"] as const;
+export const VAULT_CHANGE_KINDS = ["files-changed", "sync-status-changed"] as const;
 export type VaultChangeKind = (typeof VAULT_CHANGE_KINDS)[number];
 
 export const DOC_CHANGE_KINDS = ["content-changed"] as const;

@@ -14,6 +14,8 @@ import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { listenWithRetry } from "./listen";
 import { unavailableTurnDriver } from "./threads/turn-driver";
+import { redactRemoteUrl } from "./vault/git";
+import { createVaultRuntime } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
 
 interface EntryLayout {
@@ -115,6 +117,12 @@ const schemaVersion = getSchemaVersion(db);
 
 const version = readAppVersion();
 const bus = new WsBus({ version });
+const vault = await createVaultRuntime({
+  vaultDir: config.vaultDir,
+  vaultRemote: config.vaultRemote,
+  dataDir: config.dataDir,
+  notifier: bus,
+});
 const fallback = await fallbackPromise;
 
 const { app, injectWebSocket } = createApp({
@@ -125,6 +133,7 @@ const { app, injectWebSocket } = createApp({
   fallback,
   schemaVersion,
   startedAt: Date.now(),
+  vault,
   version,
 });
 
@@ -136,5 +145,5 @@ const { port, server } = await listenWithRetry({
 });
 injectWebSocket(server);
 console.log(
-  `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir}`,
+  `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,
 );
