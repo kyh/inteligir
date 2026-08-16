@@ -6,7 +6,6 @@ import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
 
 const GITHUB_REPO = "kyh/inteligir";
-const FALLBACK_URL = `https://github.com/${GITHUB_REPO}/releases`;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
 function MacLogoIcon({ className }: { className?: string }) {
@@ -17,9 +16,10 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-// Isolate-local memo: one GitHub API hit per worker isolate per hour, falling
-// back to the releases page.
-let cached: { url: string; expires: number } | null = null;
+// Isolate-local memo: one GitHub API hit per worker isolate per hour. A null
+// url means no downloadable release exists — the page renders "coming soon"
+// until the first desktop release is published.
+let cached: { url: string | null; expires: number } | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -38,24 +38,24 @@ function findDmgUrl(payload: unknown): string | null {
   return null;
 }
 
-const getDownloadUrl = createServerFn().handler(async (): Promise<string> => {
+const getDownloadUrl = createServerFn().handler(async (): Promise<string | null> => {
   if (cached && cached.expires > Date.now()) return cached.url;
 
   try {
     const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
       headers: { Accept: "application/vnd.github+json", "User-Agent": "inteligir-web" },
     });
-    if (!res.ok) return FALLBACK_URL;
+    if (!res.ok) return null;
 
     // GitHub's response is untrusted input: PARSE it rather than annotate it.
     // Annotating `await res.json()` with the expected shape is an unchecked
     // assertion — a shape change then surfaces as a TypeError swallowed by the
     // outer catch, which reads as "GitHub is down" instead of "we mis-parsed".
-    const url = findDmgUrl(await res.json()) ?? FALLBACK_URL;
+    const url = findDmgUrl(await res.json());
     cached = { url, expires: Date.now() + CACHE_TTL_MS };
     return url;
   } catch {
-    return FALLBACK_URL;
+    return null;
   }
 });
 
@@ -82,13 +82,20 @@ function Page() {
           </div>
         </div>
         <div className="flex flex-col items-center gap-3 px-6 pb-16">
-          <a
-            href={downloadUrl}
-            className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <MacLogoIcon className="size-5 shrink-0" />
-            Download for Mac
-          </a>
+          {downloadUrl === null ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A]/60 px-6 py-3 text-sm font-medium text-white/80 shadow-lg">
+              <MacLogoIcon className="size-5 shrink-0" />
+              Coming soon for Mac
+            </span>
+          ) : (
+            <a
+              href={downloadUrl}
+              className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <MacLogoIcon className="size-5 shrink-0" />
+              Download for Mac
+            </a>
+          )}
           <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
         </div>
       </main>
