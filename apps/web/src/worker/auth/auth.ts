@@ -4,6 +4,8 @@ import { bearer } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
+import { purgeDeviceRows } from "../device/pairing";
+import { purgeThreadSync } from "../sync/routes";
 import { sendResetEmail } from "./reset-email";
 
 // ---------------------------------------------------------------------------
@@ -166,11 +168,15 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
       deleteUser: {
         enabled: true,
         // BEFORE, not after: a failure here aborts the whole deletion, the
-        // account survives, and the step is idempotent — pressing the button
+        // account survives, and every step is idempotent — pressing the button
         // again resumes it. `afterDelete` would run once the account row is
         // already gone, leaving the invite pointing at nobody with no account
-        // left to ask again.
+        // left to ask again. Deleting the account deletes the account's data:
+        // the ThreadSyncDO's whole storage (thread events, captures, sockets)
+        // and the D1 device/pairing rows go with it.
         beforeDelete: async (user) => {
+          await purgeThreadSync(env, user.id);
+          await purgeDeviceRows(createDb(env.DB), user.id);
           await forgetInviteRedeemer(env, user.email);
         },
       },

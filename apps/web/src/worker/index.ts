@@ -1,22 +1,34 @@
+import { handleArtifactsMint } from "./artifacts";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
+import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
+import { handleSyncRoutes } from "./sync/routes";
+
+// The Durable Object class must be exported from the entry the runtime loads:
+// this file for the test suite (vitest.config `main`), ./server.ts for deploy.
+export { ThreadSyncDO } from "./sync/thread-sync-do";
 
 // ---------------------------------------------------------------------------
 // The API half of the one Worker this app deploys (./server.ts routes
 // `OWNED_PREFIXES` here and everything else to the marketing site's SSR
 // handler).
 //
-// One surface: /api/auth/* — Better Auth (email+password, bearer), running
-// in-process over Drizzle + D1 (`createAuth(env).handler`) — plus the invite
-// gate, the capability probe and the reset page around it.
+// Two surfaces, split by CREDENTIAL:
 //
-// AUTH is a Better Auth SESSION throughout, in one of two shapes: the session
-// COOKIE a browser on this origin carries, or `Authorization: Bearer
-// <session-token>` for a native client (the token comes back in the
-// `set-auth-token` header on sign-in/up, and the bearer plugin lets
-// `auth.api.getSession({ headers })` validate it in-process).
+//   • The account surface — /api/auth/* (Better Auth), the invite gate, the
+//     capability probe, the reset page, and /v1/device/* (pairing mint, the
+//     dashboard's device table). AUTH is a Better Auth SESSION: the cookie a
+//     browser on this origin carries, or `Authorization: Bearer
+//     <session-token>` for a native client.
+//   • The device surface — /v1/sync/*, /v1/capture, /v1/artifacts/mint. AUTH
+//     is the durable DEVICE CREDENTIAL pairing minted (`igd_…` bearer, hash
+//     compare per request, never cached), and every one of these is served by
+//     the caller's own ThreadSyncDO (src/worker/sync/).
+//
+// `POST /v1/device/redeem` is the bridge between the two: the one-time code a
+// session minted is its whole authorization.
 //
 // NO CORS. Every browser client is served by this same Worker from this same
 // origin, and the one cross-origin caller left — a native app — is not a
@@ -84,6 +96,23 @@ async function route(request: Request, env: Env): Promise<Response> {
   // bearer, validation errors — is Better Auth's response untouched.
   if (request.method === "POST" && url.pathname === "/v1/auth/sign-up") {
     return await handleInviteSignUp(request, env);
+  }
+
+  // Device pairing (session-authed except redeem, where the code is the
+  // credential) — src/worker/device/routes.ts.
+  if (url.pathname.startsWith("/v1/device/")) {
+    return await handleDeviceRoutes(request, env, url);
+  }
+
+  // The device-authed sync surface, served by the caller's own ThreadSyncDO —
+  // src/worker/sync/routes.ts.
+  if (url.pathname === "/v1/capture" || url.pathname.startsWith("/v1/sync/")) {
+    return await handleSyncRoutes(request, env, url);
+  }
+
+  // The Artifacts repo + token mint, feature-flagged — src/worker/artifacts.ts.
+  if (request.method === "POST" && url.pathname === "/v1/artifacts/mint") {
+    return await handleArtifactsMint(request, env);
   }
 
   return new Response("not found", { status: 404 });

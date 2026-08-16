@@ -21,10 +21,17 @@ apps/
                  mounts Vite middlewareMode in-process; prod serves
                  dist/client + the Start server entry's fetch.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
-                 marketing site, the auth pages, and Better Auth on D1
-                 (invite-gated sign-up). src/worker/ is its own tsconfig
-                 program (no DOM — workerd's globals must win).
+                 marketing site, the auth pages, Better Auth on D1
+                 (invite-gated sign-up), and the v3 cloud (issue #554):
+                 device pairing, the per-user ThreadSyncDO (merged thread log
+                 + capture inbox + ws invalidation), the flag-gated Artifacts
+                 mint. src/worker/ is its own tsconfig program (no DOM —
+                 workerd's globals must win).
 packages/
+  cloud-contract/ @repo/cloud-contract — the cloud wire contract (zod only):
+                 pairing, device auth, sync push/pull, captures, the ws ping
+                 frames, the typed error envelope. The Worker implements it;
+                 the local app's sync client consumes it.
   typed-routes/  @repo/typed-routes — contract-first Hono route machinery,
                  vendored from bb (MIT): defineRoute rows, compile-time
                  handler enforcement, the hc client schema derivation.

@@ -1,0 +1,27 @@
+{
+  "name": "@repo/cloud-contract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The wire contract between the cloud Worker and the local app: pairing + device auth, thread-sync push/pull, the capture inbox, the Artifacts mint, the ws ping frames and the typed error envelope. Deliberately dependency-light (zod only) — the Worker implements it, the app's sync client consumes it.",
+  "type": "module",
+  "exports": {
+    "./artifacts": "./src/artifacts.ts",
+    "./captures": "./src/captures.ts",
+    "./errors": "./src/errors.ts",
+    "./pairing": "./src/pairing.ts",
+    "./sync": "./src/sync.ts",
+    "./ws": "./src/ws.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
