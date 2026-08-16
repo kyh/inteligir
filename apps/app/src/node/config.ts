@@ -11,6 +11,8 @@ type RuntimeMode = "dev" | "prod";
 
 export const PROD_DATA_DIR_NAME = ".inteligir";
 export const DEV_DATA_ROOT_DIR = ".inteligir-dev";
+const PROD_VAULT_DIR_NAME = "Inteligir";
+const DEV_VAULT_DIR_NAME = "vault";
 const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
 const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
@@ -50,6 +52,22 @@ function parseDataDirValue(name: string, rawValue: string, homeDir: string): str
   return resolve(trimmed);
 }
 
+/**
+ * Git remote "URLs" include scp-like forms (git@host:path) that no URL parser
+ * accepts, so the only structural check is non-empty and whitespace-free —
+ * git itself is the validator that matters.
+ */
+function parseRemoteUrlValue(name: string, rawValue: string): string {
+  const trimmed = rawValue.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${name} must not be empty`);
+  }
+  if (/\s/u.test(trimmed)) {
+    throw new Error(`${name} must not contain whitespace`);
+  }
+  return trimmed;
+}
+
 function parsePortValue(name: string, rawPort: string): number {
   const port = Number(rawPort);
   if (String(port) !== rawPort || !Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -71,6 +89,17 @@ const ENV_VARS = {
     description: "TCP port for the local server.",
     parse: ({ name, value }) => parsePortValue(name, value.trim()),
   }),
+  vaultDir: defineEnvVar({
+    name: "INTELIGIR_VAULT_DIR",
+    description:
+      "Absolute (or ~-relative) vault directory override; replaces both the prod (~/Inteligir) and dev (<dataDir>/vault) defaults.",
+    parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
+  }),
+  vaultRemote: defineEnvVar({
+    name: "INTELIGIR_VAULT_REMOTE",
+    description: "Git remote URL the vault syncs against; unset means local-only.",
+    parse: ({ name, value }) => parseRemoteUrlValue(name, value),
+  }),
 };
 
 function readEnvVar<TValue>(
@@ -91,6 +120,8 @@ function readEnvVar<TValue>(
  */
 const managedConfigSchema = z.object({
   port: z.number().int().min(1).max(65_535).optional(),
+  vaultDir: z.string().min(1).optional(),
+  vaultRemote: z.string().min(1).optional(),
 });
 
 function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema> {
@@ -146,6 +177,10 @@ export interface AppConfig {
   port: number;
   /** Where the port came from; main only probes dev-derived defaults on EADDRINUSE. */
   portSource: "env" | "managed-config" | "default";
+  /** The vault: a git repo of markdown files, created on first boot if absent. */
+  vaultDir: string;
+  /** null means local-only — no sync loop runs. */
+  vaultRemote: string | null;
 }
 
 export interface ResolveAppConfigArgs {
@@ -175,6 +210,21 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     managed.port ??
     (mode === "prod" ? PROD_SERVER_PORT : resolveDevDefaultPort(args.checkoutPath));
 
+  const envVaultDir = readEnvVar(ENV_VARS.vaultDir, args.env, homeDir);
+  const vaultDir =
+    envVaultDir ??
+    (managed.vaultDir === undefined
+      ? undefined
+      : parseDataDirValue("config.json vaultDir", managed.vaultDir, homeDir)) ??
+    (mode === "prod" ? join(homeDir, PROD_VAULT_DIR_NAME) : join(dataDir, DEV_VAULT_DIR_NAME));
+
+  const envVaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir);
+  const vaultRemote =
+    envVaultRemote ??
+    (managed.vaultRemote === undefined
+      ? null
+      : parseRemoteUrlValue("config.json vaultRemote", managed.vaultRemote));
+
   return {
     databasePath: join(dataDir, SQLITE_DATABASE_FILE_NAME),
     dataDir,
@@ -183,5 +233,7 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     port,
     portSource:
       envPort !== undefined ? "env" : managed.port !== undefined ? "managed-config" : "default",
+    vaultDir,
+    vaultRemote,
   };
 }

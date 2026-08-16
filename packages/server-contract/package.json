@@ -7,7 +7,8 @@
   "exports": {
     "./client": "./src/client.ts",
     "./notifications": "./src/notifications.ts",
-    "./routes": "./src/routes.ts"
+    "./routes": "./src/routes.ts",
+    "./vault": "./src/vault.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

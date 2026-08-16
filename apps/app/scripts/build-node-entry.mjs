@@ -23,11 +23,28 @@ await build({
   banner: { js: NODE_ESM_REQUIRE_BANNER },
   bundle: true,
   entryPoints: ["src/node/main.ts"],
-  external: ["better-sqlite3", "vite"],
+  external: ["better-sqlite3", "@parcel/watcher", "vite"],
   format: "esm",
   legalComments: "none",
   logLevel: "info",
   outfile: "dist-node/main.js",
+  platform: "node",
+  sourcemap: true,
+  target: "node24",
+});
+
+// The watcher child is its own process, so its entry cannot ride inside
+// main.js: fork-channel resolves this bundle as a SIBLING of the running
+// entry (dist-node/parcel-watcher-child.mjs).
+await build({
+  banner: { js: NODE_ESM_REQUIRE_BANNER },
+  bundle: true,
+  entryPoints: ["src/node/vault/watcher/parcel-child-entry.ts"],
+  external: ["@parcel/watcher"],
+  format: "esm",
+  legalComments: "none",
+  logLevel: "info",
+  outfile: "dist-node/parcel-watcher-child.mjs",
   platform: "node",
   sourcemap: true,
   target: "node24",

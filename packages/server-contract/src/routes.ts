@@ -5,6 +5,7 @@ import {
   type ApiSchemaFromRouteDescriptors,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
+import { vaultRoutes } from "./vault";
 
 /** Where the route table below is mounted; client and server both derive from it. */
 export const API_BASE_PATH = "/api/v1";
@@ -58,6 +59,7 @@ export const apiRoutes = {
       response: jsonResponse<SystemStatusResponse>(),
     }),
   },
+  vault: vaultRoutes,
 };
 
 export type ApiSchema = ApiSchemaFromRouteDescriptors<typeof apiRoutes>;
