@@ -5,7 +5,7 @@ import type {
   ThreadLifecycleNoopReason,
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
 import type { DbNotifier } from "./notifier";
@@ -33,6 +33,7 @@ export function createThread(
       id: createThreadId(),
       title: input.title ?? null,
       status: "idle",
+      activeTurnId: null,
       originDocPath: input.originDocPath ?? null,
       originAnchor: input.originAnchor ?? null,
       archivedAt: null,
@@ -45,17 +46,31 @@ export function createThread(
   return row;
 }
 
-export function getThread(db: DbConnection, id: string): ThreadRow | null {
+/** Accepts a transaction so read-decide-write flows load the row under the
+ *  same lock they act on. */
+export function getThread(db: ThreadWriteConnection, id: string): ThreadRow | null {
   return db.select().from(threads).where(eq(threads.id, id)).get() ?? null;
 }
 
-/** Every thread, live before archived, newest-updated first within each. */
+/**
+ * Every thread, live before archived, newest-updated first within each — as
+ * two scans so each is answered by its own partial index (see the schema)
+ * instead of a temp b-tree sort.
+ */
 export function listThreads(db: DbConnection): ThreadRow[] {
-  return db
+  const live = db
     .select()
     .from(threads)
-    .orderBy(sql`${threads.archivedAt} IS NOT NULL`, desc(threads.updatedAt))
+    .where(isNull(threads.archivedAt))
+    .orderBy(desc(threads.updatedAt))
     .all();
+  const archived = db
+    .select()
+    .from(threads)
+    .where(isNotNull(threads.archivedAt))
+    .orderBy(desc(threads.updatedAt))
+    .all();
+  return [...live, ...archived];
 }
 
 export function archiveThread(
@@ -112,7 +127,12 @@ function applyThreadLifecycleEventRecord(
     event: args.event,
     // v1 has no thread deletion; the vendored predicate contract keeps the
     // field so deletion arrives as a column, not a domain change.
-    thread: { status: thread.status, archivedAt: thread.archivedAt, deletedAt: null },
+    thread: {
+      status: thread.status,
+      activeTurnId: thread.activeTurnId,
+      archivedAt: thread.archivedAt,
+      deletedAt: null,
+    },
   });
   if ("noop" in evaluation) {
     return {
@@ -122,13 +142,22 @@ function applyThreadLifecycleEventRecord(
     };
   }
 
-  // Compare-and-set on the loaded status: belt-and-braces under
-  // better-sqlite3's synchronous transactions, and the contract that survives
-  // any future executor change.
+  // Compare-and-set on the loaded (status, activeTurnId) pair: belt-and-braces
+  // under better-sqlite3's synchronous transactions, and the contract that
+  // survives any future executor change. The turn id is part of the predicate
+  // so a settle validated against turn A can never land after turn B bound.
   const updated = db
     .update(threads)
-    .set({ status: evaluation.to, updatedAt: Date.now() })
-    .where(and(eq(threads.id, args.threadId), eq(threads.status, thread.status)))
+    .set({ status: evaluation.to, activeTurnId: evaluation.activeTurnId, updatedAt: Date.now() })
+    .where(
+      and(
+        eq(threads.id, args.threadId),
+        eq(threads.status, thread.status),
+        thread.activeTurnId === null
+          ? isNull(threads.activeTurnId)
+          : eq(threads.activeTurnId, thread.activeTurnId),
+      ),
+    )
     .returning()
     .get();
   if (!updated) {

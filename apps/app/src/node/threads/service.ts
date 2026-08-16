@@ -1,17 +1,28 @@
 // The threads core: one service owning the send modes, the provider event
-// ingest (the ONLY writer of provider events), and the queue drain — so the
-// HTTP handlers, the fake driver and the future codex adapter (#549) all
-// converge on a single append path with server-assigned sequences.
+// ingest (the ONLY writer of provider events), and the queue drain. The two
+// laws every method obeys:
+//   1. Ingest and send each read state, validate, append, project lifecycle
+//      and touch the queue inside ONE synchronous transaction — a completion
+//      can never race a send decision, and a subscriber can never observe a
+//      notification for state that rolled back (NotificationBuffer flushes
+//      after commit).
+//   2. Every cross-boundary identity is checked, never assumed: an ingest
+//      refuses events naming another thread, and a settle names its turn —
+//      the lifecycle CAS makes a late completion for an old turn a logged
+//      no-op instead of a wrong-turn transition.
+// The one deliberate exception to (1): driver dispatch happens AFTER commit,
+// because a scripted driver re-enters ingest synchronously and a transaction
+// cannot nest; a dispatch failure is folded back in its own transaction
+// (provider/error + run.failed), so a driver crash cannot wedge `starting`.
 
-import type { DbConnection } from "@repo/db/connection";
+import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
-  appendEvents,
-  getOpenTurnId,
+  appendEventsInTransaction,
   listStoredThreadEvents,
   type StoredThreadEvent,
 } from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
-import type { DbNotifier } from "@repo/db/notifier";
+import { NotificationBuffer, type DbNotifier } from "@repo/db/notifier";
 import {
   getPendingInteraction,
   listOpenPendingInteractions,
@@ -19,12 +30,14 @@ import {
   type PendingInteractionRow,
 } from "@repo/db/pending-interactions";
 import {
-  claimNextQueuedThreadMessage,
-  createQueuedThreadMessage,
+  claimNextQueuedThreadMessageInTransaction,
+  createQueuedThreadMessageInTransaction,
   deleteClaimedQueuedThreadMessage,
+  releaseQueuedMessageClaim,
+  type ClaimedQueuedThreadMessageRow,
 } from "@repo/db/queued-messages";
 import {
-  applyThreadLifecycleEvent,
+  applyThreadLifecycleEventInTransaction,
   archiveThread,
   createThread,
   getThread,
@@ -32,7 +45,7 @@ import {
   type ThreadRow,
 } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { threadScope } from "@repo/domain/thread-event-scope";
+import { getThreadEventScopeTurnId, threadScope } from "@repo/domain/thread-event-scope";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import type {
   AnswerInteractionRequest,
@@ -43,14 +56,10 @@ import type {
   TimelineQuery,
   TimelineResponse,
 } from "@repo/server-contract/threads";
-import { computeTimelineRowDelta } from "@repo/server-contract/thread-timeline";
+import { computeTimelineDelta } from "@repo/server-contract/thread-timeline";
 import { buildThreadTimeline } from "@repo/thread-view/build-thread-timeline";
-import {
-  TurnDriverUnavailableError,
-  type CreateTurnDriver,
-  type ProviderEventSink,
-  type TurnDriver,
-} from "./turn-driver";
+import { TurnDriverUnavailableError, type CreateTurnDriver, type TurnDriver } from "./turn-driver";
+import type { ProviderEventSink } from "./turn-driver";
 
 export type SendOutcome =
   | { kind: "started"; turnId: string }
@@ -58,12 +67,25 @@ export type SendOutcome =
   | { kind: "queued"; queuedMessageId: string }
   | { kind: "not-found" }
   | { kind: "conflict"; error: "stale_turn" | "not_steerable" | "archived"; message: string }
-  | { kind: "provider-unavailable" };
+  | { kind: "provider-unavailable" }
+  | { kind: "dispatch-failed" };
+
+type SendDecision =
+  | { kind: "dispatch"; threadId: string; turnId: string; text: string }
+  | { kind: "done"; outcome: SendOutcome };
 
 export type AnswerInteractionOutcome =
   | { kind: "resolved"; interaction: PendingInteraction }
   | { kind: "not-found" }
   | { kind: "already-resolved" };
+
+/** An ingest batch named one thread but carried an event for another. */
+export class ThreadEventThreadIdMismatchError extends Error {
+  constructor(expected: string, actual: string) {
+    super(`Ingest for thread ${expected} carried an event for thread ${actual}`);
+    this.name = "ThreadEventThreadIdMismatchError";
+  }
+}
 
 export interface ThreadServiceArgs {
   db: DbConnection;
@@ -76,6 +98,7 @@ function toWireThread(row: ThreadRow): Thread {
     id: row.id,
     title: row.title,
     status: row.status,
+    activeTurnId: row.activeTurnId,
     originDocPath: row.originDocPath,
     originAnchor: row.originAnchor,
     archivedAt: row.archivedAt,
@@ -113,6 +136,7 @@ export class ThreadService implements ProviderEventSink {
     this.db = args.db;
     this.notifier = args.notifier;
     this.driver = args.createTurnDriver(this);
+    this.recoverWedgedThreads();
   }
 
   create(input: CreateThreadRequest): Thread {
@@ -148,46 +172,72 @@ export class ThreadService implements ProviderEventSink {
   }
 
   send(request: SendMessageRequest): SendOutcome {
-    const thread = getThread(this.db, request.threadId);
+    const buffer = new NotificationBuffer();
+    const decision = this.db.transaction(
+      (tx) => this.resolveSendInTransaction(tx, request, buffer),
+      { behavior: "immediate" },
+    );
+    buffer.flushTo(this.notifier);
+    if (decision.kind === "dispatch") {
+      return this.dispatchTurn(decision);
+    }
+    return decision.outcome;
+  }
+
+  /** The whole read-decide-write of a send under one lock: status, turn
+   *  identity, steer acceptance, queue insert or turn preparation. */
+  private resolveSendInTransaction(
+    tx: DbTransaction,
+    request: SendMessageRequest,
+    buffer: NotificationBuffer,
+  ): SendDecision {
+    const thread = getThread(tx, request.threadId);
     if (thread === null) {
-      return { kind: "not-found" };
+      return { kind: "done", outcome: { kind: "not-found" } };
     }
     if (thread.archivedAt !== null) {
       return {
-        kind: "conflict",
-        error: "archived",
-        message: "The thread is archived",
+        kind: "done",
+        outcome: { kind: "conflict", error: "archived", message: "The thread is archived" },
       };
     }
-
-    const openTurnId = getOpenTurnId(this.db, thread.id);
-    if (request.expectedTurnId !== undefined && request.expectedTurnId !== openTurnId) {
+    if (request.expectedTurnId !== undefined && request.expectedTurnId !== thread.activeTurnId) {
       return {
-        kind: "conflict",
-        error: "stale_turn",
-        message: "The turn this message addressed is no longer the open one",
+        kind: "done",
+        outcome: {
+          kind: "conflict",
+          error: "stale_turn",
+          message: "The turn this message addressed is no longer the open one",
+        },
       };
     }
 
     switch (thread.status) {
       case "idle":
       case "error":
-        return this.startNewTurn(thread.id, request.text);
+        return this.prepareTurnInTransaction(tx, thread.id, request.text, buffer);
       case "active": {
         if (request.mode === "queue-if-active") {
-          return this.queueMessage(thread.id, request.text);
+          return this.queueInTransaction(tx, thread.id, request.text, buffer);
         }
         if (
-          openTurnId === null ||
-          !this.driver.steerTurn({ threadId: thread.id, turnId: openTurnId, text: request.text })
+          thread.activeTurnId === null ||
+          !this.driver.steerTurn({
+            threadId: thread.id,
+            turnId: thread.activeTurnId,
+            text: request.text,
+          })
         ) {
           return {
-            kind: "conflict",
-            error: "not_steerable",
-            message: "The active turn cannot be steered",
+            kind: "done",
+            outcome: {
+              kind: "conflict",
+              error: "not_steerable",
+              message: "The active turn cannot be steered",
+            },
           };
         }
-        appendEvents(this.db, this.notifier, [
+        appendEventsInTransaction(tx, [
           {
             type: "client/turn/requested",
             threadId: thread.id,
@@ -196,20 +246,107 @@ export class ThreadService implements ProviderEventSink {
             scope: threadScope(),
           },
         ]);
-        return { kind: "steered", turnId: openTurnId };
+        buffer.notifyThread(thread.id, ["events-appended"]);
+        return { kind: "done", outcome: { kind: "steered", turnId: thread.activeTurnId } };
       }
       case "starting":
       case "stopping": {
         if (request.mode === "queue-if-active") {
-          return this.queueMessage(thread.id, request.text);
+          return this.queueInTransaction(tx, thread.id, request.text, buffer);
         }
         return {
-          kind: "conflict",
-          error: "not_steerable",
-          message: `A ${thread.status} thread has no steerable turn`,
+          kind: "done",
+          outcome: {
+            kind: "conflict",
+            error: "not_steerable",
+            message: `A ${thread.status} thread has no steerable turn`,
+          },
         };
       }
     }
+  }
+
+  private queueInTransaction(
+    tx: DbTransaction,
+    threadId: string,
+    text: string,
+    buffer: NotificationBuffer,
+  ): SendDecision {
+    const queued = createQueuedThreadMessageInTransaction(tx, { threadId, text });
+    buffer.notifyThread(threadId, ["queue-changed"]);
+    return { kind: "done", outcome: { kind: "queued", queuedMessageId: queued.id } };
+  }
+
+  /** run.preparing + the recorded request, atomically; dispatch happens after
+   *  the caller's commit. */
+  private prepareTurnInTransaction(
+    tx: DbTransaction,
+    threadId: string,
+    text: string,
+    buffer: NotificationBuffer,
+  ): SendDecision {
+    const outcome = applyThreadLifecycleEventInTransaction(tx, {
+      threadId,
+      event: { type: "run.preparing" },
+    });
+    if (!outcome.applied) {
+      return {
+        kind: "done",
+        outcome: {
+          kind: "conflict",
+          error: "not_steerable",
+          message: `Cannot start a turn: ${outcome.detail}`,
+        },
+      };
+    }
+    buffer.notifyThread(threadId, ["status-changed"]);
+    appendEventsInTransaction(tx, [
+      { type: "client/turn/requested", threadId, text, kind: "message", scope: threadScope() },
+    ]);
+    buffer.notifyThread(threadId, ["events-appended"]);
+    return { kind: "dispatch", threadId, turnId: createTurnId(), text };
+  }
+
+  private dispatchTurn(decision: { threadId: string; turnId: string; text: string }): SendOutcome {
+    try {
+      this.driver.startTurn({
+        threadId: decision.threadId,
+        turnId: decision.turnId,
+        text: decision.text,
+      });
+    } catch (error) {
+      this.recordDispatchFailure(decision.threadId, error);
+      return error instanceof TurnDriverUnavailableError
+        ? { kind: "provider-unavailable" }
+        : { kind: "dispatch-failed" };
+    }
+    return { kind: "started", turnId: decision.turnId };
+  }
+
+  /** ANY dispatch throw settles the run: provider/error recorded and the
+   *  thread lands in `error`, never wedged in `starting`. */
+  private recordDispatchFailure(threadId: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    const buffer = new NotificationBuffer();
+    this.db.transaction(
+      (tx) => {
+        appendEventsInTransaction(tx, [
+          { type: "provider/error", threadId, message, scope: threadScope() },
+        ]);
+        buffer.notifyThread(threadId, ["events-appended"]);
+        const outcome = applyThreadLifecycleEventInTransaction(tx, {
+          threadId,
+          // null: this run never produced a turn, and the match against a
+          // null activeTurnId means a started run can never be killed by it.
+          event: { type: "run.failed", turnId: null },
+        });
+        if (outcome.applied) {
+          buffer.notifyThread(threadId, ["status-changed"]);
+        }
+      },
+      { behavior: "immediate" },
+    );
+    buffer.flushTo(this.notifier);
   }
 
   timeline(query: TimelineQuery): TimelineResponse | null {
@@ -218,22 +355,16 @@ export class ThreadService implements ProviderEventSink {
     }
     const events = listStoredThreadEvents(this.db, { threadId: query.threadId });
     const full = buildThreadTimeline(events);
-    if (query.afterSequence === undefined) {
+    // A delta is served only for a base this log reconstructs exactly; a
+    // client ahead of the log (a rebuilt db) gets the full timeline instead.
+    if (query.afterSequence === undefined || query.afterSequence > full.maxSequence) {
       return { kind: "full", timeline: full };
     }
-    // The client's afterSequence names the log prefix it projected last time;
-    // reprojecting that prefix reproduces its rows exactly (the projection is
-    // pure), so the diff is correct without the server storing any client
-    // state.
     const afterSequence = query.afterSequence;
-    const prevRows = buildThreadTimeline(
+    const base = buildThreadTimeline(
       events.filter((entry: StoredThreadEvent) => entry.sequence <= afterSequence),
-    ).rows;
-    return {
-      kind: "delta",
-      delta: computeTimelineRowDelta(prevRows, full.rows),
-      maxSequence: full.maxSequence,
-    };
+    );
+    return { kind: "delta", delta: computeTimelineDelta(base, full) };
   }
 
   answerInteraction(request: AnswerInteractionRequest): AnswerInteractionOutcome {
@@ -257,91 +388,137 @@ export class ThreadService implements ProviderEventSink {
   }
 
   /**
-   * The one return path for provider events, whatever produced them: append
-   * through the transactional sequence allocator, then fold the lifecycle
-   * signals into the thread's status. A turn settling to idle drains the
-   * queue before this call returns.
+   * The one return path for provider events, whatever produced them. Append,
+   * lifecycle projection and the queue claim share one transaction; the
+   * claimed drain dispatches after commit through the same prepare flow a
+   * send uses.
    */
   ingestProviderEvents(threadId: string, events: readonly ThreadEvent[]): void {
-    appendEvents(this.db, this.notifier, events);
-    for (const event of events) {
-      const lifecycleEvent = lifecycleEventFor(event);
-      if (lifecycleEvent === null) {
-        continue;
-      }
-      const outcome = applyThreadLifecycleEvent(this.db, this.notifier, {
-        threadId,
-        event: lifecycleEvent,
-      });
-      if (outcome.applied && outcome.thread.status === "idle") {
-        this.drainQueue(threadId);
-      }
+    const mismatched = events.find((event) => event.threadId !== threadId);
+    if (mismatched !== undefined) {
+      throw new ThreadEventThreadIdMismatchError(threadId, mismatched.threadId);
     }
-  }
-
-  private startNewTurn(threadId: string, text: string): SendOutcome {
-    const preparing = applyThreadLifecycleEvent(this.db, this.notifier, {
-      threadId,
-      event: { type: "run.preparing" },
-    });
-    if (!preparing.applied) {
-      return {
-        kind: "conflict",
-        error: "not_steerable",
-        message: `Cannot start a turn: ${preparing.detail}`,
-      };
-    }
-    appendEvents(this.db, this.notifier, [
-      {
-        type: "client/turn/requested",
-        threadId,
-        text,
-        kind: "message",
-        scope: threadScope(),
-      },
-    ]);
-    const turnId = createTurnId();
-    try {
-      this.driver.startTurn({ threadId, turnId, text });
-    } catch (error) {
-      if (error instanceof TurnDriverUnavailableError) {
-        applyThreadLifecycleEvent(this.db, this.notifier, {
-          threadId,
-          event: { type: "run.failed" },
-        });
-        return { kind: "provider-unavailable" };
-      }
-      throw error;
-    }
-    return { kind: "started", turnId };
-  }
-
-  private queueMessage(threadId: string, text: string): SendOutcome {
-    const queued = createQueuedThreadMessage(this.db, this.notifier, { threadId, text });
-    return { kind: "queued", queuedMessageId: queued.id };
-  }
-
-  private drainQueue(threadId: string): void {
-    const claimed = claimNextQueuedThreadMessage(this.db, this.notifier, threadId);
-    if (claimed === null) {
+    if (events.length === 0) {
       return;
     }
-    // Consumed either way: on a failed dispatch the message is already in the
-    // log as the request the failure answered, so releasing the claim would
-    // only duplicate the user's words on the next drain.
-    deleteClaimedQueuedThreadMessage(this.db, this.notifier, claimed);
-    this.startNewTurn(threadId, claimed.text);
+    const buffer = new NotificationBuffer();
+    const drains: ClaimedQueuedThreadMessageRow[] = [];
+    this.db.transaction(
+      (tx) => {
+        appendEventsInTransaction(tx, events);
+        buffer.notifyThread(threadId, ["events-appended"]);
+        for (const event of events) {
+          const lifecycleEvent = lifecycleEventFor(event);
+          if (lifecycleEvent === null) {
+            continue;
+          }
+          const outcome = applyThreadLifecycleEventInTransaction(tx, {
+            threadId,
+            event: lifecycleEvent,
+          });
+          if (!outcome.applied) {
+            // A late completion for a superseded turn is expected traffic —
+            // logged, never thrown, and it settles nothing.
+            console.warn(
+              `thread ${threadId}: ${lifecycleEvent.type} not applied (${outcome.reason}): ${outcome.detail}`,
+            );
+            continue;
+          }
+          buffer.notifyThread(threadId, ["status-changed"]);
+          if (outcome.thread.status === "idle") {
+            const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
+            if (claimed !== null) {
+              buffer.notifyThread(threadId, ["queue-changed"]);
+              drains.push(claimed);
+            }
+          }
+        }
+      },
+      { behavior: "immediate" },
+    );
+    buffer.flushTo(this.notifier);
+    for (const claimed of drains) {
+      this.dispatchQueuedMessage(threadId, claimed);
+    }
+  }
+
+  private dispatchQueuedMessage(threadId: string, claimed: ClaimedQueuedThreadMessageRow): void {
+    const buffer = new NotificationBuffer();
+    const decision = this.db.transaction(
+      (tx) => this.prepareTurnInTransaction(tx, threadId, claimed.text, buffer),
+      { behavior: "immediate" },
+    );
+    buffer.flushTo(this.notifier);
+    if (decision.kind !== "dispatch") {
+      // The thread refused new work (e.g. archived between settle and drain):
+      // the claim is released, never silently consumed.
+      releaseQueuedMessageClaim(this.db, this.notifier, claimed);
+      return;
+    }
+    const outcome = this.dispatchTurn(decision);
+    if (outcome.kind === "started") {
+      deleteClaimedQueuedThreadMessage(this.db, this.notifier, claimed);
+    } else {
+      releaseQueuedMessageClaim(this.db, this.notifier, claimed);
+    }
+  }
+
+  /**
+   * Crash recovery, run at construction: this process just booted, so no
+   * turn driver claim is live — any thread still marked running is an orphan
+   * of a previous process. run.failed is legal from starting, active and
+   * stopping alike, and it names the orphaned turn so the CAS matches by
+   * construction.
+   */
+  private recoverWedgedThreads(): void {
+    for (const thread of listThreads(this.db)) {
+      if (
+        thread.status !== "starting" &&
+        thread.status !== "active" &&
+        thread.status !== "stopping"
+      ) {
+        continue;
+      }
+      const buffer = new NotificationBuffer();
+      this.db.transaction(
+        (tx) => {
+          appendEventsInTransaction(tx, [
+            {
+              type: "provider/error",
+              threadId: thread.id,
+              message: "The server restarted while this turn was running",
+              scope: threadScope(),
+            },
+          ]);
+          buffer.notifyThread(thread.id, ["events-appended"]);
+          const outcome = applyThreadLifecycleEventInTransaction(tx, {
+            threadId: thread.id,
+            event: { type: "run.failed", turnId: thread.activeTurnId },
+          });
+          if (outcome.applied) {
+            buffer.notifyThread(thread.id, ["status-changed"]);
+          }
+        },
+        { behavior: "immediate" },
+      );
+      buffer.flushTo(this.notifier);
+    }
   }
 }
 
 function lifecycleEventFor(event: ThreadEvent): ThreadLifecycleEvent | null {
+  const turnId = getThreadEventScopeTurnId(event.scope) ?? null;
   switch (event.type) {
     case "turn/started":
-      return { type: "run.started" };
+      // The scope policy makes a turn-less turn/started unparseable; the null
+      // branch only guards a future policy change.
+      return turnId === null ? null : { type: "run.started", turnId };
     case "turn/completed":
       // An interrupted turn still SETTLED — run.succeeded lands it idle from
       // active/starting/stopping alike; only a failed turn reads as an error.
-      return event.status === "failed" ? { type: "run.failed" } : { type: "run.succeeded" };
+      return event.status === "failed"
+        ? { type: "run.failed", turnId }
+        : { type: "run.succeeded", turnId };
     default:
       return null;
   }

@@ -20,9 +20,13 @@ export const threads = sqliteTable(
     id: text("id").primaryKey(),
     title: text("title"),
     status: text("status", { enum: threadStatusValues }).notNull().default("idle"),
+    // The turn the current status describes: bound by run.started, unbound by
+    // every settle. The lifecycle CAS matches settles against it so a late
+    // completion for an old turn cannot settle the running one.
+    activeTurnId: text("active_turn_id"),
     // Set together for a doc-bound delegation (issue #552): the vault doc the
     // thread was spawned from and the stable anchor inside it. Both null for a
-    // plain chat thread.
+    // plain chat thread; the CHECK makes a half-bound origin unrepresentable.
     originDocPath: text("origin_doc_path"),
     originAnchor: text("origin_anchor"),
     archivedAt: integer("archived_at"),
@@ -30,8 +34,20 @@ export const threads = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
-    // The thread list reads live threads newest-first.
-    index("threads_archived_updated_idx").on(table.archivedAt, table.updatedAt),
+    // The list query is two indexed scans (live, then archived), each ordered
+    // by its own partial index — one combined (archived_at, updated_at) index
+    // cannot serve `archived_at IS NOT NULL … ORDER BY updated_at` without a
+    // temp b-tree, because IS NOT NULL is a range over the leading column.
+    index("threads_live_updated_idx")
+      .on(table.updatedAt)
+      .where(sql`${table.archivedAt} IS NULL`),
+    index("threads_archived_updated_idx")
+      .on(table.updatedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
+    check(
+      "threads_origin_pair_check",
+      sql`(${table.originDocPath} IS NULL) = (${table.originAnchor} IS NULL)`,
+    ),
   ],
 );
 

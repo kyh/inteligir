@@ -13,24 +13,28 @@ import type { ThreadStatus } from "./thread-status";
  * work is in progress), `stopping` (the current run/start is winding down),
  * and `error` (quiescent after failure). In-progress intent lives in the
  * status, not in side-fields: a requested stop IS `status = stopping`, not a
- * separate `stopRequestedAt`. Only the orthogonal record dimensions
- * (deletedAt/archivedAt) are fields, surfaced here as supersession predicates.
+ * separate `stopRequestedAt`. The orthogonal record dimensions
+ * (deletedAt/archivedAt) are fields, surfaced here as supersession
+ * predicates; `activeTurnId` names WHICH run the status describes, so a
+ * settle for a turn that is no longer the active one is a stale no-op rather
+ * than a wrong-turn transition.
  *
  * Vocabulary:
  * - `run.preparing` — new work needs preparation before it can run.
- * - `run.started` — the current run is in progress.
- * - `run.succeeded` — the current run completed successfully.
- * - `run.failed` — the current run/start failed.
+ * - `run.started` — the named turn is in progress.
+ * - `run.succeeded` — the named run completed successfully.
+ * - `run.failed` — the named run/start failed (null = a dispatch that never
+ *   produced a turn).
  * - `stop.requested` — the user/system asked to stop the current run/start.
- * - `stop.settled` — stop/interruption finished and the thread is idle.
+ * - `stop.settled` — stop/interruption of the named run finished.
  */
 export type ThreadLifecycleEvent =
   | { type: "run.preparing" }
-  | { type: "run.started" }
-  | { type: "run.succeeded" }
-  | { type: "run.failed" }
+  | { type: "run.started"; turnId: string }
+  | { type: "run.succeeded"; turnId: string | null }
+  | { type: "run.failed"; turnId: string | null }
   | { type: "stop.requested" }
-  | { type: "stop.settled" };
+  | { type: "stop.settled"; turnId: string | null };
 
 export type ThreadLifecycleEventType = ThreadLifecycleEvent["type"];
 
@@ -99,21 +103,23 @@ export const THREAD_LIFECYCLE: Record<
 };
 
 /**
- * The thread-row fields supersession predicates evaluate against. `deletedAt`
- * stays in the vendored contract even though v1 ships no thread deletion —
- * the db adapter passes null until a delete surface exists, so the FSM table
- * matches bb's and deletion arrives as a column, not a domain change.
+ * The thread-row fields lifecycle evaluation reads. `deletedAt` stays in the
+ * vendored contract even though v1 ships no thread deletion — the db adapter
+ * passes null until a delete surface exists, so the FSM table matches bb's
+ * and deletion arrives as a column, not a domain change.
  */
 export interface ThreadLifecycleRowState {
+  /** The turn the current status describes; null whenever no run is bound. */
+  activeTurnId: string | null;
   archivedAt: number | null;
   deletedAt: number | null;
   status: ThreadStatus;
 }
 
-export type ThreadLifecycleNoopReason = "illegal-transition" | "superseded";
+export type ThreadLifecycleNoopReason = "illegal-transition" | "superseded" | "stale-turn";
 
 export type ThreadLifecycleEvaluation =
-  | { to: ThreadStatus }
+  | { to: ThreadStatus; activeTurnId: string | null }
   | { noop: ThreadLifecycleNoopReason; detail: string };
 
 export interface EvaluateThreadLifecycleEventArgs {
@@ -121,11 +127,28 @@ export interface EvaluateThreadLifecycleEventArgs {
   thread: ThreadLifecycleRowState;
 }
 
+/** The turn a settling event names, or a marker that the event settles nothing. */
+function settlingTurnId(event: ThreadLifecycleEvent): { settles: boolean; turnId: string | null } {
+  switch (event.type) {
+    case "run.succeeded":
+    case "run.failed":
+    case "stop.settled":
+      return { settles: true, turnId: event.turnId };
+    case "run.preparing":
+    case "run.started":
+    case "stop.requested":
+      return { settles: false, turnId: null };
+  }
+}
+
 /**
  * Pure evaluation of a lifecycle event against a loaded thread row.
- * Supersession is checked before table lookup so a stale event on a
- * deleted/archived thread reports "superseded" even when the current status
- * has no cell for it.
+ * Supersession and turn identity are checked before table lookup, so a stale
+ * event on a deleted/archived thread — or a settle for a turn that is no
+ * longer the active one — reports its true diagnosis even when the current
+ * status has no cell for it. An applied evaluation carries the next
+ * `activeTurnId` alongside the next status: run.started binds the named
+ * turn, every settle unbinds it, everything else carries it over.
  */
 export function evaluateThreadLifecycleEvent(
   args: EvaluateThreadLifecycleEventArgs,
@@ -139,6 +162,14 @@ export function evaluateThreadLifecycleEvent(
     return { noop: "superseded", detail: "archivedAt set" };
   }
 
+  const settling = settlingTurnId(event);
+  if (settling.settles && settling.turnId !== thread.activeTurnId) {
+    return {
+      noop: "stale-turn",
+      detail: `${event.type} names turn ${settling.turnId ?? "<none>"} but the active turn is ${thread.activeTurnId ?? "<none>"}`,
+    };
+  }
+
   const to = THREAD_LIFECYCLE[thread.status][event.type];
   if (to === undefined) {
     return {
@@ -146,5 +177,9 @@ export function evaluateThreadLifecycleEvent(
       detail: `no transition for ${event.type} from status ${thread.status}`,
     };
   }
-  return { to };
+  return {
+    to,
+    activeTurnId:
+      event.type === "run.started" ? event.turnId : settling.settles ? null : thread.activeTurnId,
+  };
 }

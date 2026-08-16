@@ -56,6 +56,30 @@ describe("queued thread messages", () => {
     expect(claimNextQueuedThreadMessage(db, noopNotifier, thread.id)).toBeNull();
   });
 
+  it("never hands one message to two claimants across separate connections", () => {
+    const db = openTempDb();
+    const rival = createConnection(db.$client.name);
+    const thread = createThread(db, noopNotifier, {});
+    createQueuedThreadMessage(db, noopNotifier, { threadId: thread.id, text: "one" });
+    createQueuedThreadMessage(db, noopNotifier, { threadId: thread.id, text: "two" });
+
+    const first = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
+    const second = claimNextQueuedThreadMessage(rival, noopNotifier, thread.id);
+    expect(first?.text).toBe("one");
+    expect(second?.text).toBe("two");
+    expect(claimNextQueuedThreadMessage(rival, noopNotifier, thread.id)).toBeNull();
+    // A rival delete without the claim token cannot steal the held message.
+    if (!first) {
+      throw new Error("expected a claim");
+    }
+    expect(
+      deleteClaimedQueuedThreadMessage(rival, noopNotifier, {
+        id: first.id,
+        claimToken: "claim_forged",
+      }),
+    ).toBe(false);
+  });
+
   it("stays FIFO across a same-millisecond burst", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});

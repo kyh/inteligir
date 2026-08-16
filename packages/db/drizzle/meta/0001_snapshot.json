@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "06120f29-8121-4d3a-8734-1d6f1635a9fd",
+  "id": "8003320c-346c-46f5-892a-dc5fe2305cae",
   "prevId": "886f25ec-af1c-4223-ac7a-4e9113e398bf",
   "tables": {
     "events": {
@@ -348,6 +348,13 @@
           "autoincrement": false,
           "default": "'idle'"
         },
+        "active_turn_id": {
+          "name": "active_turn_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "origin_doc_path": {
           "name": "origin_doc_path",
           "type": "text",
@@ -385,16 +392,28 @@
         }
       },
       "indexes": {
+        "threads_live_updated_idx": {
+          "name": "threads_live_updated_idx",
+          "columns": ["updated_at"],
+          "isUnique": false,
+          "where": "\"threads\".\"archived_at\" IS NULL"
+        },
         "threads_archived_updated_idx": {
           "name": "threads_archived_updated_idx",
-          "columns": ["archived_at", "updated_at"],
-          "isUnique": false
+          "columns": ["updated_at"],
+          "isUnique": false,
+          "where": "\"threads\".\"archived_at\" IS NOT NULL"
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "threads_origin_pair_check": {
+          "name": "threads_origin_pair_check",
+          "value": "(\"threads\".\"origin_doc_path\" IS NULL) = (\"threads\".\"origin_anchor\" IS NULL)"
+        }
+      }
     }
   },
   "views": {},

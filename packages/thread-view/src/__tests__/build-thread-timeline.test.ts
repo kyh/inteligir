@@ -2,7 +2,7 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import {
   applyTimelineDelta,
-  computeTimelineRowDelta,
+  computeTimelineDelta,
   threadTimelineSchema,
 } from "@repo/server-contract/thread-timeline";
 import { describe, expect, it } from "vitest";
@@ -238,22 +238,82 @@ describe("buildThreadTimeline", () => {
     expect(errorRow.detail).toBe("socket closed");
   });
 
-  it("keeps delta application identical to a full rebuild at every prefix", () => {
+  it("keeps delta application identical to a full rebuild — the WHOLE timeline value — at every prefix", () => {
     const events = stored(streamedTurnEvents());
     const full = buildThreadTimeline(events);
     for (let cut = 0; cut <= events.length; cut += 1) {
-      const prefixRows = buildThreadTimeline(events.slice(0, cut)).rows;
-      const delta = computeTimelineRowDelta(prefixRows, full.rows);
-      expect(applyTimelineDelta(prefixRows, delta)).toEqual(full.rows);
+      const base = buildThreadTimeline(events.slice(0, cut));
+      const delta = computeTimelineDelta(base, full);
+      expect(delta.fromSequence).toBe(base.maxSequence);
+      expect(applyTimelineDelta(base, delta)).toEqual(full);
+    }
+  });
+
+  it("refuses a delta whose base is not the held timeline", () => {
+    const events = stored(streamedTurnEvents());
+    const full = buildThreadTimeline(events);
+    const held = buildThreadTimeline(events.slice(0, 8));
+    // The delta was computed against a different prefix than the one held.
+    const staleDelta = computeTimelineDelta(buildThreadTimeline(events.slice(0, 5)), full);
+    expect(applyTimelineDelta(held, staleDelta)).toBeNull();
+    // And a matching base still applies cleanly.
+    const freshDelta = computeTimelineDelta(buildThreadTimeline(events.slice(0, 8)), full);
+    expect(applyTimelineDelta(held, freshDelta)).toEqual(full);
+  });
+
+  it("converges to the full rebuild under any interleaving of stale and fresh responses", () => {
+    // The client protocol under test: hold a timeline, apply whatever delta
+    // arrives; a null application means refetch in full. Deltas here are
+    // computed against arbitrary bases — many of them stale — in a seeded
+    // random interleaving, and every accepted state must equal the rebuild of
+    // SOME event prefix (never a chimera), converging to the full rebuild.
+    const events = stored(streamedTurnEvents());
+    const prefixes = Array.from({ length: events.length + 1 }, (_, cut) =>
+      buildThreadTimeline(events.slice(0, cut)),
+    );
+    const full = prefixes[events.length];
+    if (!full) {
+      throw new Error("expected the full projection");
+    }
+    for (let seed = 1; seed <= 50; seed += 1) {
+      let state = seed;
+      const random = () => {
+        state = (state + 0x6d2b79f5) | 0;
+        let t = Math.imul(state ^ (state >>> 15), 1 | state);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+      const prefixAt = (index: number) => {
+        const prefix = prefixes[index];
+        if (!prefix) {
+          throw new Error("prefix out of range");
+        }
+        return prefix;
+      };
+      let held = prefixAt(Math.floor(random() * prefixes.length));
+      for (let step = 0; step < 20; step += 1) {
+        const base = prefixAt(Math.floor(random() * prefixes.length));
+        const target = prefixAt(Math.floor(random() * prefixes.length));
+        const applied = applyTimelineDelta(held, computeTimelineDelta(base, target));
+        held = applied ?? full;
+        const expected = prefixes.find((prefix) => prefix.maxSequence === held.maxSequence);
+        expect(held).toEqual(expected);
+      }
+      const finalDelta = computeTimelineDelta(
+        prefixes.find((prefix) => prefix.maxSequence === held.maxSequence) ?? full,
+        full,
+      );
+      held = applyTimelineDelta(held, finalDelta) ?? full;
+      expect(held).toEqual(full);
     }
   });
 
   it("omits rowOrder while a row is merely streaming new content", () => {
     const events = stored(streamedTurnEvents());
     // Between deltas 10 and 11 only the assistant row's text changes.
-    const before = buildThreadTimeline(events.slice(0, 10)).rows;
-    const after = buildThreadTimeline(events.slice(0, 11)).rows;
-    const delta = computeTimelineRowDelta(before, after);
+    const before = buildThreadTimeline(events.slice(0, 10));
+    const after = buildThreadTimeline(events.slice(0, 11));
+    const delta = computeTimelineDelta(before, after);
     expect(delta.rowOrder).toBeUndefined();
     // The streaming row and its turn (whose sourceSeqEnd advanced) upsert;
     // membership and order stay implicit.

@@ -21,6 +21,7 @@ import { applyTimelineDelta, type TimelineRow } from "@repo/server-contract/thre
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createApp, type CreateAppArgs } from "../app";
+import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
 import { WsBus } from "../ws-bus";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
@@ -337,6 +338,171 @@ describe("the queue drain", () => {
         .map((row) => (row.kind === "conversation" ? row.text : "")),
     ).toEqual(["first", "q1", "q2"]);
   });
+
+  it("releases the claim instead of consuming the message when dispatch fails", async () => {
+    const { client, db, driver } = bootThreadsApp({ mode: "manual" });
+    if (!driver) {
+      throw new Error("expected the fake driver");
+    }
+    const threadId = await createThread(client);
+    const started = sendResponseSchema.parse(
+      await (
+        await client.threads.send.$post({
+          json: { threadId, text: "first", mode: "steer-if-active" },
+        })
+      ).json(),
+    );
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    await client.threads.send.$post({
+      json: { threadId, text: "queued", mode: "queue-if-active" },
+    });
+
+    driver.failNextStart = new Error("boom");
+    driver.completeTurn(threadId, started.turnId, "completed");
+    // The drain claimed, dispatch blew up: thread errored, message survives.
+    expect(await getThreadStatus(client, threadId)).toBe("error");
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
+  });
+
+  it("releases the claim when the thread was archived before the drain could start", async () => {
+    const { client, db, driver } = bootThreadsApp({ mode: "manual" });
+    if (!driver) {
+      throw new Error("expected the fake driver");
+    }
+    const threadId = await createThread(client);
+    const started = sendResponseSchema.parse(
+      await (
+        await client.threads.send.$post({
+          json: { threadId, text: "first", mode: "steer-if-active" },
+        })
+      ).json(),
+    );
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    await client.threads.send.$post({
+      json: { threadId, text: "queued", mode: "queue-if-active" },
+    });
+    await client.threads.archive.$post({ json: { threadId } });
+
+    driver.completeTurn(threadId, started.turnId, "completed");
+    // The settle still lands (archives never wedge a run), but the drain's
+    // run.preparing is superseded — the message is released, not consumed.
+    expect(await getThreadStatus(client, threadId)).toBe("idle");
+    expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
+    expect(driver.startedTurns).toHaveLength(1);
+  });
+});
+
+describe("turn identity and crash recovery", () => {
+  it("ignores a late completion for a superseded turn", async () => {
+    const { client, driver } = bootThreadsApp({ mode: "manual" });
+    if (!driver) {
+      throw new Error("expected the fake driver");
+    }
+    const threadId = await createThread(client);
+    const first = sendResponseSchema.parse(
+      await (
+        await client.threads.send.$post({
+          json: { threadId, text: "one", mode: "steer-if-active" },
+        })
+      ).json(),
+    );
+    if (first.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    driver.completeTurn(threadId, first.turnId, "completed");
+    const second = sendResponseSchema.parse(
+      await (
+        await client.threads.send.$post({
+          json: { threadId, text: "two", mode: "steer-if-active" },
+        })
+      ).json(),
+    );
+    if (second.kind !== "started") {
+      throw new Error("expected a second started turn");
+    }
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+
+    // The duplicate settle for the FIRST turn must not settle the second.
+    driver.completeTurn(threadId, first.turnId, "completed");
+    const detail = threadDetailSchema.parse(
+      await (await client.threads.get.$get({ query: { threadId } })).json(),
+    );
+    expect(detail.thread.status).toBe("active");
+    expect(detail.thread.activeTurnId).toBe(second.turnId);
+  });
+
+  it("refuses an ingest batch carrying another thread's event, persisting nothing", async () => {
+    const { client, db } = bootThreadsApp({ mode: "manual" });
+    const threadId = await createThread(client);
+    const other = await createThread(client);
+    const service = new ThreadService({
+      db,
+      notifier: noopNotifier,
+      createTurnDriver: () => unavailableTurnDriver,
+    });
+    expect(() =>
+      service.ingestProviderEvents(threadId, [
+        { type: "turn/started", threadId: other, scope: { kind: "turn", turnId: "turn_x" } },
+      ]),
+    ).toThrow(ThreadEventThreadIdMismatchError);
+    for (const id of [threadId, other]) {
+      const timeline = await fetchTimeline(client, id);
+      if (timeline.kind !== "full") {
+        throw new Error("expected a full timeline");
+      }
+      expect(timeline.timeline.maxSequence).toBe(0);
+    }
+  });
+
+  it("recovers threads a previous process left running", async () => {
+    const { client, db } = bootThreadsApp({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send.$post({
+      json: { threadId, text: "start", mode: "steer-if-active" },
+    });
+    expect(await getThreadStatus(client, threadId)).toBe("active");
+
+    // A fresh service on the same db is a process restart: no driver claim
+    // is live, so the running thread is an orphan and settles to error.
+    const revived = new ThreadService({
+      db,
+      notifier: noopNotifier,
+      createTurnDriver: () => unavailableTurnDriver,
+    });
+    expect(revived.get(threadId)?.thread.status).toBe("error");
+    expect(await getThreadStatus(client, threadId)).toBe("error");
+    const rows = timelineRows(await fetchTimeline(client, threadId));
+    const errorRow = rows.find((row) => row.kind === "error");
+    if (errorRow?.kind !== "error") {
+      throw new Error("expected the synthesized error row");
+    }
+    expect(errorRow.message).toContain("restarted");
+  });
+
+  it("folds any dispatch throw into error status with a recorded provider/error", async () => {
+    const { client, driver } = bootThreadsApp({ mode: "manual" });
+    if (!driver) {
+      throw new Error("expected the fake driver");
+    }
+    const threadId = await createThread(client);
+    driver.failNextStart = new Error("adapter exploded");
+    const send = await client.threads.send.$post({
+      json: { threadId, text: "hi", mode: "steer-if-active" },
+    });
+    expect(send.status).toBe(503);
+    expect(apiErrorResponseSchema.parse(await send.json()).error).toBe("dispatch_failed");
+    expect(await getThreadStatus(client, threadId)).toBe("error");
+    const rows = timelineRows(await fetchTimeline(client, threadId));
+    const errorRow = rows.find((row) => row.kind === "error");
+    if (errorRow?.kind !== "error") {
+      throw new Error("expected the recorded dispatch failure");
+    }
+    expect(errorRow.message).toBe("adapter exploded");
+  });
 });
 
 describe("pending interactions over the API", () => {
@@ -467,7 +633,7 @@ describe("a fake-provider turn end-to-end", () => {
 
     // Second turn: the client holds its rows and maxSequence, learns of new
     // events from the socket, and catches up with one delta fetch.
-    const held = { rows, maxSequence: full.timeline.maxSequence };
+    const held = full.timeline;
     const secondSend = await client.threads.send.$post({
       json: { threadId, text: "and again", mode: "steer-if-active" },
     });
@@ -482,15 +648,30 @@ describe("a fake-provider turn end-to-end", () => {
     if (delta.kind !== "delta") {
       throw new Error("expected a delta timeline");
     }
-    const merged = applyTimelineDelta(held.rows, delta.delta);
+    expect(delta.delta.fromSequence).toBe(held.maxSequence);
+    const merged = applyTimelineDelta(held, delta.delta);
     const rebuilt = await fetchTimeline(client, threadId);
     if (rebuilt.kind !== "full") {
       throw new Error("expected a full timeline");
     }
-    expect(merged).toEqual(rebuilt.timeline.rows);
-    expect(delta.maxSequence).toBe(rebuilt.timeline.maxSequence);
+    expect(merged).toEqual(rebuilt.timeline);
     expect(
       rebuilt.timeline.rows.filter((row) => row.kind === "conversation").map((row) => row.text),
     ).toEqual(["hello agent", "Echo: hello agent", "and again", "Echo: and again"]);
+
+    // A delta against a base the client does NOT hold is refused client-side
+    // and answered full server-side when the base is ahead of the log.
+    const staleDeltaResponse = await client.threads.timeline.$get({
+      query: { threadId, afterSequence: 1 },
+    });
+    const staleDelta = timelineResponseSchema.parse(await staleDeltaResponse.json());
+    if (staleDelta.kind !== "delta") {
+      throw new Error("expected a delta timeline");
+    }
+    expect(applyTimelineDelta(rebuilt.timeline, staleDelta.delta)).toBeNull();
+    const aheadResponse = await client.threads.timeline.$get({
+      query: { threadId, afterSequence: rebuilt.timeline.maxSequence + 100 },
+    });
+    expect(timelineResponseSchema.parse(await aheadResponse.json()).kind).toBe("full");
   });
 });

@@ -139,8 +139,14 @@ export type ThreadTimeline = z.infer<typeof threadTimelineSchema>;
 /**
  * Incremental update to a previously-fetched timeline. The server computes it
  * by reprojecting the full timeline (correct by construction — grouping and
- * finalize semantics are preserved) and diffing it against the rows the
- * client's `afterSequence` implies it last received.
+ * finalize semantics are preserved) and diffing it against the timeline the
+ * base prefix projects to — a base it can reconstruct EXACTLY, or it answers
+ * full instead (bb's rule).
+ *
+ * `fromSequence` names that base: the maxSequence of the timeline the client
+ * said it holds. `applyTimelineDelta` refuses a delta whose base is not the
+ * held timeline, so a stale or reordered response can never overwrite newer
+ * rows — the caller falls back to a full fetch.
  *
  * `upsertRows` carries the full body of every row that was added or changed.
  * `rowOrder`, when present, is the complete, ordered id list of the current
@@ -149,63 +155,72 @@ export type ThreadTimeline = z.infer<typeof threadTimelineSchema>;
  * id while an active row is merely streaming new content.
  */
 export const timelineDeltaSchema = z.object({
+  fromSequence: z.number().int().nonnegative(),
+  maxSequence: z.number().int().nonnegative(),
+  tokenUsage: threadEventTokenUsageSchema.nullable(),
   upsertRows: z.array(timelineRowSchema),
   rowOrder: z.array(z.string()).optional(),
 });
 export type TimelineDelta = z.infer<typeof timelineDeltaSchema>;
 
 /**
- * Diff a freshly-projected timeline against the rows the client last held.
- * Pure; used by the server to build a {@link TimelineDelta}.
+ * Diff a freshly-projected timeline against the one its base prefix projects
+ * to. Pure; used by the server to build a {@link TimelineDelta}.
  */
-export function computeTimelineRowDelta(
-  prevRows: readonly TimelineRow[],
-  currentRows: readonly TimelineRow[],
-): TimelineDelta {
+export function computeTimelineDelta(base: ThreadTimeline, current: ThreadTimeline): TimelineDelta {
   const prevById = new Map<string, string>();
-  for (const row of prevRows) {
+  for (const row of base.rows) {
     prevById.set(row.id, JSON.stringify(row));
   }
   const upsertRows: TimelineRow[] = [];
   const rowOrder: string[] = [];
-  let orderChanged = prevRows.length !== currentRows.length;
-  for (const row of currentRows) {
+  let orderChanged = base.rows.length !== current.rows.length;
+  for (const row of current.rows) {
     rowOrder.push(row.id);
-    if (prevRows[rowOrder.length - 1]?.id !== row.id) {
+    if (base.rows[rowOrder.length - 1]?.id !== row.id) {
       orderChanged = true;
     }
     if (prevById.get(row.id) !== JSON.stringify(row)) {
       upsertRows.push(row);
     }
   }
-  return orderChanged ? { upsertRows, rowOrder } : { upsertRows };
+  const envelope = {
+    fromSequence: base.maxSequence,
+    maxSequence: current.maxSequence,
+    tokenUsage: current.tokenUsage,
+  };
+  return orderChanged ? { ...envelope, upsertRows, rowOrder } : { ...envelope, upsertRows };
 }
 
 /**
- * Apply a {@link TimelineDelta} to the rows the client currently holds,
- * yielding the new full timeline. Returns `null` when the delta references a
- * row the client neither holds nor was sent (a stale/mismatched base) — the
- * caller should fall back to a full fetch.
+ * Apply a {@link TimelineDelta} to the timeline the client currently holds,
+ * yielding the new full timeline. Returns `null` — refetch in full — when the
+ * delta's base is not the held timeline (`fromSequence` mismatch), or when it
+ * references a row the client neither holds nor was sent. Applying a delta to
+ * its own base is always identical to a full rebuild.
  */
 export function applyTimelineDelta(
-  prevRows: readonly TimelineRow[],
+  held: ThreadTimeline,
   delta: TimelineDelta,
-): TimelineRow[] | null {
+): ThreadTimeline | null {
+  if (delta.fromSequence !== held.maxSequence) {
+    return null;
+  }
   const byId = new Map<string, TimelineRow>();
-  for (const row of prevRows) {
+  for (const row of held.rows) {
     byId.set(row.id, row);
   }
   for (const row of delta.upsertRows) {
     byId.set(row.id, row);
   }
-  const result: TimelineRow[] = [];
-  const rowOrder = delta.rowOrder ?? prevRows.map((row) => row.id);
+  const rows: TimelineRow[] = [];
+  const rowOrder = delta.rowOrder ?? held.rows.map((row) => row.id);
   for (const id of rowOrder) {
     const row = byId.get(id);
     if (row === undefined) {
       return null;
     }
-    result.push(row);
+    rows.push(row);
   }
-  return result;
+  return { rows, maxSequence: delta.maxSequence, tokenUsage: delta.tokenUsage };
 }

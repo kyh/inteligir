@@ -8,9 +8,19 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
  * indistinguishable below this line.
  */
 export interface TurnDriver {
-  /** Accept a new turn. Throws TurnDriverUnavailableError when no provider is configured. */
+  /**
+   * Accept a new turn. Called OUTSIDE any transaction — the driver may
+   * synchronously report events back through the sink. Throws
+   * TurnDriverUnavailableError when no provider is configured; any throw is
+   * folded into the log as a dispatch failure.
+   */
   startTurn(args: TurnDriverStartArgs): void;
-  /** Inject input into the running turn; false when it cannot be steered. */
+  /**
+   * Inject input into the running turn; false when it cannot be steered.
+   * Called INSIDE the send transaction, so it must answer synchronously and
+   * must not touch the database — an adapter queues the injection and
+   * reports the provider's echo later, through the sink.
+   */
   steerTurn(args: TurnDriverSteerArgs): boolean;
 }
 

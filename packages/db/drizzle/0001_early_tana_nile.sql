@@ -53,12 +53,15 @@ CREATE TABLE `threads` (
 	`id` text PRIMARY KEY NOT NULL,
 	`title` text,
 	`status` text DEFAULT 'idle' NOT NULL,
+	`active_turn_id` text,
 	`origin_doc_path` text,
 	`origin_anchor` text,
 	`archived_at` integer,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`updated_at` integer NOT NULL,
+	CONSTRAINT "threads_origin_pair_check" CHECK(("threads"."origin_doc_path" IS NULL) = ("threads"."origin_anchor" IS NULL))
 );
 --> statement-breakpoint
-CREATE INDEX `threads_archived_updated_idx` ON `threads` (`archived_at`,`updated_at`);--> statement-breakpoint
+CREATE INDEX `threads_live_updated_idx` ON `threads` (`updated_at`) WHERE "threads"."archived_at" IS NULL;--> statement-breakpoint
+CREATE INDEX `threads_archived_updated_idx` ON `threads` (`updated_at`) WHERE "threads"."archived_at" IS NOT NULL;--> statement-breakpoint
 UPDATE `meta` SET `value` = '2' WHERE `key` = 'schema_version';

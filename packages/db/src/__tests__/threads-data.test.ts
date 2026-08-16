@@ -91,23 +91,24 @@ describe("thread CRUD", () => {
 });
 
 describe("applyThreadLifecycleEvent", () => {
-  it("walks the happy path and fires status-changed per applied event", () => {
+  it("walks the happy path, binding and unbinding the turn, firing status-changed per applied event", () => {
     const db = openTempDb();
     const { notifier, threadChanges } = recordingNotifier();
     const thread = createThread(db, noopNotifier, {});
 
-    for (const [type, expected] of [
-      ["run.preparing", "starting"],
-      ["run.started", "active"],
-      ["run.succeeded", "idle"],
+    for (const [event, expectedStatus, expectedTurn] of [
+      [{ type: "run.preparing" }, "starting", null],
+      [{ type: "run.started", turnId: "turn_1" }, "active", "turn_1"],
+      [{ type: "run.succeeded", turnId: "turn_1" }, "idle", null],
     ] as const) {
       const outcome = applyThreadLifecycleEvent(db, notifier, {
         threadId: thread.id,
-        event: { type },
+        event,
       });
       expect(outcome.applied).toBe(true);
       if (outcome.applied) {
-        expect(outcome.thread.status).toBe(expected);
+        expect(outcome.thread.status).toBe(expectedStatus);
+        expect(outcome.thread.activeTurnId).toBe(expectedTurn);
       }
     }
     expect(threadChanges.map((change) => change.changes)).toEqual([
@@ -117,13 +118,40 @@ describe("applyThreadLifecycleEvent", () => {
     ]);
   });
 
+  it("makes a settle for a turn that is no longer active a typed no-op", () => {
+    const db = openTempDb();
+    const thread = createThread(db, noopNotifier, {});
+    applyThreadLifecycleEvent(db, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.started", turnId: "turn_a" },
+    });
+    applyThreadLifecycleEvent(db, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.succeeded", turnId: "turn_a" },
+    });
+    applyThreadLifecycleEvent(db, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.started", turnId: "turn_b" },
+    });
+
+    // The late (duplicate) completion for turn_a must not settle turn_b.
+    const stale = applyThreadLifecycleEvent(db, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.succeeded", turnId: "turn_a" },
+    });
+    expect(stale).toMatchObject({ applied: false, reason: "stale-turn" });
+    const row = getThread(db, thread.id);
+    expect(row?.status).toBe("active");
+    expect(row?.activeTurnId).toBe("turn_b");
+  });
+
   it("returns typed no-ops instead of throwing", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
 
     const illegal = applyThreadLifecycleEvent(db, noopNotifier, {
       threadId: thread.id,
-      event: { type: "stop.settled" },
+      event: { type: "stop.settled", turnId: null },
     });
     expect(illegal).toMatchObject({ applied: false, reason: "illegal-transition" });
 
@@ -139,5 +167,69 @@ describe("applyThreadLifecycleEvent", () => {
       event: { type: "run.preparing" },
     });
     expect(superseded).toMatchObject({ applied: false, reason: "superseded" });
+  });
+
+  it("stays consistent when two connections alternate lifecycle writes", () => {
+    const db = openTempDb();
+    const rival = createConnection(db.$client.name);
+    const thread = createThread(db, noopNotifier, {});
+
+    // Each step is a full immediate transaction on its own connection; the
+    // (status, activeTurnId) CAS turns every lost race into a typed no-op.
+    const first = applyThreadLifecycleEvent(db, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.started", turnId: "turn_1" },
+    });
+    expect(first.applied).toBe(true);
+    const rivalStart = applyThreadLifecycleEvent(rival, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.started", turnId: "turn_2" },
+    });
+    expect(rivalStart).toMatchObject({ applied: false, reason: "illegal-transition" });
+
+    const rivalSettle = applyThreadLifecycleEvent(rival, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.succeeded", turnId: "turn_1" },
+    });
+    expect(rivalSettle.applied).toBe(true);
+    const staleSettle = applyThreadLifecycleEvent(db, noopNotifier, {
+      threadId: thread.id,
+      event: { type: "run.succeeded", turnId: "turn_1" },
+    });
+    expect(staleSettle).toMatchObject({ applied: false, reason: "stale-turn" });
+    expect(getThread(db, thread.id)?.status).toBe("idle");
+  });
+});
+
+describe("listThreads query plan", () => {
+  it("answers both halves from their partial indexes, with no temp b-tree sort", () => {
+    const db = openTempDb();
+    const plans = [
+      "SELECT * FROM threads WHERE archived_at IS NULL ORDER BY updated_at DESC",
+      "SELECT * FROM threads WHERE archived_at IS NOT NULL ORDER BY updated_at DESC",
+    ].map((query) =>
+      db.$client
+        .prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .all()
+        .map((step) => JSON.stringify(step))
+        .join("\n"),
+    );
+    expect(plans[0]).toContain("threads_live_updated_idx");
+    expect(plans[1]).toContain("threads_archived_updated_idx");
+    for (const plan of plans) {
+      expect(plan).not.toContain("TEMP B-TREE");
+    }
+  });
+
+  it("refuses a half-bound origin pair at the database", () => {
+    const db = openTempDb();
+    expect(() =>
+      db.$client
+        .prepare(
+          `INSERT INTO threads (id, title, status, active_turn_id, origin_doc_path, origin_anchor, archived_at, created_at, updated_at)
+           VALUES ('thr_bad', NULL, 'idle', NULL, 'notes/a.md', NULL, NULL, 0, 0)`,
+        )
+        .run(),
+    ).toThrow(/CHECK/u);
   });
 });

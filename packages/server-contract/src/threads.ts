@@ -16,6 +16,8 @@ export const threadSchema = z
     id: z.string().min(1),
     title: z.string().nullable(),
     status: threadStatusSchema,
+    /** The turn the status describes — the client's `expectedTurnId` source. */
+    activeTurnId: z.string().nullable(),
     /** Set together for a doc-bound delegation; both null for a plain chat. */
     originDocPath: z.string().nullable(),
     originAnchor: z.string().nullable(),
@@ -57,11 +59,13 @@ export const createThreadRequestSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    if (value.originAnchor !== undefined && value.originDocPath === undefined) {
+    // Both-or-neither: a delegation binds to an anchored block, never half a
+    // doc; the db CHECK is the storage-level twin of this refine.
+    if ((value.originAnchor === undefined) !== (value.originDocPath === undefined)) {
       ctx.addIssue({
         code: "custom",
-        message: "originAnchor requires originDocPath",
-        path: ["originAnchor"],
+        message: "originDocPath and originAnchor must be provided together",
+        path: [value.originAnchor === undefined ? "originAnchor" : "originDocPath"],
       });
     }
   });
@@ -117,7 +121,9 @@ export type SendMessageResponse =
 /**
  * `afterSequence` is the client's own `maxSequence` from its last fetch;
  * omitted, the server answers the full timeline. Sent, the server answers a
- * delta the client applies with `applyTimelineDelta`.
+ * delta based on exactly that prefix — or the full timeline when it cannot
+ * reconstruct the named base — and the client applies it with
+ * `applyTimelineDelta`, refetching in full if that returns null.
  */
 export const timelineQuerySchema = z
   .object({
@@ -138,7 +144,6 @@ export const timelineResponseSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("delta"),
       delta: timelineDeltaSchema,
-      maxSequence: z.number().int().nonnegative(),
     })
     .strict(),
 ]);

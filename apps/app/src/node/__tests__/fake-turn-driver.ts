@@ -26,6 +26,8 @@ export interface FakeTurnDriverOptions {
 export class FakeTurnDriver implements TurnDriver {
   readonly startedTurns: TurnDriverStartArgs[] = [];
   readonly steeredTurns: TurnDriverSteerArgs[] = [];
+  /** When set, the next startTurn throws it (a dispatch crash) and resets. */
+  failNextStart: Error | null = null;
   private readonly sink: ProviderEventSink;
   private readonly options: FakeTurnDriverOptions;
 
@@ -35,6 +37,11 @@ export class FakeTurnDriver implements TurnDriver {
   }
 
   startTurn(args: TurnDriverStartArgs): void {
+    if (this.failNextStart !== null) {
+      const failure = this.failNextStart;
+      this.failNextStart = null;
+      throw failure;
+    }
     this.startedTurns.push(args);
     if (this.options.mode === "inert") {
       return;

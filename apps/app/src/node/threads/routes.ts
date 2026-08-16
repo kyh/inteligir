@@ -54,6 +54,11 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
           { error: "provider_unavailable", message: "No agent provider is configured" },
           503,
         );
+      case "dispatch-failed":
+        return c.json(
+          { error: "dispatch_failed", message: "The agent provider failed to accept the turn" },
+          503,
+        );
     }
   });
 

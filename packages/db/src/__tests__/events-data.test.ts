@@ -8,7 +8,6 @@ import { createConnection, type DbConnection } from "../connection";
 import {
   appendEvents,
   getMaxSequence,
-  getOpenTurnId,
   listStoredThreadEvents,
   MissingTurnStartedError,
 } from "../events";
@@ -130,26 +129,32 @@ describe("appendEvents", () => {
   });
 });
 
-describe("getOpenTurnId", () => {
-  it("names the latest started turn until it completes", () => {
+describe("scope policy at the write", () => {
+  it("refuses a thread-scoped turn/started at the write, persisting nothing", () => {
     const { db } = openTempDb();
     const thread = createThread(db, noopNotifier, {});
-    expect(getOpenTurnId(db, thread.id)).toBeNull();
+    // The static type admits any (event, scope) pairing; the write-side parse
+    // is what refuses it — before the SQL CHECK ever sees a row.
+    const invalid: ThreadEvent = {
+      type: "turn/started",
+      threadId: thread.id,
+      scope: threadScope(),
+    };
+    expect(() => appendEvents(db, noopNotifier, [invalid])).toThrow(/requires turn scope/u);
+    expect(getMaxSequence(db, thread.id)).toBe(0);
+  });
 
-    appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1")]);
-    expect(getOpenTurnId(db, thread.id)).toBe("turn_1");
-
-    appendEvents(db, noopNotifier, [
-      {
-        type: "turn/completed",
-        threadId: thread.id,
-        status: "completed",
-        scope: turnScope("turn_1"),
-      },
-    ]);
-    expect(getOpenTurnId(db, thread.id)).toBeNull();
-
-    appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_2")]);
-    expect(getOpenTurnId(db, thread.id)).toBe("turn_2");
+  it("refuses a batch atomically: a bad tail rolls back the good head", () => {
+    const { db } = openTempDb();
+    const thread = createThread(db, noopNotifier, {});
+    const invalid: ThreadEvent = {
+      type: "turn/started",
+      threadId: thread.id,
+      scope: threadScope(),
+    };
+    expect(() =>
+      appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1"), invalid]),
+    ).toThrow(/requires turn scope/u);
+    expect(getMaxSequence(db, thread.id)).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
-import type { DbConnection } from "./connection";
+import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
 import type { DbNotifier } from "./notifier";
 import { queuedThreadMessages } from "./schema";
@@ -41,38 +41,43 @@ function createSortKeyAfter(tailSortKey: string | null, now: number): string {
   return `${tailSortKey}~`;
 }
 
+/** The caller owns notification (it holds the transaction). */
+export function createQueuedThreadMessageInTransaction(
+  tx: DbTransaction,
+  input: CreateQueuedThreadMessageInput,
+): QueuedThreadMessageRow {
+  const now = Date.now();
+  const tail = tx
+    .select({ sortKey: queuedThreadMessages.sortKey })
+    .from(queuedThreadMessages)
+    .where(eq(queuedThreadMessages.threadId, input.threadId))
+    .orderBy(desc(queuedThreadMessages.sortKey))
+    .limit(1)
+    .get();
+  return tx
+    .insert(queuedThreadMessages)
+    .values({
+      id: createQueuedThreadMessageId(),
+      threadId: input.threadId,
+      text: input.text,
+      claimedAt: null,
+      claimToken: null,
+      sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning()
+    .get();
+}
+
 export function createQueuedThreadMessage(
   db: DbConnection,
   notifier: DbNotifier,
   input: CreateQueuedThreadMessageInput,
 ): QueuedThreadMessageRow {
-  const now = Date.now();
-  const row = db.transaction(
-    (tx) => {
-      const tail = tx
-        .select({ sortKey: queuedThreadMessages.sortKey })
-        .from(queuedThreadMessages)
-        .where(eq(queuedThreadMessages.threadId, input.threadId))
-        .orderBy(desc(queuedThreadMessages.sortKey))
-        .limit(1)
-        .get();
-      return tx
-        .insert(queuedThreadMessages)
-        .values({
-          id: createQueuedThreadMessageId(),
-          threadId: input.threadId,
-          text: input.text,
-          claimedAt: null,
-          claimToken: null,
-          sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning()
-        .get();
-    },
-    { behavior: "immediate" },
-  );
+  const row = db.transaction((tx) => createQueuedThreadMessageInTransaction(tx, input), {
+    behavior: "immediate",
+  });
   notifier.notifyThread(input.threadId, ["queue-changed"]);
   return row;
 }
@@ -96,53 +101,56 @@ export function listQueuedThreadMessages(
 }
 
 /**
- * Claim the next unclaimed message: select and CAS-update inside one
- * immediate transaction, so two drains racing for the same row cannot both
- * hold it — the loser's UPDATE matches nothing and it claims the next row or
- * nothing.
+ * Claim the next unclaimed message: select and CAS-update under one
+ * transaction, so two drains racing for the same row cannot both hold it —
+ * the loser's UPDATE matches nothing and it claims the next row or nothing.
+ * The caller owns notification (it holds the transaction).
  */
+export function claimNextQueuedThreadMessageInTransaction(
+  tx: DbTransaction,
+  threadId: string,
+): ClaimedQueuedThreadMessageRow | null {
+  const next = tx
+    .select()
+    .from(queuedThreadMessages)
+    .where(
+      and(
+        eq(queuedThreadMessages.threadId, threadId),
+        isNull(queuedThreadMessages.claimedAt),
+        isNull(queuedThreadMessages.claimToken),
+      ),
+    )
+    .orderBy(asc(queuedThreadMessages.sortKey), asc(queuedThreadMessages.id))
+    .limit(1)
+    .get();
+  if (!next) {
+    return null;
+  }
+
+  const now = Date.now();
+  const updated = tx
+    .update(queuedThreadMessages)
+    .set({ claimedAt: now, claimToken: createPrefixedId("claim"), updatedAt: now })
+    .where(
+      and(
+        eq(queuedThreadMessages.id, next.id),
+        isNull(queuedThreadMessages.claimedAt),
+        isNull(queuedThreadMessages.claimToken),
+      ),
+    )
+    .returning()
+    .get();
+  return requireClaimedQueuedThreadMessage(updated);
+}
+
 export function claimNextQueuedThreadMessage(
   db: DbConnection,
   notifier: DbNotifier,
   threadId: string,
 ): ClaimedQueuedThreadMessageRow | null {
-  const claimed = db.transaction(
-    (tx) => {
-      const next = tx
-        .select()
-        .from(queuedThreadMessages)
-        .where(
-          and(
-            eq(queuedThreadMessages.threadId, threadId),
-            isNull(queuedThreadMessages.claimedAt),
-            isNull(queuedThreadMessages.claimToken),
-          ),
-        )
-        .orderBy(asc(queuedThreadMessages.sortKey), asc(queuedThreadMessages.id))
-        .limit(1)
-        .get();
-      if (!next) {
-        return null;
-      }
-
-      const now = Date.now();
-      const updated = tx
-        .update(queuedThreadMessages)
-        .set({ claimedAt: now, claimToken: createPrefixedId("claim"), updatedAt: now })
-        .where(
-          and(
-            eq(queuedThreadMessages.id, next.id),
-            isNull(queuedThreadMessages.claimedAt),
-            isNull(queuedThreadMessages.claimToken),
-          ),
-        )
-        .returning()
-        .get();
-      return requireClaimedQueuedThreadMessage(updated);
-    },
-    { behavior: "immediate" },
-  );
-
+  const claimed = db.transaction((tx) => claimNextQueuedThreadMessageInTransaction(tx, threadId), {
+    behavior: "immediate",
+  });
   if (claimed) {
     notifier.notifyThread(claimed.threadId, ["queue-changed"]);
   }
