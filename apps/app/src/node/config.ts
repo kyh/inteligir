@@ -111,6 +111,15 @@ function parsePortValue(name: string, rawPort: string): number {
   return port;
 }
 
+function parseSyncIntervalValue(name: string, rawValue: string): number {
+  const trimmed = rawValue.trim();
+  const value = Number(trimmed);
+  if (String(value) !== trimmed || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative integer of milliseconds (0 disables the loop)`);
+  }
+  return value;
+}
+
 /** Every env var this process reads, declared exactly once. */
 const ENV_VARS = {
   dataDir: defineEnvVar({
@@ -134,6 +143,18 @@ const ENV_VARS = {
     name: "INTELIGIR_VAULT_REMOTE",
     description: "Git remote URL the vault syncs against; unset means local-only.",
     parse: ({ name, value }) => parseRemoteUrlValue(name, value),
+  }),
+  vaultSyncIntervalMs: defineEnvVar({
+    name: "INTELIGIR_SYNC_INTERVAL_MS",
+    description:
+      "Vault auto-sync cadence in milliseconds; 0 disables the loop AND the boot sync, leaving POST /api/v1/vault/sync the only trigger (what a deterministic test harness needs). Unset means the runtime default.",
+    parse: ({ name, value }) => parseSyncIntervalValue(name, value),
+  }),
+  devHmrPort: defineEnvVar({
+    name: "INTELIGIR_HMR_PORT",
+    description:
+      "Dev only: the port for vite's HMR websocket (server and injected client together). Vite's default is one machine-global port (24678), so concurrent dev instances collide on it and the loser's page throws — a harness that boots several instances gives each its own.",
+    parse: ({ name, value }) => parsePortValue(name, value.trim()),
   }),
 };
 
@@ -218,6 +239,11 @@ export interface AppConfig {
   vaultDir: string;
   /** null means local-only — no sync loop runs. */
   vaultRemote: string | null;
+  /** Absent = the runtime's default cadence; null = disabled (explicit syncs
+   *  only); a positive number = the cadence in ms. */
+  vaultSyncIntervalMs?: number | null;
+  /** Dev only: vite's HMR websocket port; absent = vite's default. */
+  devHmrPort?: number;
 }
 
 export interface ResolveAppConfigArgs {
@@ -266,7 +292,14 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
       ? null
       : parseRemoteUrlValue("config.json vaultRemote", managed.vaultRemote));
 
+  const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
+  const envHmrPort = readEnvVar(ENV_VARS.devHmrPort, args.env, homeDir);
+
   return {
+    ...(envHmrPort === undefined ? {} : { devHmrPort: envHmrPort }),
+    ...(envSyncIntervalMs === undefined
+      ? {}
+      : { vaultSyncIntervalMs: envSyncIntervalMs === 0 ? null : envSyncIntervalMs }),
     databasePath: join(dataDir, SQLITE_DATABASE_FILE_NAME),
     dataDir,
     dataDirSource: envDataDir === undefined ? "default" : "env",
