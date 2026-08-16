@@ -1,5 +1,6 @@
-import { EditorState, type Extension, type Text } from "@codemirror/state";
+import { EditorState, Transaction, type Extension, type Text } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { externalReplaceAnnotation, externalReplaceChanges } from "./external-replace";
 import { type MarkdownEditorOptions, markdownEditorExtensions } from "./markdown-editor-extensions";
 
 export interface MarkdownEditorConfig extends MarkdownEditorOptions {
@@ -21,6 +22,11 @@ export interface MarkdownEditor {
   getDoc(): string;
   /** Replaces the whole buffer (external file change); resets the selection. */
   setDoc(doc: string): void;
+  /** Replaces the buffer as per-hunk line changes (shared Myers diff), so the
+   * selection maps through unchanged regions instead of resetting — the
+   * external update path for a buffer the user may be sitting in. Excluded
+   * from undo history and stamped with `externalReplaceAnnotation`. */
+  replaceDoc(doc: string): void;
   focus(): void;
   destroy(): void;
 }
@@ -49,6 +55,18 @@ export const createMarkdownEditor = (config: MarkdownEditorConfig): MarkdownEdit
     setDoc: (next) => {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: next },
+      });
+    },
+    replaceDoc: (next) => {
+      const current = view.state.doc.toString();
+      if (next === current) return;
+      // Per-hunk changes rather than one whole-doc replacement: a cursor in
+      // any unchanged region — including one between two edits — maps through
+      // untouched. Kept out of history so Undo can never resurrect content
+      // the disk no longer holds.
+      view.dispatch({
+        changes: externalReplaceChanges(current, next),
+        annotations: [Transaction.addToHistory.of(false), externalReplaceAnnotation.of(true)],
       });
     },
     focus: () => {

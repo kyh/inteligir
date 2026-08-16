@@ -21,6 +21,7 @@
       "entry": [
         "src/routes/**/*.tsx",
         "src/node/**/__tests__/**/*.test.ts",
+        "src/app/**/__tests__/**/*.test.{ts,tsx}",
         "src/node/vault/watcher/parcel-child-entry.ts"
       ],
       "project": ["src/**/*.{ts,tsx,css}"],

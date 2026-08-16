@@ -14,6 +14,7 @@ import {
   vaultReadResponseSchema,
   vaultStatusResponseSchema,
   vaultTreeResponseSchema,
+  vaultWriteConflictSchema,
 } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
@@ -21,6 +22,7 @@ import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { WsBus, type BusSocket } from "../../ws-bus";
 import { createVaultRuntime } from "../vault-runtime";
+import { contentHash } from "../vault-service";
 import { hermeticGitEnv } from "./git-test-env";
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -194,6 +196,86 @@ describe("the vault routes", () => {
     );
     expect(remove.status).toBe(200);
     expect(await remove.json()).toEqual({ ok: true });
+  });
+
+  it("applies a compare-and-swap write whose hash matches, refuses a stale one with current", async () => {
+    const { app } = await bootVaultApp();
+    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "cas.md", content: "v1" }));
+    const v1Hash = contentHash("v1");
+
+    const applied = await app.request(
+      "/api/v1/vault/file",
+      jsonRequest("PUT", { path: "cas.md", content: "v2", expectedHash: v1Hash }),
+    );
+    expect(applied.status).toBe(200);
+
+    const stale = await app.request(
+      "/api/v1/vault/file",
+      jsonRequest("PUT", { path: "cas.md", content: "v3", expectedHash: v1Hash }),
+    );
+    expect(stale.status).toBe(409);
+    const refused = vaultWriteConflictSchema.parse(await stale.json());
+    expect(refused.error).toBe("cas_mismatch");
+    expect(refused.current).toEqual({ content: "v2", hash: contentHash("v2") });
+
+    const missing = await app.request(
+      "/api/v1/vault/file",
+      jsonRequest("PUT", { path: "ghost.md", content: "x", expectedHash: v1Hash }),
+    );
+    expect(missing.status).toBe(409);
+    const ghostRefusal = vaultWriteConflictSchema.parse(await missing.json());
+    expect(ghostRefusal.error).toBe("cas_mismatch");
+    expect(ghostRefusal.current).toBeUndefined();
+  });
+
+  it("honors create-exclusive writes and refuses both guards together", async () => {
+    const { app } = await bootVaultApp();
+    const created = await app.request(
+      "/api/v1/vault/file",
+      jsonRequest("PUT", { path: "fresh.md", content: "new", ifAbsent: true }),
+    );
+    expect(created.status).toBe(200);
+
+    const exists = await app.request(
+      "/api/v1/vault/file",
+      jsonRequest("PUT", { path: "fresh.md", content: "clobber", ifAbsent: true }),
+    );
+    expect(exists.status).toBe(409);
+    expect(vaultWriteConflictSchema.parse(await exists.json()).error).toBe("already_exists");
+
+    const both = await app.request(
+      "/api/v1/vault/file",
+      jsonRequest("PUT", {
+        path: "fresh.md",
+        content: "x",
+        ifAbsent: true,
+        expectedHash: contentHash("new"),
+      }),
+    );
+    expect(both.status).toBe(400);
+  });
+
+  it("creates folders through the API and refuses a file-shadowed one", async () => {
+    const { app } = await bootVaultApp();
+
+    const created = await app.request(
+      "/api/v1/vault/mkdir",
+      jsonRequest("POST", { path: "projects/ideas" }),
+    );
+    expect(created.status).toBe(200);
+    expect(await created.json()).toEqual({ path: "projects/ideas" });
+
+    const tree = await app.request("/api/v1/vault/tree");
+    const parsedTree = vaultTreeResponseSchema.parse(await tree.json());
+    expect(parsedTree.entries).toContainEqual({ kind: "dir", path: "projects/ideas" });
+
+    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "note.md", content: "x" }));
+    const shadowed = await app.request(
+      "/api/v1/vault/mkdir",
+      jsonRequest("POST", { path: "note.md" }),
+    );
+    expect(shadowed.status).toBe(409);
+    expect(apiErrorResponseSchema.parse(await shadowed.json()).error).toBe("conflict");
   });
 
   it("answers status and sync-now as no-remote when no remote is configured", async () => {

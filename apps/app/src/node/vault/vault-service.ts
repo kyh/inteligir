@@ -8,7 +8,7 @@
 // pulled `notes.md -> ~/.ssh/id_ed25519` must never read the key, and a
 // symlinked folder must never let a write land outside the vault.
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import {
   link,
@@ -125,6 +125,27 @@ type ConditionalWriteResult =
   | { applied: true; path: string }
   | { applied: false; reason: "changed" | "not_found" };
 
+/** The client-facing compare-and-swap guard: either "my base hashed to this"
+ *  or "nothing exists here yet". */
+export type GuardedWriteGuard = { expectedHash: string } | { ifAbsent: true };
+
+type GuardedWriteResult =
+  | { applied: true; path: string }
+  | {
+      applied: false;
+      reason: "hash_mismatch";
+      /** What the file holds NOW — null when it no longer exists. */
+      current: { content: string; hash: string } | null;
+    }
+  | { applied: false; reason: "exists" };
+
+/** sha-256 hex over UTF-8 bytes — must agree with the client's
+ *  crypto.subtle.digest over TextEncoder output, and it does: both hash the
+ *  UTF-8 encoding of the string. */
+export function contentHash(content: string): string {
+  return createHash("sha256").update(content, "utf8").digest("hex");
+}
+
 export interface VaultService {
   listTree(): Promise<VaultTreeResponse>;
   read(path: string): Promise<{ path: string; content: string }>;
@@ -140,6 +161,15 @@ export interface VaultService {
     expected: string,
     content: string,
   ): Promise<ConditionalWriteResult>;
+  /** The API write's compare-and-swap: apply `content` only when the guard
+   *  holds against the file's CURRENT bytes, read and written inside ONE turn
+   *  of the mutation lock. A hash mismatch reports what the file holds now so
+   *  the caller can merge and retry. */
+  writeGuarded(
+    path: string,
+    content: string,
+    guard: GuardedWriteGuard,
+  ): Promise<GuardedWriteResult>;
   rename(from: string, to: string): Promise<{ path: string }>;
   remove(path: string): Promise<void>;
   createDir(path: string): Promise<{ path: string }>;
@@ -280,6 +310,39 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         }
         if (current !== expected) {
           return { applied: false, reason: "changed" };
+        }
+        await performAtomicWrite(relPath, absPath, content);
+        return { applied: true, path: relPath };
+      });
+    },
+
+    writeGuarded(path, content, guard) {
+      return lock(async (): Promise<GuardedWriteResult> => {
+        const { relPath, absPath } = resolveVaultPath(rootReal, path);
+        await assertAncestryInsideVault(absPath);
+        const existing = await lstatRefusingSymlink(absPath, relPath);
+        if (existing?.isDirectory() === true) {
+          throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
+        }
+        if ("ifAbsent" in guard) {
+          if (existing !== null) {
+            return { applied: false, reason: "exists" };
+          }
+          await performAtomicWrite(relPath, absPath, content);
+          return { applied: true, path: relPath };
+        }
+        const current =
+          existing === null ? null : await readFile(absPath, "utf8").catch(() => null);
+        if (current === null) {
+          // The base the client hashed no longer exists at all.
+          return { applied: false, reason: "hash_mismatch", current: null };
+        }
+        if (contentHash(current) !== guard.expectedHash) {
+          return {
+            applied: false,
+            reason: "hash_mismatch",
+            current: { content: current, hash: contentHash(current) },
+          };
         }
         await performAtomicWrite(relPath, absPath, content);
         return { applied: true, path: relPath };

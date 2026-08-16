@@ -3,11 +3,11 @@
 // statuses here; anything unexpected falls through to the API's generic 500.
 
 import { apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
-import type { VaultRenameResponse } from "@repo/server-contract/vault";
+import type { VaultRenameResponse, VaultWriteConflict } from "@repo/server-contract/vault";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import { VaultPathError } from "./vault-paths";
 import type { VaultRuntime } from "./vault-runtime";
-import { VaultServiceError } from "./vault-service";
+import { VaultServiceError, type GuardedWriteGuard } from "./vault-service";
 
 type VaultRefusal = "invalid_path" | "not_found" | "conflict" | "too_large";
 
@@ -54,7 +54,28 @@ export function registerVaultRoutes(
 
   put(apiRoutes.vault.write, async (c, body) => {
     try {
-      return c.json(await vault.service.write(body.path, body.content));
+      if (body.expectedHash === undefined && body.ifAbsent === undefined) {
+        return c.json(await vault.service.write(body.path, body.content));
+      }
+      const guard: GuardedWriteGuard =
+        body.expectedHash === undefined ? { ifAbsent: true } : { expectedHash: body.expectedHash };
+      const result = await vault.service.writeGuarded(body.path, body.content, guard);
+      if (result.applied) {
+        return c.json({ path: result.path });
+      }
+      if (result.reason === "exists") {
+        const refused: VaultWriteConflict = {
+          error: "already_exists",
+          message: `A file already exists at ${body.path}`,
+        };
+        return c.json(refused, 409);
+      }
+      const refused: VaultWriteConflict = {
+        error: "cas_mismatch",
+        message: `${body.path} changed since the base this write was derived from`,
+        ...(result.current === null ? {} : { current: result.current }),
+      };
+      return c.json(refused, 409);
     } catch (error) {
       const refusal = classifyVaultError(error);
       if (refusal?.code === "invalid_path") {
@@ -77,6 +98,21 @@ export function registerVaultRoutes(
       }
       if (refusal?.code === "not_found") {
         return c.json(refusal.body, 404);
+      }
+      if (refusal?.code === "conflict") {
+        return c.json(refusal.body, 409);
+      }
+      throw error;
+    }
+  });
+
+  post(apiRoutes.vault.mkdir, async (c, body) => {
+    try {
+      return c.json(await vault.service.createDir(body.path));
+    } catch (error) {
+      const refusal = classifyVaultError(error);
+      if (refusal?.code === "invalid_path") {
+        return c.json(refusal.body, 400);
       }
       if (refusal?.code === "conflict") {
         return c.json(refusal.body, 409);
