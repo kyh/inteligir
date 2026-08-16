@@ -65,22 +65,26 @@ export const vaultCrud: Scenario = {
     });
     expect(rename.status === 200, `rename answered ${rename.status}`);
     expect(!existsSync(join(vaultDir, "notes", "hello.md")), "old path gone on disk");
-    expectEq(
-      await readFile(join(vaultDir, "notes", "renamed.md"), "utf8"),
-      SECOND_CONTENT,
-      "renamed bytes on disk",
+    // Rename records the old stem in frontmatter aliases so wiki links keep
+    // resolving; the body must ride along byte-intact below it.
+    const renamedBytes = await readFile(join(vaultDir, "notes", "renamed.md"), "utf8");
+    expect(renamedBytes.endsWith(SECOND_CONTENT), "renamed body bytes intact on disk");
+    expect(
+      renamedBytes.startsWith("---\n") && renamedBytes.includes("- hello"),
+      "old stem recorded in frontmatter aliases",
     );
     const readOld = await api.vault.file.$get({ query: { path: "notes/hello.md" } });
     expect(readOld.status === 404, `old path read answered ${readOld.status}`);
 
     ctx.log("rename onto an existing file is refused, and refuses on disk too");
+    const preCollide = await readFile(join(vaultDir, "notes", "renamed.md"), "utf8");
     const collide = await api.vault.rename.$post({
       json: { from: "notes/renamed.md", to: "fixture.md" },
     });
     expect(collide.status === 409, `colliding rename answered ${collide.status}`);
     expectEq(
       await readFile(join(vaultDir, "notes", "renamed.md"), "utf8"),
-      SECOND_CONTENT,
+      preCollide,
       "refused rename leaves the source in place",
     );
     expectEq(
