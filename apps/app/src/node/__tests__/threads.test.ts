@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
@@ -23,6 +23,8 @@ import { z } from "zod";
 import { createApp, type CreateAppArgs } from "../app";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
+import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
+import { createVaultRuntime } from "../vault/vault-runtime";
 import { WsBus } from "../ws-bus";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
 
@@ -55,9 +57,14 @@ interface ThreadsHarness {
   driver: FakeTurnDriver | null;
 }
 
-function bootThreadsApp(driverOptions: FakeTurnDriverOptions | null): ThreadsHarness {
-  const dataDir = mkdtempSync(join(tmpdir(), "inteligir-threads-test-"));
-  cleanups.push(() => rmSync(dataDir, { recursive: true, force: true }));
+async function bootThreadsApp(
+  driverOptions: FakeTurnDriverOptions | null,
+): Promise<ThreadsHarness> {
+  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-threads-test-"));
+  cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+  const dataDir = join(instanceDir, "data");
+  const vaultDir = join(instanceDir, "vault");
+  mkdirSync(dataDir, { recursive: true });
   const databasePath = join(dataDir, "inteligir.db");
   const db = createConnection(databasePath);
   runMigrations(db);
@@ -72,6 +79,16 @@ function bootThreadsApp(driverOptions: FakeTurnDriverOptions | null): ThreadsHar
         };
 
   const bus = new WsBus({ version: "0.1.0-test" });
+  const vault = await createVaultRuntime({
+    vaultDir,
+    vaultRemote: null,
+    dataDir,
+    notifier: bus,
+    watch: false,
+    syncIntervalMs: null,
+    gitEnv: hermeticGitEnv(),
+  });
+  cleanups.push(() => vault.dispose());
   const args: CreateAppArgs = {
     bus,
     config: {
@@ -81,12 +98,15 @@ function bootThreadsApp(driverOptions: FakeTurnDriverOptions | null): ThreadsHar
       mode: "dev",
       port: 0,
       portSource: "env",
+      vaultDir,
+      vaultRemote: null,
     },
     createTurnDriver,
     db,
     fallback: { kind: "none" },
     schemaVersion: 2,
     startedAt: Date.now(),
+    vault,
     version: "0.1.0-test",
   };
   const composed = createApp(args);
@@ -123,7 +143,7 @@ function timelineRows(response: TimelineResponse): TimelineRow[] {
 
 describe("the send-mode matrix", () => {
   it("starts a turn when idle, in either mode", async () => {
-    const { client } = bootThreadsApp({ mode: "manual" });
+    const { client } = await bootThreadsApp({ mode: "manual" });
     const first = await createThread(client);
     const steerStart = await client.threads.send.$post({
       json: { threadId: first, text: "hello", mode: "steer-if-active" },
@@ -140,7 +160,7 @@ describe("the send-mode matrix", () => {
   });
 
   it("steers the active turn, guarded by expectedTurnId", async () => {
-    const { client, driver } = bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
     const started = sendResponseSchema.parse(
       await (
@@ -186,7 +206,7 @@ describe("the send-mode matrix", () => {
   });
 
   it("refuses a stale expectedTurnId once the turn settled", async () => {
-    const { client, driver } = bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
     const started = sendResponseSchema.parse(
       await (
@@ -214,7 +234,7 @@ describe("the send-mode matrix", () => {
   });
 
   it("queues while active, starting and stopping; steering those is a 409", async () => {
-    const activeHarness = bootThreadsApp({ mode: "manual" });
+    const activeHarness = await bootThreadsApp({ mode: "manual" });
     const activeThread = await createThread(activeHarness.client);
     await activeHarness.client.threads.send.$post({
       json: { threadId: activeThread, text: "start", mode: "steer-if-active" },
@@ -241,7 +261,7 @@ describe("the send-mode matrix", () => {
       "not_steerable",
     );
 
-    const inertHarness = bootThreadsApp({ mode: "inert" });
+    const inertHarness = await bootThreadsApp({ mode: "inert" });
     const startingThread = await createThread(inertHarness.client);
     await inertHarness.client.threads.send.$post({
       json: { threadId: startingThread, text: "start", mode: "steer-if-active" },
@@ -258,7 +278,7 @@ describe("the send-mode matrix", () => {
   });
 
   it("refuses unknown and archived threads", async () => {
-    const { client } = bootThreadsApp({ mode: "manual" });
+    const { client } = await bootThreadsApp({ mode: "manual" });
     const missing = await client.threads.send.$post({
       json: { threadId: "thr_missing", text: "hi", mode: "steer-if-active" },
     });
@@ -275,7 +295,7 @@ describe("the send-mode matrix", () => {
   });
 
   it("answers 503 and lands the thread in error when no provider is configured", async () => {
-    const { client } = bootThreadsApp(null);
+    const { client } = await bootThreadsApp(null);
     const threadId = await createThread(client);
     const send = await client.threads.send.$post({
       json: { threadId, text: "hi", mode: "steer-if-active" },
@@ -288,7 +308,7 @@ describe("the send-mode matrix", () => {
 
 describe("the queue drain", () => {
   it("drains queued messages one turn at a time as the thread settles idle", async () => {
-    const { client, db, driver } = bootThreadsApp({ mode: "manual" });
+    const { client, db, driver } = await bootThreadsApp({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -340,7 +360,7 @@ describe("the queue drain", () => {
   });
 
   it("releases the claim instead of consuming the message when dispatch fails", async () => {
-    const { client, db, driver } = bootThreadsApp({ mode: "manual" });
+    const { client, db, driver } = await bootThreadsApp({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -367,7 +387,7 @@ describe("the queue drain", () => {
   });
 
   it("releases the claim when the thread was archived before the drain could start", async () => {
-    const { client, db, driver } = bootThreadsApp({ mode: "manual" });
+    const { client, db, driver } = await bootThreadsApp({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -398,7 +418,7 @@ describe("the queue drain", () => {
 
 describe("turn identity and crash recovery", () => {
   it("ignores a late completion for a superseded turn", async () => {
-    const { client, driver } = bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadsApp({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -436,7 +456,7 @@ describe("turn identity and crash recovery", () => {
   });
 
   it("refuses an ingest batch carrying another thread's event, persisting nothing", async () => {
-    const { client, db } = bootThreadsApp({ mode: "manual" });
+    const { client, db } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
     const other = await createThread(client);
     const service = new ThreadService({
@@ -459,7 +479,7 @@ describe("turn identity and crash recovery", () => {
   });
 
   it("recovers threads a previous process left running", async () => {
-    const { client, db } = bootThreadsApp({ mode: "manual" });
+    const { client, db } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
     await client.threads.send.$post({
       json: { threadId, text: "start", mode: "steer-if-active" },
@@ -484,7 +504,7 @@ describe("turn identity and crash recovery", () => {
   });
 
   it("folds any dispatch throw into error status with a recorded provider/error", async () => {
-    const { client, driver } = bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadsApp({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -507,7 +527,7 @@ describe("turn identity and crash recovery", () => {
 
 describe("pending interactions over the API", () => {
   it("lists open interactions on the thread and answers them exactly once", async () => {
-    const { bus, client, db } = bootThreadsApp({ mode: "manual" });
+    const { bus, client, db } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
     const interaction = createPendingInteraction(db, bus, {
       threadId,
@@ -542,7 +562,7 @@ describe("pending interactions over the API", () => {
 
 describe("a fake-provider turn end-to-end", () => {
   it("streams into a rendered timeline over real HTTP, driven by ws invalidation only", async () => {
-    const { composed } = bootThreadsApp({ mode: "scripted" });
+    const { composed } = await bootThreadsApp({ mode: "scripted" });
 
     const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
     composed.injectWebSocket(server);

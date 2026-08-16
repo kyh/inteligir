@@ -17,6 +17,7 @@ import {
 } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
+import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { WsBus, type BusSocket } from "../../ws-bus";
 import { createVaultRuntime } from "../vault-runtime";
 import { hermeticGitEnv } from "./git-test-env";
@@ -50,6 +51,8 @@ async function bootVaultApp() {
   cleanups.push(() => vault.dispose());
   const { app } = createApp({
     bus,
+    createTurnDriver: () => unavailableTurnDriver,
+    db,
     config: {
       databasePath: join(dataDir, "inteligir.db"),
       dataDir,
