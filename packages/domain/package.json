@@ -1,0 +1,25 @@
+{
+  "name": "@repo/domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure, isomorphic thread domain vendored from bb: the thread lifecycle as data ((status, event) → status table plus supersession predicates), the ThreadEvent zod grammar trimmed to the item kinds v1 emits, and the per-event-type scope policy table. No node, no db, no transport — every consumer parses at its own boundary with these schemas.",
+  "type": "module",
+  "exports": {
+    "./thread-status": "./src/thread-status.ts",
+    "./thread-lifecycle": "./src/thread-lifecycle.ts",
+    "./thread-event-scope": "./src/thread-event-scope.ts",
+    "./provider-event": "./src/provider-event.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

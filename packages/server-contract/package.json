@@ -7,7 +7,9 @@
   "exports": {
     "./client": "./src/client.ts",
     "./notifications": "./src/notifications.ts",
-    "./routes": "./src/routes.ts"
+    "./routes": "./src/routes.ts",
+    "./thread-timeline": "./src/thread-timeline.ts",
+    "./threads": "./src/threads.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -15,6 +17,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
+    "@repo/domain": "workspace:*",
     "@repo/typed-routes": "workspace:*",
     "hono": "catalog:",
     "zod": "catalog:"

@@ -58,6 +58,17 @@
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
+    // Vendored-from-bb thread domain + projection (issue #548): the public
+    // surface is the vendored bb API, wider than today's importers on
+    // purpose — trimming it makes the next re-vendor a conflict.
+    "packages/domain": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/thread-view": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "packages/server-contract": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]

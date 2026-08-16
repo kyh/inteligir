@@ -23,18 +23,18 @@ afterEach(() => {
 });
 
 describe("boot", () => {
-  it("migrates on boot and seeds meta.schema_version", () => {
+  it("migrates on boot and bumps meta.schema_version to the latest generation", () => {
     const db = openTempDb();
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(1);
-    expect(getMetaValue(db, "schema_version")).toBe("1");
+    expect(getSchemaVersion(db)).toBe(2);
+    expect(getMetaValue(db, "schema_version")).toBe("2");
   });
 
   it("is idempotent across boots", () => {
     const db = openTempDb();
     runMigrations(db);
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(1);
+    expect(getSchemaVersion(db)).toBe(2);
   });
 
   it("refuses to answer a schema version before migrations ran", () => {

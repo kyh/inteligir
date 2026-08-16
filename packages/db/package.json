@@ -6,11 +6,15 @@
   "type": "module",
   "exports": {
     "./connection": "./src/connection.ts",
+    "./events": "./src/events.ts",
     "./ids": "./src/ids.ts",
     "./meta": "./src/meta.ts",
     "./migrate": "./src/migrate.ts",
     "./notifier": "./src/notifier.ts",
-    "./schema": "./src/schema.ts"
+    "./pending-interactions": "./src/pending-interactions.ts",
+    "./queued-messages": "./src/queued-messages.ts",
+    "./schema": "./src/schema.ts",
+    "./threads": "./src/threads.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -19,6 +23,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
+    "@repo/domain": "workspace:*",
     "@repo/server-contract": "workspace:*",
     "better-sqlite3": "catalog:",
     "drizzle-orm": "catalog:",

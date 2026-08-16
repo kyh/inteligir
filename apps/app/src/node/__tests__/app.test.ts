@@ -14,6 +14,7 @@ import { createApiClient } from "@repo/server-contract/client";
 import { serverMessageLenientSchema } from "@repo/server-contract/notifications";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import { unavailableTurnDriver } from "../threads/turn-driver";
 import { WsBus } from "../ws-bus";
 import { makeTempDir } from "./temp-dir";
 
@@ -41,6 +42,7 @@ function bootApp(options: BootAppOptions = {}): {
   runMigrations(db);
   const args: CreateAppArgs = {
     bus: new WsBus({ version: "0.1.0-test" }),
+    createTurnDriver: () => unavailableTurnDriver,
     config: {
       databasePath,
       dataDir,
@@ -49,6 +51,7 @@ function bootApp(options: BootAppOptions = {}): {
       port: options.port ?? 0,
       portSource: "env",
     },
+    db,
     fallback: options.fallback ?? { kind: "none" },
     schemaVersion: getSchemaVersion(db),
     startedAt: Date.now(),
@@ -88,7 +91,7 @@ describe("the API over the in-process app", () => {
     const status = systemStatusResponseSchema.parse(await response.json());
     expect(status.version).toBe("0.1.0-test");
     expect(status.dataDir).toBe(args.config.dataDir);
-    expect(status.schemaVersion).toBe(1);
+    expect(status.schemaVersion).toBe(2);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
 

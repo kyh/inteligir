@@ -146,9 +146,15 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@repo/server-contract':
         specifier: workspace:*
         version: link:../../packages/server-contract
+      '@repo/thread-view':
+        specifier: workspace:*
+        version: link:../../packages/thread-view
       '@repo/typed-routes':
         specifier: workspace:*
         version: link:../../packages/typed-routes
@@ -283,6 +289,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@repo/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@repo/server-contract':
         specifier: workspace:*
         version: link:../server-contract
@@ -305,6 +314,19 @@ importers:
       drizzle-kit:
         specifier: 'catalog:'
         version: 0.31.10
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@30.0.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/domain:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -430,6 +452,9 @@ importers:
 
   packages/server-contract:
     dependencies:
+      '@repo/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@repo/typed-routes':
         specifier: workspace:*
         version: link:../typed-routes
@@ -439,6 +464,22 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@30.0.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/thread-view:
+    dependencies:
+      '@repo/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@repo/server-contract':
+        specifier: workspace:*
+        version: link:../server-contract
     devDependencies:
       typescript:
         specifier: 'catalog:'

@@ -19,6 +19,9 @@ export const THREAD_CHANGE_KINDS = [
   "thread-deleted",
   "events-appended",
   "status-changed",
+  "archived-changed",
+  "queue-changed",
+  "interactions-changed",
 ] as const;
 export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];
 

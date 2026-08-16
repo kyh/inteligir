@@ -7,6 +7,7 @@ import * as schema from "./schema";
 export const SQLITE_BUSY_TIMEOUT_MS = 5_000;
 
 export type DbConnection = ReturnType<typeof createConnection>;
+export type DbTransaction = Parameters<Parameters<DbConnection["transaction"]>[0]>[0];
 
 export function createConnection(dbPath: string) {
   const sqlite = new Database(dbPath);

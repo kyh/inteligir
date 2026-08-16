@@ -13,6 +13,7 @@ import { createApp, type AppFallback } from "./app";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { listenWithRetry } from "./listen";
+import { unavailableTurnDriver } from "./threads/turn-driver";
 import { WsBus } from "./ws-bus";
 
 interface EntryLayout {
@@ -119,6 +120,8 @@ const fallback = await fallbackPromise;
 const { app, injectWebSocket } = createApp({
   bus,
   config,
+  createTurnDriver: () => unavailableTurnDriver,
+  db,
   fallback,
   schemaVersion,
   startedAt: Date.now(),

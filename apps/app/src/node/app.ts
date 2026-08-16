@@ -11,12 +11,16 @@ import { createNodeWebSocket } from "@hono/node-ws";
 import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { HttpBindings } from "@hono/node-server";
+import type { DbConnection } from "@repo/db/connection";
 import { API_BASE_PATH, apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
 import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
+import { registerThreadRoutes } from "./threads/routes";
+import { ThreadService } from "./threads/service";
+import type { CreateTurnDriver } from "./threads/turn-driver";
 import type { WsBus } from "./ws-bus";
 
 /** Thrown by the typed-routes validation wrapper; everything else is a 500. */
@@ -41,6 +45,10 @@ export type AppFallback =
 export interface CreateAppArgs {
   bus: WsBus;
   config: AppConfig;
+  /** The provider seam; production passes the unavailable driver until #549. */
+  createTurnDriver: CreateTurnDriver;
+  /** The thread routes' store; system/status reads nothing from it (schemaVersion below). */
+  db: DbConnection;
   fallback: AppFallback;
   /** Resolved once at boot, after migrate — not a SELECT per status request. */
   schemaVersion: number;
@@ -113,7 +121,7 @@ export function createApp(args: CreateAppArgs) {
     };
     return context.json(body, 500);
   });
-  const { get } = typedRoutes(api, {
+  const { get, post } = typedRoutes(api, {
     onValidationError: (message) => new ApiValidationError(message),
   });
 
@@ -126,6 +134,15 @@ export function createApp(args: CreateAppArgs) {
       uptimeMs: Date.now() - args.startedAt,
     }),
   );
+
+  registerThreadRoutes({
+    routes: { get, post },
+    service: new ThreadService({
+      db: args.db,
+      notifier: args.bus,
+      createTurnDriver: args.createTurnDriver,
+    }),
+  });
 
   // Unmatched API paths answer JSON here — an API caller must never receive
   // the SPA shell or a Vite page from the fallthrough below.
