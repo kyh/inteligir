@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@repo/editor — CM6 live preview</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        background: #fcfcfb;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #16171b;
+        }
+      }
+      #editor {
+        min-height: 100vh;
+      }
+      #editor .cm-editor {
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="editor"></div>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // ES2023 is the repo floor and the ceiling (see packages/ui/tsconfig.json:
+    // Vite transforms syntax, never stdlib). This package renders into a real
+    // DOM everywhere it runs, so the DOM lib is correct here.
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": [],
+    "paths": {
+      "@repo/editor/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "dev", "vitest.config.ts"]
+}
