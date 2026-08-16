@@ -101,6 +101,12 @@ export const vaultRenameResponseSchema = z
   .strict();
 export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 
+export const vaultMkdirRequestSchema = z.object({ path: z.string().min(1) }).strict();
+export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;
+
+export const vaultMkdirResponseSchema = z.object({ path: z.string().min(1) }).strict();
+export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
+
 export const vaultDeleteRequestSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultDeleteRequest = z.infer<typeof vaultDeleteRequestSchema>;
 
@@ -205,6 +211,16 @@ export const vaultRoutes = {
       jsonResponse<VaultRenameResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
+      jsonResponse<ApiErrorResponse>({ status: 409 }),
+    ],
+  }),
+  mkdir: defineRoute({
+    path: "/vault/mkdir",
+    method: "post",
+    request: jsonRequest<EmptyInput, VaultMkdirRequest>(vaultMkdirRequestSchema),
+    response: [
+      jsonResponse<VaultMkdirResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<ApiErrorResponse>({ status: 409 }),
     ],
   }),

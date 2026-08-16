@@ -193,6 +193,29 @@ describe("the vault routes", () => {
     expect(await remove.json()).toEqual({ ok: true });
   });
 
+  it("creates folders through the API and refuses a file-shadowed one", async () => {
+    const { app } = await bootVaultApp();
+
+    const created = await app.request(
+      "/api/v1/vault/mkdir",
+      jsonRequest("POST", { path: "projects/ideas" }),
+    );
+    expect(created.status).toBe(200);
+    expect(await created.json()).toEqual({ path: "projects/ideas" });
+
+    const tree = await app.request("/api/v1/vault/tree");
+    const parsedTree = vaultTreeResponseSchema.parse(await tree.json());
+    expect(parsedTree.entries).toContainEqual({ kind: "dir", path: "projects/ideas" });
+
+    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "note.md", content: "x" }));
+    const shadowed = await app.request(
+      "/api/v1/vault/mkdir",
+      jsonRequest("POST", { path: "note.md" }),
+    );
+    expect(shadowed.status).toBe(409);
+    expect(apiErrorResponseSchema.parse(await shadowed.json()).error).toBe("conflict");
+  });
+
   it("answers status and sync-now as no-remote when no remote is configured", async () => {
     const { app } = await bootVaultApp();
 

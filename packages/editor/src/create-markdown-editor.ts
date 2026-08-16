@@ -21,6 +21,10 @@ export interface MarkdownEditor {
   getDoc(): string;
   /** Replaces the whole buffer (external file change); resets the selection. */
   setDoc(doc: string): void;
+  /** Replaces the buffer as ONE minimal change (common prefix/suffix kept),
+   * so the selection maps through it instead of resetting — the external
+   * update path for a buffer the user may be sitting in. */
+  replaceDoc(doc: string): void;
   focus(): void;
   destroy(): void;
 }
@@ -49,6 +53,32 @@ export const createMarkdownEditor = (config: MarkdownEditorConfig): MarkdownEdit
     setDoc: (next) => {
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: next },
+      });
+    },
+    replaceDoc: (next) => {
+      const current = view.state.doc.toString();
+      if (next === current) return;
+      // Trim the common prefix and suffix so the dispatched change spans only
+      // the differing middle: positions outside it (the cursor included) map
+      // through unchanged. The suffix scan stops at the prefix end so the two
+      // never overlap when one text contains the other.
+      let from = 0;
+      const shorter = Math.min(current.length, next.length);
+      while (from < shorter && current.charCodeAt(from) === next.charCodeAt(from)) {
+        from += 1;
+      }
+      let currentEnd = current.length;
+      let nextEnd = next.length;
+      while (
+        currentEnd > from &&
+        nextEnd > from &&
+        current.charCodeAt(currentEnd - 1) === next.charCodeAt(nextEnd - 1)
+      ) {
+        currentEnd -= 1;
+        nextEnd -= 1;
+      }
+      view.dispatch({
+        changes: { from, to: currentEnd, insert: next.slice(from, nextEnd) },
       });
     },
     focus: () => {

@@ -85,6 +85,21 @@ export function registerVaultRoutes(
     }
   });
 
+  post(apiRoutes.vault.mkdir, async (c, body) => {
+    try {
+      return c.json(await vault.service.createDir(body.path));
+    } catch (error) {
+      const refusal = classifyVaultError(error);
+      if (refusal?.code === "invalid_path") {
+        return c.json(refusal.body, 400);
+      }
+      if (refusal?.code === "conflict") {
+        return c.json(refusal.body, 409);
+      }
+      throw error;
+    }
+  });
+
   post(apiRoutes.vault.remove, async (c, body) => {
     try {
       await vault.service.remove(body.path);
