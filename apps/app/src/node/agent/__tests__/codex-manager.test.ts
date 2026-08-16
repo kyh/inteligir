@@ -1,12 +1,22 @@
 // The codex runtime manager end to end, over real HTTP against a real fake
 // app-server child process: turn-id rewriting onto the host's turn, the
-// pending-interaction round trip through the answer route, and provider
-// session persistence into the threads row.
+// pending-interaction round trip through the answer route, provider session
+// persistence, per-turn commit attribution, the account-restart window and
+// the settle-before-drain race.
 
-import { createFakeCodexAdapterFactory } from "@repo/agent-runtime/test-support/fake-codex-adapter";
+import { execFile } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import {
+  createFakeCodexAdapterFactory,
+  type FakeCodexMode,
+} from "@repo/agent-runtime/test-support/fake-codex-adapter";
 import type { PendingInteractionPayload } from "@repo/agent-runtime/domain/pending-interactions";
 import { getThread } from "@repo/db/threads";
 import { afterEach, describe, expect, it } from "vitest";
+import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { createCodexRuntimeManager, parseInteractionResolution } from "../runtime-manager";
 import {
   bootAgentApp,
@@ -27,7 +37,15 @@ afterEach(async () => {
   }
 });
 
-async function bootWithManager(mode: "happy" | "approval"): Promise<AgentAppHarness> {
+const execFileAsync = promisify(execFile);
+
+function makeMarkerDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "inteligir-codex-marker-"));
+  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+async function bootWithManager(mode: FakeCodexMode, markerPath?: string): Promise<AgentAppHarness> {
   return bootAgentApp({
     agent: { mode: "codex", runtime: "codex", detail: null },
     cleanups,
@@ -38,7 +56,10 @@ async function bootWithManager(mode: "happy" | "approval"): Promise<AgentAppHarn
         vaultDir,
         git: vault.git,
         model: null,
-        adapterFactory: createFakeCodexAdapterFactory(mode),
+        adapterFactory: createFakeCodexAdapterFactory(
+          mode,
+          markerPath !== undefined ? { markerPath } : undefined,
+        ),
         reapIntervalMs: null,
       });
       return {
@@ -47,6 +68,31 @@ async function bootWithManager(mode: "happy" | "approval"): Promise<AgentAppHarn
       };
     },
   });
+}
+
+async function awaitThreadStatus(
+  harness: AgentAppHarness,
+  threadId: string,
+  wanted: string,
+): Promise<void> {
+  await waitFor(
+    async () =>
+      (await getThreadDetail(harness.client, threadId)).status === wanted ? true : undefined,
+    `the thread to reach ${wanted}`,
+  );
+}
+
+/** The HEAD commit's author name, author email and file list. */
+async function headCommit(
+  vaultDir: string,
+): Promise<{ author: string; email: string; files: string[] }> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["show", "--name-only", "--format=%an%n%ae", "HEAD"],
+    { cwd: vaultDir, env: { ...process.env, ...hermeticGitEnv() } },
+  );
+  const [author = "", email = "", ...rest] = stdout.split("\n");
+  return { author, email, files: rest.filter((line) => line.length > 0) };
 }
 
 describe("parseInteractionResolution", () => {
@@ -81,12 +127,19 @@ describe("parseInteractionResolution", () => {
       decision: "allow_once",
       grantedPermissions: null,
     });
+    // JSON form; the null grant on a permission_grant subject is filled from
+    // the requested profile (the fallback the next test pins for bare verbs).
     expect(
       parseInteractionResolution(
         JSON.stringify({ decision: "allow_for_session", grantedPermissions: null }),
-        commandPayload,
+        grantPayload,
       ),
-    ).toEqual({ decision: "allow_for_session", grantedPermissions: null });
+    ).toEqual({
+      decision: "allow_for_session",
+      grantedPermissions: { network: { enabled: true }, fileSystem: null },
+    });
+    // The request never offered allow_for_session: out-of-set is refused.
+    expect(parseInteractionResolution("allow_for_session", commandPayload)).toBeNull();
     expect(parseInteractionResolution("approve!!", commandPayload)).toBeNull();
     expect(parseInteractionResolution('{"decision":"maybe"}', commandPayload)).toBeNull();
   });
@@ -122,6 +175,77 @@ describe("the codex runtime manager over real HTTP", () => {
       status: "idle",
       activeTurnId: null,
     });
+
+    // The turn's reported write (an ABSOLUTE codex-shaped path) lands as an
+    // agent-attributed commit holding exactly the turn's write set.
+    const head = await waitFor(async () => {
+      const commit = await headCommit(harness.vaultDir);
+      return commit.author === "inteligir-agent" ? commit : undefined;
+    }, "the agent-attributed commit");
+    expect(head.email).toBe("agent@inteligir.local");
+    expect(head.files).toEqual(["codex-note-1.md"]);
+  });
+
+  it("survives the account-restart window: a turn dispatched into it lands on the replacement", async () => {
+    const marker = join(makeMarkerDir(), "auth-restored");
+    const harness = await bootWithManager("auth-once", marker);
+    const threadId = await createThread(harness.client);
+
+    // Turn A fails with the provider's unauthorized error and flags the
+    // thread-scoped process for an account restart.
+    await sendMessage(harness.client, threadId, "first");
+    await awaitThreadStatus(harness, threadId, "error");
+
+    // Turn B is dispatched INTO the restart: the runtime replaces the
+    // app-server process (an EXPECTED exit) before sending turn/start. B must
+    // ride onto the replacement instead of being failed by that exit.
+    const turnB = await sendMessage(harness.client, threadId, "second");
+    await awaitThreadStatus(harness, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const assistant = rows.find(
+      (row) =>
+        row.kind === "conversation" && row.role === "assistant" && row.text === "Echo: second",
+    );
+    expect(assistant).toMatchObject({ turnId: turnB });
+  });
+
+  it("settles a turn fully BEFORE the queue drain dispatches the next one", async () => {
+    const harness = await bootWithManager("approval-once");
+    const threadId = await createThread(harness.client);
+    await sendMessage(harness.client, threadId, "first");
+
+    const interaction = await waitFor(async () => {
+      const detail = await getThreadDetail(harness.client, threadId);
+      return detail.pendingInteractions[0];
+    }, "the approval row");
+
+    // Queue B while A is parked on the approval; answering A completes it,
+    // and the ingest transaction drains B SYNCHRONOUSLY into startTurn.
+    const queued = await harness.client.threads.send.$post({
+      json: { threadId, text: "second", mode: "queue-if-active" },
+    });
+    expect(queued.status).toBe(200);
+
+    const answered = await harness.client.threads.interaction.answer.$post({
+      json: { threadId, interactionId: interaction.id, resolution: "allow_once" },
+    });
+    expect(answered.status).toBe(200);
+
+    await waitFor(async () => {
+      const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+      return rows.some(
+        (row) =>
+          row.kind === "conversation" && row.role === "assistant" && row.text === "Echo: second",
+      )
+        ? true
+        : undefined;
+    }, "the drained turn to complete");
+    await awaitThreadStatus(harness, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const completedTurns = rows.filter((row) => row.kind === "turn" && row.status === "completed");
+    expect(completedTurns).toHaveLength(2);
   });
 
   it("round-trips an approval through pending_interactions and the answer route", async () => {
@@ -142,6 +266,13 @@ describe("the codex runtime manager over real HTTP", () => {
         subject: { kind: "command", command: "touch approved.md" },
       },
     });
+
+    // The request offered no session grant, so its decodable decisions are
+    // allow_once + deny; an out-of-set answer is refused before resolving.
+    const outOfSet = await harness.client.threads.interaction.answer.$post({
+      json: { threadId, interactionId: interaction.id, resolution: "allow_for_session" },
+    });
+    expect(outOfSet.status).toBe(400);
 
     const answered = await harness.client.threads.interaction.answer.$post({
       json: { threadId, interactionId: interaction.id, resolution: "allow_once" },

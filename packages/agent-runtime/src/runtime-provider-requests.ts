@@ -22,9 +22,9 @@ import {
 } from "./runtime-json-rpc.js";
 import { shouldAutoDenyInteractiveRequest } from "./shared/permission-policy.js";
 
-export type RuntimeProviderRequestKind = "interactive request";
+type RuntimeProviderRequestKind = "interactive request";
 
-export interface RuntimeProviderRequestProcess {
+interface RuntimeProviderRequestProcess {
   adapter: ProviderAdapter;
   child: ChildProcess;
   interactiveRequestScope: string;
@@ -37,7 +37,7 @@ export interface ResolveRuntimeProviderRequestThreadIdArgs {
   threadIdHint: string | undefined;
 }
 
-export interface RuntimeProviderRequestArgs {
+interface RuntimeProviderRequestArgs {
   parsedId: string | number;
   parsedMethod: string;
   providerProcess: RuntimeProviderRequestProcess;

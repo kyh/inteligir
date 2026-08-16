@@ -454,12 +454,6 @@ const codexWarningParamsSchema = z
   })
   .passthrough();
 
-export const codexThreadClosedParamsSchema = z
-  .object({
-    threadId: z.string(),
-  })
-  .passthrough();
-
 export const codexBridgeEnvelopeSchema = z.union([
   jsonRpcEnvelopeSchema,
   z

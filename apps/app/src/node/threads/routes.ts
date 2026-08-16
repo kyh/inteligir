@@ -79,6 +79,8 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
           { error: "already_resolved", message: "The interaction was already answered" },
           409,
         );
+      case "invalid-resolution":
+        return c.json({ error: "invalid_resolution", message: outcome.message }, 400);
     }
   });
 }

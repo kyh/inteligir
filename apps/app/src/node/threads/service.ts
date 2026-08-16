@@ -25,6 +25,7 @@ import { createTurnId } from "@repo/db/ids";
 import { NotificationBuffer, type DbNotifier } from "@repo/db/notifier";
 import {
   getPendingInteraction,
+  interruptOpenPendingInteractions,
   listOpenPendingInteractions,
   resolvePendingInteraction,
   type PendingInteractionRow,
@@ -77,7 +78,8 @@ type SendDecision =
 export type AnswerInteractionOutcome =
   | { kind: "resolved"; interaction: PendingInteraction }
   | { kind: "not-found" }
-  | { kind: "already-resolved" };
+  | { kind: "already-resolved" }
+  | { kind: "invalid-resolution"; message: string };
 
 /** An ingest batch named one thread but carried an event for another. */
 export class ThreadEventThreadIdMismatchError extends Error {
@@ -372,6 +374,10 @@ export class ThreadService implements ProviderEventSink {
     if (existing === null || existing.threadId !== request.threadId) {
       return { kind: "not-found" };
     }
+    const invalid = invalidResolutionMessage(existing.payload, request.resolution);
+    if (invalid !== null) {
+      return { kind: "invalid-resolution", message: invalid };
+    }
     const outcome = resolvePendingInteraction(this.db, this.notifier, {
       id: request.interactionId,
       threadId: request.threadId,
@@ -509,8 +515,76 @@ export class ThreadService implements ProviderEventSink {
         { behavior: "immediate" },
       );
       buffer.flushTo(this.notifier);
+      // The provider requests behind these rows died with the old process:
+      // settle them as interrupted so no orphan answerable rows survive a
+      // restart — a restarted provider raises FRESH rows (new request keys),
+      // never duplicates of these.
+      interruptOpenPendingInteractions(this.db, this.notifier, thread.id);
     }
   }
+}
+
+const approvalDecisionValues = ["allow_once", "allow_for_session", "deny"] as const;
+type ApprovalDecision = (typeof approvalDecisionValues)[number];
+
+function isApprovalDecision(value: unknown): value is ApprovalDecision {
+  return approvalDecisionValues.some((decision) => decision === value);
+}
+
+/** The decision a resolution string names: a bare verb or `{"decision":…}`. */
+function resolutionDecision(raw: string): ApprovalDecision | null {
+  const trimmed = raw.trim();
+  if (isApprovalDecision(trimmed)) {
+    return trimmed;
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "decision" in parsed &&
+      isApprovalDecision(parsed.decision)
+    ) {
+      return parsed.decision;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Refuse an answer whose decision the request never offered (deny is always
+ * offerable — it is what every cancel path answers with). Rows whose payload
+ * carries no decision set (not an approval) skip the check.
+ */
+function invalidResolutionMessage(payloadJson: string, resolution: string): string | null {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(payloadJson);
+  } catch {
+    return null;
+  }
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("availableDecisions" in payload) ||
+    !Array.isArray(payload.availableDecisions)
+  ) {
+    return null;
+  }
+  const offered = payload.availableDecisions.filter(isApprovalDecision);
+  if (offered.length === 0) {
+    return null;
+  }
+  const decision = resolutionDecision(resolution);
+  if (decision === null) {
+    return "The resolution names no known decision";
+  }
+  if (decision !== "deny" && !offered.includes(decision)) {
+    return `The request offers ${offered.join(", ")}; "${decision}" is not among them`;
+  }
+  return null;
 }
 
 function lifecycleEventFor(event: ThreadEvent): ThreadLifecycleEvent | null {

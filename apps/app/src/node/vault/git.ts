@@ -176,6 +176,19 @@ export interface GitEngine {
    *  `subject` replaces the default one-line message (trailers ride in it). */
   commitNow(author?: CommitAuthor, subject?: string): Promise<{ files: number } | null>;
   /**
+   * Commit exactly the named vault-relative paths (adds, edits AND deletions
+   * under them) — the agent-attribution seam: a turn commits its own write
+   * set, never the whole dirty tree, so a concurrent turn's held writes and a
+   * user's unrelated edits stay uncommitted for their own settle/debounce.
+   * Null when none of the paths are dirty. Runs under the repo lock; allowed
+   * under a hold (it IS a hold's release path).
+   */
+  commitPaths(
+    paths: readonly string[],
+    author: CommitAuthor,
+    subject: string,
+  ): Promise<{ files: number } | null>;
+  /**
    * Defer the auto-commit debounce and the sync loop until released, so an
    * agent turn's writes are not swept into an engine-attributed commit
    * mid-turn. Counted — overlapping turns each take their own hold — and an
@@ -247,6 +260,63 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     );
     args.onStatusChanged?.();
     return { files };
+  }
+
+  /** The paths git itself reports dirty (staged or not) under the pathspecs.
+   *  -z: NUL-separated and unquoted, so a path with spaces round-trips. */
+  async function dirtyPathsUnder(paths: readonly string[]): Promise<string[]> {
+    const { stdout } = await run([
+      "--no-optional-locks",
+      "status",
+      "--porcelain",
+      "-z",
+      "--",
+      ...paths,
+    ]);
+    const tokens = stdout.split("\0");
+    const dirty: string[] = [];
+    for (let index = 0; index < tokens.length; index += 1) {
+      const token = tokens[index];
+      if (token === undefined || token.length < 4) {
+        continue;
+      }
+      const statusCode = token.slice(0, 2);
+      dirty.push(token.slice(3));
+      // A rename/copy entry is followed by its ORIGIN path as its own token;
+      // both sides belong to the commit.
+      if (statusCode.includes("R") || statusCode.includes("C")) {
+        const origin = tokens[index + 1];
+        if (origin !== undefined && origin.length > 0) {
+          dirty.push(origin);
+          index += 1;
+        }
+      }
+    }
+    return dirty;
+  }
+
+  async function commitPathsIfDirty(
+    paths: readonly string[],
+    author: CommitAuthor,
+    subject: string,
+  ): Promise<{ files: number } | null> {
+    if (paths.length === 0) {
+      return null;
+    }
+    // Restrict the pathspec to what is actually dirty: `git add` errors on a
+    // pathspec matching nothing, and a reported write may have been reverted.
+    const dirty = await dirtyPathsUnder(paths);
+    if (dirty.length === 0) {
+      return null;
+    }
+    // -A with a pathspec stages deletions under it too; the commit takes only
+    // the index, so everything else dirty stays for its own commit.
+    await run(["add", "-A", "--", ...dirty]);
+    await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
+      env: identityEnv(author),
+    });
+    args.onStatusChanged?.();
+    return { files: dirty.length };
   }
 
   // An agent turn holds commits so its writes cannot be swept into an
@@ -510,6 +580,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     },
     commitNow(author?: CommitAuthor, subject?: string) {
       return withRepoLock(() => commitIfDirty(author, subject));
+    },
+    commitPaths(paths, author, subject) {
+      return withRepoLock(() => commitPathsIfDirty(paths, author, subject));
     },
     holdCommits,
     syncNow,

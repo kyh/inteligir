@@ -35,7 +35,7 @@ export interface RuntimeProviderProcess {
   stderrTail: Buffer;
 }
 
-export interface RuntimeProviderProcessLineArgs {
+interface RuntimeProviderProcessLineArgs {
   line: string;
   providerProcess: RuntimeProviderProcess;
 }
@@ -127,7 +127,7 @@ function assertPipedProcess(child: ChildProcess): asserts child is PipedChildPro
   }
 }
 
-export class ProviderProcessExitedError extends Error {
+class ProviderProcessExitedError extends Error {
   constructor(args: ProviderProcessExitedErrorArgs) {
     const stderr = formatProviderStderr(args.stderrTail);
     super(
@@ -559,7 +559,7 @@ export class RuntimeProviderProcessManager {
  * (`exitCode`) and signal terminations (`signalCode`). Node reports a
  * signal-killed child with a null `exitCode` and a set `signalCode`.
  */
-export function hasChildProcessExited(child: ChildProcess): boolean {
+function hasChildProcessExited(child: ChildProcess): boolean {
   return child.exitCode !== null || child.signalCode !== null;
 }
 

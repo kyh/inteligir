@@ -180,7 +180,8 @@ describe("buildThreadTimeline", () => {
     if (reasoning.workKind !== "reasoning" || command.workKind !== "command") {
       throw new Error("unexpected work kinds");
     }
-    expect(reasoning.text).toBe("Scanned the vault.");
+    // Summary is the provider's visible thinking text; it wins over content.
+    expect(reasoning.text).toBe("scanned");
     expect(command.output).toBe("abc123 fix\ndef456 feat\n");
     expect(command.exitCode).toBe(0);
     expect(command.status).toBe("completed");
@@ -322,5 +323,52 @@ describe("buildThreadTimeline", () => {
 
   it("projects an empty log to an empty timeline", () => {
     expect(buildThreadTimeline([])).toEqual({ rows: [], maxSequence: 0, tokenUsage: null });
+  });
+});
+
+describe("reasoning text preference", () => {
+  it("settled reasoning prefers summary, falls back to content, then the stream buffer", () => {
+    const base = {
+      threadId: THREAD_ID,
+      scope: turnScope("turn_r"),
+    };
+    const build = (item: { summary: string[]; content: string[] }) =>
+      buildThreadTimeline(
+        stored([
+          { type: "turn/started", ...base },
+          {
+            type: "item/started",
+            ...base,
+            item: { type: "reasoning", id: "item_r", summary: [], content: [] },
+          },
+          { type: "item/reasoning/summaryTextDelta", ...base, itemId: "item_r", delta: "strea" },
+          { type: "item/reasoning/summaryTextDelta", ...base, itemId: "item_r", delta: "ming" },
+          {
+            type: "item/completed",
+            ...base,
+            item: { type: "reasoning", id: "item_r", ...item },
+          },
+          { type: "turn/completed", ...base, status: "completed" },
+        ]),
+      );
+
+    const findReasoningText = (timeline: ReturnType<typeof buildThreadTimeline>): string => {
+      for (const row of timeline.rows) {
+        if (row.kind !== "turn") {
+          continue;
+        }
+        for (const child of row.children) {
+          if (child.kind === "work" && child.workKind === "reasoning") {
+            return child.text;
+          }
+        }
+      }
+      throw new Error("no reasoning row");
+    };
+
+    expect(findReasoningText(build({ summary: ["visible"], content: ["raw"] }))).toBe("visible");
+    expect(findReasoningText(build({ summary: [], content: ["raw"] }))).toBe("raw");
+    // Codex-shaped: settles with both empty — the streamed summary buffer stands.
+    expect(findReasoningText(build({ summary: [], content: [] }))).toBe("streaming");
   });
 });

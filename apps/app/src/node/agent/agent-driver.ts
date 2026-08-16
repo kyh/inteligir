@@ -14,6 +14,7 @@ import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
+import { createBoundedAgentLog } from "./agent-log";
 import { createCodexRuntimeManager } from "./runtime-manager";
 import { createScriptedTurnDriverFactory } from "./scripted-driver";
 
@@ -64,13 +65,16 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
       dispose: noDispose,
     };
   }
+  // The bounded default keeps a chatty provider VISIBLE without flooding:
+  // first occurrence per stripped-id key logs in full, repeats log a count.
+  const onDebug = args.onDebug ?? createBoundedAgentLog();
   if (mode === "scripted") {
     return {
       status: { mode, runtime: "scripted", detail: null },
       createTurnDriver: createScriptedTurnDriverFactory({
         vault: args.vault.service,
         git: args.vault.git,
-        ...(args.onDebug !== undefined ? { onError: args.onDebug } : {}),
+        onError: onDebug,
       }),
       dispose: noDispose,
     };
@@ -93,7 +97,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     vaultDir: args.config.vaultDir,
     git: args.vault.git,
     model: args.config.agentModel,
-    ...(args.onDebug !== undefined ? { onDebug: args.onDebug } : {}),
+    onDebug,
   });
   return {
     status: { mode, runtime: "codex", detail: null },

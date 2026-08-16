@@ -5,7 +5,7 @@ import { serve } from "@hono/node-server";
 import { createConnection, type DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { noopNotifier } from "@repo/db/notifier";
-import { createPendingInteraction } from "@repo/db/pending-interactions";
+import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
@@ -496,6 +496,12 @@ describe("turn identity and crash recovery", () => {
       json: { threadId, text: "start", mode: "steer-if-active" },
     });
     expect(await getThreadStatus(client, threadId)).toBe("active");
+    // An approval the dead provider raised and nobody answered.
+    const orphan = createPendingInteraction(db, noopNotifier, {
+      threadId,
+      requestKey: "req-orphaned",
+      payload: "{}",
+    });
 
     // A fresh service on the same db is a process restart: no driver claim
     // is live, so the running thread is an orphan and settles to error.
@@ -512,6 +518,12 @@ describe("turn identity and crash recovery", () => {
       throw new Error("expected the synthesized error row");
     }
     expect(errorRow.message).toContain("restarted");
+
+    // The provider request behind the orphan died with the process: the row
+    // settles as interrupted, never left answerable. A restarted provider
+    // raises a fresh row (new request key) instead of a duplicate.
+    expect(getPendingInteraction(db, orphan.id)?.status).toBe("interrupted");
+    expect(revived.get(threadId)?.pendingInteractions).toEqual([]);
   });
 
   it("folds any dispatch throw into error status with a recorded provider/error", async () => {

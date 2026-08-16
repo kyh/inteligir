@@ -25,7 +25,7 @@ const codexToPendingInteractionApprovalDecision = {
   cancel: "deny",
 } satisfies Record<CodexSimpleCommandApprovalDecision, PendingInteractionApprovalDecision>;
 
-export const pendingInteractionToCodexSimpleApprovalDecision = {
+const pendingInteractionToCodexSimpleApprovalDecision = {
   allow_once: "accept",
   allow_for_session: "acceptForSession",
   deny: "decline",
@@ -43,7 +43,7 @@ export const pendingInteractionToCodexFileChangeApprovalDecision = {
   FileChangeRequestApprovalResponse["decision"]
 >;
 
-export function toPendingInteractionPermissionProfile(
+function toPendingInteractionPermissionProfile(
   permissions: CodexAdditionalPermissions | CodexRequestedPermissionProfile,
 ): PendingInteractionRequestedPermissionProfile {
   return normalizePendingInteractionRequestedPermissionProfile({

@@ -55,7 +55,12 @@ import type {
   TurnDriverSteerArgs,
 } from "../threads/turn-driver";
 import type { GitEngine } from "../vault/git";
-import { beginAgentTurnCommit } from "./agent-commits";
+import {
+  beginAgentTurnCommit,
+  createVaultPathResolver,
+  type AgentTurnCommit,
+  type VaultPathResolver,
+} from "./agent-commits";
 import { loadAgentInstructions } from "./agent-instructions";
 import { mapProviderEvent } from "./event-mapping";
 
@@ -89,8 +94,16 @@ interface ActiveTurn {
   providerTurnId: string | null;
   /** True once the host's turn/started was ingested. */
   started: boolean;
+  /**
+   * Which process GENERATION accepted this turn (the per-thread exit counter
+   * at turn/started); null until accepted. A process exit fails only the
+   * turns its own generation accepted — a turn dispatched INTO the codex
+   * account-restart window (the runtime replaces the app-server process
+   * before sending turn/start) must survive onto the replacement.
+   */
+  acceptedGeneration: number | null;
   settled: boolean;
-  finishCommit: () => Promise<void>;
+  commit: AgentTurnCommit;
 }
 
 interface InteractionWaiter {
@@ -138,6 +151,11 @@ export function parseInteractionResolution(
     }
     parsed = result.data;
   }
+  // Deny is always acceptable (it is the runtime's own fallback); an allow
+  // must be one the request actually offered.
+  if (parsed.decision !== "deny" && !payload.availableDecisions.includes(parsed.decision)) {
+    return null;
+  }
   if (
     parsed.decision !== "deny" &&
     parsed.grantedPermissions === null &&
@@ -152,9 +170,12 @@ class CodexTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
   private readonly deps: CodexRuntimeManagerDeps;
   private readonly options: AgentRuntimeExecutionOptions;
+  private readonly resolveVaultPath: VaultPathResolver;
   private runtime: AgentRuntime | null = null;
   private reapTimer: ReturnType<typeof setInterval> | null = null;
   private readonly turnsByThreadId = new Map<string, ActiveTurn>();
+  /** Bumped on every provider-process exit that hosted the thread. */
+  private readonly exitGenerationByThreadId = new Map<string, number>();
   private readonly waitersByInteractionId = new Map<string, InteractionWaiter>();
   private disposed = false;
 
@@ -162,6 +183,7 @@ class CodexTurnDriver implements TurnDriver {
     this.sink = sink;
     this.deps = deps;
     this.options = executionOptionsFor(deps.model);
+    this.resolveVaultPath = createVaultPathResolver(deps.vaultDir);
   }
 
   private debug(message: string): void {
@@ -182,6 +204,26 @@ class CodexTurnDriver implements TurnDriver {
       onStderr: (line) => this.debug(`codex: ${line}`),
       onProcessExit: (info) => {
         for (const thread of info.threads) {
+          const generationAtExit = this.exitGenerationByThreadId.get(thread.threadId) ?? 0;
+          this.exitGenerationByThreadId.set(thread.threadId, generationAtExit + 1);
+          const state = this.turnsByThreadId.get(thread.threadId);
+          if (state === undefined || state.settled) {
+            continue;
+          }
+          // Fail only what the DYING process was actually running: a turn it
+          // accepted (matching generation), or one it acknowledged but never
+          // started. A not-yet-sent turn (dispatched during an expected
+          // account restart) continues on the replacement process; a crash
+          // before acceptance is settled by the dispatch promise rejection.
+          const dyingProcessOwnedTurn =
+            (state.started && state.acceptedGeneration === generationAtExit) ||
+            (!state.started && thread.pendingTurnStart);
+          if (!dyingProcessOwnedTurn) {
+            this.debug(
+              `provider process exit (expected=${String(info.expected)}) skipped thread ${thread.threadId}: its turn is not bound to the dying process`,
+            );
+            continue;
+          }
           this.failTurn(
             thread.threadId,
             new Error(
@@ -231,8 +273,9 @@ class CodexTurnDriver implements TurnDriver {
       ourTurnId: args.turnId,
       providerTurnId: null,
       started: false,
+      acceptedGeneration: null,
       settled: false,
-      finishCommit: beginAgentTurnCommit(this.deps.git, args.threadId),
+      commit: beginAgentTurnCommit(this.deps.git, args.threadId),
     });
     void this.dispatchTurn(args).catch((error: unknown) => {
       this.failTurn(args.threadId, error);
@@ -240,6 +283,10 @@ class CodexTurnDriver implements TurnDriver {
   }
 
   private async dispatchTurn(args: TurnDriverStartArgs): Promise<void> {
+    // The hold (taken in startTurn) blocks NEW sync passes; this barrier
+    // waits out one already mid-flight, so the provider never writes into a
+    // rebase's checkout window.
+    await this.turnsByThreadId.get(args.threadId)?.commit.ready;
     const runtime = this.ensureRuntime();
     if (!runtime.hasThread(args.threadId)) {
       await this.openThreadSession(runtime, args.threadId);
@@ -362,6 +409,7 @@ class CodexTurnDriver implements TurnDriver {
       }
       state.providerTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
       state.started = true;
+      state.acceptedGeneration = this.exitGenerationByThreadId.get(threadId) ?? 0;
       const mapped = mapProviderEvent(event, state.ourTurnId);
       if (mapped.kind === "mapped") {
         this.sink.ingestProviderEvents(threadId, [mapped.event]);
@@ -385,16 +433,39 @@ class CodexTurnDriver implements TurnDriver {
       hostTurnId = state.ourTurnId;
     }
 
+    if (
+      state !== undefined &&
+      (event.type === "item/started" || event.type === "item/completed") &&
+      event.item.type === "fileChange"
+    ) {
+      const reportedPaths = event.item.changes.flatMap((change) => [
+        change.path,
+        ...(change.movePath !== undefined ? [change.movePath] : []),
+      ]);
+      const vaultPaths: string[] = [];
+      for (const reported of reportedPaths) {
+        const rel = this.resolveVaultPath(reported);
+        if (rel === null) {
+          this.debug(`ignored a reported write outside the vault: ${reported}`);
+          continue;
+        }
+        vaultPaths.push(rel);
+      }
+      state.commit.recordPaths(vaultPaths);
+    }
+
     const mapped = mapProviderEvent(event, hostTurnId);
     if (mapped.kind === "dropped") {
       this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
       return;
     }
-    this.sink.ingestProviderEvents(threadId, [mapped.event]);
-
     if (event.type === "turn/completed") {
+      // Settle BEFORE ingest: the ingest transaction drains the queue and can
+      // synchronously dispatch the next turn through startTurn, which must
+      // find this turn fully released.
       this.settleTurn(threadId);
     }
+    this.sink.ingestProviderEvents(threadId, [mapped.event]);
   }
 
   private async onInteractiveRequest(
@@ -471,7 +542,7 @@ class CodexTurnDriver implements TurnDriver {
     this.turnsByThreadId.delete(threadId);
     this.cancelThreadWaiters(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
-    void state.finishCommit().catch((error: unknown) => {
+    void state.commit.finish().catch((error: unknown) => {
       this.debug(
         `agent commit for thread ${threadId} failed: ${error instanceof Error ? error.message : String(error)}`,
       );

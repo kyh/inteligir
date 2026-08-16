@@ -123,7 +123,11 @@ const CODEX_SERVER_NOTIFICATION_METHODS = {
 
 const CODEX_NOTIFICATION_COVERAGE = {
   "account/login/completed": "unknown",
-  "account/rateLimits/updated": "normalized",
+  // PATCHED: rate limits and goals were trimmed from the handled schema, so
+  // "normalized" would silence them (an unhandled build skips known kinds).
+  // "unknown" keeps the promise: they surface as provider/unhandled — visible
+  // and bounded — instead of dropping silently.
+  "account/rateLimits/updated": "unknown",
   "account/updated": "unknown",
   "app/list/updated": "unknown",
   "command/exec/outputDelta": "unknown",
@@ -176,8 +180,8 @@ const CODEX_NOTIFICATION_COVERAGE = {
   "thread/archived": "noise",
   "thread/closed": "unknown",
   "thread/compacted": "normalized",
-  "thread/goal/cleared": "normalized",
-  "thread/goal/updated": "normalized",
+  "thread/goal/cleared": "unknown",
+  "thread/goal/updated": "unknown",
   "thread/name/updated": "normalized",
   "thread/settings/updated": "noise",
   "thread/realtime/closed": "unknown",

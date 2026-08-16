@@ -219,6 +219,8 @@ export const threadRoutes = {
     request: jsonRequest<EmptyInput, AnswerInteractionRequest>(answerInteractionRequestSchema),
     response: [
       jsonResponse<AnswerInteractionResponse>(),
+      // A resolution naming a decision the request never offered.
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
       jsonResponse<ApiErrorResponse>({ status: 409 }),
     ] as const,

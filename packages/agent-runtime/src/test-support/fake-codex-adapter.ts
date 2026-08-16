@@ -6,7 +6,12 @@ import { fileURLToPath } from "node:url";
 import { createCodexProviderAdapter } from "../codex/adapter";
 import type { ProviderAdapterFactory } from "../runtime-provider-process";
 
-export type FakeCodexMode = "happy" | "approval";
+export type FakeCodexMode = "happy" | "approval" | "approval-once" | "auth-once";
+
+export interface FakeCodexAdapterOptions {
+  /** auth-once: the cross-process marker whose absence fails the first turn. */
+  markerPath?: string;
+}
 
 export function fakeCodexAppServerPath(): string {
   return fileURLToPath(new URL("fake-codex-app-server.mjs", import.meta.url));
@@ -14,6 +19,7 @@ export function fakeCodexAppServerPath(): string {
 
 export function createFakeCodexAdapterFactory(
   mode: FakeCodexMode = "happy",
+  options?: FakeCodexAdapterOptions,
 ): ProviderAdapterFactory {
   return (providerId) => {
     if (providerId !== "codex") {
@@ -21,7 +27,11 @@ export function createFakeCodexAdapterFactory(
     }
     return createCodexProviderAdapter({
       processCommand: process.execPath,
-      processArgs: [fakeCodexAppServerPath(), mode],
+      processArgs: [
+        fakeCodexAppServerPath(),
+        mode,
+        ...(options?.markerPath !== undefined ? [options.markerPath] : []),
+      ],
     });
   };
 }

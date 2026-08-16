@@ -14,5 +14,3 @@ export const jsonRpcEnvelopeSchema = z
     params: recordSchema.optional(),
   })
   .passthrough();
-
-export type JsonRpcEnvelope = z.infer<typeof jsonRpcEnvelopeSchema>;

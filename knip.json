@@ -73,14 +73,15 @@
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
-    // Vendored-from-bb runtime + codex adapter (issue #549), same trade as
-    // packages/domain and the prosemark vendor: every module's exports are
-    // the UPSTREAM surface, so all of src is an entry and unused-export
-    // reporting is off for the package. The generated codex schema keeps
-    // upstream's PascalCase file names for re-vendor diffability.
+    // Vendored-from-bb runtime + codex adapter (issue #549). Entries are the
+    // package exports (knip reads them itself), the tests, and the fake
+    // app-server script (spawned, never imported — knip cannot see its
+    // caller). Unused-export reporting stays ON so trim residue surfaces;
+    // what a re-vendor needs back comes back with the re-vendor. The
+    // generated codex schema keeps upstream's PascalCase file names.
     "packages/agent-runtime": {
-      "entry": ["src/**/*.ts"],
-      "project": ["src/**/*.ts"]
+      "entry": ["src/**/__tests__/**/*.test.ts", "src/test-support/fake-codex-app-server.mjs"],
+      "project": ["src/**/*.{ts,mjs}"]
     },
     "packages/thread-view": {
       "entry": ["src/**/__tests__/**/*.test.ts"],

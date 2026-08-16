@@ -53,6 +53,7 @@ async function bootApp() {
   sink = knowledge;
   cleanups.push(() => knowledge.dispose());
   const { app } = createApp({
+    agent: { mode: "off", runtime: "off", detail: null },
     bus,
     createTurnDriver: () => unavailableTurnDriver,
     db,
@@ -65,6 +66,8 @@ async function bootApp() {
       portSource: "env",
       vaultDir,
       vaultRemote: null,
+      agent: "off",
+      agentModel: null,
     },
     fallback: { kind: "none" },
     knowledge,

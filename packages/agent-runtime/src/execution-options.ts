@@ -38,7 +38,7 @@ export function assertProviderSupportsExecutionOptions(
   }
 }
 
-export function sameExecutionSettings(args: SameExecutionSettingsArgs): boolean {
+function sameExecutionSettings(args: SameExecutionSettingsArgs): boolean {
   return (
     args.left.model === args.right.model &&
     args.left.reasoningLevel === args.right.reasoningLevel &&

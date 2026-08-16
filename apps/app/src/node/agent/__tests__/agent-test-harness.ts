@@ -22,6 +22,7 @@ import type { TimelineRow } from "@repo/server-contract/thread-timeline";
 import { expect } from "vitest";
 import { z } from "zod";
 import { createApp } from "../../app";
+import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import type { CreateTurnDriver } from "../../threads/turn-driver";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { createVaultRuntime, type VaultRuntime } from "../../vault/vault-runtime";
@@ -72,6 +73,8 @@ export async function bootAgentApp(args: BootAgentAppArgs): Promise<AgentAppHarn
     gitEnv: hermeticGitEnv(),
   });
   args.cleanups.push(() => vault.dispose());
+  const knowledge = createKnowledgeRuntime({ dataDir, vault: vault.service, vaultRoot: vaultDir });
+  args.cleanups.push(() => knowledge.dispose());
 
   const driver = args.makeDriver({ db, bus, vault, vaultDir });
   if (driver.dispose !== undefined) {
@@ -97,6 +100,7 @@ export async function bootAgentApp(args: BootAgentAppArgs): Promise<AgentAppHarn
     createTurnDriver: driver.createTurnDriver,
     db,
     fallback: { kind: "none" },
+    knowledge,
     schemaVersion: getSchemaVersion(db),
     startedAt: Date.now(),
     vault,

@@ -124,6 +124,58 @@ describe("auto-commit", () => {
     expect(stdout.trim()).toBe("Agent Smith <agent@inteligir>|inteligir");
   });
 
+  it("interleaved turns attribute separately: each commits ITS write set only", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 500 });
+    const before = await commitCount(root);
+
+    // Two overlapping turns hold commits; a user edit rides neither.
+    const releaseA = engine.holdCommits();
+    const releaseB = engine.holdCommits();
+    await writeFile(join(root, "a.md"), "turn A\n", "utf8");
+    await writeFile(join(root, "b.md"), "turn B\n", "utf8");
+    await writeFile(join(root, "user.md"), "user edit\n", "utf8");
+    engine.scheduleCommit();
+
+    const committedA = await engine.commitPaths(
+      ["a.md"],
+      { name: "agent-a", email: "a@inteligir" },
+      "agent: vault update\n\nThread: thr_a",
+    );
+    expect(committedA).toEqual({ files: 1 });
+    releaseA();
+    let files = (await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env }))
+      .stdout;
+    expect(files).toContain("agent-a");
+    expect(files).toContain("a.md");
+    expect(files).not.toContain("b.md");
+    expect(files).not.toContain("user.md");
+
+    const committedB = await engine.commitPaths(
+      ["b.md"],
+      { name: "agent-b", email: "b@inteligir" },
+      "agent: vault update\n\nThread: thr_b",
+    );
+    expect(committedB).toEqual({ files: 1 });
+    releaseB();
+    files = (await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env })).stdout;
+    expect(files).toContain("agent-b");
+    expect(files).toContain("b.md");
+    expect(files).not.toContain("user.md");
+
+    // The file no turn claimed lands in the re-armed debounce commit, as the
+    // engine identity.
+    await waitFor(async () => (await commitCount(root)) === before + 3);
+    files = (await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env })).stdout;
+    expect(files).toContain("inteligir");
+    expect(files).toContain("user.md");
+    await expectCleanRepo(root);
+
+    // A path that is no longer dirty commits nothing.
+    expect(
+      await engine.commitPaths(["a.md"], { name: "agent-a", email: "a@inteligir" }, "noop"),
+    ).toBeNull();
+  });
+
   it("a commit hold defers the debounce flush; release re-arms it", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 500 });
     const before = await commitCount(root);

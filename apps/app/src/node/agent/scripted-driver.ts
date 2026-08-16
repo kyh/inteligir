@@ -78,11 +78,15 @@ class ScriptedTurnDriver implements TurnDriver {
     args: TurnDriverStartArgs,
     scope: ReturnType<typeof turnScope>,
   ): Promise<void> {
-    const finishCommit = beginAgentTurnCommit(this.deps.git, args.threadId);
+    const turnCommit = beginAgentTurnCommit(this.deps.git, args.threadId);
     const fileItemId = `item_${args.turnId}_file`;
     try {
+      // Wait out any mid-flight sync before writing (same barrier the codex
+      // manager takes), so the write never lands in a rebase window.
+      await turnCommit.ready;
       const notePath = scriptedNotePath(args.threadId);
       const written = await this.deps.vault.write(notePath, `# Agent note\n\n${args.text}\n`);
+      turnCommit.recordPaths([written.path]);
       this.sink.ingestProviderEvents(args.threadId, [
         {
           type: "item/completed",
@@ -97,13 +101,13 @@ class ScriptedTurnDriver implements TurnDriver {
           scope,
         },
       ]);
-      await finishCommit();
+      await turnCommit.finish();
       this.sink.ingestProviderEvents(args.threadId, [
         { type: "turn/completed", threadId: args.threadId, status: "completed", scope },
       ]);
     } catch (error) {
       this.deps.onError?.(error instanceof Error ? error.message : String(error));
-      await finishCommit().catch(() => {});
+      await turnCommit.finish().catch(() => {});
       this.sink.ingestProviderEvents(args.threadId, [
         {
           type: "provider/error",

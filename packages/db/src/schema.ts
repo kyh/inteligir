@@ -30,10 +30,12 @@ export const threads = sqliteTable(
     originDocPath: text("origin_doc_path"),
     originAnchor: text("origin_anchor"),
     // The provider session this thread resumes into (issue #549): which
-    // provider ran it and the provider's own thread id. Written together once
-    // the runtime resolves the session; the CHECK makes a half-recorded
-    // session unrepresentable. Survives process restarts and idle-session
-    // reaping — the next turn resumes by this id instead of starting fresh.
+    // provider ran it and the provider's own thread id. Written together by
+    // the one writer (setThreadProviderSession) once the runtime resolves the
+    // session; no CHECK pairs them because SQLite cannot ADD a checked column
+    // without rebuilding the table, and a rebuild would cascade through the
+    // children's foreign keys mid-migration. Survives process restarts and
+    // idle-session reaping — the next turn resumes by this id.
     providerId: text("provider_id"),
     providerThreadId: text("provider_thread_id"),
     archivedAt: integer("archived_at"),
@@ -54,10 +56,6 @@ export const threads = sqliteTable(
     check(
       "threads_origin_pair_check",
       sql`(${table.originDocPath} IS NULL) = (${table.originAnchor} IS NULL)`,
-    ),
-    check(
-      "threads_provider_session_pair_check",
-      sql`(${table.providerId} IS NULL) = (${table.providerThreadId} IS NULL)`,
     ),
   ],
 );

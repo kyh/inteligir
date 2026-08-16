@@ -7,13 +7,13 @@
 import { z } from "zod";
 import { permissionModeSchema, reasoningLevelSchema } from "./shared-types";
 
-export const modelReasoningEffortSchema = z.object({
+const modelReasoningEffortSchema = z.object({
   reasoningEffort: reasoningLevelSchema,
   description: z.string(),
 });
 export type ModelReasoningEffort = z.infer<typeof modelReasoningEffortSchema>;
 
-export const availableModelSchema = z.object({
+const availableModelSchema = z.object({
   id: z.string(),
   model: z.string(),
   displayName: z.string(),
@@ -24,7 +24,7 @@ export const availableModelSchema = z.object({
 });
 export type AvailableModel = z.infer<typeof availableModelSchema>;
 
-export const providerCapabilitiesSchema = z.object({
+const providerCapabilitiesSchema = z.object({
   supportsUserQuestion: z.boolean(),
   supportedPermissionModes: z.array(permissionModeSchema).min(1),
 });

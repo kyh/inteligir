@@ -343,10 +343,10 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
       return { placement: "top-level", row };
     }
     case "reasoning": {
-      // Codex-shaped reasoning items often settle with the visible text in
-      // `summary` and an empty `content`; content wins when both exist.
+      // Upstream's order: `summary` is the provider's VISIBLE thinking text
+      // (codex settles with content empty); raw content is the fallback.
       const completedText = (
-        snapshot.content.length > 0 ? snapshot.content : snapshot.summary
+        snapshot.summary.length > 0 ? snapshot.summary : snapshot.content
       ).join("\n\n");
       const row: TimelineWorkRow = {
         ...base,

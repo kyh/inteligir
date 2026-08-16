@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5ccd4391-b4fb-4f92-8fc5-3b57b8d31735",
+  "id": "2f2fe09c-b0a6-4baf-843e-7e89a291dc94",
   "prevId": "8003320c-346c-46f5-892a-dc5fe2305cae",
   "tables": {
     "events": {
@@ -426,10 +426,6 @@
         "threads_origin_pair_check": {
           "name": "threads_origin_pair_check",
           "value": "(\"threads\".\"origin_doc_path\" IS NULL) = (\"threads\".\"origin_anchor\" IS NULL)"
-        },
-        "threads_provider_session_pair_check": {
-          "name": "threads_provider_session_pair_check",
-          "value": "(\"threads\".\"provider_id\" IS NULL) = (\"threads\".\"provider_thread_id\" IS NULL)"
         }
       }
     }

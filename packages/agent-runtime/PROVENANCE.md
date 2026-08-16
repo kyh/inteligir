@@ -4,8 +4,12 @@
   `packages/agent-runtime` (plus the domain modules it leans on from
   `packages/domain`, vendored under `src/domain/`)
 - **Commit**: `8e6fc83582881509077ce67ac5e4b59784d83121`
-- **License**: MIT — © bb contributors (attribution header on every vendored
-  file)
+- **License**: MIT — © bb contributors. Attribution header on every vendored
+  file, with ONE exception: the 33 files under `src/codex/generated/` carry
+  only the generator's own header (`ts-rs` via `codex app-server
+generate-ts`), kept byte-faithful to the generator's output so a
+  regenerate diffs cleanly — they are generated FROM the codex binary, not
+  authored by bb.
 - **Vendored**: 2026-08-16
 
 Vendored rather than depended on because bb publishes no packages and this

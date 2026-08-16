@@ -19,7 +19,7 @@ const codexModelIdentitySchema = z
   .passthrough();
 
 /** Map a Codex-native reasoning effort string into a runtime ReasoningLevel. */
-export function mapCodexReasoningLevelToBb(value: unknown): ReasoningLevel | null {
+function mapCodexReasoningLevelToBb(value: unknown): ReasoningLevel | null {
   if (typeof value !== "string") {
     return null;
   }

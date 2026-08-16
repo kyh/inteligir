@@ -1,16 +1,28 @@
 // A scripted stand-in for `codex app-server`, speaking its newline JSON-RPC
 // protocol on stdio — bb's fake-provider-process pattern. Modes (argv[2]):
-//   happy    — a turn streams an agent message and completes.
-//   approval — the turn additionally raises a command-execution approval
-//              REQUEST mid-turn, waits for the response, and echoes the
-//              decision back as a `fake/approvalResolved` notification (an
-//              unknown method, so consumers observe it as provider/unhandled).
+//   happy         — a turn streams an agent message, WRITES a note into the
+//                   cwd (the vault) and reports it as a fileChange with the
+//                   absolute path (codex-shaped), then completes.
+//   approval      — the turn additionally raises a command-execution approval
+//                   REQUEST mid-turn, waits for the response, and echoes the
+//                   decision back as a `fake/approvalResolved` notification
+//                   (an unknown method, so consumers observe it as
+//                   provider/unhandled).
+//   approval-once — approval on the FIRST turn of this process only; later
+//                   turns run happy (drain-race tests).
+//   auth-once     — while the marker file (argv[3]) is absent, the turn fails
+//                   with a codex `unauthorized` error (and writes the
+//                   marker); with the marker present, turns run happy — the
+//                   account-restart flow's replacement process succeeds.
 // Every turn ends with `turn/completed`; `turn/steer` echoes a
 // `fake/steered` notification the same way.
 
+import { existsSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 
 const mode = process.argv[2] ?? "happy";
+const markerPath = process.argv[3];
 
 let turnCounter = 0;
 let providerThreadId = null;
@@ -36,6 +48,17 @@ function runTurn(params) {
   const text = `Echo: ${params.input?.[0]?.text ?? ""}`;
   const midpoint = Math.ceil(text.length / 2);
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress" } });
+  if (mode === "auth-once" && markerPath !== undefined && !existsSync(markerPath)) {
+    writeFileSync(markerPath, "expired\n");
+    notify("error", {
+      threadId,
+      turnId,
+      error: { message: "401 Unauthorized", codexErrorInfo: "unauthorized" },
+      willRetry: false,
+    });
+    notify("turn/completed", { threadId, turn: { id: turnId, status: "failed" } });
+    return;
+  }
   notify("item/started", {
     threadId,
     turnId,
@@ -48,7 +71,21 @@ function runTurn(params) {
     turnId,
     item: { type: "agentMessage", id: itemId, text },
   });
-  if (mode === "approval") {
+  // A codex-shaped vault write: the file lands in the cwd (the vault) and the
+  // fileChange reports the ABSOLUTE path, as the real app-server does.
+  const notePath = resolve(process.cwd(), `codex-note-${turnCounter}.md`);
+  writeFileSync(notePath, `${text}\n`);
+  notify("item/completed", {
+    threadId,
+    turnId,
+    item: {
+      type: "fileChange",
+      id: `cfile_${turnCounter}`,
+      changes: [{ path: notePath, kind: { type: "add" }, diff: "" }],
+      status: "completed",
+    },
+  });
+  if (mode === "approval" || (mode === "approval-once" && turnCounter === 1)) {
     const commandItemId = `ccmd_${turnCounter}`;
     pendingApproval = { threadId, turnId, commandItemId };
     send({
