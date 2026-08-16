@@ -152,6 +152,56 @@ describe("diff3", () => {
     });
   });
 
+  describe("segmentation edges", () => {
+    it("merges both sides filling the same blank line identically", () => {
+      const base = doc("a", "", "z");
+      const both = doc("a", "filled", "z");
+      expect(diff3(base, both, both)).toEqual({ merged: both, conflicted: false });
+    });
+
+    it("conflicts when the sides fill a blank line differently", () => {
+      const base = doc("a", "", "z");
+      const mine = doc("a", "mine fill", "z");
+      const theirs = doc("a", "theirs fill", "z");
+      expect(diff3(base, mine, theirs)).toEqual({
+        merged: doc("a", "mine fill", "z"),
+        conflicted: true,
+      });
+    });
+
+    it("compares segment arrays, not joined text, at the region boundary", () => {
+      // mine turns one line into two; theirs rewrites the same region with
+      // the identical CHARACTERS but a different line split would join-equal.
+      const base = doc("a", "x y", "z");
+      const mine = doc("a", "x", "y", "z");
+      const theirs = doc("a", "x", "y", "z");
+      expect(diff3(base, mine, theirs)).toEqual({
+        merged: doc("a", "x", "y", "z"),
+        conflicted: false,
+      });
+    });
+
+    it("handles both sides appending at a trailing-newline boundary identically", () => {
+      const base = "a\n";
+      const both = "a\nb\n";
+      expect(diff3(base, both, both)).toEqual({ merged: both, conflicted: false });
+    });
+
+    it("conflicts on different appends at the trailing-newline boundary", () => {
+      const base = "a\n";
+      const result = diff3(base, "a\nmine\n", "a\ntheirs\n");
+      expect(result.conflicted).toBe(true);
+      expect(result.merged).toBe("a\nmine\n");
+    });
+
+    it("merges one side dropping the final newline while the other edits above", () => {
+      const base = "head\nmid\ntail\n";
+      const mine = "HEAD\nmid\ntail\n";
+      const theirs = "head\nmid\ntail";
+      expect(diff3(base, mine, theirs)).toEqual({ merged: "HEAD\nmid\ntail", conflicted: false });
+    });
+  });
+
   describe("larger documents", () => {
     it("merges edits scattered across a long document", () => {
       const base = doc(...Array.from({ length: 50 }, (_, i) => `line ${i}`));

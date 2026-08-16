@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette, type PaletteActions } from "../command-palette";
+import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -11,6 +12,13 @@ const ENTRIES: VaultEntry[] = [
   { kind: "file", path: "notes/ideas.md", size: 5 },
   { kind: "file", path: "Welcome.md", size: 20 },
 ];
+
+const FILE_PATHS = ENTRIES.filter((entry) => entry.kind === "file").map((entry) => entry.path);
+
+/** The default test source: the filename tiers, resolved async like the real
+ *  knowledge-backed source. */
+const filenameSource: NoteSearchSource = (query) =>
+  Promise.resolve(searchNotesByFilename(query, FILE_PATHS));
 
 function makeActions(): PaletteActions {
   return {
@@ -30,6 +38,7 @@ function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPal
       open
       onOpenChange={onOpenChange}
       entries={ENTRIES}
+      searchSource={filenameSource}
       canSync={false}
       actions={actions}
       {...overrides}
@@ -42,27 +51,62 @@ function searchBox(): HTMLElement {
   return screen.getByPlaceholderText("Search notes or commands…");
 }
 
+const titledSource: NoteSearchSource = () =>
+  Promise.resolve([{ path: "notes/ideas.md", title: "Big Ideas", snippet: "…the big idea is…" }]);
+
+const failingSource: NoteSearchSource = () => Promise.reject(new Error("index down"));
+
+const noop = (): void => {};
+
 afterEach(cleanup);
 
 describe("note search", () => {
-  it("lists notes and opens the picked one", () => {
+  it("lists notes from the source and opens the picked one", async () => {
     const { actions, onOpenChange } = renderPalette();
-    fireEvent.click(screen.getByText("Welcome.md"));
+    fireEvent.click(await screen.findByText("Welcome.md"));
     expect(actions.openNote).toHaveBeenCalledWith("Welcome.md");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("narrows the note list as the query types", () => {
+  it("narrows the note list as the query types", async () => {
     renderPalette();
     fireEvent.change(searchBox(), { target: { value: "ideas" } });
-    expect(screen.getByText("notes/ideas.md")).toBeDefined();
-    expect(screen.queryByText("Welcome.md")).toBeNull();
+    expect(await screen.findByText("notes/ideas.md")).toBeDefined();
+    await waitFor(() => {
+      expect(screen.queryByText("Welcome.md")).toBeNull();
+    });
   });
 
-  it("matches loosely (subsequence) on the path", () => {
-    renderPalette();
-    fireEvent.change(searchBox(), { target: { value: "nids" } });
-    expect(screen.getByText("notes/ideas.md")).toBeDefined();
+  it("renders full-text hits with title and path, and their pick opens the path", async () => {
+    const { actions } = renderPalette({ searchSource: titledSource });
+    fireEvent.change(searchBox(), { target: { value: "big" } });
+    fireEvent.click(await screen.findByText("Big Ideas"));
+    expect(actions.openNote).toHaveBeenCalledWith("notes/ideas.md");
+  });
+
+  it("drops a stale slow answer that resolves after a newer one", async () => {
+    let releaseSlow: (hits: { path: string }[]) => void = noop;
+    const slow = new Promise<{ path: string }[]>((resolve) => {
+      releaseSlow = resolve;
+    });
+    const source: NoteSearchSource = (query) =>
+      query === "old" ? slow : Promise.resolve([{ path: "fresh.md" }]);
+    renderPalette({ searchSource: source });
+    fireEvent.change(searchBox(), { target: { value: "old" } });
+    fireEvent.change(searchBox(), { target: { value: "new" } });
+    expect(await screen.findByText("fresh.md")).toBeDefined();
+    releaseSlow([{ path: "stale.md" }]);
+    await waitFor(() => {
+      expect(screen.queryByText("stale.md")).toBeNull();
+    });
+  });
+
+  it("shows an empty list when the source fails", async () => {
+    renderPalette({ searchSource: failingSource });
+    fireEvent.change(searchBox(), { target: { value: "anything" } });
+    await waitFor(() => {
+      expect(screen.queryByText("Welcome.md")).toBeNull();
+    });
   });
 });
 

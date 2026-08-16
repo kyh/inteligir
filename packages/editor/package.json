@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./create-markdown-editor": "./src/create-markdown-editor.ts",
+    "./external-replace": "./src/external-replace.ts",
     "./editor-theme": "./src/editor-theme.ts",
     "./react/markdown-editor": "./src/react/markdown-editor.tsx"
   },

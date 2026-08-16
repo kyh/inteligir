@@ -1,7 +1,10 @@
 // The page title IS the filename: an editable H1 above the document whose
 // commit renames the file. Enter commits and hands focus to the editor;
-// Escape restores; a blur with changes commits too.
+// Escape restores; a blur with changes commits too. Names pass through the
+// domain's ONE gate (@repo/notes checkNoteName) — reject, never sanitize.
 
+import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
+import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useRef, useState } from "react";
 
 export function noteStem(path: string): string {
@@ -19,7 +22,9 @@ export function pathWithStem(path: string, stem: string): string {
 
 export interface NoteTitleProps {
   path: string;
-  onRename: (toPath: string) => void;
+  /** Rejects when the rename did not happen — the failure re-arms the commit
+   * guard so the same name can be retried. */
+  onRename: (toPath: string) => Promise<void>;
   onSubmit: () => void;
 }
 
@@ -28,7 +33,8 @@ export function NoteTitle({ path, onRename, onSubmit }: NoteTitleProps) {
   const [draft, setDraft] = useState(stem);
   const escapedRef = useRef(false);
   // Enter commits and then moves focus, which fires the blur commit too; the
-  // last-sent stem swallows that echo so one rename goes out per edit.
+  // last-sent stem swallows that echo so one rename goes out per edit. A
+  // FAILED rename clears it, so the same name can be tried again.
   const lastSentRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -42,14 +48,24 @@ export function NoteTitle({ path, onRename, onSubmit }: NoteTitleProps) {
       setDraft(noteStem(path));
       return;
     }
-    const next = draft.trim();
-    if (next === "" || next.includes("/")) {
+    const trimmed = draft.trim();
+    if (trimmed === "" || trimmed === stem) {
       setDraft(stem);
       return;
     }
+    const isMd = path.slice(path.lastIndexOf("/") + 1).endsWith(".md");
+    const verdict = checkNoteName(isMd ? `${trimmed}.md` : trimmed);
+    if (!verdict.ok) {
+      toast.error(noteNameErrorMessage(verdict.reason));
+      setDraft(stem);
+      return;
+    }
+    const next = isMd ? verdict.name.slice(0, -".md".length) : verdict.name;
     if (next !== stem && next !== lastSentRef.current) {
       lastSentRef.current = next;
-      onRename(pathWithStem(path, next));
+      onRename(pathWithStem(path, next)).catch(() => {
+        lastSentRef.current = null;
+      });
     }
   };
 

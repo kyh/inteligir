@@ -1,5 +1,6 @@
-import { EditorState, type Extension, type Text } from "@codemirror/state";
+import { EditorState, Transaction, type Extension, type Text } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { externalReplaceAnnotation, externalReplaceChanges } from "./external-replace";
 import { type MarkdownEditorOptions, markdownEditorExtensions } from "./markdown-editor-extensions";
 
 export interface MarkdownEditorConfig extends MarkdownEditorOptions {
@@ -21,9 +22,10 @@ export interface MarkdownEditor {
   getDoc(): string;
   /** Replaces the whole buffer (external file change); resets the selection. */
   setDoc(doc: string): void;
-  /** Replaces the buffer as ONE minimal change (common prefix/suffix kept),
-   * so the selection maps through it instead of resetting — the external
-   * update path for a buffer the user may be sitting in. */
+  /** Replaces the buffer as per-hunk line changes (shared Myers diff), so the
+   * selection maps through unchanged regions instead of resetting — the
+   * external update path for a buffer the user may be sitting in. Excluded
+   * from undo history and stamped with `externalReplaceAnnotation`. */
   replaceDoc(doc: string): void;
   focus(): void;
   destroy(): void;
@@ -58,27 +60,13 @@ export const createMarkdownEditor = (config: MarkdownEditorConfig): MarkdownEdit
     replaceDoc: (next) => {
       const current = view.state.doc.toString();
       if (next === current) return;
-      // Trim the common prefix and suffix so the dispatched change spans only
-      // the differing middle: positions outside it (the cursor included) map
-      // through unchanged. The suffix scan stops at the prefix end so the two
-      // never overlap when one text contains the other.
-      let from = 0;
-      const shorter = Math.min(current.length, next.length);
-      while (from < shorter && current.charCodeAt(from) === next.charCodeAt(from)) {
-        from += 1;
-      }
-      let currentEnd = current.length;
-      let nextEnd = next.length;
-      while (
-        currentEnd > from &&
-        nextEnd > from &&
-        current.charCodeAt(currentEnd - 1) === next.charCodeAt(nextEnd - 1)
-      ) {
-        currentEnd -= 1;
-        nextEnd -= 1;
-      }
+      // Per-hunk changes rather than one whole-doc replacement: a cursor in
+      // any unchanged region — including one between two edits — maps through
+      // untouched. Kept out of history so Undo can never resurrect content
+      // the disk no longer holds.
       view.dispatch({
-        changes: { from, to: currentEnd, insert: next.slice(from, nextEnd) },
+        changes: externalReplaceChanges(current, next),
+        annotations: [Transaction.addToHistory.of(false), externalReplaceAnnotation.of(true)],
       });
     },
     focus: () => {

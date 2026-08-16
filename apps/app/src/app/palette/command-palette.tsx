@@ -1,5 +1,6 @@
-// One palette, one query box: note hits from the swappable search source
-// (filename tiers today, full-text with #547) above the command list.
+// One palette, one query box: note hits from the INJECTED async search
+// source (the workspace wires the knowledge index's full-text + tag search,
+// filename tiers as the zero-query/fallback view) above the command list.
 // Filtering is entirely ours (shouldFilter off) so the note source and the
 // command matcher stay two visible functions rather than cmdk heuristics.
 
@@ -22,7 +23,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { searchNotesByFilename } from "./note-search";
+import type { NoteSearchHit, NoteSearchSource } from "./note-search";
 
 export interface PaletteActions {
   openNote: (path: string) => void;
@@ -35,7 +36,9 @@ export interface PaletteActions {
 export interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Folder listing for the new-note-in-folder page. */
   entries: readonly VaultEntry[];
+  searchSource: NoteSearchSource;
   /** Hidden when the vault has no remote — a command that cannot run is
    *  noise, not affordance. */
   canSync: boolean;
@@ -62,11 +65,13 @@ export function CommandPalette({
   open,
   onOpenChange,
   entries,
+  searchSource,
   canSync,
   actions,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState<Page>("root");
+  const [noteHits, setNoteHits] = useState<NoteSearchHit[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -75,13 +80,35 @@ export function CommandPalette({
     }
   }, [open]);
 
+  // Async hits with a staleness guard: a slow answer for an old query must
+  // never overwrite a fresh one.
+  useEffect(() => {
+    if (!open || page !== "root") {
+      return undefined;
+    }
+    let stale = false;
+    void (async () => {
+      let hits: NoteSearchHit[];
+      try {
+        hits = await searchSource(query);
+      } catch {
+        hits = [];
+      }
+      if (!stale) {
+        setNoteHits(hits);
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+  }, [open, page, query, searchSource]);
+
   const close = (): void => onOpenChange(false);
   const run = (action: () => void): void => {
     close();
     action();
   };
 
-  const filePaths = entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
   const dirPaths = entries.filter((entry) => entry.kind === "dir").map((entry) => entry.path);
 
   const commands: StaticCommand[] = [
@@ -159,7 +186,6 @@ export function CommandPalette({
     );
   }
 
-  const noteHits = searchNotesByFilename(query, filePaths);
   const visibleCommands = commands.filter((command) => matchesQuery(command.label, query));
 
   return (
@@ -182,7 +208,14 @@ export function CommandPalette({
             {noteHits.map((hit) => (
               <CommandItem key={hit.path} onSelect={() => run(() => actions.openNote(hit.path))}>
                 <FileTextIcon />
-                <span className="truncate">{hit.path}</span>
+                <span className="truncate">
+                  {hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
+                </span>
+                {hit.title !== undefined && hit.title !== "" ? (
+                  <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
+                    {hit.path}
+                  </span>
+                ) : null}
               </CommandItem>
             ))}
           </CommandGroup>

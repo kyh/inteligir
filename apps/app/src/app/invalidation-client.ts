@@ -25,6 +25,10 @@ export interface InvalidationSocket {
 export interface InvalidationClientArgs {
   createSocket: () => InvalidationSocket;
   onChanged: (message: ChangedMessage) => void;
+  /** Fired after a RE-connect has resubscribed every held target (never on
+   * the first connect): anything that changed during the gap produced no
+   * frames, so the consumer must invalidate what its subscriptions cover. */
+  onReconnected?: (targets: readonly RealtimeSubscriptionTarget[]) => void;
   /** Reconnect backoff schedule; defaults to 500ms doubling, capped at 10s. */
   reconnectDelayMs?: (attempt: number) => number;
 }
@@ -41,6 +45,7 @@ export class InvalidationClient {
   private readonly held = new Map<string, HeldTarget>();
   private socket: InvalidationSocket | null = null;
   private socketOpen = false;
+  private hasConnectedBefore = false;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
@@ -101,9 +106,14 @@ export class InvalidationClient {
     socket.onOpen = () => {
       this.socketOpen = true;
       this.reconnectAttempt = 0;
-      for (const holder of this.held.values()) {
-        socket.send(JSON.stringify({ type: "subscribe", target: holder.target }));
+      const targets = [...this.held.values()].map((holder) => holder.target);
+      for (const target of targets) {
+        socket.send(JSON.stringify({ type: "subscribe", target }));
       }
+      if (this.hasConnectedBefore) {
+        this.args.onReconnected?.(targets);
+      }
+      this.hasConnectedBefore = true;
     };
     socket.onMessage = (event) => {
       if (typeof event.data !== "string") {

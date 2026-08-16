@@ -63,12 +63,49 @@ export const vaultWriteRequestSchema = z
   .object({
     path: z.string().min(1),
     content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
+    /** Compare-and-swap guard: sha-256 hex of the UTF-8 bytes of the content
+     * this write was derived from. The server compares against the file's
+     * CURRENT bytes under the mutation lock; a mismatch answers 409 carrying
+     * what the file holds now, so the client can merge and retry. Plain
+     * writes (agent/CLI callers) omit it and stay last-writer-wins. */
+    expectedHash: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/u)
+      .optional(),
+    /** Create-exclusive ('wx' semantics): refuse 409 when the path already
+     * exists. Mutually exclusive with expectedHash — a guard against a base
+     * and a guard against existence contradict each other. */
+    ifAbsent: z.literal(true).optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.expectedHash === undefined || value.ifAbsent === undefined, {
+    message: "expectedHash and ifAbsent are mutually exclusive",
+  });
 export type VaultWriteRequest = z.infer<typeof vaultWriteRequestSchema>;
 
 export const vaultWriteResponseSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultWriteResponse = z.infer<typeof vaultWriteResponseSchema>;
+
+/**
+ * Every 409 a write can answer, one schema: `error` is the refusal class
+ * (`cas_mismatch`, `already_exists`, or the service's plain `conflict`), and
+ * `current` is present exactly for `cas_mismatch` on a file that still
+ * exists — the content and hash a merging client needs to retry against.
+ */
+export const vaultWriteConflictSchema = z
+  .object({
+    error: z.string().min(1),
+    message: z.string(),
+    current: z
+      .object({
+        content: z.string(),
+        hash: z.string().regex(/^[0-9a-f]{64}$/u),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type VaultWriteConflict = z.infer<typeof vaultWriteConflictSchema>;
 
 export const vaultRenameRequestSchema = z
   .object({
@@ -200,7 +237,7 @@ export const vaultRoutes = {
     response: [
       jsonResponse<VaultWriteResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),
-      jsonResponse<ApiErrorResponse>({ status: 409 }),
+      jsonResponse<VaultWriteConflict>({ status: 409 }),
     ],
   }),
   rename: defineRoute({

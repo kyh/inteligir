@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChangedMessage } from "@repo/server-contract/notifications";
+import type {
+  ChangedMessage,
+  RealtimeSubscriptionTarget,
+} from "@repo/server-contract/notifications";
 import { InvalidationClient, type InvalidationSocket } from "../invalidation-client";
 
 class FakeSocket implements InvalidationSocket {
@@ -37,6 +40,7 @@ class FakeSocket implements InvalidationSocket {
 function harness() {
   const sockets: FakeSocket[] = [];
   const changed: ChangedMessage[] = [];
+  const reconnected: Array<readonly RealtimeSubscriptionTarget[]> = [];
   const client = new InvalidationClient({
     createSocket: () => {
       const socket = new FakeSocket();
@@ -44,8 +48,9 @@ function harness() {
       return socket;
     },
     onChanged: (message) => changed.push(message),
+    onReconnected: (targets) => reconnected.push(targets),
   });
-  return { client, sockets, changed };
+  return { client, sockets, changed, reconnected };
 }
 
 beforeEach(() => {
@@ -206,6 +211,24 @@ describe("reconnect", () => {
     h.sockets[2]?.drop();
     await vi.advanceTimersByTimeAsync(500);
     expect(h.sockets).toHaveLength(4);
+  });
+
+  it("reports a reconnect with the held targets — and never the first connect", async () => {
+    const h = harness();
+    h.client.start();
+    h.client.subscribe({ kind: "vault" });
+    h.sockets[0]?.open();
+    expect(h.reconnected).toEqual([]);
+
+    h.sockets[0]?.drop();
+    await vi.advanceTimersByTimeAsync(500);
+    h.sockets[1]?.open();
+    expect(h.reconnected).toEqual([[{ kind: "vault" }]]);
+
+    h.sockets[1]?.drop();
+    await vi.advanceTimersByTimeAsync(500);
+    h.sockets[2]?.open();
+    expect(h.reconnected).toHaveLength(2);
   });
 
   it("stops reconnecting after dispose", async () => {

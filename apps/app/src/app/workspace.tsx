@@ -12,6 +12,11 @@ import { ApiError, queryKeys, unwrap } from "./api";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { NoteView } from "./note/note-view";
 import { CommandPalette } from "./palette/command-palette";
+import {
+  NOTE_SEARCH_LIMIT,
+  searchNotesByFilename,
+  type NoteSearchSource,
+} from "./palette/note-search";
 import { SettingsDialog } from "./settings/settings-dialog";
 import { Sidebar } from "./sidebar/sidebar";
 import type { TreeOps } from "./sidebar/file-tree";
@@ -91,10 +96,15 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const createNote = useCallback(
     async (path: string, content = ""): Promise<void> => {
       try {
-        await unwrap(await api.vault.file.$put({ json: { path, content } }));
+        // Create-exclusive: an existing note is OPENED, never overwritten.
+        await unwrap(await api.vault.file.$put({ json: { path, content, ifAbsent: true } }));
         setOpenNote(path);
       } catch (error) {
-        toast.error(error instanceof ApiError ? error.message : `Could not create .`);
+        if (error instanceof ApiError && error.code === "already_exists") {
+          setOpenNote(path);
+          return;
+        }
+        toast.error(error instanceof ApiError ? error.message : `Could not create ${path}.`);
       }
     },
     [api, setOpenNote],
@@ -110,14 +120,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const openDailyNote = useCallback((): void => {
     const now = new Date();
-    const path = dailyNotePath(now);
-    const exists = filePathsLowercased(treeQuery.data).has(path.toLowerCase());
-    if (exists) {
-      setOpenNote(path);
-    } else {
-      void createNote(path, dailyNoteTemplate(now));
-    }
-  }, [treeQuery.data, createNote, setOpenNote]);
+    // Unconditionally create-exclusive: an existing daily opens, a missing
+    // one is minted with the template — no tree-staleness race.
+    void createNote(dailyNotePath(now), dailyNoteTemplate(now));
+  }, [createNote]);
 
   const syncNow = useCallback((): void => {
     void (async () => {
@@ -214,6 +220,39 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     statusQuery.data.state !== "no-remote" &&
     statusQuery.data.state !== "syncing";
 
+  // The palette's search source: the knowledge index's full-text + tag
+  // search (`tag:<name>` terms parse engine-side), with the filename tiers as
+  // the zero-query view and the fallback when the index answers nothing (a
+  // filename-shaped query FTS misses) or errors.
+  const treeEntries = treeQuery.data?.entries;
+  const searchSource = useCallback<NoteSearchSource>(
+    async (query) => {
+      const filePaths = (treeEntries ?? [])
+        .filter((entry) => entry.kind === "file")
+        .map((entry) => entry.path);
+      const byFilename = () => searchNotesByFilename(query, filePaths);
+      if (query.trim() === "") {
+        return byFilename();
+      }
+      try {
+        const response = await unwrap(
+          await api.knowledge.search.$get({ query: { q: query, limit: NOTE_SEARCH_LIMIT } }),
+        );
+        if (response.results.length === 0) {
+          return byFilename();
+        }
+        return response.results.map((result) => ({
+          path: result.path,
+          title: result.title,
+          snippet: result.snippet,
+        }));
+      } catch {
+        return byFilename();
+      }
+    },
+    [api, treeEntries],
+  );
+
   return (
     <div className="flex h-dvh overflow-hidden bg-background text-foreground">
       <aside
@@ -260,6 +299,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         entries={treeQuery.data?.entries ?? []}
+        searchSource={searchSource}
         canSync={canSync}
         actions={{
           openNote: setOpenNote,

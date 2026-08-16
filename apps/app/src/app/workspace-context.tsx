@@ -100,6 +100,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const invalidation = new InvalidationClient({
       createSocket: () => browserInvalidationSocket(workspaceSocketUrl(window.location.origin)),
       onChanged: (message) => applyChangedMessage(runtime.queryClient, runtime.notifyDoc, message),
+      // Mutations during a connection gap produced no frames; on reconnect,
+      // invalidate everything the subscriptions cover — the vault and system
+      // key families — and make the open note re-check its file.
+      onReconnected: () => {
+        void runtime.queryClient.invalidateQueries({ queryKey: ["vault"] });
+        void runtime.queryClient.invalidateQueries({ queryKey: ["system"] });
+        runtime.notifyDoc(null);
+      },
     });
     invalidation.start();
     invalidation.subscribe({ kind: "system" });

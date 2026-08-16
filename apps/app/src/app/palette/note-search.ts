@@ -1,17 +1,21 @@
-// The palette's note-search seam: ONE swappable function between the query
-// box and the hit list, so upgrading the source never touches the palette.
-//
-// TODO(#547): when the knowledge index lands its contract module
-// (packages/server-contract/src/knowledge.ts), swap in full-text search here —
-// same signature, async source, palette untouched.
+// The palette's note-search seam: ONE injected async function between the
+// query box and the hit list, so the palette renders hits without knowing how
+// they were found. The workspace composes the real source — the knowledge
+// index's full-text + tag search (`tag:<name>` terms parse engine-side) with
+// the filename tiers below as the zero-query view and the fallback when the
+// index answers nothing or errors.
 
-interface NoteSearchHit {
+export interface NoteSearchHit {
   path: string;
+  /** The doc's title when the source knows one (the knowledge index does). */
+  title?: string;
+  /** A match snippet when the source has one. */
+  snippet?: string;
 }
 
-export type NoteSearchSource = (query: string, filePaths: readonly string[]) => NoteSearchHit[];
+export type NoteSearchSource = (query: string) => Promise<NoteSearchHit[]>;
 
-const RESULT_LIMIT = 12;
+export const NOTE_SEARCH_LIMIT = 12;
 
 function basename(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
@@ -33,11 +37,14 @@ function isSubsequence(query: string, text: string): boolean {
 
 /** Filename-tier fuzzy match: ranked name-prefix > name-substring >
  *  path-substring > path-subsequence, alphabetical within a tier. */
-export const searchNotesByFilename: NoteSearchSource = (query, filePaths) => {
+export function searchNotesByFilename(
+  query: string,
+  filePaths: readonly string[],
+): NoteSearchHit[] {
   const needle = query.trim().toLowerCase();
   const sorted = filePaths.toSorted();
   if (needle === "") {
-    return sorted.slice(0, RESULT_LIMIT).map((path) => ({ path }));
+    return sorted.slice(0, NOTE_SEARCH_LIMIT).map((path) => ({ path }));
   }
   const tiers: string[][] = [[], [], [], []];
   for (const path of sorted) {
@@ -55,6 +62,6 @@ export const searchNotesByFilename: NoteSearchSource = (query, filePaths) => {
   }
   return tiers
     .flat()
-    .slice(0, RESULT_LIMIT)
+    .slice(0, NOTE_SEARCH_LIMIT)
     .map((path) => ({ path }));
-};
+}

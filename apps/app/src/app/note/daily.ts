@@ -1,20 +1,17 @@
 // The daily note — one hardcoded cadence for now; the configurable cadence
 // system (weekly/monthly, folders, templates) returns with the settings
-// surface that can carry it.
+// surface that can carry it. Path math is @repo/notes' daily-path module —
+// the SAME builder every other "today's note" surface uses.
 
-function pad(value: number): string {
-  return String(value).padStart(2, "0");
-}
+import { dailyNotePath as buildDailyNotePath, formatIsoDate } from "@repo/notes/daily-path";
 
-/** Local date, not UTC: "today's note" follows the wall clock. */
-function dailyNoteStem(now: Date): string {
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
+const DAILY_FOLDER = "notes/daily";
+const DAILY_FILENAME_FORMAT = "YYYY-MM-DD";
 
 export function dailyNotePath(now: Date): string {
-  return `notes/daily/${dailyNoteStem(now)}.md`;
+  return buildDailyNotePath(DAILY_FOLDER, DAILY_FILENAME_FORMAT, now);
 }
 
 export function dailyNoteTemplate(now: Date): string {
-  return `# ${dailyNoteStem(now)}\n\n`;
+  return `# ${formatIsoDate(now)}\n\n`;
 }

@@ -48,10 +48,13 @@ export async function unwrap<T>(response: SuccessResponse<T> | FailureResponse):
     return response.json();
   }
   const fallback = { error: "internal", message: `Request failed with status ${response.status}` };
+  // Lenient: refusal bodies may carry MORE than {error, message} (the write
+  // 409 carries the file's current content); the class and message must
+  // survive that.
   const body = await response
     .json()
     .then((raw) => {
-      const parsed = apiErrorResponseSchema.safeParse(raw);
+      const parsed = apiErrorResponseSchema.loose().safeParse(raw);
       return parsed.success ? parsed.data : fallback;
     })
     .catch(() => fallback);

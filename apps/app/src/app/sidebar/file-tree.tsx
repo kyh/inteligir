@@ -10,7 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@repo/ui/components/dropdown-menu";
+import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
+import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -66,11 +68,7 @@ type EditingState =
   | { mode: "rename"; path: string; kind: "dir" | "file" }
   | { mode: "create"; kind: "dir" | "file"; parentDir: string };
 
-interface Row {
-  kind: "node" | "editor";
-  node?: TreeNode;
-  depth: number;
-}
+type Row = { kind: "node"; node: TreeNode; depth: number } | { kind: "editor"; depth: number };
 
 function visibleRows(
   nodes: readonly TreeNode[],
@@ -112,11 +110,18 @@ function InlineNameInput({
   }, []);
   const commit = (): void => {
     const value = inputRef.current?.value.trim() ?? "";
-    if (cancelledRef.current || value === "" || value.includes("/")) {
+    if (cancelledRef.current || value === "") {
       onCancel();
       return;
     }
-    onCommit(value);
+    // The domain's ONE name gate — same rules the title H1 applies.
+    const verdict = checkNoteName(value);
+    if (!verdict.ok) {
+      toast.error(noteNameErrorMessage(verdict.reason));
+      onCancel();
+      return;
+    }
+    onCommit(verdict.name);
   };
   return (
     <div className="px-1" style={{ paddingLeft: depth * 12 + 4 }}>
@@ -171,6 +176,16 @@ export function FileTree({
     onPendingCreateHandled();
   }, [pendingCreate, onPendingCreateHandled]);
 
+  // Reconcile the roving tab stop when the tree CHANGES (delete clears it,
+  // a followed rename survives its refetch). Keyed on entries alone: running
+  // on every activePath change would clear an optimistic rename-follow
+  // before the refetched tree can confirm it.
+  useEffect(() => {
+    setActivePath((current) =>
+      current !== null && !entries.some((entry) => entry.path === current) ? null : current,
+    );
+  }, [entries]);
+
   // Keep the open note visible: expand its ancestor folders whenever it
   // changes (the user may still collapse them afterwards).
   useEffect(() => {
@@ -189,9 +204,7 @@ export function FileTree({
 
   const rows: Row[] = [];
   visibleRows(roots, expanded, editing, 0, rows);
-  const nodeRows = rows.filter(
-    (row): row is Row & { kind: "node"; node: TreeNode } => row.kind === "node",
-  );
+  const nodeRows = rows.filter((row): row is Extract<Row, { kind: "node" }> => row.kind === "node");
 
   const toggleDir = (path: string): void => {
     setExpanded((current) => {
@@ -294,6 +307,9 @@ export function FileTree({
     const parent = parentDirOf(node.path);
     const toPath = parent === "" ? newName : `${parent}/${newName}`;
     if (toPath !== node.path) {
+      // Follow the rename with the tab stop; the reconcile effect clears it
+      // if the rename never lands.
+      setActivePath(toPath);
       ops.renameEntry(node.path, toPath);
     }
   };
@@ -311,30 +327,32 @@ export function FileTree({
 
   // The roving tab stop: the active row, else the open note's row, else the
   // first row.
-  const tabStopPath = activePath ?? openPath ?? nodeRows[0]?.node.path ?? null;
+  // The tab stop must name a VISIBLE row — an active or open path hidden by
+  // a collapse (or gone entirely) falls through, so the tree always keeps
+  // exactly one reachable stop.
+  const visible = (path: string | null): string | null =>
+    path !== null && nodeRows.some((row) => row.node.path === path) ? path : null;
+  const tabStopPath = visible(activePath) ?? visible(openPath) ?? nodeRows[0]?.node.path ?? null;
 
   return (
     <div role="tree" aria-label="Vault files" className="flex flex-col py-1">
       {rows.map((row) => {
-        if (row.kind === "editor" && editing !== null) {
-          if (editing.mode === "create") {
-            const createState = editing;
-            return (
-              <InlineNameInput
-                key="create-editor"
-                initialValue=""
-                depth={row.depth}
-                onCommit={(name) => commitCreate(createState, name)}
-                onCancel={() => setEditing(null)}
-              />
-            );
+        if (row.kind === "editor") {
+          if (editing?.mode !== "create") {
+            return null;
           }
-          return null;
+          const createState = editing;
+          return (
+            <InlineNameInput
+              key="create-editor"
+              initialValue=""
+              depth={row.depth}
+              onCommit={(name) => commitCreate(createState, name)}
+              onCancel={() => setEditing(null)}
+            />
+          );
         }
         const node = row.node;
-        if (node === undefined) {
-          return null;
-        }
         if (editing?.mode === "rename" && editing.path === node.path) {
           return (
             <InlineNameInput
