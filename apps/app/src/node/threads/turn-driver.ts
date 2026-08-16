@@ -1,4 +1,5 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
+import type { PendingInteraction } from "@repo/server-contract/threads";
 
 /**
  * The provider seam. A driver ACCEPTS work synchronously and reports
@@ -22,6 +23,12 @@ export interface TurnDriver {
    * reports the provider's echo later, through the sink.
    */
   steerTurn(args: TurnDriverSteerArgs): boolean;
+  /**
+   * The answer route resolved a pending interaction this driver produced.
+   * Called AFTER the row is resolved; a driver holding the provider's
+   * request open parses `interaction.resolution` and answers the process.
+   */
+  onInteractionResolved?(interaction: PendingInteraction): void;
 }
 
 export interface TurnDriverStartArgs {
@@ -39,19 +46,23 @@ export interface ProviderEventSink {
 export type CreateTurnDriver = (sink: ProviderEventSink) => TurnDriver;
 
 export class TurnDriverUnavailableError extends Error {
-  constructor() {
-    super("No agent provider is configured");
+  constructor(message?: string) {
+    super(message ?? "No agent provider is configured");
     this.name = "TurnDriverUnavailableError";
   }
 }
 
-/** The default until the provider adapter (#549) lands: accepts nothing,
- *  honestly — a send answers 503 instead of wedging a thread in starting. */
-export const unavailableTurnDriver: TurnDriver = {
-  startTurn() {
-    throw new TurnDriverUnavailableError();
-  },
-  steerTurn() {
-    return false;
-  },
-};
+/** Accepts nothing, honestly — a send answers 503 (with the stated reason)
+ *  instead of wedging a thread in starting. */
+export function createUnavailableTurnDriver(message?: string): TurnDriver {
+  return {
+    startTurn() {
+      throw new TurnDriverUnavailableError(message);
+    },
+    steerTurn() {
+      return false;
+    },
+  };
+}
+
+export const unavailableTurnDriver: TurnDriver = createUnavailableTurnDriver();

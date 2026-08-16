@@ -73,6 +73,15 @@
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
+    // Vendored-from-bb runtime + codex adapter (issue #549), same trade as
+    // packages/domain and the prosemark vendor: every module's exports are
+    // the UPSTREAM surface, so all of src is an entry and unused-export
+    // reporting is off for the package. The generated codex schema keeps
+    // upstream's PascalCase file names for re-vendor diffability.
+    "packages/agent-runtime": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "packages/thread-view": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]

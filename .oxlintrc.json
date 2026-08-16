@@ -31,7 +31,8 @@
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
     ".design-sync",
-    ".ds-sync"
+    ".ds-sync",
+    "packages/agent-runtime/src/codex/generated"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "categories": {

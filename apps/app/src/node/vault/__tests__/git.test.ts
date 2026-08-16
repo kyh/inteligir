@@ -123,6 +123,36 @@ describe("auto-commit", () => {
     const { stdout } = await runGit(root, ["log", "-1", "--format=%an <%ae>|%cn"], { env });
     expect(stdout.trim()).toBe("Agent Smith <agent@inteligir>|inteligir");
   });
+
+  it("a commit hold defers the debounce flush; release re-arms it", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 500 });
+    const before = await commitCount(root);
+
+    const release = engine.holdCommits();
+    await writeFile(join(root, "mid-turn.md"), "agent writing\n", "utf8");
+    engine.scheduleCommit();
+    // Past the quiet window and the max wait: still no engine commit.
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(await commitCount(root)).toBe(before);
+
+    // The turn's own commit runs under the hold — that IS the release path.
+    const committed = await engine.commitNow(
+      { name: "inteligir-agent", email: "agent@inteligir.local" },
+      "agent: vault update\n\nThread: thr_test",
+    );
+    expect(committed).toEqual({ files: 1 });
+    release();
+
+    // The re-armed flush finds a clean tree: no second commit.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(await commitCount(root)).toBe(before + 1);
+    expect(await lastMessage(root)).toBe("agent: vault update");
+    const { stdout } = await runGit(root, ["log", "-1", "--format=%(trailers:key=Thread)"], {
+      env,
+    });
+    expect(stdout.trim()).toBe("Thread: thr_test");
+    await expectCleanRepo(root);
+  });
 });
 
 describe("sync", () => {

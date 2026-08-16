@@ -27,6 +27,14 @@ the checkout path), so parallel worktrees never collide; `INTELIGIR_PORT` and
 Requirements: **Node ≥ 24** and **pnpm 10** (`corepack enable`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
+The agent provider is selected by `INTELIGIR_AGENT` (`auto` · `codex` ·
+`scripted` · `off`; default `auto` — codex when the binary is on PATH, else an
+unavailable driver whose reason `/api/v1/system/status` states under `agent`).
+**`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
+deterministic driver over the REAL ingest/timeline/vault/commit paths — send a
+thread message, watch the turn stream, find the note in the vault with an
+agent-attributed commit. `INTELIGIR_AGENT_MODEL` passes a model through.
+
 The marketing/auth Worker is separate:
 
 ```sh
@@ -119,6 +127,8 @@ packages/typed-routes    Contract-first Hono route machinery (bb)    @repo/typed
 packages/server-contract The wire contract: route table + ws proto   @repo/server-contract
 packages/db              drizzle + better-sqlite3, migrations,
                          DbNotifier, ids                             @repo/db
+packages/agent-runtime   bb's provider runtime, codex slice:
+                         JSON-RPC/stdio + adapter (PROVENANCE.md)    @repo/agent-runtime
 packages/notes           Pure domain — knowledge + markdown          @repo/notes
 packages/ui              Shared components (vendored shadcn)         @repo/ui
 ```

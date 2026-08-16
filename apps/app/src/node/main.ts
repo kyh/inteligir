@@ -9,12 +9,12 @@ import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
+import { resolveAgentDriver } from "./agent/agent-driver";
 import { createApp, type AppFallback } from "./app";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { listenWithRetry } from "./listen";
-import { unavailableTurnDriver } from "./threads/turn-driver";
 import { redactRemoteUrl } from "./vault/git";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
@@ -145,10 +145,13 @@ const knowledge = createKnowledgeRuntime({
 knowledgeRef = knowledge;
 const fallback = await fallbackPromise;
 
+const agentDriver = resolveAgentDriver({ config, db, notifier: bus, vault });
+
 const { app, injectWebSocket } = createApp({
+  agent: agentDriver.status,
   bus,
   config,
-  createTurnDriver: () => unavailableTurnDriver,
+  createTurnDriver: agentDriver.createTurnDriver,
   db,
   fallback,
   knowledge,
@@ -167,4 +170,7 @@ const { port, server } = await listenWithRetry({
 injectWebSocket(server);
 console.log(
   `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,
+);
+console.log(
+  `agent: ${agentDriver.status.runtime}${agentDriver.status.detail === null ? "" : ` — ${agentDriver.status.detail}`}`,
 );

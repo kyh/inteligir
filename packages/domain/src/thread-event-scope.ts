@@ -42,6 +42,7 @@ export const threadEventScopeDefinitionByType = {
   "item/completed": { policy: "turn" },
   "item/agentMessage/delta": { policy: "turn" },
   "item/commandExecution/outputDelta": { policy: "turn" },
+  "item/reasoning/summaryTextDelta": { policy: "turn" },
   "item/reasoning/textDelta": { policy: "turn" },
   "item/plan/delta": { policy: "turn" },
   "thread/tokenUsage/updated": { policy: "turn" },
@@ -77,6 +78,19 @@ export function turnScope(turnId: string): ThreadEventScope {
 
 export function getThreadEventScopeTurnId(scope: ThreadEventScope): string | undefined {
   return scope.kind === "turn" ? scope.turnId : undefined;
+}
+
+export interface RequireThreadEventScopeTurnIdArgs {
+  scope: ThreadEventScope;
+  /** For the error message only — callers pass their own event vocabulary. */
+  type: string;
+}
+
+export function requireThreadEventScopeTurnId(args: RequireThreadEventScopeTurnIdArgs): string {
+  if (args.scope.kind !== "turn") {
+    throw new Error(`${args.type} requires turn scope but received ${args.scope.kind} scope`);
+  }
+  return args.scope.turnId;
 }
 
 export function validateThreadEventScope(

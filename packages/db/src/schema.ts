@@ -29,6 +29,13 @@ export const threads = sqliteTable(
     // plain chat thread; the CHECK makes a half-bound origin unrepresentable.
     originDocPath: text("origin_doc_path"),
     originAnchor: text("origin_anchor"),
+    // The provider session this thread resumes into (issue #549): which
+    // provider ran it and the provider's own thread id. Written together once
+    // the runtime resolves the session; the CHECK makes a half-recorded
+    // session unrepresentable. Survives process restarts and idle-session
+    // reaping — the next turn resumes by this id instead of starting fresh.
+    providerId: text("provider_id"),
+    providerThreadId: text("provider_thread_id"),
     archivedAt: integer("archived_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
@@ -47,6 +54,10 @@ export const threads = sqliteTable(
     check(
       "threads_origin_pair_check",
       sql`(${table.originDocPath} IS NULL) = (${table.originAnchor} IS NULL)`,
+    ),
+    check(
+      "threads_provider_session_pair_check",
+      sql`(${table.providerId} IS NULL) = (${table.providerThreadId} IS NULL)`,
     ),
   ],
 );

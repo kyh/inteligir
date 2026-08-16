@@ -64,6 +64,7 @@ async function bootApp(options: BootAppOptions = {}): Promise<{
   });
   cleanups.push(() => knowledge.dispose());
   const args: CreateAppArgs = {
+    agent: { mode: "off", runtime: "off", detail: null },
     bus,
     createTurnDriver: () => unavailableTurnDriver,
     config: {
@@ -75,6 +76,8 @@ async function bootApp(options: BootAppOptions = {}): Promise<{
       portSource: "env",
       vaultDir,
       vaultRemote: null,
+      agent: "off",
+      agentModel: null,
     },
     db,
     fallback: options.fallback ?? { kind: "none" },
@@ -118,7 +121,7 @@ describe("the API over the in-process app", () => {
     const status = systemStatusResponseSchema.parse(await response.json());
     expect(status.version).toBe("0.1.0-test");
     expect(status.dataDir).toBe(args.config.dataDir);
-    expect(status.schemaVersion).toBe(2);
+    expect(status.schemaVersion).toBe(3);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
 

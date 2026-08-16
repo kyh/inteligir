@@ -203,6 +203,7 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
         accumulator.textBuffer += event.delta;
         break;
       }
+      case "item/reasoning/summaryTextDelta":
       case "item/reasoning/textDelta": {
         if (scopeTurnId === null) {
           break;
@@ -342,7 +343,11 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
       return { placement: "top-level", row };
     }
     case "reasoning": {
-      const completedText = snapshot.content.join("\n\n");
+      // Codex-shaped reasoning items often settle with the visible text in
+      // `summary` and an empty `content`; content wins when both exist.
+      const completedText = (
+        snapshot.content.length > 0 ? snapshot.content : snapshot.summary
+      ).join("\n\n");
       const row: TimelineWorkRow = {
         ...base,
         kind: "work",

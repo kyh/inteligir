@@ -86,6 +86,60 @@ export function listOpenPendingInteractions(
     .all();
 }
 
+/** Settle ONE still-open interaction as interrupted (e.g. its wait timed out). */
+export function interruptPendingInteraction(
+  db: DbConnection,
+  notifier: DbNotifier,
+  args: { id: string; threadId: string },
+): boolean {
+  const now = Date.now();
+  const updated = db
+    .update(pendingInteractions)
+    .set({ status: "interrupted", resolvedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(pendingInteractions.id, args.id),
+        eq(pendingInteractions.threadId, args.threadId),
+        inArray(pendingInteractions.status, ["pending", "resolving"]),
+      ),
+    )
+    .returning()
+    .get();
+  if (updated) {
+    notifier.notifyThread(args.threadId, ["interactions-changed"]);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Settle every still-open interaction for a thread as interrupted — the turn
+ * they belonged to ended (completed, failed, or the provider went away), so
+ * there is nothing left to answer.
+ */
+export function interruptOpenPendingInteractions(
+  db: DbConnection,
+  notifier: DbNotifier,
+  threadId: string,
+): number {
+  const now = Date.now();
+  const interrupted = db
+    .update(pendingInteractions)
+    .set({ status: "interrupted", resolvedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(pendingInteractions.threadId, threadId),
+        inArray(pendingInteractions.status, ["pending", "resolving"]),
+      ),
+    )
+    .returning()
+    .all();
+  if (interrupted.length > 0) {
+    notifier.notifyThread(threadId, ["interactions-changed"]);
+  }
+  return interrupted.length;
+}
+
 export type ResolvePendingInteractionOutcome =
   | { kind: "resolved"; interaction: PendingInteractionRow }
   | { kind: "not-found" }

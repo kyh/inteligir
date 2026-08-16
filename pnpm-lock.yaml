@@ -149,6 +149,9 @@ importers:
       '@parcel/watcher':
         specifier: 'catalog:'
         version: 2.6.0
+      '@repo/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -314,6 +317,25 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+
+  packages/agent-runtime:
+    dependencies:
+      '@repo/domain':
+        specifier: workspace:*
+        version: link:../domain
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(jsdom@30.0.1(@noble/hashes@2.2.0))(msw@2.14.6(@types/node@26.1.1)(typescript@7.0.2))(vite@8.1.5(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
 
   packages/db:
     dependencies:
@@ -10572,9 +10594,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
     optional: true
 
   '@react-native/normalize-colors@0.86.0':

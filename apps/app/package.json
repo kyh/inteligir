@@ -15,6 +15,7 @@
     "@hono/node-server": "catalog:",
     "@hono/node-ws": "catalog:",
     "@parcel/watcher": "catalog:",
+    "@repo/agent-runtime": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/notes": "workspace:*",

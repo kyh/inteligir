@@ -92,6 +92,30 @@ export function archiveThread(
   return getThread(db, id);
 }
 
+export interface SetThreadProviderSessionArgs {
+  threadId: string;
+  providerId: string;
+  providerThreadId: string;
+}
+
+/**
+ * Record the provider session a thread resumes into. No notification: this
+ * is runtime plumbing, not a fact any client renders.
+ */
+export function setThreadProviderSession(
+  db: DbConnection,
+  args: SetThreadProviderSessionArgs,
+): void {
+  db.update(threads)
+    .set({
+      providerId: args.providerId,
+      providerThreadId: args.providerThreadId,
+      updatedAt: Date.now(),
+    })
+    .where(eq(threads.id, args.threadId))
+    .run();
+}
+
 export type ApplyThreadLifecycleEventNoopReason =
   | ThreadLifecycleNoopReason
   | "not-found"

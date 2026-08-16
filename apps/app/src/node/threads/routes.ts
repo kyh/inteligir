@@ -50,10 +50,7 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
       case "conflict":
         return c.json({ error: outcome.error, message: outcome.message }, 409);
       case "provider-unavailable":
-        return c.json(
-          { error: "provider_unavailable", message: "No agent provider is configured" },
-          503,
-        );
+        return c.json({ error: "provider_unavailable", message: outcome.message }, 503);
       case "dispatch-failed":
         return c.json(
           { error: "dispatch_failed", message: "The agent provider failed to accept the turn" },

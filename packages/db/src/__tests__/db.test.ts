@@ -26,15 +26,15 @@ describe("boot", () => {
   it("migrates on boot and bumps meta.schema_version to the latest generation", () => {
     const db = openTempDb();
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(2);
-    expect(getMetaValue(db, "schema_version")).toBe("2");
+    expect(getSchemaVersion(db)).toBe(3);
+    expect(getMetaValue(db, "schema_version")).toBe("3");
   });
 
   it("is idempotent across boots", () => {
     const db = openTempDb();
     runMigrations(db);
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(2);
+    expect(getSchemaVersion(db)).toBe(3);
   });
 
   it("refuses to answer a schema version before migrations ran", () => {

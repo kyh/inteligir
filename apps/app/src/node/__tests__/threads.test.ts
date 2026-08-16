@@ -97,6 +97,7 @@ async function bootThreadsApp(
   });
   cleanups.push(() => knowledge.dispose());
   const args: CreateAppArgs = {
+    agent: { mode: "off", runtime: "off", detail: null },
     bus,
     config: {
       databasePath,
@@ -107,6 +108,8 @@ async function bootThreadsApp(
       portSource: "env",
       vaultDir,
       vaultRemote: null,
+      agent: "off",
+      agentModel: null,
     },
     createTurnDriver,
     db,

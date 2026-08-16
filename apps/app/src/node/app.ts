@@ -12,7 +12,12 @@ import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { HttpBindings } from "@hono/node-server";
 import type { DbConnection } from "@repo/db/connection";
-import { API_BASE_PATH, apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
+import {
+  API_BASE_PATH,
+  apiRoutes,
+  type AgentStatus,
+  type ApiErrorResponse,
+} from "@repo/server-contract/routes";
 import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
@@ -48,9 +53,11 @@ export type AppFallback =
   | { kind: "none" };
 
 export interface CreateAppArgs {
+  /** What the boot-time driver resolution decided; served on /system/status. */
+  agent: AgentStatus;
   bus: WsBus;
   config: AppConfig;
-  /** The provider seam; production passes the unavailable driver until #549. */
+  /** The provider seam (agent-driver.ts resolves which driver boots). */
   createTurnDriver: CreateTurnDriver;
   /** The thread routes' store; system/status reads nothing from it (schemaVersion below). */
   db: DbConnection;
@@ -140,6 +147,7 @@ export function createApp(args: CreateAppArgs) {
       dataDir: args.config.dataDir,
       schemaVersion: args.schemaVersion,
       uptimeMs: Date.now() - args.startedAt,
+      agent: args.agent,
     }),
   );
   registerVaultRoutes(registrars, args.vault, (from, to) =>

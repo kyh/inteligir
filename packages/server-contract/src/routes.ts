@@ -28,6 +28,21 @@ export const apiErrorResponseSchema = z
   .strict();
 export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
 
+/**
+ * What the boot-time driver resolution decided. `mode` is the configuration
+ * (INTELIGIR_AGENT / config.json); `runtime` is what actually serves turns —
+ * `unavailable` states the reason in `detail` (e.g. no codex binary on PATH)
+ * so a 503 on send is diagnosable from status alone.
+ */
+export const agentStatusSchema = z
+  .object({
+    mode: z.enum(["auto", "codex", "scripted", "off"]),
+    runtime: z.enum(["codex", "scripted", "unavailable", "off"]),
+    detail: z.string().nullable(),
+  })
+  .strict();
+export type AgentStatus = z.infer<typeof agentStatusSchema>;
+
 export const systemStatusResponseSchema = z
   .object({
     /** Version of the running @repo/app package, read from its package.json. */
@@ -37,6 +52,7 @@ export const systemStatusResponseSchema = z
     /** The `meta.schema_version` row — proves migrate-on-boot ran. */
     schemaVersion: z.number().int().min(1),
     uptimeMs: z.number().min(0),
+    agent: agentStatusSchema,
   })
   .strict();
 export type SystemStatusResponse = z.infer<typeof systemStatusResponseSchema>;

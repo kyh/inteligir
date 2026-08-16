@@ -1,0 +1,32 @@
+{
+  "name": "@repo/agent-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent provider runtime vendored from bb, trimmed to the codex app-server adapter: newline JSON-RPC over stdio, provider process lifecycle, dual-id thread stamping, event translation into the runtime's provider grammar, and interactive (approval) requests. Consumers say \"start a thread, run a turn, give me events\" — they never touch processes or wire formats.",
+  "type": "module",
+  "exports": {
+    "./runtime": "./src/runtime.ts",
+    "./types": "./src/types.ts",
+    "./provider-adapter": "./src/provider-adapter.ts",
+    "./runtime-json-rpc": "./src/runtime-json-rpc.ts",
+    "./codex-adapter": "./src/codex/adapter.ts",
+    "./domain/provider-event": "./src/domain/provider-event.ts",
+    "./domain/pending-interactions": "./src/domain/pending-interactions.ts",
+    "./domain/shared-types": "./src/domain/shared-types.ts",
+    "./test-support/fake-codex-adapter": "./src/test-support/fake-codex-adapter.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/domain": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

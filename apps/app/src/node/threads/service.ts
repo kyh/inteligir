@@ -67,7 +67,7 @@ export type SendOutcome =
   | { kind: "queued"; queuedMessageId: string }
   | { kind: "not-found" }
   | { kind: "conflict"; error: "stale_turn" | "not_steerable" | "archived"; message: string }
-  | { kind: "provider-unavailable" }
+  | { kind: "provider-unavailable"; message: string }
   | { kind: "dispatch-failed" };
 
 type SendDecision =
@@ -317,7 +317,7 @@ export class ThreadService implements ProviderEventSink {
     } catch (error) {
       this.recordDispatchFailure(decision.threadId, error);
       return error instanceof TurnDriverUnavailableError
-        ? { kind: "provider-unavailable" }
+        ? { kind: "provider-unavailable", message: error.message }
         : { kind: "dispatch-failed" };
     }
     return { kind: "started", turnId: decision.turnId };
@@ -378,8 +378,15 @@ export class ThreadService implements ProviderEventSink {
       resolution: request.resolution,
     });
     switch (outcome.kind) {
-      case "resolved":
-        return { kind: "resolved", interaction: toWirePendingInteraction(outcome.interaction) };
+      case "resolved": {
+        const interaction = toWirePendingInteraction(outcome.interaction);
+        // AFTER the row is resolved: the driver answers the provider process
+        // from the recorded resolution, so a crash between the two leaves a
+        // resolved row (the truth) and a provider request the turn-end
+        // timeout settles.
+        this.driver.onInteractionResolved?.(interaction);
+        return { kind: "resolved", interaction };
+      }
       case "already-resolved":
         return { kind: "already-resolved" };
       case "not-found":

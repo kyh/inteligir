@@ -143,6 +143,15 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     // instead of appending to it. Omission means the delta appends.
     reset: z.boolean().optional(),
   }),
+  // Codex streams the VISIBLE thinking text as summary deltas; the content
+  // deltas carry raw chain-of-thought only for models that expose it. Both
+  // fold into the one reasoning row's streaming buffer.
+  z.object({
+    type: z.literal("item/reasoning/summaryTextDelta"),
+    threadId: z.string(),
+    itemId: z.string(),
+    delta: z.string(),
+  }),
   z.object({
     type: z.literal("item/reasoning/textDelta"),
     threadId: z.string(),
@@ -217,6 +226,7 @@ export function getThreadEventItemRef(event: ThreadEvent): ThreadEventItemRef {
       return { itemId: event.item.id, itemKind: event.item.type };
     case "item/agentMessage/delta":
     case "item/commandExecution/outputDelta":
+    case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta":
     case "item/plan/delta":
       return { itemId: event.itemId, itemKind: null };

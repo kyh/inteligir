@@ -25,7 +25,7 @@ const AUTO_COMMIT_MAX_WAIT_MS = 10_000;
 const ENGINE_IDENTITY = { name: "inteligir", email: "vault@inteligir.local" };
 
 /** The author seam: agent-attributed commits (#549) pass their own identity. */
-interface CommitAuthor {
+export interface CommitAuthor {
   name: string;
   email: string;
 }
@@ -172,8 +172,17 @@ export interface GitEngineArgs {
 export interface GitEngine {
   /** Debounced: a burst of writes lands as ONE commit after the quiet window. */
   scheduleCommit(): void;
-  /** Commit whatever is dirty right now; null when the tree was clean. */
-  commitNow(author?: CommitAuthor): Promise<{ files: number } | null>;
+  /** Commit whatever is dirty right now; null when the tree was clean.
+   *  `subject` replaces the default one-line message (trailers ride in it). */
+  commitNow(author?: CommitAuthor, subject?: string): Promise<{ files: number } | null>;
+  /**
+   * Defer the auto-commit debounce and the sync loop until released, so an
+   * agent turn's writes are not swept into an engine-attributed commit
+   * mid-turn. Counted — overlapping turns each take their own hold — and an
+   * explicit commitNow still runs under a hold (that IS the release path's
+   * commit). Returns the release function.
+   */
+  holdCommits(): () => void;
   /** One full sync pass; coalesces with an in-flight one. */
   syncNow(): Promise<VaultStatusResponse>;
   status(): Promise<VaultStatusResponse>;
@@ -221,18 +230,31 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return stdout.split("\n").filter((line) => line.length > 0).length;
   }
 
-  async function commitIfDirty(author?: CommitAuthor): Promise<{ files: number } | null> {
+  async function commitIfDirty(
+    author?: CommitAuthor,
+    subject?: string,
+  ): Promise<{ files: number } | null> {
     const files = await countDirtyPaths();
     if (files === 0) {
       return null;
     }
     await run(["add", "-A"]);
-    await run(["-c", "commit.gpgsign=false", "commit", "-m", `vault: update ${files} files`], {
-      env: identityEnv(author),
-    });
+    await run(
+      ["-c", "commit.gpgsign=false", "commit", "-m", subject ?? `vault: update ${files} files`],
+      {
+        env: identityEnv(author),
+      },
+    );
     args.onStatusChanged?.();
     return { files };
   }
+
+  // An agent turn holds commits so its writes cannot be swept into an
+  // engine-attributed commit mid-turn; the flush the hold deflected is
+  // re-armed on release (the release path's own commitNow usually beat it,
+  // making the re-armed flush a clean-tree no-op).
+  let commitHoldCount = 0;
+  let flushDeferredWhileHeld = false;
 
   const commitScheduler = createDebouncedCallbackScheduler({
     debounceMs: args.quietMs ?? AUTO_COMMIT_QUIET_MS,
@@ -241,11 +263,31 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       if (disposed) {
         return;
       }
+      if (commitHoldCount > 0) {
+        flushDeferredWhileHeld = true;
+        return;
+      }
       void withRepoLock(() => commitIfDirty()).catch((error: unknown) => {
         args.onError?.(error instanceof Error ? error.message : "auto-commit failed");
       });
     },
   });
+
+  function holdCommits(): () => void {
+    commitHoldCount += 1;
+    let released = false;
+    return () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      commitHoldCount -= 1;
+      if (commitHoldCount === 0 && flushDeferredWhileHeld) {
+        flushDeferredWhileHeld = false;
+        commitScheduler.schedule();
+      }
+    };
+  }
 
   async function currentBranch(): Promise<string | null> {
     try {
@@ -436,7 +478,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     if (inflightSync !== null) {
       return inflightSync;
     }
-    if (remoteUrl === null || broken) {
+    // A sync pass starts by committing the dirty tree, which is exactly what
+    // a commit hold exists to prevent; the interval retries after release.
+    if (remoteUrl === null || broken || commitHoldCount > 0) {
       return statusSnapshot();
     }
     syncing = true;
@@ -464,9 +508,10 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         commitScheduler.schedule();
       }
     },
-    commitNow(author?: CommitAuthor) {
-      return withRepoLock(() => commitIfDirty(author));
+    commitNow(author?: CommitAuthor, subject?: string) {
+      return withRepoLock(() => commitIfDirty(author, subject));
     },
+    holdCommits,
     syncNow,
     status: statusSnapshot,
     isSyncing: () => syncing,

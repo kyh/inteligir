@@ -103,6 +103,29 @@ function assertVaultAndDataDirDisjoint(vaultDir: string, dataDir: string): void 
   }
 }
 
+const AGENT_MODE_VALUES = ["auto", "codex", "scripted", "off"] as const;
+type AgentMode = (typeof AGENT_MODE_VALUES)[number];
+
+function isAgentMode(value: string): value is AgentMode {
+  return AGENT_MODE_VALUES.some((mode) => mode === value);
+}
+
+function parseAgentModeValue(name: string, rawValue: string): AgentMode {
+  const trimmed = rawValue.trim();
+  if (!isAgentMode(trimmed)) {
+    throw new Error(`${name} must be one of ${AGENT_MODE_VALUES.join(", ")} (got "${trimmed}")`);
+  }
+  return trimmed;
+}
+
+function parseNonEmptyValue(name: string, rawValue: string): string {
+  const trimmed = rawValue.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${name} must not be empty`);
+  }
+  return trimmed;
+}
+
 function parsePortValue(name: string, rawPort: string): number {
   const port = Number(rawPort);
   if (String(port) !== rawPort || !Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -156,6 +179,17 @@ const ENV_VARS = {
       "Dev only: the port for vite's HMR websocket (server and injected client together). Vite's default is one machine-global port (24678), so concurrent dev instances collide on it and the loser's page throws — a harness that boots several instances gives each its own.",
     parse: ({ name, value }) => parsePortValue(name, value.trim()),
   }),
+  agent: defineEnvVar({
+    name: "INTELIGIR_AGENT",
+    description:
+      "Agent provider selection: auto (codex when the binary exists), codex, scripted (in-process fake for e2e), or off.",
+    parse: ({ name, value }) => parseAgentModeValue(name, value),
+  }),
+  agentModel: defineEnvVar({
+    name: "INTELIGIR_AGENT_MODEL",
+    description: "Model passed through to the agent provider; unset means the provider's default.",
+    parse: ({ name, value }) => parseNonEmptyValue(name, value),
+  }),
 };
 
 function readEnvVar<TValue>(
@@ -178,6 +212,8 @@ const managedConfigSchema = z.object({
   port: z.number().int().min(1).max(65_535).optional(),
   vaultDir: z.string().min(1).optional(),
   vaultRemote: z.string().min(1).optional(),
+  agent: z.enum(AGENT_MODE_VALUES).optional(),
+  agentModel: z.string().min(1).optional(),
 });
 
 function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema> {
@@ -244,6 +280,10 @@ export interface AppConfig {
   vaultSyncIntervalMs?: number | null;
   /** Dev only: vite's HMR websocket port; absent = vite's default. */
   devHmrPort?: number;
+  /** Which turn driver boots (issue #549); "auto" resolves at boot by binary presence. */
+  agent: AgentMode;
+  /** Model passed through to the provider; null means the provider's default. */
+  agentModel: string | null;
 }
 
 export interface ResolveAppConfigArgs {
@@ -294,6 +334,9 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
 
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
   const envHmrPort = readEnvVar(ENV_VARS.devHmrPort, args.env, homeDir);
+  const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
+  const agentModel =
+    readEnvVar(ENV_VARS.agentModel, args.env, homeDir) ?? managed.agentModel ?? null;
 
   return {
     ...(envHmrPort === undefined ? {} : { devHmrPort: envHmrPort }),
@@ -309,5 +352,7 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
       envPort !== undefined ? "env" : managed.port !== undefined ? "managed-config" : "default",
     vaultDir,
     vaultRemote,
+    agent,
+    agentModel,
   };
 }

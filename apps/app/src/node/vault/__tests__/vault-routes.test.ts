@@ -57,6 +57,7 @@ async function bootVaultApp() {
   });
   cleanups.push(() => knowledge.dispose());
   const { app } = createApp({
+    agent: { mode: "off", runtime: "off", detail: null },
     bus,
     createTurnDriver: () => unavailableTurnDriver,
     db,
@@ -69,6 +70,8 @@ async function bootVaultApp() {
       portSource: "env",
       vaultDir,
       vaultRemote: null,
+      agent: "off",
+      agentModel: null,
     },
     fallback: { kind: "none" },
     knowledge,

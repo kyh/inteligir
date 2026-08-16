@@ -257,3 +257,49 @@ describe("the vault dir and remote", () => {
     expect(() => resolveWithHmrPort("not-a-port")).toThrow(/INTELIGIR_HMR_PORT/);
   });
 });
+
+describe("the agent selection", () => {
+  it("defaults to auto and validates INTELIGIR_AGENT values", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const defaulted = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
+    expect(defaulted.agent).toBe("auto");
+    expect(defaulted.agentModel).toBeNull();
+
+    const withEnv = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_AGENT: "scripted", INTELIGIR_AGENT_MODEL: "gpt-5.3-codex" },
+      homeDir,
+    });
+    expect(withEnv.agent).toBe("scripted");
+    expect(withEnv.agentModel).toBe("gpt-5.3-codex");
+
+    expect(() =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: { INTELIGIR_AGENT: "cortex" },
+        homeDir,
+      }),
+    ).toThrow(/INTELIGIR_AGENT/);
+  });
+
+  it("reads agent and agentModel from the managed file, env winning", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
+    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ agent: "off", agentModel: "m1" }));
+    const managed = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_DATA_DIR: dataDir },
+      homeDir,
+    });
+    expect(managed.agent).toBe("off");
+    expect(managed.agentModel).toBe("m1");
+
+    const layered = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_AGENT: "codex" },
+      homeDir,
+    });
+    expect(layered.agent).toBe("codex");
+    expect(layered.agentModel).toBe("m1");
+  });
+});
