@@ -34,10 +34,11 @@ function describeExecError(error: unknown): string {
 }
 
 function pageIsMounted(bodyText: string): boolean {
-  // "online" is the status badge the SPA renders only after a successful
-  // /api/v1/system/status round trip; "Vault" is the vault card. Together
-  // they prove the client bundle ran against this instance's API.
-  return bodyText.includes("online") && bodyText.includes("Vault");
+  // The seeded welcome note's content only reaches the page through a
+  // successful /api/v1/vault/file round trip; the sidebar row proves the
+  // tree query ran. Together they prove the client bundle ran against this
+  // instance's API.
+  return bodyText.includes("Welcome") && bodyText.includes("Welcome.md");
 }
 
 export const browserSmoke: Scenario = {
@@ -60,7 +61,10 @@ export const browserSmoke: Scenario = {
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
 
       ctx.log("waiting for the SPA to mount");
-      await agentBrowser(["wait", "h1"], 90_000);
+      await agentBrowser(["wait", "aside"], 90_000);
+
+      ctx.log("waiting for the virgin-boot note to open in the editor");
+      await agentBrowser(["wait", ".cm-content"], 90_000);
 
       const title = await agentBrowser(["get", "title"]);
       expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);

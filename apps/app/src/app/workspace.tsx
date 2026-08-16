@@ -70,6 +70,30 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     }
   }, [openNote, onOpenNote]);
 
+  // Virgin boot (nothing restored): open the first note in the vault root so
+  // the app never lands on an empty pane. Waits for the tree, runs once.
+  const firstBootRef = useRef(false);
+  useEffect(() => {
+    if (firstBootRef.current || !restoredRef.current || openNote !== null) {
+      return;
+    }
+    if (readLastOpenNote() !== null) {
+      firstBootRef.current = true;
+      return;
+    }
+    const entries = treeQuery.data?.entries;
+    if (entries === undefined) {
+      return;
+    }
+    firstBootRef.current = true;
+    const firstNote = entries.find(
+      (entry) => entry.kind === "file" && !entry.path.includes("/") && entry.path.endsWith(".md"),
+    );
+    if (firstNote !== undefined) {
+      setOpenNote(firstNote.path);
+    }
+  }, [openNote, treeQuery.data, setOpenNote]);
+
   const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
   const resizingRef = useRef(false);
   const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
