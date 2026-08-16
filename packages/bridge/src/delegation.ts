@@ -2,15 +2,15 @@ import { type Static, Type } from "@sinclair/typebox";
 
 // ---------------------------------------------------------------------------
 // Delegation — one checkbox a user handed to a background agent. The agent does
-// the task against the vault (./vault file tools + executor MCP), checks the
-// box off, and appends a short result under it; the watcher then refreshes the
-// editor. Status is tracked here purely so the UI can render an inline badge on
-// the delegated line.
+// the task against its materialized copy of the vault, checks the box off, and
+// appends a short result under it; the write lands back in the vault of record
+// and onVaultChanged refreshes the editor. Status is tracked here purely so the
+// UI can render an inline badge on the delegated line.
 // ---------------------------------------------------------------------------
 
 /** Positional locator for the checkbox. `ordinal` is its position among ALL
  * todo checkboxes in the file (document order, checked or not — core
- * scanTaskItems' counting) — identical in the editor's parsed tree and the raw
+ * @repo/notes' task-ordinal counting) — identical in the editor's parsed tree and the raw
  * markdown, so it needs no text matching and distinguishes duplicate labels.
  * `text` + `heading` are resolved host-side from that line, purely as context
  * for the agent's prompt. */
@@ -115,7 +115,7 @@ export type Delegation = Static<typeof DelegationSchema>;
 // IPC params/results
 // ---------------------------------------------------------------------------
 
-/** The renderer sends the file + the checkbox's ordinal (its position among all
+/** A client sends the file + the checkbox's ordinal (its position among all
  * todo checkboxes in the document); main resolves the line, text + section. */
 export const CreateDelegationParamsSchema = Type.Object(
   {

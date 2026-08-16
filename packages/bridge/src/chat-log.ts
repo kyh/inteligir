@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
 // The chat surface as a PURE value: ONE fold over the agent's event stream
 // (./agent-events) plus the persisted-history rehydration — shared by the
-// desktop renderer (which projects it into AI SDK UIMessages,
-// @renderer/stores/chat-log-view) and the mobile chat screen (which renders
-// the items directly). Iso like ./note-context: no react/node/platform
+// workspace (which projects it into AI SDK UIMessages,
+// @repo/workspace/stores/chat-log-view) and any companion chat screen that
+// renders the items directly. Iso like ./note-context: no react/node/platform
 // imports. Streaming deltas accumulate into one assistant bubble,
 // `message_end` replaces it with the final text (or drops a tool-only empty
 // bubble), tool rows are ephemeral turn decoration (still-running ones are
@@ -11,8 +11,9 @@
 //
 // Items are the minimal RENDER list every surface shows; `detail` carries the
 // per-item payload only some surfaces consume (tool args + result text, the
-// turn_error kind that drives desktop's inline Re-authenticate link). Mobile
-// ignores it; the desktop projection joins it back onto the item by id.
+// turn_error kind that drives the workspace's inline Re-authenticate link). A
+// surface that wants none of it ignores `detail`; the workspace's projection
+// joins it back onto the item by id.
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "./agent-events";

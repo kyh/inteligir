@@ -7,27 +7,20 @@
 // and fence/code-span safety is inherited from the parser (text constructs
 // never run inside code), not re-implemented with regexes.
 //
-// Pipeline note: math and the MDX-agnostic vocabulary plugins are omitted —
-// they only re-shape nodes whose TEXT content still parses here (links inside
-// `<toggle>` bodies etc. are separated from the tag by blank lines in the
-// canonical form). Links inside raw block-level HTML runs are not extracted.
-// Indented code, however, is disabled to match the editor's MDX grammar
-// (see remarkNoIndentedCode below) — task ordinals depend on it.
+// The grammar is ../markdown/scan-parse — shared with the task count, which
+// depends on reading exactly the same one.
 //
 // Span contract: `targetSpan` is emitted only after the bytes are verified
 // (the raw slice re-derives the parsed target). A link that fails verification
 // is still indexed (backlinks/graph) but is never rewritten.
 // ---------------------------------------------------------------------------
 
-import type { ListItem, Nodes } from "mdast";
-import type { Plugin, Processor } from "unified";
-import remarkFrontmatter from "remark-frontmatter";
-import remarkGfm from "remark-gfm";
-import remarkParse from "remark-parse";
-import { unified } from "unified";
+import type { Nodes } from "mdast";
 
-import { parseProperties, privacyOfParsed, type ParsedProperties } from "../markdown/frontmatter";
-import { parseWikiBodyRange, remarkWikiLink } from "../markdown/remark-wiki-link";
+import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
+import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
+import { parseScan } from "../markdown/scan-parse";
+import { tasksInTree, type ExtractedTask } from "./task-ordinal";
 import { basenamePath, extnamePath } from "./vault-path";
 
 export type Span = { start: number; end: number };
@@ -55,27 +48,6 @@ export type ExtractedLink = {
   targetSpan?: Span;
 };
 
-/** One GFM task item (`- [ ]` checkbox), as the projection records it. The
- * ordinal is the item's position among the doc's task items — the SAME
- * pre-order counting find-task-line and the renderer's todoIndex use, so it
- * doubles as delegation's anchor key. `raw` is the exact untrimmed source
- * line EXCLUDING its terminator (`\r\n`/`\r`/`\n`) — the guarded-write input. */
-export type ExtractedTask = {
-  checked: boolean;
-  /** The item text after the checkbox marker, trimmed (inline md verbatim). */
-  text: string;
-  /** The EXACT untrimmed source line, terminator excluded. */
-  raw: string;
-  /** 1-based source line the item starts on. */
-  line: number;
-  /** Position among the doc's GFM task items (0-based, document pre-order). */
-  ordinal: number;
-  /** Wiki link/embed targets written inside the item's FIRST paragraph, in
-   * document order — the scheduling association input (never interpreted as
-   * dates at extraction). */
-  wikiTargets: string[];
-};
-
 export type DocScan = {
   /** First `#` heading's text, or null (callers fall back to the filename). */
   title: string | null;
@@ -90,39 +62,14 @@ export type DocScan = {
    * case-insensitively. The SINGLE extraction source for aliases — sibling
    * indexes consume this, never re-parse frontmatter. */
   aliases: string[];
-  /** Frontmatter `private: true` (strict boolean — `yes`/`"true"` stay text
-   * and read false). Malformed frontmatter reads TRUE: at the index level a
-   * doc we can't type is treated private, the fail-closed side. */
-  private: boolean;
-  /** The doc's GFM task items, in ordinal order. Empty when the note opts out
-   * via frontmatter `tasks: false` (the checkbox property, like `private`). */
+  /** The doc's GFM task items, in ordinal order (./task-ordinal owns the
+   * count). Empty when the note opts out via frontmatter `tasks: false`. */
   tasks: ExtractedTask[];
 };
 
-// The vault's canonical flavor is the MDX vocabulary (md-plugins.ts), where
-// indented code DOES NOT EXIST — micromark-extension-mdx-md disables
-// `codeIndented`, so the editor renders a 4-space-indented `- [ ]` as a live
-// task and an indented `[[link]]` as a live link. The scan must read the SAME
-// grammar or its task count desyncs from the renderer's todoIndex (the
-// Delegate/toggle anchor is (sourceFile, ordinal)). Only this ONE disable is
-// adopted: the full MDX pipeline throws on out-of-vocabulary docs (the scan
-// stays total — Raw-mode docs keep indexing), and mdx-md's other disables
-// (autolink/html) would change tag/link extraction in unrelated edge cases.
-const remarkNoIndentedCode: Plugin = function (this: Processor): undefined {
-  const data = this.data();
-  (data.micromarkExtensions ??= []).push({ disable: { null: ["codeIndented"] } });
-};
-
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkNoIndentedCode)
-  .use(remarkFrontmatter)
-  .use(remarkGfm)
-  .use(remarkWikiLink);
-
 /** Parse a doc once and pull out title, headings, note links, tags, tasks. */
 export function scanDoc(source: string): DocScan {
-  const tree = processor.parse(source);
+  const tree = parseScan(source);
   // ONE YAML parse per scan — every frontmatter extractor consumes this
   // result instead of re-locating the node and re-running parseProperties.
   const frontmatter = parseFrontmatter(tree);
@@ -132,8 +79,7 @@ export function scanDoc(source: string): DocScan {
     links: [],
     tags: extractTags(tree, frontmatter),
     aliases: frontmatterAliases(frontmatter),
-    private: frontmatterPrivate(frontmatter),
-    tasks: frontmatterTasksDisabled(frontmatter) ? [] : collectTasks(tree, source),
+    tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),
   };
   walk(tree, (node) => {
     switch (node.type) {
@@ -299,15 +245,6 @@ function frontmatterAliases(parsed: ParsedProperties | null): string[] {
   return out;
 }
 
-/** The parsed frontmatter's strict-boolean `private` verdict for the index —
- * the shared privacyOfParsed kernel with the index's fail-closed mapping:
- * no frontmatter → false; indeterminate (malformed) → TRUE (a doc we can't
- * type is treated private at the index level). */
-function frontmatterPrivate(parsed: ParsedProperties | null): boolean {
-  if (parsed === null) return false;
-  return privacyOfParsed(parsed) !== "public";
-}
-
 /** Walk `text` nodes for `#tag` tokens; suppress link/image subtrees so a
  * `[label #not-a-tag](url)` label is never mistaken for a tag. */
 function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): void {
@@ -329,75 +266,14 @@ function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): voi
 
 // ---- Tasks ------------------------------------------------------------------
 
-// The list marker + checkbox prefix on a task line; what's left is the item
-// text. Kept in lockstep with find-task-line's MARKER.
-const TASK_MARKER_RE = /^\s*[-*+]\s+\[[ xX]\]\s+/;
-
-/** The parsed frontmatter's `tasks: false` opt-out — a strict-boolean
- * checkbox property like `private`, but defaulting OPEN: only an explicit
- * `tasks: false` suppresses extraction (malformed frontmatter changes
- * nothing — suppressing tasks is a preference, not a safety property). */
+/** The parsed frontmatter's `tasks: false` opt-out — a strict-boolean checkbox
+ * property defaulting OPEN: only an explicit `tasks: false` suppresses
+ * extraction (malformed frontmatter changes nothing — suppressing tasks is a
+ * preference, not a safety property). */
 function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
   if (parsed === null || parsed.kind !== "valid") return false;
   const prop = parsed.properties.find((p) => p.key === "tasks");
   return prop !== undefined && prop.type === "checkbox" && !prop.value;
-}
-
-/** Every GFM task item in `source`, in ordinal order, IGNORING the `tasks:
- * false` opt-out — the raw counting contract shared with find-task-line and
- * the guarded toggle (delegation ordinals count every task item regardless of
- * the note's view preference). scanDoc applies the opt-out on top. */
-export function scanTaskItems(source: string): ExtractedTask[] {
-  return collectTasks(processor.parse(source), source);
-}
-
-function collectTasks(tree: Nodes, source: string): ExtractedTask[] {
-  const items: Array<{ item: ListItem; checked: boolean }> = [];
-  collectTaskItems(tree, items);
-  if (items.length === 0) return [];
-  // Same line-split rule the projection's snippets use: `raw` excludes the
-  // terminator, whatever flavor it was — the guarded-write EOL contract.
-  const lines = source.split(/\r\n|\r|\n/);
-  const tasks: ExtractedTask[] = [];
-  for (const [ordinal, { item, checked }] of items.entries()) {
-    const startLine = item.position?.start.line;
-    if (startLine === undefined) continue; // ordinal still consumed — parity with find-task-line
-    const raw = lines[startLine - 1] ?? "";
-    tasks.push({
-      checked,
-      text: raw.replace(TASK_MARKER_RE, "").trim(),
-      raw,
-      line: startLine,
-      ordinal,
-      wikiTargets: firstParagraphWikiTargets(item),
-    });
-  }
-  return tasks;
-}
-
-/** Pre-order DFS collecting task-list items (`checked` is a boolean) in
- * document order — find-task-line's counting contract, verbatim. */
-function collectTaskItems(node: Nodes, out: Array<{ item: ListItem; checked: boolean }>): void {
-  if (node.type === "listItem" && typeof node.checked === "boolean") {
-    out.push({ item: node, checked: node.checked });
-  }
-  if ("children" in node) {
-    for (const child of node.children) collectTaskItems(child, out);
-  }
-}
-
-/** Wiki link/embed targets inside the item's first paragraph (the checkbox
- * line's own text), document order — nested sub-lists don't contribute. */
-function firstParagraphWikiTargets(item: ListItem): string[] {
-  const paragraph = item.children.find((child) => child.type === "paragraph");
-  if (!paragraph) return [];
-  const targets: string[] = [];
-  walk(paragraph, (node) => {
-    if (node.type !== "wikiLink" && node.type !== "wikiEmbed") return;
-    const target = parseWikiBodyRange(node.body).target;
-    if (target !== "") targets.push(target);
-  });
-  return targets;
 }
 
 type NodePosition = { span: Span; line: number };

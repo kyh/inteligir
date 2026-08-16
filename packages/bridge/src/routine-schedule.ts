@@ -67,6 +67,46 @@ export function lastScheduledSlot(schedule: RoutineSchedule, now: Date): Date | 
   }
 }
 
+/** The FIRST scheduled slot strictly after `after`, in local time. Null only
+ * when the timeOfDay string is invalid (fail-safe, see parseTimeOfDay).
+ *
+ * The mirror of `lastScheduledSlot`, and the reason it exists is a host that
+ * SLEEPS between slots: a device that can be woken at an instant needs to know
+ * which instant, where one polling on an interval only ever needs to know
+ * whether a slot has passed. Same local-time construction, so the two answer
+ * about the same calendar. */
+export function nextScheduledSlot(schedule: RoutineSchedule, after: Date): Date | null {
+  const time = parseTimeOfDay(schedule.timeOfDay);
+  if (time === null) return null;
+  const slotOn = (year: number, month: number, day: number): Date =>
+    new Date(year, month, day, time.hours, time.minutes, 0, 0);
+
+  switch (schedule.cadence) {
+    case "daily": {
+      const today = slotOn(after.getFullYear(), after.getMonth(), after.getDate());
+      if (today.getTime() > after.getTime()) return today;
+      return slotOn(after.getFullYear(), after.getMonth(), after.getDate() + 1);
+    }
+    case "weekly": {
+      // Day stepping goes through the Date constructor's rollover, so month
+      // and year boundaries need no cases.
+      for (let ahead = 0; ahead <= 7; ahead++) {
+        const candidate = slotOn(after.getFullYear(), after.getMonth(), after.getDate() + ahead);
+        if (candidate.getDay() === schedule.dayOfWeek && candidate.getTime() > after.getTime()) {
+          return candidate;
+        }
+      }
+      return null; // unreachable for a valid schedule; fail-safe anyway
+    }
+    case "monthly": {
+      // dayOfMonth ≤ 28, so the slot exists in every month.
+      const thisMonth = slotOn(after.getFullYear(), after.getMonth(), schedule.dayOfMonth);
+      if (thisMonth.getTime() > after.getTime()) return thisMonth;
+      return slotOn(after.getFullYear(), after.getMonth() + 1, schedule.dayOfMonth);
+    }
+  }
+}
+
 /** The fields the due computation reads — a structural slice of Routine so
  * tests and the manager can pass exactly what matters. */
 export type RoutineDueView = {
@@ -86,4 +126,19 @@ export function isRoutineDue(routine: RoutineDueView, now: Date): boolean {
   if (slot === null) return false;
   const floor = routine.lastRunAt ?? routine.createdAt;
   return slot.getTime() > floor;
+}
+
+/**
+ * The instant this routine BECOMES due — the first slot past its floor — or
+ * null when it never will (disabled, or an unparseable time).
+ *
+ * The same rule as `isRoutineDue` read forwards instead of backwards:
+ * `isRoutineDue(r, now)` holds exactly when this answer is at or before `now`.
+ * Stated here rather than derived at each caller, so a host that arms a timer
+ * from it and a host that polls the predicate can never disagree about when a
+ * routine fires.
+ */
+export function nextRoutineDueAt(routine: RoutineDueView): Date | null {
+  if (!routine.enabled) return null;
+  return nextScheduledSlot(routine.schedule, new Date(routine.lastRunAt ?? routine.createdAt));
 }

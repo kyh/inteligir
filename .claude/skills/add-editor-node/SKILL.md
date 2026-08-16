@@ -1,6 +1,6 @@
 ---
 name: add-editor-node
-description: Add a node type to the Plate editor — the Base + React kit pair, the base-kit composition, the Slate↔mdast rule, the MDX vocabulary gate in @repo/notes, an insert surface, and the byte-pinned round-trip fixtures that prove it. Use when a new block or inline needs to render and, above all, survive a save byte-for-byte.
+description: Add a node type to the Plate editor — the Base + React kit pair, the base-kit composition, the Slate↔mdast rule, the component registry in @repo/notes, an insert surface, and the byte-pinned round-trip fixtures that prove it. Use when a new block or inline needs to render and, above all, survive a save byte-for-byte.
 allowed-tools: Bash(*), Read, Edit, Write
 ---
 
@@ -18,23 +18,24 @@ turns that premise into CI.
 
 ## Read first
 
-- `apps/desktop/src/renderer/editor/kits/base-kit.ts` and `editor-kit.ts` — the
+- `packages/editor/src/kits/base-kit.ts` and `editor-kit.ts` — the
   two compositions and the comments explaining why they mirror.
-- `apps/desktop/src/renderer/editor/markdown/md-rules.ts` — the header's rule
+- `packages/editor/src/markdown/md-rules.ts` — the header's rule
   dispatch note: **deserialize routes by mdast type (JSX by tag name), serialize
   by the Slate node's plugin key.** That asymmetry explains half the file.
-- `packages/notes/src/markdown/vocabulary.ts` — the whole gate, ~100 lines.
-- `apps/desktop/src/renderer/__tests__/markdown-roundtrip.test.ts` — the fixture
+- `packages/notes/src/markdown/remark-opaque.ts` — the component registry and
+  the opaque fallback, ~170 lines.
+- `packages/editor/src/__tests__/markdown-roundtrip.test.ts` — the fixture
   matrix contract, stated at the top of the file.
-- CLAUDE.md § "UI — one fixed workspace" for where the pipeline sits.
+- CLAUDE.md § "The workspace UI" for where the pipeline sits.
 
 ## Decide first: does the node have bytes, and in what syntax?
 
 - **MDX component** (`<toggle>`, `<column_group>`, `<video>`, `<date>`) — the
-  normal case. Needs a vocabulary allowlist entry and usually an `MD_RULES`
-  rule.
+  normal case. Needs a `COMPONENT_*_TAGS` entry in `remark-opaque.ts` and
+  usually an `MD_RULES` rule.
 - **Standard markdown / GFM** (headings, tables, task items) — remark already
-  parses it; you need a kit and possibly a serialize override, no vocabulary
+  parses it; you need a kit and possibly a serialize override, no registry
   change.
 - **Custom inline syntax** (`[[wiki-links]]`) — needs a remark micromark
   extension in `packages/notes/src/markdown/` plus a slot in
@@ -44,9 +45,11 @@ turns that premise into CI.
   half at all. `TagChipKit` is the precedent; it is deliberately absent from
   `BASE_KIT` because a leaf decoration never reaches the value.
 
-The vocabulary is a LOCKED list. Adding a tag to it means every vault file
-containing that tag now opens Rich instead of Raw — a one-way promise that the
-pipeline can represent it losslessly. Do not add one casually.
+The component list is the set of tags the editor claims it can MODEL. A tag
+outside it still opens — it becomes an opaque node, shown verbatim and written
+back byte-for-byte. Adding a tag is therefore a one-way promise that the
+pipeline round-trips it losslessly; getting that wrong corrupts files, where
+leaving it out only costs rendering. Do not add one casually.
 
 ## Files to touch
 
@@ -102,23 +105,24 @@ export function CalloutElement(props: PlateElementProps) {
 a kit or its component.** `base-kit.ts` composes the kits, so an eager reach-back
 closes an import cycle whose failure mode is an `undefined` kit export at module
 init. Use `React.lazy(() => import(...))` — `wiki-link-kit.tsx` is the pattern —
-and `apps/desktop/src/__tests__/editor-import-cycles.test.ts` enforces it (oxlint
+and `packages/editor/src/__tests__/editor-import-cycles.test.ts` enforces it (oxlint
 and knip do not detect cycles).
 
 ### 3. Compose — `base-kit.ts` AND `editor-kit.ts`
 
 Add the Base half to `BASE_KIT`, the React half to `EDITOR_KIT`, in the same
 relative position. `EDITOR_KIT` must stay a plugin SUPERSET of `BASE_KIT`;
-`kit-parity` fails on drift, and if the node is part of the MDX vocabulary its
-plugin key must also join `VOCABULARY_PLUGIN_KEYS` in that test.
+`kit-parity` fails on drift, and if the node carries bytes its plugin key must
+also join `VOCABULARY_PLUGIN_KEYS` in that test.
 
 ### 4. The markdown rule — `editor/markdown/md-rules.ts`
 
 Only if the node has bytes. Check whether `@platejs/markdown`'s `defaultRules`
-already handles it: `column`, `column_group`, `date`, `equation`,
-`inline_equation` are free from defaults (fixture-test them, do NOT redefine).
-Some defaults are wrong for this repo and get wrapped with delegation (`a`,
-`table`, `blockquote`), and some ship a type-table entry with no rule at all:
+already handles it: `column_group`, `equation` and `inline_equation` are free
+from defaults (fixture-test them, do NOT redefine). `column` and `date` needed
+one-directional overrides — see below for both traps. Some defaults are wrong
+for this repo and get wrapped with delegation (`a`, `table`, `blockquote`), and
+some ship a type-table entry with no rule at all:
 
 ```ts
   // Plate maps `toggle` in its type table but ships NO rule — serializing a
@@ -147,14 +151,14 @@ Pull every `defaultRules` handler you delegate to into a module-level const with
 a throw if it is missing — that is how a `@platejs/markdown` bump fails loudly at
 import instead of silently corrupting files.
 
-### 5. The vocabulary gate — `packages/notes/src/markdown/vocabulary.ts`
+### 5. The component registry — `packages/notes/src/markdown/remark-opaque.ts`
 
-MDX nodes only. Anything outside this scan sends the whole file to Raw mode
-rather than being mangled — that is the safety property, so widening it is the
-risky direction.
+MDX nodes only. Anything outside these sets becomes an OPAQUE node — inert
+literal text that serializes back verbatim — so widening them is the risky
+direction: an opaque node cannot corrupt a file, a wrong rule can.
 
 ```ts
-const ALLOWED_FLOW_TAGS = new Set([
+const COMPONENT_FLOW_TAGS = new Set([
   "callout",
   "toggle",
   "column_group",
@@ -164,15 +168,21 @@ const ALLOWED_FLOW_TAGS = new Set([
   "file",
   "date",
 ]);
-const ALLOWED_TEXT_TAGS = new Set(["date"]);
+const COMPONENT_TEXT_TAGS = new Set(["date"]);
 ```
 
-Attributes are gated too. Unknown attribute NAMES are fine on flow tags (their
+Attributes decide too. Unknown attribute NAMES are fine on flow tags (their
 rules spread string props both directions), but the value must be a plain string
 `mdxJsxAttribute` — bare booleans, braced expressions and spreads do not survive
-`parseAttributes`/`propsToAttributes`. If your rule DROPS unknown attributes the
-way Plate's `date` rule does, add a per-tag allowlist like `DATE_ATTRS`;
-otherwise the first rich save deletes user content.
+`parseAttributes`/`propsToAttributes`, so an element carrying one goes opaque
+WHOLE. If your rule DROPS unknown attributes the way Plate's `date` rule does,
+add a per-tag allowlist like `DATE_ATTRS`; otherwise the first rich save deletes
+user content.
+
+`remark-mdx-agnostic.ts` sits under this: it shares `<` between JSX and
+CommonMark behind a crash-free lookahead. If you touch that lookahead, the
+precedence fixtures in `packages/notes/src/markdown/__tests__/remark-opaque.test.ts`
+are what stop a real component from silently parsing as HTML.
 
 ### 6. An insert surface
 
@@ -192,7 +202,7 @@ export function insertDate(editor: PlateEditor): void {
 Block menu / turn-into and the floating toolbar are separate surfaces — wire
 only the ones the node actually needs.
 
-### 7. Fixtures — `apps/desktop/src/renderer/__tests__/fixtures/roundtrip/`
+### 7. Fixtures — `packages/editor/src/__tests__/fixtures/roundtrip/`
 
 **Their bytes ARE the test contract** (trailing spaces, indentation, line
 endings). oxfmt ignores the directory (`.oxfmtrc.json` `ignorePatterns`) and so
@@ -200,11 +210,11 @@ must you — formatting them is corruption, and so is hand-typing them.
 
 Three classes, one file per behavior:
 
-| dir          | shape                | asserts                                                                              |
-| ------------ | -------------------- | ------------------------------------------------------------------------------------ |
-| `canonical/` | `<name>.md`          | `roundTrip(src) === src` (mod trailing newline), idempotent, `canonical && richSafe` |
-| `churn/`     | `<stem>.{in,out}.md` | `roundTrip(in) === out` and `roundTrip(out) === out`                                 |
-| `raw/`       | `<name>.<kind>.md`   | `richSafe === false`, `rawReason.kind` = the filename's second-to-last segment       |
+| dir          | shape                | asserts                                                                                                             |
+| ------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `canonical/` | `<name>.md`          | `roundTrip(src) === src` (mod trailing newline), idempotent, `canonical && richSafe`                                |
+| `churn/`     | `<stem>.{in,out}.md` | `roundTrip(in) === out` and `roundTrip(out) === out`                                                                |
+| `raw/`       | `<name>.<kind>.md`   | `richSafe === false`, `rawReason.kind` = the filename's second-to-last segment (only real parse failures live here) |
 
 Generate the bytes through the pipeline (`roundTrip` / `toCanonical` from
 `editor/markdown/markdown-doc.ts`), never by hand. Add at least a canonical
@@ -215,9 +225,10 @@ serialized as expanded blank content re-parsed to zero children and re-emitted
 self-closed, a non-idempotent first pass that knocks the file to Raw on the
 next autosave.
 
-`canonical/kitchen-sink.md` is also the dev harness's full-vocabulary sample
-note (`fixture-bridge.ts` imports it) — a vocabulary addition belongs there so
-the harness exercises it.
+`canonical/kitchen-sink.md` is also the fixture vault's full-vocabulary sample
+note (`__tests__/sample-notes.ts` imports it; `dev/fixture-bridge.ts` serves it
+to the UI suites) — a new node type belongs there so the corpus test
+covers it.
 
 ## Rules
 
@@ -227,25 +238,27 @@ the harness exercises it.
 - `deserializeMd` from `@platejs/markdown` is BANNED in app code — its regex
   `htmlToJsx` pre-pass is fence-unaware and rewrites HTML inside fenced blocks.
   Parse through `parseMdast` + `scanVocabulary` + `mdastToSlate`
-  (`markdown-kit.ts` replaces the stock paste parser for this reason).
+  (`markdown-kit.ts` replaces the stock paste parser for this reason). Nothing
+  lints for this and no test greps for it: the ban is convention, and
+  `markdown-kit.ts` replacing the stock parser is its only structural reminder.
 - Transient state (AI marks, combobox inputs, open/collapsed) never touches the
   node or the bytes. `toggle`'s open state lives in the plugin's `openIds`
   store precisely so a collapse cannot dirty the document.
 - Single-dollar math stays OFF and thematic breaks never emit `---` at byte 0 —
   both are locked decisions in `md-plugins.ts`. Don't relitigate them from a
   node's convenience.
-- Files stay `.md`. The vocabulary is fixed; unknown JSX, expressions and HTML
-  comments go to Raw by design, not by omission.
+- Files stay `.md`. Unknown JSX, expressions and HTML comments are opaque
+  nodes, not a Raw verdict — only a document that cannot be parsed opens Raw.
 
 ## Verify
 
 ```bash
-pnpm --filter @repo/desktop test    # the whole pipeline: fixtures, parity, adversarial, corpus
-pnpm --filter @repo/notes test      # vocabulary + remark stack, if you touched packages/notes
-pnpm --filter @repo/desktop typecheck
+pnpm --filter @repo/editor test    # the whole pipeline: fixtures, parity, adversarial, corpus
+pnpm --filter @repo/notes test      # opaque + precedence + remark stack, if you touched packages/notes
+pnpm --filter @repo/editor typecheck
 ```
 
-The desktop suite is the gate. What each part catches:
+The `@repo/editor` suite is the gate. What each part catches:
 
 - `__tests__/markdown-roundtrip.test.ts` — the canonical/churn/raw matrix.
 - `__tests__/kit-parity.test.ts` — shared `MarkdownPlugin` by reference, the
@@ -255,7 +268,7 @@ The desktop suite is the gate. What each part catches:
   `markdown-adversarial.test.ts` — generated and hostile inputs; a new node
   reaches them for free.
 - `__tests__/markdown-corpus.test.ts` — real markdown from this repo plus every
-  harness sample note, each pinned to an explicit expected classification, so a
+  fixture-vault sample note, each pinned to an explicit expected classification, so a
   pipeline change that moves a file between classes is a red diff.
 - `__tests__/editor-kits.test.ts` — the live-editor transforms (insert,
   normalize) that feed serialization.
@@ -264,7 +277,7 @@ The desktop suite is the gate. What each part catches:
 Then drive it, because passing tests are not feature-correct:
 
 ```bash
-pnpm --filter @repo/desktop dev:harness    # localhost:5173
+pnpm dev:web                               # then /app
 ```
 
 Insert the node from its surface, type around it, and **toggle Raw mode** to

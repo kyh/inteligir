@@ -12,12 +12,14 @@
 // machinery to write.
 // ---------------------------------------------------------------------------
 
-import type { ExtractedLink, ExtractedTask } from "./link-extract";
+import type { ExtractedLink } from "./link-extract";
 import { scanDoc, titleFromPath } from "./link-extract";
+import { splitLines } from "./source-lines";
+import type { ExtractedTask } from "./task-ordinal";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
-export const PROJECTION_VERSION = 5;
+export const PROJECTION_VERSION = 6;
 
 const SNIPPET_MAX = 200;
 
@@ -43,9 +45,6 @@ export type DocProjection = {
   /** Frontmatter `aliases`, display case, deduped case-insensitively — the
    * resolver's below-path tiers and the `[[` picker's extra keywords. */
   aliases: string[];
-  /** Frontmatter `private: true` (malformed frontmatter reads true — the
-   * index prefilters fail-closed; AI surfaces re-probe live disk anyway). */
-  private: boolean;
   /** The doc's GFM task items in ordinal order (empty under the `tasks:
    * false` opt-out) — the Tasks view's whole-vault query source. Persisted
    * child-keyed by (path, ordinal), never by offsets. */
@@ -55,7 +54,7 @@ export type DocProjection = {
 /** Parse a doc once into its projection. Pure: same bytes, same output. */
 export function projectDoc(path: string, content: string): DocProjection {
   const scan = scanDoc(content);
-  const lines = content.split(/\r\n|\r|\n/);
+  const lines = splitLines(content);
   const links = scan.links.map(
     (link): StoredLink => ({ ...link, snippet: clipSnippet((lines[link.line - 1] ?? "").trim()) }),
   );
@@ -65,7 +64,6 @@ export function projectDoc(path: string, content: string): DocProjection {
     links,
     tags: scan.tags,
     aliases: scan.aliases,
-    private: scan.private,
     tasks: scan.tasks,
   };
 }

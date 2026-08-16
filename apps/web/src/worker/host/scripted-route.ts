@@ -1,0 +1,108 @@
+// ---------------------------------------------------------------------------
+// `POST /v1/host/scripted` — the drive seam, off the production contract.
+//
+// Two capabilities exist only under `AGENT_RUNTIME=scripted`: seeding the fake
+// container's response queue, and reading back the chat agent's composed system
+// prompt. Neither is a Bridge channel, and that is the registry's own rule
+// rather than a preference: a capability this host may not have has no channel
+// at all, or the contract every client bundles carries a method that throws on
+// the runtime it ships to.
+//
+// A leaf costs nothing the socket was paying. `routeHost` proves a session and
+// addresses the caller's own object before this runs, so there is no userId on
+// the path and no second derivation to keep honest — the same admission every
+// other leaf gets.
+//
+// Fail-closed on the runtime, not on the caller: a deployment running a real
+// container has no queue to seed, and answers 404 as if the leaf were not
+// there — which, for that deployment, it is.
+// ---------------------------------------------------------------------------
+
+import { FauxAgentScriptSchema } from "@repo/bridge/agent-script";
+import { Value } from "@sinclair/typebox/value";
+
+import type { AgentLane } from "../agent/agent-runner";
+import type { FakeSandbox } from "../agent/fake-sandbox";
+import { clientClassFor, mayInvoke } from "./client-class";
+import { allowedOrigins } from "./origins";
+import { readCredential, verifyHostSession } from "./session";
+
+export type ScriptedRouteDeps = {
+  readonly env: Env;
+  /** This object's own name, so the session is verified to BE this account's
+   * rather than merely valid — the same check every other leaf makes. */
+  readonly hostName: string | undefined;
+  /** A lane's scripted container, or `null` on the real runtime — the same
+   * accessor the agent handlers take, so "is this deployment scripted" has one
+   * answer. */
+  readonly scripted: (lane: AgentLane) => FakeSandbox | null;
+  /** The chat agent's composed system prompt, for byte-exact assertions. */
+  readonly systemPrompt: () => Promise<string>;
+};
+
+/** Built per call, never hoisted to module scope: a `Response` carries a body
+ * stream, and an I/O object created in one Durable Object's context throws when
+ * a different object in the same isolate touches it. One isolate serves many
+ * tenants, so a shared Response is a cross-tenant fault, not a constant. */
+const notScripted = (): Response => new Response("not found", { status: 404 });
+
+export async function handleScriptedRoute(
+  request: Request,
+  deps: ScriptedRouteDeps,
+): Promise<Response> {
+  const chat = deps.scripted("chat");
+  if (chat === null) return notScripted();
+
+  // Gated like every other HTTP leaf, and on the method it STANDS IN FOR:
+  // seeding the queue decides what the agent says next, which is
+  // `sendAgentCommand`'s outcome reached over a second transport.
+  //
+  // What this actually buys is ORIGIN CORROBORATION, not class exclusion:
+  // `sendAgentCommand` is in REMOTE_ALLOWED_METHODS, so a companion bearer
+  // passes `mayInvoke` exactly as it would on the socket — deliberately, since
+  // driving a turn is a thing that client may do. `clientClassFor` refuses a
+  // COOKIE that arrives without an allowlisted Origin, and a cookie is the one
+  // credential a cross-site page can make a browser send. Without it, any page
+  // could POST here on a scripted deployment and script the agent.
+  const credential = readCredential(request.headers);
+  if (credential === null) return new Response("unauthorized", { status: 401 });
+  const session = await verifyHostSession(
+    deps.env,
+    new URL(request.url).origin,
+    credential,
+    deps.hostName,
+  );
+  if (session === null) return new Response("unauthorized", { status: 401 });
+  const clientClass = clientClassFor(
+    credential,
+    request.headers.get("origin"),
+    allowedOrigins(deps.env),
+  );
+  if (clientClass === null || !mayInvoke(clientClass, "sendAgentCommand")) {
+    return new Response("forbidden", { status: 403 });
+  }
+
+  const verb = new URL(request.url).searchParams.get("verb");
+  if (verb === "system-prompt") {
+    return Response.json({ prompt: await deps.systemPrompt() });
+  }
+  if (verb !== "script") {
+    return new Response("unknown verb", { status: 400 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response("expected a json body", { status: 400 });
+  }
+  if (!Value.Check(FauxAgentScriptSchema, body)) {
+    return new Response("payload validation failed", { status: 400 });
+  }
+  // BOTH lanes take the script. A drive that delegates a checkbox needs the
+  // unattended container to answer too, and the caller has no way to name a
+  // lane — nor should it, since the lane is a fact of how a turn was started.
+  chat.setScript(body);
+  deps.scripted("background")?.setScript(body);
+  return new Response(null, { status: 204 });
+}

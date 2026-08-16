@@ -1,4 +1,4 @@
-// The correctness core of scheduled routines, tested like the sync guard:
+// The correctness core of scheduled routines, tested as a pure function:
 // slot computation per cadence, once-per-slot, missed-slots-collapse-to-one,
 // the createdAt floor, disabled, and local-time "HH:MM" semantics. All dates
 // are built with the LOCAL-time Date constructor on purpose — the schedule
@@ -6,7 +6,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { isRoutineDue, lastScheduledSlot, parseTimeOfDay } from "../routine-schedule";
+import {
+  isRoutineDue,
+  lastScheduledSlot,
+  nextRoutineDueAt,
+  nextScheduledSlot,
+  parseTimeOfDay,
+  type RoutineDueView,
+} from "../routine-schedule";
 import type { RoutineSchedule } from "../routines";
 
 // 2026-07-21 is a Tuesday (getDay() === 2).
@@ -169,5 +176,79 @@ describe("isRoutineDue", () => {
     // this needs no assertion — exactly the hole the parser re-covers.
     const bad: RoutineSchedule = { cadence: "daily", timeOfDay: "25:99" };
     expect(isRoutineDue(routine({ schedule: bad }), local(21, 12))).toBe(false);
+  });
+});
+
+// The forward half of the same math. It exists for a host that SLEEPS between
+// slots — a Durable Object woken at an instant rather than a process polling —
+// so what it has to guarantee is the equivalence at the bottom: the moment it
+// names is exactly the moment `isRoutineDue` starts saying yes.
+describe("nextScheduledSlot", () => {
+  it("daily: before today's time → today, at or after → tomorrow", () => {
+    const daily: RoutineSchedule = { cadence: "daily", timeOfDay: "09:00" };
+    expect(nextScheduledSlot(daily, local(21, 8, 59))).toEqual(local(21, 9));
+    // Strictly after, so the slot a routine just ran cannot name itself again.
+    expect(nextScheduledSlot(daily, local(21, 9, 0))).toEqual(local(22, 9));
+    expect(nextScheduledSlot(daily, local(21, 15))).toEqual(local(22, 9));
+  });
+
+  it("weekly: walks forward to the next matching weekday", () => {
+    const weekly: RoutineSchedule = { cadence: "weekly", timeOfDay: "07:30", dayOfWeek: 2 };
+    expect(nextScheduledSlot(weekly, local(21, 7, 0))).toEqual(local(21, 7, 30));
+    // Past this Tuesday's slot, the next one is a week out — through the
+    // month boundary without a case for it.
+    expect(nextScheduledSlot(weekly, local(21, 8))).toEqual(local(28, 7, 30));
+    expect(nextScheduledSlot(weekly, local(29, 8))).toEqual(local(35, 7, 30));
+  });
+
+  it("monthly: this month if it is still ahead, else next month", () => {
+    const monthly: RoutineSchedule = { cadence: "monthly", timeOfDay: "07:30", dayOfMonth: 21 };
+    expect(nextScheduledSlot(monthly, local(21, 7))).toEqual(local(21, 7, 30));
+    expect(nextScheduledSlot(monthly, local(21, 8))).toEqual(
+      new Date(TUE.year, TUE.month + 1, 21, 7, 30, 0, 0),
+    );
+  });
+
+  it("an invalid timeOfDay names no slot (fail-safe, so nothing is armed)", () => {
+    expect(nextScheduledSlot({ cadence: "daily", timeOfDay: "25:99" }, local(21, 12))).toBeNull();
+  });
+});
+
+describe("nextRoutineDueAt", () => {
+  const routine = (over: Partial<RoutineDueView> = {}): RoutineDueView => ({
+    enabled: true,
+    schedule: { cadence: "daily", timeOfDay: "09:00" },
+    createdAt: local(21, 10).getTime(),
+    lastRunAt: null,
+    ...over,
+  });
+
+  it("names the first slot past the floor", () => {
+    expect(nextRoutineDueAt(routine())).toEqual(local(22, 9));
+    expect(nextRoutineDueAt(routine({ lastRunAt: local(23, 9, 5).getTime() }))).toEqual(
+      local(24, 9),
+    );
+  });
+
+  it("names nothing for a disabled routine — there is no wake to arm", () => {
+    expect(nextRoutineDueAt(routine({ enabled: false }))).toBeNull();
+  });
+
+  it("agrees with isRoutineDue at every instant either of them names", () => {
+    // The equivalence the whole scheduler rests on: a host that arms a timer
+    // from one and a host that polls the other can never disagree about when a
+    // routine fires.
+    for (const view of [
+      routine(),
+      routine({ schedule: { cadence: "weekly", timeOfDay: "07:30", dayOfWeek: 2 } }),
+      routine({ schedule: { cadence: "monthly", timeOfDay: "07:30", dayOfMonth: 21 } }),
+      routine({ lastRunAt: local(22, 9, 30).getTime() }),
+    ]) {
+      const due = nextRoutineDueAt(view);
+      expect(due).not.toBeNull();
+      if (due === null) continue;
+      expect(isRoutineDue(view, new Date(due.getTime() - 1))).toBe(false);
+      expect(isRoutineDue(view, due)).toBe(true);
+    }
   });
 });

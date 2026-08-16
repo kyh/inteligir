@@ -13,7 +13,7 @@ import {
   type ClientFrame,
   type ServerFrame,
 } from "../ws-protocol";
-import { binaryChannelFor } from "../ipc-registry";
+import { binaryChannelFor } from "../channel-policy";
 
 // Derived from the registry rather than hardcoded, so a retagged channel fails
 // here instead of silently changing the wire.
@@ -22,10 +22,9 @@ const TTS_TAG = binaryChannelFor("onTtsAudio")?.tag ?? -1;
 
 describe("client frames", () => {
   const frames: ClientFrame[] = [
-    { t: "auth", token: "tok" },
-    { t: "pair", pairingToken: "pt", deviceName: "Pixel" },
-    { t: "req", id: 1, method: "getVaultRoot" },
-    { t: "req", id: 2, method: "readVaultDoc", payload: { path: "a.md" } },
+    { t: "auth", ticket: "tkt" },
+    { t: "req", id: 1, method: "listVault" },
+    { t: "req", id: 2, method: "readVaultFile", payload: { path: "a.md" } },
     { t: "send", method: "sendSttAudio", payload: [0.25, -0.5] },
     { t: "send", method: "ttsSend", payload: { text: "hi" } },
   ];
@@ -41,8 +40,8 @@ describe("client frames", () => {
     "null",
     JSON.stringify({ t: "nope" }),
     JSON.stringify({ t: "auth" }),
-    JSON.stringify({ t: "auth", token: 7 }),
-    JSON.stringify({ t: "pair", pairingToken: "pt" }),
+    JSON.stringify({ t: "auth", ticket: 7 }),
+    JSON.stringify({ t: "auth", token: "a session token is not a ticket" }),
     JSON.stringify({ t: "req", method: "x" }),
     JSON.stringify({ t: "req", id: "1", method: "x" }),
     JSON.stringify({ t: "send", payload: {} }),
@@ -54,7 +53,6 @@ describe("client frames", () => {
 describe("server frames", () => {
   const frames: ServerFrame[] = [
     { t: "welcome" },
-    { t: "paired", deviceToken: "dt", deviceId: "id" },
     { t: "res", id: 3, ok: true, result: { root: "/v" } },
     { t: "res", id: 4, ok: true },
     { t: "res", id: 5, ok: false, error: "boom" },

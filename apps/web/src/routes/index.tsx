@@ -1,7 +1,9 @@
-import { ClientOnly, createFileRoute } from "@tanstack/react-router";
+import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
 import { HeroOrb } from "@/components/hero-orb";
+import { SiteHeader } from "@/components/site-header";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const GITHUB_REPO = "kyh/inteligir";
 const FALLBACK_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -66,25 +68,34 @@ function Page() {
   const downloadUrl = Route.useLoaderData();
 
   return (
-    <main className="flex min-h-dvh w-full flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="h-48 w-48">
-          {/* three.js canvas — client-only (no SSR in the worker) */}
-          <ClientOnly fallback={null}>
-            <HeroOrb />
-          </ClientOnly>
+    // The theme provider lives on the page, not in the document shell: the
+    // workspace mounts its own, and two nested providers fight over the `.dark`
+    // class on <html>. See __root.tsx.
+    <ThemeProvider>
+      <SiteHeader />
+      <main className="flex min-h-dvh w-full flex-col">
+        <div className="flex flex-1 flex-col items-center justify-center">
+          <div className="h-48 w-48">
+            {/* three.js canvas — client-only (no SSR in the worker) */}
+            <ClientOnly fallback={null}>
+              <HeroOrb />
+            </ClientOnly>
+          </div>
         </div>
-      </div>
-      <div className="flex flex-col items-center gap-3 px-6 pb-16">
-        <a
-          href={downloadUrl}
-          className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          <MacLogoIcon className="size-5 shrink-0" />
-          Download for Mac
-        </a>
-        <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
-      </div>
-    </main>
+        <div className="flex flex-col items-center gap-3 px-6 pb-16">
+          <a
+            href={downloadUrl}
+            className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <MacLogoIcon className="size-5 shrink-0" />
+            Download for Mac
+          </a>
+          <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
+          <Link to="/app" className="text-xs text-foreground/60 underline underline-offset-4">
+            Or open it in your browser
+          </Link>
+        </div>
+      </main>
+    </ThemeProvider>
   );
 }

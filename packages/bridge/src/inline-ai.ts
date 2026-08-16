@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
 
-// Inline-AI generation IPC. The renderer builds the full prompt (action +
+// Inline-AI generation IPC. The client builds the full prompt (action +
 // selected/context text) and a requestId to correlate the streamed deltas, and
 // gets back the assistant's final text.
 export const AiGenerateParamsSchema = Type.Object(
@@ -50,7 +50,7 @@ export function parseAiIntent(text: string): AiIntent {
 
 // ---------------------------------------------------------------------------
 // Ghost text — copilot-style inline completion on a dedicated FAST session.
-// The renderer builds the full prompt (instruction + current block) and a
+// The client builds the full prompt (instruction + current block) and a
 // requestId; a new request supersedes the previous one host-side.
 // ---------------------------------------------------------------------------
 

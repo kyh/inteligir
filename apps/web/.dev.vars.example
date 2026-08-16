@@ -1,0 +1,56 @@
+# Copy to apps/web/.dev.vars (gitignored — NEVER commit real values).
+#
+# `vite dev` loads this as the Worker's secrets. Production sets the same
+# keys with `wrangler secret put` (see README.md -> Deploy).
+
+# Better Auth's signing key. Required — without it every /api/auth/* request
+# fails. Any value works locally: `openssl rand -base64 32`.
+BETTER_AUTH_SECRET=
+
+# Origins allowed to open the workspace host WebSocket — EXACT (scheme + host +
+# port), comma-separated. The deployed origins are built in; a dev server has to
+# be named here or /app connects to nothing but a 403.
+HOST_ALLOWED_ORIGINS=http://localhost:5174
+
+# Optional social OAuth. A provider is live only when BOTH halves are set —
+# otherwise it is absent from /v1/capabilities and no client renders its button.
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+
+# Set to "true" ONLY when a local script signs up several users from one IP —
+# auth is rate-limited to 10 requests/60s per IP (see src/worker/auth/auth.ts).
+# RATE_LIMIT_DISABLED=true
+
+# The agent. Local dev has no Workers Paid plan and usually no Docker, so run
+# the scripted container instead of a real Cloudflare Sandbox: it needs no
+# plan, no image and no provider account, and offers a `Sandbox (no account)`
+# provider so a whole turn can be driven. Unset (or anything else) = the real
+# container.
+AGENT_RUNTIME=scripted
+
+# The public host the container reports to and the provider OAuth redirect URI
+# is built from. Only needed with the real container — the redirect URI must
+# match what was registered with the provider byte for byte.
+# PUBLIC_HOST=
+
+# Provider OAuth apps. A provider is offered only when its whole trio is set.
+# Register `https://<PUBLIC_HOST>/v1/ai/oauth/callback` as the redirect URI.
+# ANTHROPIC_OAUTH_AUTHORIZE_URL=
+# ANTHROPIC_OAUTH_TOKEN_URL=
+# ANTHROPIC_OAUTH_CLIENT_ID=
+# ANTHROPIC_OAUTH_CLIENT_SECRET=
+# OPENAI_OAUTH_AUTHORIZE_URL=
+# OPENAI_OAUTH_TOKEN_URL=
+# OPENAI_OAUTH_CLIENT_ID=
+# OPENAI_OAUTH_CLIENT_SECRET=
+
+# The Cloudflare account every REST-reached Cloudflare service below belongs to.
+# One id, one token per service — a token is scoped to the product it may reach.
+# CLOUDFLARE_ACCOUNT_ID=
+
+# Cloudflare Browser Run, for the agent's `browser` tool. Needs the account id
+# above, and `api.cloudflare.com` in AGENT_EXTRA_ALLOWED_HOSTS.
+# BROWSER_RUN_API_TOKEN=
+# AGENT_EXTRA_ALLOWED_HOSTS=

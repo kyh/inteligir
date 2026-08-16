@@ -1,276 +1,187 @@
 # Driving the app E2E, login-free
 
-How a headless Claude session drives inteligir end-to-end with **zero human
-OAuth** — a chat turn, a delegation, and a Google connector connect. The point
-is to verify agent/connector flows without ending every change "unverified,
-owner-only." `docs/development.md` is the general dev loop;
-this is the auth-free driving recipe.
+How a headless session drives inteligir end-to-end without a provider account —
+a chat turn and a delegation, both real code paths. The point is to verify agent
+flows rather than ending every change "unverified, owner-only."
+`docs/development.md` is the general dev loop; this is the driving recipe.
 
-Two dev-only, flag-gated stubs remove the login wall:
+## The one stub: the agent's container
 
-| Flow                 | Stub                                 | Flag                             |
-| -------------------- | ------------------------------------ | -------------------------------- |
-| Chat + delegation    | pi-ai `faux` provider (scripted)     | `INTELIGIR_FAUX_AGENT=1`         |
-| Google connectors    | `vercel-labs/emulate` OAuth+API      | `INTELIGIR_EMULATE_CONNECTORS=1` |
-| Fidelity runs (real) | real provider / real Google (cached) | neither flag                     |
+`AGENT_RUNTIME=scripted` swaps the per-user Cloudflare Sandbox for an in-memory
+one (`apps/web/src/worker/agent/fake-sandbox.ts`). Everything around it is
+production code: the runner, the tool manifest and executor, the transcript, the
+confirmation broker, the snapshot store and the vault write-back. The port IS
+the seam — in both directions, so the scripted container's reports are real
+ones, presented with its own boot bearer and answered through the same entry an
+HTTPS report reaches. That is why the whole agent suite runs this way and why
+the suite is evidence about the real thing.
 
-Both flags fail closed: unset, the app is byte-identical to production (real
-provider OAuth, real Google endpoints). The faux-scripting Bridge channel throws
-unless `INTELIGIR_FAUX_AGENT=1`; the emulate override only swaps the Google
-OAuth URLs and only when `INTELIGIR_EMULATE_CONNECTORS=1`. No security boundary
-is weakened (no global cert-check disable — emulate is plain local HTTP).
+It is what `pnpm --filter @repo/web test` already sets. For a running app, put it
+in `apps/web/.dev.vars`:
 
-## Run mode: real Electron, not the fixture harness
-
-Everything here needs the **real host** (`pnpm dev:desktop`): the faux-scripting
-channel, the executor daemon (connectors), and the delegation background agent
-all live server-side. The browser fixture harness
-(`pnpm --filter @repo/desktop dev:harness`) is UI-only — its `setFauxAgentScript`
-/ `installConnector` stubs throw `unavailable`, by design.
-
-Set the flags in `apps/desktop/.env` (the desktop main loads it in dev) — or
-export them in the launching shell:
-
-```bash
-# apps/desktop/.env  (gitignored) — APPEND these two lines; delete them when done.
-INTELIGIR_FAUX_AGENT=1
-INTELIGIR_EMULATE_CONNECTORS=1
+```
+AGENT_RUNTIME=scripted
 ```
 
-**Never truncate or delete `apps/desktop/.env`.** The same file holds the Apple
-notarization creds, `ELEVENLABS_API_KEY`, and the bundled Google OAuth client
-(`apps/desktop/.env.example` documents all of them); the `release` skill's
-preflight stops the release when they are missing, and they are unrecoverable
-from the repo. Exporting the two flags in the launching shell instead avoids the
-question entirely.
+It is opt-in, not a fallback. `sandboxRuntimeEnabled` keys entirely off this one
+variable, so a deployment with no Workers Paid plan and no image still gets the
+real port unless it sets this, and fails at container boot.
 
-Launch + attach:
+## Getting a signed-in page
 
 ```bash
-pnpm dev:desktop                 # real Electron, CDP :9222, executor daemon :47888
-agent-browser connect 9222       # attach to the renderer
+pnpm dev:web
 ```
 
-**Kill stale instances between runs** — a leftover Electron/executor holds 9222
-and 47888 and the next launch can't bind them:
+Then sign in — `AGENTS.md` § "There is no seeded login" has the commands that
+materialize the local D1 file, push the schema and mint an invite; the account
+itself is made in the browser at `/app/sign-up`, which the sign-in page links
+to. `agent-browser open http://localhost:5174/app` then lands you on the
+workspace.
 
-```bash
-pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"
-```
+## Driving the Bridge directly
 
-After a `git worktree`/fresh checkout, Electron's binary may be unpacked but not
-downloaded — if `pnpm dev:desktop` dies with `Error: Electron uninstall`, run
-`node apps/desktop/node_modules/electron/install.js` once.
+The page holds a live socket to its own `UserHost`. From `agent-browser eval`
+on a signed-in `/app` page you can open a SECOND socket and call any Bridge
+method — far faster than clicking, and how you set a fixture up before driving
+the UI over it.
 
-## Driving the Bridge without the UI
+The credential is a single-use TICKET, minted same-origin against the session
+cookie. There is no userId in the URL and no session token in the page: the
+object is derived from the cookie the mint carries, and the socket spends the
+ticket in its first frame. Pipe the script in with `agent-browser eval --stdin`
+— a top-level `await` is not available, so wrap it in an async IIFE.
 
-The renderer holds the WS endpoint + per-boot token at
-`window.bridgeBootstrap` (`{ url, token }`). From an `agent-browser eval` you can
-open that socket, send an `auth` frame, then `req` frames to call ANY Bridge
-method directly — the reliable way to script the faux agent, seed a note, create
-a delegation, and read a file back. The wire shape:
+`call` is scoped to that IIFE and does NOT survive to the next `agent-browser
+eval`. The snippet's last line parks it on `window`, so the flows below can run
+as their own evals against the same socket until the page reloads; drop that
+line and each eval has to re-mint and re-dial inside its own IIFE.
 
 ```js
-// inside agent-browser eval — returns the method result
 (async () => {
-  const boot = window.bridgeBootstrap;
-  const ws = new WebSocket(boot.url);
-  const call = (method, payload) =>
-    new Promise((res, rej) => {
-      ws.send(JSON.stringify({ t: "req", id: 1, method, ...(payload ? { payload } : {}) }));
-      ws.onmessage = (e) => {
-        const f = JSON.parse(e.data);
-        if (f.t === "res" && f.id === 1) f.ok ? res(f.result) : rej(new Error(f.error));
-      };
-    });
-  await new Promise((res) => {
-    ws.onopen = () => ws.send(JSON.stringify({ t: "auth", token: boot.token }));
-    ws.onmessage = (e) => {
-      if (JSON.parse(e.data).t === "welcome") res();
-    };
+  const minted = await fetch("/v1/host/ticket", { method: "POST" }).then((r) => r.json());
+  const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${scheme}//${location.host}/v1/host/ws`);
+  let id = 0;
+  const pending = new Map();
+  let welcome;
+  const welcomed = new Promise((resolve) => {
+    welcome = resolve;
   });
-  return await call("readVaultDoc", { path: "some-note.md" });
+  // Installed from the start and never replaced, so an event arriving between
+  // the welcome and the first call cannot land on a handler that isn't there.
+  ws.onmessage = (event) => {
+    const frame = JSON.parse(event.data);
+    if (frame.t === "welcome") welcome();
+    if (frame.t === "res") pending.get(frame.id)?.(frame);
+  };
+  const call = (method, payload) =>
+    new Promise((resolve, reject) => {
+      const at = ++id;
+      pending.set(at, (frame) =>
+        frame.ok ? resolve(frame.result) : reject(new Error(frame.error)),
+      );
+      ws.send(JSON.stringify({ t: "req", id: at, method, payload }));
+    });
+  ws.onopen = () => ws.send(JSON.stringify({ t: "auth", ticket: minted.ticket }));
+  await welcomed;
+  // Parked so the flows below can be their own evals against this same socket.
+  window.call = call;
+  // Scripting is a LEAF, not a channel: a capability only the scripted runtime
+  // has does not belong in the contract every client bundles. Same session the
+  // socket authenticated with, so it needs no credential of its own.
+  window.script = (steps) =>
+    fetch("/v1/host/scripted?verb=script", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ steps }),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`script failed: ${r.status}`);
+    });
+  return await call("readVaultFile", { path: "Welcome.md" });
 })();
 ```
 
-(For multi-call scripts keep a `pending` map keyed by an incrementing `id` —
-see the delegation recipe below.)
+## Flow 1 — a chat turn
 
-## Flow 1 — a chat turn (faux)
+`POST /v1/host/scripted?verb=script` replaces the container's response queue; one step
+is consumed per assistant turn, and BOTH lanes are seeded with the same steps —
+two independent queues, each drained on its own, so a stray chat turn does not
+eat the background lane's step. Script, then drive exactly one flow before
+re-scripting. Empty `steps` restores the self-refilling echo. The route answers
+404 unless the runtime is scripted, so it is not there at all on a real
+deployment.
 
-`setFauxAgentScript` replaces the faux provider's response queue; one step is
-consumed per assistant turn (the queue is SHARED by chat and the delegation
-background agent — script, then drive exactly one flow before re-scripting).
-Empty `steps` restores the self-refilling echo.
+A step carries three things, and the difference between the last two is the
+whole shape of the agent: `text` is what the model said, `toolCalls` are the
+GRANTED tools (implemented host-side, so they run the real executor and the real
+confirmations), and `writes` are what the agent's OWN file tools did to
+`./vault` — which reach the vault of record as a reported write, get a restore
+point captured for them, and can be refused.
 
-`getAgentSystemPrompt` is the assertion seam beside it: a payload-free call —
-`call("getAgentSystemPrompt")` — returning the live chat agent's system prompt
-(`string`, or `null` when no agent is up), so a prompt-shaping change can be
-asserted byte-for-byte instead of inferred from model behavior. Same fail-closed
-gate as `setFauxAgentScript`: it throws unless `INTELIGIR_FAUX_AGENT=1`.
+**The queue does not survive hibernation.** It lives in an in-memory field on
+the Durable Object, and an idle object with open sockets is evicted — a minute
+of clicking around between scripting and sending is enough to lose it. Script
+IMMEDIATELY before the turn, and read an echoed reply (`[scripted] <your
+message>`) as "the script was dropped, re-script and retry", never as a bug in
+whatever you just changed.
 
-1. Script the reply, over the Bridge:
-   `call("setFauxAgentScript", { steps: [{ text: "SCRIPTED_CHAT_REPLY_42" }] })`
+`POST /v1/host/scripted?verb=system-prompt` is the assertion seam beside it:
+a call that
+composes and returns the chat agent's system prompt from the current vault —
+answered before any turn has run, and 404 off the scripted runtime like its
+sibling — so a prompt-shaping change can be asserted byte-for-byte instead of
+inferred from model behavior.
+
+1. Script the reply, over the leaf:
+   `script([{ text: "SCRIPTED_CHAT_REPLY_42" }])`
 2. Type into the composer and submit (agent-browser): click "Ask the agent…",
    type into the "Ask the agent to edit your notes…" textbox, press Enter.
 3. Assert the UI streamed it: poll until `document.body.textContent` contains
    `SCRIPTED_CHAT_REPLY_42`.
 
-Expected: the scripted text streams into the chat transcript with zero OAuth.
+## Flow 2 — a delegation
 
-## Flow 2 — a delegation (faux)
+The background lane runs the same scripted container, so a scripted tool call
+performs the checkbox write-back. The delegation completes when the turn ends
+AND the file is edited, so seed the note with known content first.
 
-The delegation background agent runs on the same faux provider, so a scripted
-`edit` tool-call performs the checkbox write-back. The delegation completes when
-the turn ends AND the file is edited; the `edit` tool's `oldText` must match the
-note's bytes exactly, so seed the note with known content first.
-
-Over the Bridge (one script, `pending`-map style), calling in order:
+The body below still needs its own `async () => { … }` wrapper per eval (top-
+level `await` is unavailable); `call` and `script` are the two the snippet parked on `window`.
 
 ```js
-const file = "faux-delegation-test.md";
-await call("writeVaultDoc", { path: file, content: "# T\n\n- [ ] scripted delegation task\n" });
+const file = "scripted-delegation-test.md";
+await call("writeVaultFile", { path: file, content: "# T\n\n- [ ] scripted delegation task\n" });
 
-// pi's `edit` tool: { path, edits: [{ oldText, newText }] }. path is relative
-// to the agent workspace, where ./vault symlinks the vault, so vault/<file>
-// resolves. Step 1 carries the tool call (host maps it to stopReason "toolUse");
-// step 2 is the follow-up summary turn.
-await call("setFauxAgentScript", {
-  steps: [
-    {
-      text: "Completing the task.",
-      toolCalls: [
-        {
-          name: "edit",
-          arguments: {
-            path: "vault/" + file,
-            edits: [
-              {
-                oldText: "- [ ] scripted delegation task",
-                newText: "- [x] scripted delegation task\n  - done by the faux background agent",
-              },
-            ],
-          },
-        },
-      ],
-    },
-    { text: "Checked the box and recorded the result." },
-  ],
-});
+// Step 1 carries the tool call; step 2 is the follow-up summary turn. The tool
+// names and argument shapes are the manifest's own — `agentToolManifest` in
+// apps/web/src/worker/agent/agent-tools.ts is the list.
+await script([
+  {
+    text: "Completing the task.",
+    toolCalls: [
+      {
+        name: "toggle_task",
+        arguments: { path: file, ordinal: 0, expectedRaw: "- [ ] scripted delegation task" },
+      },
+    ],
+  },
+  { text: "Checked the box and recorded the result." },
+]);
 
 // ordinal = the checkbox's position among the doc's todo checkboxes (0 = first).
 await call("createDelegation", { sourceFile: file, ordinal: 0 });
 // then poll listDelegations() until delegations[0].status === "done",
-// then readVaultDoc({ path: file }) to confirm "- [x] …" + the nested result line.
+// then readVaultFile({ path: file }) to confirm "- [x] …".
 
 // Clean up:
-await call("setFauxAgentScript", { steps: [] }); // restore the echo
-await call("deleteVaultEntry", { path: file }); // to the OS trash
+await script([]); // restore the echo
+await call("deleteVaultEntry", { path: file });
 ```
 
-Expected: status flips to `done` with the tool-call summary; the file on disk
-carries the byte-exact write-back — dispatch + write-back, login-free.
+## Teardown
 
-## Flow 3 — a Google connector connect (emulate)
-
-`emulate` is a local Google OAuth+API stub. Start it (default base port **4000**;
-`emulate start -p` moves it — then set `INTELIGIR_GOOGLE_OAUTH_AUTH_URL` /
-`INTELIGIR_GOOGLE_OAUTH_TOKEN_URL` explicitly):
-
-```bash
-npx -y emulate start --service google      # → http://localhost:4000, user testuser@gmail.com (no password)
-```
-
-Under `INTELIGIR_EMULATE_CONNECTORS=1` the host registers the shared "google"
-OAuth client at emulate's endpoints (`…:4000/o/oauth2/v2/auth` +
-`…:4000/oauth2/token`) with placeholder credentials — emulate accepts any
-client id/secret and any redirect URI, so no GCP app is needed.
-
-**Start from a clean executor state** — an already-registered "google" client
-always wins over the override. If a prior real Google client exists, either use
-a fresh `~/.inteligir/executor/data` or disconnect it first.
-
-The daemon opens the consent URL in the SYSTEM browser (`shell.openExternal`),
-not the Electron renderer, so agent-browser can't see it. Complete consent
-**headlessly** by POSTing emulate's callback directly (it renders a
-one-click user-picker; the hidden form fields are all we need):
-
-1. In the UI (agent-browser): Settings → Connectors → the Google connector's
-   **Connect** (e.g. Gmail). The daemon registers the integration + a pending
-   OAuth session.
-2. Poll the in-flight consent over the Bridge (a dev-only channel: it throws
-   without `INTELIGIR_EMULATE_CONNECTORS=1`):
-   ```js
-   await call("getPendingConnectorAuth"); // → { authorizationUrl, state } | null
-   ```
-   The `authorizationUrl` query string carries everything the consent form
-   needs — `state`, `client_id`, `redirect_uri`, `scope`, `code_challenge`,
-   `code_challenge_method` — already urlencoded. No PKCE hashing, no SQLite.
-3. POST consent with that query string as the form body plus the picked user
-   (curl `-L` follows the 302 into the daemon callback, which exchanges the
-   code at emulate's token endpoint). Do NOT add `-X POST` — that pins the
-   method across the redirect and the daemon callback 404s a POST; `--data`
-   already makes the first request a POST, and `-L` correctly GETs the 302
-   target:
-   ```bash
-   AUTH_URL='<authorizationUrl from getPendingConnectorAuth>'
-   curl -sL "http://localhost:4000/o/oauth2/v2/auth/callback" \
-     --data "email=testuser%40gmail.com&${AUTH_URL#*\?}" -o /dev/null
-   ```
-4. Confirm the connection minted (the daemon exchanged the code at emulate),
-   over the Bridge:
-   ```js
-   await call("listExecutorConnections"); // → [{ owner:"user", name:"default", integration:"gmail", … }]
-   ```
-   The card flips to **Connected** in the UI, and `getPendingConnectorAuth`
-   returns null again (the pending consent clears when the flow settles).
-5. Clean up: click **Disconnect** on the card (the connection points at emulate
-   and is useless in production).
-
-That round-trip — register → consent → callback → token exchange → connected —
-is what this flow proves: authenticated token routing, end to end.
-
-### Fidelity boundary (verified against emulate v0.9.0 + executor v1.5.4)
-
-- **OAuth + token routing → emulate.** authorize, token, userinfo, and the empty
-  JWKS all served locally. The whole connect round-trip is login-free.
-- **id_token is NOT a blocker.** emulate signs the id_token HS256 with an empty
-  JWKS (`/oauth2/v3/certs` → `{"keys":[]}`). Our executor daemon mints the
-  connection from the **access_token** and does not RS256-verify the id_token
-  against JWKS, so the connect succeeds regardless.
-- **No API discovery docs, and no client-side workaround.** Both candidate
-  paths are dead ends:
-  - emulate has NO Google discovery route at all — `/discovery/v1/apis/
-<api>/<ver>/rest` and `$discovery/rest` 404, and its route table contains
-    no Google discovery endpoint (only Microsoft's `/discovery/v2.0/keys`
-    JWKS). The integration is therefore registered from REAL Google's
-    discovery doc (needs network) and its derived `rootUrl` is real
-    `*.googleapis.com`.
-  - the daemon's add-openapi `baseUrl` is accepted but **ignored for
-    `googleDiscoveryBundle`** — the rootUrl comes from the discovery doc
-    itself. Register gmail with `baseUrl: http://localhost:4000` and an
-    emulate-minted connection and `gmail.users.messages.list` still dials
-    real `gmail.googleapis.com`, returning a real-Google 401 (`Invalid
-Credentials`). Meanwhile emulate itself DOES
-    serve partial Gmail/Calendar/Drive REST at `:4000` (a bearer request to
-    `/gmail/v1/users/me/messages` returns 200) — but nothing can point the
-    pinned third-party daemon there.
-- **Conclusion:** the connector proof is scoped to **OAuth + token routing +
-  Connected state**. A headless **authenticated tool-call** is out of reach
-  until emulate serves discovery docs upstream (or we stand up a dev-only
-  discovery-doc rewriting endpoint, deliberately NOT done — it would add a
-  production-adjacent HTTP surface for a test convenience). For live Google
-  API tool-calls, use a real cached Google connection (neither flag).
-
-## Teardown (always)
-
-Never leave a dev server, emulate, or the daemon running:
-
-```bash
-pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"
-pkill -f "emulate"                          # or kill the npx emulate process
-
-# Drop the two flag lines — do NOT delete the file (see above; it also carries
-# the notarization creds).
-sed -i '' '/^INTELIGIR_FAUX_AGENT=1$/d;/^INTELIGIR_EMULATE_CONNECTORS=1$/d' apps/desktop/.env
-```
+Restore the echo (`script([])`) and delete anything the
+run wrote. A scripted queue left primed makes the NEXT flow's first turn answer
+with the previous flow's script, which reads as a bug in whatever you drive
+next.

@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Rename-rewrite: when a vault file moves `from` → `to`, compute the minimal
 // byte-surgical edits that keep every link pointing at it. Pure — the host
-// applies the returned contents through VaultManager's atomic writes; the
+// applies the returned contents through the vault's own writes; the
 // fixture bridge applies them to its in-memory Map.
 //
 // Only the recorded target span of each link changes (extraction emits spans

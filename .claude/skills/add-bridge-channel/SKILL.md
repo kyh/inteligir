@@ -1,237 +1,163 @@
 ---
 name: add-bridge-channel
-description: Add a channel to the Bridge — the host↔UI IPC contract behind every renderer and mobile call. Covers the registry entry in @repo/bridge, the host handler in @repo/server, the dev-harness fixture stub, event emission + reconnect hydration, and the remote-device allowlist decision. Use when a UI surface needs data or an action the host owns, or when host-side state must push to the UI.
+description: Add a channel to the Bridge — the host↔UI contract behind every workspace call. Covers the registry entry in @repo/bridge, the handler in the UserHost Durable Object, the fixture-Bridge stub, event emission + reconnect hydration, and the client-class allowlist decision. Use when a UI surface needs data or an action the host owns, or when host-side state must push to the UI.
 allowed-tools: Bash(*), Read, Edit, Write
 ---
 
 # Add a Bridge channel
 
-The Bridge is the ONLY way the renderer (and the Expo companion) reaches the
-host. `packages/bridge/src/ipc-registry.ts` is its single source of truth: each
-entry pairs a TypeBox payload schema with a result/event type, and the `Bridge`
-type, the ws transport's dispatch, and the host handler map are all DERIVED from
-it. A channel is not "wired up" until three files agree, and the compiler
-enforces all three.
+**Write the entry, then let the compiler drive.** Three of the four edits are
+compile errors until you make them, and they arrive in the order you should do
+them. Nothing is pinned by hand — there is no method list to append to and no
+count to bump.
 
-## Read first
-
-- `packages/bridge/src/ipc-registry.ts` — the registry, the entry helpers
-  (`invoke` / `invokeVoid` / `send` / `event`), the method partitions, and the
-  remote allowlists.
-- `packages/server/src/handlers/handler-registry.ts` — `collectHandlers`, which
-  validates payloads and throws at boot on a missing or duplicate handler.
-- `apps/desktop/dev/fixture-bridge.ts` — the header's stub convention.
-- CLAUDE.md § "Remote-device capability is an ALLOWLIST, never a blocklist".
-
-## The four entry kinds
-
-```ts
-invoke<Schema, Result>(schema); // UI → host, payload, awaited result
-invokeVoid<Result>(); // UI → host, no payload, awaited result
-send<Schema>(schema); // UI → host, fire-and-forget (throws are swallowed + logged)
-event<Payload>(); // host → UI push; no handler, emitted via emitEvent
+```
+1. registry entry  →  packages/bridge/src/ipc-registry.ts
+2. grant-table row →  packages/bridge/src/agent-grants.ts     (compile error names the method)
+3. fixture stub    →  packages/workspace/src/dev/fixture-bridge.ts
+4. host handler    →  apps/web/src/worker/**/<domain>-handlers.ts
+5. the caller      →  the surface that needed it
 ```
 
-Pick `invoke` unless the call genuinely has nothing to say back. Failure that
-the UI must branch on is a **VALUE, not a throw** — `toggleVaultTask` returns
-`{ok:false, reason}` because the host has already self-healed and the renderer
-needs to know which refusal it hit. Reserve throws for programmer error.
+Step 4 is not a type error — it is a construction throw
+(`host handlers missing for: yourMethod`), so the object refuses to boot and
+`@repo/web`'s suite fails naming it. Step 5 is the one thing no type can see: a
+channel with no CALLER anywhere in the repo fails `no-dead-channels`
+(`tools/repo-guards`).
 
-## Files to touch
+## The IPC seam is four files
 
-The worked example below is `toggleVaultTask` (invoke) and its sibling
-`onKnowledgeUpdated` (event) — read them end to end in the tree; they are the
-smallest complete pair.
+| file                | what it is                                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| `ipc-entry.ts`      | the four channel kinds + their constructors                                                        |
+| `ipc-registry.ts`   | **the table** — one row per channel, and nothing else                                              |
+| `ipc-contract.ts`   | the machinery derived from it (`Bridge`, `HostMethod`, `IpcHandler`, `IpcEvent`); names no channel |
+| `channel-policy.ts` | the three per-channel opt-ins the compiler cannot ask for                                          |
 
-### 1. Registry entry — `packages/bridge/src/ipc-registry.ts`
-
-Schema near the other schemas, entry in the domain-grouped registry block.
-`additionalProperties: false` on every object schema.
-
-```ts
-// Guarded task toggle — keyed by ORDINAL (delegation's anchor key; survives
-// line shifts and duplicate identical lines) plus the exact recorded line.
-const ToggleTaskSchema = Type.Object(
-  {
-    path: Type.String(),
-    /** Position among the file's GFM task items (find-task-line's counting). */
-    ordinal: Type.Number({ minimum: 0 }),
-    /** The task's exact untrimmed source line (terminator excluded) as the
-     * projection recorded it — the write proceeds only on byte equality. */
-    expectedRaw: Type.String(),
-  },
-  { additionalProperties: false },
-);
-
-/** toggleVaultTask's verdict. Failures are VALUES, never throws: the host has
- * already kicked an index refresh, so the renderer refetches + toasts. */
-export type ToggleTaskResult =
-  | { ok: true; checked: boolean }
-  | { ok: false; reason: "line-missing" | "line-changed" | "not-a-checkbox"; error: string };
-```
+## 1. The registry entry
 
 ```ts
-  toggleVaultTask: invoke<typeof ToggleTaskSchema, ToggleTaskResult>(ToggleTaskSchema),
+invoke<Schema, Result>(schema); // → host, payload, awaited result
+invokeVoid<Result>(); // → host, no payload, awaited result
+send<Schema>(schema); // → host, fire-and-forget (throws swallowed + logged)
+event<Payload>(); // host → client push; no handler
 ```
 
-The doc comment on the entry is the channel's contract — the renderer author
-reads it instead of the handler. Say what the host guarantees and what a
-failure means.
+Pick `invoke` unless the call genuinely has nothing to say back. Failure the UI
+must branch on is a **VALUE, not a throw** — `toggleVaultTask` returns
+`{ok:false, reason}` because the host has already self-healed and the UI needs
+to know which refusal it hit. Reserve throws for programmer error.
 
-### 2. Host handler — `packages/server/src/handlers/<domain>-handlers.ts`
+**Payload schemas and result types do not live in the registry.** Put them in
+the module that owns the concept — `vault.ts`, `knowledge.ts`, `skills.ts`,
+`delegation.ts`, `agent-actions.ts`, `voice.ts`, … — and import them into the
+row. `additionalProperties: false` on every object schema. Never
+`Type.Any()`: `Type.Unknown()` emits the same wire schema but forces the handler
+to narrow, where `Any` puts a real `any` into the derived `Bridge` type and
+exempts every caller from the repo's no-any rule (`BinaryAudioSchema` is the one
+place `unknown` is right, and says why).
 
-One `register<Domain>Handlers(handle)` per domain file, all called from
-`register-handlers.ts`. The registrar is per-method typed: the payload and
-result types come from the registry, so a typo'd method name is a compile error.
+The doc comment on the row is the channel's contract — the UI author reads it
+instead of the handler. Say what the host guarantees and what a failure means.
 
-```ts
-export function registerKnowledgeHandlers(handle: HandlerRegistrar): void {
-  handle("listVaultTasks", () => getKnowledgeManager().tasks());
-  handle("toggleVaultTask", ({ path, ordinal, expectedRaw }): ToggleTaskResult => {
-    ...
-  });
-}
-```
+## 2. The grant-table row — the compiler will ask
 
-Adding a whole new domain = a new `*-handlers.ts` plus one line in
-`registerAllHandlers`. Reach host services through their `getX()` singletons
-(`getVaultManager()`, `getKnowledgeManager()`) — that is the deliberate model,
-not an omission (CLAUDE.md § "Host services are process-global `getX()`
-singletons ON PURPOSE").
+`agent-grants.ts` stops compiling with
+`Type 'true' is not assignable to type '"yourNewMethod"'` until the method
+carries a row. That error IS the question "may the agent do this?", and the
+usual answer is an `AGENT_NEVER_GRANTED` group whose `why` already fits. A GRANT
+is a separate implementation host-side in `agent-tools.ts` — never the handler
+you are about to write, which is written for a person looking at their own
+vault. Events need nothing: both tables are typed `HostMethod`.
 
-Two channels are NOT host-owned: `DESKTOP_SHELL_METHODS` (the `vault-app://`
-token mint/revoke) are implemented by the Electron shell and passed to
-`startWsHost` as `shellHandlers` (`apps/desktop/src/main/index.ts`). Only add
-to that set when the handler must touch main-process state the host package
-cannot see.
+## 3. The fixture stub
 
-### 3. Fixture stub — `apps/desktop/dev/fixture-bridge.ts`
-
-The harness's Bridge is typed `: Bridge`, so this file **fails typecheck until
-the channel is covered**. The convention from its header:
+The fixture Bridge is typed `: Bridge`, so it fails typecheck until covered.
+From its own header:
 
 > Make the stub DO something real against the in-memory state, or throw
 > `unavailable("<feature>")` naming the gap. Never silently return
-> `[]`/undefined/false where the real host would act — a stub that answers
-> wrong is worse than an error that names itself.
+> `[]`/undefined/false where the real host would act — a stub that answers wrong
+> is worse than an error that names itself.
 
-The toggle stub runs the SAME pure core the host handler does, over the
-in-memory vault:
+Events subscribe through the file's `Emitter`
+(`onKnowledgeUpdated: knowledgeEvents.subscribe`).
 
-```ts
-    toggleVaultTask: async ({ path, ordinal, expectedRaw }) => {
-      const content = vault.get(path);
-      if (content === undefined) {
-        return { ok: false, reason: "line-missing", error: `no such file: ${path}` };
-      }
-      const result = toggleTaskAtOrdinal(content, ordinal, expectedRaw);
-      ...
-    },
-```
+## 4. The host handler
 
-Events subscribe through the file's `Emitter`: `onKnowledgeUpdated:
-knowledgeEvents.subscribe`.
-
-### 4. The caller — renderer or mobile
-
-Renderer code reaches the Bridge only through `getBridge()`
-(`apps/desktop/src/renderer/lib/bridge.ts`); it never imports electron, node, or
-`@repo/server` (lint-enforced, and the dep edge does not exist).
+One `register<Domain>Handlers(handle, services)` per domain file, all called
+from `host/handlers.ts`. Services arrive as ARGUMENTS. There are no `getX()`
+singletons here and there must not be: one isolate serves many users, so a
+module-level instance is a cross-tenant bug (CLAUDE.md § "Nothing is module
+scope. Ever.").
 
 ```ts
-const result = await getBridge()
-  .toggleVaultTask({ path: task.path, ordinal: task.ordinal, expectedRaw: task.raw })
-  .catch(() => null);
-```
-
-Mobile needs no per-channel work: `apps/mobile` dials the same host through the
-generic `createWsBridge`, so the derived `Bridge` type carries the new method
-automatically — subject to the allowlist in step 6.
-
-### 5. Events only — emit, and decide about hydration
-
-Host code emits through `packages/server/src/events.ts`; the ws host subscribes
-and fans out.
-
-```ts
-      () => emitEvent("onKnowledgeUpdated", {}),
-```
-
-If the event carries **state a late-joining client must not be stale about**,
-pair it with the getter that answers the same shape in `HYDRATED_EVENTS`:
-
-```ts
-export const HYDRATED_EVENTS = {
-  onRemoteAccessChanged: "getRemoteAccessState",
-  onSyncStateChanged: "getSyncState",
+handle("toggleVaultTask", async ({ path, ordinal, expectedRaw }): Promise<ToggleTaskResult> => {
+  const text = await vault.readText(path);
   ...
-} as const satisfies { readonly [E in EventMethod]?: HydrationGetter<E> };
+});
 ```
 
-`HydrationGetter<E>` proves the getter's result type EQUALS the event payload in
-both directions, so the pair cannot drift. Pure invalidation pings
-(`onKnowledgeUpdated`) need no entry — the client refetches anyway.
+**Every channel is answered for real.** There is no shim table and no "not
+available yet" registration: a method that answers only by refusing satisfies
+both the completeness check and `no-dead-channels` while failing at runtime. So
+adding the channel is the LAST step of building the capability, and retiring one
+deletes it. `unavailable()` is for a CONDITION a real handler can be in (no AI
+provider configured), never for a whole channel.
 
-### 6. Remote-device allowlist — decide, and default to NO
+## 5. Events — emit, and answer the hydration question
 
-`REMOTE_ALLOWED_METHODS` / `REMOTE_ALLOWED_EVENTS` are the ONLY things a paired
-phone may reach. They are allowlists so a new channel is unreachable until
-someone names it on purpose. **The default answer is: do not add it.** Adding
-one is a deliberate act with a threat model attached — say in the PR why a
-network-reachable device needs it, and remember the ws host enforces the lists at
-three points (invoke/send dispatch, event broadcast, reconnect hydration).
+Host code emits through the `IpcEmit` callback (`@repo/bridge/ipc-contract`)
+handed in with the services — there is no bus. The object binds it to
+`SocketGate.broadcast`, which decides which sockets may hear it.
+
+```ts
+services.emit("onKnowledgeUpdated", {});
+```
+
+## The three judgement calls — `channel-policy.ts`
+
+These are the only decisions left to you, and none of them can be a compile
+error, because **the default answer to each is NO and the default is the safe
+one.** Unnamed means unreachable from a companion, never re-pushed on reconnect,
+framed as JSON. Open the file, answer all three, move on.
+
+1. **`REMOTE_ALLOWED_METHODS` / `_EVENTS` — default: do not add it.** These are
+   the ONLY things a companion client may reach. Allowlists, so a new channel is
+   unreachable until someone names it on purpose. Adding one is a deliberate act
+   with a threat model attached — say in the PR why a companion needs it, and
+   remember the host enforces the lists at three points (invoke/send dispatch,
+   event broadcast, reconnect hydration).
+2. **`HYDRATED_EVENTS` — only for an event whose payload IS state.** Pair it
+   with the getter answering the same shape; `HydrationGetter<E>` proves the
+   pair in both directions, so it cannot drift. A pure invalidation ping
+   (`onKnowledgeUpdated`) needs no entry — the client refetches anyway.
+3. **`BINARY_CHANNELS` — only for raw bytes at streaming rates.** Tags are wire
+   values: **never renumber one.** Retire it and take the next.
 
 ## Rules
 
-- Never widen a payload with `Type.Any()`. `Type.Unknown()` emits the same wire
-  schema but forces the handler to narrow; `Any` puts a real `any` into the
-  derived `Bridge` type and exempts every caller from the repo's no-any rule.
-  See `BinaryAudioSchema` for the one place `unknown` is correct and why.
-- Never renumber a `BINARY_CHANNELS` tag — those are wire values. Retire and
-  take the next.
-- Don't add a `dispatch.get(...)` or a fresh `authedSockets` loop in
-  `ws-host.ts`. Route through `resolveHandler()` / `sendEvent()`; a second gate
-  call site is how holes appear.
-- Deleting a channel is also three files plus its callers — leave no orphan
-  registry entry.
-- Naming a channel in prose (a doc, this skill) counts as a CALLER to the
-  dead-channel guard, which scans `docs/` and `.claude/` too. Don't write a
-  channel's name into documentation to keep a test green.
+- Don't add a `dispatch.get(...)` or a fresh socket loop anywhere. Route through
+  `SocketGate`'s `resolve()` / `push()` (`host/socket-gate.ts`); a second gate
+  call site is how holes appear, and `no-ungated-dispatch.test.ts` fails when
+  one shows up.
+- Deleting a channel is the same edits in reverse, plus its callers.
+- Naming a channel in prose counts as a CALLER to the dead-channel guard, which
+  scans `docs/` and `.claude/` too — so don't write a channel's name into
+  documentation to keep a test green. The two blueprint skills (this one and
+  `add-editor-node`) are the exception: the guard excludes them as SUPPLY,
+  precisely so a worked example cannot prop a dead channel up.
 
 ## Verify
 
-Static, narrow first:
-
 ```bash
-pnpm --filter @repo/bridge typecheck    # registry compiles, derived Bridge type is sound
-pnpm --filter @repo/desktop typecheck   # fixture-bridge covers the channel (dev/ is in tsconfig)
-pnpm --filter @repo/server test         # handler completeness + gate guards
-pnpm --filter @repo/bridge test         # ws protocol
+pnpm typecheck                       # steps 1-3: all three are compile errors
+pnpm --filter @repo/web test         # step 4: the object refuses to construct
+pnpm --filter @repo/repo-guards test # step 5: a real caller exists
 ```
 
-`pnpm --filter @repo/server test` is the one that matters. It runs:
-
-- `src/__tests__/register-handlers.test.ts` — the real handler groups cover
-  exactly `HOST_METHODS`.
-- `src/__tests__/handler-registry.test.ts` — the partitions add up
-  (host + desktop-shell = every non-event method) and `collectHandlers` throws
-  by name on a gap.
-- `src/__tests__/no-dead-channels.test.ts` — every registry method has a caller
-  outside the registry, the handlers dir, and the fixture.
-- `src/transport/__tests__/no-ungated-dispatch.test.ts` — the remote gate still
-  has exactly two chokepoints.
-- `src/transport/__tests__/ws-transport.test.ts` — a real client over the real
-  host.
-
-Then drive it. Type-checks are not feature-correct:
-
-```bash
-pnpm --filter @repo/desktop dev:harness   # localhost:5173, fixture Bridge
-```
-
-…and for anything the fixture can only approximate, the real app —
-`pnpm dev:desktop` then `agent-browser connect 9222`. Any Bridge method can be
-called directly from `agent-browser eval` via `window.bridgeBootstrap`; see the
-`e2e-drive` skill.
+Then drive it. Type-checks are not feature-correct: `pnpm dev:web`, then
+`agent-browser open http://localhost:5174/app`. Any Bridge method can be called
+straight from `agent-browser eval` — the snippet is in `docs/e2e-driving.md`.
 
 Before committing: `pnpm format:fix && pnpm verify` (format FIRST, never after).

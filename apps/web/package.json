@@ -5,30 +5,47 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "cf-typegen": "wrangler types src/worker/worker-configuration.d.ts",
     "clean": "git clean -xdf .cache .tanstack .turbo .wrangler dist node_modules",
+    "db:push": "dotenv -e ../../.env.production.local -- drizzle-kit push",
+    "db:push:local": "drizzle-kit push --config drizzle.config.local.ts --force",
+    "db:studio": "dotenv -e ../../.env.production.local -- drizzle-kit studio",
     "deploy": "vite build && wrangler deploy",
     "dev": "vite dev",
     "start": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
+    "@cloudflare/sandbox": "0.12.4",
+    "@repo/agent-container": "workspace:*",
+    "@repo/bridge": "workspace:*",
+    "@repo/notes": "workspace:*",
     "@repo/ui": "workspace:*",
+    "@repo/workspace": "workspace:*",
+    "@sinclair/typebox": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",
+    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@libsql/client": "^0.17.4",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "drizzle-kit": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "catalog:"
   }
 }

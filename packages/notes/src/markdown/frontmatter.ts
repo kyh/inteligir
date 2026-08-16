@@ -1,30 +1,21 @@
 // ---------------------------------------------------------------------------
-// Frontmatter split / recombine — the pure body↔properties seam the HTML-app
-// broker uses to expose vault docs as `{ body, properties }` and patch them
-// back. This is deliberately NOT the editor's Plate round-trip (which keeps
-// frontmatter as an opaque yaml string, read-only in Rich): the broker needs a
-// parsed key/value mapping so an app can add/replace/delete individual
-// properties. It touches only the leading `---` fenced block and preserves the
-// body verbatim — no markdown reparse, no byte surgery on the body.
+// The typed-properties and privacy kernel over a doc's leading `---` block.
 //
-// Platform-neutral (pure `yaml`, no node/dom), so it runs in the renderer,
+// Two layers. `splitFrontmatter` is the body↔properties seam: it touches only
+// the leading fence and preserves the body verbatim — no markdown reparse, no
+// byte surgery. Above it, the typed-property ADT is the file-properties panel's
+// parse/serialize contract (CLAUDE.md § Decisions: the markdown file is the
+// ONLY property store), so YAML the panel cannot represent is preserved
+// byte-exactly rather than coerced or dropped.
+//
+// Platform-neutral (pure `yaml`, no node/dom), so it runs in a client,
 // worker, or RN like the rest of @repo/notes.
 // ---------------------------------------------------------------------------
 
-import {
-  isMap,
-  isScalar,
-  parse as parseYaml,
-  parseDocument,
-  stringify as stringifyYaml,
-} from "yaml";
+import { isMap, isScalar, parse as parseYaml, parseDocument } from "yaml";
 
 /** A doc's frontmatter as a parsed top-level mapping. */
-export type Properties = Record<string, unknown>;
-
-/** A property patch: a value replaces (or adds) that key; `null` DELETES it;
- * omitted keys are preserved. Mirrors the broker's `update` semantics. */
-export type PropertiesPatch = Record<string, unknown>;
+type Properties = Record<string, unknown>;
 
 export type SplitDoc = {
   /** Parsed frontmatter mapping. `{}` when there is no frontmatter (or it was
@@ -48,9 +39,10 @@ function isPlainRecord(value: unknown): value is Properties {
 /** The raw yaml source inside a doc's leading frontmatter fences (no fences,
  * no trailing line terminator — the shape `parseProperties` expects), or
  * `null` when the doc has no frontmatter block. The one place besides
- * `splitFrontmatter` allowed to know the fence grammar, so consumers that need
- * the header's SOURCE (the sync merge ladder) never fork the regex. */
-export function frontmatterYaml(text: string): string | null {
+ * `splitFrontmatter` allowed to know the fence grammar, so a consumer that
+ * needs the header's SOURCE rather than its parsed value never forks the
+ * regex. */
+function frontmatterYaml(text: string): string | null {
   const match = FRONTMATTER_RE.exec(text);
   if (!match) return null;
   return match[1] ?? "";
@@ -72,34 +64,14 @@ export function splitFrontmatter(text: string): SplitDoc {
   return { properties: isPlainRecord(parsed) ? parsed : {}, body };
 }
 
-/** Recombine a properties mapping + body into doc text. An empty mapping emits
- * NO frontmatter block (so clearing every property removes the fence). */
-export function serializeDoc(properties: Properties, body: string): string {
-  if (Object.keys(properties).length === 0) return body;
-  // stringifyYaml always ends the mapping with a newline, so the closing fence
-  // sits on its own line.
-  return `---\n${stringifyYaml(properties)}---\n${body}`;
-}
-
-/** Apply a property patch: provided keys replace/add, `null` deletes, omitted
- * keys are preserved. Pure — returns a new mapping. */
-export function applyPropertiesPatch(current: Properties, patch: PropertiesPatch): Properties {
-  const next: Properties = { ...current };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === null) delete next[key];
-    else next[key] = value;
-  }
-  return next;
-}
-
 // ---------------------------------------------------------------------------
 // Typed properties — the file-properties panel's parse/serialize contract
 // (CLAUDE.md § Decisions: the markdown file is the ONLY property store).
 // This sits ONE layer above splitFrontmatter: the panel already holds the
 // frontmatter block's raw yaml (the Plate frontmatter node's `value`), so these
 // helpers work on that yaml text directly. Kept here beside the split seam so
-// there is a single core home for frontmatter/YAML knowledge — the broker's
-// `read → properties` and the panel never fork a second YAML parser.
+// there is a single core home for frontmatter/YAML knowledge, and no consumer
+// forks a second YAML parser.
 //
 // Conservative typing (YAML 1.2 core schema, the `yaml` package's default):
 // `true`/`false` are the ONLY booleans, so `yes/no/on/off` stay text; the core
@@ -237,8 +209,8 @@ export function setNotePrivate(text: string, value: boolean): string | null {
 
 /** Record `alias` in a doc's frontmatter `aliases:` — the byte-preserving
  * writer the rename pipeline uses so an old title keeps resolving. Runs over
- * the yaml Document API (serializeProperties), NOT splitFrontmatter +
- * serializeDoc, so untouched keys keep their exact source bytes, comments
+ * the yaml Document API (serializeProperties) rather than a parse-and-restringify
+ * of the whole block, so untouched keys keep their exact source bytes, comments
  * included. Returns null (write NOTHING) when:
  *   - the frontmatter can't be typed (`invalid` — never rewrite what we
  *     can't read),
@@ -296,9 +268,9 @@ function typedValue(prop: TypedProperty): unknown {
   return prop.type === "unsupported" ? undefined : prop.value;
 }
 
-/** Property-value equality as the panel (and the sync merge ladder) define it:
- * strict for scalars, element-wise for the flat string arrays `tags` carries. */
-export function valueEqual(a: unknown, b: unknown): boolean {
+/** Property-value equality as the panel defines it: strict for scalars,
+ * element-wise for the flat string arrays `tags` carries. */
+function valueEqual(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => item === b[i]);
   }

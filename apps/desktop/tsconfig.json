@@ -1,21 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "dom", "dom.iterable"],
-    "jsx": "react-jsx",
+    "lib": ["ES2023", "dom"],
     "types": ["electron-vite/node"],
     "paths": {
-      "@/*": ["./src/*"],
-      "@renderer/*": ["./src/renderer/*"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "src/**/*",
-    "dev/**/*",
-    "electron.vite.config.ts",
-    "vite.harness.config.ts",
-    "vitest.config.ts",
-    "../../packages/voice/src/sherpa-onnx-node.d.ts"
-  ],
+  "include": ["src/**/*", "electron.vite.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "build", "dist", ".output"]
 }

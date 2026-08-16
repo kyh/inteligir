@@ -2,7 +2,7 @@
 // LinkGraphIndex — the pure link/tag/title/graph engine, fed DocProjections
 // (never raw content, never retaining bodies or line arrays — snippets ride on
 // StoredLink). This is the resolution brain both platforms share: the host
-// hydrates it from persisted projection rows, the dev harness feeds it
+// hydrates it from persisted projection rows, the fixture Bridge feeds it
 // directly, so the subtle resolver semantics (link-resolve's basename buckets,
 // ambiguity, shadowing) exist exactly once and never fork into SQL.
 //
@@ -24,7 +24,8 @@
 // ---------------------------------------------------------------------------
 
 import { isDocPath } from "./doc-file";
-import type { ExtractedTask, LinkKind } from "./link-extract";
+import type { LinkKind } from "./link-extract";
+import type { ExtractedTask } from "./task-ordinal";
 import { buildResolver, type TargetResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex, type TagCount } from "./tag-index";
@@ -109,7 +110,7 @@ export type BoundedLinkGraph = LinkGraph & { totalNodes: number; totalEdges: num
 /** A `[[` picker entry: notes AND attachments suggest (Obsidian-style); the
  * `type` flag lets the picker group them and insert `![[..]]` for assets.
  * `aliases` (docs only, when non-empty) feed the picker's match keywords and
- * the renderer's local resolver. */
+ * a client's local resolver. */
 export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; aliases?: string[] };
 
 /** One vault task for the Tasks view: an ExtractedTask flattened with its
@@ -128,17 +129,10 @@ export type VaultTaskEntry = {
 
 // ---- Engine ------------------------------------------------------------------
 
-/** Query option shared by the privacy-filterable reads. Default false keeps
- * renderer surfaces (backlinks panel, palette, graph) seeing everything —
- * private notes are the user's own screen; only AGENT-facing callers pass
- * true, and they re-probe live disk on top (the index only prefilters). */
-export type PrivacyOpts = { excludePrivate?: boolean };
-
 type DocRecord = {
   title: string;
   links: StoredLink[];
   aliases: string[];
-  private: boolean;
   tasks: ExtractedTask[];
   /** Corpus position, assigned when the path first enters `docs` and kept
    * across re-projections — `docs` is a Map, so re-setting a live key holds
@@ -182,9 +176,6 @@ export class LinkGraphIndex {
   private readonly pendingDocs = new Set<string>();
   /** Monotonic source of {@link DocRecord.seq}. */
   private nextSeq = 0;
-  /** Memoized privatePaths() result — the agent gate reads it per bash/execute
-   * tool call. Invalidated on any mutation. */
-  private privatePathsCache: string[] | null = null;
 
   /** Index (or re-index) a markdown doc from its projection. */
   applyDoc(path: string, projection: DocProjection): void {
@@ -194,12 +185,10 @@ export class LinkGraphIndex {
       title: projection.title,
       links: projection.links,
       aliases: projection.aliases,
-      private: projection.private,
       tasks: projection.tasks,
       seq: prior?.seq ?? this.nextSeq++,
     });
     this.tagIndex.set(path, projection.tags);
-    this.privatePathsCache = null;
     // A known doc keeping its aliases leaves the namespace — and so every
     // other doc's resolution — intact; anything else can re-point links
     // vault-wide (see the header).
@@ -215,7 +204,6 @@ export class LinkGraphIndex {
     if (this.docs.delete(path)) this.tagIndex.remove(path);
     this.others.add(path);
     this.dropResolution();
-    this.privatePathsCache = null;
   }
 
   /** Drop a file (doc or other) from the index. */
@@ -223,10 +211,7 @@ export class LinkGraphIndex {
     const wasDoc = this.docs.delete(path);
     if (wasDoc) this.tagIndex.remove(path);
     const wasOther = this.others.delete(path);
-    if (wasDoc || wasOther) {
-      this.dropResolution();
-      this.privatePathsCache = null;
-    }
+    if (wasDoc || wasOther) this.dropResolution();
   }
 
   clear(): void {
@@ -234,7 +219,6 @@ export class LinkGraphIndex {
     this.others.clear();
     this.tagIndex.clear();
     this.dropResolution();
-    this.privatePathsCache = null;
   }
 
   // ---- Queries ---------------------------------------------------------------
@@ -244,35 +228,8 @@ export class LinkGraphIndex {
     return this.docs.get(path)?.title ?? null;
   }
 
-  /** Whether the indexed doc carries `private: true` (or unreadable
-   * frontmatter — fail-closed). `undefined` = not an indexed doc. */
-  isPrivate(path: string): boolean | undefined {
-    return this.docs.get(path)?.private;
-  }
-
-  /** Vault paths of every indexed private doc, sorted — the prefilter the
-   * agent gate's best-effort bash/execute heuristics scan. Memoized between
-   * mutations; callers only read it (find/filter), never mutate. */
-  privatePaths(): string[] {
-    this.privatePathsCache ??= [...this.docs.entries()]
-      .filter(([, record]) => record.private)
-      .map(([path]) => path)
-      .toSorted();
-    return this.privatePathsCache;
-  }
-
-  backlinks(path: string, opts?: PrivacyOpts): BacklinkEntry[] {
-    // A private TARGET yields nothing at all under excludePrivate — the drop
-    // is silent (indistinguishable from "no backlinks") so the response never
-    // confirms the path exists, matching search's drop-entirely rule.
-    if (opts?.excludePrivate === true && this.docs.get(path)?.private === true) return [];
-    let occurrences = this.ensureResolved().backlinks.get(path) ?? [];
-    if (opts?.excludePrivate === true) {
-      // A backlink FROM a private note leaks its path + snippet — drop those.
-      occurrences = occurrences.filter(
-        ({ sourcePath }) => this.docs.get(sourcePath)?.private !== true,
-      );
-    }
+  backlinks(path: string): BacklinkEntry[] {
+    const occurrences = this.ensureResolved().backlinks.get(path) ?? [];
     return occurrences.map(({ sourcePath, link }) => {
       const entry: BacklinkEntry = {
         sourcePath,
@@ -303,19 +260,10 @@ export class LinkGraphIndex {
     });
   }
 
-  /** Under `excludePrivate` a private doc contributes NOTHING: no node (its path
-   * and title), no outgoing edges (a phantom node is its raw `[[link]]` text,
-   * which is body content), and no inbound ones (an edge naming it is its path
-   * again). `degree` then counts over the public graph, so it keeps meaning
-   * "edges touching this node in the graph you were handed". */
-  graph(opts?: PrivacyOpts): LinkGraph {
-    const excludePrivate = opts?.excludePrivate === true;
-    const visible = (path: string): boolean =>
-      !excludePrivate || this.docs.get(path)?.private !== true;
+  graph(): LinkGraph {
     const { forward } = this.ensureResolved();
     const nodes = new Map<string, GraphNode>();
     for (const [path, record] of this.docs) {
-      if (excludePrivate && record.private) continue;
       nodes.set(path, { id: path, title: record.title, path, phantom: false, degree: 0 });
     }
     const edges: GraphEdge[] = [];
@@ -326,7 +274,6 @@ export class LinkGraphIndex {
     // load-bearing, not tidiness.
     const bySource = new Map<string, GraphEdge>();
     for (const [sourcePath, links] of forward) {
-      if (!visible(sourcePath)) continue;
       bySource.clear();
       const sourceNode = nodes.get(sourcePath);
       for (const { link, targetPath } of links) {
@@ -339,7 +286,6 @@ export class LinkGraphIndex {
         let targetId: string;
         if (targetPath !== null) {
           if (!this.docs.has(targetPath)) continue; // resolved asset target
-          if (!visible(targetPath)) continue;
           targetId = targetPath;
         } else {
           // A dangling target written with a non-doc extension is an asset
@@ -373,15 +319,10 @@ export class LinkGraphIndex {
   }
 
   /** Docs first (title-bearing), assets after — the picker renders them as
-   * two groups in this order. Under `excludePrivate` a private doc is absent
-   * entirely: this is a vault LISTING, so its path, title and aliases are all
-   * the leak. Assets are unfiltered — a non-doc carries no frontmatter, so
-   * nothing can mark one private. */
-  wikiTargets(opts?: PrivacyOpts): WikiTarget[] {
-    const excludePrivate = opts?.excludePrivate === true;
+   * two groups in this order. */
+  wikiTargets(): WikiTarget[] {
     const docs: WikiTarget[] = [];
     for (const [path, record] of this.docs) {
-      if (excludePrivate && record.private) continue;
       const target: WikiTarget = { path, title: record.title, type: "doc" };
       if (record.aliases.length > 0) target.aliases = record.aliases;
       docs.push(target);
@@ -393,29 +334,17 @@ export class LinkGraphIndex {
   }
 
   /** Every tag in the vault with its note count (most-used first). Fed by both
-   * inline `#tags` and the frontmatter `tags` property, unified case-insensitively.
-   *
-   * Under `excludePrivate` the counts are RECOMPUTED over the public notes, so a
-   * tag only private notes carry vanishes (its NAME is the leak) and a shared
-   * one's number describes the public notes alone. */
-  tags(opts?: PrivacyOpts): TagCount[] {
-    if (opts?.excludePrivate !== true) return this.tagIndex.all();
-    return this.tagIndex.all((path) => this.docs.get(path)?.private !== true);
+   * inline `#tags` and the frontmatter `tags` property, unified case-insensitively. */
+  tags(): TagCount[] {
+    return this.tagIndex.all();
   }
 
   /** Every task in the vault, sorted by path then ordinal — the Tasks view's
    * whole-vault query. A flatten over stored projections, no resolution pass
-   * (tasks don't participate in ensureResolved).
-   *
-   * Under `excludePrivate` a private doc contributes no rows at all. This is the
-   * sharpest of the whole-vault reads: every row carries `raw`, the task's
-   * VERBATIM source line, so an ungated answer hands out private note CONTENT
-   * rather than merely paths. */
-  tasks(opts?: PrivacyOpts): VaultTaskEntry[] {
-    const excludePrivate = opts?.excludePrivate === true;
+   * (tasks don't participate in ensureResolved). */
+  tasks(): VaultTaskEntry[] {
     const out: VaultTaskEntry[] = [];
     for (const [path, record] of [...this.docs.entries()].toSorted(byKey)) {
-      if (excludePrivate && record.private) continue;
       for (const task of record.tasks) {
         out.push({
           path,
@@ -438,10 +367,8 @@ export class LinkGraphIndex {
   }
 
   /** Vault paths of notes carrying `tag` (case-insensitive), sorted. */
-  notesWithTag(tag: string, opts?: PrivacyOpts): string[] {
-    const paths = this.tagIndex.notesWithTag(tag);
-    if (opts?.excludePrivate !== true) return paths;
-    return paths.filter((path) => this.docs.get(path)?.private !== true);
+  notesWithTag(tag: string): string[] {
+    return this.tagIndex.notesWithTag(tag);
   }
 
   // ---- Internals --------------------------------------------------------------
@@ -456,7 +383,7 @@ export class LinkGraphIndex {
     if (current !== null && this.applyPending(current)) return current;
     // Alias entries feed the resolver's below-path tiers, so `[[alias]]`
     // links resolve in backlinks/forward-links/graph exactly like the
-    // renderer's local resolver (which pulls the same aliases via
+    // client's local resolver (which pulls the same aliases via
     // listWikiTargets).
     const aliasEntries: Array<readonly [string, string]> = [];
     for (const [path, record] of this.docs) {

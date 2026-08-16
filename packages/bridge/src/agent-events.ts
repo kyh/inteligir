@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// App-level agent event types — parsed from raw pi-agent-core events at
-// the main process boundary. Renderer consumes these directly.
+// App-level agent event types — parsed from raw pi events in the host, and
+// consumed by the workspace exactly as they arrive.
 // ---------------------------------------------------------------------------
 
 export type AppAgentEvent =
@@ -23,6 +23,3 @@ export type AppAgentEvent =
    * tool call, or pi-emitted error event — almost always an upstream/auth
    * failure swallowed silently. Renderer renders a single error bubble. */
   | { type: "turn_error"; kind: "auth" | "unknown"; reason: string };
-
-/** Session lifecycle state (used internally by the host Agent class). */
-export type SessionStatus = "idle" | "busy" | "error" | "starting";

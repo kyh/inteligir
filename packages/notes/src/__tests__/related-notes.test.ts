@@ -26,9 +26,9 @@ const CORPUS: Record<string, string> = {
   "notes/unrelated.md": "# Unrelated\n\nNothing in common here.\n",
 };
 
-function seed(extra: Record<string, string> = {}): KnowledgeIndex {
+function seed(): KnowledgeIndex {
   const index = new KnowledgeIndex();
-  for (const [path, content] of Object.entries({ ...CORPUS, ...extra })) {
+  for (const [path, content] of Object.entries(CORPUS)) {
     index.setDoc(path, content);
   }
   return index;
@@ -103,41 +103,5 @@ describe("relatedNotes (KnowledgeIndex composition)", () => {
     expect(related).toHaveLength(1);
     const all = seed().relatedNotes("notes/subject.md");
     expect(related[0]?.path).toBe(all[0]?.path);
-  });
-
-  describe("privacy — backlinks() parity", () => {
-    const PRIVATE_MATE = "notes/private-mate.md";
-    const withPrivate = (): KnowledgeIndex =>
-      seed({ [PRIVATE_MATE]: "---\nprivate: true\n---\n\n# Private mate\n\n#alpha\n" });
-
-    it("shows private candidates by default (the user's own screen)", () => {
-      const paths = withPrivate()
-        .relatedNotes("notes/subject.md")
-        .map((entry) => entry.path);
-      expect(paths).toContain(PRIVATE_MATE);
-    });
-
-    it("drops private candidates entirely under excludePrivate", () => {
-      const entries = withPrivate().relatedNotes("notes/subject.md", { excludePrivate: true });
-      expect(JSON.stringify(entries)).not.toContain("private-mate");
-    });
-
-    it("returns silent [] for a private subject under excludePrivate", () => {
-      const index = seed({
-        "notes/secret.md": "---\nprivate: true\n---\n\n# Secret\n\nSee [[hub]].\n\n#alpha\n",
-      });
-      expect(index.relatedNotes("notes/secret.md", { excludePrivate: true })).toEqual([]);
-      // …but the same call WITHOUT the flag ranks normally (renderer surface).
-      expect(index.relatedNotes("notes/secret.md").length).toBeGreaterThan(0);
-    });
-
-    it("treats unparseable frontmatter as private (fail-closed)", () => {
-      const index = seed({
-        "notes/broken.md": "---\n: [unparseable\n---\n\n# Broken\n\n#alpha\n",
-      });
-      const entries = index.relatedNotes("notes/subject.md", { excludePrivate: true });
-      expect(JSON.stringify(entries)).not.toContain("broken");
-      expect(index.relatedNotes("notes/broken.md", { excludePrivate: true })).toEqual([]);
-    });
   });
 });

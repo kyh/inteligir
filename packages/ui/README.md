@@ -6,20 +6,22 @@ Shared UI components (web-only): **vendored stock shadcn** on **Base UI**
 
 ## Why it exists
 
-The one visual system for both frontends — the desktop renderer
-(`apps/desktop/src/renderer`) and the marketing site (`apps/web`). Web-only
-and a workspace leaf (no `@repo/*` deps): mobile (NativeWind) and the node
-packages never import it. Its own package so components stay near-stock and
-cheaply re-pullable from the shadcn registry — app-specific styling and
-motion live in the consuming app, not here.
+The one visual system for its three consumers — the workspace
+(`packages/workspace`), the editor (`packages/editor`) and the marketing site
+(`apps/web`). Web-only and a leaf (no `@repo/*` deps): mobile never imports it.
+Its own package so components stay near-stock and cheaply re-pullable from the
+shadcn registry — app-specific styling and motion live in the consuming app, not
+here.
 
 ## Layout
 
 ```
 src/
-  components/        30 components — vendored shadcn primitives (button, dialog,
+  components/        the vendored shadcn primitives (button, dialog,
                      dropdown-menu, sidebar, command, message/bubble/attachment
                      chat blocks, …) plus custom: confirm-dialog, geometric-orb
+                     (components.provenance.json is the count of record —
+                     `provenance:check` prints it)
                      (r3f orb; DisplayStatus = idle | busy | error | starting |
                      listening | speaking)
   hooks/
@@ -74,9 +76,9 @@ Exports are path-based (`package.json` `exports`):
   class usage is auto-detected by `@tailwindcss/vite`.
 - **`jsx: "react-jsx"`, diverging from the shared init template's
   `preserve`** — a deliberate deviation, keep it through a template re-sync.
-  Both consumers are `react-jsx` and both pull these sources into their own
-  programs via the `@repo/ui/*` paths mapping, so `preserve` typechecks the
-  same files twice under two JSX resolution rules, and it breaks
+  All three consumers are `react-jsx` and all three pull these sources into
+  their own programs via the `@repo/ui/*` paths mapping, so `preserve`
+  typechecks the same files twice under two JSX resolution rules, and it breaks
   `@react-three/fiber`'s own `declare module "react"` intrinsics — forcing
   `geometric-orb.tsx` back onto a hand-written global JSX shim.
 - **`lib` stays at ES2023** (the repo-wide floor is also the ceiling here).
@@ -127,10 +129,18 @@ enforced is coverage — see Testing.
 
 `ThemeProvider` is **controlled**: it owns OS-preference resolution, the
 `.dark` class on `<html>`, and the shared context; each app owns the state
-source and passes `theme` + `setTheme`. Binders: desktop
-`apps/desktop/src/renderer/lib/use-theme.tsx` (Bridge-persisted ui-state),
-web `apps/web/src/components/theme-provider.tsx` (localStorage + SSR
-no-flash script).
+source and passes `theme` + `setTheme`. There are TWO binders, and the workspace
+does not inherit the site's:
+
+- `apps/web/src/components/theme-provider.tsx` — the marketing site:
+  localStorage plus an SSR no-flash script, defaulting dark.
+- `packages/workspace/src/lib/use-theme.tsx::WorkspaceThemeProvider` — the
+  workspace: persisted to the host's ui-state through the Bridge, defaulting
+  light. `App` mounts it inside itself, so it wins for everything under `/app`.
+
+Nesting a third would break both: the outer provider's effect runs last and
+overwrites the inner one's `.dark` decision, which is why `__root.tsx` mounts
+none.
 
 ## Testing
 
@@ -150,7 +160,7 @@ a component that escapes the record has no source identity, so a re-pull cannot
 tell whether it is safe to overwrite. It asserts nothing about the hashes;
 `provenance:check` reports those.
 
-No component renders in-package: behavior is pinned by consumer tests (the
-desktop renderer's `confirm-dialog.test.tsx` and `settings-panel.test.tsx` run
-against these components), and the type gate is
+No component renders in-package: behavior is pinned by consumer tests in
+`@repo/workspace` (`src/components/confirm-dialog.test.tsx`,
+`src/settings/self-unmounting-toggles.test.tsx`), and the type gate is
 `pnpm --filter @repo/ui typecheck`.

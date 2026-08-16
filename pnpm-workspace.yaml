@@ -1,17 +1,20 @@
 packages:
   - apps/*
+  # The agent container image is built from this repo and is its own npm
+  # project (the Dockerfile installs it), so it is a workspace member rather
+  # than a folder inside @repo/web — that is what typechecks it and what lets
+  # `pnpm deploy` produce the image's node_modules.
+  - apps/web/container
   - packages/*
+  - tools/*
 
 catalog:
   "@base-ui/react": ^1.6.0
-  "@better-auth/expo": ^1.6.25
   "@cloudflare/vite-plugin": ^1.47.0
   "@cloudflare/vitest-pool-workers": ^0.18.8
   "@earendil-works/pi-ai": ^0.82.0
   "@earendil-works/pi-coding-agent": ^0.82.0
   "@expo/metro-runtime": ~57.0.7
-  "@noble/ed25519": ^3.1.0
-  "@noble/hashes": ^2.2.0
   "@sinclair/typebox": ^0.34.52
   "@tailwindcss/vite": ^4.3.3
   "@tanstack/react-router": ^1.170.18
@@ -26,23 +29,18 @@ catalog:
   drizzle-orm: ^0.45.2
   expo: ~57.0.8
   expo-constants: ~57.0.7
-  expo-crypto: ~57.0.1
   expo-dev-client: ~57.0.9
-  expo-file-system: ~57.0.1
   expo-linking: ~57.0.4
-  expo-network: ~57.0.1
   expo-router: ~57.0.8
   expo-secure-store: ~57.0.1
   expo-splash-screen: ~57.0.5
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.1
-  expo-web-browser: ~57.0.2
   lucide-react: ^1.26.0
   react: ^19.2.8
   react-dom: ^19.2.8
   react-native: ~0.86.0
   react-native-gesture-handler: ~2.32.0
-  react-native-markdown-display: ^7.0.2
   react-native-reanimated: 4.5.1
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
@@ -50,7 +48,6 @@ catalog:
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
-  sherpa-onnx-node: ^1.13.4
   tailwindcss: ^4.3.3
   typescript: ^7.0.2
   unified: ^11.0.5

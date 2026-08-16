@@ -35,9 +35,7 @@
     ".ds-sync",
     ".expo",
     "expo-env.d.ts",
-    "nativewind-env.d.ts",
-    "apps/desktop/resources/html-app-runtime/tailwind.global.js",
-    "apps/desktop/resources/html-app-runtime/alpine.min.js"
+    "nativewind-env.d.ts"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "categories": {
@@ -153,20 +151,18 @@
                   "react",
                   "react-dom",
                   "react/*",
-                  "@repo/agent",
-                  "@repo/agent/*",
                   "@repo/bridge",
                   "@repo/bridge/*",
-                  "@repo/installer",
-                  "@repo/installer/*",
-                  "@repo/server",
-                  "@repo/server/*",
+                  "@repo/editor",
+                  "@repo/editor/*",
                   "@repo/ui",
                   "@repo/ui/*",
+                  "@repo/workspace",
+                  "@repo/workspace/*",
                   "@repo/desktop",
                   "@repo/desktop/*"
                 ],
-                "message": "@repo/notes is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
+                "message": "@repo/notes is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities"
               }
             ]
           }
@@ -182,123 +178,11 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "@repo/bridge is the isomorphic wire contract — no node/electron imports (the node backend lives in @repo/server)"
+                "message": "@repo/bridge is the isomorphic wire contract — it loads in a browser, in React Native and on workerd alike, so no node/electron imports"
               }
             ]
           }
         ]
-      }
-    },
-    {
-      "files": ["packages/server/src/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "electron-updater",
-                  "@repo/desktop",
-                  "@repo/desktop/*",
-                  "**/apps/desktop/**"
-                ],
-                "message": "@repo/server is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/platform.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": [
-        "packages/storage/src/**",
-        "packages/vault/src/**",
-        "packages/voice/src/**",
-        "packages/connectors/src/**",
-        "packages/sync/src/**"
-      ],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "electron-updater",
-                  "@repo/desktop",
-                  "@repo/desktop/*",
-                  "**/apps/desktop/**",
-                  "@repo/server",
-                  "@repo/server/*"
-                ],
-                "message": "extracted host capability packages sit BELOW @repo/server — no electron/desktop imports (host callbacks are injected), and a @repo/server import would be a package cycle"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/agent/src/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "electron-updater",
-                  "@repo/desktop",
-                  "@repo/desktop/*",
-                  "**/apps/desktop/**",
-                  "@repo/server",
-                  "@repo/server/*"
-                ],
-                "message": "@repo/agent is the pi capability — no electron/desktop/backend imports; it receives AgentPorts injected by the host (belt-and-suspenders; the package graph already enforces this)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["apps/desktop/src/renderer/**", "apps/desktop/dev/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "electron-updater",
-                  "node:*",
-                  "@repo/server/*",
-                  "@repo/server",
-                  "@/main",
-                  "@/main/*",
-                  "@/preload",
-                  "@/preload/*"
-                ],
-                "message": "the renderer UI is host-agnostic — no electron/node/backend/main imports; reach the backend through the injected Bridge (@renderer/lib/bridge)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["apps/desktop/src/renderer/__tests__/**"],
-      "rules": {
-        "no-restricted-imports": "off"
       }
     }
   ]

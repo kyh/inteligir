@@ -1,11 +1,10 @@
 // ---------------------------------------------------------------------------
-// WS Bridge wire protocol — the frame vocabulary shared by the ws host
-// (server/transport/ws-host.ts) and the ws client (ws-bridge.ts). Text frames
-// are JSON; binary frames are [1-byte tag][payload bytes], and WHICH channels
-// use them is declared in ipc-registry's BINARY_CHANNELS — this module only
-// knows how to frame bytes, never which feature owns them. Isomorphic: no node
-// imports — this loads in the browser,
-// React Native, and node alike. All inbound parsing goes through the
+// WS Bridge wire protocol — the frame vocabulary shared by the UserHost Durable
+// Object and the ws client (ws-bridge.ts). Text frames are JSON; binary frames
+// are [1-byte tag][payload bytes], and WHICH channels use them is declared in
+// channel-policy's BINARY_CHANNELS — this module only knows how to frame bytes,
+// never which feature owns them. Isomorphic: no node imports, so it loads in
+// the browser and React Native alike. All inbound parsing goes through the
 // type-guard parse functions so a malformed frame is a `null`, never a throw.
 // ---------------------------------------------------------------------------
 
@@ -15,39 +14,33 @@ import { isRecord } from "./wire-helpers";
 // Close codes + binary tags
 // ---------------------------------------------------------------------------
 
-/** Auth failed (bad token, bad pairing token, or the 10s deadline elapsed). */
+/** Auth failed (unknown, spent or stale ticket, or the auth deadline elapsed
+ * before one arrived). */
 export const WS_CLOSE_UNAUTHORIZED = 4401;
-/** The connection came from a disallowed HTTP Origin — rejected before auth. */
-export const WS_CLOSE_FORBIDDEN_ORIGIN = 4403;
 
-// Binary tag values live in ipc-registry's BINARY_CHANNELS, beside every other
+// Binary tag values live in channel-policy's BINARY_CHANNELS, beside every other
 // channel declaration.
 
 // ---------------------------------------------------------------------------
 // Text frames
 // ---------------------------------------------------------------------------
 
-/** First frame on connect: present a device (or local-renderer) token. */
-export type AuthFrame = { t: "auth"; token: string };
-/** Alternative first frame: exchange a one-time pairing token for a device
- * token. On success the connection is authed (paired frame, then welcome). */
-export type PairFrame = { t: "pair"; pairingToken: string; deviceName: string };
+/** First frame on connect: spend the single-use ticket the host minted. */
+type AuthFrame = { t: "auth"; ticket: string };
 /** Invoke / invoke-void request (invoke-void carries no payload). */
 export type ReqFrame = { t: "req"; id: number; method: string; payload?: unknown };
 /** Fire-and-forget send (except BINARY_CHANNELS sends, which go binary). */
 export type SendFrame = { t: "send"; method: string; payload?: unknown };
-export type ClientFrame = AuthFrame | PairFrame | ReqFrame | SendFrame;
+export type ClientFrame = AuthFrame | ReqFrame | SendFrame;
 
 /** Auth accepted; requests may flow. */
-export type WelcomeFrame = { t: "welcome" };
-/** Pairing success — the durable device token the client stores. */
-export type PairedFrame = { t: "paired"; deviceToken: string; deviceId: string };
+type WelcomeFrame = { t: "welcome" };
 export type ResFrame =
   | { t: "res"; id: number; ok: true; result?: unknown }
   | { t: "res"; id: number; ok: false; error: string };
 /** Host event push. */
-export type EvtFrame = { t: "evt"; method: string; payload?: unknown };
-export type ServerFrame = WelcomeFrame | PairedFrame | ResFrame | EvtFrame;
+type EvtFrame = { t: "evt"; method: string; payload?: unknown };
+export type ServerFrame = WelcomeFrame | ResFrame | EvtFrame;
 
 export function encodeFrame(frame: ClientFrame | ServerFrame): string {
   return JSON.stringify(frame);
@@ -68,11 +61,7 @@ export function parseClientFrame(text: string): ClientFrame | null {
   if (raw === null) return null;
   switch (raw["t"]) {
     case "auth":
-      return typeof raw["token"] === "string" ? { t: "auth", token: raw["token"] } : null;
-    case "pair":
-      return typeof raw["pairingToken"] === "string" && typeof raw["deviceName"] === "string"
-        ? { t: "pair", pairingToken: raw["pairingToken"], deviceName: raw["deviceName"] }
-        : null;
+      return typeof raw["ticket"] === "string" ? { t: "auth", ticket: raw["ticket"] } : null;
     case "req":
       return typeof raw["id"] === "number" && typeof raw["method"] === "string"
         ? { t: "req", id: raw["id"], method: raw["method"], payload: raw["payload"] }
@@ -92,10 +81,6 @@ export function parseServerFrame(text: string): ServerFrame | null {
   switch (raw["t"]) {
     case "welcome":
       return { t: "welcome" };
-    case "paired":
-      return typeof raw["deviceToken"] === "string" && typeof raw["deviceId"] === "string"
-        ? { t: "paired", deviceToken: raw["deviceToken"], deviceId: raw["deviceId"] }
-        : null;
     case "res": {
       if (typeof raw["id"] !== "number") return null;
       if (raw["ok"] === true) return { t: "res", id: raw["id"], ok: true, result: raw["result"] };

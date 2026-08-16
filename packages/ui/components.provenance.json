@@ -141,11 +141,6 @@
       "item": "switch",
       "sha256": "a846104435ba79406c1ab6a4bf742e199eac3eacf8686d3dc2b60d530f481fd8"
     },
-    "tabs": {
-      "origin": "registry",
-      "item": "tabs",
-      "sha256": "792e76a4f65c5d3ecfc11609081efe25824bf58837ec5c409d795b702cb9f802"
-    },
     "textarea": {
       "origin": "registry",
       "item": "textarea",

@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
-// The auto-attached note-context turn prefix — ONE format definition shared
-// by the desktop renderer (builds + strips it) and the mobile chat surface
-// (strips it from rehydrated history). The prefix rides only the text sent to
-// the agent; displayed bubbles never carry it.
+// The auto-attached note-context turn prefix — ONE format definition, shared by
+// every chat surface: the workspace builds and strips it, a companion strips it
+// from rehydrated history. The prefix rides only the text sent to the agent;
+// displayed bubbles never carry it.
 // ---------------------------------------------------------------------------
 
 /** Prefix a fresh user turn with the open note so the single persistent

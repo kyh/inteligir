@@ -1,0 +1,94 @@
+// ---------------------------------------------------------------------------
+// The user's ElevenLabs key — sealed, in their own Durable Object.
+//
+// THE PLAINTEXT NEVER CROSSES BACK over the Bridge. What Settings renders is a
+// `true` presence marker in ui-state — "a key is stored" — and nothing else
+// leaves this object.
+//
+// The seal is the SAME AES-GCM one the provider refresh token rides
+// (../agent/agent-crypto): HKDF-derived from the deployment secret, salted with
+// the user id, so one user's sealed blob cannot be replayed into another's
+// object. There is no per-machine key to protect it with instead, and no
+// filesystem to hold one.
+// ---------------------------------------------------------------------------
+
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/bridge/voice";
+import type { UiState } from "@repo/bridge/ui-state";
+import type { JsonStoreCore } from "../store/json-store-core";
+
+import { openCredential, sealCredential } from "../agent/agent-crypto";
+import type { DeletableDurableKv } from "../store/durable-kv";
+
+const SECRET_KEY = "voice/elevenlabs-key";
+
+export type VoiceSecretDeps = {
+  readonly kv: DeletableDurableKv;
+  readonly uiState: JsonStoreCore<UiState>;
+  readonly userId: string;
+  /** The deployment secret the seal key is derived from. */
+  readonly secret: string;
+};
+
+export class VoiceSecret {
+  private readonly deps: VoiceSecretDeps;
+
+  constructor(deps: VoiceSecretDeps) {
+    this.deps = deps;
+  }
+
+  /**
+   * Whether a key is stored right now.
+   *
+   * Synchronous, and it deliberately does NOT open the seal: `isTtsAvailable`
+   * is asked on every Settings render and every read-aloud start, and none of
+   * those callers needs the plaintext.
+   */
+  present(): boolean {
+    return typeof this.deps.kv.get(SECRET_KEY) === "string";
+  }
+
+  /**
+   * Store or clear the key. A non-empty trimmed string is sealed with a `true`
+   * marker in ui-state; anything else clears both — ONE write path, so the
+   * secret and the marker Settings reads can never disagree.
+   */
+  async set(value: string | undefined): Promise<void> {
+    const secret = value?.trim() ?? "";
+    if (secret === "") {
+      this.deps.kv.delete(SECRET_KEY);
+      this.mark(undefined);
+      return;
+    }
+    this.deps.kv.put(SECRET_KEY, await sealCredential(this.deps.secret, this.deps.userId, secret));
+    this.mark(true);
+  }
+
+  /** The plaintext key, or null when none is stored or the seal no longer
+   * opens (a rotated deployment secret) — indistinguishable to every caller,
+   * which is the point: both mean "connect it again". */
+  async read(): Promise<string | null> {
+    const sealed = this.deps.kv.get(SECRET_KEY);
+    if (typeof sealed !== "string") return null;
+    const plaintext = await openCredential(this.deps.secret, this.deps.userId, sealed);
+    if (plaintext === null) {
+      // Unreadable is worse than absent while it is still there: the marker
+      // would keep Settings claiming a key that cannot be used.
+      this.deps.kv.delete(SECRET_KEY);
+      this.mark(undefined);
+      return null;
+    }
+    return plaintext;
+  }
+
+  private mark(value: true | undefined): void {
+    this.deps.uiState.update((current) => {
+      if (value === undefined) {
+        if (!(ELEVENLABS_API_KEY_UI_STATE in current)) return current;
+        const next = { ...current };
+        delete next[ELEVENLABS_API_KEY_UI_STATE];
+        return next;
+      }
+      return { ...current, [ELEVENLABS_API_KEY_UI_STATE]: value };
+    });
+  }
+}

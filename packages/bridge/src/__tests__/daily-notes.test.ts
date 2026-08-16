@@ -47,7 +47,7 @@ describe("applyTemplate", () => {
 
 describe("cadence table", () => {
   it("pins the daily ui-state key STRINGS (renaming resets user config)", () => {
-    // Not a tautology: these literals address rows in ~/.inteligir/ui-state.json
+    // Not a tautology: these literals address rows in the persisted ui-state
     // that shipped users already have. A refactor that "tidies" them into
     // `notes.daily.folder` silently drops every configured daily note.
     expect(DAILY_FOLDER_KEY).toBe("notes.dailyFolder");

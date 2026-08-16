@@ -1,76 +1,95 @@
 ---
 name: e2e-drive
-description: Drive the Inteligir desktop app end-to-end with ZERO human login — a chat turn and a delegation via the scripted faux agent (INTELIGIR_FAUX_AGENT=1), and a Google connector connect via the local vercel-labs/emulate OAuth stub (INTELIGIR_EMULATE_CONNECTORS=1). Use when verifying agent/connector flows headlessly (so a change isn't left "unverified, owner-only"), or when asked to drive/verify chat, delegation, or a connector connect.
+description: Drive Inteligir end-to-end without a provider account — a chat turn and a delegation through the scripted agent container (AGENT_RUNTIME=scripted), called straight over the Bridge from a signed-in /app page. Use when verifying agent flows headlessly (so a change isn't left "unverified, owner-only"), or when asked to drive/verify chat or delegation.
 allowed-tools: Bash(*), Read, Edit, Write
 ---
 
-# E2E drive (login-free)
+# E2E drive (no provider account)
 
-Verify Inteligir's agent + connector flows headlessly. The full guide is
-**`docs/e2e-driving.md`** — read it; this is the fast path.
+Verify the agent flows headlessly. The full guide is **`docs/e2e-driving.md`** —
+read it; this is the fast path.
 
-Two dev-only, flag-gated stubs remove the OAuth wall (both fail closed — unset,
-the app is byte-identical to production):
-
-- `INTELIGIR_FAUX_AGENT=1` — pi-ai `faux` provider; script exact agent turns via
-  the `setFauxAgentScript` Bridge channel. Powers **chat + delegation**.
-- `INTELIGIR_EMULATE_CONNECTORS=1` — routes Google OAuth to
-  `vercel-labs/emulate` (local, no login). Powers **connectors**.
+One stub, and it is a narrow one: `AGENT_RUNTIME=scripted` swaps the per-user
+Cloudflare Sandbox for an in-memory container. The runner, the tool manifest and
+executor, the transcript, the confirmation broker, the snapshots and the vault
+write-back are all production code — the port IS the seam, which is why the
+whole agent suite runs this way.
 
 ## Setup
 
-**Never truncate or delete `apps/desktop/.env`** — it also holds the Apple
-notarization credentials (`APPLE_API_KEY*`), `ELEVENLABS_API_KEY`, and the
-bundled Google OAuth client. Append the flags and remove only those two lines
-afterwards; `>` and `rm -f` destroy secrets that are not recoverable from the
-repo.
-
 ```bash
-printf 'INTELIGIR_FAUX_AGENT=1\nINTELIGIR_EMULATE_CONNECTORS=1\n' >> apps/desktop/.env
-pnpm dev:desktop                       # real Electron (needed — NOT dev:harness), CDP :9222, daemon :47888
-agent-browser connect 9222
-npx -y emulate start --service google   # only for the connector flow → :4000
+# .dev.vars is gitignored, so a fresh checkout has none. The example already
+# ships AGENT_RUNTIME=scripted (plus the two vars without which nothing works:
+# BETTER_AUTH_SECRET and HOST_ALLOWED_ORIGINS).
+cp apps/web/.dev.vars.example apps/web/.dev.vars    # then set BETTER_AUTH_SECRET
+pnpm dev:web                                        # needs a running Docker daemon
+agent-browser open http://localhost:5174/app
 ```
 
-Kill stale instances first (they hold 9222/47888):
-`pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"`.
-If Electron dies with `Error: Electron uninstall`, run
-`node apps/desktop/node_modules/electron/install.js` once.
+Sign-up is invite-only and there is no seeded account — `AGENTS.md` § "There is
+no seeded login" has the commands to materialize the local D1 file, push the
+schema and mint an invite; the account itself is made in the browser at
+`/app/sign-up`. Do that once; the browser keeps the session.
 
 ## Drive it
 
-Call ANY Bridge method from `agent-browser eval` via `window.bridgeBootstrap`
-(`{ url, token }`): open the WS, send `{t:"auth",token}`, then `{t:"req",id,method,payload}`.
-See `docs/e2e-driving.md` for the exact snippets.
+Scripting is NOT a Bridge channel — a capability only the scripted runtime has
+has no place in the contract every client bundles. It is a leaf on the same
+session the socket uses, so one fetch from the signed-in page does it:
 
-- **Chat**: `setFauxAgentScript({steps:[{text:"MARKER"}]})` → type in the composer,
-  press Enter → assert `MARKER` in the UI.
-- **Delegation**: `writeVaultDoc` a note with a `[ ]` checkbox, then
-  `setFauxAgentScript` with an `edit` tool-call step (`path:"vault/<file>"`, exact
-  `oldText`/`newText`) followed by a final text step, then
-  `createDelegation({sourceFile, ordinal:0})`, then poll `listDelegations` for
-  `status:"done"`, then `readVaultDoc` to confirm the box is checked plus a result line.
-- **Connector**: Settings → Connectors → a Google connector's **Connect** →
-  poll `getPendingConnectorAuth` over the Bridge (dev-only, throws
-  without the emulate flag) → `{ authorizationUrl, state }` → POST emulate's
-  `/o/oauth2/v2/auth/callback` with the authorize URL's own query string as
-  the form body plus `email=testuser%40gmail.com` (state/PKCE ride in it — no
-  SQLite, no hashing) → the daemon exchanges the code at emulate →
-  `listExecutorConnections` shows the row, card shows **Connected**. This
-  proves register→consent→callback→token→connected. Live Google API
-  tool-calls stay OUT of scope: emulate serves no discovery docs and the
-  daemon ignores `baseUrl` for discovery bundles, so tool-calls dial real
-  Google → 401 — see the fidelity boundary in the doc. (Consent curl: use
-  `--data` WITHOUT `-X POST`, or the `-L` follow re-POSTs the daemon
-  callback and 404s.)
+```js
+const script = (steps) =>
+  fetch("/v1/host/scripted?verb=script", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ steps }),
+  }).then((r) => {
+    if (!r.ok) throw new Error(`script failed: ${r.status}`);
+  });
+```
+
+`fetch("/v1/host/scripted?verb=system-prompt", { method: "POST" }).then(r => r.json())` returns
+`{ prompt }` — the chat agent's composed system prompt, for byte-exact
+assertions. Both answer 404 off `AGENT_RUNTIME=scripted`.
+
+Call ANY Bridge method from `agent-browser eval` on the signed-in page.
+**Use the snippet in `docs/e2e-driving.md` verbatim** — the credential is a
+single-use ticket minted at `POST /v1/host/ticket` against the session cookie,
+spent as `{t:"auth", ticket}` in the socket's first frame on
+`wss://<host>/v1/host/ws`. There is no userId in the URL, no session token in
+the page, and `/api/auth/get-session` yields nothing the socket accepts.
+
+- **Chat**: `script([{text:"MARKER"}])` → type in the
+  composer, press Enter → assert `MARKER` in the UI.
+- **Delegation**: `writeVaultFile` a note with a `[ ]` checkbox, then
+  `script(…)` with a `toggle_task` tool-call step followed by a final
+  text step, then `createDelegation({sourceFile, ordinal:0})`, then poll
+  `listDelegations` for `status:"done"`, then `readVaultFile` to confirm the box
+  is checked.
+
+- **An agent file write**: a step's `writes: [{path, text}]` is what the agent's
+  own file tools did to `./vault`. It reaches the vault of record as a reported
+  write — restore point captured, removals refused — rather than as a tool call.
+
+Both lanes are seeded with the same steps — two independent queues, one step per
+assistant turn — so script, then drive exactly one flow before re-scripting.
+`agentToolManifest` in `apps/web/src/worker/agent/agent-tools.ts` is the list of
+tool names and argument shapes a step may call.
+
+**The queue dies with hibernation.** It is an in-memory field on the Durable
+Object, and an idle object with open sockets is evicted — a minute of clicking
+between scripting and sending loses it. Script IMMEDIATELY before the turn, and
+read an echoed reply (`[scripted] <your message>`) as "re-script and retry",
+never as a bug in what you changed.
 
 ## Teardown (always)
 
-```bash
-pkill -f "turbo watch dev"; pkill -f "electron-vite"; pkill -f "Electron.app/Contents/MacOS/Electron"
-pkill -f "emulate"
-sed -i '' '/^INTELIGIR_FAUX_AGENT=1$/d;/^INTELIGIR_EMULATE_CONNECTORS=1$/d' apps/desktop/.env
+Restore the echo and clean up what you wrote, before killing the dev server:
+
+```js
+await script([]);
+await call("deleteVaultEntry", { path: "<the throwaway note>" });
 ```
 
-Also restore the faux echo (`setFauxAgentScript({steps:[]})`) and delete any
-throwaway note (`deleteVaultEntry`) before killing the app.
+A queue left primed makes the NEXT flow's first turn answer with the previous
+flow's script, which reads as a bug in whatever you drive next.

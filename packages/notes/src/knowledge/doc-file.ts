@@ -1,6 +1,6 @@
 // Single source of truth for "what is an editable markdown doc" — shared by
-// VaultManager's entry classification, the knowledge index, and the dev
-// harness's fixture bridge, so they can never drift.
+// the vault's entry classification, the knowledge index, and the fixture
+// bridge, so they can never drift.
 
 import { extnamePath } from "./vault-path";
 

@@ -8,6 +8,12 @@
     },
     "dev": {
       "persistent": true
+    },
+    // Two tsc programs (site + Worker, see tsconfig.json), so two incremental
+    // files — the root task's single-file output would cache half the work.
+    "typecheck": {
+      "dependsOn": ["^topo"],
+      "outputs": [".cache/tsbuildinfo*.json"]
     }
   }
 }

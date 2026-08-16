@@ -1,13 +1,138 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "inteligir-web",
-  "main": "@tanstack/react-start/server-entry",
-  "compatibility_date": "2026-06-01",
+  // MUST be the entry file's own path, not `@tanstack/react-start/server-entry`.
+  // Naming the package export builds Start's DEFAULT entry and silently ignores
+  // this one — the API routes and the Durable Object export vanish with it
+  // (cloudflare/workers-sdk#11100).
+  "main": "./src/worker/server.ts",
+  // Track the date of the workerd this repo actually pins — 1.20260722.1, i.e.
+  // 2026-07-22 (the version is in the pnpm lockfile; `wrangler types` prints it
+  // in worker-configuration.d.ts's banner). Deliberately NOT "today": a date
+  // ahead of the released runtime is rejected at deploy, and a date far behind
+  // it silently opts out of every runtime fix in between. Bump
+  // this whenever wrangler/miniflare pull a newer workerd.
+  "compatibility_date": "2026-07-22",
+  // Better Auth's crypto paths (password hashing, token signing) need node
+  // built-ins on workerd — every Cloudflare worker that runs Better Auth sets
+  // this. Without it the failure is a latent runtime one that passes typecheck.
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true },
   "workers_dev": true,
   "routes": [
     { "pattern": "inteligir.com/*", "zone_name": "inteligir.com" },
     { "pattern": "www.inteligir.com/*", "zone_name": "inteligir.com" },
   ],
+
+  // Source maps: without them every stack in `wrangler tail` / the dashboard
+  // points at bundled JS. The trade is that the upload makes this Worker's
+  // TypeScript readable in the dashboard — a non-issue for a public repo.
+  "upload_source_maps": true,
+  // Logs on (the default sampling); traces at 1% — enough to spot a latency
+  // shape without paying to trace every keystroke's save.
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 },
+  },
+
+  // Two Durable Object classes. UserHost is one per user, holding that user's
+  // vault manifest and the workspace's Bridge host over a hibernatable
+  // WebSocket, addressed by `getByName("user:" + userId)`. AgentSandbox is the
+  // container class below, driven by that UserHost.
+  "durable_objects": {
+    "bindings": [
+      { "name": "UserHost", "class_name": "UserHost" },
+      { "name": "AGENT_SANDBOX", "class_name": "AgentSandbox" },
+    ],
+  },
+
+  // The agent's container: one per user, running the pi coding agent as a node
+  // process (src/worker/agent/sandbox-class.ts). Needs the Workers Paid plan.
+  //
+  // Its FILESYSTEM IS EPHEMERAL — every file is deleted when the container
+  // sleeps, which is its normal state — so the image must carry everything a
+  // wake needs and nothing is installed per user at runtime. `./container` is
+  // that image, built from this repo.
+  //
+  // A deployment without the plan (or without Docker locally) sets
+  // `AGENT_RUNTIME=scripted` and gets the in-memory container instead; the
+  // whole test suite runs that way.
+  "containers": [
+    {
+      "class_name": "AgentSandbox",
+      "image": "./container/Dockerfile",
+      // The context is the REPO ROOT, not the Dockerfile's directory (which is
+      // wrangler's default). `container/` is a pnpm workspace package: its
+      // versions come from the root lockfile and catalog, and a context of the
+      // folder alone resolves neither — the install fails with "pnpm-lock.yaml
+      // is absent". `.dockerignore` at the root is what keeps that context from
+      // being every node_modules in the tree.
+      "image_build_context": "../..",
+      "max_instances": 10,
+      "instance_type": "standard-2",
+    },
+  ],
+  // SQLite-backed storage: the vault manifest tables, and the UserHost's
+  // synchronous `ctx.storage.kv` (which only the SQLite backend exposes, and
+  // which the JsonStore engine needs — see src/worker/store/do-store-adapter).
+  //
+  // APPEND a tag per change; never edit a tag that has shipped. And do NOT
+  // convert this to the newer declarative `exports` field — the two are
+  // mutually exclusive, and swapping them on a namespace that already holds
+  // vault manifests is a one-way door.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] },
+    { "tag": "v2", "new_sqlite_classes": ["UserHost"] },
+    { "tag": "v3", "deleted_classes": ["VaultCoordinator"] },
+    { "tag": "v4", "new_sqlite_classes": ["AgentSandbox"] },
+  ],
+
+  // R2 holds the raw file bytes, keyed `${userId}/${path}`. The manifest (in the
+  // DO) is authoritative for versions/hashes; R2 is just the blob store.
+  "r2_buckets": [{ "binding": "VAULT_FILES", "bucket_name": "inteligir-vault-files" }],
+
+  // D1 (SQLite) backs Better Auth (user/session/account/verification) plus the
+  // rate-limit and invite-code tables. `database_id` is filled in at deploy time
+  // (`wrangler d1 create inteligir-auth` prints it). The schema lives in
+  // src/worker/db/schema.ts and is applied with `drizzle-kit push` — no migration
+  // files (`pnpm db:push:local` / `db:push`); tests derive the same schema via
+  // `drizzle-kit export` (see vitest.config.ts).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "inteligir-auth",
+      "database_id": "005d0e52-f102-4298-8da9-492b672ed00f",
+    },
+  ],
+
+  // Cloudflare Email Sending — the password-reset transport.
+  // `env.EMAIL.send({from,to,subject,text,html})` needs NO API key; delivery
+  // starts working the moment the owner runs
+  // `npx wrangler email sending enable inteligir.app` + completes the
+  // dashboard DNS (DKIM/SPF) onboarding. Until then sends fail server-side
+  // (logged), while the reset flow itself stays correct: tokens are issued
+  // before the send and the request response is always neutral.
+  "send_email": [{ "name": "EMAIL" }],
+
+  // NO `secrets` BLOCK, and it must stay that way. Declaring the required
+  // secret NAMES is tempting — `wrangler types` would emit them onto `Env` and
+  // dev would warn when one is missing — but the field is not additive: the
+  // moment `secrets` exists, `.dev.vars` is FILTERED DOWN TO THE NAMES IN IT
+  // (@cloudflare/vite-plugin's getLocalDevVarsForPreview → wrangler's
+  // `unstable_getVarsForDev(..., config.secrets)`). Every other key in that
+  // file — HOST_ALLOWED_ORIGINS, AGENT_RUNTIME, the provider OAuth trios,
+  // RATE_LIMIT_DISABLED — then reads back `undefined` in `vite dev`, silently,
+  // with the file still on disk and "Using secrets defined in .dev.vars" still
+  // in the log. The schema offers only `required`, so there is no way to name
+  // one secret without disowning the rest. src/worker/env.d.ts hand-declares
+  // what the generated types would have carried.
+
+  // No `vars`: the Better Auth baseURL is derived per-request from the incoming
+  // request origin (so localhost/preview/prod all work with no config), and
+  // BETTER_AUTH_SECRET + any OAuth client secrets are secrets — set them with
+  // `wrangler secret put` (see README), never committed here.
+  //
+  // PUBLIC_HOST is deliberately NOT here either, even though it is not secret:
+  // it is the one origin the provider OAuth redirect URI and the container's
+  // report URL are built from, and a value committed here would be the
+  // production host in local dev too. Set it per environment.
 }

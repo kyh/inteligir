@@ -3,8 +3,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
 import { siteConfig } from "@/lib/site-config";
-import { SiteHeader } from "@/components/site-header";
-import { THEME_FALLBACK, THEME_STORAGE_KEY, ThemeProvider } from "@/components/theme-provider";
+import { THEME_FALLBACK, THEME_STORAGE_KEY } from "@/components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
 
@@ -77,6 +76,12 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  // The DOCUMENT and nothing else. There is no theme provider here: `@repo/ui`'s
+  // provider writes the `.dark` class on <html>, and the workspace mounts its
+  // own (fed from the user's server-side ui-state). Two of them nested means
+  // the outer one's effect runs last and overwrites the inner one's decision,
+  // so each surface owns exactly one — the marketing page's lives on that page.
+  //
   // suppressHydrationWarning: the inline script below sets the theme class on
   // <html> before hydration, so the server markup and client differ by design.
   return (
@@ -95,10 +100,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
       </head>
       <body className="bg-background text-foreground font-sans antialiased">
-        <ThemeProvider>
-          <SiteHeader />
-          {children}
-        </ThemeProvider>
+        {children}
         <Scripts />
       </body>
     </html>

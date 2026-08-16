@@ -8,6 +8,19 @@
     },
     "types": ["vite/client"]
   },
-  "include": ["src", "vite.config.ts"],
-  "exclude": ["node_modules", "dist", ".wrangler", ".tanstack"]
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "drizzle.config.ts",
+    "drizzle.config.local.ts"
+  ],
+  // `src/worker` is its OWN program (src/worker/tsconfig.json), not a stylistic
+  // split: workerd and the DOM each declare `BufferSource` / `BodyInit`
+  // globally with different bounds, so one program would type-check the Worker
+  // against a stdlib it never runs on. Keeping the two halves in separate
+  // DIRECTORIES is what lets every tool that resolves a file's config by
+  // walking up (tsc, the editor, oxlint's type-aware pass) find the right one.
+  // `pnpm typecheck` runs both.
+  "exclude": ["node_modules", "dist", ".wrangler", ".tanstack", "src/worker"]
 }

@@ -15,7 +15,7 @@
 // packages/notes/src/__tests__/note-name.test.ts — changing a verdict there is
 // a deliberate breaking-change gate, not a refactor detail.
 //
-// Platform-neutral: runs in the renderer (instant feedback) and the host
+// Platform-neutral: runs in the client (instant feedback) and the host
 // (boundary enforcement) from the same bytes.
 // ---------------------------------------------------------------------------
 
@@ -80,7 +80,7 @@ export function checkNoteName(raw: string): NoteNameVerdict {
   return { ok: true, name };
 }
 
-/** One user-facing sentence per rejection — shared by the renderer toast and
+/** One user-facing sentence per rejection — shared by the client toast and
  * the host handler's `{ ok: false, error }` so the copy never forks. */
 export function noteNameErrorMessage(reason: NoteNameReason): string {
   switch (reason) {

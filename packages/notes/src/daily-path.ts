@@ -3,9 +3,9 @@
 // vault-relative path. INVERSE: a path (or bare formatted text) back to its
 // ISO date — DAILY only, because only a `YYYY-MM-DD`-shaped pattern names a
 // single day. No I/O, no clock: callers pass the Date. Platform-neutral so the
-// desktop renderer, the host's deep-link capture drain, and mobile all compute
-// the SAME path for "today's note"; both directions live in this ONE module so
-// they can never drift (pinned by the round-trip tests).
+// workspace and the host's deep-link capture drain compute the SAME path for
+// "today's note"; both directions live in this ONE module so they can never
+// drift (pinned by the round-trip tests).
 
 /** Zero-pad a number to two digits (local-time date parts). */
 function pad2(n: number): string {

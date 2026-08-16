@@ -4,33 +4,25 @@ import { useEffect } from "react";
 import { useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-// Side-effect import: loading the module restores the chat queue from disk and
-// arms its drain, so a message queued before the app was killed leaves on the
-// next connection whether or not the chat screen is ever opened.
-import "@/lib/chat/outbox";
-import { startHostConnection } from "@/lib/host/connection";
-import { hostEnvironmentStore } from "@/lib/host/expo-environment-store";
+import { refreshSession } from "@/lib/session";
 import { themeFor } from "@/lib/theme";
 
-// Reconnect to the paired desktop (if any) once per app launch — the saved
-// environment carries the durable device token, so no user action is needed.
-// Guarded module-level: the root layout can remount (fast refresh), and a
-// second start() would needlessly tear down a healthy connection.
-let hostAutoStarted = false;
+// The stored token is checked against the server once per launch. Guarded
+// module-level: the root layout remounts on fast refresh, and a second check
+// would be a wasted round trip.
+let sessionChecked = false;
 
-function useHostAutoStart() {
+function useSessionRestore() {
   useEffect(() => {
-    if (hostAutoStarted) return;
-    hostAutoStarted = true;
-    const env = hostEnvironmentStore.get();
-    if (env !== null) startHostConnection(env);
+    if (sessionChecked) return;
+    sessionChecked = true;
+    void refreshSession();
   }, []);
 }
 
-// The root layout: SafeArea + a themed native Stack. No QueryClient — sync is
-// direct via @repo/notes, not an API/tRPC layer.
+// The root layout: SafeArea + a themed native Stack.
 export default function RootLayout() {
-  useHostAutoStart();
+  useSessionRestore();
   const theme = themeFor(useColorScheme() === "dark");
   return (
     <SafeAreaProvider>

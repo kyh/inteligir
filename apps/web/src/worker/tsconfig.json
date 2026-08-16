@@ -1,0 +1,19 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    // No DOM: this half runs on workerd, whose generated globals (Request,
+    // Response, BufferSource, crypto) are the ones that must win. See the note
+    // in ../../tsconfig.json for why the two programs cannot be merged.
+    "lib": ["ES2023"],
+    // worker-configuration.d.ts is not listed here — `include` already puts it
+    // in the program, and a relative path in `types` reads as a package name to
+    // anything that resolves this config without tsc's rules.
+    "types": ["@cloudflare/vitest-pool-workers/types"],
+    // The site program's `${configDir}` resolves to apps/web, so an unqualified
+    // inherited path would have both tsc runs sharing one incremental file and
+    // re-checking from cold every time.
+    "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.worker.json"
+  },
+  "include": ["."],
+  "exclude": ["node_modules"]
+}

@@ -1,19 +1,18 @@
 // ---------------------------------------------------------------------------
-// Task scheduling by ASSOCIATION — pure, config-injected, shared by desktop
-// and (when it grows a config source) mobile. A task's schedule is: the first
-// of its wiki targets that reads as a date (ISO always, else the user's
-// configured daily-note filename pattern), else the date its NOTE's path
-// carries under the daily-note convention, else unscheduled. Extraction never
-// interprets dates — this module owns the reading, with the folder/format
-// config injected (it lives in desktop ui-state, renderer-owned) and the
-// clock injected as `todayIso` (core stays pure; dates are LOCAL end-to-end,
-// matching formatIsoDate).
+// Task scheduling by ASSOCIATION — pure and config-injected, so any surface
+// with a config source can compute it. A task's schedule is: the first of its
+// wiki targets that reads as a date (ISO always, else the user's configured
+// daily-note filename pattern), else the date its NOTE's path carries under the
+// daily-note convention, else unscheduled. Extraction never interprets dates —
+// this module owns the reading, with the folder/format config injected (it
+// lives in ui-state) and the clock injected as `todayIso` (core stays pure;
+// dates are LOCAL end-to-end, matching formatIsoDate).
 // ---------------------------------------------------------------------------
 
 import { dateFromDailyPath, parseDateByPattern } from "../daily-path";
 
-/** Settings → Notes daily-note convention, injected by the platform (desktop:
- * ui-state's notes.dailyFolder / notes.dailyFilenameFormat). */
+/** Settings → Notes daily-note convention, injected by the platform (ui-state's
+ * notes.dailyFolder / notes.dailyFilenameFormat). */
 export type DailyNoteConfig = {
   dailyFolder: string;
   dailyFormat: string;

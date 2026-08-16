@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-// Shared theme primitive for every frontend (the desktop renderer + the web
-// marketing site). The *state source* differs per app — desktop persists to
-// disk through the Bridge, web to localStorage with an SSR no-flash script —
-// so the provider is **controlled**: each app owns persistence and passes the
-// current `theme` + `setTheme`, and this owns the OS-preference resolution, the
-// `.dark` class on <html>, and the shared context/API.
+// Shared theme primitive for every surface that renders this design system.
+// The *state source* differs per surface — the workspace persists through the
+// Bridge, the marketing site to localStorage with an SSR no-flash script — so
+// the provider is **controlled**: each owns persistence and passes the current
+// `theme` + `setTheme`, and this owns the OS-preference resolution, the `.dark`
+// class on <html>, and the shared context/API.
 
 export type Theme = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
@@ -63,10 +63,10 @@ export function useTheme(): ThemeContextValue {
 }
 
 /**
- * The inline script the server-rendered web app runs in `<head>` before first
- * paint, so a saved/system dark theme is applied without a flash of the wrong
- * mode. (The Electron renderer is a local SPA with no hydration, so it doesn't
- * need this.) `key` is the localStorage key the web ThemeProvider writes to.
+ * The inline script a server-rendered page runs in `<head>` before first paint,
+ * so a saved/system dark theme is applied without a flash of the wrong mode.
+ * Only SSR needs it — a client-only shell paints its own theme on mount. `key`
+ * is the localStorage key that page's ThemeProvider writes to.
  */
 export function noFlashThemeScript(key: string, fallback: Theme = "system"): string {
   return `(function(){try{var t=localStorage.getItem(${JSON.stringify(key)})||${JSON.stringify(fallback)};var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);}catch(e){}})();`;
