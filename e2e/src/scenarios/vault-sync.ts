@@ -1,12 +1,17 @@
 // Two instances against one scratch bare remote: a write on A reaches B's
 // disk through git sync, and a both-edited-the-same-line pair surfaces as the
-// typed conflict state on the instance whose rebase was refused.
+// typed conflict state on the instance whose rebase was refused. Auto-sync
+// (the boot pass and the interval) is disabled on both instances via
+// INTELIGIR_SYNC_INTERVAL_MS=0, so every sync below is the explicit POST and
+// the divergence between A and B is deterministic.
 
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ApiClient } from "@repo/server-contract/client";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { expect, expectEq } from "../harness/assert";
+import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
 
 const SHARED_CONTENT = "# Shared\n\nWritten on A, synced to B.\n";
@@ -14,20 +19,16 @@ const CONFLICT_BASE = "# Conflict\n\nshared line\n";
 const CONFLICT_A = "# Conflict\n\nedited on A\n";
 const CONFLICT_B = "# Conflict\n\nedited on B\n";
 
+const NO_AUTO_SYNC = { INTELIGIR_SYNC_INTERVAL_MS: "0" };
+
 async function syncNow(api: ApiClient): Promise<VaultStatusResponse> {
   const response = await api.vault.sync.$post();
   expect(response.status === 200, `sync answered ${response.status}`);
   return response.json();
 }
 
-/** A POST /vault/sync can coalesce into the still-running boot sync, whose
- *  pass predates the write it was meant to carry — one bounded retry pass
- *  makes the scenario about the engine, not that scheduling seam. */
-async function syncUntilClean(api: ApiClient, label: string): Promise<void> {
-  let status = await syncNow(api);
-  for (let attempt = 0; status.state !== "clean" && attempt < 3; attempt += 1) {
-    status = await syncNow(api);
-  }
+async function syncExpectClean(api: ApiClient, label: string): Promise<void> {
+  const status = await syncNow(api);
   expect(
     status.state === "clean",
     `${label}: expected a clean sync, got "${status.state}" (lastError: ${status.lastError ?? "none"})`,
@@ -39,18 +40,18 @@ export const vaultSync: Scenario = {
   description: "two instances, one bare remote: propagation, then a typed conflict",
   async run(ctx) {
     const remote = await ctx.bareRemote();
-    const a = await ctx.boot({ name: "a", vaultRemote: remote });
+    const a = await ctx.boot({ name: "a", vaultRemote: remote, extraEnv: NO_AUTO_SYNC });
 
     ctx.log("A writes notes/shared.md and syncs");
     const write = await a.api.vault.file.$put({
       json: { path: "notes/shared.md", content: SHARED_CONTENT },
     });
     expect(write.status === 200, `A write answered ${write.status}`);
-    await syncUntilClean(a.api, "A after write");
+    await syncExpectClean(a.api, "A after write");
 
-    const b = await ctx.boot({ name: "b", vaultRemote: remote });
+    const b = await ctx.boot({ name: "b", vaultRemote: remote, extraEnv: NO_AUTO_SYNC });
     ctx.log("B syncs and receives the file");
-    await syncUntilClean(b.api, "B first sync");
+    await syncExpectClean(b.api, "B first sync");
 
     const readB = await b.api.vault.file.$get({ query: { path: "notes/shared.md" } });
     expect(readB.status === 200, `B read answered ${readB.status}`);
@@ -66,8 +67,8 @@ export const vaultSync: Scenario = {
       json: { path: "conflict.md", content: CONFLICT_BASE },
     });
     expect(base.status === 200, `A base write answered ${base.status}`);
-    await syncUntilClean(a.api, "A after base");
-    await syncUntilClean(b.api, "B after base");
+    await syncExpectClean(a.api, "A after base");
+    await syncExpectClean(b.api, "B after base");
     expectEq(
       await readFile(join(b.vaultDir, "conflict.md"), "utf8"),
       CONFLICT_BASE,
@@ -79,7 +80,7 @@ export const vaultSync: Scenario = {
       json: { path: "conflict.md", content: CONFLICT_A },
     });
     expect(editA.status === 200, `A edit answered ${editA.status}`);
-    await syncUntilClean(a.api, "A after edit");
+    await syncExpectClean(a.api, "A after edit");
 
     const editB = await b.api.vault.file.$put({
       json: { path: "conflict.md", content: CONFLICT_B },
@@ -109,6 +110,24 @@ export const vaultSync: Scenario = {
     expect(statusB.status === 200, `B status answered ${statusB.status}`);
     const statusBody = await statusB.json();
     expect(statusBody.state === "conflict", `B status settled on "${statusBody.state}"`);
+
+    ctx.log("B's repo is intact under git's own eyes");
+    // B's edit was committed before the fetch, so a fully aborted rebase
+    // leaves the tree byte-identical to HEAD: porcelain must be EMPTY.
+    const porcelain = await exec(
+      "git",
+      ["-C", b.vaultDir, "--no-optional-locks", "status", "--porcelain"],
+      { env: hermeticProcessEnv() },
+    );
+    expectEq(porcelain.stdout.trim(), "", "B's porcelain status after the abort");
+    expect(
+      !existsSync(join(b.vaultDir, ".git", "rebase-merge")),
+      "no rebase-merge state left behind",
+    );
+    expect(
+      !existsSync(join(b.vaultDir, ".git", "rebase-apply")),
+      "no rebase-apply state left behind",
+    );
 
     ctx.log("A is untouched by B's conflict");
     const readA = await a.api.vault.file.$get({ query: { path: "conflict.md" } });

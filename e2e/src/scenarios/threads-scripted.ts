@@ -1,8 +1,9 @@
-// A chat turn end to end through the scripted agent driver. The env contract
-// (INTELIGIR_AGENT=scripted) is being built in parallel with this harness:
-// apps/app/src/node/main.ts still hardwires `unavailableTurnDriver`, so a
-// send answers 503 and this scenario reports SKIP with the wiring gap named.
-// Everything below the probe is real and runs the moment the contract lands.
+// A chat turn end to end through the scripted agent driver, whose env
+// contract is INTELIGIR_AGENT=scripted. apps/app/src/node/main.ts has no
+// reader for that variable (#549) — `createTurnDriver` is hardwired to
+// `unavailableTurnDriver` — so a send answers 503 provider_unavailable and
+// this scenario reports SKIP naming exactly that gap. Any OTHER refusal is a
+// real failure.
 
 import { setTimeout as delay } from "node:timers/promises";
 import { expect, skip } from "../harness/assert";
@@ -30,11 +31,17 @@ export const threadsScripted: Scenario = {
       json: { threadId: thread.id, text: TURN_TEXT, mode: "steer-if-active" },
     });
     if (send.status === 503) {
+      const refusal = await send.json();
+      // Only the missing-driver refusal is skippable; any other 503 is the
+      // app failing for a reason this scenario must not paper over.
+      expect(
+        refusal.error === "provider_unavailable",
+        `send answered 503 with error "${refusal.error}" (${refusal.message}) — not the missing-driver refusal`,
+      );
       skip(
-        "the scripted agent driver is not wired into the app process yet: " +
-          "INTELIGIR_AGENT=scripted has no reader in apps/app/src/node/main.ts " +
-          "(createTurnDriver is hardwired to unavailableTurnDriver, so /threads/send answers 503). " +
-          "The scenario below this probe is complete — it runs unchanged once #549 lands the env contract.",
+        "INTELIGIR_AGENT=scripted has no reader in apps/app/src/node/main.ts (#549): " +
+          "createTurnDriver is hardwired to unavailableTurnDriver, so /threads/send answers " +
+          "503 provider_unavailable. Wire the driver and this scenario runs unchanged.",
       );
     }
     expect(send.status === 200, `send answered ${send.status}`);

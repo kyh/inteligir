@@ -28,9 +28,14 @@ Each scenario receives a context (`src/harness/scenario.ts`) that owns its
 scratch dir and tears everything down afterwards:
 
 - `boot({ name, vaultRemote?, extraEnv?, seedVault? })` — a fresh instance:
-  scratch `data/` + `vault/` siblings, a reserved free port, health-gated
-  (`/api/v1/health`), killed as a process group at scenario end. `seedVault`
-  writes fixture files before boot; the app's repo init commits them.
+  scratch `data/` + `vault/` siblings, a reserved free port (bind races retry
+  with a fresh port, bounded), health-gated on `/api/v1/health` answering
+  `{ok:true}`. Registered for teardown at SPAWN, before the health wait, and
+  torn down as a process group that is polled to verified-dead (SIGTERM →
+  SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
+  group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
+  `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
+  before boot; the app's repo init commits them.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE`.
 - `instance.api` — the typed hc client from `@repo/server-contract/client`;
@@ -38,13 +43,17 @@ scratch dir and tears everything down afterwards:
 
 ## The scenarios
 
-| name             | proves                                                                    |
-| ---------------- | ------------------------------------------------------------------------- |
-| vault-crud       | write/read/rename/delete over the wire, bytes verified on disk            |
-| vault-sync       | two instances + one bare remote: propagation, then a typed conflict state |
-| threads-scripted | a chat turn through the scripted driver — SKIPS until #549 wires          |
-|                  | `INTELIGIR_AGENT=scripted` into `apps/app/src/node/main.ts`               |
-| browser-smoke    | headless page load: title, SPA mount, API reached, clean console          |
+| name             | proves                                                                     |
+| ---------------- | -------------------------------------------------------------------------- |
+| vault-crud       | write/read/rename/delete over the wire, bytes verified on disk; refused    |
+|                  | ops verified to leave the disk untouched                                   |
+| vault-sync       | two instances + one bare remote (auto-sync disabled, every sync explicit): |
+|                  | propagation, then a typed conflict + git-verified repo integrity           |
+| threads-scripted | a chat turn through the scripted driver — SKIPS while `INTELIGIR_AGENT`    |
+|                  | has no reader in `apps/app/src/node/main.ts` (#549); skip fires ONLY on    |
+|                  | the `provider_unavailable` refusal, anything else fails                    |
+| browser-smoke    | headless page load: title, SPA mount, API reached, clean console after a   |
+|                  | settle window                                                              |
 
 ## Adding a scenario
 
@@ -58,22 +67,32 @@ Each feature issue lands with its scenario here (#556).
 
 ## The env contract the harness drives
 
-| var                      | effect                                                 |
-| ------------------------ | ------------------------------------------------------ |
-| `INTELIGIR_DATA_DIR`     | absolute data dir (SQLite + config.json)               |
-| `INTELIGIR_VAULT_DIR`    | absolute vault dir; must be disjoint from the data dir |
-| `INTELIGIR_PORT`         | exact port (env-configured ports are never probed)     |
-| `INTELIGIR_VAULT_REMOTE` | git remote URL for the sync loop; unset = local-only   |
-| `INTELIGIR_AGENT`        | `scripted` — pending contract, see threads-scripted    |
+| var                          | effect                                                 |
+| ---------------------------- | ------------------------------------------------------ |
+| `INTELIGIR_DATA_DIR`         | absolute data dir (SQLite + config.json)               |
+| `INTELIGIR_VAULT_DIR`        | absolute vault dir; must be disjoint from the data dir |
+| `INTELIGIR_PORT`             | exact port (env-configured ports are never probed)     |
+| `INTELIGIR_VAULT_REMOTE`     | git remote URL for the sync loop; unset = local-only   |
+| `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
+|                              | boot sync (vault-sync sets it for determinism)         |
+| `INTELIGIR_HMR_PORT`         | dev only: vite's HMR websocket port (server + injected |
+|                              | client) — vite's default is machine-global, so         |
+|                              | concurrent instances collide; each dev boot gets its   |
+|                              | own reserved one                                       |
+| `INTELIGIR_AGENT`            | `scripted` — no reader in the app (#549), see          |
+|                              | threads-scripted                                       |
 
-The harness also pins `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` to `/dev/null`
-so user git config (hooks, signing, default branch) cannot reach an instance.
+Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
+/`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git
+identity, so no commit or fixture depends on the host's git configuration —
+the same env every git the harness itself runs gets.
 
 ## CI
 
 Headless and login-free by construction: no accounts, no interactive auth, no
 pinned ports. The one setup step beyond `pnpm install` is the browser binary
 for browser-smoke: `npm i -g agent-browser && agent-browser install` (Linux:
-`--with-deps`). Where a sandbox cannot launch a browser at all, browser-smoke
-reports SKIP with the exact launcher error rather than failing the suite;
-every assertion after a successful launch is real.
+`--with-deps`). browser-smoke probes the environment with `about:blank`
+first — only a failure THERE (the browser cannot launch at all) reports SKIP,
+with the exact launcher error; opening the app and everything after is a real
+assertion.

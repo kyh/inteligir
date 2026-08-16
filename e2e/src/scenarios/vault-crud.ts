@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
+const FIXTURE_CONTENT = "# Seeded fixture\n";
 const FIRST_CONTENT = "# Hello\n\nWritten by the e2e harness.\n";
 const SECOND_CONTENT = "# Hello again\n\nOverwritten by the e2e harness.\n";
 
@@ -17,7 +18,7 @@ export const vaultCrud: Scenario = {
     const app = await ctx.boot({
       name: "solo",
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, "fixture.md"), "# Seeded fixture\n", "utf8");
+        await writeFile(join(vaultDir, "fixture.md"), FIXTURE_CONTENT, "utf8");
       },
     });
     const { api, vaultDir } = app;
@@ -72,11 +73,21 @@ export const vaultCrud: Scenario = {
     const readOld = await api.vault.file.$get({ query: { path: "notes/hello.md" } });
     expect(readOld.status === 404, `old path read answered ${readOld.status}`);
 
-    ctx.log("rename onto an existing file is refused");
+    ctx.log("rename onto an existing file is refused, and refuses on disk too");
     const collide = await api.vault.rename.$post({
       json: { from: "notes/renamed.md", to: "fixture.md" },
     });
     expect(collide.status === 409, `colliding rename answered ${collide.status}`);
+    expectEq(
+      await readFile(join(vaultDir, "notes", "renamed.md"), "utf8"),
+      SECOND_CONTENT,
+      "refused rename leaves the source in place",
+    );
+    expectEq(
+      await readFile(join(vaultDir, "fixture.md"), "utf8"),
+      FIXTURE_CONTENT,
+      "refused rename leaves the target bytes untouched",
+    );
 
     ctx.log("delete notes/renamed.md");
     const remove = await api.vault.delete.$post({ json: { path: "notes/renamed.md" } });
@@ -85,12 +96,24 @@ export const vaultCrud: Scenario = {
     const readGone = await api.vault.file.$get({ query: { path: "notes/renamed.md" } });
     expect(readGone.status === 404, `deleted path read answered ${readGone.status}`);
 
-    ctx.log("path refusals");
-    const traversal = await api.vault.file.$get({ query: { path: "../escape.md" } });
-    expect(traversal.status === 400, `traversal read answered ${traversal.status}`);
+    ctx.log("path refusals, and the disk stays untouched");
+    const gitHeadBefore = await readFile(join(vaultDir, ".git", "HEAD"), "utf8");
+    const traversalRead = await api.vault.file.$get({ query: { path: "../escape.md" } });
+    expect(traversalRead.status === 400, `traversal read answered ${traversalRead.status}`);
+    const traversalWrite = await api.vault.file.$put({
+      json: { path: "../escape.md", content: "x" },
+    });
+    expect(traversalWrite.status === 400, `traversal write answered ${traversalWrite.status}`);
+    expect(!existsSync(join(vaultDir, "..", "escape.md")), "no file escaped the vault root");
     const gitWrite = await api.vault.file.$put({
       json: { path: ".git/hooks/pwn.md", content: "x" },
     });
     expect(gitWrite.status === 400, `.git write answered ${gitWrite.status}`);
+    expect(!existsSync(join(vaultDir, ".git", "hooks", "pwn.md")), ".git target was not created");
+    expectEq(
+      await readFile(join(vaultDir, ".git", "HEAD"), "utf8"),
+      gitHeadBefore,
+      ".git/HEAD bytes unchanged",
+    );
   },
 };

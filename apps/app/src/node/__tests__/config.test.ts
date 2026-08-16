@@ -224,4 +224,36 @@ describe("the vault dir and remote", () => {
     expect(() => resolveWithRemote("/plain/local/path")).toThrow(/INTELIGIR_VAULT_REMOTE/);
     expect(() => resolveWithRemote("ext::sh -c evil")).toThrow(/INTELIGIR_VAULT_REMOTE/);
   });
+
+  it("INTELIGIR_SYNC_INTERVAL_MS: unset = absent, 0 = disabled (null), positive = cadence", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const resolveWithInterval = (interval?: string) =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: interval === undefined ? {} : { INTELIGIR_SYNC_INTERVAL_MS: interval },
+        homeDir,
+      });
+
+    expect(resolveWithInterval().vaultSyncIntervalMs).toBeUndefined();
+    expect(resolveWithInterval("0").vaultSyncIntervalMs).toBeNull();
+    expect(resolveWithInterval("5000").vaultSyncIntervalMs).toBe(5000);
+    expect(() => resolveWithInterval("-1")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/);
+    expect(() => resolveWithInterval("fast")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/);
+    expect(() => resolveWithInterval("1.5")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/);
+  });
+
+  it("INTELIGIR_HMR_PORT: unset = absent, a port sets it, junk refuses", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const resolveWithHmrPort = (value?: string) =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: value === undefined ? {} : { INTELIGIR_HMR_PORT: value },
+        homeDir,
+      });
+
+    expect(resolveWithHmrPort().devHmrPort).toBeUndefined();
+    expect(resolveWithHmrPort("31555").devHmrPort).toBe(31555);
+    expect(() => resolveWithHmrPort("0")).toThrow(/INTELIGIR_HMR_PORT/);
+    expect(() => resolveWithHmrPort("not-a-port")).toThrow(/INTELIGIR_HMR_PORT/);
+  });
 });

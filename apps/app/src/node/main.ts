@@ -53,11 +53,15 @@ function readAppVersion(): string {
   return z.object({ version: z.string().min(1) }).parse(JSON.parse(raw)).version;
 }
 
-async function createDevFallback(): Promise<AppFallback> {
+async function createDevFallback(hmrPort: number | undefined): Promise<AppFallback> {
   const { createServer } = await import("vite");
   const vite = await createServer({
     root: fileURLToPath(appDirUrl),
-    server: { middlewareMode: true },
+    // `ws.port` moves BOTH halves — the standalone HMR ws server and the
+    // port injected into @vite/client — so the pair stays matched. (`ws:
+    // false` is not enough: it stops the server while the injected client
+    // still dials, and every page load throws.)
+    server: { middlewareMode: true, ...(hmrPort === undefined ? {} : { ws: { port: hmrPort } }) },
   });
   return { kind: "dev", middlewares: vite.middlewares };
 }
@@ -109,7 +113,8 @@ if (config.mode === "dev" && config.dataDirSource === "default") {
 
 // Kicked off before the synchronous db open + migrate so the Vite / Start
 // module loads overlap them; awaited once the db is ready.
-const fallbackPromise = config.mode === "dev" ? createDevFallback() : createProdFallback();
+const fallbackPromise =
+  config.mode === "dev" ? createDevFallback(config.devHmrPort) : createProdFallback();
 
 const db = createConnection(config.databasePath);
 runMigrations(db, migrationsFolder);
@@ -122,6 +127,9 @@ const vault = await createVaultRuntime({
   vaultRemote: config.vaultRemote,
   dataDir: config.dataDir,
   notifier: bus,
+  ...(config.vaultSyncIntervalMs === undefined
+    ? {}
+    : { syncIntervalMs: config.vaultSyncIntervalMs }),
 });
 const fallback = await fallbackPromise;
 

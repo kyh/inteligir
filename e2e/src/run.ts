@@ -9,8 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ScenarioSkip } from "./harness/assert";
-import type { BootMode } from "./harness/instance";
-import type { AppInstance } from "./harness/instance";
+import { killAllLiveGroups, type AppInstance, type BootMode } from "./harness/instance";
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { threadsScripted } from "./scenarios/threads-scripted";
@@ -93,7 +92,7 @@ async function runScenario(
   options: CliOptions,
   repoRoot: string,
   scratchRoot: string,
-): Promise<ScenarioOutcome> {
+): Promise<{ outcome: ScenarioOutcome; teardownClean: boolean }> {
   const startedAt = Date.now();
   const scratchDir = join(scratchRoot, scenario.name);
   await mkdir(scratchDir, { recursive: true });
@@ -110,6 +109,7 @@ async function runScenario(
   });
 
   let outcome: ScenarioOutcome;
+  let teardownClean = true;
   try {
     await scenario.run(context);
     outcome = { kind: "pass", durationMs: Date.now() - startedAt };
@@ -135,13 +135,43 @@ async function runScenario(
     }
   } finally {
     for (const instance of instances.toReversed()) {
-      await instance.stop();
+      try {
+        await instance.stop();
+      } catch (error) {
+        teardownClean = false;
+        console.error(
+          `${timestamp()} [${scenario.name}] teardown: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
-    if (!options.keep) {
-      await rm(scratchDir, { recursive: true, force: true }).catch(() => undefined);
+    // Scratch is only removed once every group is verified dead — an undead
+    // process could still be writing into it.
+    if (!teardownClean) {
+      console.error(`${timestamp()} [${scenario.name}] scratch kept at ${scratchDir}`);
+    } else if (!options.keep) {
+      try {
+        await rm(scratchDir, { recursive: true, force: true });
+      } catch (error) {
+        console.error(
+          `${timestamp()} [${scenario.name}] could not remove scratch ${scratchDir}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
   }
-  return outcome;
+  return { outcome, teardownClean };
+}
+
+/** Ctrl-C / a CI cancel must not orphan app process groups. SIGKILL of the
+ *  runner itself cannot be trapped — those orphans are accepted: scratch
+ *  lives under tmpdir and every instance dir is per-run. */
+function installSignalCleanup(): void {
+  const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
+  for (const signal of signals) {
+    process.on(signal, () => {
+      killAllLiveGroups("SIGKILL");
+      process.exit(signal === "SIGINT" ? 130 : 143);
+    });
+  }
 }
 
 async function main(): Promise<number> {
@@ -152,15 +182,18 @@ async function main(): Promise<number> {
     }
     return 0;
   }
+  installSignalCleanup();
   const selected = selectScenarios(options);
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
   const scratchRoot = await mkdtemp(join(tmpdir(), "inteligir-e2e-"));
   console.log(`e2e: ${selected.length} scenario(s), mode=${options.mode}, scratch=${scratchRoot}`);
 
   const outcomes = new Map<string, ScenarioOutcome>();
+  let everyTeardownClean = true;
   for (const scenario of selected) {
     console.log(`\n${timestamp()} ── ${scenario.name}: ${scenario.description}`);
-    const outcome = await runScenario(scenario, options, repoRoot, scratchRoot);
+    const { outcome, teardownClean } = await runScenario(scenario, options, repoRoot, scratchRoot);
+    everyTeardownClean &&= teardownClean;
     outcomes.set(scenario.name, outcome);
     if (outcome.kind === "pass") {
       console.log(`${timestamp()} [${scenario.name}] PASS (${seconds(outcome.durationMs)})`);
@@ -172,10 +205,16 @@ async function main(): Promise<number> {
     }
   }
 
-  if (options.keep) {
+  if (options.keep || !everyTeardownClean) {
     console.log(`\nscratch kept at ${scratchRoot}`);
   } else {
-    await rm(scratchRoot, { recursive: true, force: true }).catch(() => undefined);
+    try {
+      await rm(scratchRoot, { recursive: true, force: true });
+    } catch (error) {
+      console.error(
+        `could not remove scratch root ${scratchRoot}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   console.log("\n── e2e summary ──");
@@ -194,7 +233,10 @@ async function main(): Promise<number> {
       console.log(` FAIL  ${scenario.name} (${seconds(outcome.durationMs)})`);
     }
   }
-  return failed === 0 ? 0 : 1;
+  if (!everyTeardownClean) {
+    console.log(" FAIL  (teardown) — a process group survived SIGKILL; see the log above");
+  }
+  return failed === 0 && everyTeardownClean ? 0 : 1;
 }
 
 try {

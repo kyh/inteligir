@@ -3,7 +3,7 @@
 
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { exec, hermeticGitEnv } from "./exec";
+import { exec, hermeticProcessEnv } from "./exec";
 import { launchApp, type AppInstance, type BootMode } from "./instance";
 
 interface BootOptions {
@@ -55,23 +55,24 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
         await mkdir(vaultDir, { recursive: true });
         await options.seedVault(vaultDir);
       }
-      const instance = await launchApp({
+      return launchApp({
         mode: args.mode,
         name: options.name,
         instanceDir,
         repoRoot: args.repoRoot,
         onLog: args.log,
+        // Registered at spawn, BEFORE the health wait, so the runner's
+        // teardown owns the process group through every early-exit path.
+        register: (instance) => args.instances.push(instance),
         ...(options.vaultRemote === undefined ? {} : { vaultRemote: options.vaultRemote }),
         ...(options.extraEnv === undefined ? {} : { extraEnv: options.extraEnv }),
       });
-      args.instances.push(instance);
-      return instance;
     },
     async bareRemote(name = "remote") {
       const remoteDir = join(args.scratchDir, `${name}.git`);
       await mkdir(remoteDir, { recursive: true });
       await exec("git", ["init", "--bare", "-b", "main", remoteDir], {
-        env: { ...process.env, ...hermeticGitEnv() },
+        env: hermeticProcessEnv(),
       });
       args.log(`bare remote at ${remoteDir}`);
       return `file://${remoteDir}`;
