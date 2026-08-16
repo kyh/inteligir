@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": ["src", "vite.config.ts", "vitest.config.ts"],
+  // `src/node` is its OWN program (src/node/tsconfig.json): it is the shipping
+  // Node process — never bundled by Start — and it type-checks against
+  // @types/node instead of the DOM. Keeping the two halves in separate
+  // directories is what lets every tool that resolves a file's config by
+  // walking up (tsc, the editor, oxlint's type-aware pass) find the right one.
+  // `pnpm typecheck` runs both.
+  "exclude": ["node_modules", "dist", ".tanstack", "src/node"]
+}

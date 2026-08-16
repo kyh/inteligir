@@ -83,7 +83,7 @@ wrangler d1 execute inteligir-auth --remote \
 
 ```bash
 cp .dev.vars.example .dev.vars    # set BETTER_AUTH_SECRET to anything
-pnpm dev:web                      # vite + miniflare on :5174 (pinned, strictPort)
+pnpm dev:site                      # vite + miniflare on :5174 (pinned, strictPort)
 
 # The local D1 file is materialized lazily, on the first request that touches
 # the binding — `dev` alone does not create it. So hit one, THEN push:

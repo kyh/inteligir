@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // WebWorker, not DOM: the fetch/Response surface without claiming a
+    // document — this contract loads in the browser, the Node server and tests.
+    "lib": ["ES2023", "WebWorker"],
+    "types": [],
+    "paths": {
+      "@repo/server-contract/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}

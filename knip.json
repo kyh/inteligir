@@ -8,6 +8,16 @@
   // workspace below states which side of that trade it is on, and why.
   "workspaces": {
     ".": {},
+    "apps/app": {
+      // The Start file routes are the UI roots; the router and the Node entry
+      // are already known to knip (the vite plugin and the dev script).
+      "entry": ["src/routes/**/*.tsx", "src/node/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx,css}"],
+      // better-sqlite3 is never imported by this app's source: the prod
+      // bundle externalizes @repo/db's import of it, so the direct dep is
+      // what makes the native module resolvable next to dist-node/main.js.
+      "ignoreDependencies": ["tailwindcss", "better-sqlite3"]
+    },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it
       // from wrangler.jsonc's `main`. `src/worker/index.ts` is the test suite's
@@ -43,6 +53,18 @@
         "dev/main.ts"
       ],
       "project": ["src/**/*.{ts,tsx}", "dev/**/*.ts"]
+    },
+    "packages/typed-routes": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/server-contract": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/db": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
     },
     // The ONE package that keeps knip's default `includeEntryExports: false`,
     // and the reason is the package rather than the findings. `src/components`

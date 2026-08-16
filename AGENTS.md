@@ -2,24 +2,37 @@
 
 **inteligir** is an AI-native notes app — Obsidian with an agent. The repo is
 mid-rewrite: the v3 architecture is GitHub issue #542, and features land with
-their own issues from that index. What runs today is `apps/web` — one
-Cloudflare Worker serving the marketing site and Better Auth on D1 — plus the
-carried domain packages (`@repo/notes`, `@repo/ui`). This is the tool-agnostic
-guide for coding agents; `CLAUDE.md` holds the architecture and the durable
-decisions, `CONTEXT.md` the domain glossary, `apps/web/README.md` the Worker's
-own routes and deploy.
+their own issues from that index. What runs today: `apps/app` — THE PRODUCT, a
+local Node process (TanStack Start SPA + typed /api/v1 + ws invalidation bus
+over SQLite) — and `apps/web`, one Cloudflare Worker serving the marketing
+site and Better Auth on D1, plus the carried domain packages (`@repo/notes`,
+`@repo/ui`). This is the tool-agnostic guide for coding agents; `CLAUDE.md`
+holds the architecture and the durable decisions, `CONTEXT.md` the domain
+glossary, `apps/web/README.md` the Worker's own routes and deploy.
 
 ## Quickstart
 
 ```sh
 pnpm install
-cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET
-pnpm dev:web        # → the real Worker on miniflare, http://localhost:5174
+pnpm dev             # → THE PRODUCT (apps/app); prints its own URL, e.g.
+                     #   inteligir 0.1.0 (dev) listening on http://127.0.0.1:26723
 ```
 
-That's the whole setup — no bootstrap script, no Docker, no cloud account.
+That's the whole product setup — no bootstrap script, no Docker, no cloud
+account, no login. The port and the data dir are derived per checkout (hash of
+the checkout path), so parallel worktrees never collide; `INTELIGIR_PORT` and
+`INTELIGIR_DATA_DIR` override. SQLite lives at `<data-dir>/inteligir.db`
+(dev default: `~/.inteligir-dev/<hash>/`).
+
 Requirements: **Node ≥ 24** and **pnpm 10** (`corepack enable`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
+
+The marketing/auth Worker is separate:
+
+```sh
+cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET
+pnpm dev:site        # → the real Worker on miniflare, http://localhost:5174
+```
 
 `.dev.vars` must exist first: `BETTER_AUTH_SECRET` is what makes `/api/auth/*`
 answer at all. Any value works locally.
@@ -29,7 +42,7 @@ answer at all. Any value works locally.
 This repo ships no seed script and no test account. To get one locally:
 
 ```sh
-pnpm dev:web                                       # vite dev on :5174
+pnpm dev:site                                       # vite dev on :5174
 
 # The local D1 file is materialized lazily, on the first request that touches
 # the binding — `dev` alone does not create it. So hit one, THEN push:
@@ -73,7 +86,7 @@ Runtime — drive the running site with
 
 ```sh
 npm i -g agent-browser && agent-browser install   # once, if missing
-pnpm dev:web
+pnpm dev:site
 agent-browser open http://localhost:5174/
 ```
 
@@ -99,9 +112,15 @@ rather than moving the app somewhere the docs don't name.
 ## Map
 
 ```
-apps/web            ONE CF Worker: marketing site + Better Auth (D1)  @repo/web
-packages/notes      Pure domain — knowledge + markdown               @repo/notes
-packages/ui         Shared components (vendored shadcn)              @repo/ui
+apps/app                 THE PRODUCT: local Node server — Start SPA +
+                         /api/v1 + /ws + SQLite                      @repo/app
+apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
+packages/typed-routes    Contract-first Hono route machinery (bb)    @repo/typed-routes
+packages/server-contract The wire contract: route table + ws proto   @repo/server-contract
+packages/db              drizzle + better-sqlite3, migrations,
+                         DbNotifier, ids                             @repo/db
+packages/notes           Pure domain — knowledge + markdown          @repo/notes
+packages/ui              Shared components (vendored shadcn)         @repo/ui
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.

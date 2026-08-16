@@ -1,0 +1,42 @@
+{
+  "name": "@repo/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && node scripts/build-node-entry.mjs",
+    "clean": "git clean -xdf .cache .tanstack .turbo dist dist-node node_modules",
+    "dev": "tsx watch --clear-screen=false src/node/main.ts",
+    "start": "NODE_ENV=production node dist-node/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/node"
+  },
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "@hono/node-ws": "catalog:",
+    "@repo/db": "workspace:*",
+    "@repo/server-contract": "workspace:*",
+    "@repo/typed-routes": "workspace:*",
+    "@repo/ui": "workspace:*",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-start": "catalog:",
+    "better-sqlite3": "catalog:",
+    "hono": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "esbuild": "^0.28.1",
+    "tailwindcss": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
