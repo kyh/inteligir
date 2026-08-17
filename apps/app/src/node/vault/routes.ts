@@ -2,7 +2,7 @@
 // refusals (bad path, missing entry, overwrite) answer with their declared
 // statuses here; anything unexpected falls through to the API's generic 500.
 
-import type { ApiErrorResponse } from "@repo/server-contract/errors";
+import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
 import { apiRoutes } from "@repo/server-contract/routes";
 import {
   VAULT_ASSET_MEDIA_TYPES,
@@ -12,9 +12,26 @@ import {
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import type { VaultRuntime } from "./vault-runtime";
-import { VaultServiceError, type GuardedWriteGuard } from "./vault-service";
+import {
+  VaultServiceError,
+  type GuardedWriteGuard,
+  type VaultServiceErrorCode,
+} from "./vault-service";
 
-type VaultRefusal = "invalid_path" | "not_found" | "conflict" | "too_large";
+/**
+ * Everything a vault route can refuse with: the service's own classes, plus
+ * the path grammar's — `@repo/notes` sits BELOW the contract and cannot name
+ * an API code, so translating `VaultPathError` is this layer's job. Derived
+ * from the service's set rather than listed again: the two overlapped on three
+ * of four members with nothing tying them together, so a class added to one
+ * fell through the other into a generic 500.
+ *
+ * Each handler below switches EXHAUSTIVELY over it — including the classes its
+ * own row does not declare, which rethrow. That is the point: a new class is a
+ * compile error at every route, which is where "what does THIS route answer
+ * for it" has to be decided.
+ */
+type VaultRefusal = VaultServiceErrorCode | "invalid_path";
 
 function classifyVaultError(error: unknown): { code: VaultRefusal; body: ApiErrorResponse } | null {
   if (error instanceof VaultPathError) {
@@ -64,16 +81,17 @@ export function registerVaultRoutes(
       return c.json(await vault.service.read(query.path));
     } catch (error) {
       const refusal = classifyVaultError(error);
-      if (refusal?.code === "invalid_path") {
-        return c.json(refusal.body, 400);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "not_found":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "too_large":
+          return c.json(refusal.body, API_ERROR_STATUS.too_large);
+        case "conflict":
+        case undefined:
+          throw error;
       }
-      if (refusal?.code === "not_found") {
-        return c.json(refusal.body, 404);
-      }
-      if (refusal?.code === "too_large") {
-        return c.json(refusal.body, 413);
-      }
-      throw error;
     }
   });
 
@@ -100,16 +118,17 @@ export function registerVaultRoutes(
       });
     } catch (error) {
       const refusal = classifyVaultError(error);
-      if (refusal?.code === "invalid_path") {
-        return c.json(refusal.body, 400);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "not_found":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "too_large":
+          return c.json(refusal.body, API_ERROR_STATUS.too_large);
+        case "conflict":
+        case undefined:
+          throw error;
       }
-      if (refusal?.code === "not_found") {
-        return c.json(refusal.body, 404);
-      }
-      if (refusal?.code === "too_large") {
-        return c.json(refusal.body, 413);
-      }
-      throw error;
     }
   });
 
@@ -129,23 +148,26 @@ export function registerVaultRoutes(
           error: "already_exists",
           message: `A file already exists at ${body.path}`,
         };
-        return c.json(refused, 409);
+        return c.json(refused, API_ERROR_STATUS.already_exists);
       }
       const refused: VaultWriteConflict = {
         error: "cas_mismatch",
         message: `${body.path} changed since the base this write was derived from`,
         ...(result.current === null ? {} : { current: result.current }),
       };
-      return c.json(refused, 409);
+      return c.json(refused, API_ERROR_STATUS.cas_mismatch);
     } catch (error) {
       const refusal = classifyVaultError(error);
-      if (refusal?.code === "invalid_path") {
-        return c.json(refusal.body, 400);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+        case "not_found":
+        case "too_large":
+        case undefined:
+          throw error;
       }
-      if (refusal?.code === "conflict") {
-        return c.json(refusal.body, 409);
-      }
-      throw error;
     }
   });
 
@@ -154,16 +176,17 @@ export function registerVaultRoutes(
       return c.json(await renameNote(body.from, body.to));
     } catch (error) {
       const refusal = classifyVaultError(error);
-      if (refusal?.code === "invalid_path") {
-        return c.json(refusal.body, 400);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "not_found":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+        case "too_large":
+        case undefined:
+          throw error;
       }
-      if (refusal?.code === "not_found") {
-        return c.json(refusal.body, 404);
-      }
-      if (refusal?.code === "conflict") {
-        return c.json(refusal.body, 409);
-      }
-      throw error;
     }
   });
 
@@ -172,13 +195,16 @@ export function registerVaultRoutes(
       return c.json(await vault.service.createDir(body.path));
     } catch (error) {
       const refusal = classifyVaultError(error);
-      if (refusal?.code === "invalid_path") {
-        return c.json(refusal.body, 400);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+        case "not_found":
+        case "too_large":
+        case undefined:
+          throw error;
       }
-      if (refusal?.code === "conflict") {
-        return c.json(refusal.body, 409);
-      }
-      throw error;
     }
   });
 
@@ -188,13 +214,16 @@ export function registerVaultRoutes(
       return c.json({ ok: true });
     } catch (error) {
       const refusal = classifyVaultError(error);
-      if (refusal?.code === "invalid_path") {
-        return c.json(refusal.body, 400);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "not_found":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+        case "too_large":
+        case undefined:
+          throw error;
       }
-      if (refusal?.code === "not_found") {
-        return c.json(refusal.body, 404);
-      }
-      throw error;
     }
   });
 

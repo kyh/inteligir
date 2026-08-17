@@ -3,6 +3,7 @@
 // error envelope, so putting it in `routes` makes a value cycle that resolves
 // to undefined at module-eval time.
 
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 
 /**
@@ -40,6 +41,48 @@ export const API_ERROR_CODES = [
 ] as const;
 export const apiErrorCodeSchema = z.enum(API_ERROR_CODES);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
+
+/**
+ * The HTTP status each refusal class answers with — TOTAL over the vocabulary
+ * above, and the ONE place any of them is decided.
+ *
+ * A status is a property of the CLASS, not of the handler that happened to
+ * raise it: `not_found` is a 404 wherever it comes from, and a refusal that
+ * answered 404 on one route and 409 on another would be a client bug nobody
+ * could reproduce from the contract. Before this, every status was a magic
+ * number written at the throw site — `invalid_path` was spelled `400` in five
+ * places, and a new code could ship with no status at all because nothing
+ * asked for one.
+ *
+ * `as const satisfies` on purpose: `satisfies` makes the table total (a new
+ * code is a compile error HERE, which is where the answer belongs), while
+ * `as const` keeps each value a literal — the route machinery pairs output
+ * with status, so a handler needs `API_ERROR_STATUS.not_found` to BE `404`
+ * rather than merely a status code. Reading it with a union key is legal
+ * exactly when every code in that union agrees on one status, which is the
+ * right condition for a branch that answers several codes at once.
+ */
+export const API_ERROR_STATUS = {
+  forbidden_origin: 403,
+  invalid_request: 400,
+  not_found: 404,
+
+  invalid_path: 400,
+  too_large: 413,
+  conflict: 409,
+  already_exists: 409,
+  cas_mismatch: 409,
+
+  archived: 409,
+  stale_turn: 409,
+  not_steerable: 409,
+  already_resolved: 409,
+  invalid_resolution: 400,
+  provider_unavailable: 503,
+  dispatch_failed: 503,
+
+  internal: 500,
+} as const satisfies Record<ApiErrorCode, ContentfulStatusCode>;
 
 /**
  * Every non-2xx API body. `message` is safe for display — internals never

@@ -29,6 +29,7 @@ import {
   VaultPathError,
   VAULT_TMP_PREFIX,
 } from "@repo/notes/knowledge/vault-path";
+import type { ApiErrorCode } from "@repo/server-contract/errors";
 import {
   contentHashHex,
   VAULT_MAX_CONTENT_LENGTH,
@@ -39,7 +40,20 @@ import { errnoCode } from "../errno";
 import { pathContains, relativeUnder } from "../path-containment";
 import { resolveVaultPath } from "./vault-paths";
 
-export type VaultServiceErrorCode = "not_found" | "conflict" | "too_large";
+/**
+ * The refusal classes the vault service itself raises — a SUBSET of the API's
+ * vocabulary, held against it rather than restated. The service is below the
+ * routes and answers no status, but the words it throws are the words the wire
+ * carries, so a class the contract renames or retires must break HERE, at the
+ * three throw sites, and not silently become a body no client can switch on.
+ */
+const VAULT_SERVICE_ERROR_CODES = [
+  "not_found",
+  "conflict",
+  "too_large",
+] as const satisfies readonly ApiErrorCode[];
+
+export type VaultServiceErrorCode = (typeof VAULT_SERVICE_ERROR_CODES)[number];
 
 export class VaultServiceError extends Error {
   readonly code: VaultServiceErrorCode;

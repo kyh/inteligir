@@ -65,17 +65,33 @@ import type {
   TimelineQuery,
   TimelineResponse,
 } from "@repo/server-contract/threads";
+import type { ApiErrorCode } from "@repo/server-contract/errors";
 import { computeTimelineDelta } from "@repo/server-contract/thread-timeline";
 import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError, type CreateTurnDriver, type TurnDriver } from "./turn-driver";
 import type { ProviderEventSink } from "./turn-driver";
+
+/**
+ * Why a send can conflict — a SUBSET of the API's vocabulary, held against it
+ * rather than restated. All three answer one status today, and the route reads
+ * that status out of the contract's map by code, so the day one of them stops
+ * agreeing the handler stops compiling instead of quietly answering the wrong
+ * one.
+ */
+const SEND_CONFLICT_CODES = [
+  "stale_turn",
+  "not_steerable",
+  "archived",
+] as const satisfies readonly ApiErrorCode[];
+
+type SendConflictCode = (typeof SEND_CONFLICT_CODES)[number];
 
 export type SendOutcome =
   | { kind: "started"; turnId: string }
   | { kind: "steered"; turnId: string }
   | { kind: "queued"; queuedMessageId: string }
   | { kind: "not-found" }
-  | { kind: "conflict"; error: "stale_turn" | "not_steerable" | "archived"; message: string }
+  | { kind: "conflict"; error: SendConflictCode; message: string }
   | { kind: "provider-unavailable"; message: string }
   | { kind: "dispatch-failed" };
 

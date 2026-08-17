@@ -2,7 +2,7 @@
 // only translate typed service outcomes into the contract's response union —
 // nothing here reads the db or knows a send mode.
 
-import type { ApiErrorResponse } from "@repo/server-contract/errors";
+import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
 import { threadRoutes } from "@repo/server-contract/threads";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import type { ThreadService } from "./service";
@@ -22,7 +22,7 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
   routes.get(threadRoutes.get, (c, query) => {
     const detail = service.get(query.threadId);
     if (detail === null) {
-      return c.json(NOT_FOUND, 404);
+      return c.json(NOT_FOUND, API_ERROR_STATUS.not_found);
     }
     return c.json(detail);
   });
@@ -36,7 +36,7 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
   routes.post(threadRoutes.archive, (c, body) => {
     const thread = service.archive(body.threadId);
     if (thread === null) {
-      return c.json(NOT_FOUND, 404);
+      return c.json(NOT_FOUND, API_ERROR_STATUS.not_found);
     }
     return c.json({ thread });
   });
@@ -50,15 +50,21 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
       case "queued":
         return c.json({ kind: "queued", queuedMessageId: outcome.queuedMessageId });
       case "not-found":
-        return c.json(NOT_FOUND, 404);
+        return c.json(NOT_FOUND, API_ERROR_STATUS.not_found);
       case "conflict":
-        return c.json({ error: outcome.error, message: outcome.message }, 409);
+        return c.json(
+          { error: outcome.error, message: outcome.message },
+          API_ERROR_STATUS[outcome.error],
+        );
       case "provider-unavailable":
-        return c.json({ error: "provider_unavailable", message: outcome.message }, 503);
+        return c.json(
+          { error: "provider_unavailable", message: outcome.message },
+          API_ERROR_STATUS.provider_unavailable,
+        );
       case "dispatch-failed":
         return c.json(
           { error: "dispatch_failed", message: "The agent provider failed to accept the turn" },
-          503,
+          API_ERROR_STATUS.dispatch_failed,
         );
     }
   });
@@ -66,7 +72,7 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
   routes.get(threadRoutes.timeline, (c, query) => {
     const response = service.timeline(query);
     if (response === null) {
-      return c.json(NOT_FOUND, 404);
+      return c.json(NOT_FOUND, API_ERROR_STATUS.not_found);
     }
     return c.json(response);
   });
@@ -81,14 +87,20 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
       case "resolved":
         return c.json({ interaction: outcome.interaction });
       case "not-found":
-        return c.json({ error: "not_found", message: "Interaction not found" }, 404);
+        return c.json(
+          { error: "not_found", message: "Interaction not found" },
+          API_ERROR_STATUS.not_found,
+        );
       case "already-resolved":
         return c.json(
           { error: "already_resolved", message: "The interaction was already answered" },
-          409,
+          API_ERROR_STATUS.already_resolved,
         );
       case "invalid-resolution":
-        return c.json({ error: "invalid_resolution", message: outcome.message }, 400);
+        return c.json(
+          { error: "invalid_resolution", message: outcome.message },
+          API_ERROR_STATUS.invalid_resolution,
+        );
     }
   });
 }
