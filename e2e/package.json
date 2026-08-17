@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/notes": "workspace:*",
     "@repo/server-contract": "workspace:*"
   },
   "devDependencies": {

@@ -322,6 +322,9 @@ importers:
 
   e2e:
     dependencies:
+      '@repo/notes':
+        specifier: workspace:*
+        version: link:../packages/notes
       '@repo/server-contract':
         specifier: workspace:*
         version: link:../packages/server-contract

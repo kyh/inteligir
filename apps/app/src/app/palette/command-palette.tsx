@@ -13,12 +13,14 @@ import {
   CommandList,
   CommandShortcut,
 } from "@repo/ui/components/command";
+import type { Thread } from "@repo/server-contract/threads";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import {
   CalendarIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
+  MessagesSquareIcon,
   RefreshCwIcon,
   SettingsIcon,
 } from "lucide-react";
@@ -29,6 +31,7 @@ export interface PaletteActions {
   openNote: (path: string) => void;
   newNote: (parentDir: string) => void;
   openDailyNote: () => void;
+  openThread: (threadId: string) => void;
   syncNow: () => void;
   openSettings: () => void;
 }
@@ -38,6 +41,8 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   /** Folder listing for the new-note-in-folder page. */
   entries: readonly VaultEntry[];
+  /** Recent chats and delegations, list order (live first, newest first). */
+  threads: readonly Thread[];
   searchSource: NoteSearchSource;
   /** Hidden when the vault has no remote — a command that cannot run is
    *  noise, not affordance. */
@@ -45,7 +50,24 @@ export interface CommandPaletteProps {
   actions: PaletteActions;
 }
 
-type Page = "root" | "new-note-folder";
+type Page = "root" | "new-note-folder" | "threads";
+
+const THREAD_STATUS_LABELS: Record<Thread["status"], string> = {
+  idle: "idle",
+  starting: "running",
+  active: "running",
+  stopping: "running",
+  error: "failed",
+};
+
+function threadRowLabel(thread: Thread): string {
+  return thread.title ?? (thread.originDocPath === null ? "Chat" : "Delegation");
+}
+
+function threadRowDetail(thread: Thread): string {
+  const status = thread.archivedAt !== null ? "archived" : THREAD_STATUS_LABELS[thread.status];
+  return thread.originDocPath === null ? status : `${status} · ${thread.originDocPath}`;
+}
 
 /** One quiet keystroke gap before the source is asked at all. */
 const SEARCH_DEBOUNCE_MS = 120;
@@ -68,6 +90,7 @@ export function CommandPalette({
   open,
   onOpenChange,
   entries,
+  threads,
   searchSource,
   canSync,
   actions,
@@ -142,6 +165,16 @@ export function CommandPalette({
       icon: <CalendarIcon />,
       run: () => actions.openDailyNote(),
     },
+    {
+      id: "threads",
+      label: "Chats & delegations",
+      icon: <MessagesSquareIcon />,
+      keepOpen: true,
+      run: () => {
+        setQuery("");
+        setPage("threads");
+      },
+    },
     ...(canSync
       ? [
           {
@@ -159,6 +192,48 @@ export function CommandPalette({
       run: () => actions.openSettings(),
     },
   ];
+
+  if (page === "threads") {
+    const visibleThreads = threads
+      .filter(
+        (thread) =>
+          matchesQuery(threadRowLabel(thread), query) ||
+          matchesQuery(thread.originDocPath ?? "", query),
+      )
+      .slice(0, 30);
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Chats & delegations"
+        description="Open a recent thread in the chat panel"
+        shouldFilter={false}
+      >
+        <CommandInput
+          placeholder="Find a chat or delegation…"
+          value={query}
+          onValueChange={setQuery}
+        />
+        <CommandList>
+          <CommandEmpty>No threads yet.</CommandEmpty>
+          <CommandGroup heading="Recent">
+            {visibleThreads.map((thread) => (
+              <CommandItem
+                key={thread.id}
+                onSelect={() => run(() => actions.openThread(thread.id))}
+              >
+                <MessagesSquareIcon />
+                <span className="truncate">{threadRowLabel(thread)}</span>
+                <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
+                  {threadRowDetail(thread)}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+    );
+  }
 
   if (page === "new-note-folder") {
     const folders = ["", ...dirPaths].filter((dir) => dir === "" || matchesQuery(dir, query));

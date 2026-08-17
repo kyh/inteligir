@@ -6,7 +6,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
-import type { ChangedMessage } from "@repo/server-contract/notifications";
+import type { ChangedMessage, ThreadChangedMessage } from "@repo/server-contract/notifications";
 import { createContext, useContext, useEffect, useState } from "react";
 import { createWorkspaceApiClient, queryKeys } from "./api";
 import {
@@ -24,9 +24,18 @@ interface DocEvents {
   subscribe: (listener: DocListener) => () => void;
 }
 
+/** `id` is undefined for a synthetic sweep (reconnect gap): listeners filter
+ *  by id, so undefined reads as "any thread may have changed". */
+type ThreadListener = (message: ThreadChangedMessage) => void;
+
+interface ThreadEvents {
+  subscribe: (listener: ThreadListener) => () => void;
+}
+
 export interface WorkspaceRuntime {
   api: ReturnType<typeof createWorkspaceApiClient>;
   docEvents: DocEvents;
+  threadEvents: ThreadEvents;
 }
 
 const WorkspaceContext = createContext<WorkspaceRuntime | null>(null);
@@ -42,6 +51,7 @@ export function useWorkspace(): WorkspaceRuntime {
 function applyChangedMessage(
   queryClient: QueryClient,
   notifyDoc: (docId: string | null) => void,
+  notifyThread: ThreadListener,
   message: ChangedMessage,
 ): void {
   switch (message.entity) {
@@ -70,10 +80,20 @@ function applyChangedMessage(
       notifyDoc(message.id);
       break;
     case "thread":
-      // No thread surface in this shell yet.
+      // One sweep for the whole family (list, detail, by-doc); the timeline
+      // is not query-cached — its hook listens on threadEvents instead.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
+      notifyThread(message);
       break;
   }
 }
+
+/** What a reconnect implies for threads: anything may have changed. */
+const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
+  type: "changed",
+  entity: "thread",
+  changes: ["events-appended", "status-changed", "interactions-changed", "queue-changed"],
+};
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   // The runtime — client, query cache, doc-event hub, the context value —
@@ -94,8 +114,26 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         };
       },
     };
-    const contextValue: WorkspaceRuntime = { api: createWorkspaceApiClient(), docEvents };
-    return { queryClient, notifyDoc, contextValue };
+    const threadListeners = new Set<ThreadListener>();
+    const notifyThread: ThreadListener = (message) => {
+      for (const listener of threadListeners) {
+        listener(message);
+      }
+    };
+    const threadEvents: ThreadEvents = {
+      subscribe(listener) {
+        threadListeners.add(listener);
+        return () => {
+          threadListeners.delete(listener);
+        };
+      },
+    };
+    const contextValue: WorkspaceRuntime = {
+      api: createWorkspaceApiClient(),
+      docEvents,
+      threadEvents,
+    };
+    return { queryClient, notifyDoc, notifyThread, contextValue };
   });
 
   // The client is constructed INSIDE the effect, symmetric with its
@@ -104,19 +142,24 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const invalidation = new InvalidationClient({
       createSocket: () => browserInvalidationSocket(workspaceSocketUrl(window.location.origin)),
-      onChanged: (message) => applyChangedMessage(runtime.queryClient, runtime.notifyDoc, message),
+      onChanged: (message) =>
+        applyChangedMessage(runtime.queryClient, runtime.notifyDoc, runtime.notifyThread, message),
       // Mutations during a connection gap produced no frames; on reconnect,
-      // invalidate everything the subscriptions cover — the vault and system
-      // key families — and make the open note re-check its file.
+      // invalidate everything the subscriptions cover — the vault, system and
+      // thread key families — and make the open note and any live timeline
+      // re-check their state.
       onReconnected: () => {
         void runtime.queryClient.invalidateQueries({ queryKey: ["vault"] });
         void runtime.queryClient.invalidateQueries({ queryKey: ["system"] });
+        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
         runtime.notifyDoc(null);
+        runtime.notifyThread(THREAD_RECONNECT_SWEEP);
       },
     });
     invalidation.start();
     invalidation.subscribe({ kind: "system" });
     invalidation.subscribe({ kind: "vault" });
+    invalidation.subscribe({ kind: "thread-list" });
     return () => {
       invalidation.dispose();
     };

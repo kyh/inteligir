@@ -43,17 +43,21 @@ scratch dir and tears everything down afterwards:
 
 ## The scenarios
 
-| name             | proves                                                                     |
-| ---------------- | -------------------------------------------------------------------------- |
-| vault-crud       | write/read/rename/delete over the wire, bytes verified on disk; refused    |
-|                  | ops verified to leave the disk untouched                                   |
-| vault-sync       | two instances + one bare remote (auto-sync disabled, every sync explicit): |
-|                  | propagation, then a typed conflict + git-verified repo integrity           |
-| threads-scripted | a chat turn through the scripted driver — SKIPS while `INTELIGIR_AGENT`    |
-|                  | has no reader in `apps/app/src/node/main.ts` (#549); skip fires ONLY on    |
-|                  | the `provider_unavailable` refusal, anything else fails                    |
-| browser-smoke    | headless page load: title, SPA mount, API reached, clean console after a   |
-|                  | settle window                                                              |
+| name                    | proves                                                                     |
+| ----------------------- | -------------------------------------------------------------------------- |
+| vault-crud              | write/read/rename/delete over the wire, bytes verified on disk; refused    |
+|                         | ops verified to leave the disk untouched                                   |
+| vault-sync              | two instances + one bare remote (auto-sync disabled, every sync explicit): |
+|                         | propagation, then a typed conflict + git-verified repo integrity           |
+| threads-scripted        | a chat turn through the scripted driver: send, settle, timeline            |
+| delegation-scripted     | the delegation loop (#552): anchor spliced via the guarded CAS write,      |
+|                         | bound thread, scripted turn writes the vault, by-doc chip data, timeline   |
+|                         | turn + file change                                                         |
+| browser-smoke           | headless page load: title, SPA mount, API reached, clean console after a   |
+|                         | settle window                                                              |
+| delegation-chip-browser | a seeded marker + settled thread render as a live status chip headless;    |
+|                         | selection driving is NOT attempted (the CLI drives selectors, not text     |
+|                         | drags) — the create flow is covered API-level by delegation-scripted       |
 
 ## Adding a scenario
 
@@ -79,8 +83,8 @@ Each feature issue lands with its scenario here (#556).
 |                              | client) — vite's default is machine-global, so         |
 |                              | concurrent instances collide; each dev boot gets its   |
 |                              | own reserved one                                       |
-| `INTELIGIR_AGENT`            | `scripted` — no reader in the app (#549), see          |
-|                              | threads-scripted                                       |
+| `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
+|                              | thread and delegation scenarios run against            |
 
 Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
 /`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git

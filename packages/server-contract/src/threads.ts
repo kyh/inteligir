@@ -75,6 +75,28 @@ export interface ListThreadsResponse {
   threads: Thread[];
 }
 
+export const docThreadsQuerySchema = z
+  .object({
+    docPath: z.string().min(1),
+  })
+  .strict();
+export type DocThreadsQuery = z.infer<typeof docThreadsQuerySchema>;
+
+/**
+ * A doc-bound thread with the two activity counts a status chip needs and a
+ * `Thread` alone cannot answer: an open approval and a queued send are rows
+ * in their own tables, not thread columns.
+ */
+export interface DocThreadActivity {
+  thread: Thread;
+  openInteractionCount: number;
+  queuedCount: number;
+}
+
+export interface ListDocThreadsResponse {
+  threads: DocThreadActivity[];
+}
+
 export const threadIdQuerySchema = z
   .object({
     threadId: z.string().min(1),
@@ -82,9 +104,17 @@ export const threadIdQuerySchema = z
   .strict();
 export type ThreadIdQuery = z.infer<typeof threadIdQuerySchema>;
 
+export interface QueuedThreadMessage {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface GetThreadResponse {
   thread: Thread;
   pendingInteractions: PendingInteraction[];
+  /** Unclaimed queued sends, drain order — the composer's pending bubbles. */
+  queuedMessages: QueuedThreadMessage[];
 }
 
 export const archiveThreadRequestSchema = z
@@ -186,6 +216,12 @@ export const threadRoutes = {
       jsonResponse<GetThreadResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
     ] as const,
+  }),
+  byDoc: defineRoute({
+    path: "/threads/by-doc",
+    method: "get",
+    request: queryRequest<EmptyInput, DocThreadsQuery>(docThreadsQuerySchema),
+    response: jsonResponse<ListDocThreadsResponse>(),
   }),
   create: defineRoute({
     path: "/threads/create",

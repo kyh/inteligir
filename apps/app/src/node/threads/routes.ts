@@ -27,6 +27,10 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
     return c.json(detail);
   });
 
+  routes.get(threadRoutes.byDoc, (c, query) =>
+    c.json({ threads: service.listByDoc(query.docPath) }),
+  );
+
   routes.post(threadRoutes.create, (c, body) => c.json({ thread: service.create(body) }, 201));
 
   routes.post(threadRoutes.archive, (c, body) => {

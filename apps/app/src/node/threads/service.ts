@@ -38,6 +38,7 @@ import {
   claimNextQueuedThreadMessageInTransaction,
   createQueuedThreadMessageInTransaction,
   deleteClaimedQueuedThreadMessage,
+  listQueuedThreadMessages,
   releaseQueuedMessageClaim,
   type ClaimedQueuedThreadMessageRow,
 } from "@repo/db/queued-messages";
@@ -55,6 +56,8 @@ import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
+  DocThreadActivity,
+  GetThreadResponse,
   PendingInteraction,
   SendMessageRequest,
   Thread,
@@ -159,7 +162,7 @@ export class ThreadService implements ProviderEventSink {
     return listThreads(this.db).map(toWireThread);
   }
 
-  get(threadId: string): { thread: Thread; pendingInteractions: PendingInteraction[] } | null {
+  get(threadId: string): GetThreadResponse | null {
     const thread = getThread(this.db, threadId);
     if (thread === null) {
       return null;
@@ -169,7 +172,24 @@ export class ThreadService implements ProviderEventSink {
       pendingInteractions: listOpenPendingInteractions(this.db, threadId).map(
         toWirePendingInteraction,
       ),
+      queuedMessages: listQueuedThreadMessages(this.db, threadId).map((row) => ({
+        id: row.id,
+        text: row.text,
+        createdAt: row.createdAt,
+      })),
     };
+  }
+
+  /** Every thread bound to a doc, archived included — a chip for an archived
+   *  thread is what carries the dismiss affordance. */
+  listByDoc(docPath: string): DocThreadActivity[] {
+    return listThreads(this.db)
+      .filter((row) => row.originDocPath === docPath)
+      .map((row) => ({
+        thread: toWireThread(row),
+        openInteractionCount: listOpenPendingInteractions(this.db, row.id).length,
+        queuedCount: listQueuedThreadMessages(this.db, row.id).length,
+      }));
   }
 
   archive(threadId: string): Thread | null {

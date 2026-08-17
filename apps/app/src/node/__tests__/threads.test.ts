@@ -547,6 +547,101 @@ describe("turn identity and crash recovery", () => {
   });
 });
 
+describe("the by-doc query", () => {
+  it("answers exactly the threads bound to the doc, archived included, with activity counts", async () => {
+    const { bus, client, db, driver } = await bootThreadsApp({ mode: "manual" });
+    if (!driver) {
+      throw new Error("expected the fake driver");
+    }
+    const plainChat = await createThread(client);
+    void plainChat;
+    const boundResponse = await client.threads.create.$post({
+      json: { title: "Fix the intro", originDocPath: "Notes/Plans.md", originAnchor: "anc_one" },
+    });
+    expect(boundResponse.status).toBe(201);
+    const bound = threadEnvelopeSchema.parse(await boundResponse.json()).thread;
+    const otherDocResponse = await client.threads.create.$post({
+      json: { originDocPath: "Other.md", originAnchor: "anc_two" },
+    });
+    expect(otherDocResponse.status).toBe(201);
+
+    // Activity the counts must surface: a running turn with a queued send
+    // and an open approval.
+    const started = sendResponseSchema.parse(
+      await (
+        await client.threads.send.$post({
+          json: { threadId: bound.id, text: "go", mode: "steer-if-active" },
+        })
+      ).json(),
+    );
+    expect(started.kind).toBe("started");
+    await client.threads.send.$post({
+      json: { threadId: bound.id, text: "later", mode: "queue-if-active" },
+    });
+    createPendingInteraction(db, bus, {
+      threadId: bound.id,
+      requestKey: "req-chip",
+      payload: JSON.stringify({ kind: "approval" }),
+    });
+
+    const byDoc = await client.threads["by-doc"].$get({
+      query: { docPath: "Notes/Plans.md" },
+    });
+    expect(byDoc.status).toBe(200);
+    const body = z
+      .object({
+        threads: z.array(
+          z.object({
+            thread: threadSchema,
+            openInteractionCount: z.number().int(),
+            queuedCount: z.number().int(),
+          }),
+        ),
+      })
+      .parse(await byDoc.json());
+    expect(body.threads).toHaveLength(1);
+    const activity = body.threads[0];
+    expect(activity?.thread.id).toBe(bound.id);
+    expect(activity?.thread.originAnchor).toBe("anc_one");
+    expect(activity?.openInteractionCount).toBe(1);
+    expect(activity?.queuedCount).toBe(1);
+
+    // Archiving keeps the row in the answer — the chip's dismiss affordance
+    // is keyed off exactly this.
+    await client.threads.archive.$post({ json: { threadId: bound.id } });
+    const afterArchive = await client.threads["by-doc"].$get({
+      query: { docPath: "Notes/Plans.md" },
+    });
+    const archivedBody = z
+      .object({ threads: z.array(z.object({ thread: threadSchema })) })
+      .loose()
+      .parse(await afterArchive.json());
+    expect(archivedBody.threads[0]?.thread.archivedAt).not.toBeNull();
+  });
+
+  it("thread detail carries the unclaimed queue for pending bubbles", async () => {
+    const { client } = await bootThreadsApp({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send.$post({
+      json: { threadId, text: "start", mode: "steer-if-active" },
+    });
+    await client.threads.send.$post({
+      json: { threadId, text: "bubble me", mode: "queue-if-active" },
+    });
+    const detail = await client.threads.get.$get({ query: { threadId } });
+    const body = z
+      .object({
+        thread: threadSchema,
+        pendingInteractions: z.array(pendingInteractionSchema),
+        queuedMessages: z.array(
+          z.object({ id: z.string().min(1), text: z.string(), createdAt: z.number() }),
+        ),
+      })
+      .parse(await detail.json());
+    expect(body.queuedMessages.map((message) => message.text)).toEqual(["bubble me"]);
+  });
+});
+
 describe("pending interactions over the API", () => {
   it("lists open interactions on the thread and answers them exactly once", async () => {
     const { bus, client, db } = await bootThreadsApp({ mode: "manual" });
