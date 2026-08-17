@@ -12,10 +12,23 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      // turbo runs in strict env mode and strips anything unnamed, so the port
-      // override — which decides the origin the window is PINNED to — must be
-      // declared or the shell silently uses the default.
-      "passThroughEnv": ["INTELIGIR_PORT"]
+      // turbo runs in strict env mode and strips anything unnamed. The shell
+      // resolves its target through the APP's own `resolveAppConfig`, so the
+      // set it needs is that module's whole table and not the port alone —
+      // stripping INTELIGIR_DATA_DIR alone would have the window verify a
+      // responder's identity against the wrong data directory. Held against
+      // `ENV_VAR_NAMES` by tools/repo-guards/src/turbo-passthrough.test.ts,
+      // which derives its scope from who calls that function.
+      "passThroughEnv": [
+        "INTELIGIR_AGENT",
+        "INTELIGIR_AGENT_MODEL",
+        "INTELIGIR_DATA_DIR",
+        "INTELIGIR_HMR_PORT",
+        "INTELIGIR_PORT",
+        "INTELIGIR_SYNC_INTERVAL_MS",
+        "INTELIGIR_VAULT_DIR",
+        "INTELIGIR_VAULT_REMOTE"
+      ]
     }
   }
 }

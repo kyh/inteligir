@@ -1,86 +1,191 @@
 // ---------------------------------------------------------------------------
-// The app's environment contract, held across the two files that have to
-// agree about it.
+// The app's environment contract, held across every turbo task whose process
+// reads it.
 //
-// `apps/app/src/node/config.ts` declares every variable the server reads.
-// `apps/app/turbo.json` decides which of them survive `turbo run dev` — turbo
-// runs in STRICT env mode, so anything the task does not name is stripped
-// before the process starts. The two drifting apart has no error message on
-// either side: `INTELIGIR_AGENT=scripted pnpm dev` simply boots the default
-// agent, and the variable the docs promise does nothing.
+// `apps/app/src/node/config.ts` declares every variable the server reads, and
+// `resolveAppConfig` is the ONE function that reads them. Turbo runs in STRICT
+// env mode, so a variable a task does not name is stripped before the process
+// starts. The two drifting apart has no error message on either side:
+// `INTELIGIR_AGENT=scripted pnpm dev` simply boots the default agent, and the
+// variable the docs promise does nothing.
 //
-// So the declaration is the source and the task list is checked against it.
-// Neither side is hand-copied here: the names come from the module's own
-// exported table, and the list comes from the real turbo.json.
+// The invariant is NOT "apps/app's dev task" — that was this guard's first
+// spelling and it was a fact about one file. It is "every turbo task whose
+// process calls `resolveAppConfig`", and the scope is DERIVED: a workspace
+// belongs to it when its shipped source reaches that function. Today that is
+// three workspaces, and only one of them was ever checked; the shell's task
+// named one variable of eight while `resolveServerTarget` read the whole
+// table, which is a wrong declaration that nothing exercises — the worst kind,
+// because it looks maintained.
+//
+// A task RUNS the config when it is `persistent` (in one of these workspaces
+// the long-running task IS the app) or when it already names one of the
+// variables. Both directions are checked: a name the table does not declare is
+// as broken as a declared name the task drops.
+//
+// What this cannot see, stated rather than implied: a workspace that reads the
+// config through a path turbo never runs is invisible to turbo's env mode and
+// therefore to this guard. Those are declared below, with a drain.
 // ---------------------------------------------------------------------------
 
+import fs from "node:fs";
+import path from "node:path";
 import { ENV_VAR_NAMES } from "@repo/app/node/config";
 import { describe, expect, it } from "vitest";
-import { sourceOf } from "./repo";
+import { REPO_ROOT, sourceOf, workspaceFiles, workspaces, type Workspace } from "./repo";
 
-const TURBO_CONFIG = "apps/app/turbo.json";
+/** The one reader of the environment table. A workspace reaching it has an env
+ *  contract; one that does not has nothing to declare. */
+const CONFIG_READER = "resolveAppConfig";
+
+/**
+ * Workspaces that read the config but run it through NO turbo task, with the
+ * path that actually starts them. The drain below fails the moment one gains a
+ * turbo.json, because at that point the reason here stopped being true.
+ */
+const RUNS_OUTSIDE_TURBO: Record<string, string> = {
+  "@repo/cli":
+    "started by apps/cli/bin/inteligir — the root `cli` script, and the PATH shim the agent's shell gets — never by a turbo task",
+};
+
+interface TurboTask {
+  name: string;
+  persistent: boolean;
+  /** Absent is not empty: a task with no list declares nothing at all. */
+  passThroughEnv: string[] | null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function objectAt(parent: Record<string, unknown>, key: string): Record<string, unknown> {
-  const value = parent[key];
-  if (!isRecord(value)) {
-    throw new Error(`${TURBO_CONFIG}: expected an object at "${key}"`);
-  }
-  return value;
-}
-
 /** turbo.json is JSONC. `sourceOf` drops full-line comments, which is every
  *  comment this repo's turbo configs use. */
-function passThroughEnvOfDevTask(): string[] {
-  const parsed: unknown = JSON.parse(sourceOf(TURBO_CONFIG));
-  if (!isRecord(parsed)) {
-    throw new Error(`${TURBO_CONFIG}: expected a JSON object`);
-  }
-  const names = objectAt(objectAt(parsed, "tasks"), "dev")["passThroughEnv"];
-  if (!Array.isArray(names)) {
-    throw new Error(`${TURBO_CONFIG}: tasks.dev.passThroughEnv must be an array`);
-  }
-  return names.map((name: unknown) => {
-    if (typeof name !== "string") {
-      throw new Error(`${TURBO_CONFIG}: tasks.dev.passThroughEnv must hold strings`);
+function turboTasks(configPath: string): TurboTask[] {
+  const parsed: unknown = JSON.parse(sourceOf(configPath));
+  if (!isRecord(parsed)) throw new Error(`${configPath}: expected a JSON object`);
+  const tasks = parsed["tasks"];
+  if (!isRecord(tasks)) throw new Error(`${configPath}: expected an object at "tasks"`);
+  return Object.entries(tasks).map(([name, body]) => {
+    if (!isRecord(body)) throw new Error(`${configPath}: tasks.${name} must be an object`);
+    const declared = body["passThroughEnv"];
+    if (declared !== undefined && !Array.isArray(declared)) {
+      throw new Error(`${configPath}: tasks.${name}.passThroughEnv must be an array`);
     }
-    return name;
+    return {
+      name,
+      persistent: body["persistent"] === true,
+      passThroughEnv:
+        declared === undefined
+          ? null
+          : declared.map((entry: unknown) => {
+              if (typeof entry !== "string") {
+                throw new Error(`${configPath}: tasks.${name}.passThroughEnv must hold strings`);
+              }
+              return entry;
+            }),
+    };
   });
 }
 
-describe("the app's dev task passes through every declared env var", () => {
-  it("turbo.json's dev.passThroughEnv IS config.ts's declared set", () => {
-    const declared = [...ENV_VAR_NAMES].toSorted();
-    const passedThrough = passThroughEnvOfDevTask().toSorted();
+/** Every workspace whose shipped source reaches the config reader. Derived, so
+ *  a fourth consumer joins the scope by existing rather than by an edit here. */
+function configConsumers(): Workspace[] {
+  const reader = new RegExp(`\\b${CONFIG_READER}\\b`);
+  return workspaces().filter((workspace) =>
+    workspaceFiles(workspace).shipped.some((file) => reader.test(sourceOf(file))),
+  );
+}
 
-    const violations = [
-      ...declared
-        .filter((name) => !passedThrough.includes(name))
-        .map(
-          (name) =>
+function turboConfigOf(workspace: Workspace): string | null {
+  const relative = `${workspace.dir}/turbo.json`;
+  return fs.existsSync(path.join(REPO_ROOT, relative)) ? relative : null;
+}
+
+/** A task whose process reads the config: the long-running one, or one already
+ *  claiming to carry part of the table. */
+function readsTheConfig(task: TurboTask): boolean {
+  return (
+    task.persistent || (task.passThroughEnv ?? []).some((name) => ENV_VAR_NAMES.includes(name))
+  );
+}
+
+describe("turbo passes through the whole environment contract", () => {
+  const consumers = configConsumers();
+  const declared = [...ENV_VAR_NAMES].toSorted();
+
+  it("finds the readers and the table it holds them against", () => {
+    // A scope that silently came back empty would satisfy every assertion
+    // below by checking nothing, and so would an env table that read as empty.
+    expect(
+      consumers.map((workspace) => workspace.name),
+      `no workspace's shipped source calls ${CONFIG_READER}() — the sweep is broken, not the tree`,
+    ).toContain("@repo/app");
+    expect(ENV_VAR_NAMES).toContain("INTELIGIR_AGENT");
+  });
+
+  it("every task that runs the config names exactly the declared variables", () => {
+    const violations: string[] = [];
+    for (const workspace of consumers) {
+      const config = turboConfigOf(workspace);
+      if (config === null) continue;
+      for (const task of turboTasks(config)) {
+        if (!readsTheConfig(task)) continue;
+        const passedThrough = (task.passThroughEnv ?? []).toSorted();
+        for (const name of declared.filter((each) => !passedThrough.includes(each))) {
+          violations.push(
             `STRIPPED ENV VAR  ${name}\n` +
-            `  rule: turbo runs in strict env mode — a variable apps/app/src/node/config.ts declares and this task does not name is dropped before the server starts, silently\n` +
-            `  fix: add "${name}" to tasks.dev.passThroughEnv in ${TURBO_CONFIG}`,
-        ),
-      ...passedThrough
-        .filter((name) => !declared.includes(name))
-        .map(
-          (name) =>
+              `  rule: turbo runs in strict env mode — a variable apps/app/src/node/config.ts declares and this task does not name is dropped before the process starts, silently\n` +
+              `  at ${config} tasks.${task.name}.passThroughEnv (${workspace.name} calls ${CONFIG_READER}())\n` +
+              `  fix: add "${name}" there`,
+          );
+        }
+        for (const name of passedThrough.filter((each) => !declared.includes(each))) {
+          violations.push(
             `UNDECLARED ENV VAR  ${name}\n` +
-            `  rule: dev.passThroughEnv states what the server READS; nothing in apps/app/src/node/config.ts declares this one\n` +
-            `  fix: remove "${name}" from ${TURBO_CONFIG}, or declare it in that module's ENV_VARS`,
-        ),
-    ];
+              `  rule: passThroughEnv states what the process READS; nothing in apps/app/src/node/config.ts declares this one\n` +
+              `  at ${config} tasks.${task.name}.passThroughEnv\n` +
+              `  fix: remove it, or declare it in that module's ENV_VARS`,
+          );
+        }
+      }
+    }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("reads a real list from a real file", () => {
-    // A lookup that silently found nothing would satisfy the assertion above
-    // for the wrong reason on both sides.
-    expect(ENV_VAR_NAMES).toContain("INTELIGIR_AGENT");
-    expect(passThroughEnvOfDevTask()).toContain("INTELIGIR_DATA_DIR");
+  it("every config reader is either checked here or declared to run outside turbo", () => {
+    const violations: string[] = [];
+    for (const workspace of consumers) {
+      if (turboConfigOf(workspace) !== null) continue;
+      if (workspace.name in RUNS_OUTSIDE_TURBO) continue;
+      violations.push(
+        `UNCHECKED CONFIG READER  ${workspace.name}\n` +
+          `  rule: a workspace calling ${CONFIG_READER}() has an environment contract, and this one has no turbo.json for it to be held against\n` +
+          `  fix: add ${workspace.dir}/turbo.json declaring the task that runs it, or add a row to RUNS_OUTSIDE_TURBO naming the path that actually starts it`,
+      );
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("no entry in RUNS_OUTSIDE_TURBO is stale", () => {
+    const stale: string[] = [];
+    for (const [name, why] of Object.entries(RUNS_OUTSIDE_TURBO)) {
+      const workspace = consumers.find((candidate) => candidate.name === name);
+      if (workspace === undefined) {
+        stale.push(
+          `STALE EXCEPTION  ${name} no longer calls ${CONFIG_READER}()\n` +
+            `  fix: delete the entry from RUNS_OUTSIDE_TURBO`,
+        );
+        continue;
+      }
+      if (turboConfigOf(workspace) !== null) {
+        stale.push(
+          `STALE EXCEPTION  ${name} now HAS a turbo.json\n` +
+            `  the reason it named ("${why}") no longer holds\n` +
+            `  fix: delete the entry and declare the variables on the task that runs the process`,
+        );
+      }
+    }
+    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
   });
 });
