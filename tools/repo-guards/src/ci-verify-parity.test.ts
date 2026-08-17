@@ -32,7 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
-import { REPO_ROOT, sourceOf } from "./repo";
+import { REPO_ROOT, sourceOf, workspaces } from "./repo";
 
 const WORKFLOW_DIR = ".github/workflows";
 const ROOT_MANIFEST = "package.json";
@@ -55,6 +55,27 @@ const DECLARED_CI_EXTRAS: Record<string, string> = {
     "boots real instances and drives them over the wire — `pnpm e2e` is deliberately outside `verify`'s test task (e2e/package.json), because every unit passes while the composition fails",
   "ci.yml:E2E (prod)":
     "the same suite against the BUILT shell under the real CSP; dev serves Vite's middleware and no policy, so a policy regression is invisible to the run above",
+};
+
+/** The script name a workspace's smoke is spelled as. */
+const SMOKE_SCRIPT = "smoke";
+/** Root scripts that drive one — how a developer is meant to reach it. */
+const ROOT_SMOKE_PREFIX = "smoke";
+
+/**
+ * Every root smoke `verify` and CI both leave alone, and why. A smoke is not a
+ * unit test: it packs, installs, binds a port and boots a real artifact, so
+ * being outside the static gate is the normal answer. Being outside CI is not,
+ * and each row here has to say what stops it.
+ *
+ * The table drains: a row naming a script that no longer exists fails, and so
+ * does one naming a script a gate workflow has since started running.
+ */
+const MANUAL_SMOKES: Record<string, string> = {
+  "smoke:package":
+    "it packs the publishable tarball, installs it into a scratch prefix and binds a port — minutes of work per run to prove a thing that only changes when the artifact's shape does, and nothing about it is a PR-sized risk",
+  "smoke:desktop":
+    "it drives a packaged macOS arm64 .app through that app's own Electron binary; the gate runs on ubuntu, where neither packaging it nor executing it is possible — running it means adding a macOS job, which is worth doing the day the shell is something users install",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -219,6 +240,69 @@ describe("CI does not drift from `pnpm verify`", () => {
             `  runs: ${step.run.split("\n")[0]}\n` +
             `  rule: CI is \`${VERIFY_SCRIPT}\` plus a DECLARED extra set — an undeclared step is work a developer cannot run before pushing and will discover as a red build\n` +
             `  fix: move it into the "${VERIFY_SCRIPT}" chain, or add a row to DECLARED_CI_EXTRAS saying why it cannot be`,
+        );
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("every workspace smoke is reachable from a root script", () => {
+    // A smoke wired to nothing is a suite that runs when someone remembers the
+    // `--filter` incantation, which is never. This is how `@repo/desktop`'s
+    // was found: it existed, it passed, and no script in the repo named it.
+    const violations: string[] = [];
+    for (const workspace of workspaces()) {
+      const manifest: unknown = JSON.parse(
+        sourceOf(path.posix.join(workspace.dir, "package.json")),
+      );
+      if (!isRecord(manifest) || !isRecord(manifest["scripts"])) continue;
+      if (manifest["scripts"][SMOKE_SCRIPT] === undefined) continue;
+      const invocation = new RegExp(
+        `--filter[= ]${workspace.name.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")}\\s+${SMOKE_SCRIPT}\\b`,
+      );
+      if (Object.values(scripts).some((body) => invocation.test(body))) continue;
+      violations.push(
+        `UNREACHABLE SMOKE  ${workspace.dir}/package.json declares "${SMOKE_SCRIPT}"\n` +
+          `  rule: every smoke has a root script that runs it — one reachable only through \`pnpm --filter ${workspace.name} ${SMOKE_SCRIPT}\` is one nobody runs, and neither \`verify\` nor CI can be held against a command that has no name\n` +
+          `  fix: add a root script (beside "smoke:package" in ${ROOT_MANIFEST}) that runs it, and give it a row in MANUAL_SMOKES or a step in a gate workflow`,
+      );
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("every root smoke either runs in a gate or is declared manual, with a reason", () => {
+    const ranByGate = new Set(
+      gates.flatMap((gate) =>
+        gate.steps.map((step) => scriptRunBy(step, scripts)).filter((name) => name !== null),
+      ),
+    );
+    const rootSmokes = Object.keys(scripts).filter((name) => name.startsWith(ROOT_SMOKE_PREFIX));
+    const violations: string[] = [];
+    expect(rootSmokes, `${ROOT_MANIFEST} declares no "${ROOT_SMOKE_PREFIX}*" script`).not.toEqual(
+      [],
+    );
+    for (const name of rootSmokes) {
+      if (ranByGate.has(name)) continue;
+      const reason = MANUAL_SMOKES[name];
+      if (reason !== undefined && reason.length > 0) continue;
+      violations.push(
+        `UNDECLARED MANUAL SMOKE  ${ROOT_MANIFEST}: "${name}"\n` +
+          `  rule: a smoke no gate runs is one a developer has to know to run, so what keeps it out of CI is written down rather than assumed\n` +
+          `  fix: add a step to a gate workflow, or a row to MANUAL_SMOKES in tools/repo-guards/src/ci-verify-parity.test.ts`,
+      );
+    }
+    for (const [name, why] of Object.entries(MANUAL_SMOKES)) {
+      if (scripts[name] === undefined) {
+        violations.push(
+          `STALE MANUAL SMOKE  "${name}" is not a script in ${ROOT_MANIFEST}\n` +
+            `  the row claimed: ${why}\n` +
+            `  fix: delete the row — an exemption for a script nobody can run excuses nothing`,
+        );
+      } else if (ranByGate.has(name)) {
+        violations.push(
+          `STALE MANUAL SMOKE  "${name}" is run by a gate workflow now\n` +
+            `  the row claimed: ${why}\n` +
+            `  fix: delete the row and declare the STEP in DECLARED_CI_EXTRAS instead`,
         );
       }
     }

@@ -9,8 +9,14 @@
 // SIGTERM ends it cleanly.
 //
 // What it CANNOT check is the window: `BrowserWindow` needs a display, so the
-// origin pin is proven by its unit tests and by nothing here. Run this after
-// `pnpm package:desktop`.
+// origin pin is proven by its unit tests and by nothing here.
+//
+// Run it with `pnpm smoke:desktop`, which packages first. Deliberately outside
+// `pnpm verify` AND outside CI, and the CI half is a fact rather than a budget:
+// the gate runs on ubuntu, this drives a macOS arm64 .app through that app's
+// own Electron binary, and there is no Linux runner on which either half can
+// happen. Moving it into CI means adding a macOS job — worth doing the day the
+// packaged shell is something users install, and not before.
 
 import { spawn } from "node:child_process";
 import { accessSync, constants, existsSync } from "node:fs";

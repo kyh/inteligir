@@ -18,6 +18,7 @@
     "package:app": "turbo run build --filter=inteligir",
     "package:desktop": "turbo run build --filter=@repo/desktop && pnpm --filter @repo/desktop package",
     "prepare": "git config core.hooksPath .githooks || true",
+    "smoke:desktop": "pnpm package:desktop && pnpm --filter @repo/desktop smoke",
     "smoke:package": "turbo run build --filter=inteligir && pnpm --filter inteligir smoke",
     "test": "turbo run test --concurrency=4",
     "typecheck": "turbo run typecheck",

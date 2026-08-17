@@ -111,6 +111,7 @@ pnpm dev:site         # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm package:app      # The npm artifact (apps/launcher) — `npx inteligir`
 pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
 pnpm smoke:package    # Pack, install into a scratch prefix, boot, probe, stop
+pnpm smoke:desktop    # Package the .app, boot its server, drive it, SIGTERM (macOS only)
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)
