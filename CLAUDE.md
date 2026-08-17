@@ -158,6 +158,33 @@ command is `db:push:local`.
   source, so byte-stability is a property of the design rather than a
   round-trip to defend: there is no rich-model serializer that can disagree
   with disk. Every construct renders as a decoration over the real text.
+
+- **The editor reads its own tree; the vault's parse stays authoritative.**
+  Delegation markers are found off the Lezer tree CodeMirror already
+  maintains, never by re-parsing the document — the mdast scan cost 78ms per
+  keystroke on a 50KB note. The two grammars are pinned against each other by
+  a parity test, and where they part company the required relation is
+  CONTAINMENT (editor ⊆ vault), because that direction only ever declines to
+  chip an anchor, while the reverse would chip a span a dismiss then deletes.
+
+- **A turn row's `sourceSeqEnd` names its own contributors**, not every
+  turn-scoped event. A streaming assistant message is turn-scoped but lands as
+  a TOP-LEVEL row, so counting it moved the turn row — and a turn row carries
+  its children, so every token resent the whole subtree. The delta is only a
+  delta if a row's identity tracks what the row actually holds.
+
+- **The auto-commit stages what the window's writers named.** A scheduler that
+  names no paths makes the whole flush unscoped, which is what the boot sweep
+  and the post-sync drain do. The trade, stated: a change nobody announced
+  waits for a whole-tree caller (sync, `commitNow`, shutdown, next boot)
+  rather than riding the next flush. Unscoped `add -A` survives for the first
+  commit of a large vault, where a pathspec would exceed ARG_MAX.
+
+- **The knowledge index does not persist a stat fingerprint.** A warm
+  reconcile over 2000 notes is ~105ms and runs off the critical path, so the
+  saving is imperceptible — while the cost is a second persisted table inside
+  a cache whose recovery primitive is deleting the file, so every `nuke()`
+  must re-create it and a missed re-create is a crash.
 - **A write carries the base it was computed from.** `expectedHash` on the
   vault write route is compared under the repo lock; a mismatch answers 409
   WITH the current content, and the client merges (diff3) and retries. Creation
