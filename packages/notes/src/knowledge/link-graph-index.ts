@@ -98,7 +98,6 @@ export type VaultTaskEntry = {
   text: string;
   checked: boolean;
   ordinal: number;
-  wikiTargets: string[];
 };
 
 // ---- Engine ------------------------------------------------------------------
@@ -328,7 +327,6 @@ export class LinkGraphIndex {
           text: task.text,
           checked: task.checked,
           ordinal: task.ordinal,
-          wikiTargets: task.wikiTargets,
         });
       }
     }

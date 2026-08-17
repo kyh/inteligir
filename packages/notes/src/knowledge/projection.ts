@@ -19,7 +19,7 @@ import type { ExtractedTask } from "./task-ordinal";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
-export const PROJECTION_VERSION = 6;
+export const PROJECTION_VERSION = 7;
 
 const SNIPPET_MAX = 200;
 

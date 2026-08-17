@@ -5,11 +5,13 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
+import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService, type VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
+import { createSqliteDriver } from "../sqlite-driver";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -183,6 +185,33 @@ describe("the knowledge runtime", () => {
     expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
     const hits = await second.knowledge.search({ query: "pangolin", limit: 10 });
     expect(hits.map((h) => h.path)).toEqual(["note.md"]);
+  });
+
+  it("rebuilds from the vault when the stored projection version is not this build's", async () => {
+    const dirs = makeDirs();
+    writeFileSync(join(dirs.root, "note.md"), "# Note\n\nTapir data.\n");
+    const first = boot(dirs);
+    await first.knowledge.settle();
+    expect(first.knowledge.lastReconcile?.projected).toBe(1);
+    await first.knowledge.dispose();
+
+    // What a PROJECTION_VERSION bump looks like from the file's side: rows
+    // written under a shape this build no longer parses. Bumping the constant
+    // is the whole migration, so the guard it arms is what has to be proven.
+    const driver = createSqliteDriver(join(dirs.dataDir, "knowledge.db"));
+    driver.run("UPDATE meta SET value = ? WHERE key = 'projection_version'", [
+      String(PROJECTION_VERSION - 1),
+    ]);
+    driver.close();
+
+    const second = boot(dirs);
+    await second.knowledge.settle();
+    // Nothing hydrated, everything re-projected. A store that kept its rows
+    // would report unchanged: 1, projected: 0.
+    expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
+    expect(
+      (await second.knowledge.search({ query: "tapir", limit: 10 })).map((h) => h.path),
+    ).toEqual(["note.md"]);
   });
 
   it("converges a doc that crosses the read-cap boundary in both directions", async () => {
