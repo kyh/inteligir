@@ -1,5 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
+import { DEFAULT_AGENT_WRITE_MODE, type AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type {
   ThreadLifecycleEvent,
   ThreadLifecycleNoopReason,
@@ -19,6 +20,7 @@ export interface CreateThreadInput {
   title?: string;
   originDocPath?: string;
   originAnchor?: string;
+  writeMode?: AgentWriteMode;
 }
 
 export function createThread(
@@ -36,6 +38,7 @@ export function createThread(
       activeTurnId: null,
       originDocPath: input.originDocPath ?? null,
       originAnchor: input.originAnchor ?? null,
+      writeMode: input.writeMode ?? DEFAULT_AGENT_WRITE_MODE,
       archivedAt: null,
       createdAt: now,
       updatedAt: now,

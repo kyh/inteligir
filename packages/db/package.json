@@ -11,6 +11,7 @@
     "./meta": "./src/meta.ts",
     "./migrate": "./src/migrate.ts",
     "./pending-interactions": "./src/pending-interactions.ts",
+    "./proposals": "./src/proposals.ts",
     "./queued-messages": "./src/queued-messages.ts",
     "./schema": "./src/schema.ts",
     "./threads": "./src/threads.ts"

@@ -12,6 +12,28 @@ import { noopNotifier } from "@repo/domain/notifier";
 
 const tempDirs: string[] = [];
 
+const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
+
+/**
+ * The generation the shipped migrations end at, read from drizzle's own
+ * journal. Derived rather than written down: what these tests assert is that
+ * `meta.schema_version` AGREES with the folder that was applied, and a
+ * hand-typed number turns every new migration into an unrelated test edit.
+ */
+function latestGeneration(): number {
+  const parsed: unknown = JSON.parse(
+    readFileSync(join(MIGRATIONS_DIR, "meta/_journal.json"), "utf8"),
+  );
+  const entries =
+    typeof parsed === "object" && parsed !== null ? Reflect.get(parsed, "entries") : undefined;
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error("drizzle/meta/_journal.json has no entries array");
+  }
+  return entries.length;
+}
+
+const LATEST = latestGeneration();
+
 function openTempDb(): DbConnection {
   const dir = mkdtempSync(join(tmpdir(), "inteligir-db-test-"));
   tempDirs.push(dir);
@@ -29,7 +51,7 @@ afterEach(() => {
  * OLDER build of this package, as far as `runMigrations` can tell.
  */
 function freezeMigrationsAt(dir: string, generations: number): void {
-  cpSync(fileURLToPath(new URL("../../drizzle", import.meta.url)), dir, { recursive: true });
+  cpSync(MIGRATIONS_DIR, dir, { recursive: true });
   const journalPath = join(dir, "meta", "_journal.json");
   const parsed: unknown = JSON.parse(readFileSync(journalPath, "utf8"));
   if (typeof parsed !== "object" || parsed === null) {
@@ -61,14 +83,14 @@ function freezeMigrationsAt(dir: string, generations: number): void {
 describe("boot", () => {
   it("migrates on boot and bumps meta.schema_version to the latest generation", () => {
     const db = openTempDb();
-    expect(getSchemaVersion(db, runMigrations(db))).toBe(4);
-    expect(getMetaValue(db, "schema_version")).toBe("4");
+    expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
+    expect(getMetaValue(db, "schema_version")).toBe(String(LATEST));
   });
 
   it("is idempotent across boots", () => {
     const db = openTempDb();
     runMigrations(db);
-    expect(getSchemaVersion(db, runMigrations(db))).toBe(4);
+    expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
   });
 
   it("upgrades a POPULATED v2 database in place: child rows survive, FKs hold", () => {
@@ -97,7 +119,7 @@ describe("boot", () => {
           VALUES ('qmsg_v2', 'thr_v2', 'queued', 'a', ${now}, ${now})`,
     );
 
-    expect(getSchemaVersion(db, runMigrations(db))).toBe(4);
+    expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
 
     // Every child row survived the upgrade and still resolves its parent.
     expect(db.get(sql`SELECT count(*) AS n FROM events WHERE thread_id = 'thr_v2'`)).toEqual({
@@ -120,14 +142,15 @@ describe("boot", () => {
   it("refuses to answer a schema version before migrations ran", () => {
     const db = openTempDb();
     // Pre-migration the meta table itself is missing, so sqlite refuses.
-    expect(() => getSchemaVersion(db, 4)).toThrow();
+    expect(() => getSchemaVersion(db, LATEST)).toThrow();
   });
 
   it("refuses a database a NEWER build already upgraded", () => {
     // The v2 folder is a stand-in for an older build: it applies nothing to a
-    // v4 file (drizzle skips migrations older than the last applied one), so
-    // without a ceiling the boot would carry on reading a schema it has no
-    // SQL for — silently, until a query hit a column that moved.
+    // fully-migrated file (drizzle skips migrations older than the last
+    // applied one), so without a ceiling the boot would carry on reading a
+    // schema it has no SQL for — silently, until a query hit a column that
+    // moved.
     const db = openTempDb();
     runMigrations(db);
 
@@ -138,7 +161,7 @@ describe("boot", () => {
     const known = runMigrations(db, older);
     expect(known).toBe(2);
     expect(() => getSchemaVersion(db, known)).toThrow(
-      /on schema v4, but this build only knows v2/u,
+      new RegExp(`on schema v${LATEST}, but this build only knows v2`, "u"),
     );
   });
 
