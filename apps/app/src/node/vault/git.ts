@@ -44,6 +44,64 @@ interface RunGitOptions {
   env?: Record<string, string>;
 }
 
+/** One entry of `git status --porcelain`: the two status columns, the path,
+ *  and — for a rename or copy — the path it came FROM. */
+export interface PorcelainEntry {
+  x: string;
+  y: string;
+  path: string;
+  origin: string | null;
+}
+
+/**
+ * THE reader of `git status --porcelain`, and the only one. Three callers used
+ * to decode the same bytes three ways and disagreed about all of it: two split
+ * on newlines and one on NUL, two required four characters and one accepted
+ * any non-empty line, one understood rename entries and two did not. Two of
+ * them therefore handed back git's C-QUOTED spelling (`"a\tb"`, and every
+ * non-ASCII name) as if it were a path — a bug you cannot see until a vault
+ * holds a filename with a space in it.
+ *
+ * `-z` is not an option here, it is the format: NUL-separated, never quoted,
+ * with a rename's origin arriving as its own token. Every caller runs it, and
+ * this is the one place that knows what comes back.
+ */
+export function parsePorcelain(stdout: string): PorcelainEntry[] {
+  const tokens = stdout.split("\0");
+  const entries: PorcelainEntry[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    // `XY <path>`: two status columns, a space, then the path. Anything
+    // shorter is the trailing empty token, not an entry.
+    if (token === undefined || token.length < 4) {
+      continue;
+    }
+    const x = token[0] ?? " ";
+    const y = token[1] ?? " ";
+    let origin: string | null = null;
+    if (x === "R" || x === "C" || y === "R" || y === "C") {
+      const from = tokens[index + 1];
+      if (from !== undefined && from.length > 0) {
+        origin = from;
+        index += 1;
+      }
+    }
+    entries.push({ x, y, path: token.slice(3), origin });
+  }
+  return entries;
+}
+
+/** The two status columns git uses for a halted merge: the honest conflict
+ *  set, read from the rebase before it is aborted. */
+function isUnmerged(entry: PorcelainEntry): boolean {
+  return (
+    entry.x === "U" ||
+    entry.y === "U" ||
+    (entry.x === "A" && entry.y === "A") ||
+    (entry.x === "D" && entry.y === "D")
+  );
+}
+
 /**
  * git must NEVER ask this process a question. Nothing here has a terminal to
  * answer on, and every invocation runs under the repo lock — so a credential
@@ -283,9 +341,21 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     }
   }
 
+  /** The ONE invocation. Pathspecs narrow it; the format never varies. */
+  async function porcelain(paths: readonly string[] = []): Promise<PorcelainEntry[]> {
+    const pathspec = paths.length === 0 ? [] : ["--", ...paths];
+    const { stdout } = await run([
+      "--no-optional-locks",
+      "status",
+      "--porcelain",
+      "-z",
+      ...pathspec,
+    ]);
+    return parsePorcelain(stdout);
+  }
+
   async function countDirtyPaths(): Promise<number> {
-    const { stdout } = await run(["--no-optional-locks", "status", "--porcelain"]);
-    return stdout.split("\n").filter((line) => line.length > 0).length;
+    return (await porcelain()).length;
   }
 
   async function commitIfDirty(
@@ -308,35 +378,11 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   }
 
   /** The paths git itself reports dirty (staged or not) under the pathspecs.
-   *  -z: NUL-separated and unquoted, so a path with spaces round-trips. */
+   *  Both sides of a rename belong to the commit, so its origin comes too. */
   async function dirtyPathsUnder(paths: readonly string[]): Promise<string[]> {
-    const { stdout } = await run([
-      "--no-optional-locks",
-      "status",
-      "--porcelain",
-      "-z",
-      "--",
-      ...paths,
-    ]);
-    const tokens = stdout.split("\0");
-    const dirty: string[] = [];
-    for (let index = 0; index < tokens.length; index += 1) {
-      const token = tokens[index];
-      if (token === undefined || token.length < 4) {
-        continue;
-      }
-      dirty.push(token.slice(3));
-      // A rename/copy entry (an R or C in the two status columns) is followed
-      // by its ORIGIN path as its own token; both sides belong to the commit.
-      if (/[RC]/u.test(token.slice(0, 2))) {
-        const origin = tokens[index + 1];
-        if (origin !== undefined && origin.length > 0) {
-          dirty.push(origin);
-          index += 1;
-        }
-      }
-    }
-    return dirty;
+    return (await porcelain(paths)).flatMap((entry) =>
+      entry.origin === null ? [entry.path] : [entry.path, entry.origin],
+    );
   }
 
   async function commitPathsIfDirty(
@@ -444,24 +490,12 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return Number.parseInt(stdout.trim(), 10) || 0;
   }
 
-  /** The files git itself marks unmerged (UU/AA/DD/…): the honest conflict
-   *  set, read from the halted rebase before it is aborted. */
+  /** The files git itself marks unmerged (UU/AA/DD/…). */
   async function unmergedPaths(): Promise<string[]> {
-    const { stdout } = await run(["--no-optional-locks", "status", "--porcelain"]);
-    const files: string[] = [];
-    for (const line of stdout.split("\n")) {
-      if (line.length < 4) {
-        continue;
-      }
-      const x = line[0];
-      const y = line[1];
-      const unmerged =
-        x === "U" || y === "U" || (x === "A" && y === "A") || (x === "D" && y === "D");
-      if (unmerged) {
-        files.push(line.slice(3));
-      }
-    }
-    return files.toSorted();
+    return (await porcelain())
+      .filter(isUnmerged)
+      .map((entry) => entry.path)
+      .toSorted();
   }
 
   function isMissingRemoteRef(error: unknown): boolean {
