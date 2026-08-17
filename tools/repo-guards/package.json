@@ -1,0 +1,18 @@
+{
+  "name": "@repo/repo-guards",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Derived fitness tests over the repo ITSELF: the invariants that span workspaces and therefore belong to none of them — the package dependency DAG and its platform-purity rules, ws change-kind reachability, and vendored-code provenance. Every assertion walks the real tree; the only written-down list is the DAG's declared edge table, which IS the pin.",
+  "type": "module",
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/server-contract": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

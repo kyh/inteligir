@@ -4,12 +4,7 @@
   `packages/agent-runtime` (plus the domain modules it leans on from
   `packages/domain`, vendored under `src/domain/`)
 - **Commit**: `8e6fc83582881509077ce67ac5e4b59784d83121`
-- **License**: MIT — © bb contributors. Attribution header on every vendored
-  file, with ONE exception: the 33 files under `src/codex/generated/` carry
-  only the generator's own header (`ts-rs` via `codex app-server
-generate-ts`), kept byte-faithful to the generator's output so a
-  regenerate diffs cleanly — they are generated FROM the codex binary, not
-  authored by bb.
+- **License**: MIT — © bb contributors
 - **Vendored**: 2026-08-16
 
 Vendored rather than depended on because bb publishes no packages and this
@@ -18,6 +13,25 @@ upstream's names and layout so a re-vendor diffs cleanly. House-authored
 files in this package: `src/thread-shell-environment.ts` (rewritten around
 INTELIGIR_* variables), `src/domain/reasoning-efforts.ts` (constants folded),
 and everything under `src/test-support/` and `__tests__/`.
+
+## Attribution
+
+MIT requires the notice to travel with the copy, so every vendored file carries
+the line below — `tools/repo-guards/src/vendor-provenance.test.ts` reads it and
+the exemption list from here, and checks the tree against both.
+
+```text
+Vendored from bb (github.com/get-bb/bb), MIT.
+```
+
+Exempt paths, each with the reason it carries a different header (or none):
+
+```text
+src/codex/generated/**   the generator's own ts-rs header, kept byte-faithful to `codex app-server generate-ts` so a regenerate diffs cleanly — generated FROM the codex binary, not authored by bb
+src/test-support/**      house-authored
+src/__tests__/**         house-authored
+vitest.config.ts         house scaffolding; the vendored surface is src/
+```
 
 ## Not carried (the trims), each with its consumer
 

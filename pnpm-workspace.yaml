@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - tools/*
   - e2e
 
 catalog:

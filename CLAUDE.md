@@ -53,6 +53,11 @@ packages/
                  (remark parse, opaque nodes, wiki-links, frontmatter).
                  No node/react/ui imports — lint-enforced.
   ui/            @repo/ui — vendored stock shadcn on Base UI; leaf.
+tools/
+  repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
+                 package dependency DAG + its platform-purity rules, ws
+                 change-kind reachability, vendored-code provenance. The
+                 invariants that span workspaces and belong to none of them.
 ```
 
 ## Tech Stack
@@ -131,9 +136,20 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
 - **Frontmatter is the ONLY property store.** No metadata table, ever. YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **No coverage tooling, on purpose.** This repo enforces targeted invariants
-  structurally (no-orphan-components, provenance, exact schemas) rather than
-  via a global percentage. If coverage is ever added: `coverage.include` is
-  MANDATORY in Vitest 4, and gate only `@repo/notes`.
+  structurally rather than via a global percentage: the dependency DAG and its
+  platform rules, ws change-kind reachability and vendored provenance
+  (`tools/repo-guards`), route-table completeness
+  (`apps/app/src/node/__tests__/route-table.test.ts`), migration↔schema
+  agreement (`packages/db/src/__tests__/schema-agreement.test.ts`),
+  no-orphan-components, component provenance, the CLI guide and its `--json`
+  flags, the editor's buffer invariant. A test that fails when a THIRD dispatch
+  path appears is worth more than a percentage a suite asserting nothing can
+  satisfy. If coverage is ever added: `coverage.include` is MANDATORY in
+  Vitest 4, and gate only `@repo/notes`.
+- **A structural guard states its own rule in the failure**, names the file, and
+  derives every value it compares. No hardcoded counts, no hand-copied lists —
+  the one exception is `dep-dag.test.ts`'s `DECLARED_EDGES`, which IS the pin
+  rather than a copy of one.
 - **`packages/ui/components.json` declares `rsc: true` and it is deliberately
   inert** — the `"use client"` directives it produces are ignored by every
   consumer, all plain Vite builds with no RSC bundler in the graph.
