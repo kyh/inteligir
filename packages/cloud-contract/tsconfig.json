@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // ES2023 only: this contract loads in the Worker, the Node app and the
+    // browser dashboard — it may assume none of their platform globals.
+    "lib": ["ES2023"],
+    "types": [],
+    "paths": {
+      "@repo/cloud-contract/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}

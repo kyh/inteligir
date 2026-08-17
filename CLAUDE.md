@@ -33,10 +33,19 @@ apps/
                  CLI's bin dir into agent shells, so a model drives the
                  product by typing `inteligir …` in bash.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
-                 marketing site, the auth pages, and Better Auth on D1
-                 (invite-gated sign-up). src/worker/ is its own tsconfig
-                 program (no DOM — workerd's globals must win).
+                 marketing site, the auth pages, Better Auth on D1
+                 (invite-gated sign-up), and the v3 cloud (issue #554):
+                 device pairing, the per-user ThreadSyncDO (merged thread log
+                 + capture inbox + ws invalidation), the flag-gated Artifacts
+                 mint. src/worker/ is its own tsconfig program (no DOM —
+                 workerd's globals must win).
 packages/
+  cloud-contract/ @repo/cloud-contract — the cloud wire contract (zod only):
+                 pairing, device auth, sync push/pull, captures, the ws ping
+                 frames, the typed error envelope. SERVER-SIDE ONLY today:
+                 apps/web implements every row, and NOTHING consumes the other
+                 half yet — apps/app gets its sync client in a later round of
+                 #554, which is what the contract was shaped for.
   typed-routes/  @repo/typed-routes — contract-first Hono route machinery,
                  vendored from bb (MIT): defineRoute rows, compile-time
                  handler enforcement, the hc client schema derivation.

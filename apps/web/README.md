@@ -1,7 +1,10 @@
 # `@repo/web` — inteligir.com
 
-One Cloudflare Worker serving the marketing site and the account surface from
-one origin: the TanStack Start pages, and Better Auth on D1 behind them.
+One Cloudflare Worker serving the marketing site and the whole v3 cloud from
+one origin: the TanStack Start pages, Better Auth on D1, device pairing, the
+per-user thread-sync Durable Object, the capture inbox and the (feature-gated)
+Artifacts mint. The wire contract is `@repo/cloud-contract` — the Worker
+implements it, the local app's sync client consumes it.
 
 ## Layout
 
@@ -9,15 +12,19 @@ one origin: the TanStack Start pages, and Better Auth on D1 behind them.
 src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
-    app/             /app/sign-in, /app/sign-up, /app/forgot-password
+    app/             /app/sign-in, /app/sign-up, /app/forgot-password,
+                     /app/devices (the pairing dashboard, client-only)
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client, session guard, site config
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
     auth/            Better Auth factory, invite gate, reset email + page
+    device/          Pairing mint/redeem + device-credential verification
+    sync/            ThreadSyncDO + the device-authed route chokepoint
+    artifacts.ts     The Artifacts repo/token mint (flag-gated)
     db/              Drizzle schema + client for the D1 auth database
-    __tests__/       vitest-pool-workers suites (real miniflare + D1)
+    __tests__/       vitest-pool-workers suites (real miniflare + D1 + DO)
 ```
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
@@ -28,16 +35,33 @@ its own `tsconfig.json`.
 
 ## Routes
 
-| Route                  | What                                                       |
-| ---------------------- | ---------------------------------------------------------- |
-| `/`                    | Marketing page (SSR)                                       |
-| `/app/sign-in`         | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
-| `/app/sign-up`         | Sign-up form; submits to the invite gate                   |
-| `/app/forgot-password` | Requests the reset link                                    |
-| `/api/auth/*`          | Better Auth (email+password, bearer, optional social)      |
-| `/auth/reset`          | The ONE reset page — Worker-served, static, `no-store`     |
-| `/v1/capabilities`     | Which social providers this deployment serves              |
-| `/v1/auth/sign-up`     | The invite gate in front of Better Auth's sign-up          |
+| Route                          | Auth    | What                                                       |
+| ------------------------------ | ------- | ---------------------------------------------------------- |
+| `/`                            | —       | Marketing page (SSR)                                       |
+| `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
+| `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
+| `/app/forgot-password`         | —       | Requests the reset link                                    |
+| `/app/devices`                 | session | The pairing dashboard: mint codes, list/revoke devices     |
+| `/api/auth/*`                  | —       | Better Auth (email+password, bearer, optional social)      |
+| `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
+| `/v1/capabilities`             | —       | Which social providers this deployment serves              |
+| `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
+| `POST /v1/device/code`         | session | Mint a one-time pairing code (10 min, single-use)          |
+| `POST /v1/device/redeem`       | code    | Exchange the code for the durable device credential        |
+| `GET /v1/device/list`          | session | The dashboard's device table (revoked rows included)       |
+| `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
+| `POST /v1/sync/push`           | device  | Outbox batch in — idempotent, conflict-aware               |
+| `GET /v1/sync/pull`            | device  | Page the merged log by global `seq`                        |
+| `GET /v1/sync/ws`              | device  | Invalidation socket (Bearer on the upgrade; hibernatable)  |
+| `POST /v1/capture`             | device  | Quick capture in, deduped on an idempotency key            |
+| `POST /v1/sync/captures/claim` | device  | Take the inbox for a five-minute window                    |
+| `POST /v1/sync/captures/ack`   | device  | Delete what that claim owns — per-id outcomes              |
+| `POST /v1/artifacts/mint`      | device  | Per-user Artifacts repo + git token (flag-gated, 503 off)  |
+
+"device" auth is the `igd_…` credential pairing minted, verified per request by
+hash compare against D1 — never cached, so revocation is immediate. Every
+device route is served by that user's own `ThreadSyncDO`, named from the
+VERIFIED credential's userId — no path or body carries one.
 
 ## Auth
 
@@ -57,15 +81,24 @@ its own `tsconfig.json`.
   provider carries its own `disableSignUp`, so a provider is a sign-in for an
   account that already linked it, never a way to get one.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
-  limiter on the auth routes, and the same table behind the invite gate's
-  10/60s-per-IP window (`src/worker/rate-limit.ts`).
+  limiter on the auth routes, and the same table behind the invite gate's and
+  the pairing redeem's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
+  window is one upsert that RETURNS the count it settled on — a read-then-write
+  limiter lets N concurrent requests all read the same count and all decide
+  they are under the cap, which is the burst it exists to stop.
 - **No CORS**, deliberately: every browser client is served by this Worker from
   this origin, and a native client is not subject to CORS at all. If CORS is
   ever reintroduced, `access-control-allow-credentials` must stay absent — the
   auth surface is cookie-bearing.
-- **Deleting the account** clears the deleted email off the invite it spent
-  (`redeemed_at` stays set — the code stays burned) in a `beforeDelete` hook,
-  so a failed step aborts the deletion rather than orphaning data.
+- **Deleting the account deletes the account's data** in a `beforeDelete` hook,
+  so a failed step aborts the deletion rather than orphaning data. THE ORDER IS
+  LOAD-BEARING: device + pairing rows first (while one lives its credential
+  still verifies, and a request on it can rebuild whatever was deleted before
+  it), then the hosted Artifacts repo if this deployment has one, then the
+  ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
+  authenticated microseconds before step one — then the deleted email off the
+  invite it spent (`redeemed_at` stays set, so the code stays burned).
+  `docs/privacy.md` is the user-facing statement of all of it.
 
 Minting invites is `wrangler d1 execute`, deliberately — no admin UI, no
 self-serve issuance:
@@ -131,11 +164,25 @@ wrangler secret put BETTER_AUTH_SECRET
 wrangler email sending enable <verified-domain>   # then the DKIM/SPF DNS
 # wrangler secret put RESET_FROM_ADDRESS          # e.g. no-reply@<verified-domain>
 
-# 6. Deploy
+# 6. Artifacts (LATER — the account is beta-gated; the mint answers a typed
+#    503 until these are set. When access lands:)
+# wrangler secret put CLOUDFLARE_API_TOKEN     # scoped to Artifacts
+# wrangler secret put CLOUDFLARE_ACCOUNT_ID
+# wrangler secret put ARTIFACTS_ENABLED        # "true"
+
+# 7. Deploy
 pnpm --filter @repo/web deploy       # == vite build && wrangler deploy
 
 # (optional) tail logs
 wrangler tail inteligir-web
 ```
 
-The GitHub `Deploy` workflow does the same on push to main, gated on CI.
+The GitHub `Deploy` workflow does the same on push to main, gated on CI — and
+it applies the schema (step 3) BEFORE it publishes, as its own step. That
+ordering is the whole point: the schema here is additive, so an old Worker
+against a new database ignores what it does not know, while a new Worker
+against an old database 500s on every request touching a table that isn't
+there. It needs three repo secrets beyond `CLOUDFLARE_API_TOKEN` —
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN` — and
+without them the deploy fails at the schema step rather than shipping code
+against a database it does not match.

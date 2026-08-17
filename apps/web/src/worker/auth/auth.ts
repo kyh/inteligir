@@ -2,8 +2,11 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
+import { deleteArtifactsRepo } from "../artifacts";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
+import { purgeDeviceRows } from "../device/pairing";
+import { purgeThreadSync } from "../sync/routes";
 import { sendResetEmail } from "./reset-email";
 
 // ---------------------------------------------------------------------------
@@ -166,11 +169,30 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
       deleteUser: {
         enabled: true,
         // BEFORE, not after: a failure here aborts the whole deletion, the
-        // account survives, and the step is idempotent — pressing the button
+        // account survives, and every step is idempotent — pressing the button
         // again resumes it. `afterDelete` would run once the account row is
-        // already gone, leaving the invite pointing at nobody with no account
-        // left to ask again.
+        // already gone, leaving data behind with no account left to ask again.
+        //
+        // THE ORDER IS THE POINT, and it runs credentials-first:
+        //
+        //   1. The device and pairing rows. While one lives its credential
+        //      still verifies, so purging the object first leaves a window in
+        //      which an authenticated request lands AFTER the purge and
+        //      rebuilds exactly what was deleted. Killing the credentials
+        //      first means no NEW request can even name the object.
+        //   2. The hosted vault repo, if this deployment hosts one — the only
+        //      note bytes the cloud ever holds.
+        //   3. The object itself, which closes its sockets, drops its storage
+        //      and tombstones itself. The tombstone is what closes the
+        //      remaining race: a request that verified microseconds before
+        //      step 1 committed can still be in flight, and it is refused on
+        //      arrival rather than served into an empty object.
+        //   4. The invite's redeemer email — the one thing the user typed that
+        //      lives outside all of the above.
         beforeDelete: async (user) => {
+          await purgeDeviceRows(createDb(env.DB), user.id);
+          await deleteArtifactsRepo(env, user.id);
+          await purgeThreadSync(env, user.id);
           await forgetInviteRedeemer(env, user.email);
         },
       },

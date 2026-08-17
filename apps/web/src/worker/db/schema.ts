@@ -124,3 +124,53 @@ export const inviteCode = sqliteTable("invite_code", {
   redeemedBy: text("redeemed_by"),
   redeemedAt: integer("redeemed_at", { mode: "timestamp" }),
 });
+
+/**
+ * One-time device-pairing codes (src/worker/device/pairing.ts; bb's
+ * connect_code pattern, MIT). A signed-in dashboard mints one; the local app
+ * redeems it once for a durable device credential. Stored in the clear like
+ * the invite above — a code is short-lived (10 min), single-use, and the
+ * consume is one conditional `UPDATE … WHERE consumed_at IS NULL AND
+ * expires_at > now`, so two simultaneous redeems settle on exactly one winner
+ * and an expired code cannot be consumed by a check that ran a moment earlier.
+ *
+ * `deviceId` is what CHAINS the consume to the device insert inside one D1
+ * batch: redeem writes the id it is about to create, and the insert is guarded
+ * on finding that id here. Only the winning consume could have written it, so
+ * a batch with no way to abort still lands both statements or neither.
+ *
+ * Dead rows (expired or consumed) are swept per user at that user's NEXT mint,
+ * and nowhere else — an expired row is already unusable, so this buys tidiness
+ * rather than safety. `docs/privacy.md` states it that way.
+ */
+export const pairingCode = sqliteTable("pairing_code", {
+  code: text("code").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  purpose: text("purpose").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  consumedAt: integer("consumed_at", { mode: "timestamp" }),
+  deviceId: text("device_id"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+/**
+ * Paired devices (src/worker/device/device-auth.ts). `credentialHash` is the
+ * SHA-256 of the 256-bit credential redeem minted — the plaintext is answered
+ * once and never stored. Verification is a per-request hash compare with NO
+ * cache, so setting `revokedAt` from the dashboard cuts a device off on its
+ * very next request. Rows survive revocation (the dashboard is the audit
+ * surface) and are deleted only with the account.
+ */
+export const device = sqliteTable("device", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  credentialHash: text("credential_hash").notNull().unique(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
+  revokedAt: integer("revoked_at", { mode: "timestamp" }),
+});

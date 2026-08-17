@@ -20,6 +20,10 @@ import api, { ownsPath } from "./index";
 // (cloudflare/workers-sdk#11100).
 // ---------------------------------------------------------------------------
 
+// The runtime instantiates Durable Objects from the DEPLOYED entry's exports,
+// so the class rides through here as well as ./index.ts (the test entry).
+export { ThreadSyncDO } from "./sync/thread-sync-do";
+
 export default {
   fetch(request, env) {
     return ownsPath(new URL(request.url).pathname) ? api.fetch(request, env) : site.fetch(request);

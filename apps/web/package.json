@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
+    "@repo/cloud-contract": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
