@@ -36,9 +36,9 @@ src/
                        # every other byte, CRLF included, untouched
     vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
                        # command palette and the agent's search_vault
-    task-schedule.ts, tag-index.ts, related-notes.ts, note-name.ts,
-    doc-file.ts, vault-path.ts  # task-date association, tags, related-notes
-                       # scorer, name validation, doc test, posix path helpers
+    tag-index.ts, related-notes.ts, note-name.ts, doc-file.ts,
+    vault-path.ts      # tags, related-notes scorer, name validation, doc
+                       # test, posix path helpers
   markdown/            # the one scan, and what reads a doc's header
     scan-parse.ts      # the grammar every knowledge scan reads; TOTAL, and
                        # disabling codeIndented/htmlFlow is what keeps its task
@@ -70,7 +70,6 @@ src/
 
 - `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
   better-sqlite3 in `apps/app/src/node/knowledge/sqlite-driver.ts`.
-- `task-schedule.ts`: injected daily-note config and a `todayIso` clock.
 
 ## Testing
 
