@@ -7,6 +7,7 @@ import {
   threadSchema,
   pendingInteractionSchema,
   timelineResponseSchema,
+  type CreateThreadRequest,
   type PendingInteraction,
   type TimelineResponse,
 } from "@repo/server-contract/threads";
@@ -21,8 +22,11 @@ const threadDetailSchema = z.object({
 });
 const startedResponseSchema = z.object({ kind: z.literal("started"), turnId: z.string().min(1) });
 
-export async function createThread(client: ApiClient): Promise<string> {
-  const response = await client.threads.create.$post({ json: {} });
+export async function createThread(
+  client: ApiClient,
+  json: CreateThreadRequest = {},
+): Promise<string> {
+  const response = await client.threads.create.$post({ json });
   expect(response.status).toBe(201);
   return threadEnvelopeSchema.parse(await response.json()).thread.id;
 }

@@ -20,8 +20,11 @@
 //   parks until the answer route resolves the row (the service calls
 //   onInteractionResolved) or the turn settles, which interrupts open rows
 //   and answers the provider with a deny.
-// - COMMITS: a turn takes the vault's commit hold at dispatch and the settle
-//   path commits as the agent — see agent-commits.ts for the race design.
+// - WRITES: a turn takes the vault's commit hold at dispatch and the settle
+//   path either commits as the agent or lifts the write set into a reviewable
+//   proposal — see agent-commits.ts for the race design and for what review
+//   mode does with the hold. Which of the two a turn does is the THREAD's
+//   column, carried on the dispatch that started it.
 // - THE WATCHDOG: a turn that goes quiet for too long is FAILED through the
 //   same grammar, because the hold it carries is not local to the thread —
 //   while it is open the vault's auto-commit defers and no sync pass may
@@ -66,9 +69,10 @@ import type {
 } from "../threads/turn-driver";
 import type { GitEngine } from "../vault/git";
 import {
-  beginAgentTurnCommit,
+  beginAgentTurnWrites,
   createVaultPathResolver,
-  type AgentTurnCommit,
+  type AgentTurnWrites,
+  type CaptureTurnProposals,
   type VaultPathResolver,
 } from "./agent-commits";
 import { loadAgentInstructions } from "./agent-instructions";
@@ -123,6 +127,9 @@ export interface CodexRuntimeManagerDeps {
   adapterFactory?: ProviderAdapterFactory;
   /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
   createRuntime?: typeof createAgentRuntimeWithAdapters;
+  /** Review mode's seam: where a turn's write set goes when the thread asks
+   *  for proposals instead of writes. Omitted, every turn writes directly. */
+  captureProposals?: CaptureTurnProposals;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
   /** The idle budget a dispatched turn gets; null disables the watchdog. */
@@ -149,7 +156,7 @@ interface ActiveTurn {
    */
   acceptedGeneration: number | null;
   settled: boolean;
-  commit: AgentTurnCommit;
+  writes: AgentTurnWrites;
   /** The idle watchdog, re-armed by every provider event and disarmed while
    *  an approval is parked. Null means unarmed, not "no budget". */
   idleTimer: ReturnType<typeof setTimeout> | null;
@@ -197,6 +204,36 @@ class CodexTurnDriver implements TurnDriver {
 
   private debug(message: string): void {
     this.deps.onDebug?.(message);
+  }
+
+  /**
+   * The turn's write destination. `propose` needs a capture the deployment
+   * wired; without one the turn falls back to writing directly rather than
+   * silently discarding its work — and says so, because a review-mode thread
+   * that lands its edits is not a quiet degradation.
+   */
+  private beginWrites(args: TurnDriverStartArgs): AgentTurnWrites {
+    const capture = this.deps.captureProposals;
+    if (args.writeMode === "propose" && capture !== undefined) {
+      return beginAgentTurnWrites({
+        mode: "propose",
+        git: this.deps.git,
+        threadId: args.threadId,
+        turnId: args.turnId,
+        capture,
+      });
+    }
+    if (args.writeMode === "propose") {
+      this.debug(
+        `thread ${args.threadId} asked for review mode but no proposal store is wired; writing directly`,
+      );
+    }
+    return beginAgentTurnWrites({
+      mode: "direct",
+      git: this.deps.git,
+      threadId: args.threadId,
+      turnId: args.turnId,
+    });
   }
 
   private ensureRuntime(): AgentRuntime {
@@ -285,7 +322,7 @@ class CodexTurnDriver implements TurnDriver {
       started: false,
       acceptedGeneration: null,
       settled: false,
-      commit: beginAgentTurnCommit(this.deps.git, args.threadId),
+      writes: this.beginWrites(args),
       idleTimer: null,
     });
     this.armWatchdog(args.threadId);
@@ -343,7 +380,7 @@ class CodexTurnDriver implements TurnDriver {
     // The hold (taken in startTurn) blocks NEW sync passes; this barrier
     // waits out one already mid-flight, so the provider never writes into a
     // rebase's checkout window.
-    await this.turnsByThreadId.get(args.threadId)?.commit.ready;
+    await this.turnsByThreadId.get(args.threadId)?.writes.ready;
     const runtime = this.ensureRuntime();
     if (!runtime.hasThread(args.threadId)) {
       await this.openThreadSession(runtime, args.threadId);
@@ -511,7 +548,7 @@ class CodexTurnDriver implements TurnDriver {
         }
         vaultPaths.push(rel);
       }
-      state.commit.recordPaths(vaultPaths);
+      state.writes.recordPaths(vaultPaths);
     }
 
     const mapped = mapProviderEvent(event, hostTurnId);
@@ -619,9 +656,9 @@ class CodexTurnDriver implements TurnDriver {
     this.turnsByThreadId.delete(threadId);
     this.cancelWaiters(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
-    void state.commit.finish().catch((error: unknown) => {
+    void state.writes.finish().catch((error: unknown) => {
       this.debug(
-        `agent commit for thread ${threadId} failed: ${error instanceof Error ? error.message : String(error)}`,
+        `settling the write set for thread ${threadId} failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
   }

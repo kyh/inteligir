@@ -176,6 +176,11 @@ export interface VaultService {
   ): Promise<GuardedWriteResult>;
   rename(from: string, to: string): Promise<{ path: string }>;
   remove(path: string): Promise<void>;
+  /** `remove` under the same guard `writeIfUnchanged` applies: delete the
+   *  file only while it still holds exactly `expected`. The delete half of a
+   *  review-mode turn's revert, where a concurrent writer must keep its bytes
+   *  rather than lose them to a rollback of somebody else's write. */
+  removeIfUnchanged(path: string, expected: string): Promise<ConditionalWriteResult>;
   createDir(path: string): Promise<{ path: string }>;
 }
 
@@ -498,6 +503,28 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         await rm(absPath, { recursive: true });
         await fsyncDirBestEffort(dirname(absPath));
         announceMutation([relPath]);
+      });
+    },
+
+    removeIfUnchanged(path, expected) {
+      return lock(async (): Promise<ConditionalWriteResult> => {
+        const { relPath, absPath } = resolveVaultPath(rootReal, path);
+        await assertAncestryInsideVault(absPath);
+        const stats = await lstatRefusingSymlink(absPath, relPath);
+        if (stats === null || stats.isDirectory()) {
+          return { applied: false, reason: "not_found" };
+        }
+        const current = await readFile(absPath, "utf8").catch(() => null);
+        if (current === null) {
+          return { applied: false, reason: "not_found" };
+        }
+        if (current !== expected) {
+          return { applied: false, reason: "changed" };
+        }
+        await rm(absPath);
+        await fsyncDirBestEffort(dirname(absPath));
+        announceMutation([relPath]);
+        return { applied: true, path: relPath };
       });
     },
 

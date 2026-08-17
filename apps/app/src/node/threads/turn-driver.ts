@@ -1,3 +1,4 @@
+import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { PendingInteraction } from "@repo/server-contract/threads";
 
@@ -35,9 +36,17 @@ export interface TurnDriverStartArgs {
   threadId: string;
   turnId: string;
   text: string;
+  /** Where this turn's file writes land — the thread's own column, read by
+   *  the send that dispatched it so a driver never has to ask the db. */
+  writeMode: AgentWriteMode;
 }
 
-export type TurnDriverSteerArgs = TurnDriverStartArgs;
+/** A steer joins a turn that already chose its write mode, so it names none. */
+export interface TurnDriverSteerArgs {
+  threadId: string;
+  turnId: string;
+  text: string;
+}
 
 export interface ProviderEventSink {
   ingestProviderEvents(threadId: string, events: readonly ThreadEvent[]): void;

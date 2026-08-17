@@ -12,6 +12,7 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import type { AgentStatus } from "@repo/server-contract/routes";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
+import type { CaptureTurnProposals } from "./agent-commits";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
@@ -30,6 +31,10 @@ export interface ResolveAgentDriverArgs {
   /** Where `inteligir` lives, or null when none ships — decides whether the
    *  session instructions may promise the command. */
   cliBinDir?: string | null;
+  /** Where a review-mode turn's write set goes (issue #560). Both drivers
+   *  take it, so the mode is a property of the THREAD rather than of which
+   *  provider happens to be running. */
+  captureProposals?: CaptureTurnProposals;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -80,6 +85,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
       createTurnDriver: createScriptedTurnDriverFactory({
         vault: args.vault.service,
         git: args.vault.git,
+        ...(args.captureProposals === undefined ? {} : { captureProposals: args.captureProposals }),
         onError: onDebug,
       }),
       dispose: noDispose,
@@ -105,6 +111,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     model: args.config.agentModel,
     ...(args.shellEnv !== undefined ? { shellEnv: args.shellEnv } : {}),
     ...(args.cliBinDir !== undefined ? { cliBinDir: args.cliBinDir } : {}),
+    ...(args.captureProposals === undefined ? {} : { captureProposals: args.captureProposals }),
     onDebug,
   });
   return {
