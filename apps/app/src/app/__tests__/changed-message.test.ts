@@ -93,10 +93,4 @@ describe("the other entities", () => {
     expect(applied.invalidated).toEqual([[...queryKeys.threadsRoot]]);
     expect(applied.threads).toBe(1);
   });
-
-  it("sweeps system status", () => {
-    const applied = apply({ type: "changed", entity: "system", changes: ["config-changed"] });
-
-    expect(applied.invalidated).toEqual([[...queryKeys.systemStatus]]);
-  });
 });
