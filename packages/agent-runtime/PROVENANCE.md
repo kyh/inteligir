@@ -39,9 +39,13 @@ vitest.config.ts         house scaffolding; the vendored surface is src/
 ## Not carried (the trims), each with its consumer
 
 - **`claude-code/`, `pi/`, `acp/` adapters** and every bridge-process
-  mechanism (bundled bridges, `bridgeNodeExecutablePath`, sdk/message
-  envelopes, ACP launch-spec fingerprints). Codex is the in-process protocol
-  adapter — the one provider this deployment runs (issue #549).
+  mechanism (bundled bridges, `bridgeNodeExecutablePath`, ACP launch-spec
+  fingerprints, the post-initialize hydration hook). Codex is the in-process
+  protocol adapter — the one provider this deployment runs (issue #549).
+  Two bridge shapes DO survive and are kept rather than trimmed: the
+  sdk/message envelope's first arm in `codexBridgeEnvelopeSchema`
+  (`codex/schemas.ts`), which arm two already subsumes, and
+  `shared/json-rpc-envelope.ts` behind it.
 - **Skills configuration** (`runtime-skill-roots.ts`, `skills/configure`).
 - **Fork / rewind staging** (`prepareThreadRewind`, staged leases,
   `thread/fork`, `thread/discard`, suppressed staging thread ids).
@@ -52,8 +56,13 @@ vitest.config.ts         house scaffolding; the vendored surface is src/
   provider tool calls.
 - **Goals, background-work state, archive/unarchive, rename (and its rollout
   retries), thread compaction commands, `turn/input/accepted` correlation
-  (`clientRequestId`), service tiers, claude-code execution knobs.** No
-  producer or renderer here.
+  (`clientRequestId`), service tiers, claude-code execution knobs and the
+  live-vs-session settings classifier they were the only `live` case of.** No
+  producer or renderer here. `thread/archived` / `thread/unarchived` are not
+  in the handled schema either; `visibility.ts` classes both as noise, which
+  is where an archive notification is dropped.
+- **Attachments** (`localFile` prompt input). Codex has no counterpart input
+  type, so the adapter could only fake one as text.
 - **Raw-response shell-output recovery** (`rawResponseItem/completed` repair,
   `experimentalRawEvents`). Cost: codex's normalized `commandExecution`
   output is what the timeline shows, including any provider-side truncation.
@@ -77,7 +86,13 @@ vitest.config.ts         house scaffolding; the vendored surface is src/
   diagnostics): providers spawn via `node:child_process` directly; Windows
   is not a target yet.
 - **`normalizeProviderThreadNameEvent`**: thread-name normalization served
-  bb's picker; name events are dropped by this repo's consumer.
+  bb's picker. The name event itself IS carried end to end here — schema,
+  translation and a `thread/name/updated` emission — and is dropped one layer
+  later, by `apps/app/src/node/agent/event-mapping.ts`.
+- **Error categories with no codex source**: `billing`, `budget-exceeded`,
+  `max-output-tokens`, `max-turns`, `structured-output-retries`, and
+  `provider/warning`'s `general`. `getProviderErrorCategory` is total over
+  codex's own `CodexErrorInfo` and produces none of them.
 - The generated codex app-server schema is pruned to the transitive
   type-import closure of the kept importers (33 files of upstream's ~336) —
   same policy as upstream's own README. `visibility.ts` is patched to derive

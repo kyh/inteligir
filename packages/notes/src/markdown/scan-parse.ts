@@ -1,18 +1,18 @@
-// The grammar every source-side SCAN reads — the knowledge engine's parse, as
-// opposed to the editor's own pipeline (./md-plugins).
+// The grammar every source-side SCAN reads — the one parse the knowledge
+// engine runs over a doc.
 //
-// Two constructs are disabled and both are load-bearing. The editor's flavor has
-// no indented code, so a 4-space-indented `- [ ]` is a live task there; and no
-// flow HTML, so a `<div>x</div>` line does not swallow the lines after it. A
-// scan reading CommonMark's defaults would therefore count a DIFFERENT set of
-// task items than the editor shows — and a checkbox is addressed by its position
-// in that count (../knowledge/task-ordinal), so one stray HTML-ish line would
-// point delegation at the wrong task.
+// Two constructs are disabled and both are load-bearing. A checkbox has no id,
+// so everything that points at one points at its POSITION in this count
+// (../knowledge/task-ordinal) — which means the count has to agree with the set
+// of checkboxes the editor DRAWS, or delegation writes to the wrong task. The
+// editor renders through a different parser (@repo/editor over lezer-markdown),
+// and CommonMark's defaults are where the two diverge: indented code hides a
+// 4-space-indented `- [ ]` the editor still shows, and flow HTML lets one
+// `<div>x</div>` line swallow every task line under it. That agreement is
+// pinned from the other side, by @repo/editor's checkbox-toggle suite.
 //
-// Only those two are adopted. The rest of the editor's stack (math, the
-// MDX-agnostic plugins, the opaque transform) only re-shapes nodes whose TEXT
-// content still parses here, and the full MDX pipeline THROWS on a malformed
-// doc — this parse stays total, so a doc only Raw mode can open still indexes.
+// The parse is TOTAL: it never throws, so a doc nothing else can make sense of
+// still indexes.
 
 import type { Root } from "mdast";
 import type { Plugin, Processor } from "unified";

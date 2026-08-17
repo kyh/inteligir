@@ -2,7 +2,7 @@
   "name": "@repo/notes",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps so it runs unchanged in the Cloudflare Worker (apps/web), React Native (apps/mobile), and the desktop renderer. `src/knowledge/` is the link graph, search and projection engine over a vault; `src/markdown/` is the remark parse pipeline. No I/O, no clock, no crypto — the caller injects them.",
+  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the local server, in the browser and on a Worker. `src/knowledge/` is the link graph, search and projection engine over a vault; `src/markdown/` is the one markdown scan it reads, plus frontmatter and the delegation marker. No I/O, no clock, no crypto — the caller injects them.",
   "type": "module",
   "exports": {
     "./daily-path": "./src/daily-path.ts",
@@ -27,9 +27,6 @@
     "./knowledge/related-notes": "./src/knowledge/related-notes.ts",
     "./knowledge/vault-search": "./src/knowledge/vault-search.ts",
     "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts",
-    "./markdown/parse": "./src/markdown/parse.ts",
-    "./markdown/remark-opaque": "./src/markdown/remark-opaque.ts",
-    "./markdown/md-plugins": "./src/markdown/md-plugins.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",
     "./markdown/thread-marker": "./src/markdown/thread-marker.ts",
     "./markdown/thread-anchor": "./src/markdown/thread-anchor.ts"
@@ -40,15 +37,9 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "estree-util-is-identifier-name": "^3.0.0",
-    "mdast-util-gfm-task-list-item": "^2.0.0",
-    "mdast-util-mdx": "^3.0.0",
     "mdast-util-to-markdown": "^2.1.2",
-    "micromark-extension-mdx-expression": "^3.0.1",
-    "micromark-extension-mdx-jsx": "^3.0.2",
     "remark-frontmatter": "catalog:",
     "remark-gfm": "catalog:",
-    "remark-math": "^6.0.0",
     "remark-parse": "catalog:",
     "unified": "catalog:",
     "yaml": "^2.9.0"

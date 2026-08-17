@@ -542,9 +542,6 @@ export function translateCodexEvent(event: ProviderRuntimeEvent): ThreadEvent[] 
       }
       return events;
     }
-    case "thread/archived":
-    case "thread/unarchived":
-      return [];
     case "thread/name/updated":
       return handledEvent.params.threadName
         ? [

@@ -105,9 +105,16 @@
     // Vendored-from-bb runtime + codex adapter (issue #549). Entries are the
     // package exports (knip reads them itself), the tests, and the fake
     // app-server script (spawned, never imported — knip cannot see its
-    // caller). Unused-export reporting stays ON so trim residue surfaces;
-    // what a re-vendor needs back comes back with the re-vendor. The
-    // generated codex schema keeps upstream's PascalCase file names.
+    // caller). The generated codex schema keeps upstream's PascalCase file
+    // names.
+    //
+    // Unused-export reporting is ON for every file that is NOT itself a
+    // package export — which is where it earns its keep, and also the limit
+    // worth stating: the nine `exports` targets are entries, and knip trusts
+    // an entry's exports as API. So the vendored surface those nine declare
+    // (upstream's schema/values/type triples, the adapter contract) is not
+    // reported, deliberately — trimming it is what makes the next re-vendor a
+    // conflict. Trim residue in the OTHER thirty-odd modules still surfaces.
     "packages/agent-runtime": {
       "entry": ["src/**/__tests__/**/*.test.ts", "src/test-support/fake-codex-app-server.mjs"],
       "project": ["src/**/*.{ts,mjs}"]

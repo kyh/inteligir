@@ -169,10 +169,6 @@ function handleJsonRpcResponse(args: RuntimeJsonRpcResponseArgs): void {
   });
 }
 
-export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
-  return createAgentRuntimeInternal(options);
-}
-
 export function createAgentRuntimeWithAdapters(options: AgentRuntimeInternalOptions): AgentRuntime {
   return createAgentRuntimeInternal(options);
 }
@@ -588,10 +584,7 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
   function handleProviderNotification(args: RuntimeParsedMessageArgs): void {
     const sourceThreadId = getJsonRpcStringParam(args.parsed, "threadId");
     emitTranslatedEvents({
-      events: args.proc.adapter.translateEvent(
-        args.parsed,
-        sourceThreadId !== undefined ? { threadId: sourceThreadId } : {},
-      ),
+      events: args.proc.adapter.translateEvent(args.parsed),
       proc: args.proc,
       ...(sourceThreadId !== undefined ? { sourceThreadId } : {}),
     });

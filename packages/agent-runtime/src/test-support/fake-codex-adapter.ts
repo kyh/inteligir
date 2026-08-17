@@ -13,7 +13,7 @@ export interface FakeCodexAdapterOptions {
   markerPath?: string;
 }
 
-export function fakeCodexAppServerPath(): string {
+function fakeCodexAppServerPath(): string {
   return fileURLToPath(new URL("fake-codex-app-server.mjs", import.meta.url));
 }
 

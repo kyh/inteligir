@@ -197,21 +197,6 @@ export class RuntimeProviderProcessManager {
             resultSchema: ignoredJsonRpcResultSchema,
           });
         }
-
-        for (const request of adapter.buildPostInitializeRequests?.() ?? []) {
-          try {
-            const result = await sendJsonRpcRequest({
-              child: providerProcess.child,
-              message: request.plan,
-              pending: providerProcess.pending,
-              getNextId: this.args.getNextRequestId,
-              resultSchema: ignoredJsonRpcResultSchema,
-            });
-            request.onResult(result);
-          } catch (error) {
-            if (request.required) throw error;
-          }
-        }
       } catch (startupError) {
         await this.cleanupFailedStartup({
           processKey: args.processKey,
