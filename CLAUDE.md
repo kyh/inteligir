@@ -85,8 +85,10 @@ packages/
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
                  tags, tasks, rename byte-surgery) over ONE markdown scan
-                 (scan-parse + wiki-links), plus frontmatter and the
-                 delegation marker. No node/react/ui imports — lint-enforced.
+                 (scan-parse + wiki-links), frontmatter, the delegation
+                 marker, and `text/` — ONE Myers diff under diff3, the editor's
+                 external replace and the suggested-edit hunks. No
+                 node/react/ui imports — lint-enforced.
   ui/            @repo/ui — vendored stock shadcn on Base UI; leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
@@ -207,6 +209,44 @@ pull` from a hostile remote is enough to plant one.
   events, under a counted commit hold that defers the vault's debounce and
   blocks a sync from starting. Committing the whole dirty tree attributes a
   concurrent turn's writes — and the user's — to whoever settles first.
+- **A turn's writes settle as a COMMIT or as a PROPOSAL, through one seam**
+  (`agent/agent-commits.ts`, issue #560). Review mode is a per-thread column,
+  not a second pipeline: the same write set, the same commit hold, taken once
+  and released once on every exit path — and `finish` commits nothing when the
+  set is empty, so a review turn leaves no orphan hold and no empty commit.
+  What review mode adds is forced by the provider owning the filesystem.
+  THE BASE COMES FROM GIT: a write is reported after it lands, so `ready`
+  flushes the dirty tree into the ordinary engine commit the debounce would
+  have made anyway and pins HEAD, which the hold then holds still for the turn.
+  THE CAPTURE IS AT SETTLE, not per event — reverting a file the instant its
+  write is reported pulls the ground out from under a multi-step edit, because
+  the agent reads back what it just wrote. The residual is stated rather than
+  hidden: for the turn's duration the agent's bytes ARE on disk and an open
+  editor merges them as it would any external change; closing that window needs
+  a per-turn worktree the provider is pointed at, which is a different seam.
+  THE REVERT IS GUARDED (`writeIfUnchanged`/`removeIfUnchanged`), so a save
+  that landed in between keeps its bytes and the proposal it invalidated reads
+  stale instead of overwriting it.
+- **A proposal stores BOTH SIDES WHOLE, never a hunk list.** The hunks every
+  surface renders are `diffLines(base, proposed)` — the Myers walk
+  `@repo/notes/text` already carries — so storing hunks would store a
+  derivation of the same two columns that can disagree with them, and a partial
+  accept would need a second assembler to turn hunks back into bytes. With the
+  content stored, the bytes applied ARE the bytes recorded, and accept and
+  reject are one operation from opposite ends: accepting advances the base past
+  a region, rejecting retreats the proposal to it, and the hunk leaves the
+  derived list either way. An accept is an ORDINARY vault write —
+  `writeGuarded` with the proposal's own base hash — so the index, git, the
+  watcher and every open editor see it, and an accept against changed disk
+  refuses rather than clobbering.
+- **`stale` is DERIVED, and `acceptedHunks` is COUNTED.** A base no longer
+  matching disk is a fact about the filesystem, so a column for it would be
+  wrong the instant a watcher was late; the read hashes the file instead. The
+  opposite holds for what LANDED: once the hunk list empties, the (base,
+  proposed) pair looks identical whether the hunks were taken or discarded, so
+  the count is kept rather than inferred — a history calling a
+  partially-applied suggestion "rejected" would contradict the note it
+  describes.
 - **Cloud state names its Durable Object from a VERIFIED credential**, never
   from anything a caller supplies. Account deletion revokes credentials FIRST,
   then purges, then writes a tombstone every route refuses against — the
