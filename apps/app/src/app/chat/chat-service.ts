@@ -10,6 +10,7 @@
 // The suites here drive the REAL ThreadService over an in-process app, so the
 // whole matrix is proven against the server's own transitions.
 
+import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type { ApiClient } from "@repo/server-contract/client";
 import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import type { SendMessageRequest, Thread } from "@repo/server-contract/threads";
@@ -158,6 +159,7 @@ export function createChatThreadResolver(api: ApiClient): () => Promise<Thread> 
 
 export interface CreateDelegationArgs {
   intent: DelegationIntent;
+  writeMode: AgentWriteMode;
   docPath: string;
   selectionText: string;
   prompt: string;
@@ -194,6 +196,9 @@ export async function createDelegation(
       title: delegationTitle(args.prompt),
       originDocPath: args.docPath,
       originAnchor: anchor,
+      // `ask` never writes, so it is created `direct` and the mode stays
+      // meaningless there rather than becoming a second thing to reason about.
+      writeMode: args.intent === "ask" ? "direct" : args.writeMode,
     },
   });
   if (!created.ok) {
@@ -204,6 +209,7 @@ export async function createDelegation(
     threadId: thread.id,
     text: composeDelegationMessage({
       intent: args.intent,
+      writeMode: args.writeMode,
       docPath: args.docPath,
       anchor,
       selectionText: args.selectionText,

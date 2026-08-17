@@ -78,16 +78,27 @@ export function applyChangedMessage(
       }
       break;
     case "doc":
-      // No cache to invalidate: the note's bytes are not query state (the
-      // buffer IS the file), so the open note's own reader is the ONE answer
-      // to this event. Invalidating a `vaultFile` query alongside it bought a
-      // second read of the same bytes and nothing else.
-      notifyDoc(message.id);
+      // The two doc kinds reach DIFFERENT readers, which is the reason they
+      // are two kinds. The note's bytes are not query state (the buffer IS the
+      // file), so `content-changed` goes to the open note's own reader and
+      // invalidates nothing — a `vaultFile` query alongside it bought a second
+      // read of the same bytes. A suggestion IS query state, and the file did
+      // not move, so `proposals-changed` sweeps that family and must not make
+      // the note re-read itself to learn about a row.
+      if (message.changes.includes("content-changed")) {
+        notifyDoc(message.id);
+      }
+      if (message.changes.includes("proposals-changed")) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
+      }
       break;
     case "thread":
       // One sweep for the whole family (list, detail, by-doc); the timeline
       // is not query-cached — its hook listens on threadEvents instead.
       void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
+      if (message.changes.includes("proposals-changed")) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
+      }
       notifyThread(message);
       break;
   }
@@ -179,6 +190,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         void runtime.queryClient.invalidateQueries({ queryKey: ["vault"] });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
+        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
         runtime.notifyDoc(null);
         runtime.notifyThread(THREAD_RECONNECT_SWEEP);
       },

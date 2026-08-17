@@ -1,10 +1,16 @@
 // The delegation entry point in the editor: a quiet tooltip above the
-// selection offering "Delegate…" / "Ask…", and — the checkbox fast path — a
-// one-click "Delegate task" when the caret sits on a task line. The tooltip
-// computes from state only: a doc change hides it (typing must never grow
-// chrome), a selection-only transaction shows it, and drag-selections defer
-// through the same rebuild seam the hide/fold fields use, so it appears once
-// on release instead of flickering under the moving head.
+// selection offering "Delegate…" / "Propose…" / "Ask…", and — the checkbox
+// fast path — a one-click delegate when the caret sits on a task line. The
+// tooltip computes from state only: a doc change hides it (typing must never
+// grow chrome), a selection-only transaction shows it, and drag-selections
+// defer through the same rebuild seam the hide/fold fields use, so it appears
+// once on release instead of flickering under the moving head.
+//
+// A SELECTION NAMES ITS WRITE MODE; THE FAST PATH INHERITS THE SETTING. Both
+// modes are spelled out where there is room for two words, because "will this
+// land or will I review it" is exactly what a user needs to know before
+// typing a prompt — and the setting is what answers it for the one-click path
+// that has no room to ask. `ask` writes nothing, so it names no mode.
 
 import { StateField, type EditorState, type Extension } from "@codemirror/state";
 import { EditorView, showTooltip, type Tooltip } from "@codemirror/view";
@@ -13,6 +19,11 @@ import { allowsSelectionRebuild } from "./decoration-update-filter";
 
 export type DelegationIntent = "do" | "ask";
 
+/** Where a delegation's writes go. Spelled here rather than imported so this
+ *  package keeps its one dependency; the app pins the two against each other
+ *  at the call site. */
+export type DelegationWriteMode = "direct" | "propose";
+
 export interface DelegationSelection {
   from: number;
   to: number;
@@ -20,9 +31,17 @@ export interface DelegationSelection {
 }
 
 export interface DelegationAffordanceConfig {
-  onDelegateSelection: (intent: DelegationIntent, selection: DelegationSelection) => void;
-  /** One click, no prompt: the task line's text IS the prompt. */
-  onDelegateTask: (task: DelegationSelection) => void;
+  onDelegateSelection: (
+    intent: DelegationIntent,
+    writeMode: DelegationWriteMode,
+    selection: DelegationSelection,
+  ) => void;
+  /** One click, no prompt: the task line's text IS the prompt. The mode comes
+   *  from the setting, which is what the label below has to state. */
+  onDelegateTask: (writeMode: DelegationWriteMode, task: DelegationSelection) => void;
+  /** The user's default write mode, read at render — a getter, because the
+   *  extension set is fixed at mount while the setting is not. */
+  defaultWriteMode: () => DelegationWriteMode;
 }
 
 interface TooltipPlan {
@@ -43,8 +62,15 @@ function planFor(state: EditorState, config: DelegationAffordanceConfig): Toolti
       pos: main.from,
       end: main.to,
       actions: [
-        { label: "Delegate…", run: () => config.onDelegateSelection("do", selection) },
-        { label: "Ask…", run: () => config.onDelegateSelection("ask", selection) },
+        {
+          label: "Delegate…",
+          run: () => config.onDelegateSelection("do", "direct", selection),
+        },
+        {
+          label: "Propose…",
+          run: () => config.onDelegateSelection("do", "propose", selection),
+        },
+        { label: "Ask…", run: () => config.onDelegateSelection("ask", "direct", selection) },
       ],
     };
   }
@@ -53,10 +79,18 @@ function planFor(state: EditorState, config: DelegationAffordanceConfig): Toolti
     return null;
   }
   const task: DelegationSelection = { from: line.from, to: line.to, text: line.text };
+  const writeMode = config.defaultWriteMode();
   return {
     pos: line.from,
     end: line.to,
-    actions: [{ label: "Delegate task", run: () => config.onDelegateTask(task) }],
+    actions: [
+      {
+        // The label says what the click will DO, so the one affordance with no
+        // room to offer a choice at least never surprises.
+        label: writeMode === "propose" ? "Propose task edit" : "Delegate task",
+        run: () => config.onDelegateTask(writeMode, task),
+      },
+    ],
   };
 }
 

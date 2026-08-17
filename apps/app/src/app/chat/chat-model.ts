@@ -3,6 +3,7 @@
 // delegation's first message is composed from. Pure functions so the
 // composer, the checkbox fast path and the tests share one answer.
 
+import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type { ThreadChipTone } from "@repo/editor/thread-chip";
 import { checkboxMarkerAt } from "@repo/notes/knowledge/source-lines";
 import { threadMarkerText } from "@repo/notes/markdown/thread-marker";
@@ -40,22 +41,25 @@ export type ThreadActivity =
   | "queued"
   | "running"
   | "needs-approval"
+  | "needs-review"
   | "done"
   | "failed"
   | "archived";
 
-/** The two counts a `Thread` alone cannot answer. */
+/** The counts a `Thread` alone cannot answer — each is rows in another table. */
 export interface ThreadActivityCounts {
   openInteractionCount: number;
   queuedCount: number;
+  pendingProposalCount: number;
 }
 
 /** For a surface holding a bare `Thread`: the list route answers no counts,
  *  so such a row reads the thread's own lifecycle and never claims an
- *  approval or a queue it was not told about. */
+ *  approval, a queue or a suggestion it was not told about. */
 export const NO_ACTIVITY_COUNTS: ThreadActivityCounts = {
   openInteractionCount: 0,
   queuedCount: 0,
+  pendingProposalCount: 0,
 };
 
 export function threadActivity(thread: Thread, counts: ThreadActivityCounts): ThreadActivity {
@@ -73,7 +77,13 @@ export function threadActivity(thread: Thread, counts: ThreadActivityCounts): Th
     case "error":
       return "failed";
     case "idle":
-      return counts.queuedCount > 0 ? "queued" : "done";
+      if (counts.queuedCount > 0) {
+        return "queued";
+      }
+      // Ranked BELOW an approval and a queue, because those block the agent
+      // while this one waits on the user with the turn already finished — but
+      // above `done`, which would leave a suggestion nobody is told about.
+      return counts.pendingProposalCount > 0 ? "needs-review" : "done";
   }
 }
 
@@ -82,6 +92,7 @@ export const THREAD_ACTIVITY_LABELS: Record<ThreadActivity, string> = {
   queued: "queued",
   running: "running",
   "needs-approval": "needs approval",
+  "needs-review": "suggested edit",
   done: "done",
   failed: "failed",
   archived: "archived",
@@ -92,6 +103,7 @@ export const THREAD_ACTIVITY_DOT_CLASSES: Record<ThreadActivity, string> = {
   queued: "bg-muted-foreground/40",
   running: "bg-sky-500 animate-pulse",
   "needs-approval": "bg-amber-500",
+  "needs-review": "bg-emerald-500",
   done: "bg-muted-foreground/40",
   failed: "bg-destructive",
   archived: "bg-muted-foreground/40",
@@ -102,6 +114,7 @@ export const THREAD_ACTIVITY_TONES: Record<ThreadActivity, ThreadChipTone> = {
   queued: "neutral",
   running: "busy",
   "needs-approval": "attention",
+  "needs-review": "attention",
   done: "positive",
   failed: "negative",
   archived: "muted",
@@ -140,6 +153,10 @@ export const ANCHOR_FAILURE_MESSAGES: Record<AnchorFailure, string> = {
  *  selected, plus the two closures that own the editor side of it. */
 export interface DelegationDraft {
   intent: DelegationIntent;
+  /** Where this delegation's writes land. `ask` writes nothing, so the field
+   *  is carried but inert there — the thread still records what it was
+   *  created as, and a later message on it obeys the same rule. */
+  writeMode: AgentWriteMode;
   docPath: string;
   selectionText: string;
   /** Splices the marker at the TRACKED position and makes it durable. Resolves
@@ -177,6 +194,7 @@ export function taskPrompt(lineText: string): string {
 
 export interface ComposeDelegationArgs {
   intent: DelegationIntent;
+  writeMode: AgentWriteMode;
   docPath: string;
   anchor: string;
   selectionText: string;
@@ -188,6 +206,17 @@ const INTENT_PREAMBLE: Record<DelegationIntent, string> = {
   ask: "This is a question about a note in the vault. Answer in this thread only — do not modify any files.",
 };
 
+/**
+ * What review mode adds to the prompt. The agent's tools and working
+ * directory are UNCHANGED — it edits the vault exactly as it always does, and
+ * the host lifts those writes out afterwards — so this is orientation, not
+ * instruction: without it the model would report that it applied changes the
+ * user cannot yet see.
+ */
+const REVIEW_MODE_NOTE =
+  "Your file edits will be held as a suggestion for the user to accept or reject, " +
+  "so make them as you normally would and say what you changed rather than claiming it is live.";
+
 export function composeDelegationMessage(args: ComposeDelegationArgs): string {
   const quoted = args.selectionText
     .split("\n")
@@ -196,6 +225,7 @@ export function composeDelegationMessage(args: ComposeDelegationArgs): string {
   const label = args.intent === "do" ? "Task" : "Question";
   return [
     INTENT_PREAMBLE[args.intent],
+    ...(args.intent === "do" && args.writeMode === "propose" ? [REVIEW_MODE_NOTE] : []),
     `Context — this block from ${args.docPath} (its position is marked with ${threadMarkerText(args.anchor)}):`,
     quoted,
     `${label}: ${args.prompt}`,

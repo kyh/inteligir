@@ -10,6 +10,7 @@
 // adopt/merge, never straight into the buffer. Two writers over one buffer is
 // the bug this shape exists to make unrepresentable.
 
+import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import { MarkdownEditor } from "@repo/editor/react/markdown-editor";
 import type { MarkdownEditor as MarkdownEditorHandle } from "@repo/editor/create-markdown-editor";
 import {
@@ -21,6 +22,12 @@ import {
   pendingAnchorPosition,
   setPendingAnchor,
 } from "@repo/editor/pending-anchor";
+import {
+  proposalGutterExtension,
+  setProposalHunks,
+  type ProposalGutterState,
+  type ProposalHunkView,
+} from "@repo/editor/proposal-gutter";
 import {
   setThreadChips,
   threadChipsExtension,
@@ -44,6 +51,9 @@ import {
   type DelegationIntent,
 } from "../chat/chat-model";
 import { useDocThreads } from "../chat/thread-hooks";
+import { ProposalBar } from "../proposals/proposal-bar";
+import { useDocProposals, useProposalActions } from "../proposals/proposal-hooks";
+import { readDelegationWriteMode } from "../prefs";
 import { NoteController, type SaveResult } from "./note-controller";
 import { useNoteDisk } from "./note-disk";
 import { NoteTitle } from "./note-title";
@@ -158,6 +168,45 @@ function OpenNote({
   );
   const chipStateRef = useRef(chipState);
 
+  // The suggestions against this note. `diskContent` is the note's bytes as
+  // last READ, which is exactly what the hunks' base line numbers describe —
+  // so a proposal can be placed only while the buffer still equals it. Any
+  // unsaved keystroke makes the placement a guess, and the gutter says so by
+  // going dark rather than marking lines the hunk never named.
+  const proposalsQuery = useDocProposals(path);
+  const proposals = useMemo(() => proposalsQuery.data ?? [], [proposalsQuery.data]);
+  const proposalActions = useProposalActions((message) => {
+    toast.error(message);
+  });
+  const [bufferMatchesDisk, setBufferMatchesDisk] = useState(true);
+  const gutterState = useMemo<ProposalGutterState>(() => {
+    if (proposalsQuery.data === undefined) {
+      return { kind: "idle" };
+    }
+    const placeable = proposals.filter(
+      (proposal) => proposal.status === "pending" && proposal.baseContent === diskContent,
+    );
+    if (!bufferMatchesDisk || placeable.length === 0) {
+      const pendingCount = proposals.filter((proposal) => proposal.status === "pending").length;
+      return pendingCount === 0 ? { kind: "idle" } : { kind: "unplaceable", count: pendingCount };
+    }
+    return {
+      kind: "ready",
+      hunks: placeable.flatMap<ProposalHunkView>((proposal) =>
+        proposal.hunks.map((hunk) => ({
+          proposalId: proposal.id,
+          revision: proposal.revision,
+          index: hunk.index,
+          baseStart: hunk.baseStart,
+          baseEnd: hunk.baseEnd,
+          proposedLineCount: hunk.proposedLines.length,
+        })),
+      ),
+    };
+  }, [proposalsQuery.data, proposals, diskContent, bufferMatchesDisk]);
+  const gutterStateRef = useRef(gutterState);
+  const proposalActionsRef = useRef(proposalActions);
+
   // The editor extensions are fixed at mount, so every callback reads the
   // CURRENT handlers through this ref; assigned in a layout effect so an
   // event firing between commit and passive effects sees fresh values.
@@ -169,6 +218,8 @@ function OpenNote({
   });
   useLayoutEffect(() => {
     chipStateRef.current = chipState;
+    gutterStateRef.current = gutterState;
+    proposalActionsRef.current = proposalActions;
     delegationRef.current = {
       threadIdFor: (anchor) =>
         (docThreads ?? []).find((activity) => activity.thread.originAnchor === anchor)?.thread.id ??
@@ -185,13 +236,18 @@ function OpenNote({
    * user types a prompt and an agent write may merge in before submit, and a
    * raw offset would name a different block by then.
    */
-  const draftFor = (intent: DelegationIntent, selection: DelegationSelection): DelegationDraft => {
+  const draftFor = (
+    intent: DelegationIntent,
+    writeMode: AgentWriteMode,
+    selection: DelegationSelection,
+  ): DelegationDraft => {
     editorRef.current?.view.dispatch({ effects: setPendingAnchor.of(selection.to) });
     const clearPending = (): void => {
       editorRef.current?.view.dispatch({ effects: setPendingAnchor.of(null) });
     };
     return {
       intent,
+      writeMode,
       docPath: path,
       selectionText: selection.text,
       cancel: clearPending,
@@ -238,12 +294,32 @@ function OpenNote({
         }
       },
     }),
-    delegationAffordanceExtension({
-      onDelegateSelection: (intent, selection) => {
-        delegationRef.current.onDraft(draftForRef.current(intent, selection));
+    proposalGutterExtension({
+      onAccept: (hunk) => {
+        void proposalActionsRef.current.accept({
+          proposalId: hunk.proposalId,
+          expectedRevision: hunk.revision,
+          hunkIndex: hunk.index,
+        });
       },
-      onDelegateTask: (task) => {
-        delegationRef.current.onRunTask(draftForRef.current("do", task), taskPrompt(task.text));
+      onReject: (hunk) => {
+        void proposalActionsRef.current.reject({
+          proposalId: hunk.proposalId,
+          expectedRevision: hunk.revision,
+          hunkIndex: hunk.index,
+        });
+      },
+    }),
+    delegationAffordanceExtension({
+      defaultWriteMode: readDelegationWriteMode,
+      onDelegateSelection: (intent, writeMode, selection) => {
+        delegationRef.current.onDraft(draftForRef.current(intent, writeMode, selection));
+      },
+      onDelegateTask: (writeMode, task) => {
+        delegationRef.current.onRunTask(
+          draftForRef.current("do", writeMode, task),
+          taskPrompt(task.text),
+        );
       },
     }),
   ]);
@@ -252,6 +328,10 @@ function OpenNote({
   useEffect(() => {
     editorRef.current?.view.dispatch({ effects: setThreadChips.of(chipState) });
   }, [chipState]);
+
+  useEffect(() => {
+    editorRef.current?.view.dispatch({ effects: setProposalHunks.of(gutterState) });
+  }, [gutterState]);
 
   // The guarded save: hash the base, PUT with the guard, map a 409 CAS body
   // to the controller's SaveResult. Every other refusal throws.
@@ -298,8 +378,13 @@ function OpenNote({
       return;
     }
     editorRef.current = editor;
-    // Chip data may have landed before the editor did.
-    editor.view.dispatch({ effects: setThreadChips.of(chipStateRef.current) });
+    // Chip and suggestion data may have landed before the editor did.
+    editor.view.dispatch({
+      effects: [
+        setThreadChips.of(chipStateRef.current),
+        setProposalHunks.of(gutterStateRef.current),
+      ],
+    });
     controllerRef.current = new NoteController({
       buffer: editor,
       initialContent: diskContent,
@@ -319,6 +404,10 @@ function OpenNote({
   // the controller no-ops on its own echo.
   useEffect(() => {
     controllerRef.current?.externalContent(diskContent);
+    // An adopted read makes the buffer the disk again (or a merge makes it
+    // dirty); either way the gutter's placement question is re-answered here
+    // rather than waiting for the next keystroke.
+    setBufferMatchesDisk(controllerRef.current?.isDirty() !== true);
   }, [diskContent]);
 
   // The tab hiding still has a live page — an ordinary flush. The page GOING
@@ -355,6 +444,12 @@ function OpenNote({
       }}
     >
       <div className="mx-auto w-full max-w-[var(--editor-width)] px-7 pt-12">
+        <ProposalBar
+          proposals={proposals}
+          actions={proposalActions}
+          unplaceable={gutterState.kind === "unplaceable"}
+          onOpenThread={delegation.onOpenThread}
+        />
         <NoteTitle
           path={path}
           onRename={async (toPath) => {
@@ -388,7 +483,12 @@ function OpenNote({
         className="note-editor-host"
         initialDoc={diskContent}
         extensions={delegationExtensions}
-        onDocChanged={() => controllerRef.current?.docChanged()}
+        onDocChanged={() => {
+          controllerRef.current?.docChanged();
+          // The gutter's coordinates are the DISK's; the moment they part
+          // company it stops drawing, and a save brings it back.
+          setBufferMatchesDisk(controllerRef.current?.isDirty() !== true);
+        }}
         onOpenTag={onSearchTag}
         resolveAsset={vaultAssetUrl}
         onEditor={handleEditor}

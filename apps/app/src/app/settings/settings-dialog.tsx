@@ -1,9 +1,10 @@
 // Minimal settings: what the server already answers (vault location, git
 // remote, sync state, the agent block of /system/status, the About block)
-// plus the one client-side preference that exists today (theme). The remote
-// is display-only — changing it rides INTELIGIR_VAULT_REMOTE / config.json
-// until a config route exists.
+// plus the client-side preferences that exist today (theme, and what a
+// delegation does with its writes). The remote is display-only — changing it
+// rides INTELIGIR_VAULT_REMOTE / config.json until a config route exists.
 
+import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import { Button } from "@repo/ui/components/button";
 import {
   Dialog,
@@ -14,7 +15,9 @@ import {
 } from "@repo/ui/components/dialog";
 import { Separator } from "@repo/ui/components/separator";
 import { cn } from "@repo/ui/lib/utils";
+import { useState } from "react";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
+import { readDelegationWriteMode, writeDelegationWriteMode } from "../prefs";
 import {
   canSyncNow,
   syncStateLabel,
@@ -41,6 +44,51 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
 ];
+
+/** The default a delegation gets when the surface that created it did not
+ *  name a mode — the checkbox fast path, and anything the CLI starts. */
+const WRITE_MODES: readonly { value: AgentWriteMode; label: string; hint: string }[] = [
+  { value: "direct", label: "Apply directly", hint: "Edits land in the vault as the agent works." },
+  {
+    value: "propose",
+    label: "Suggest first",
+    hint: "Edits are held for you to accept or reject, hunk by hunk.",
+  },
+];
+
+function ChoiceRow<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div className="flex gap-1" role="radiogroup" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className={cn(
+            "rounded-md border px-3 py-1 text-sm",
+            value === option.value
+              ? "border-ring bg-muted text-foreground"
+              : "border-border text-muted-foreground hover:bg-muted/50",
+          )}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -73,6 +121,11 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
   const statusQuery = useVaultStatus();
   const systemQuery = useSystemStatus();
   const { theme, setTheme } = useTheme();
+  const [writeMode, setWriteModeState] = useState<AgentWriteMode>(readDelegationWriteMode);
+  const setWriteMode = (next: AgentWriteMode): void => {
+    writeDelegationWriteMode(next);
+    setWriteModeState(next);
+  };
 
   const status = statusQuery.data;
   const system = systemQuery.data;
@@ -132,30 +185,23 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
               <span className="text-xs text-muted-foreground">{system.agent.detail}</span>
             </Row>
           ) : null}
+          <Row label="Edits">
+            <ChoiceRow
+              label="What a delegation does with its edits"
+              options={WRITE_MODES}
+              value={writeMode}
+              onChange={setWriteMode}
+            />
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {WRITE_MODES.find((mode) => mode.value === writeMode)?.hint}
+            </span>
+          </Row>
         </dl>
       </section>
       <Separator />
       <section className="space-y-2">
         <SectionHeading>Appearance</SectionHeading>
-        <div className="flex gap-1" role="radiogroup" aria-label="Theme">
-          {THEMES.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={theme === option.value}
-              className={cn(
-                "rounded-md border px-3 py-1 text-sm",
-                theme === option.value
-                  ? "border-ring bg-muted text-foreground"
-                  : "border-border text-muted-foreground hover:bg-muted/50",
-              )}
-              onClick={() => setTheme(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <ChoiceRow label="Theme" options={THEMES} value={theme} onChange={setTheme} />
       </section>
       <Separator />
       <section className="space-y-2">

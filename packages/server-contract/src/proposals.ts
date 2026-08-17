@@ -97,7 +97,17 @@ export const listProposalsQuerySchema = z
       .optional(),
   })
   .strict();
+/** What the HANDLER receives — `includeResolved` parsed into a boolean. */
 export type ListProposalsQuery = z.infer<typeof listProposalsQuerySchema>;
+/** What a CALLER sends. A query string carries text, so the flag is spelled
+ *  as one on the wire and the schema above is where it becomes a boolean —
+ *  typing the client against the parsed shape would make it send `true` and
+ *  the validator refuse the `"true"` that arrived. */
+export interface ListProposalsQueryInput {
+  docPath?: string;
+  threadId?: string;
+  includeResolved?: "true" | "false";
+}
 
 export const proposalIdQuerySchema = z.object({ proposalId: z.string().min(1) }).strict();
 export type ProposalIdQuery = z.infer<typeof proposalIdQuerySchema>;
@@ -124,7 +134,11 @@ export const proposalRoutes = {
   list: defineRoute({
     path: "/proposals/list",
     method: "get",
-    request: optionalQueryRequest<EmptyInput, ListProposalsQuery>(listProposalsQuerySchema),
+    request: optionalQueryRequest<
+      EmptyInput,
+      ListProposalsQueryInput,
+      typeof listProposalsQuerySchema
+    >(listProposalsQuerySchema),
     response: [
       jsonResponse<ListProposalsResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),

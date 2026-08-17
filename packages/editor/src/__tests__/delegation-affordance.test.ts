@@ -27,6 +27,7 @@ const mount = (config: Partial<DelegationAffordanceConfig> = {}) => {
     doc,
     extensions: [
       delegationAffordanceExtension({
+        defaultWriteMode: config.defaultWriteMode ?? (() => "direct"),
         onDelegateSelection: config.onDelegateSelection ?? (() => {}),
         onDelegateTask: config.onDelegateTask ?? (() => {}),
       }),
@@ -46,20 +47,22 @@ const requireButton = (buttons: HTMLButtonElement[], index: number): HTMLButtonE
 };
 
 describe("the delegation affordance", () => {
-  test("a non-empty selection offers Delegate and Ask, carrying the selected text", () => {
+  test("a non-empty selection names its write mode: Delegate, Propose, Ask", () => {
     const onDelegateSelection = vi.fn();
     const mounted = mount({ onDelegateSelection });
     const from = posOf(doc, "A paragraph");
     const to = from + "A paragraph to delegate.".length;
+    const selection = { from, to, text: "A paragraph to delegate." };
     mounted.view.dispatch({ selection: EditorSelection.single(from, to) });
     const buttons = tooltipButtons(mounted);
-    expect(buttons.map((button) => button.textContent)).toEqual(["Delegate…", "Ask…"]);
+    expect(buttons.map((button) => button.textContent)).toEqual(["Delegate…", "Propose…", "Ask…"]);
+
+    fireEvent.click(requireButton(buttons, 0));
+    expect(onDelegateSelection).toHaveBeenCalledWith("do", "direct", selection);
     fireEvent.click(requireButton(buttons, 1));
-    expect(onDelegateSelection).toHaveBeenCalledWith("ask", {
-      from,
-      to,
-      text: "A paragraph to delegate.",
-    });
+    expect(onDelegateSelection).toHaveBeenCalledWith("do", "propose", selection);
+    fireEvent.click(requireButton(buttons, 2));
+    expect(onDelegateSelection).toHaveBeenCalledWith("ask", "direct", selection);
   });
 
   test("a caret on a task line offers the one-click fast path", () => {
@@ -70,11 +73,23 @@ describe("the delegation affordance", () => {
     const buttons = tooltipButtons(mounted);
     expect(buttons.map((button) => button.textContent)).toEqual(["Delegate task"]);
     fireEvent.click(requireButton(buttons, 0));
-    expect(onDelegateTask).toHaveBeenCalledWith({
+    expect(onDelegateTask).toHaveBeenCalledWith("direct", {
       from: posOf(doc, "- [ ] water"),
       to: posOf(doc, "- [ ] water") + "- [ ] water the plants".length,
       text: "- [ ] water the plants",
     });
+  });
+
+  test("the fast path's LABEL states the mode the setting will give it", () => {
+    const onDelegateTask = vi.fn();
+    const mounted = mount({ onDelegateTask, defaultWriteMode: () => "propose" });
+    mounted.view.dispatch({
+      selection: EditorSelection.single(posOf(doc, "water the plants")),
+    });
+    const buttons = tooltipButtons(mounted);
+    expect(buttons.map((button) => button.textContent)).toEqual(["Propose task edit"]);
+    fireEvent.click(requireButton(buttons, 0));
+    expect(onDelegateTask).toHaveBeenCalledWith("propose", expect.anything());
   });
 
   test("a caret on an ordinary line shows nothing, and typing hides the tooltip", () => {

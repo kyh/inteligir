@@ -10,6 +10,7 @@
     "./external-replace": "./src/external-replace.ts",
     "./editor-theme": "./src/editor-theme.ts",
     "./thread-chip": "./src/thread-chip.ts",
+    "./proposal-gutter": "./src/proposal-gutter.ts",
     "./delegation-affordance": "./src/delegation-affordance.ts",
     "./pending-anchor": "./src/pending-anchor.ts",
     "./react/markdown-editor": "./src/react/markdown-editor.tsx",

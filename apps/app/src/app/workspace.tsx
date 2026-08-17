@@ -91,6 +91,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       try {
         const created = await createDelegation(api, {
           intent: draft.intent,
+          writeMode: draft.writeMode,
           docPath: draft.docPath,
           selectionText: draft.selectionText,
           prompt,
