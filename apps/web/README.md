@@ -182,7 +182,9 @@ it applies the schema (step 3) BEFORE it publishes, as its own step. That
 ordering is the whole point: the schema here is additive, so an old Worker
 against a new database ignores what it does not know, while a new Worker
 against an old database 500s on every request touching a table that isn't
-there. It needs three repo secrets beyond `CLOUDFLARE_API_TOKEN` —
-`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN` — and
-without them the deploy fails at the schema step rather than shipping code
-against a database it does not match.
+there. It runs on the two repo secrets that already exist —
+`CLOUDFLARE_API_TOKEN` (which must carry `D1: Edit` alongside its Workers
+scopes) and `CLOUDFLARE_ACCOUNT_ID`; the database id is read out of
+`wrangler.jsonc`, being an identifier rather than a credential. Without the D1
+scope the deploy fails at the schema step rather than shipping code against a
+database it does not match.

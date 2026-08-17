@@ -1,13 +1,15 @@
 # Deploys @repo/web to Cloudflare Workers on push to main.
 #
-# Repo secrets:
+# Repo secrets — two, both pre-existing:
 #   CLOUDFLARE_API_TOKEN   Workers Scripts: Edit (account) + Workers Routes:
-#                          Edit (inteligir.com zone) — publishes the Worker.
-#   CLOUDFLARE_ACCOUNT_ID  } the three drizzle-kit needs to reach the prod D1
-#   CLOUDFLARE_DATABASE_ID } over the HTTP driver (apps/web/drizzle.config.ts).
-#   CLOUDFLARE_D1_TOKEN    } The D1 token needs "D1: Edit" and is DISTINCT from
-#                          the Workers one on purpose — the schema step and the
-#                          publish step have no reason to share a credential.
+#                          Edit (inteligir.com zone) to publish, plus D1: Edit
+#                          for the schema step below.
+#   CLOUDFLARE_ACCOUNT_ID  which account drizzle-kit's HTTP driver targets.
+#
+# One token serves both steps because a second one would not buy isolation:
+# they run in the same job on the same runner, so whatever reaches one reaches
+# the other. Splitting them only pays off once the schema step moves to a job
+# with its own environment — do it then, not now.
 name: Deploy
 
 # Gated on CI rather than on the push: a `push` trigger races the test run and
@@ -123,12 +125,23 @@ jobs:
       # for exactly as long as the schema stays additive; a destructive column
       # change is the trigger to adopt migration files, and it must not be
       # discovered by this flag applying it unattended.
+      #
+      # The database id is the one in apps/web/wrangler.jsonc — an identifier,
+      # not a credential — so it is read from the config rather than carried as
+      # a fourth secret. The token is the deploy token this job already holds;
+      # it needs D1:Edit alongside the Workers scopes wrangler uses.
       - name: Apply the D1 schema
-        run: pnpm -F @repo/web exec drizzle-kit push --force
+        run: |
+          CLOUDFLARE_DATABASE_ID=$(node -e "
+            const config = require('node:fs').readFileSync('apps/web/wrangler.jsonc', 'utf8');
+            const match = config.match(/\"database_id\":\s*\"([^\"]+)\"/);
+            if (match === null) { throw new Error('no database_id in apps/web/wrangler.jsonc'); }
+            process.stdout.write(match[1]);
+          ") \
+          pnpm -F @repo/web exec drizzle-kit push --force
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_DATABASE_ID: ${{ secrets.CLOUDFLARE_DATABASE_ID }}
-          CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_D1_TOKEN }}
+          CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
       - name: Build & deploy web
         run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec wrangler deploy
