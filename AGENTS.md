@@ -144,6 +144,8 @@ packages/agent-runtime   bb's provider runtime, codex slice:
                          JSON-RPC/stdio + adapter (PROVENANCE.md)    @repo/agent-runtime
 packages/notes           Pure domain — knowledge + markdown          @repo/notes
 packages/ui              Shared components (vendored shadcn)         @repo/ui
+tools/repo-guards        Fitness tests over the repo: the dep DAG,
+                         ws change kinds, vendored provenance        @repo/repo-guards
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.

@@ -111,6 +111,12 @@
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
+    // Derived fitness tests over the repo itself. Every file is a suite or the
+    // tree walk they share, so the suites ARE the entries.
+    "tools/repo-guards": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
     // The ONE package that keeps knip's default `includeEntryExports: false`,
     // and the reason is the package rather than the findings. `src/components`
     // is VENDORED shadcn: each file is copied from the registry, recorded in

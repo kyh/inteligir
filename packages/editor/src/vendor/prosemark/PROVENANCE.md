@@ -12,6 +12,18 @@ the package for the same reason. Files keep upstream's camelCase names under
 `lib/` and `tests/` so a re-vendor diffs cleanly — kebab-case names in this
 directory mark house-authored files.
 
+## Attribution
+
+MIT requires the notice to travel with the copy, so every file under this
+directory carries the line below —
+`tools/repo-guards/src/vendor-provenance.test.ts` reads it from here and checks
+the tree against it. Nothing is exempt: a second fenced block under this heading
+would list the exempt paths, and there are none.
+
+```text
+Vendored from ProseMark (github.com/jsimonrichard/ProseMark), MIT.
+```
+
 ## Not carried
 
 - `lib/fold/emoji.ts` — the one module depending on `node-emoji`, out of scope
