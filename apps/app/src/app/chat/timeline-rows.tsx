@@ -10,6 +10,7 @@ import type {
 } from "@repo/server-contract/thread-timeline";
 import { Spinner } from "@repo/ui/components/spinner";
 import { cn } from "@repo/ui/lib/utils";
+import { memo } from "react";
 
 function firstLine(text: string): string {
   return text.split("\n", 1)[0] ?? "";
@@ -97,7 +98,13 @@ function TurnRowView({ row }: { row: TimelineTurnRow }) {
   );
 }
 
-export function TimelineRowView({ row }: { row: TimelineRow }) {
+/**
+ * Memoized on `row` alone, which is what the delta path already preserves: an
+ * unchanged row comes back from `applyTimelineDelta` as the SAME object, so a
+ * streaming turn re-rendering every row it did not touch was throwing that
+ * identity away — and a turn row carries its whole subtree.
+ */
+export const TimelineRowView = memo(function TimelineRowView({ row }: { row: TimelineRow }) {
   switch (row.kind) {
     case "conversation":
       if (row.role === "user") {
@@ -122,4 +129,4 @@ export function TimelineRowView({ row }: { row: TimelineRow }) {
     case "work":
       return <WorkRowView row={row} />;
   }
-}
+});

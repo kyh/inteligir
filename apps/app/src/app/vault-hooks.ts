@@ -29,11 +29,15 @@ export function useVaultStatus() {
   });
 }
 
+/** The one query the ws bus does NOT sweep — no change message names it, and
+ *  uptime moves on its own — so it opts out of the fresh-forever default and
+ *  re-reads whenever a consumer mounts. */
 export function useSystemStatus() {
   const { api } = useWorkspace();
   return useQuery<SystemStatusResponse>({
     queryKey: queryKeys.systemStatus,
     queryFn: async () => unwrap(await api.system.status.$get()),
+    staleTime: 0,
   });
 }
 

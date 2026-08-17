@@ -13,11 +13,9 @@
 // Reads COALESCE: a burst (an agent turn writing repeatedly) holds ONE
 // request in flight and collapses everything arriving during it into a single
 // trailing re-read, so the last read always reflects the final disk state.
-// What that bounds is the burst, not the pair: one service write announces
-// itself TWICE to a `vault` subscriber (`notifyDoc` plus the vault
-// files-changed carrying the same path, vault-service.ts), and both reach
-// this reader as separate events — so a write still costs two reads, one per
-// event. Collapsing that is a change to what the server announces.
+// A content-only write is ONE event, because the vault service says
+// `content-changed` alone for it and keeps `files-changed` for the mutations
+// that move a tree row (vault-service.ts).
 
 import type { ApiClient } from "@repo/server-contract/client";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
