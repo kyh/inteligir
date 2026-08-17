@@ -29,6 +29,34 @@
 // here — correctly, since that table cannot drift. And a vocabulary of fewer
 // than three members is skipped: "names both of its two values" is a
 // coincidence, not a total dispatch, and every producer would trip it.
+//
+// THE FLOOR STAYS AT TOTALITY, and that is a decision rather than an
+// oversight. Partial dispatch is a real drift class — three surfaces each
+// answering half the sync-state question is what `vault-hooks.ts` records —
+// but "names a subset nobody derived" cannot be asked of this detector, for a
+// reason in its own mechanism: a subset that DERIVES spells its members as
+// quoted literals too. `vault-service.ts` holds its refusal classes in a
+// `satisfies readonly ApiErrorCode[]` array, compiler-tied to the vocabulary,
+// and reads here exactly like a hand-written union would. That is not true of
+// a TOTAL table — one built by iterating the array names no literal at all —
+// which is precisely why the totality rule can be trusted and a subset rule
+// cannot.
+//
+// The measurement, so the next reader does not have to retake it: at a
+// three-member floor the widened rule fires on nine sites and none of them is
+// drift. Six are producers naming the classes they throw or the kinds they
+// announce, at unrelated call sites, deciding nothing jointly. One is
+// `packages/ui/src/components/geometric-orb.tsx`, which names "idle",
+// "starting" and "error" as its own prop vocabulary in a leaf that cannot
+// import `@repo/domain` at all — a collision of common words the detector has
+// no way to tell from the real thing. Nine exemption rows whose reason is
+// uniformly "these are not one decision" is a guard that gets muted, and a
+// muted guard protects less than a narrow one.
+//
+// What DOES catch partial dispatch is making the subset a derivation, which
+// turns it into either a total table this rule already sees
+// (`thread-hooks.ts`) or a compile error at the array. That is the move; the
+// guard is not the place it happens.
 // ---------------------------------------------------------------------------
 
 import {
