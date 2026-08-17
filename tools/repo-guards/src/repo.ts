@@ -7,12 +7,11 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
-/** Where the pnpm workspace globs land. `e2e` is its own workspace, not a glob. */
-const WORKSPACE_GROUPS = ["apps", "packages", "tools"];
-const STANDALONE_WORKSPACES = ["e2e"];
+export const WORKSPACE_MANIFEST = "pnpm-workspace.yaml";
 
 /** Directories no guard walks: dependencies, and build output that would be
  *  read as source. Shared, because a guard with its own shorter list passes on
@@ -69,13 +68,63 @@ function parseManifest(file: string): Manifest {
   return manifest;
 }
 
+export interface WorkspaceGlobs {
+  /** `apps/*` → `apps`: every child directory of it is a candidate workspace. */
+  groups: string[];
+  /** `e2e` → `e2e`: the directory IS the workspace. */
+  standalone: string[];
+}
+
+let cachedGlobs: WorkspaceGlobs | undefined;
+
+/**
+ * The workspace globs, read from pnpm's own manifest rather than restated.
+ *
+ * A guard that carries its own copy stops covering a workspace group the day
+ * one is added, and the symptom is silence — every assertion still passes,
+ * over a smaller tree. Only the two glob shapes this repo uses are understood;
+ * anything else THROWS, because the alternative is skipping it quietly, which
+ * is the failure this reader exists to remove.
+ */
+export function workspaceGlobs(): WorkspaceGlobs {
+  if (cachedGlobs !== undefined) return cachedGlobs;
+  const parsed: unknown = parseYaml(
+    fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf8"),
+  );
+  if (!isRecord(parsed) || !Array.isArray(parsed.packages)) {
+    throw new Error(`${WORKSPACE_MANIFEST}: expected a "packages" list of workspace globs`);
+  }
+  const groups: string[] = [];
+  const standalone: string[] = [];
+  for (const entry of parsed.packages) {
+    if (typeof entry !== "string") {
+      throw new Error(`${WORKSPACE_MANIFEST}: every "packages" entry must be a string`);
+    }
+    const glob = entry.replace(/\/+$/, "");
+    if (glob.endsWith("/*") && !glob.slice(0, -2).includes("*")) {
+      groups.push(glob.slice(0, -2));
+    } else if (!glob.includes("*") && !glob.startsWith("!")) {
+      standalone.push(glob);
+    } else {
+      throw new Error(
+        `${WORKSPACE_MANIFEST}: cannot read the workspace glob "${entry}".\n` +
+          `  rule: tools/repo-guards/src/repo.ts derives every guard's tree walk from this list, and understands "<dir>/*" and a plain "<dir>" only\n` +
+          `  fix: teach workspaceGlobs() this shape — leaving it unread would silently shrink what every guard covers`,
+      );
+    }
+  }
+  cachedGlobs = { groups, standalone };
+  return cachedGlobs;
+}
+
 let cachedWorkspaces: Workspace[] | undefined;
 
-/** Every workspace in the repo, discovered from the directory layout. */
+/** Every workspace in the repo, discovered from the pnpm globs' own layout. */
 export function workspaces(): Workspace[] {
   if (cachedWorkspaces !== undefined) return cachedWorkspaces;
-  const dirs: string[] = [...STANDALONE_WORKSPACES];
-  for (const group of WORKSPACE_GROUPS) {
+  const globs = workspaceGlobs();
+  const dirs: string[] = [...globs.standalone];
+  for (const group of globs.groups) {
     const groupDir = path.join(REPO_ROOT, group);
     if (!fs.existsSync(groupDir)) continue;
     for (const entry of fs.readdirSync(groupDir, { withFileTypes: true })) {
