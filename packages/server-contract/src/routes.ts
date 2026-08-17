@@ -9,6 +9,7 @@ import {
 import { z } from "zod";
 import type { ApiErrorResponse } from "./errors";
 import { knowledgeRoutes } from "./knowledge";
+import { proposalRoutes } from "./proposals";
 import { threadRoutes } from "./threads";
 import { vaultRoutes } from "./vault";
 
@@ -130,6 +131,7 @@ export const apiRoutes = {
     response: jsonResponse<GuideResponse>(),
   }),
   knowledge: knowledgeRoutes,
+  proposals: proposalRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,
 };
