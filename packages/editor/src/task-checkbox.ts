@@ -43,7 +43,7 @@ const toggleTaskAt = (view: EditorView, target: HTMLElement): boolean => {
   const pos = view.posAtDOM(target);
   const line = view.state.doc.lineAt(pos);
   // @repo/notes owns the one checkbox grammar; locating the state char through
-  // it keeps this toggle in lockstep with the guarded vault write.
+  // it keeps this toggle in lockstep with the ordinals the projection counts.
   const marker = checkboxMarkerAt(line.text);
   if (marker === null) return false;
   const stateFrom = line.from + marker.checkboxIndex;

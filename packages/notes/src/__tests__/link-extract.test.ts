@@ -327,8 +327,8 @@ describe("scanDoc — task extraction", () => {
   it("frontmatter `tasks: false` suppresses extraction (scanTaskItems still counts)", () => {
     const src = "---\ntasks: false\n---\n\n- [ ] hidden from the view\n";
     expect(scanDoc(src).tasks).toEqual([]);
-    // The raw counting contract (delegation ordinals, guarded toggle) is
-    // unaffected by the view opt-out.
+    // The raw count is the editor's checkbox lockstep, and the editor draws
+    // every checkbox in the buffer whatever the frontmatter says.
     expect(scanTaskItems(src).map((t) => t.text)).toEqual(["hidden from the view"]);
   });
 

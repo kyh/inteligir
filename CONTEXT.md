@@ -26,14 +26,13 @@ IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`).
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor
 (`\r\n`, `\r`, `\n`). That rule is stated once, in
-`@repo/notes/knowledge/source-lines`, and it has **two readings that must name
-identical bytes**: `splitLines` reads lines as VALUES, `lineSpan` reads one as a
-POSITION. The split cannot be used to write — joining back would rewrite every
-terminator in the file, so a CRLF doc saved after ticking one box would come
-back with every line changed. So a guarded write scans EOLs in place and splices
-inside the span. Their agreement is pinned by that module's own test; a third
-reading of "what a line is" anywhere else is a file-corruption bug waiting to
-happen.
+`@repo/notes/knowledge/source-lines`, and read once, by `splitLines` — the task
+scan records a checkbox's `raw` under it and the projection cuts link snippets
+under it. A second reading of "what a line is" anywhere else is a
+file-corruption bug waiting to happen. Note what the split is NOT for: joining
+back rewrites every terminator in the file, so a CRLF doc saved after ticking
+one box would come back with every line changed. Writes go through the vault's
+whole-file CAS, never through a re-joined split.
 
 **projection** — what ONE parse of a doc yields: title, headings, links, tags,
 aliases, tasks (`@repo/notes/knowledge/projection`, `projectDoc`). An index
