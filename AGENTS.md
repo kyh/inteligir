@@ -135,6 +135,10 @@ rather than moving the app somewhere the docs don't name.
 apps/app                 THE PRODUCT: local Node server — Start SPA +
                          /api/v1 + /ws + SQLite                      @repo/app
 apps/cli                 The `inteligir` CLI over the typed client   @repo/cli
+apps/launcher            THE PUBLISHED ARTIFACT: `npx inteligir`,
+                         which boots the server in-process           inteligir
+apps/desktop             Electron shell: one window on the local
+                         server, supervising it as a child          @repo/desktop
 apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
 packages/typed-routes    Contract-first Hono route machinery (bb)    @repo/typed-routes
 packages/server-contract The wire contract: route table + ws proto   @repo/server-contract

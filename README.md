@@ -7,6 +7,33 @@ Turborepo monorepo, mid-rewrite: the v3 architecture is
 with their own issues from that index. What runs today is the marketing site
 and the account surface, plus the carried domain packages.
 
+## Install & run
+
+Everything runs on your own machine. Your notes are plain markdown files in a
+folder you own, versioned with git.
+
+```bash
+npx inteligir
+```
+
+That boots the local server, prints the URL and opens it. The vault is created
+at `~/Inteligir` on first run; the database and settings live in `~/.inteligir`.
+`--port`, `--data-dir`, `--vault` and `--no-open` override that; `^C` stops it
+cleanly (the pending vault commit is flushed and the database closed before it
+exits). See [`apps/launcher`](./apps/launcher/README.md).
+
+The desktop app is the same product in a window that starts and stops the
+server with it — [`apps/desktop`](./apps/desktop/README.md). It is built
+unsigned from this repo (`pnpm package:desktop`); there is no download and no
+update feed yet.
+
+From a checkout instead:
+
+```bash
+pnpm install
+pnpm dev              # the local server + UI, on a per-checkout port
+```
+
 ## Layout
 
 ```

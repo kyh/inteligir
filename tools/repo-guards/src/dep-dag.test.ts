@@ -72,6 +72,15 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // survive on workerd — see the workerd rule below for what enforces that
   // beyond this row.
   "@repo/web": ["@repo/cloud-contract", "@repo/ui"],
+  // The two SHIPPING surfaces, and both rows are empty because both consume
+  // the product as BUILT DIRECTORIES rather than as modules. The launcher
+  // stages @repo/app's and @repo/cli's dist into its own package and imports
+  // the staged bundle by path; the shell spawns that bundle as a child. The
+  // build ORDER those relationships need lives in each turbo.json as an
+  // explicit `<package>#build`, which is what it is — an ordering, not an
+  // import edge.
+  inteligir: [],
+  "@repo/desktop": [],
 
   "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
   "@repo/repo-guards": [],

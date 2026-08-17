@@ -44,6 +44,26 @@ function listenOnce(
   });
 }
 
+/**
+ * Stop serving: refuse new connections, then destroy the ones already open.
+ *
+ * `close()` alone waits for every socket to go idle, and the two this app
+ * always has — a keep-alive HTTP connection and the /ws invalidation socket —
+ * never do, so a graceful shutdown would hang on exactly the healthy case.
+ * Destroying after the close is what bounds it; the process is leaving, and a
+ * client that reconnects finds nothing listening either way.
+ */
+export function closeServer(server: ServerType): Promise<void> {
+  return new Promise((resolve) => {
+    server.close(() => {
+      resolve();
+    });
+    if ("closeAllConnections" in server) {
+      server.closeAllConnections();
+    }
+  });
+}
+
 export async function listenWithRetry(args: ListenArgs): Promise<ListenResult> {
   const attempts = args.probeOnBusyPort ? MAX_PORT_PROBES : 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {

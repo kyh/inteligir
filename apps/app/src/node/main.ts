@@ -5,7 +5,7 @@
 
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createConnection } from "@repo/db/connection";
+import { closeConnection, createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
@@ -15,10 +15,15 @@ import { createApp, type AppFallback } from "./app";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
-import { listenWithRetry } from "./listen";
+import { closeServer, listenWithRetry } from "./listen";
+import { createGracefulShutdown, installShutdownSignals } from "./shutdown";
 import { redactRemoteUrl } from "./vault/git";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
+
+/** The whole teardown's budget. Long enough for a vault commit over a large
+ *  tree, short enough that ^C never looks ignored. */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 interface EntryLayout {
   /** The app directory (where package.json and dist/ live). */
@@ -191,3 +196,40 @@ console.log(
 console.log(
   `agent: ${agentDriver.status.runtime}${agentDriver.status.detail === null ? "" : ` — ${agentDriver.status.detail}`}`,
 );
+
+const shutdown = createGracefulShutdown({
+  timeoutMs: SHUTDOWN_TIMEOUT_MS,
+  // Writers stop before the flush, and the flush before the handles close —
+  // shutdown.ts states the rule this list is an instance of.
+  steps: [
+    { name: "listener", run: () => closeServer(server) },
+    { name: "agent", run: () => agentDriver.dispose() },
+    { name: "knowledge", run: () => knowledge.dispose() },
+    { name: "vault", run: () => vault.dispose() },
+    {
+      name: "db",
+      run: async () => {
+        closeConnection(db);
+      },
+    },
+  ],
+  onStepFailed: (name, error) => {
+    console.error(`shutdown: ${name} failed`, error);
+  },
+  onTimeout: () => {
+    console.error(`shutdown: still running after ${SHUTDOWN_TIMEOUT_MS}ms — exiting anyway`);
+  },
+});
+
+installShutdownSignals({
+  shutdown,
+  target: process,
+  onImpatient: (signal) => {
+    console.error(`shutdown: ${signal} again — leaving now`);
+    process.exit(1);
+  },
+});
+
+/** The URL this process ended up on, for an in-process launcher that has to
+ *  know the bound port (it may have been probed) to print and open it. */
+export const serverUrl = `http://127.0.0.1:${port}`;

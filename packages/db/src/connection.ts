@@ -25,3 +25,12 @@ export function createConnection(dbPath: string) {
 
   return drizzle({ client: sqlite, schema });
 }
+
+/**
+ * Close the underlying handle. WAL leaves a `-wal` sidecar that only a clean
+ * close checkpoints away, so the shutdown path calls this rather than letting
+ * process exit drop the file descriptor.
+ */
+export function closeConnection(db: DbConnection): void {
+  db.$client.close();
+}

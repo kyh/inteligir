@@ -32,6 +32,23 @@ apps/
                  runtime injects INTELIGIR_SERVER_URL + a PATH carrying the
                  CLI's bin dir into agent shells, so a model drives the
                  product by typing `inteligir …` in bash.
+  launcher/      inteligir — THE PUBLISHED ARTIFACT (issue #555). `npx
+                 inteligir` boots the product IN THIS PROCESS: parse the
+                 command line, hand it to the app's own boot as environment,
+                 import it. Its build stages the app and CLI into
+                 `dist/apps/{app,cli}` — the shape both of the app's runtime
+                 resolvers already walk, so a packaged install keeps its
+                 migrations, its SPA and the agent's CLI-on-PATH with no third
+                 code path. better-sqlite3 and @parcel/watcher stay runtime
+                 deps (native); everything else is inlined.
+  desktop/       @repo/desktop — the Electron shell (issue #555): one window on
+                 the local server, supervising it as a CHILD process. The whole
+                 security surface is the ORIGIN PIN (src/main/origin-pin.ts,
+                 pure + unit-tested): one origin, top-level navigation away
+                 goes to the system browser, window.open denied
+                 unconditionally, no preload and no IPC. A server already
+                 listening is ADOPTED, not fought, and only a child the shell
+                 started is killed on quit.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
                  marketing site, the auth pages, Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
@@ -80,7 +97,11 @@ tools/
 
 ```bash
 pnpm dev              # THE PRODUCT (apps/app) — the local server, per-checkout port
+pnpm dev:desktop      # The Electron shell over it (CDP on 9222)
 pnpm dev:site         # apps/web: vite + miniflare on :5174 (pinned, strictPort)
+pnpm package:app      # The npm artifact (apps/launcher) — `npx inteligir`
+pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
+pnpm smoke:package    # Pack, install into a scratch prefix, boot, probe, stop
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)

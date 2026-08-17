@@ -7,6 +7,7 @@
     "clean:workspaces": "turbo run clean",
     "cli": "apps/cli/bin/inteligir",
     "dev": "turbo watch dev -F @repo/app...",
+    "dev:desktop": "turbo run build --filter=@repo/desktop && pnpm --filter @repo/desktop dev",
     "dev:site": "turbo watch dev -F @repo/web...",
     "e2e": "pnpm --filter @repo/e2e e2e",
     "format": "oxfmt --check",
@@ -14,7 +15,10 @@
     "knip": "knip",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "package:app": "turbo run build --filter=inteligir",
+    "package:desktop": "turbo run build --filter=@repo/desktop && pnpm --filter @repo/desktop package",
     "prepare": "git config core.hooksPath .githooks || true",
+    "smoke:package": "turbo run build --filter=inteligir && pnpm --filter inteligir smoke",
     "test": "turbo run test --concurrency=4",
     "typecheck": "turbo run typecheck",
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"

@@ -1,0 +1,51 @@
+# Packaging for the macOS arm64 build. UNSIGNED and un-notarized on purpose:
+# the signing identity is owner-gated, so this config produces a local artifact
+# and README.md documents the release path rather than running it.
+appId: com.inteligir.desktop
+productName: Inteligir
+directories:
+  buildResources: resources
+  output: .output/bin
+# The server is a CHILD PROCESS, so its entry has to be a real file on disk —
+# an asar is not a filesystem a process can be spawned from. Everything under
+# node_modules is unpacked for that reason (src/main/server-paths.ts rewrites
+# the app.asar path to match), which also covers better-sqlite3's .node binary.
+asar: true
+asarUnpack:
+  - node_modules/**
+files:
+  - dist/**
+  - node_modules/**
+  - package.json
+  - resources/icon.png
+  - "!**/*.map"
+# NO native rebuild step, and that is a fact about the two modules rather than
+# an omission: better-sqlite3 13 and @parcel/watcher are both Node-API addons
+# that ship per-platform prebuilds inside the package, and Node-API is
+# ABI-stable across Node and Electron — so the binary npm installed is the one
+# the packaged app loads. npmRebuild stays OFF because it would rebuild in
+# place, and in a pnpm workspace that means clobbering the shared store's copy
+# every other package and the whole test suite depends on. Re-check this if
+# either module ever goes back to a gyp build.
+npmRebuild: false
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  artifactName: Inteligir-${version}-${arch}.${ext}
+  category: public.app-category.productivity
+  icon: resources/icon.icns
+  # No certificate here. hardenedRuntime without a signature produces an app
+  # Gatekeeper refuses on another machine, so the local artifact is plainly
+  # unsigned instead of pretending otherwise.
+  identity: null
+  notarize: false
+  hardenedRuntime: false
+dmg:
+  sign: false
+# There is NO update feed. The old one was yanked, and a shell that checks an
+# empty channel is worse than one that does not check: it reports failures the
+# user cannot act on. Wiring electron-updater is a follow-up that starts with
+# choosing the channel.
+publish: null

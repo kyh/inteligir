@@ -1,0 +1,21 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // `inteligir` is packed into the app from node_modules and spawned as a
+    // child, never imported, so the ordering is named rather than inherited
+    // through `^build`.
+    "build": {
+      "dependsOn": ["inteligir#build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      // turbo runs in strict env mode and strips anything unnamed, so the port
+      // override — which decides the origin the window is PINNED to — must be
+      // declared or the shell silently uses the default.
+      "passThroughEnv": ["INTELIGIR_PORT"]
+    }
+  }
+}

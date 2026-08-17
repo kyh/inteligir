@@ -35,6 +35,26 @@
       "project": ["src/**/*.ts", "scripts/**/*.mjs"],
       "ignoreDependencies": ["tsx"]
     },
+    // The Electron shell. `main` points at a build output, so the entries are
+    // named here; `inteligir` is a dependency it never imports — the shell
+    // reaches the packaged app as a DIRECTORY (src/main/server-paths.ts) and
+    // electron-builder packs it from node_modules.
+    "apps/desktop": {
+      "entry": ["scripts/*.{mjs,cjs}", "src/main/index.ts", "src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/*.{mjs,cjs}"],
+      "ignoreDependencies": ["inteligir"]
+    },
+    // The published artifact. Its `bin` points at a build output, so the real
+    // entries are named here. The two native modules are runtime deps of the
+    // app bundle this package STAGES rather than imports — nothing under src/
+    // may import either, so knip cannot see them. (@repo/app and @repo/cli are
+    // deliberately not manifest dependencies at all: the relationship is a
+    // build ORDER, declared in turbo.json.)
+    "apps/launcher": {
+      "entry": ["scripts/*.mjs", "src/main.ts", "src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/*.mjs"],
+      "ignoreDependencies": ["@parcel/watcher", "better-sqlite3"]
+    },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it
       // from wrangler.jsonc's `main`. `src/worker/index.ts` is the test suite's
