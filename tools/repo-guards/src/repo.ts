@@ -142,14 +142,24 @@ export function workspaces(): Workspace[] {
   return cachedWorkspaces;
 }
 
-/** Every `@repo/*` name the manifest declares, in any dependency group. */
+/**
+ * Every WORKSPACE this manifest declares, in any dependency group.
+ *
+ * Membership is decided by `workspaces()`, never by a name prefix. A prefix
+ * filter reads the repo's naming CONVENTION as if it were the repo's layout,
+ * and the one workspace that breaks the convention is the published artifact —
+ * `inteligir` — which is exactly the dependency a shipping surface installs.
+ * Filtering on `@repo/` made that declaration invisible to both manifest
+ * checks: neither the missing-dependency one nor the phantom one could see it.
+ */
 export function manifestWorkspaceDeps(manifest: Manifest): Set<string> {
   const all = {
     ...manifest.dependencies,
     ...manifest.devDependencies,
     ...manifest.peerDependencies,
   };
-  return new Set(Object.keys(all).filter((name) => name.startsWith("@repo/")));
+  const names = new Set(workspaces().map((workspace) => workspace.name));
+  return new Set(Object.keys(all).filter((name) => names.has(name)));
 }
 
 function walk(dir: string, out: string[]): void {
