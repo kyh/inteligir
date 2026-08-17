@@ -2,7 +2,13 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023"],
-    "types": ["node"]
+    "types": ["node"],
+    // This program is a node process and both of its runtimes (tsx in a
+    // checkout, the esbuild bundle when packaged) resolve the `node` export
+    // condition. Bundler resolution does not apply it, which typed consola
+    // against its BROWSER build — an entry with no `fancy` option and no
+    // reporter that prints a bare line.
+    "customConditions": ["node"]
   },
   "include": ["src", "vitest.config.ts"]
 }

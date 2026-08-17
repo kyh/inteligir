@@ -24,6 +24,8 @@ catalog:
   "@vitejs/plugin-react": ^6.0.4
   better-auth: ^1.6.25
   better-sqlite3: ^13.0.3
+  citty: ^0.2.2
+  consola: ^3.4.2
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
   hono: ^4.13.2
