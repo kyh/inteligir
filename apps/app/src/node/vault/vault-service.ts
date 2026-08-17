@@ -22,7 +22,7 @@ import {
   rm,
   unlink,
 } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import type { DbNotifier } from "@repo/db/notifier";
 import {
   contentHashHex,
@@ -259,7 +259,10 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     async listTree() {
       const entries: VaultEntry[] = [];
       await walk(rootReal, "", entries);
-      return { root: rootReal, entries };
+      // `basename` here rather than a split in the browser: this side is the
+      // one that knows the machine's separator, and a root that is itself a
+      // drive or mount point still has to be called something.
+      return { root: rootReal, name: basename(rootReal) || rootReal, entries };
     },
 
     async statEntry(path) {

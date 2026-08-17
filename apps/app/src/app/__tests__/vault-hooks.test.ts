@@ -16,7 +16,8 @@ import {
 } from "../vault-hooks";
 
 const tree = (...paths: string[]): VaultTreeResponse => ({
-  root: "/vault",
+  root: "/home/kyh/vault",
+  name: "vault",
   entries: paths.map((path) =>
     path.endsWith("/")
       ? { kind: "dir" as const, path: path.slice(0, -1) }

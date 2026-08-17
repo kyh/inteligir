@@ -143,7 +143,7 @@ function createFixtureApp(state: FixtureState): Hono {
   get(apiRoutes.guide, (c) => c.json({ markdown: state.guideMarkdown }));
 
   get(apiRoutes.vault.tree, (c) =>
-    c.json({ root: "/fixture/vault", entries: deriveTree(state.vault) }),
+    c.json({ root: "/fixture/vault", name: "vault", entries: deriveTree(state.vault) }),
   );
   get(apiRoutes.vault.read, (c, query) => {
     const content = state.vault.get(query.path);

@@ -19,14 +19,6 @@ function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
   return query.data === undefined ? "loading" : "loaded";
 }
 
-function vaultName(root: string | undefined): string {
-  if (root === undefined) {
-    return "Vault";
-  }
-  const segments = root.split("/").filter((segment) => segment !== "");
-  return segments.at(-1) ?? "Vault";
-}
-
 function syncPillDotClass(status: VaultStatusResponse): string {
   switch (status.state) {
     case "no-remote":
@@ -98,7 +90,7 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center gap-1 px-3 pt-3 pb-2">
         <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
-          {vaultName(treeQuery.data?.root)}
+          {treeQuery.data?.name ?? "Vault"}
         </h2>
         <Button
           variant="ghost"
