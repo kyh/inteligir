@@ -1,6 +1,6 @@
 export const sampleDoc = `---
 title: Live preview sample
-tags: [editor, first-cut]
+tags: [editor, live-preview]
 ---
 
 # The buffer is the file
@@ -14,6 +14,12 @@ Some **bold text**, some _emphasis_, some \`inline code\`,
 ~~struck through~~, an escape \\*not emphasis\\*, and a
 [markdown link](https://codemirror.net) beside a bare URL
 https://example.com — plus en--dash and em---dash folding.
+
+## Tags
+
+Prose carrying #alpha, #nested/child and #writing — click one and the host app
+seeds its search with \`tag:<name>\`. Inside \`#code\` or a [labelled
+#link](https://example.com/#frag) a hash is literal text, so no chip appears.
 
 ## Lists and tasks
 

@@ -11,6 +11,8 @@ export interface MarkdownEditorProps {
   initialDoc?: string;
   onDocChanged?: (doc: Text) => void;
   onOpenLink?: (url: string) => void;
+  /** Receives the NAME (no `#`) of a clicked inline tag chip. */
+  onOpenTag?: (tag: string) => void;
   /** Extra extensions appended after the house stack; fixed at mount. */
   extensions?: Extension[];
   className?: string;
@@ -45,6 +47,7 @@ export const MarkdownEditor = (props: MarkdownEditorProps): ReactElement => {
         if (handler) handler(url);
         else window.open(url, "_blank", "noopener");
       },
+      onOpenTag: (tag) => propsRef.current.onOpenTag?.(tag),
       extensions: propsRef.current.extensions ?? [],
     });
     // The null on teardown must go to the SAME callback that received the

@@ -12,5 +12,8 @@ const editor = createMarkdownEditor({
   onDocChanged: (doc) => {
     console.debug("buffer length", doc.length);
   },
+  onOpenTag: (tag) => {
+    console.debug("tag clicked", tag);
+  },
 });
 editor.focus();

@@ -38,6 +38,10 @@ export interface PaletteActions {
 
 export interface CommandPaletteProps {
   open: boolean;
+  /** Seeded into the box whenever the palette opens (and whenever the seed
+   * itself changes): a `#tag` chip click opens it as `tag:<name>`, which the
+   * search source already understands — there is no second tag surface. */
+  initialQuery?: string;
   onOpenChange: (open: boolean) => void;
   /** Folder listing for the new-note-in-folder page. */
   entries: readonly VaultEntry[];
@@ -88,6 +92,7 @@ function matchesQuery(label: string, query: string): boolean {
 
 export function CommandPalette({
   open,
+  initialQuery = "",
   onOpenChange,
   entries,
   threads,
@@ -101,10 +106,10 @@ export function CommandPalette({
 
   useEffect(() => {
     if (open) {
-      setQuery("");
+      setQuery(initialQuery);
       setPage("root");
     }
-  }, [open]);
+  }, [open, initialQuery]);
 
   // Async hits, debounced and abortable: a keystroke cancels the pending
   // timer AND aborts an in-flight request, and an aborted answer never

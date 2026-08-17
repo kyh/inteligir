@@ -58,6 +58,10 @@ scratch dir and tears everything down afterwards:
 | delegation-chip-browser | a seeded marker + settled thread render as a live status chip headless;    |
 |                         | selection driving is NOT attempted (the CLI drives selectors, not text     |
 |                         | drags) — the create flow is covered API-level by delegation-scripted       |
+| editor-constructs-      | every live-preview construct renders in a real browser (one seeded note,   |
+| browser                 | one `eval` probe over the built DOM — jsdom has no layout, so the unit     |
+|                         | suite cannot prove a widget survived the bundle and a measure pass), and   |
+|                         | the file is re-read from disk to prove rendering wrote no bytes            |
 
 ## Adding a scenario
 

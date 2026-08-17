@@ -61,9 +61,11 @@ export interface NoteViewProps {
   onRename: (toPath: string) => void;
   /** The note disappeared from disk under us (external delete). */
   onVanished: () => void;
+  /** A `#tag` chip was clicked: narrow the palette's search to that tag. */
+  onSearchTag: (tag: string) => void;
 }
 
-export function NoteView({ path, delegation, onRename, onVanished }: NoteViewProps) {
+export function NoteView({ path, delegation, onRename, onVanished, onSearchTag }: NoteViewProps) {
   const { api } = useWorkspace();
   const fileQuery = useQuery({
     queryKey: queryKeys.vaultFile(path),
@@ -100,6 +102,7 @@ export function NoteView({ path, delegation, onRename, onVanished }: NoteViewPro
       diskContent={fileQuery.data.content}
       onRename={onRename}
       onVanished={onVanished}
+      onSearchTag={onSearchTag}
     />
   );
 }
@@ -111,6 +114,7 @@ function OpenNote({
   diskContent,
   onRename,
   onVanished,
+  onSearchTag,
 }: NoteViewProps & {
   /** The content the controller mounts with — fixed for this instance. */
   initialContent: string;
@@ -439,6 +443,7 @@ function OpenNote({
         initialDoc={initialContent}
         extensions={delegationExtensions}
         onDocChanged={() => controllerRef.current?.docChanged()}
+        onOpenTag={onSearchTag}
         onEditor={handleEditor}
       />
     </div>

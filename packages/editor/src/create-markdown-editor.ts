@@ -33,13 +33,16 @@ export interface MarkdownEditor {
 
 /** Mounts a CodeMirror 6 markdown live-preview editor. Framework-free. */
 export const createMarkdownEditor = (config: MarkdownEditorConfig): MarkdownEditor => {
-  const { parent, doc = "", onDocChanged, extensions = [], onOpenLink } = config;
+  const { parent, doc = "", onDocChanged, extensions = [], onOpenLink, onOpenTag } = config;
   const view = new EditorView({
     parent,
     state: EditorState.create({
       doc,
       extensions: [
-        markdownEditorExtensions(onOpenLink === undefined ? {} : { onOpenLink }),
+        markdownEditorExtensions({
+          ...(onOpenLink === undefined ? {} : { onOpenLink }),
+          ...(onOpenTag === undefined ? {} : { onOpenTag }),
+        }),
         onDocChanged
           ? EditorView.updateListener.of((update) => {
               if (update.docChanged) onDocChanged(update.state.doc);

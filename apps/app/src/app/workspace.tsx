@@ -4,6 +4,7 @@
 // param — deep-linkable, back/forward works — mirrored to localStorage so a
 // fresh boot reopens where the user left off.
 
+import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import type { Thread } from "@repo/server-contract/threads";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
@@ -58,7 +59,15 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const statusQuery = useVaultStatus();
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // What the palette's box is seeded with on the next open. ⌘K clears it; a
+  // `#tag` chip click sets it to that tag's `tag:` term.
+  const [paletteQuery, setPaletteQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const onSearchTag = useCallback((tag: string): void => {
+    setPaletteQuery(`tag:${tag}`);
+    setPaletteOpen(true);
+  }, []);
 
   // The chat dock's state lives HERE, beside the note — never above it, so
   // no chat interaction can remount the editor.
@@ -346,6 +355,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       }
       if (event.key === "k") {
         event.preventDefault();
+        setPaletteQuery("");
         setPaletteOpen((current) => !current);
       } else if (event.key === "d") {
         event.preventDefault();
@@ -373,7 +383,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   );
   const searchSource = useCallback<NoteSearchSource>(
     async (query, signal) => {
-      const byFilename = () => searchNotesByFilename(query, sortedFilePaths);
+      // A `tag:` term is a question only the index can answer, so it suppresses
+      // the filename fallback: fuzzy-matching the literal string "tag:foo"
+      // against paths answers a different question with a straight face.
+      const tagFiltered = parseSearchQuery(query).tag !== "";
+      const byFilename = () => (tagFiltered ? [] : searchNotesByFilename(query, sortedFilePaths));
       if (query.trim() === "") {
         return byFilename();
       }
@@ -452,6 +466,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               delegation={noteDelegation}
               onRename={setOpenNote}
               onVanished={onNoteVanished}
+              onSearchTag={onSearchTag}
             />
           )}
         </div>
@@ -468,6 +483,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       </main>
       <CommandPalette
         open={paletteOpen}
+        initialQuery={paletteQuery}
         onOpenChange={setPaletteOpen}
         entries={treeEntries}
         threads={threads}

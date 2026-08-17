@@ -23,6 +23,8 @@ an escape \\* and dashes -- here.
 > quote level one
 > > nested quote
 
+Tagged prose: #alpha and #nested/child, plus a literal \`#incode\` one.
+
 - item one
 - [ ] task open
 - [x] task done
@@ -53,6 +55,7 @@ const snippets = [
   "plain words ",
   "<div>",
   "{{x}}",
+  "#tag ",
 ];
 
 // mulberry32: deterministic PRNG so a failure reproduces byte-for-byte.
@@ -145,6 +148,11 @@ describe("buffer == file", () => {
     const link = view.contentDOM.querySelector(".cm-rendered-link");
     expect(link).not.toBeNull();
     link?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+    // Same for a tag chip: it acts, it never writes.
+    const chip = view.contentDOM.querySelector(".cm-tag");
+    expect(chip).not.toBeNull();
+    chip?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
 
     expect(openedLinks.length).toBeLessThanOrEqual(1);
     expect(docChanges).toEqual([]);

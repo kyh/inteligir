@@ -9,6 +9,7 @@ import { forceParseHealerExtension } from "./force-parse-healer";
 import { headingMarginMarksExtension } from "./heading-margin-marks";
 import { hideMarksExtension } from "./hide-marks";
 import { markdownLanguageExtension } from "./markdown-language";
+import { tagChipsExtension, tagClickHandler } from "./tag-chips";
 import { taskCheckboxExtension } from "./task-checkbox";
 import { blockQuoteExtension } from "./vendor/prosemark/lib/blockQuote";
 import {
@@ -35,13 +36,15 @@ import { fixedTabWidthExtension } from "./vendor/prosemark/lib/tabWidthExtension
 export interface MarkdownEditorOptions {
   /** Receives the URL of a clicked rendered link; defaults to a new tab. */
   onOpenLink?: (url: string) => void;
+  /** Receives the NAME (no `#`) of a clicked inline tag chip. Absent means a
+   * chip is styling only — the editor never invents a search surface. */
+  onOpenTag?: (tag: string) => void;
 }
 
 /**
- * The whole first-cut live-preview stack. Deliberately absent, for later
- * passes: wiki-links, callouts, tables, mermaid, math, image embeds — and
- * ProseMark's image/task folds, which the house image pass and
- * task-checkbox.ts supersede. The delegation surface (thread-chip.ts,
+ * The whole live-preview stack. Deliberately absent, for later passes:
+ * wiki-links — and ProseMark's image/task folds, which the house image pass
+ * and task-checkbox.ts supersede. The delegation surface (thread-chip.ts,
  * delegation-affordance.ts) is app-appended rather than listed here: both
  * take app callbacks, and the house stack stays app-agnostic.
  */
@@ -56,6 +59,8 @@ export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): E
   horizonalRuleExtension,
   dashExtension,
   taskCheckboxExtension,
+  tagChipsExtension,
+  options.onOpenTag === undefined ? [] : tagClickHandler.of(options.onOpenTag),
   codeBlockDecorationsExtension,
   codeFenceTheme,
   baseSyntaxHighlights,
