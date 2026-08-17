@@ -21,7 +21,14 @@
 //     attributes; neither is noncible from here. This is the one directive
 //     weaker than it looks, and it is a real residual — a CSS injection is not
 //     blocked.
-//   - `img-src` allows data: and blob: — pasted and embedded images.
+//   - `img-src` allows data: and blob: — pasted and embedded images — and
+//     'self', which is where a vault image comes from (/api/v1/vault/asset).
+//     It names no remote host, so a note embedding `![](https://…/x.png)`
+//     does NOT load: the editor's image widget shows the embed's own bytes
+//     and the reason instead of a gap. That is the intended answer for a
+//     local-first notes app — a note cannot silently phone a third party, and
+//     a remote image is a per-open beacon — but it is a REFUSAL, not a bug,
+//     and widening it is a privacy decision rather than a rendering fix.
 //   - No 'unsafe-eval' anywhere: nothing in the first-party source or the
 //     editor stack evaluates strings.
 //   - `connect-src` names the websocket origin EXPLICITLY as well as 'self'.
