@@ -37,6 +37,7 @@ import {
   VAULT_CHANGE_KINDS,
 } from "@repo/domain/change-kinds";
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
+import { PROPOSAL_STATUS_VALUES } from "@repo/domain/proposal-status";
 import { threadStatusValues } from "@repo/domain/thread-status";
 import { API_ERROR_CODES } from "@repo/server-contract/errors";
 import { vaultStatusResponseSchema } from "@repo/server-contract/vault";
@@ -101,6 +102,12 @@ const VOCABULARIES: Vocabulary[] = [
       "packages/db/src/pending-interactions.ts":
         "the STORE — it writes every status and CAS-guards on them; no surface renders this vocabulary today, so there is no label table to keep it company",
     },
+  },
+  {
+    name: "proposal status",
+    members: PROPOSAL_STATUS_VALUES,
+    declaredIn: "packages/domain/src/proposal-status.ts",
+    dispatchedIn: {},
   },
   {
     name: "API error class",
