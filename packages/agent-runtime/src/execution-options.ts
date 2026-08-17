@@ -3,12 +3,7 @@
 // claude-code normalizers and service-tier assertions are not carried.
 
 import type { RuntimePermissionPolicy } from "./vocabulary/shared-types.js";
-import type {
-  ClassifyProviderExecutionSettingsChangeArgs,
-  ProviderAdapter,
-  ProviderExecutionContext,
-  ProviderExecutionSettingsChange,
-} from "./provider-adapter.js";
+import type { ProviderAdapter, ProviderExecutionContext } from "./provider-adapter.js";
 import type { AgentRuntimeExecutionOptions } from "./types.js";
 
 interface AssertProviderSupportsExecutionOptionsArgs {
