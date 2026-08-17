@@ -23,9 +23,9 @@ export function wikiChipLabel(body: string): string {
   return parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target;
 }
 
-export const RESOLVED_CHIP_CLASS =
+const RESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm bg-primary/10 px-1 text-primary transition-colors hover:bg-primary/20";
-export const UNRESOLVED_CHIP_CLASS =
+const UNRESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm px-1 text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-2 transition-colors hover:bg-muted";
 
 export default function WikiChip({ body }: { body: string }) {
