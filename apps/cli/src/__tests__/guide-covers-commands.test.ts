@@ -8,15 +8,13 @@
 // SOURCE (a comment mentioning a command satisfied the check), and it does
 // not stop at command names (`interactions answer --thread` was undocumented
 // and unnoticed). It reads the guide's RENDERED markdown — the bytes an agent
-// receives from GET /api/v1/guide — and the inventory comes from the
-// commander tree.
+// receives from GET /api/v1/guide — and the inventory comes from the citty
+// tree.
 
 import { CLI_SKILL_MD } from "@repo/app/node/guide/cli-skill";
 import { describe, expect, it } from "vitest";
-import { collectLeafCommands, testProgram } from "./command-tree";
-
-/** Commander's own universal flags — documented once, not per command. */
-const UNIVERSAL_FLAGS = new Set(["--help", "--version"]);
+import { argsOf, collectLeafCommands } from "../command-tree";
+import { testProgram } from "./command-tree";
 
 describe("the served guide covers the command surface", () => {
   it("names every leaf command", () => {
@@ -31,12 +29,14 @@ describe("the served guide covers the command surface", () => {
 
   it("names every flag every leaf accepts", () => {
     const undocumented: string[] = [];
-    for (const { path, cmd } of collectLeafCommands(testProgram())) {
-      for (const option of cmd.options) {
-        const flag = option.long;
-        if (flag === undefined || flag === null || UNIVERSAL_FLAGS.has(flag)) {
+    for (const { path, command } of collectLeafCommands(testProgram())) {
+      for (const [name, arg] of Object.entries(argsOf(command))) {
+        // Positionals are named by the invocation, not by a flag; `--help` and
+        // `--version` are citty's own and documented once, not per command.
+        if (arg.type === "positional") {
           continue;
         }
+        const flag = `--${name}`;
         if (!CLI_SKILL_MD.includes(flag)) {
           undocumented.push(`${path} ${flag}`);
         }

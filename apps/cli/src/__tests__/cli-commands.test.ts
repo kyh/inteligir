@@ -16,6 +16,15 @@ import {
 } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
+/** The rows inside a consola box, stripped of its border and its padding. */
+function boxedLines(stdout: string): string[] {
+  return stdout
+    .split("\n")
+    .filter((line) => line.startsWith(" │"))
+    .map((line) => line.replace(/^ │\s*/u, "").replace(/\s*│$/u, ""))
+    .filter((line) => line.length > 0);
+}
+
 const cleanups: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
@@ -134,7 +143,7 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(miss.code).toBe(1);
-    expect(miss.stderr).toBe("Error: No file at nope.md\n");
+    expect(miss.stderr).toBe("\n ERROR  No file at nope.md\n\n");
     expect(miss.stdout).toBe("");
   });
 
@@ -146,7 +155,7 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(write.code).toBe(0);
-    expect(write.stdout).toBe("Wrote notes/new.md\n");
+    expect(write.stdout).toBe("✔ Wrote notes/new.md\n");
     expect(state.vault.get("notes/new.md")).toBe("# New\n");
   });
 
@@ -157,20 +166,20 @@ describe("vault commands", () => {
       argv: ["vault", "rename", "notes/hello.md", "notes/renamed.md"],
       baseUrl: server.baseUrl,
     });
-    expect(rename.stdout).toBe("Renamed notes/hello.md -> notes/renamed.md\n");
+    expect(rename.stdout).toBe("✔ Renamed notes/hello.md -> notes/renamed.md\n");
     expect(state.vault.has("notes/renamed.md")).toBe(true);
 
     const remove = await runCliForTest({
       argv: ["vault", "delete", "notes/renamed.md"],
       baseUrl: server.baseUrl,
     });
-    expect(remove.stdout).toBe("Deleted notes/renamed.md\n");
+    expect(remove.stdout).toBe("✔ Deleted notes/renamed.md\n");
 
     const mkdir = await runCliForTest({
       argv: ["vault", "mkdir", "projects"],
       baseUrl: server.baseUrl,
     });
-    expect(mkdir.stdout).toBe("Created projects/\n");
+    expect(mkdir.stdout).toBe("✔ Created projects/\n");
 
     const status = await runCliForTest({ argv: ["vault", "status"], baseUrl: server.baseUrl });
     expect(status.stdout).toBe("state: no-remote\nlast sync: never\n");
@@ -211,7 +220,7 @@ describe("knowledge commands", () => {
     state.searchResults = [];
     const server = await boot(state);
     const empty = await runCliForTest({ argv: ["search", "zzz"], baseUrl: server.baseUrl });
-    expect(empty.stdout).toBe("No results.\n");
+    expect(empty.stdout).toBe("ℹ No results.\n");
 
     const bad = await runCliForTest({
       argv: ["search", "x", "--limit", "0"],
@@ -278,7 +287,7 @@ describe("thread commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("Thread thr_created_1\nTurn turn_for_thr_created_1 started\n");
+    expect(result.stdout).toBe("Thread thr_created_1\n✔ Turn turn_for_thr_created_1 started\n");
 
     const half = await runCliForTest({
       argv: ["thread", "new", "x", "--doc", "notes/hello.md"],
@@ -300,13 +309,13 @@ describe("thread commands", () => {
       argv: ["thread", "send", "thr_1", "and then?"],
       baseUrl: server.baseUrl,
     });
-    expect(send.stdout).toBe("Turn turn_for_thr_1 started\n");
+    expect(send.stdout).toBe("✔ Turn turn_for_thr_1 started\n");
 
     const archive = await runCliForTest({
       argv: ["thread", "archive", "thr_1"],
       baseUrl: server.baseUrl,
     });
-    expect(archive.stdout).toBe("Archived thr_1\n");
+    expect(archive.stdout).toBe("✔ Archived thr_1\n");
   });
 });
 
@@ -343,7 +352,7 @@ describe("interactions commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(answer.code).toBe(0);
-    expect(answer.stdout).toBe("Interaction int_1 resolved\n");
+    expect(answer.stdout).toBe("✔ Interaction int_1 resolved\n");
   });
 });
 
@@ -356,17 +365,18 @@ describe("status, guide and help", () => {
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe(
-      [
-        `inteligir 9.9.9-fixture — ${server.baseUrl} (explicit)`,
-        "Data dir: /fixture/data",
-        "Vault: /fixture/vault",
-        "Schema: v3 — uptime 65s",
-        "Agent: codex (mode auto)",
-        "Thread context: thr_ctx",
-        "",
-      ].join("\n"),
-    );
+    // `status` is the one surface printed as a consola box, whose width is
+    // derived from its widest line — and the fixture's port is random, so the
+    // chrome cannot be pinned. The FACTS still are, in order: the assertion
+    // reads the box's own rows back out.
+    expect(boxedLines(result.stdout)).toEqual([
+      `inteligir 9.9.9-fixture — ${server.baseUrl} (explicit)`,
+      "Data dir: /fixture/data",
+      "Vault: /fixture/vault",
+      "Schema: v3 — uptime 65s",
+      "Agent: codex (mode auto)",
+      "Thread context: thr_ctx",
+    ]);
   });
 
   it("prints the served guide verbatim", async () => {
@@ -385,6 +395,44 @@ describe("status, guide and help", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("INTELIGIR_SERVER_URL");
     expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
+  });
+});
+
+describe("argv the CLI refuses", () => {
+  // citty parses with node's `parseArgs` in non-strict mode, so an undeclared
+  // flag is dropped rather than refused: `--contentt` would leave `vault write`
+  // reading stdin and exiting 0. commander refused this for free.
+  it("names an undeclared flag instead of ignoring it", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/x.md", "--contentt", "# X\n"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("unknown option: --contentt");
+  });
+
+  it("reports an undeclared flag as invalid_usage under --json", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["tags", "--nope", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "invalid_usage",
+      message: "unknown option: --nope",
+    });
+  });
+
+  it("names a missing positional rather than acting on undefined", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({ argv: ["vault", "read"], baseUrl: server.baseUrl });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("PATH");
   });
 });
 

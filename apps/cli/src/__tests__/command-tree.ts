@@ -1,42 +1,23 @@
-// Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors —
-// `collectLeafCommands` only; the rest is house. See ../../PROVENANCE.md.
-//
-// Shared by the surface fitness tests (--json enforcement + honest exits,
-// guide coverage): the real program object, a walk of its leaf commands, and
-// ONE runnable invocation per leaf — the table those tests drive.
+// The real program object, and ONE runnable invocation per leaf — the table
+// the surface fitness tests (--json enforcement + honest exits, guide
+// coverage) drive. The walk itself is shipped code (`src/command-tree.ts`),
+// because `--help` and the unknown-flag gate resolve against the same tree;
+// these tests read the surface through exactly what the CLI reads it through.
 //
 // The invocation table is what makes "every leaf" mean every leaf: it is
 // checked for completeness against the walked tree, so a command added
 // without a row here fails the suite rather than quietly skipping the checks.
 
-import type { Command } from "commander";
+import type { CommandDef } from "citty";
 import type { CliDeps } from "../context";
 import { buildProgram } from "../program";
 
-export function testProgram(): Command {
+export function testProgram(): CommandDef {
   const deps: CliDeps = {
     env: {},
     resolveServer: async () => ({ baseUrl: "http://127.0.0.1:0", source: "explicit" }),
   };
   return buildProgram(deps);
-}
-
-export interface LeafCommand {
-  path: string;
-  cmd: Command;
-}
-
-export function collectLeafCommands(command: Command, prefix = ""): LeafCommand[] {
-  const results: LeafCommand[] = [];
-  for (const sub of command.commands) {
-    const fullPath = prefix.length > 0 ? `${prefix} ${sub.name()}` : sub.name();
-    if (sub.commands.length === 0) {
-      results.push({ path: fullPath, cmd: sub });
-    } else {
-      results.push(...collectLeafCommands(sub, fullPath));
-    }
-  }
-  return results;
 }
 
 /** Every leaf's argv, minus `--json`, against the seeded fixture state. */

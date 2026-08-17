@@ -24,8 +24,10 @@ apps/
                  table on Hono), the /ws invalidation bus, and the db. Dev
                  mounts Vite middlewareMode in-process; prod serves
                  dist/client + the Start server entry's fetch.
-  cli/           @repo/cli — the `inteligir` CLI (issue #553): commander over
-                 the typed hc client. Every leaf takes --json and is EXECUTED
+  cli/           @repo/cli — the `inteligir` CLI (issue #553): citty over
+                 the typed hc client, consola for the human path (raw writes
+                 for anything verbatim — consola rewrites `backtick` spans).
+                 Every leaf takes --json and is EXECUTED
                  by the fitness test against 400/500; `requireOk` is the one
                  status gate, returning hono's success member so a refusal
                  cannot be printed as an answer. Discovery reuses

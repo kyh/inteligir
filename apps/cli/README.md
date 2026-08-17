@@ -53,6 +53,24 @@ on a refusal. Failures go to stderr with stdout left empty; under `--json`
 the failure itself is `{"error","message"}` JSON on stderr, carrying the
 server's own error class where there is one.
 
+## Output
+
+`src/output.ts` is the whole output layer, and which sink a line takes is
+decided by what the line IS. Anything derived from vault or server CONTENT —
+file bytes, snippets, diffs, timelines, the manual — is written raw
+(`writeOut`/`writeLines`), because consola's reporter rewrites `backtick` and
+`_underscore_` spans in every message it formats and a note's own text carries
+both. Prose the CLI wrote itself goes through consola (`out.success`,
+`out.info`, `out.box`, `out.error`). `--json` uses neither: `outputJson`
+writes the document and returns, so stdout stays one JSON value without any
+command having to remember it.
+
+The consola instance pins its reporter, its level and its throttle rather than
+letting consola derive them, because all three differ under `NODE_ENV=test` —
+the derived reporter prefixes every line with `[log]` and the derived level
+silences `.log`, `.info` and `.success` outright, so the goldens would pin
+bytes no user ever sees.
+
 ## Agent reachability
 
 The agent runs `inteligir` as a BARE command, so the app resolves the CLI's
@@ -67,11 +85,17 @@ name through that same composed env.
 
 The served manual (`apps/app/src/node/guide/cli-skill.ts`) must name every
 leaf command AND every flag those leaves accept —
-`src/__tests__/guide-covers-commands.test.ts` walks the real commander tree
+`src/__tests__/guide-covers-commands.test.ts` walks the real citty tree
 against the guide's rendered bytes (not its source: a comment used to satisfy
 it). `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree
 and EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits
 with empty stdout when the server answers 400 or 500.
+
+Both read the tree through `src/command-tree.ts`, which is shipped rather than
+test-only: `--help` resolves the deepest command through the same walk, and so
+does the gate that refuses a flag the command never declared. citty parses
+with node's `parseArgs` in NON-strict mode, so without that gate `vault write
+notes/a.md --contentt x` would silently read stdin and exit 0.
 
 ## Tests
 

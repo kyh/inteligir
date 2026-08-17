@@ -43,7 +43,7 @@ describe("thread wait", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("Thread thr_wait is idle.\n");
+    expect(result.stdout).toBe("✔ Thread thr_wait is idle.\n");
   });
 
   it("answers --json on settle", async () => {
@@ -63,7 +63,7 @@ describe("thread wait", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
-    expect(result.stderr).toBe("Error: Thread thr_wait settled in error\n");
+    expect(result.stderr).toBe("\n ERROR  Thread thr_wait settled in error\n\n");
   });
 
   it("exits 2 on timeout while the thread is still running", async () => {
@@ -83,6 +83,6 @@ describe("thread wait", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
-    expect(result.stderr).toBe("Error: Not found\n");
+    expect(result.stderr).toBe("\n ERROR  Not found\n\n");
   });
 });

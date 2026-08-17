@@ -142,7 +142,7 @@ describe("the review verbs", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("prp_1 accepted\n");
+    expect(result.stdout).toBe("✔ prp_1 accepted\n");
   });
 
   it("reject settles the row and touches no file", async () => {
@@ -154,7 +154,7 @@ describe("the review verbs", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("prp_1 rejected\n");
+    expect(result.stdout).toBe("✔ prp_1 rejected\n");
     expect(state.vault.get("notes/hello.md")).toBe("# Hello\n");
   });
 

@@ -6,9 +6,22 @@ import { vi } from "vitest";
 import type { CliDeps } from "../context";
 import { runCli } from "../program";
 
+/**
+ * consola colors its own decoration when it is talking to a TTY, and turns it
+ * off when it is not — so the same command emits different BYTES depending on
+ * whether a suite runs under a terminal or a pipe. Stripping the escapes is
+ * what lets the goldens below stay exact about everything else, which is the
+ * half that is actually the CLI's contract.
+ *
+ * Built rather than written as a literal, because an escape BYTE sitting in a
+ * regex literal is exactly what `no-control-regex` exists to catch: it is
+ * invisible in every diff that carries it.
+ */
+const ANSI = new RegExp(`${String.fromCodePoint(0x1b)}\\[[0-9;]*m`, "gu");
+
 export interface CliRunResult {
   code: number;
-  /** Everything the command wrote to stdout (console.log + raw writes). */
+  /** Everything the command wrote to stdout, colour stripped. */
   stdout: string;
   stderr: string;
 }
@@ -28,15 +41,15 @@ export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
   };
   let stdout = "";
   let stderr = "";
-  const logSpy = vi.spyOn(console, "log").mockImplementation((...parts: unknown[]) => {
-    stdout += `${parts.map((part) => String(part)).join(" ")}\n`;
-  });
-  const errorSpy = vi.spyOn(console, "error").mockImplementation((...parts: unknown[]) => {
-    stderr += `${parts.map((part) => String(part)).join(" ")}\n`;
-  });
-  // Raw writes (vault read's byte-exact output, commander's own help).
-  const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+  // Both streams are captured by DESCRIPTOR rather than by console spy:
+  // nothing in the CLI reaches for `console` any more — consola writes to the
+  // stream object it was constructed with, which is this one.
+  const outSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
     stdout += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
+    return true;
+  });
+  const errSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+    stderr += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
     return true;
   });
   // process.stdin is a getter, so it is swapped by descriptor rather than a
@@ -51,11 +64,10 @@ export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
   }
   try {
     const code = await runCli(["node", "inteligir", ...args.argv], deps);
-    return { code, stdout, stderr };
+    return { code, stdout: stdout.replace(ANSI, ""), stderr: stderr.replace(ANSI, "") };
   } finally {
-    logSpy.mockRestore();
-    errorSpy.mockRestore();
-    writeSpy.mockRestore();
+    outSpy.mockRestore();
+    errSpy.mockRestore();
     if (stdinDescriptor !== undefined) {
       Object.defineProperty(process, "stdin", stdinDescriptor);
     }

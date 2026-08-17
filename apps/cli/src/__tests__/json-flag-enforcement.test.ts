@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors —
 // apps/cli/src/__tests__/json-flag-enforcement.test.ts, adapted and widened.
 //
-// bb's version reads commander METADATA: every leaf declares --json. That
+// bb's version reads its parser's METADATA: every leaf declares --json. That
 // catches a missing flag and nothing else — a command can declare the flag,
 // print prose anyway, and swallow a server refusal while exiting 0. So this
 // suite EXECUTES every leaf against a fixture server, three ways:
@@ -14,12 +14,8 @@
 // check prints the error envelope as if it were the answer.
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  collectLeafCommands,
-  LEAF_INVOCATIONS,
-  testProgram,
-  type LeafCommand,
-} from "./command-tree";
+import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
+import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
 import {
   makeFixtureState,
   makeProposal,
@@ -105,11 +101,11 @@ describe("CLI --json flag enforcement", () => {
     expect(commands.length).toBeGreaterThan(0);
 
     const missing: string[] = [];
-    for (const { path, cmd } of commands) {
+    for (const { path, command } of commands) {
       if (EXCLUDED_COMMANDS.has(path)) {
         continue;
       }
-      if (!cmd.options.some((option) => option.long === "--json")) {
+      if (argsOf(command).json?.type !== "boolean") {
         missing.push(path);
       }
     }

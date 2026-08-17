@@ -2,8 +2,8 @@
 // `inteligir guide`. SKILL.md-shaped so an agent harness can ingest it as a
 // skill verbatim. DOC-SYNC: this manual must name every CLI leaf command AND
 // every flag those leaves accept —
-// apps/cli/src/__tests__/guide-covers-commands.test.ts walks the real
-// commander tree against these RENDERED bytes and fails on anything it does
+// apps/cli/src/__tests__/guide-covers-commands.test.ts walks the real citty
+// tree against these RENDERED bytes and fails on anything it does
 // not mention, so adding, renaming or re-flagging a CLI command means
 // updating this text in the same change (the discipline bb records in
 // docs/cli-guide-and-skill.md).
