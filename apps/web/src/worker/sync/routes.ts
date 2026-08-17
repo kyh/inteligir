@@ -18,12 +18,12 @@ import { verifyDeviceCredential } from "../device/device-auth";
 //
 // The public paths map 1:1 onto the object's internal ones:
 //
-//   POST /v1/capture           → /capture         quick capture in
-//   POST /v1/sync/push         → /push            outbox batch (idempotent)
-//   GET  /v1/sync/pull         → /pull            merged log, paged by seq
-//   GET  /v1/sync/captures     → /captures        the inbox
-//   POST /v1/sync/captures/ack → /captures/ack    exactly-once handoff
-//   GET  /v1/sync/ws           → /ws              invalidation socket
+//   POST /v1/capture             → /capture        quick capture in
+//   POST /v1/sync/push           → /push           outbox batch (idempotent)
+//   GET  /v1/sync/pull           → /pull           merged log, paged by seq
+//   POST /v1/sync/captures/claim → /captures/claim take the inbox for a window
+//   POST /v1/sync/captures/ack   → /captures/ack   delete what the claim owns
+//   GET  /v1/sync/ws             → /ws             invalidation socket
 //
 // The ws upgrade is Bearer-authed like everything else — ticket-free on
 // purpose: native callers set headers on the dial, and there is no browser
@@ -34,7 +34,7 @@ const DO_PATH_BY_ROUTE: Record<string, string> = {
   "POST /v1/capture": "/capture",
   "POST /v1/sync/push": "/push",
   "GET /v1/sync/pull": "/pull",
-  "GET /v1/sync/captures": "/captures",
+  "POST /v1/sync/captures/claim": "/captures/claim",
   "POST /v1/sync/captures/ack": "/captures/ack",
   "GET /v1/sync/ws": "/ws",
 };
@@ -69,13 +69,37 @@ export async function handleSyncRoutes(request: Request, env: Env, url: URL): Pr
 
 /**
  * The account-deletion hook's DO half: drop everything the user's ThreadSyncDO
- * holds. A non-OK answer throws so the surrounding `beforeDelete` aborts and
- * the account survives to ask again — the step is idempotent.
+ * holds and tombstone it. A non-OK answer throws so the surrounding
+ * `beforeDelete` aborts and the account survives to ask again — the step is
+ * idempotent.
  */
 export async function purgeThreadSync(env: Env, userId: string): Promise<void> {
   const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
   const response = await stub.fetch("https://thread-sync/purge", { method: "POST" });
   if (!response.ok) {
     throw new Error(`thread-sync purge failed: ${response.status}`);
+  }
+}
+
+/**
+ * Close the live sockets a just-revoked device holds. Best-effort by design:
+ * revocation's guarantee is that the next REQUEST fails, and it is already
+ * committed in D1 before this runs — so a failure here costs a stale socket
+ * until it disconnects, never a credential that keeps working.
+ */
+export async function severDeviceSockets(
+  env: Env,
+  userId: string,
+  deviceId: string,
+): Promise<void> {
+  const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+  try {
+    await stub.fetch("https://thread-sync/sever-device", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deviceId }),
+    });
+  } catch {
+    // See above: the revoke already stands.
   }
 }

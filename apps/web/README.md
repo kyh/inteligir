@@ -35,28 +35,28 @@ its own `tsconfig.json`.
 
 ## Routes
 
-| Route                        | Auth    | What                                                       |
-| ---------------------------- | ------- | ---------------------------------------------------------- |
-| `/`                          | —       | Marketing page (SSR)                                       |
-| `/app/sign-in`               | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
-| `/app/sign-up`               | —       | Sign-up form; submits to the invite gate                   |
-| `/app/forgot-password`       | —       | Requests the reset link                                    |
-| `/app/devices`               | session | The pairing dashboard: mint codes, list/revoke devices     |
-| `/api/auth/*`                | —       | Better Auth (email+password, bearer, optional social)      |
-| `/auth/reset`                | —       | The ONE reset page — Worker-served, static, `no-store`     |
-| `/v1/capabilities`           | —       | Which social providers this deployment serves              |
-| `/v1/auth/sign-up`           | —       | The invite gate in front of Better Auth's sign-up          |
-| `POST /v1/device/code`       | session | Mint a one-time pairing code (10 min, single-use)          |
-| `POST /v1/device/redeem`     | code    | Exchange the code for the durable device credential        |
-| `GET /v1/device/list`        | session | The dashboard's device table (revoked rows included)       |
-| `POST /v1/device/revoke`     | session | Cut a device off — bites on its next request               |
-| `POST /v1/sync/push`         | device  | Outbox batch into the merged log (idempotent)              |
-| `GET /v1/sync/pull`          | device  | Page the merged log by global `seq`                        |
-| `GET /v1/sync/ws`            | device  | Invalidation socket (Bearer on the upgrade; hibernatable)  |
-| `POST /v1/capture`           | device  | Quick capture into the durable inbox                       |
-| `GET /v1/sync/captures`      | device  | List the inbox                                             |
-| `POST /v1/sync/captures/ack` | device  | Ack = delete — exactly-once handoff                        |
-| `POST /v1/artifacts/mint`    | device  | Per-user Artifacts repo + git token (flag-gated, 503 off)  |
+| Route                          | Auth    | What                                                       |
+| ------------------------------ | ------- | ---------------------------------------------------------- |
+| `/`                            | —       | Marketing page (SSR)                                       |
+| `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
+| `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
+| `/app/forgot-password`         | —       | Requests the reset link                                    |
+| `/app/devices`                 | session | The pairing dashboard: mint codes, list/revoke devices     |
+| `/api/auth/*`                  | —       | Better Auth (email+password, bearer, optional social)      |
+| `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
+| `/v1/capabilities`             | —       | Which social providers this deployment serves              |
+| `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
+| `POST /v1/device/code`         | session | Mint a one-time pairing code (10 min, single-use)          |
+| `POST /v1/device/redeem`       | code    | Exchange the code for the durable device credential        |
+| `GET /v1/device/list`          | session | The dashboard's device table (revoked rows included)       |
+| `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
+| `POST /v1/sync/push`           | device  | Outbox batch in — idempotent, conflict-aware               |
+| `GET /v1/sync/pull`            | device  | Page the merged log by global `seq`                        |
+| `GET /v1/sync/ws`              | device  | Invalidation socket (Bearer on the upgrade; hibernatable)  |
+| `POST /v1/capture`             | device  | Quick capture in, deduped on an idempotency key            |
+| `POST /v1/sync/captures/claim` | device  | Take the inbox for a five-minute window                    |
+| `POST /v1/sync/captures/ack`   | device  | Delete what that claim owns — per-id outcomes              |
+| `POST /v1/artifacts/mint`      | device  | Per-user Artifacts repo + git token (flag-gated, 503 off)  |
 
 "device" auth is the `igd_…` credential pairing minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate. Every
@@ -81,18 +81,24 @@ VERIFIED credential's userId — no path or body carries one.
   provider carries its own `disableSignUp`, so a provider is a sign-in for an
   account that already linked it, never a way to get one.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
-  limiter on the auth routes, and the same table behind the invite gate's
-  10/60s-per-IP window (`src/worker/rate-limit.ts`).
+  limiter on the auth routes, and the same table behind the invite gate's and
+  the pairing redeem's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
+  window is one upsert that RETURNS the count it settled on — a read-then-write
+  limiter lets N concurrent requests all read the same count and all decide
+  they are under the cap, which is the burst it exists to stop.
 - **No CORS**, deliberately: every browser client is served by this Worker from
   this origin, and a native client is not subject to CORS at all. If CORS is
   ever reintroduced, `access-control-allow-credentials` must stay absent — the
   auth surface is cookie-bearing.
 - **Deleting the account deletes the account's data** in a `beforeDelete` hook,
-  so a failed step aborts the deletion rather than orphaning data: the
-  ThreadSyncDO purged whole (events, captures, sockets), the device and
-  pairing rows dropped, and the deleted email cleared off the invite it spent
-  (`redeemed_at` stays set — the code stays burned). `docs/privacy.md` is the
-  user-facing statement of all of it.
+  so a failed step aborts the deletion rather than orphaning data. THE ORDER IS
+  LOAD-BEARING: device + pairing rows first (while one lives its credential
+  still verifies, and a request on it can rebuild whatever was deleted before
+  it), then the hosted Artifacts repo if this deployment has one, then the
+  ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
+  authenticated microseconds before step one — then the deleted email off the
+  invite it spent (`redeemed_at` stays set, so the code stays burned).
+  `docs/privacy.md` is the user-facing statement of all of it.
 
 Minting invites is `wrangler d1 execute`, deliberately — no admin UI, no
 self-serve issuance:
@@ -171,4 +177,12 @@ pnpm --filter @repo/web deploy       # == vite build && wrangler deploy
 wrangler tail inteligir-web
 ```
 
-The GitHub `Deploy` workflow does the same on push to main, gated on CI.
+The GitHub `Deploy` workflow does the same on push to main, gated on CI — and
+it applies the schema (step 3) BEFORE it publishes, as its own step. That
+ordering is the whole point: the schema here is additive, so an old Worker
+against a new database ignores what it does not know, while a new Worker
+against an old database 500s on every request touching a table that isn't
+there. It needs three repo secrets beyond `CLOUDFLARE_API_TOKEN` —
+`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, `CLOUDFLARE_D1_TOKEN` — and
+without them the deploy fails at the schema step rather than shipping code
+against a database it does not match.

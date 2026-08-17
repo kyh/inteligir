@@ -4,7 +4,7 @@ import {
   listDevicesResponseSchema,
   redeemDeviceResponseSchema,
 } from "@repo/cloud-contract/pairing";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {
@@ -14,6 +14,7 @@ import {
   pairDevice,
   sessionHeaders,
   signUpUser,
+  userIdOf,
 } from "./cloud-helpers";
 import { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
@@ -70,6 +71,35 @@ describe("device pairing", () => {
     expect(cloudErrorSchema.parse(await second.json()).error.code).toBe("code-consumed");
   });
 
+  // The sequential case above only proves the code is marked; this one proves
+  // the CONSUME is the atomic step. Two redeems in flight at once is the shape
+  // a shared pairing code actually produces.
+  it("settles simultaneous redeems on exactly one device", async () => {
+    const { bearer } = await signUpUser("pair-race@example.test");
+    const code = await mintCode(bearer);
+
+    const responses = await Promise.all([
+      redeem(code, "Racer A"),
+      redeem(code, "Racer B"),
+      redeem(code, "Racer C"),
+    ]);
+    const statuses = responses.map((response) => response.status).toSorted((a, b) => a - b);
+    expect(statuses).toEqual([200, 409, 409]);
+
+    // Exactly one device exists, and exactly one credential works.
+    const { devices } = listDevicesResponseSchema.parse(
+      await (
+        await SELF.fetch(`${ORIGIN}/v1/device/list`, { headers: sessionHeaders(bearer) })
+      ).json(),
+    );
+    expect(devices).toHaveLength(1);
+
+    const winner = responses.find((response) => response.status === 200);
+    if (winner === undefined) throw new Error("no winner");
+    const credential = redeemDeviceResponseSchema.parse(await winner.json()).credential;
+    expect((await pull(credential)).status).toBe(200);
+  });
+
   it("refuses an expired code", async () => {
     const { bearer } = await signUpUser("pair-expired@example.test");
     const code = await mintCode(bearer);
@@ -81,6 +111,81 @@ describe("device pairing", () => {
     const response = await redeem(code);
     expect(response.status).toBe(410);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("code-expired");
+  });
+
+  // The cap lives in the INSERT's own subquery, so the twenty-first device is
+  // unrepresentable rather than merely unlikely — N codes each minted while
+  // under the limit could otherwise all redeem past it.
+  it("refuses to create a twenty-first active device", async () => {
+    const { bearer } = await signUpUser("pair-cap@example.test");
+    const userId = await userIdOf(bearer);
+    const db = createDb(env.DB);
+    for (let index = 0; index < 20; index += 1) {
+      await db.insert(device).values({
+        id: `cap-device-${index}`,
+        userId,
+        name: `Device ${index}`,
+        credentialHash: `hash-${index}`,
+        createdAt: new Date(),
+      });
+    }
+
+    const code = await mintCode(bearer);
+    const response = await redeem(code, "One Too Many");
+    expect(response.status).toBe(409);
+    expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("device-limit");
+
+    const active = await db
+      .select()
+      .from(device)
+      .where(and(eq(device.userId, userId), isNull(device.revokedAt)))
+      .all();
+    expect(active).toHaveLength(20);
+
+    // Revoking one frees the slot — the cap counts ACTIVE devices.
+    await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
+      method: "POST",
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      body: JSON.stringify({ deviceId: "cap-device-0" }),
+    });
+    expect((await redeem(await mintCode(bearer), "Now There's Room")).status).toBe(200);
+  });
+
+  // The invariant, from the outside: two codes minted while under the cap and
+  // redeemed together never make twenty-one devices. WHICH guard fires is not
+  // asserted, and cannot honestly be — this runtime may serialize the pair, in
+  // which case the second one's pre-check catches it. In a real deployment the
+  // two land on different isolates and only the subquery inside the INSERT is
+  // between them and a twenty-first device; that is why the cap is written
+  // there rather than in the read above it.
+  it("cannot be raced past the cap with two codes minted under it", async () => {
+    const { bearer } = await signUpUser("pair-cap-race@example.test");
+    const userId = await userIdOf(bearer);
+    const db = createDb(env.DB);
+    for (let index = 0; index < 19; index += 1) {
+      await db.insert(device).values({
+        id: `race-device-${index}`,
+        userId,
+        name: `Device ${index}`,
+        credentialHash: `race-hash-${index}`,
+        createdAt: new Date(),
+      });
+    }
+
+    const [firstCode, secondCode] = [await mintCode(bearer), await mintCode(bearer)];
+    const statuses = (
+      await Promise.all([redeem(firstCode, "Racer A"), redeem(secondCode, "Racer B")])
+    )
+      .map((response) => response.status)
+      .toSorted((a, b) => a - b);
+    expect(statuses).toEqual([200, 409]);
+
+    const active = await db
+      .select()
+      .from(device)
+      .where(and(eq(device.userId, userId), isNull(device.revokedAt)))
+      .all();
+    expect(active).toHaveLength(20);
   });
 
   it("refuses an unknown code without touching anything", async () => {

@@ -30,8 +30,10 @@ apps/
 packages/
   cloud-contract/ @repo/cloud-contract — the cloud wire contract (zod only):
                  pairing, device auth, sync push/pull, captures, the ws ping
-                 frames, the typed error envelope. The Worker implements it;
-                 the local app's sync client consumes it.
+                 frames, the typed error envelope. SERVER-SIDE ONLY today:
+                 apps/web implements every row, and NOTHING consumes the other
+                 half yet — apps/app gets its sync client in a later round of
+                 #554, which is what the contract was shaped for.
   typed-routes/  @repo/typed-routes — contract-first Hono route machinery,
                  vendored from bb (MIT): defineRoute rows, compile-time
                  handler enforcement, the hc client schema derivation.

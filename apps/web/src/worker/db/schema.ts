@@ -129,10 +129,19 @@ export const inviteCode = sqliteTable("invite_code", {
  * One-time device-pairing codes (src/worker/device/pairing.ts; bb's
  * connect_code pattern, MIT). A signed-in dashboard mints one; the local app
  * redeems it once for a durable device credential. Stored in the clear like
- * the invite above — a code is short-lived (10 min), single-use, and the atomic
- * consume is `UPDATE … WHERE code = ? AND consumed_at IS NULL`, so two
- * simultaneous redeems settle on exactly one winner. Dead rows (expired or
- * consumed) are swept opportunistically at the next mint.
+ * the invite above — a code is short-lived (10 min), single-use, and the
+ * consume is one conditional `UPDATE … WHERE consumed_at IS NULL AND
+ * expires_at > now`, so two simultaneous redeems settle on exactly one winner
+ * and an expired code cannot be consumed by a check that ran a moment earlier.
+ *
+ * `deviceId` is what CHAINS the consume to the device insert inside one D1
+ * batch: redeem writes the id it is about to create, and the insert is guarded
+ * on finding that id here. Only the winning consume could have written it, so
+ * a batch with no way to abort still lands both statements or neither.
+ *
+ * Dead rows (expired or consumed) are swept per user at that user's NEXT mint,
+ * and nowhere else — an expired row is already unusable, so this buys tidiness
+ * rather than safety. `docs/privacy.md` states it that way.
  */
 export const pairingCode = sqliteTable("pairing_code", {
   code: text("code").primaryKey(),
@@ -142,6 +151,7 @@ export const pairingCode = sqliteTable("pairing_code", {
   purpose: text("purpose").notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   consumedAt: integer("consumed_at", { mode: "timestamp" }),
+  deviceId: text("device_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

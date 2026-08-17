@@ -1,9 +1,13 @@
 import {
   ackCapturesRequestSchema,
   captureRequestSchema,
+  CAPTURE_CLAIM_TTL_MS,
+  claimCapturesRequestSchema,
   type AckCapturesResponse,
+  type AckOutcome,
   type CaptureResponse,
-  type ListCapturesResponse,
+  type CaptureRow,
+  type ClaimCapturesResponse,
 } from "@repo/cloud-contract/captures";
 import {
   pullQuerySchema,
@@ -29,21 +33,23 @@ import { refuse } from "../cloud-http";
 //
 // It owns three things, all in its own SQLite:
 //   • the append-only MERGED thread-event log — every device's outbox rows,
-//     server-stamped with one global `seq`, idempotent on (device_id,
-//     device_seq). Event bodies are opaque JSON: this object stores and fans
-//     out, it never interprets.
-//   • thread metadata (lane, title) — the lane is what makes the log double as
-//     a DISPATCH MAILBOX: a `desktop`-lane thread landing new work pings
-//     desktop sockets specifically.
-//   • the capture inbox — durable rows until a device acks; the ack DELETES,
-//     which is the exactly-once handoff.
+//     server-stamped with one global `seq`, keyed (device_id, device_seq).
+//     A replay of a stored position is accepted only when the body MATCHES;
+//     a different body is a conflict and a new position at or below the
+//     device's high-water is causal reverse. Event bodies are opaque JSON:
+//     this object stores and fans out, it never interprets.
+//   • thread metadata (lane, title), last-writer-wins on the CLIENT's own
+//     timestamp — the lane is what makes the log double as a DISPATCH MAILBOX.
+//   • the capture inbox — two-phase: claim takes ownership for a window, ack
+//     deletes by that claim's token. `@repo/cloud-contract/captures` states
+//     the guarantee that buys (at-least-once delivery, exactly-once deletion).
 //
 // HIBERNATION RULES (the old codebase's law, carried): sockets are accepted
 // with `ctx.acceptWebSocket`, per-socket identity lives in the socket's own
 // attachment, the broadcast set is rebuilt from `ctx.getWebSockets()` on every
 // push, and NO instance field holds anything a later message needs. There is
-// no alarm: nothing here has a deadline — pairing-code expiry lives in D1 and
-// is judged at redeem.
+// no alarm: the one deadline here — a claim's TTL — is judged on READ, so it
+// needs no wake to pass.
 //
 // The Worker is the ONLY caller (a Durable Object has no public address): it
 // verifies the device credential against D1 first and forwards with
@@ -103,8 +109,15 @@ export class ThreadSyncDO extends DurableObject<Env> {
       );
       CREATE TABLE IF NOT EXISTS captures (
         id TEXT PRIMARY KEY,
+        idempotency_key TEXT NOT NULL UNIQUE,
         text TEXT NOT NULL,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        claim_token TEXT,
+        claimed_at INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS account_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        purged_at INTEGER NOT NULL
       );
     `);
   }
@@ -113,15 +126,33 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const url = new URL(request.url);
     const route = `${request.method} ${url.pathname}`;
 
+    // The purge tombstone. Written AFTER deleteAll, so it survives the wipe it
+    // records — and it is what closes the deletion race: a request that
+    // verified its credential microseconds before the account was deleted can
+    // still arrive here, and without this it would recreate the state the
+    // purge just removed. Checked before every route but the purge itself,
+    // which stays idempotent.
+    if (route !== "POST /purge" && this.purgedAt() !== null) {
+      return refuse("account-deleted", "This account was deleted.");
+    }
+
     if (route === "GET /ws") return this.openSocket(request);
     if (route === "POST /push") return await this.push(request);
     if (route === "GET /pull") return this.pull(url);
     if (route === "POST /capture") return await this.capture(request);
-    if (route === "GET /captures") return this.listCaptures();
+    if (route === "POST /captures/claim") return await this.claimCaptures(request);
     if (route === "POST /captures/ack") return await this.ackCaptures(request);
+    if (route === "POST /sever-device") return await this.severDevice(request);
     if (route === "POST /purge") return await this.purge();
 
     return refuse("not-found", "No such route.");
+  }
+
+  private purgedAt(): number | null {
+    const row = this.ctx.storage.sql
+      .exec<{ purged_at: number }>("SELECT purged_at FROM account_state WHERE id = 1")
+      .toArray()[0];
+    return row?.purged_at ?? null;
   }
 
   // -- the socket ----------------------------------------------------------
@@ -164,6 +195,31 @@ export class ThreadSyncDO extends DurableObject<Env> {
     }
   }
 
+  /**
+   * Close every socket a revoked device holds. Revocation is the lost-device
+   * hatch, and a credential check on the next REQUEST does not reach a socket
+   * that already has one: without this, a revoked laptop keeps receiving every
+   * thread ping until it disconnects on its own.
+   */
+  private async severDevice(request: Request): Promise<Response> {
+    const body: unknown = await request.json().catch(() => null);
+    if (!isRecord(body) || typeof body.deviceId !== "string") {
+      return refuse("bad-request", "Send { deviceId }.");
+    }
+    let severed = 0;
+    for (const ws of this.ctx.getWebSockets()) {
+      const tag = readSocketTag(ws);
+      if (tag?.deviceId !== body.deviceId) continue;
+      try {
+        ws.close(1008, "device revoked");
+        severed += 1;
+      } catch {
+        // Already closing.
+      }
+    }
+    return Response.json({ severed });
+  }
+
   // -- the merged log ------------------------------------------------------
 
   private async push(request: Request): Promise<Response> {
@@ -172,40 +228,94 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const body = pushRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Malformed push batch.");
 
-    const sql = this.ctx.storage.sql;
-    const now = Date.now();
+    const events = body.data.events;
+    // Ordering is a property of the WHOLE batch, so it is judged before any of
+    // it is stored — a batch that disagrees with itself has no prefix worth
+    // keeping.
+    for (const [index, event] of events.entries()) {
+      const previous = index === 0 ? undefined : events[index - 1];
+      if (previous !== undefined && event.deviceSeq <= previous.deviceSeq) {
+        return refuse(
+          "sync-out-of-order",
+          "Batch positions must strictly increase.",
+          event.deviceSeq,
+        );
+      }
+    }
 
-    for (const thread of body.data.threads ?? []) {
+    const sql = this.ctx.storage.sql;
+    const metaUpserts = body.data.threads ?? [];
+    for (const thread of metaUpserts) {
+      // Last-writer-wins on the CLIENT's timestamp: a delayed retry carries an
+      // OLD updated_at and loses, where a server-side `now` would make it the
+      // newest fact on the row and silently undo a since-changed lane.
       sql.exec(
         `INSERT INTO thread_meta (thread_id, lane, title, updated_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT (thread_id) DO UPDATE SET lane = excluded.lane,
-           title = COALESCE(excluded.title, thread_meta.title), updated_at = excluded.updated_at`,
+         ON CONFLICT (thread_id) DO UPDATE SET
+           lane = excluded.lane,
+           title = COALESCE(excluded.title, thread_meta.title),
+           updated_at = excluded.updated_at
+         WHERE excluded.updated_at > thread_meta.updated_at`,
         thread.threadId,
         thread.lane,
         thread.title ?? null,
-        now,
+        thread.updatedAt,
       );
     }
+
+    const highWater = sql
+      .exec<{ high: number | null }>(
+        "SELECT MAX(device_seq) AS high FROM sync_events WHERE device_id = ?",
+        deviceId,
+      )
+      .one().high;
 
     let accepted = 0;
     let duplicates = 0;
     const touchedThreads = new Set<string>();
-    for (const event of body.data.events) {
+    for (const event of events) {
+      const serialized = JSON.stringify(event.event);
+      const stored = sql
+        .exec<{ event: string }>(
+          "SELECT event FROM sync_events WHERE device_id = ? AND device_seq = ?",
+          deviceId,
+          event.deviceSeq,
+        )
+        .toArray()[0];
+
+      if (stored !== undefined) {
+        // The retry path — but only for the SAME body. A different body at a
+        // stored position is a buggy outbox, and `INSERT OR IGNORE` would have
+        // called that idempotency while dropping the write on the floor.
+        if (stored.event !== serialized) {
+          return refuse(
+            "sync-conflict",
+            "That outbox position is already stored with a different body.",
+            event.deviceSeq,
+          );
+        }
+        duplicates += 1;
+        continue;
+      }
+
+      if (highWater !== null && event.deviceSeq <= highWater) {
+        return refuse(
+          "sync-out-of-order",
+          "That outbox position is below this device's high-water mark.",
+          event.deviceSeq,
+        );
+      }
+
       sql.exec(
-        "INSERT OR IGNORE INTO sync_events (thread_id, device_id, device_seq, event, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO sync_events (thread_id, device_id, device_seq, event, created_at) VALUES (?, ?, ?, ?, ?)",
         event.threadId,
         deviceId,
         event.deviceSeq,
-        JSON.stringify(event.event),
+        serialized,
         event.createdAt,
       );
-      const changed = sql.exec<{ n: number }>("SELECT changes() AS n").one().n;
-      if (changed === 1) {
-        accepted += 1;
-        touchedThreads.add(event.threadId);
-      } else {
-        duplicates += 1;
-      }
+      accepted += 1;
+      touchedThreads.add(event.threadId);
     }
 
     const lastSeq = this.lastSeq();
@@ -214,12 +324,15 @@ export class ThreadSyncDO extends DurableObject<Env> {
       // The pusher's own sockets are skipped: it holds what it pushed, and a
       // self-ping would only trigger a pull that returns its own rows.
       this.broadcast({ type: "sync", seq: lastSeq }, (tag) => tag.deviceId !== deviceId);
-      for (const threadId of this.desktopLaneThreads(touchedThreads, body.data.threads ?? [])) {
-        this.broadcast(
-          { type: "dispatch", threadId },
-          (tag) => tag.platform === "desktop" && tag.deviceId !== deviceId,
-        );
-      }
+    }
+    // Dispatch is NOT gated on accepted: registering a desktop-lane thread is
+    // itself the dispatch, and a phone that files the thread before its first
+    // event would otherwise poke nobody.
+    for (const threadId of this.desktopLaneThreads(touchedThreads, metaUpserts)) {
+      this.broadcast(
+        { type: "dispatch", threadId },
+        (tag) => tag.platform === "desktop" && tag.deviceId !== deviceId,
+      );
     }
 
     const response: PushResponse = { accepted, duplicates, lastSeq };
@@ -231,12 +344,10 @@ export class ThreadSyncDO extends DurableObject<Env> {
    * events together, and either half alone must still ping. */
   private desktopLaneThreads(
     touched: ReadonlySet<string>,
-    metaUpserts: readonly { threadId: string; lane: string }[],
+    metaUpserts: readonly { readonly threadId: string }[],
   ): Set<string> {
     const candidates = new Set<string>(touched);
-    for (const meta of metaUpserts) {
-      if (meta.lane === "desktop") candidates.add(meta.threadId);
-    }
+    for (const meta of metaUpserts) candidates.add(meta.threadId);
     const desktop = new Set<string>();
     for (const threadId of candidates) {
       const row = this.ctx.storage.sql
@@ -291,52 +402,119 @@ export class ThreadSyncDO extends DurableObject<Env> {
 
   private async capture(request: Request): Promise<Response> {
     const body = captureRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { text }.");
+    if (!body.success) return refuse("bad-request", "Send { text, idempotencyKey }.");
+    const sql = this.ctx.storage.sql;
+
+    const existing = sql
+      .exec<{ id: string; created_at: number }>(
+        "SELECT id, created_at FROM captures WHERE idempotency_key = ?",
+        body.data.idempotencyKey,
+      )
+      .toArray()[0];
+    if (existing !== undefined) {
+      // The share-sheet retry after a lost response — the same capture, not a
+      // second thought. No ping: nothing changed for anyone.
+      const duplicate: CaptureResponse = {
+        id: existing.id,
+        createdAt: existing.created_at,
+        duplicate: true,
+      };
+      return Response.json(duplicate);
+    }
+
     const id = crypto.randomUUID();
     const createdAt = Date.now();
-    this.ctx.storage.sql.exec(
-      "INSERT INTO captures (id, text, created_at) VALUES (?, ?, ?)",
+    sql.exec(
+      "INSERT INTO captures (id, idempotency_key, text, created_at) VALUES (?, ?, ?, ?)",
       id,
+      body.data.idempotencyKey,
       body.data.text,
       createdAt,
     );
-    // Every socket, the capturing device's included: whichever device syncs
-    // first applies and acks, and the capturer may well be the only one online.
+    // Every socket, the capturing device's included: whichever device claims
+    // first applies it, and the capturer may well be the only one online.
     this.broadcast({ type: "capture" }, () => true);
-    const response: CaptureResponse = { id, createdAt };
+    const response: CaptureResponse = { id, createdAt, duplicate: false };
     return Response.json(response);
   }
 
-  private listCaptures(): Response {
+  /**
+   * Phase one: take ownership of a batch. Unclaimed rows and rows whose claim
+   * has lapsed are equally available — the TTL is judged HERE, on read, which
+   * is why the inbox needs no alarm to reclaim after a crash.
+   */
+  private async claimCaptures(request: Request): Promise<Response> {
+    const body = claimCapturesRequestSchema.safeParse(await request.json().catch(() => ({})));
+    if (!body.success) return refuse("bad-request", "Send { limit? }.");
+
+    const now = Date.now();
+    const claimToken = crypto.randomUUID();
     const rows = this.ctx.storage.sql
       .exec<{ id: string; text: string; created_at: number }>(
-        "SELECT id, text, created_at FROM captures ORDER BY created_at, id LIMIT 500",
+        `UPDATE captures SET claim_token = ?, claimed_at = ?
+         WHERE id IN (
+           SELECT id FROM captures
+           WHERE claim_token IS NULL OR claimed_at <= ?
+           ORDER BY created_at, id LIMIT ?
+         )
+         RETURNING id, text, created_at`,
+        claimToken,
+        now,
+        now - CAPTURE_CLAIM_TTL_MS,
+        body.data.limit,
       )
       .toArray();
-    const response: ListCapturesResponse = {
-      captures: rows.map((row) => ({ id: row.id, text: row.text, createdAt: row.created_at })),
+
+    const captures: CaptureRow[] = rows.map((row) => ({
+      id: row.id,
+      text: row.text,
+      createdAt: row.created_at,
+    }));
+    const response: ClaimCapturesResponse = {
+      claimToken,
+      captures,
+      expiresAt: now + CAPTURE_CLAIM_TTL_MS,
     };
     return Response.json(response);
   }
 
+  /**
+   * Phase two: delete what this claim still owns, and say per id what actually
+   * happened. A row that has since been reclaimed is NOT deleted — this
+   * device's apply raced its own lapsed claim, and the current owner will
+   * apply it again.
+   */
   private async ackCaptures(request: Request): Promise<Response> {
     const body = ackCapturesRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { ids }.");
+    if (!body.success) return refuse("bad-request", "Send { claimToken, ids }.");
     const sql = this.ctx.storage.sql;
-    let deleted = 0;
-    for (const id of body.data.ids) {
-      sql.exec("DELETE FROM captures WHERE id = ?", id);
-      deleted += sql.exec<{ n: number }>("SELECT changes() AS n").one().n;
-    }
-    const response: AckCapturesResponse = { deleted };
+
+    const results = body.data.ids.map((id): { id: string; outcome: AckOutcome } => {
+      const deleted = sql
+        .exec<{ id: string }>(
+          "DELETE FROM captures WHERE id = ? AND claim_token = ? RETURNING id",
+          id,
+          body.data.claimToken,
+        )
+        .toArray();
+      if (deleted.length > 0) return { id, outcome: "deleted" };
+      const survivor = sql
+        .exec<{ id: string }>("SELECT id FROM captures WHERE id = ?", id)
+        .toArray()[0];
+      return { id, outcome: survivor === undefined ? "unknown" : "reclaimed" };
+    });
+
+    const response: AckCapturesResponse = { results };
     return Response.json(response);
   }
 
   // -- account deletion ----------------------------------------------------
 
-  /** Drop everything this object holds. Sockets first (a purged account has no
-   * live-follow), then the storage whole; the schema comes back empty for the
-   * same instance's next call. Idempotent — the deletion hook may retry. */
+  /** Drop everything this object holds, then TOMBSTONE it. Sockets first (a
+   * purged account has no live-follow), then the storage whole; the tombstone
+   * is written last so a request that verified its credential just before the
+   * account died cannot rebuild what this removed. Idempotent — the deletion
+   * hook may retry. */
   private async purge(): Promise<Response> {
     for (const ws of this.ctx.getWebSockets()) {
       try {
@@ -348,6 +526,10 @@ export class ThreadSyncDO extends DurableObject<Env> {
     // deleteAll on a SQLite-backed object clears the SQL tables too.
     await this.ctx.storage.deleteAll();
     this.initSchema();
+    this.ctx.storage.sql.exec(
+      "INSERT INTO account_state (id, purged_at) VALUES (1, ?) ON CONFLICT (id) DO NOTHING",
+      Date.now(),
+    );
     return Response.json({ purged: true });
   }
 }

@@ -22,8 +22,8 @@ type Db = ReturnType<typeof createDb>;
 /** Same alphabet as the contract's PAIRING_CODE_PATTERN — no 0/O/1/I. */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-/** Enough that N codes minted while under the cap cannot matter; a household's
- * devices, not a fleet. Re-checked at redeem, where it is atomic-adjacent. */
+/** A household's devices, not a fleet. Enforced INSIDE the insert (below), so
+ * the cap is a property of the table rather than of a check someone raced. */
 const MAX_DEVICES_PER_ACCOUNT = 20;
 
 function generatePairingCode(): string {
@@ -46,8 +46,13 @@ function generateDeviceCredential(): string {
 
 /**
  * Mint a fresh code for `userId`, sweeping that user's dead rows (expired or
- * consumed) on the way — the lazy sweep that keeps the table a handful of live
- * rows without an alarm or a cron.
+ * consumed) on the way.
+ *
+ * The sweep is PER USER and lazy, which is the whole of it: this account's
+ * expired codes live until this account next mints. That is a deliberate
+ * non-guarantee — a global sweep would need an alarm or a cron for rows that
+ * are already unusable (redeem judges expiry in its own WHERE clause), and
+ * `docs/privacy.md` states what remains rather than implying it is collected.
  */
 export async function mintPairingCode(db: Db, userId: string): Promise<MintPairingCodeResponse> {
   const now = new Date();
@@ -74,16 +79,35 @@ export async function mintPairingCode(db: Db, userId: string): Promise<MintPairi
 export type RedeemFailure = "invalid-code" | "code-expired" | "code-consumed" | "device-limit";
 
 /**
- * Consume `code` exactly once and mint the durable device credential.
+ * Consume `code` exactly once and mint the durable device credential, in ONE
+ * D1 batch — a single transaction, so there is no window where a code is
+ * burned without the device it paid for.
  *
- * ORDER MATTERS, twice. The device cap is re-checked HERE, not only at mint
- * (N codes each minted under the limit could all redeem past it), and BEFORE
- * the consume, so a cap-rejected redeem leaves the code usable. The consume
- * itself is the one atomic step — `UPDATE … WHERE consumed_at IS NULL` — so
- * two simultaneous redeems of one code settle on exactly one credential.
+ * The two statements are chained through the device id: the consume writes the
+ * freshly-generated `deviceId` onto the code row, and the insert is guarded on
+ * finding it there. Only THIS call could have written that id, so the insert
+ * lands exactly when the consume won — which is how a conditional insert
+ * survives a batch that has no way to abort halfway. Both conditions the
+ * consume needs are in its own WHERE (`consumed_at IS NULL AND expires_at >
+ * now AND purpose = …`), so nothing is judged in a read that a concurrent
+ * redeem could invalidate between the check and the write.
+ *
+ * The cap is a subquery inside the insert, so twenty-one active devices are
+ * unrepresentable rather than merely unlikely. The pre-check above it exists
+ * only to answer with the useful error before spending the code; losing that
+ * race burns a code and answers `device-limit`, which is the honest cost of a
+ * batch that cannot roll back.
+ *
+ * NOT replay-safe by design, and this is the one place that matters: only the
+ * credential's HASH is stored, so a redeem whose response was lost cannot be
+ * answered again. The batch guarantees the device row exists, so the stray
+ * device appears in the dashboard as "Never connected" and is revoked from
+ * there; the user mints a new code. Returning the same credential twice would
+ * mean storing it in the clear, which is a worse trade than a visible retry.
  */
 export async function redeemPairingCode(
   db: Db,
+  d1: D1Database,
   rawCode: string,
   deviceName: string,
 ): Promise<RedeemDeviceResponse | RedeemFailure> {
@@ -102,30 +126,59 @@ export async function redeemPairingCode(
     .all();
   if (openDevices.length >= MAX_DEVICES_PER_ACCOUNT) return "device-limit";
 
-  const consumed = await db
-    .update(pairingCode)
-    .set({ consumedAt: new Date() })
-    .where(and(eq(pairingCode.code, code), isNull(pairingCode.consumedAt)))
-    .returning()
-    .get();
-  if (consumed === undefined) return "code-consumed";
-
   const credential = generateDeviceCredential();
   const deviceId = crypto.randomUUID();
-  await db.insert(device).values({
-    id: deviceId,
-    userId: row.userId,
-    name: deviceName,
-    credentialHash: await sha256Hex(credential),
-    createdAt: new Date(),
-  });
+  // Timestamps are epoch SECONDS here: the schema's `mode: "timestamp"` is what
+  // every other reader of these columns expects (see db/schema.ts).
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  await d1.batch([
+    d1
+      .prepare(
+        `UPDATE pairing_code SET consumed_at = ?, device_id = ?
+         WHERE code = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > ?`,
+      )
+      .bind(nowSeconds, deviceId, code, DEVICE_PAIR_PURPOSE, nowSeconds),
+    d1
+      .prepare(
+        `INSERT INTO device (id, user_id, name, credential_hash, created_at)
+         SELECT ?, ?, ?, ?, ?
+         WHERE EXISTS (SELECT 1 FROM pairing_code WHERE code = ? AND device_id = ?)
+           AND (SELECT COUNT(*) FROM device WHERE user_id = ? AND revoked_at IS NULL) < ?`,
+      )
+      .bind(
+        deviceId,
+        row.userId,
+        deviceName,
+        await sha256Hex(credential),
+        nowSeconds,
+        code,
+        deviceId,
+        row.userId,
+        MAX_DEVICES_PER_ACCOUNT,
+      ),
+  ]);
+
+  const created = await db
+    .select({ id: device.id })
+    .from(device)
+    .where(eq(device.id, deviceId))
+    .get();
+  if (created === undefined) {
+    // The consume lost (another redeem of this code won) or the cap subquery
+    // refused. Which one is a read away, and the read is worth it: the two
+    // have completely different fixes.
+    const after = await db.select().from(pairingCode).where(eq(pairingCode.code, code)).get();
+    return after?.deviceId === deviceId ? "device-limit" : "code-consumed";
+  }
   return { deviceId, credential };
 }
 
 /**
  * Delete every device and pairing row `userId` owns — the account-deletion
- * hook's D1 half. Explicit rather than left to FK cascade, so the guarantee is
- * this repo's own statement instead of a PRAGMA the platform owns.
+ * hook's D1 half, and the step that must run FIRST: while a device row lives,
+ * its credential still verifies, and a request already in flight on it can
+ * reach the object the purge is about to empty.
  */
 export async function purgeDeviceRows(db: Db, userId: string): Promise<void> {
   await db.delete(device).where(eq(device.userId, userId));

@@ -14,12 +14,19 @@ const STATUS_BY_CODE: Record<CloudErrorCode, number> = {
   "code-expired": 410,
   "code-consumed": 409,
   "device-limit": 409,
+  "sync-conflict": 409,
+  "sync-out-of-order": 409,
+  // Gone, not 401: the credential was fine, the account it named is not — a
+  // client told "unauthorized" retries the credential forever.
+  "account-deleted": 410,
   "artifacts-not-enabled": 503,
   internal: 500,
 };
 
-export function refuse(code: CloudErrorCode, message: string): Response {
-  return Response.json(cloudError(code, message), { status: STATUS_BY_CODE[code] });
+/** `deviceSeq` is carried only by the two sync codes, which name the outbox
+ * position that disagreed (see the contract's errors module). */
+export function refuse(code: CloudErrorCode, message: string, deviceSeq?: number): Response {
+  return Response.json(cloudError(code, message, deviceSeq), { status: STATUS_BY_CODE[code] });
 }
 
 /** For responses that carry a credential or a code — never cacheable. */

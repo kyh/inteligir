@@ -13,6 +13,12 @@ import { z } from "zod";
  * Device-credential failures are the opposite — a revoked credential and an
  * unknown one both answer `unauthorized`, because "revoked" confirms to whoever
  * holds a stolen credential that it used to work.
+ *
+ * The two sync codes are how a device learns its own outbox is wrong rather
+ * than merely behind: `sync-conflict` is one position replayed with a DIFFERENT
+ * body, `sync-out-of-order` is a position that would reverse causality. Both
+ * name the offending `deviceSeq` — a client that cannot see WHICH position
+ * disagreed can only resend the batch that already failed.
  */
 export const CLOUD_ERROR_CODES = [
   "bad-request",
@@ -23,6 +29,9 @@ export const CLOUD_ERROR_CODES = [
   "code-expired",
   "code-consumed",
   "device-limit",
+  "sync-conflict",
+  "sync-out-of-order",
+  "account-deleted",
   "artifacts-not-enabled",
   "internal",
 ] as const;
@@ -35,6 +44,9 @@ export const cloudErrorSchema = z
       .object({
         code: cloudErrorCodeSchema,
         message: z.string(),
+        /** Present only on `sync-conflict` / `sync-out-of-order`: the device
+         * outbox position that disagreed. */
+        deviceSeq: z.number().int().nonnegative().optional(),
       })
       .strict(),
   })
@@ -43,6 +55,8 @@ export type CloudError = z.infer<typeof cloudErrorSchema>;
 
 /** Build the envelope. Pure — the transport (status line, headers) is the
  * server's; the app matches on `code`, never on the message or the status. */
-export function cloudError(code: CloudErrorCode, message: string): CloudError {
-  return { error: { code, message } };
+export function cloudError(code: CloudErrorCode, message: string, deviceSeq?: number): CloudError {
+  return {
+    error: { code, message, ...(deviceSeq === undefined ? {} : { deviceSeq }) },
+  };
 }

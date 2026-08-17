@@ -35,6 +35,27 @@ export function sessionHeaders(bearer: string): Record<string, string> {
   return { authorization: `Bearer ${bearer}`, origin: ORIGIN };
 }
 
+/** The signed-in user's id — what names their ThreadSyncDO. Ask BEFORE any
+ * test deletes the account; afterwards the session no longer answers. */
+export async function userIdOf(bearer: string): Promise<string> {
+  const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
+    headers: sessionHeaders(bearer),
+  });
+  const body: unknown = await response.json();
+  const userId =
+    typeof body === "object" &&
+    body !== null &&
+    "user" in body &&
+    typeof body.user === "object" &&
+    body.user !== null &&
+    "id" in body.user &&
+    typeof body.user.id === "string"
+      ? body.user.id
+      : null;
+  if (userId === null) throw new Error("no session for that bearer");
+  return userId;
+}
+
 export async function mintCode(bearer: string): Promise<string> {
   const response = await SELF.fetch(`${ORIGIN}/v1/device/code`, {
     method: "POST",

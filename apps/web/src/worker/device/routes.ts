@@ -12,6 +12,7 @@ import { jsonNoStore, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { device } from "../db/schema";
 import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
+import { severDeviceSockets } from "../sync/routes";
 
 // ---------------------------------------------------------------------------
 // `/v1/device/*` — the pairing surface.
@@ -50,7 +51,7 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
     }
     const body = redeemDeviceRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Send { code, deviceName }.");
-    const redeemed = await redeemPairingCode(db, body.data.code, body.data.deviceName);
+    const redeemed = await redeemPairingCode(db, env.DB, body.data.code, body.data.deviceName);
     if (typeof redeemed === "string") {
       return refuse(redeemed, redeemFailureMessage(redeemed));
     }
@@ -98,6 +99,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       .returning()
       .get();
     if (revoked === undefined) return refuse("not-found", "No such active device.");
+    // The credential is already dead in D1 — this only closes the sockets it
+    // still holds, which no per-request check can reach.
+    await severDeviceSockets(env, userId, body.data.deviceId);
     const response: RevokeDeviceResponse = { revoked: true };
     return Response.json(response);
   }

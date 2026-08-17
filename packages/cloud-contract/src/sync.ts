@@ -7,6 +7,22 @@ import { z } from "zod";
 // the only cursor a client ever pages by. Event BODIES are opaque JSON here on
 // purpose: the cloud stores and fans out, it never interprets — the ThreadEvent
 // grammar lives in @repo/domain and evolves without a cloud deploy.
+//
+// THE OUTBOX CONTRACT, in full, because a client that gets it wrong is told so
+// rather than silently losing writes:
+//   • `deviceSeq` is strictly increasing per device, across batches. Within a
+//     batch it must be sorted; a batch that is not is refused whole.
+//   • Re-pushing a position ALREADY stored is the retry path and is accepted as
+//     a duplicate — but only when the body is byte-identical to what was
+//     stored. A different body at the same position is `sync-conflict`: the
+//     outbox is buggy, and swallowing it would be data loss wearing
+//     idempotency's clothes. Serialization must therefore be stable — the same
+//     value with reordered keys reads as a different body.
+//   • A NEW position at or below the device's high-water mark is
+//     `sync-out-of-order`: accepting it would hand an older event a newer
+//     global seq and reverse causality for every reader.
+// A conflict aborts the rest of the batch; the prefix already accepted stands
+// and re-pushes cleanly.
 // ---------------------------------------------------------------------------
 
 /**
@@ -19,8 +35,27 @@ export type ThreadLane = z.infer<typeof threadLaneSchema>;
 
 export const PUSH_MAX_EVENTS = 200;
 export const PUSH_MAX_THREADS = 50;
-/** Per-event ceiling on the SERIALIZED body — a sync log frame, not a blob store. */
+/** Per-event ceiling on the serialized body, in UTF-8 BYTES — what storage and
+ * the wire actually spend, which `String.length`'s UTF-16 units are not. */
 export const EVENT_MAX_BYTES = 64 * 1024;
+
+/**
+ * True once `value` exceeds `limit` UTF-8 BYTES. Counted rather than encoded,
+ * for two reasons: this package assumes no platform globals (so `TextEncoder`
+ * is not available to it), and a ceiling is a refusal threshold — stopping at
+ * the moment it is crossed beats allocating an encoded copy of every body that
+ * passes. `for…of` iterates CODE POINTS, so a surrogate pair counts once, as
+ * the four bytes it actually is.
+ */
+function exceedsUtf8Bytes(value: string, limit: number): boolean {
+  let bytes = 0;
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    bytes += code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
+    if (bytes > limit) return true;
+  }
+  return false;
+}
 
 export const syncEventInputSchema = z
   .object({
@@ -33,7 +68,7 @@ export const syncEventInputSchema = z
     createdAt: z.number().int().nonnegative(),
   })
   .strict()
-  .refine((value) => JSON.stringify(value.event).length <= EVENT_MAX_BYTES, {
+  .refine((value) => !exceedsUtf8Bytes(JSON.stringify(value.event), EVENT_MAX_BYTES), {
     message: `event body exceeds ${EVENT_MAX_BYTES} bytes`,
     path: ["event"],
   });
@@ -44,6 +79,12 @@ export const threadMetaInputSchema = z
     threadId: z.string().min(1).max(128),
     lane: threadLaneSchema,
     title: z.string().max(200).optional(),
+    /** When the CLIENT last changed this row, on its own clock. The server
+     * keeps the newest and drops the rest, so a delayed retry cannot overwrite
+     * a lane or title someone has since moved on from — last-writer-wins needs
+     * a writer's timestamp, and the server's own arrival time makes the LATE
+     * retry look like the newest fact. */
+    updatedAt: z.number().int().nonnegative(),
   })
   .strict();
 export type ThreadMetaInput = z.infer<typeof threadMetaInputSchema>;
@@ -53,7 +94,8 @@ export const pushRequestSchema = z
   .object({
     events: z.array(syncEventInputSchema).max(PUSH_MAX_EVENTS),
     /** Lane/title upserts riding the same batch — a dispatch is one push:
-     * the thread row and its first events arrive together. */
+     * the thread row and its first events arrive together. A push carrying
+     * ONLY these is legal, and still pokes the lane's sockets. */
     threads: z.array(threadMetaInputSchema).max(PUSH_MAX_THREADS).optional(),
   })
   .strict();
@@ -62,6 +104,7 @@ export type PushRequest = z.infer<typeof pushRequestSchema>;
 export const pushResponseSchema = z
   .object({
     accepted: z.number().int().nonnegative(),
+    /** Positions already stored with a byte-identical body — the retry path. */
     duplicates: z.number().int().nonnegative(),
     /** The log's high-water mark after this push — what the ws `sync` ping
      * carries, so a client can tell a ping it already covers from news. */

@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import {
+  ackCapturesRequestSchema,
+  ackCapturesResponseSchema,
+  captureRequestSchema,
+} from "../captures";
 import { cloudError, cloudErrorSchema } from "../errors";
 import {
   DEVICE_CREDENTIAL_PATTERN,
@@ -18,6 +23,14 @@ describe("error envelope", () => {
     expect(cloudErrorSchema.safeParse({ error: { code: "teapot", message: "" } }).success).toBe(
       false,
     );
+  });
+
+  it("names the outbox position on a sync refusal", () => {
+    const envelope = cloudError("sync-conflict", "already stored with a different body", 7);
+    expect(cloudErrorSchema.parse(envelope).error.deviceSeq).toBe(7);
+    // Absent rather than null everywhere else — a client reading `deviceSeq`
+    // on a pairing refusal is asking the wrong question.
+    expect("deviceSeq" in cloudError("unauthorized", "nope").error).toBe(false);
   });
 });
 
@@ -55,9 +68,19 @@ describe("push request", () => {
           createdAt: 1,
         },
       ],
-      threads: [{ threadId: "th_1", lane: "desktop", title: "Fix the build" }],
+      threads: [{ threadId: "th_1", lane: "desktop", title: "Fix the build", updatedAt: 1 }],
     });
     expect(result.success).toBe(true);
+  });
+
+  it("demands the client's own timestamp on a metadata upsert", () => {
+    // Without it the server cannot tell a delayed retry from the newest fact,
+    // so the field is required rather than defaulted.
+    const result = pushRequestSchema.safeParse({
+      events: [],
+      threads: [{ threadId: "th_1", lane: "desktop" }],
+    });
+    expect(result.success).toBe(false);
   });
 
   it("refuses an event body over the byte ceiling", () => {
@@ -65,6 +88,17 @@ describe("push request", () => {
       events: [
         { threadId: "th_1", deviceSeq: 1, event: "x".repeat(EVENT_MAX_BYTES + 1), createdAt: 1 },
       ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("measures the ceiling in UTF-8 bytes, not UTF-16 units", () => {
+    // Each of these is ONE UTF-16 unit and THREE UTF-8 bytes. A length-based
+    // ceiling would wave through a body three times the size storage pays for.
+    const wide = "あ".repeat(EVENT_MAX_BYTES / 3);
+    expect(wide.length).toBeLessThan(EVENT_MAX_BYTES);
+    const result = pushRequestSchema.safeParse({
+      events: [{ threadId: "th_1", deviceSeq: 1, event: wide, createdAt: 1 }],
     });
     expect(result.success).toBe(false);
   });
@@ -88,6 +122,30 @@ describe("pull query", () => {
 
   it("refuses a negative cursor", () => {
     expect(pullQuerySchema.safeParse({ afterSeq: "-1" }).success).toBe(false);
+  });
+});
+
+describe("capture handoff", () => {
+  it("demands an idempotency key, so a retried share-sheet post is one capture", () => {
+    expect(captureRequestSchema.safeParse({ text: "buy oat milk" }).success).toBe(false);
+    expect(
+      captureRequestSchema.safeParse({ text: "buy oat milk", idempotencyKey: "k".repeat(8) })
+        .success,
+    ).toBe(true);
+  });
+
+  it("acks by claim token and answers per id", () => {
+    const parsed = ackCapturesResponseSchema.parse({
+      results: [
+        { id: "c1", outcome: "deleted" },
+        { id: "c2", outcome: "reclaimed" },
+        { id: "c3", outcome: "unknown" },
+      ],
+    });
+    expect(parsed.results.map((row) => row.outcome)).toEqual(["deleted", "reclaimed", "unknown"]);
+    // An aggregate count cannot say WHICH apply committed, so there is no
+    // shape here that admits one.
+    expect(ackCapturesRequestSchema.safeParse({ ids: ["c1"] }).success).toBe(false);
   });
 });
 
