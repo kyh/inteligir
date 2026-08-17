@@ -14,7 +14,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/agent-runtime": "workspace:*",
     "@repo/app": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/server-contract": "workspace:*",

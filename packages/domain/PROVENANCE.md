@@ -37,6 +37,7 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
 | `src/change-kinds.ts`               | `packages/domain/src/change-kinds.ts`                                                | adapted  |
 | `src/notifier.ts`                   | `packages/db/src/notifier.ts`, `apps/server/src/services/lib/notification-buffer.ts` | adapted  |
 | `src/pending-interaction-status.ts` | `packages/db/src/schema.ts` (the `pending_interactions` status enum)                 | adapted  |
+| `src/pending-interactions.ts`       | `packages/domain/src/pending-interactions.ts`                                        | vendored |
 | `src/provider-event.ts`             | `packages/domain/src/provider-event.ts`                                              | vendored |
 | `src/thread-event-scope.ts`         | `packages/domain/src/thread-event-scope.ts`                                          | vendored |
 | `src/thread-lifecycle.ts`           | `packages/domain/src/thread-lifecycle.ts`                                            | vendored |
@@ -52,6 +53,11 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
 - `src/pending-interaction-status.ts` is upstream's status vocabulary lifted
   out of the table declaration, with a house zod enum beside it so the wire
   and the column read one tuple.
+- `src/pending-interactions.ts` is trimmed to the APPROVAL family: upstream's
+  user_question and plugin payloads, the plan-review subject (claude-code only)
+  and the server-side row schemas are not carried. Upstream's
+  `pendingInteractionCreateSchema` is an interface here — nothing serializes
+  the struct, so a schema for it would parse a value that never crossed a wire.
 - `src/provider-event.ts` is a subset: web search and fetch, image view,
   background tasks, compaction, goals, rate limits, warnings, model fallback
   and the whole `system/*` family are not carried. The `userMessage` item is

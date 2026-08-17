@@ -1,13 +1,13 @@
 // A pending interaction rendered as an answerable card, inline in the
-// timeline. The payload contract is the approval family from
-// @repo/agent-runtime; a payload that does not parse still renders — with
-// Deny as its only button, because deny is the one decision every request
-// accepts (fail-closed, never a dead card the turn then times out on).
+// timeline. The payload contract is the approval family from @repo/domain,
+// parsed server-side; a null payload still renders — with Deny as its only
+// button, because deny is the one decision every request accepts
+// (fail-closed, never a dead card the turn then times out on).
 
-import {
-  approvalPendingInteractionPayloadSchema,
-  type PendingInteractionApprovalDecision,
-} from "@repo/agent-runtime/domain/pending-interactions";
+import type {
+  ApprovalPendingInteractionPayload,
+  PendingInteractionApprovalDecision,
+} from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/server-contract/threads";
 import { Button } from "@repo/ui/components/button";
 
@@ -30,18 +30,16 @@ interface ApprovalView {
   decisions: PendingInteractionApprovalDecision[];
 }
 
-function approvalView(payload: unknown): ApprovalView {
-  const parsed = approvalPendingInteractionPayloadSchema.safeParse(payload);
-  if (!parsed.success) {
+function approvalView(payload: ApprovalPendingInteractionPayload | null): ApprovalView {
+  if (payload === null) {
     return { summary: "The agent asked for approval.", reason: null, decisions: [] };
   }
-  const { subject } = parsed.data;
-  const decisions = parsed.data.availableDecisions;
+  const { subject, reason, availableDecisions: decisions } = payload;
   switch (subject.kind) {
     case "command":
       return {
         summary: <code className="font-mono text-xs">$ {subject.command}</code>,
-        reason: parsed.data.reason,
+        reason,
         decisions,
       };
     case "file_change":
@@ -50,7 +48,7 @@ function approvalView(payload: unknown): ApprovalView {
           subject.writeScope === null
             ? "Apply file changes"
             : `Apply file changes in ${subject.writeScope}`,
-        reason: parsed.data.reason,
+        reason,
         decisions,
       };
     case "permission_grant":
@@ -59,7 +57,7 @@ function approvalView(payload: unknown): ApprovalView {
           subject.toolName === null
             ? "Grant additional permissions"
             : `Grant additional permissions to ${subject.toolName}`,
-        reason: parsed.data.reason,
+        reason,
         decisions,
       };
   }

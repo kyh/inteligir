@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   pendingInteractionRequestedPermissionProfileSchema,
   type PendingInteractionRequestedPermissionProfile,
-} from "../domain/pending-interactions.js";
+} from "@repo/domain/pending-interactions";
 
 // Providers inconsistently omit fields or send null for the same "not present"
 // wire value. Normalize that external input before validating the domain shape.

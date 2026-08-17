@@ -72,7 +72,10 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   ],
   // Drives a RUNNING app over the typed client; the @repo/app edge is the
   // discovery config (which port/dataDir this checkout means), not the server.
-  "@repo/cli": ["@repo/agent-runtime", "@repo/app", "@repo/server-contract", "@repo/thread-view"],
+  // It reaches no runtime — an approval it prints is domain grammar, and a
+  // client that could not print one without the package that spawns provider
+  // processes would be carrying a process tree to format a string.
+  "@repo/cli": ["@repo/app", "@repo/domain", "@repo/server-contract", "@repo/thread-view"],
   // The Cloudflare Worker. Only the two zod-only/browser-only packages it can
   // survive on workerd — see the workerd rule below for what enforces that
   // beyond this row.
@@ -144,6 +147,10 @@ const PURITY_RULES: Record<string, PurityRule> = {
   "@repo/thread-view": {
     forbidden: ["node", "react", "electron"],
     why: "isomorphic: the same projection folds a thread's events on the server and in any client",
+  },
+  "@repo/agent-runtime": {
+    forbidden: ["react", "electron"],
+    why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
   },
   "@repo/editor": {
     forbidden: ["node", "electron"],

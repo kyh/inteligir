@@ -7,7 +7,7 @@ import type { RuntimeThreadExecutionOptions } from "./domain/shared-types.js";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
-} from "./domain/pending-interactions.js";
+} from "@repo/domain/pending-interactions";
 import type { ThreadEvent } from "./domain/provider-event.js";
 import type { AvailableModel } from "./domain/provider-types.js";
 import type { PromptInput } from "./provider-adapter.js";

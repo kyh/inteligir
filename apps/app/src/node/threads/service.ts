@@ -18,7 +18,8 @@
 import {
   approvalPendingInteractionPayloadSchema,
   parseApprovalResolution,
-} from "@repo/agent-runtime/domain/pending-interactions";
+  type ApprovalPendingInteractionPayload,
+} from "@repo/domain/pending-interactions";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   appendEventsInTransaction,
@@ -120,13 +121,25 @@ function toWireThread(row: ThreadRow): Thread {
   };
 }
 
-function toWirePendingInteraction(row: PendingInteractionRow): PendingInteraction {
-  let payload: unknown;
+/**
+ * The row's JSON `payload` column against the approval grammar — the ONE place
+ * stored bytes become the wire's typed payload. null for bytes that do not
+ * match: every consumer's fallback is the same (deny is always answerable), so
+ * an unreadable payload costs one card's detail rather than the thread.
+ */
+function parseStoredApprovalPayload(payloadJson: string): ApprovalPendingInteractionPayload | null {
+  let raw: unknown;
   try {
-    payload = JSON.parse(row.payload);
+    raw = JSON.parse(payloadJson);
   } catch {
-    payload = null;
+    return null;
   }
+  const parsed = approvalPendingInteractionPayloadSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+function toWirePendingInteraction(row: PendingInteractionRow): PendingInteraction {
+  const payload = parseStoredApprovalPayload(row.payload);
   return {
     id: row.id,
     threadId: row.threadId,
@@ -593,17 +606,11 @@ export class ThreadService implements ProviderEventSink {
  * skip the check.
  */
 function invalidResolutionMessage(payloadJson: string, resolution: string): string | null {
-  let payloadRaw: unknown;
-  try {
-    payloadRaw = JSON.parse(payloadJson);
-  } catch {
+  const payload = parseStoredApprovalPayload(payloadJson);
+  if (payload === null) {
     return null;
   }
-  const payload = approvalPendingInteractionPayloadSchema.safeParse(payloadRaw);
-  if (!payload.success) {
-    return null;
-  }
-  const parsed = parseApprovalResolution(resolution, payload.data);
+  const parsed = parseApprovalResolution(resolution, payload);
   return parsed.ok ? null : parsed.reason;
 }
 

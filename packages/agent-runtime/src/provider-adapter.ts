@@ -13,7 +13,7 @@ import type { AvailableModel, ProviderCapabilities } from "./domain/provider-typ
 import type {
   PendingInteractionPayload,
   PendingInteractionResolution,
-} from "./domain/pending-interactions.js";
+} from "@repo/domain/pending-interactions";
 import type { ThreadEvent, ThreadEventUserContent } from "./domain/provider-event.js";
 import type { ProviderInboundRequest, ProviderRuntimeEvent } from "./runtime-json-rpc.js";
 

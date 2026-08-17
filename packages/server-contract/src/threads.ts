@@ -1,4 +1,5 @@
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
+import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { THREAD_ANCHOR_TOKEN_PATTERN } from "@repo/notes/markdown/thread-anchor";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
@@ -38,7 +39,11 @@ export const pendingInteractionSchema = z
     turnId: z.string().nullable(),
     requestKey: z.string().min(1),
     status: pendingInteractionStatusSchema,
-    payload: z.unknown(),
+    /** The approval grammar, parsed server-side out of the row's JSON column.
+     *  null when those bytes do not match it: the card is still answerable —
+     *  deny is the one decision every request accepts — and a whole thread
+     *  must not fail to load because one payload is unreadable. */
+    payload: approvalPendingInteractionPayloadSchema.nullable(),
     resolution: z.string().nullable(),
     createdAt: z.number(),
     resolvedAt: z.number().nullable(),
@@ -235,12 +240,11 @@ export const answerInteractionRequestSchema = z
     interactionId: z.string().min(1),
     /**
      * The approval-resolution grammar, owned by
-     * `@repo/agent-runtime/domain/pending-interactions` (`parseApprovalResolution`
-     * is the one parser, shared by the route's 400 gate and the runtime): a
-     * bare decision verb — `"allow_once"`, `"allow_for_session"`, `"deny"` —
-     * or the JSON of `approvalPendingInteractionResolutionSchema`. Anything
-     * else answers 400; it stays a string here because the row stores and
-     * replays it verbatim.
+     * `@repo/domain/pending-interactions` (`parseApprovalResolution` is the one
+     * parser, shared by the route's 400 gate and the runtime): a bare decision
+     * verb — `"allow_once"`, `"allow_for_session"`, `"deny"` — or the JSON of
+     * `approvalPendingInteractionResolutionSchema`. Anything else answers 400;
+     * it stays a string here because the row stores and replays it verbatim.
      */
     resolution: z.string().min(1),
   })

@@ -10,7 +10,7 @@ import {
   type PendingInteractionCreate,
   type PendingInteractionPayload,
   type PendingInteractionResolution,
-} from "./domain/pending-interactions.js";
+} from "@repo/domain/pending-interactions";
 import type { ProviderAdapter } from "./provider-adapter.js";
 import {
   type JsonRpcMessage,

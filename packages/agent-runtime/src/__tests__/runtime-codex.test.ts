@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
-} from "../domain/pending-interactions";
+} from "@repo/domain/pending-interactions";
 import type { ThreadEvent } from "../domain/provider-event";
 import { createAgentRuntimeWithAdapters } from "../runtime";
 import type { AgentRuntime, AgentRuntimeExecutionOptions } from "../types";

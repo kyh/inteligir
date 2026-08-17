@@ -30,11 +30,11 @@ import {
 import type {
   PendingInteractionApprovalDecision,
   PendingInteractionGrantablePermissionProfile,
-} from "../domain/pending-interactions.js";
+} from "@repo/domain/pending-interactions";
 import {
   isApprovalPendingInteractionPayload,
   isApprovalPendingInteractionResolution,
-} from "../domain/pending-interactions.js";
+} from "@repo/domain/pending-interactions";
 
 export type CodexInteractiveResponse =
   | CommandExecutionRequestApprovalResponse

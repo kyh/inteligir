@@ -101,6 +101,10 @@ vitest.config.ts         house scaffolding; the vendored surface is src/
 - `codex/interactive-requests.ts`: the plan-review subject branch is gone
   with the trimmed payload union (claude-code's ExitPlanMode; upstream's
   branch only threw for codex).
+- Upstream's `packages/domain/src/pending-interactions.ts` is vendored into
+  `@repo/domain` rather than `src/domain/`: the approval grammar is
+  provider-neutral, and the store, the wire contract, the CLI and a React card
+  all read it. Its record is that package's.
 - `item/reasoning/summaryTextDelta` was re-vendored INTO `@repo/domain`'s
   persisted grammar (with its scope-policy row and timeline handling): codex
   streams the visible thinking text as summary deltas, so its producer has

@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/server-contract/threads";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalCard } from "../approval-card";
 
 afterEach(cleanup);
 
-function interactionWith(payload: unknown): PendingInteraction {
+function interactionWith(payload: ApprovalPendingInteractionPayload | null): PendingInteraction {
   return {
     id: "pint_1",
     threadId: "thr_1",
@@ -21,7 +22,7 @@ function interactionWith(payload: unknown): PendingInteraction {
   };
 }
 
-const commandPayload = {
+const commandPayload: ApprovalPendingInteractionPayload = {
   kind: "approval",
   subject: {
     kind: "command",
@@ -54,9 +55,9 @@ describe("ApprovalCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("pint_1", "deny");
   });
 
-  it("falls back to a deny-only card for a payload it cannot parse", () => {
+  it("falls back to a deny-only card when the host could not read the payload", () => {
     const onAnswer = vi.fn();
-    render(<ApprovalCard interaction={interactionWith({ mystery: true })} onAnswer={onAnswer} />);
+    render(<ApprovalCard interaction={interactionWith(null)} onAnswer={onAnswer} />);
     expect(screen.getByText("The agent asked for approval.")).toBeTruthy();
     expect(screen.queryByText("Allow once")).toBeNull();
     fireEvent.click(screen.getByText("Deny"));
