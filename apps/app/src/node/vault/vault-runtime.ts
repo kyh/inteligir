@@ -6,7 +6,7 @@
 
 import { writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
-import type { DbNotifier } from "@repo/db/notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { createGitEngine, ensureVaultRepo, type GitEngine } from "./git";
 import { createVaultService, sweepStaleTmpFiles, type VaultService } from "./vault-service";

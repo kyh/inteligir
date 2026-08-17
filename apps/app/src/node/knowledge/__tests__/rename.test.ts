@@ -5,7 +5,7 @@
 
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { noopNotifier } from "@repo/db/notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService, type VaultService } from "../../vault/vault-service";

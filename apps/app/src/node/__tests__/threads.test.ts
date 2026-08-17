@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createConnection, type DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
-import { noopNotifier } from "@repo/db/notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";

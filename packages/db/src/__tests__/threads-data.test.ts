@@ -1,11 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ThreadChangeKind } from "@repo/server-contract/notifications";
+import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import { afterEach, describe, expect, it } from "vitest";
 import { createConnection, type DbConnection } from "../connection";
 import { runMigrations } from "../migrate";
-import { noopNotifier, type DbNotifier } from "../notifier";
+import { noopNotifier, type DbNotifier } from "@repo/domain/notifier";
 import {
   applyThreadLifecycleEvent,
   archiveThread,

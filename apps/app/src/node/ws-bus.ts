@@ -4,17 +4,15 @@
 // announces changes, the bus fans them out to the sockets whose
 // subscriptions match.
 
-import type { DbNotifier } from "@repo/db/notifier";
+import type { DocChangeKind, ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
+import type { DbNotifier } from "@repo/domain/notifier";
 import {
   clientMessageSchema,
   realtimeSubscriptionTargetKey,
   subscriptionKeysForMessage,
   type ChangedMessage,
-  type DocChangeKind,
   type HelloMessage,
   type RealtimeSubscriptionTarget,
-  type ThreadChangeKind,
-  type VaultChangeKind,
 } from "@repo/server-contract/notifications";
 
 /** Structural on purpose: production passes hono/ws WSContext, tests a fake. */

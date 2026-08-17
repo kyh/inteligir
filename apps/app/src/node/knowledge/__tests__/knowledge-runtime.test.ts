@@ -4,7 +4,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { noopNotifier } from "@repo/db/notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";

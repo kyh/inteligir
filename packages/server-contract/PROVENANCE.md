@@ -1,7 +1,7 @@
 # Vendored: bb's wire contract
 
-- **Upstream**: https://github.com/get-bb/bb, `packages/server-contract` and
-  `packages/domain` plus the ws hub named per file below
+- **Upstream**: https://github.com/get-bb/bb, `packages/server-contract` plus
+  the ws hub named per file below
 - **Commit**: `8e6fc83582881509077ce67ac5e4b59784d83121`
 - **License**: MIT — `LICENSE.bb` in this directory is upstream's own text,
   copied verbatim. The per-file notice below is not a substitute for it: MIT
@@ -28,22 +28,21 @@ Each row names the upstream file at the pinned commit, and whether the code is
 upstream's (`vendored`) or upstream's shape with the bodies rewritten
 (`adapted`).
 
-| File                     | Upstream                                                           | Carried  |
-| ------------------------ | ------------------------------------------------------------------ | -------- |
-| `src/client.ts`          | `packages/server-contract/src/public-api.ts` (tail)                | vendored |
-| `src/notifications.ts`   | `packages/domain/src/change-kinds.ts`, `apps/server/src/ws/hub.ts` | vendored |
-| `src/thread-timeline.ts` | `packages/server-contract/src/thread-timeline.ts`                  | vendored |
+| File                     | Upstream                                            | Carried  |
+| ------------------------ | --------------------------------------------------- | -------- |
+| `src/client.ts`          | `packages/server-contract/src/public-api.ts` (tail) | vendored |
+| `src/notifications.ts`   | `apps/server/src/ws/hub.ts`                         | vendored |
+| `src/thread-timeline.ts` | `packages/server-contract/src/thread-timeline.ts`   | vendored |
 
 ## Partial copies
 
-- `src/notifications.ts` merges two upstream files and then replaces the
-  vocabulary. The subscription machinery is upstream's — the subscribe and
+- `src/notifications.ts` is upstream's hub half only: the subscribe and
   unsubscribe schemas, the client union, the target-key switch, the lenient
-  filter and `subscriptionKeysForMessage` — but the entities are this repo's
-  (`vault` and `doc` where upstream has project, environment and host), the
-  `hello` frame has no upstream counterpart, and the `changedMessagePair`
-  factory collapses upstream's hand-written strict/lenient pairs into one
-  parameterised pair.
+  filter and `subscriptionKeysForMessage`. The `hello` frame has no upstream
+  counterpart, and the `changedMessagePair` factory collapses upstream's
+  hand-written strict/lenient pairs into one parameterised pair. The change-kind
+  vocabulary it builds those pairs from is `@repo/domain/change-kinds`, which
+  carries its own record.
 - `src/thread-timeline.ts` carries upstream's row schemas and both delta
   functions near-verbatim, trimmed of fields this repo does not model. Three
   row kinds are local inventions with no bb counterpart: the `reasoning` and
@@ -54,6 +53,4 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
 
 Clone upstream at a newer commit and diff each row's upstream file against its
 counterpart here, ignoring the notice lines and expecting the divergences
-above. `src/notifications.ts` is the one that will not diff cleanly — read it
-as a merge, not a copy. Update the commit pin here and run this package's
-tests.
+above. Update the commit pin here and run this package's tests.

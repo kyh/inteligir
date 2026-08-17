@@ -26,7 +26,7 @@ import {
   type StoredThreadEvent,
 } from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
-import { NotificationBuffer, type DbNotifier } from "@repo/db/notifier";
+import { NotificationBuffer, type DbNotifier } from "@repo/domain/notifier";
 import {
   countOpenPendingInteractionsByThread,
   getPendingInteraction,

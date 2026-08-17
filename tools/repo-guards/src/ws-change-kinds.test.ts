@@ -23,7 +23,7 @@ import {
   DOC_CHANGE_KINDS,
   THREAD_CHANGE_KINDS,
   VAULT_CHANGE_KINDS,
-} from "@repo/server-contract/notifications";
+} from "@repo/domain/change-kinds";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
@@ -77,7 +77,9 @@ function producers(): Producer[] {
   const found: Producer[] = [];
   for (const workspace of workspaces()) {
     for (const file of workspaceFiles(workspace).shipped) {
-      // The contract itself names every kind; it declares them, it fires none.
+      // The vocabulary and the seam that types it declare every kind and fire
+      // none; the contract that serializes them names them too.
+      if (file.startsWith("packages/domain/")) continue;
       if (file.startsWith("packages/server-contract/")) continue;
       const source = sourceOf(file);
       for (const { entity, notifier } of ENTITIES) {
@@ -110,7 +112,7 @@ describe("ws change-kind reachability", () => {
         unreachable.push(
           `UNREACHABLE CHANGE KIND  ${id}\n` +
             `  rule: a declared change kind is a promise that some write announces itself; nothing outside the suites fires this one\n` +
-            `  fix: build the write that fires it, or delete the kind from packages/server-contract/src/notifications.ts`,
+            `  fix: build the write that fires it, or delete the kind from packages/domain/src/change-kinds.ts`,
         );
       }
     }
@@ -126,7 +128,7 @@ describe("ws change-kind reachability", () => {
       if (declared.includes(producer.kind)) continue;
       undeclared.push(
         `UNDECLARED CHANGE KIND  ${producer.entity}/${producer.kind}\n` +
-          `  rule: the contract's kind arrays are the vocabulary; the strict outbound schema rejects anything else at the socket\n` +
+          `  rule: the domain's kind arrays are the vocabulary; the contract's strict outbound schema rejects anything else at the socket\n` +
           `  at ${producer.file}`,
       );
     }

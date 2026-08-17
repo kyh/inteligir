@@ -1,14 +1,12 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import type {
-  DocChangeKind,
-  ThreadChangeKind,
-  VaultChangeKind,
-} from "@repo/server-contract/notifications";
+import type { DocChangeKind, ThreadChangeKind, VaultChangeKind } from "./change-kinds";
 
 /**
  * The seam the write layer announces changes through. The server's ws bus
- * implements it at the edge; everything below it stays transport-blind.
+ * implements it at the edge; everything below it stays transport-blind — which
+ * is why the seam lives here rather than in the store that calls it or the
+ * contract that serializes it.
  */
 export interface DbNotifier {
   /** `paths` names the vault-relative paths a files-changed announcement

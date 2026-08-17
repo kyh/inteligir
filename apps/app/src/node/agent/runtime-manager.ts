@@ -47,7 +47,7 @@ import {
   type PendingInteractionResolution,
 } from "@repo/agent-runtime/domain/pending-interactions";
 import type { DbConnection } from "@repo/db/connection";
-import type { DbNotifier } from "@repo/db/notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import {
   createPendingInteraction,
   interruptOpenPendingInteractions,

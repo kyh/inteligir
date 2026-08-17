@@ -8,7 +8,7 @@ import { createConnection, type DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
 import { runMigrations } from "../migrate";
-import { noopNotifier } from "../notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 
 const tempDirs: string[] = [];
 

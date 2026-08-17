@@ -1,31 +1,14 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
+import {
+  DOC_CHANGE_KINDS,
+  THREAD_CHANGE_KINDS,
+  VAULT_CHANGE_KINDS,
+} from "@repo/domain/change-kinds";
 import { z } from "zod";
 
 /** Where the invalidation bus is served; the upgrade endpoint every client dials. */
 export const WS_PATH = "/ws";
-
-export const VAULT_CHANGE_KINDS = ["files-changed", "sync-status-changed"] as const;
-export type VaultChangeKind = (typeof VAULT_CHANGE_KINDS)[number];
-
-export const DOC_CHANGE_KINDS = ["content-changed"] as const;
-export type DocChangeKind = (typeof DOC_CHANGE_KINDS)[number];
-
-export const THREAD_CHANGE_KINDS = [
-  "thread-created",
-  "events-appended",
-  "status-changed",
-  "archived-changed",
-  "queue-changed",
-  "interactions-changed",
-  /** The doc a delegation is bound to moved (a rename followed it). */
-  "origin-changed",
-] as const;
-export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];
-
-export const vaultChangeKindSchema = z.enum(VAULT_CHANGE_KINDS);
-export const docChangeKindSchema = z.enum(DOC_CHANGE_KINDS);
-export const threadChangeKindSchema = z.enum(THREAD_CHANGE_KINDS);
 
 /** What a client can subscribe to. How a changed message reaches these targets
  * is `subscriptionKeysForMessage` below — the one fan-out mapping. */

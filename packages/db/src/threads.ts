@@ -8,7 +8,7 @@ import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { and, desc, eq, isNotNull, isNull, like } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
-import type { DbNotifier } from "./notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import { threads } from "./schema";
 
 export type ThreadRow = typeof threads.$inferSelect;

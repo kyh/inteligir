@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "@repo/app": "workspace:*",
-    "@repo/server-contract": "workspace:*",
+    "@repo/domain": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

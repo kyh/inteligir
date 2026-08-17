@@ -23,7 +23,7 @@ import {
   unlink,
 } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import type { DbNotifier } from "@repo/db/notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import {
   contentHashHex,
   VAULT_MAX_CONTENT_LENGTH,

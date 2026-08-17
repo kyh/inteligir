@@ -2,7 +2,7 @@
   "name": "@repo/db",
   "version": "0.1.0",
   "private": true,
-  "description": "The local SQLite database: drizzle over better-sqlite3 (WAL, synchronous=NORMAL), committed SQL migrations applied on boot, the DbNotifier seam the write layer announces changes through, and the prefixed-nanoid id helpers.",
+  "description": "The local SQLite database: drizzle over better-sqlite3 (WAL, synchronous=NORMAL), committed SQL migrations applied on boot, and the prefixed-nanoid id helpers. Writes announce through @repo/domain's DbNotifier seam.",
   "type": "module",
   "exports": {
     "./connection": "./src/connection.ts",
@@ -10,7 +10,6 @@
     "./ids": "./src/ids.ts",
     "./meta": "./src/meta.ts",
     "./migrate": "./src/migrate.ts",
-    "./notifier": "./src/notifier.ts",
     "./pending-interactions": "./src/pending-interactions.ts",
     "./queued-messages": "./src/queued-messages.ts",
     "./schema": "./src/schema.ts",
@@ -24,7 +23,6 @@
   },
   "dependencies": {
     "@repo/domain": "workspace:*",
-    "@repo/server-contract": "workspace:*",
     "better-sqlite3": "catalog:",
     "drizzle-orm": "catalog:",
     "nanoid": "catalog:"

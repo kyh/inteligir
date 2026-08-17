@@ -50,7 +50,12 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // Widening this edge to a remark-carrying module is the regression to catch.
   "@repo/server-contract": ["@repo/domain", "@repo/notes", "@repo/typed-routes"],
   "@repo/agent-runtime": ["@repo/domain"],
-  "@repo/db": ["@repo/domain", "@repo/server-contract"],
+  // Persistence sits BELOW the wire: the store announces its writes through
+  // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
+  // serializes. An edge the other way would drag hono, the route machinery and
+  // the contract's own @repo/notes edge into the build graph of a package that
+  // only writes rows.
+  "@repo/db": ["@repo/domain"],
   "@repo/thread-view": ["@repo/domain", "@repo/server-contract"],
 
   // The product: the one workspace that composes everything.

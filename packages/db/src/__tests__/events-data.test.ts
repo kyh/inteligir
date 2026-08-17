@@ -12,7 +12,7 @@ import {
   MissingTurnStartedError,
 } from "../events";
 import { runMigrations } from "../migrate";
-import { noopNotifier } from "../notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 import { createThread } from "../threads";
 
 const tempDirs: string[] = [];
