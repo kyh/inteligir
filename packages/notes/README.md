@@ -27,10 +27,8 @@ src/
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
                        # in-memory tiered lexical index (behavior pin)
-    task-ordinal.ts    # what (sourceFile, ordinal) names: the ONE count of a
-                       # doc's checkboxes, the lookup, the two state rules
-                       # (delegation wants an open one, a toggle takes either)
-                       # and the guarded write back
+    task-ordinal.ts    # what an ordinal names: the ONE count of a doc's
+                       # checkboxes, extracted with the bytes of each line
     source-lines.ts    # what a LINE is — content excludes its terminator —
                        # as a split and as a span, so a guarded splice leaves
                        # every other byte, CRLF included, untouched

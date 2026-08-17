@@ -16,9 +16,9 @@
 // place and splices INSIDE the span — no untouched byte moves, mixed EOLs
 // included. Their agreement is pinned by __tests__/source-lines.test.ts.
 //
-// Addressing: `replaceLineGuarded`/`toggleCheckboxLine` take a raw LINE index.
-// Content-addressed callers go through ./task-ordinal, which resolves an ordinal
-// to a line first and then requires raw-byte equality here.
+// Addressing: `replaceLineGuarded`/`toggleCheckboxLine` take a raw LINE index
+// AND the bytes the caller believes are on it, so a line that shifted or was
+// edited underneath refuses rather than taking the write meant for another.
 // ---------------------------------------------------------------------------
 
 export type LineEditResult = { ok: true; content: string } | LineEditFailure;

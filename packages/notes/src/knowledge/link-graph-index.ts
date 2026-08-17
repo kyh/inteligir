@@ -88,9 +88,8 @@ export type LinkGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
  * a client's local resolver. */
 export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; aliases?: string[] };
 
-/** One vault task for the Tasks view: an ExtractedTask flattened with its
- * doc's identity. `ordinal` doubles as delegation's anchor index and the
- * guarded toggle's key; `raw` is the toggle's expectedRaw. */
+/** One vault task: an ExtractedTask flattened with its doc's identity, so a
+ * caller listing across the vault keeps the (path, ordinal) that names it. */
 export type VaultTaskEntry = {
   path: string;
   title: string;
