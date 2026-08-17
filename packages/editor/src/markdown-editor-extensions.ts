@@ -9,6 +9,7 @@ import { editorThemeExtension } from "./editor-theme";
 import { forceParseHealerExtension } from "./force-parse-healer";
 import { headingMarginMarksExtension } from "./heading-margin-marks";
 import { hideMarksExtension } from "./hide-marks";
+import { assetResolver, imageEmbedExtension, type AssetResolver } from "./image-embed";
 import { markdownLanguageExtension } from "./markdown-language";
 import { mathExtension } from "./math";
 import { tagChipsExtension, tagClickHandler } from "./tag-chips";
@@ -41,6 +42,10 @@ export interface MarkdownEditorOptions {
   /** Receives the NAME (no `#`) of a clicked inline tag chip. Absent means a
    * chip is styling only — the editor never invents a search surface. */
   onOpenTag?: (tag: string) => void;
+  /** Turns an image `src` with no scheme (a vault-relative path) into a URL
+   * the browser can fetch. Absent means such an embed states that nothing
+   * here can resolve it, rather than pointing an `<img>` somewhere hopeful. */
+  resolveAsset?: AssetResolver;
 }
 
 /**
@@ -63,6 +68,8 @@ export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): E
   dashExtension,
   taskCheckboxExtension,
   mathExtension,
+  imageEmbedExtension,
+  options.resolveAsset === undefined ? [] : assetResolver.of(options.resolveAsset),
   tagChipsExtension,
   options.onOpenTag === undefined ? [] : tagClickHandler.of(options.onOpenTag),
   codeBlockDecorationsExtension,

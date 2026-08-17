@@ -49,6 +49,17 @@ seeds its search with \`tag:<name>\`. Inside \`#code\` or a [labelled
 
 > [!totally-made-up] An unknown type still gets a box and its own label.
 
+## Images
+
+A vault-relative embed alone on its line renders as a block:
+
+![the buffer is the file](assets/diagram.svg)
+
+An inline one ![the same picture](assets/diagram.svg) sits in the sentence. A
+scheme the editor will not load — ![no](javascript:alert(1)) — keeps its own
+bytes and says why, and so does a path nothing can resolve:
+![missing](assets/nowhere.png).
+
 ## Math
 
 Inline math like $e^{i\\pi} + 1 = 0$ sits in the line; a display block gets

@@ -151,6 +151,12 @@ export interface VaultService {
    *  announced subtree. An empty result covers a missing or empty folder. */
   listFilesUnder(path: string): Promise<string[]>;
   read(path: string): Promise<{ path: string; content: string }>;
+  /** A file's raw BYTES, under exactly the containment rules `read` applies —
+   *  the asset route's read. `etag` is derived from size and mtime, which is
+   *  what lets an `<img>` that re-mounts revalidate instead of re-downloading;
+   *  the bytes are COPIED into an ArrayBuffer of their own, because a Buffer
+   *  is a view into a pooled allocation that hono's body types refuse. */
+  readBytes(path: string): Promise<{ path: string; bytes: ArrayBuffer; etag: string }>;
   write(path: string, content: string): Promise<{ path: string }>;
   /** Write `content` only if the file still holds exactly `expected`, with the
    *  read and the write inside ONE turn of the mutation lock — the rename
@@ -321,6 +327,35 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         throw error;
       });
       return { path: relPath, content };
+    },
+
+    async readBytes(path) {
+      const { relPath, absPath } = resolveVaultPath(rootReal, path);
+      await assertAncestryInsideVault(absPath);
+      const stats = await lstatRefusingSymlink(absPath, relPath);
+      if (stats === null || stats.isDirectory()) {
+        throw notFound(relPath);
+      }
+      if (stats.size > VAULT_MAX_CONTENT_LENGTH) {
+        throw new VaultServiceError(
+          "too_large",
+          `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
+        );
+      }
+      const buffer = await readFile(absPath).catch((error: unknown) => {
+        const code = errnoCode(error);
+        if (code === "ENOENT" || code === "ENOTDIR" || code === "EISDIR") {
+          throw notFound(relPath);
+        }
+        throw error;
+      });
+      const bytes = new Uint8Array(buffer.byteLength);
+      bytes.set(buffer);
+      return {
+        path: relPath,
+        bytes: bytes.buffer,
+        etag: `"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`,
+      };
     },
 
     write(path, content) {

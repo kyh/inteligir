@@ -2,7 +2,7 @@
 // service → disk, plus the ws invalidation a mutation must produce.
 
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createConnection } from "@repo/db/connection";
@@ -289,6 +289,55 @@ describe("the vault routes", () => {
     const sync = await app.request("/api/v1/vault/sync", { method: "POST" });
     expect(sync.status).toBe(200);
     expect(vaultStatusResponseSchema.parse(await sync.json()).state).toBe("no-remote");
+  });
+
+  it("serves an image asset with a pinned type, a sandbox CSP and an ETag", async () => {
+    const { app, vaultDir } = await bootVaultApp();
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"></svg>';
+    await writeFile(join(vaultDir, "picture.svg"), svg, "utf8");
+
+    const asset = await app.request("/api/v1/vault/asset?path=picture.svg");
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("content-type")).toBe("image/svg+xml");
+    expect(asset.headers.get("x-content-type-options")).toBe("nosniff");
+    // Without the sandbox, NAVIGATING to this URL would run the SVG's script
+    // on the app's own origin — with a vault a git remote can write into.
+    expect(asset.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+    expect(await asset.text()).toBe(svg);
+
+    const etag = asset.headers.get("etag");
+    expect(etag).not.toBeNull();
+    const revalidated = await app.request("/api/v1/vault/asset?path=picture.svg", {
+      headers: { "if-none-match": etag ?? "" },
+    });
+    expect(revalidated.status).toBe(304);
+  });
+
+  it("refuses an asset whose extension is not an image type it serves", async () => {
+    const { app, vaultDir } = await bootVaultApp();
+    await writeFile(join(vaultDir, "page.html"), "<script>alert(1)</script>", "utf8");
+
+    const refused = await app.request("/api/v1/vault/asset?path=page.html");
+    expect(refused.status).toBe(400);
+    expect(apiErrorResponseSchema.parse(await refused.json()).error).toBe("invalid_path");
+
+    const missing = await app.request("/api/v1/vault/asset?path=absent.png");
+    expect(missing.status).toBe(404);
+  });
+
+  it("refuses a cross-site request outright, Origin or no Origin", async () => {
+    const { app } = await bootVaultApp();
+    // An `<img src>` carries no Origin, so the origin rule cannot see it; the
+    // browser's own Sec-Fetch-Site is what names the initiator.
+    const crossSite = await app.request("/api/v1/vault/tree", {
+      headers: { "sec-fetch-site": "cross-site" },
+    });
+    expect(crossSite.status).toBe(403);
+
+    const sameOrigin = await app.request("/api/v1/vault/tree", {
+      headers: { "sec-fetch-site": "same-origin" },
+    });
+    expect(sameOrigin.status).toBe(200);
   });
 
   it("fans a mutation out to vault subscribers on the ws bus", async () => {

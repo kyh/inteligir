@@ -4,6 +4,7 @@
 
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
+  binaryResponse,
   defineRoute,
   jsonRequest,
   jsonResponse,
@@ -58,6 +59,33 @@ export async function contentHashHex(content: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+
+/**
+ * The image types the asset route will serve, extension → media type. It is
+ * an ALLOWLIST rather than a lookup with a fallback, and that is the whole
+ * security design of the route: the bytes come from a vault a hostile git
+ * remote can write to, and they are served from the app's own origin, so a
+ * guessed `text/html` would be stored XSS with the vault as the store. An
+ * extension outside this table is refused rather than sent as
+ * `application/octet-stream` — the editor renders only images, so a type it
+ * cannot draw has no reason to leave the disk.
+ *
+ * SVG is here because notes carry diagrams, and it is the one entry that can
+ * carry script. `<img>` never runs it; a direct NAVIGATION to the asset URL
+ * would, which is why the route answers with a `sandbox` CSP.
+ */
+export const VAULT_ASSET_MEDIA_TYPES: Readonly<Record<string, string>> = {
+  ".apng": "image/apng",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
 
 export const vaultReadRequestSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
@@ -259,6 +287,26 @@ export const vaultRoutes = {
     request: queryRequest<EmptyInput, VaultReadRequest>(vaultReadRequestSchema),
     response: [
       jsonResponse<VaultReadResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+      jsonResponse<ApiErrorResponse, 413>({ status: 413 }),
+    ],
+  }),
+  /**
+   * A vault image's raw bytes, for an `<img src>` the editor builds — so the
+   * browser fetches it directly and this row exists to DESCRIBE the surface,
+   * not to be called through the typed client. Only the extensions in
+   * `VAULT_ASSET_MEDIA_TYPES` are served; anything else is a 400.
+   *
+   * A conditional request answers 304, which the table cannot express — every
+   * status it carries is a `ContentfulStatusCode`, and 304 has no body.
+   */
+  asset: defineRoute({
+    path: "/vault/asset",
+    method: "get",
+    request: queryRequest<EmptyInput, VaultReadRequest>(vaultReadRequestSchema),
+    response: [
+      binaryResponse(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
       jsonResponse<ApiErrorResponse, 413>({ status: 413 }),

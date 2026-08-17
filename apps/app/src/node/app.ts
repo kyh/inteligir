@@ -111,7 +111,11 @@ export function createApp(args: CreateAppArgs) {
   const allowedOrigins = buildLocalAppOrigins(args.config.port);
   const guardBrowserRequest = async (c: Context, next: Next) => {
     const problem = browserRequestProblem(
-      { host: c.req.header("host"), origin: c.req.header("origin") },
+      {
+        host: c.req.header("host"),
+        origin: c.req.header("origin"),
+        secFetchSite: c.req.header("sec-fetch-site"),
+      },
       allowedOrigins,
     );
     if (problem !== null) {

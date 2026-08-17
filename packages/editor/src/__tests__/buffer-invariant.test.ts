@@ -28,6 +28,8 @@ Tagged prose: #alpha and #nested/child, plus a literal \`#incode\` one.
 > [!WARNING] A callout
 > with a second line.
 
+![an embed](assets/diagram.svg) and ![refused](javascript:alert(1)).
+
 Inline $e^{i\\pi} + 1 = 0$ math, and a display block:
 
 $$
@@ -68,6 +70,7 @@ const snippets = [
   "> [!NOTE] ",
   "$$",
   "$x$",
+  "![a](b.png)",
 ];
 
 // mulberry32: deterministic PRNG so a failure reproduces byte-for-byte.

@@ -6,7 +6,7 @@
 // asserted through the DOM the browser actually built, and the buffer is
 // re-read from disk afterwards to prove rendering wrote nothing.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, skip } from "../harness/assert";
 import { exec, ExecError } from "../harness/exec";
@@ -31,7 +31,14 @@ $$
 $$
 
 A broken $\\frobnicate{x}$ shows its own source.
+
+![a diagram](assets/diagram.svg)
+
+Refused: ![no](javascript:alert(1)).
 `;
+
+const ASSET_PATH = "assets/diagram.svg";
+const ASSET_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"></svg>\n`;
 
 /** What one `eval` pass reports about the rendered editor: a named list of
  *  strings per construct, so adding a construct is one line of probe script
@@ -65,6 +72,11 @@ const PROBE_SCRIPT = `({
     .map((n) => (n.classList.contains('cm-math-display') ? 'display' : 'inline')
       + ':' + (n.querySelector('.katex') ? 'katex' : 'error')),
   mathErrors: [...document.querySelectorAll('.cm-content .cm-math-error-source')]
+    .map((n) => n.textContent),
+  images: [...document.querySelectorAll('.cm-content img.cm-image-img')]
+    .map((n) => n.getAttribute('src') + ':'
+      + (n.complete && n.naturalWidth > 0 ? 'loaded' : 'broken')),
+  imageErrors: [...document.querySelectorAll('.cm-content .cm-image-error-message')]
     .map((n) => n.textContent),
 })`;
 
@@ -112,6 +124,8 @@ export const editorConstructsBrowser: Scenario = {
       // The only root note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
+        await mkdir(join(vaultDir, "assets"), { recursive: true });
+        await writeFile(join(vaultDir, ASSET_PATH), ASSET_SVG, "utf8");
       },
     });
 
@@ -158,6 +172,17 @@ export const editorConstructsBrowser: Scenario = {
       expect(
         rendered(probe, "mathErrors").join(" ") === "$\\frobnicate{x}$",
         `the failed formula keeps its own source on screen, got: ${JSON.stringify(rendered(probe, "mathErrors"))}`,
+      );
+
+      ctx.log("images");
+      expect(
+        rendered(probe, "images").join(" ") ===
+          "/api/v1/vault/asset?path=assets%2Fdiagram.svg:loaded",
+        `the vault embed resolves through the asset route and the bytes arrive, got: ${JSON.stringify(rendered(probe, "images"))}`,
+      );
+      expect(
+        rendered(probe, "imageErrors").join(" ") === "javascript: images are not loaded",
+        `a javascript: src never reaches an <img>, got: ${JSON.stringify(rendered(probe, "imageErrors"))}`,
       );
 
       ctx.log("the file on disk is byte-identical after rendering");

@@ -13,6 +13,9 @@ export interface MarkdownEditorProps {
   onOpenLink?: (url: string) => void;
   /** Receives the NAME (no `#`) of a clicked inline tag chip. */
   onOpenTag?: (tag: string) => void;
+  /** Turns a vault-relative image `src` into a fetchable URL. Read once at
+   * mount, like every other extension input. */
+  resolveAsset?: (src: string) => string | null;
   /** Extra extensions appended after the house stack; fixed at mount. */
   extensions?: Extension[];
   className?: string;
@@ -48,6 +51,7 @@ export const MarkdownEditor = (props: MarkdownEditorProps): ReactElement => {
         else window.open(url, "_blank", "noopener");
       },
       onOpenTag: (tag) => propsRef.current.onOpenTag?.(tag),
+      resolveAsset: (src) => propsRef.current.resolveAsset?.(src) ?? null,
       extensions: propsRef.current.extensions ?? [],
     });
     // The null on teardown must go to the SAME callback that received the

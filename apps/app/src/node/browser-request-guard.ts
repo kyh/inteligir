@@ -15,11 +15,23 @@
  * back on the port it was loaded from. A hostile page cannot exploit the
  * Host match: a browser sets Host to the connect target, so a cross-site
  * request always carries the foreign page's Origin against our own Host.
+ *
+ * Origin alone does not cover a SUBRESOURCE load: a browser sends no Origin
+ * for `<img src>`, `<script src>` or `<link>`, so a hostile page that guessed
+ * the port could point an `<img>` at a vault asset. It could not read the
+ * pixels (the canvas taints), but load-vs-error already discloses that a path
+ * exists. `Sec-Fetch-Site` is what closes it, and only its `cross-site` value
+ * is acted on: same-origin app traffic sends `same-origin`, a user typing the
+ * URL sends `none`, and every non-browser caller sends nothing at all — so
+ * this refuses exactly the case Origin cannot see and widens nothing.
  */
 
 export interface BrowserRequestHeaders {
   host: string | undefined;
   origin: string | undefined;
+  /** The browser's own account of who initiated the request; absent outside
+   *  browsers, and absent in browsers old enough not to send it. */
+  secFetchSite: string | undefined;
 }
 
 const LOCAL_HOSTS = ["127.0.0.1", "localhost"] as const;
@@ -89,6 +101,9 @@ export function browserRequestProblem(
 ): string | null {
   if (headers.origin !== undefined && !isTrustedOrigin(headers.origin, headers, allowedOrigins)) {
     return `origin "${headers.origin}" is not a local inteligir app origin`;
+  }
+  if (headers.secFetchSite === "cross-site") {
+    return "a cross-site request cannot reach the local inteligir app";
   }
   return null;
 }

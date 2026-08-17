@@ -43,6 +43,7 @@ import { useDocThreads } from "../chat/thread-hooks";
 import { NoteController, type SaveResult } from "./note-controller";
 import { NoteTitle } from "./note-title";
 import { sendKeepaliveWrite } from "./keepalive-write";
+import { vaultAssetUrl } from "./vault-asset";
 import { useWorkspace } from "../workspace-context";
 
 /** How the note surface hands delegation intents up to the workspace. */
@@ -444,6 +445,7 @@ function OpenNote({
         extensions={delegationExtensions}
         onDocChanged={() => controllerRef.current?.docChanged()}
         onOpenTag={onSearchTag}
+        resolveAsset={vaultAssetUrl}
         onEditor={handleEditor}
       />
     </div>

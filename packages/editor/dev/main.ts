@@ -25,5 +25,9 @@ const editor = createMarkdownEditor({
   onOpenTag: (tag) => {
     console.debug("tag clicked", tag);
   },
+  // This demo's "vault" is the vite root, so a vault-relative path is a path
+  // this dev server already serves. The app's own resolver points at
+  // /api/v1/vault/asset instead — the seam is the point.
+  resolveAsset: (src) => (src.startsWith("assets/") ? `/${src}` : null),
 });
 editor.focus();
