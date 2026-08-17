@@ -91,6 +91,17 @@ def fib(n: int) -> int:
     return n if n < 2 else fib(n - 1) + fib(n - 2)
 \`\`\`
 
+## Tables
+
+| Construct | Renders as | Where the source is |
+| --- | :---: | ---: |
+| \`**bold**\` | **bold** | in the cell |
+| A [link](https://codemirror.net) | its label, inert | click to unfold |
+| \`$x^2$\` | \`$x^2$\` | no case for it, so its own bytes |
+
+Click into the table and the widget gives way to the real lines — the bytes
+were always there.
+
 ## Diagrams
 
 \`\`\`mermaid

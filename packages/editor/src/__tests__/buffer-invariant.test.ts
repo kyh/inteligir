@@ -41,6 +41,10 @@ $$
 - [x] task done
 1. ordered
 
+| Col | **B** |
+| --- | ---: |
+| one | \`two\` |
+
 ***
 
 \`\`\`js
@@ -77,6 +81,8 @@ const snippets = [
   "$x$",
   "![a](b.png)",
   "```mermaid\n",
+  "| a | b |\n",
+  " | ",
 ];
 
 // mulberry32: deterministic PRNG so a failure reproduces byte-for-byte.

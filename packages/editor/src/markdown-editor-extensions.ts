@@ -13,6 +13,7 @@ import { assetResolver, imageEmbedExtension, type AssetResolver } from "./image-
 import { markdownLanguageExtension } from "./markdown-language";
 import { mathExtension } from "./math";
 import { mermaidExtension } from "./mermaid-diagram";
+import { tablesExtension } from "./tables";
 import { tagChipsExtension, tagClickHandler } from "./tag-chips";
 import { taskCheckboxExtension } from "./task-checkbox";
 import { blockQuoteExtension } from "./vendor/prosemark/lib/blockQuote";
@@ -71,6 +72,7 @@ export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): E
   mathExtension,
   imageEmbedExtension,
   mermaidExtension,
+  tablesExtension,
   options.resolveAsset === undefined ? [] : assetResolver.of(options.resolveAsset),
   tagChipsExtension,
   options.onOpenTag === undefined ? [] : tagClickHandler.of(options.onOpenTag),

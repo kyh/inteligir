@@ -44,6 +44,10 @@ graph TD
 \`\`\`mermaid
 not a diagram this renderer can draw
 \`\`\`
+
+| Name | **Bold** | Right |
+| --- | :---: | ---: |
+| a \`code\` b | [link](https://x.dev) | 1 |
 `;
 
 const ASSET_PATH = "assets/diagram.svg";
@@ -91,6 +95,10 @@ const PROBE_SCRIPT = `({
     .map((n) => n.querySelector('svg') ? 'svg'
       : n.querySelector('.cm-mermaid-error') ? 'error' : 'pending'),
   mermaidLabels: [...document.querySelectorAll('.cm-content .cm-mermaid svg .node text')]
+    .map((n) => n.textContent),
+  tableHeaders: [...document.querySelectorAll('.cm-content .cm-table th')]
+    .map((n) => n.textContent + ':' + n.style.textAlign),
+  tableCells: [...document.querySelectorAll('.cm-content .cm-table td')]
     .map((n) => n.textContent),
 })`;
 
@@ -210,6 +218,16 @@ export const editorConstructsBrowser: Scenario = {
       expect(
         rendered(probe, "mermaidLabels").join(" ") === "Buffer File",
         `the diagram's own nodes are drawn, got: ${JSON.stringify(rendered(probe, "mermaidLabels"))}`,
+      );
+
+      ctx.log("tables");
+      expect(
+        rendered(probe, "tableHeaders").join(" ") === "Name:left Bold:center Right:right",
+        `the header cells render with the delimiter row's alignment, got: ${JSON.stringify(rendered(probe, "tableHeaders"))}`,
+      );
+      expect(
+        rendered(probe, "tableCells").join(" | ") === "a code b | link | 1",
+        `each cell renders its own inline markdown, got: ${JSON.stringify(rendered(probe, "tableCells"))}`,
       );
 
       ctx.log("the file on disk is byte-identical after rendering");
