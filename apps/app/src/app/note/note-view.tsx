@@ -3,11 +3,12 @@
 // owns — a debounced compare-and-swap PUT on the quiet period (the write
 // carries the sha-256 of its base; a 409 comes back with the disk's truth for
 // a merge-and-retry), flush on blur/close/hide, and the external-change path
-// (ws doc/vault events → refetch → adopt or merge). Deliberately NOT
-// query-cache-driven after mount: two writers over one buffer is the bug, so
-// the cache is only the initial load and the refetch transport — every
-// refetch result flows through the controller's adopt/merge, never straight
-// into the buffer.
+// (ws doc/vault events → re-read → adopt or merge).
+//
+// The note's bytes are NOT query state: `useNoteDisk` (note-disk.ts) is the
+// one reader, and every value it produces flows through the controller's
+// adopt/merge, never straight into the buffer. Two writers over one buffer is
+// the bug this shape exists to make unrepresentable.
 
 import { MarkdownEditor } from "@repo/editor/react/markdown-editor";
 import type { MarkdownEditor as MarkdownEditorHandle } from "@repo/editor/create-markdown-editor";
@@ -29,10 +30,9 @@ import {
 import { threadMarkerInsertion } from "@repo/notes/markdown/thread-marker";
 import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentHashHex } from "@repo/server-contract/vault";
-import { ApiError, queryKeys, unwrap } from "../api";
+import { ApiError, unwrap } from "../api";
 import {
   chipStatusFor,
   taskPrompt,
@@ -41,6 +41,7 @@ import {
 } from "../chat/chat-model";
 import { useDocThreads } from "../chat/thread-hooks";
 import { NoteController, type SaveResult } from "./note-controller";
+import { useNoteDisk } from "./note-disk";
 import { NoteTitle } from "./note-title";
 import { sendKeepaliveWrite } from "./keepalive-write";
 import { useWorkspace } from "../workspace-context";
@@ -64,25 +65,13 @@ export interface NoteViewProps {
 }
 
 export function NoteView({ path, delegation, onRename, onVanished }: NoteViewProps) {
-  const { api } = useWorkspace();
-  const fileQuery = useQuery({
-    queryKey: queryKeys.vaultFile(path),
-    queryFn: async () => unwrap(await api.vault.file.$get({ query: { path } })),
-    retry: (failureCount, error) =>
-      !(error instanceof ApiError && error.status === 404) && failureCount < 2,
-  });
+  const { api, docEvents } = useWorkspace();
+  const disk = useNoteDisk({ api, docEvents, path, onVanished });
 
-  const vanished = fileQuery.error instanceof ApiError && fileQuery.error.status === 404;
-  useEffect(() => {
-    if (vanished) {
-      onVanished();
-    }
-  }, [vanished, onVanished]);
-
-  if (fileQuery.data === undefined) {
+  if (disk.content === null) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
-        {fileQuery.isError ? (
+        {disk.failed ? (
           <p className="text-sm">Could not open {path}.</p>
         ) : (
           <Spinner className="size-4" />
@@ -96,37 +85,27 @@ export function NoteView({ path, delegation, onRename, onVanished }: NoteViewPro
       key={path}
       path={path}
       delegation={delegation}
-      initialContent={fileQuery.data.content}
-      diskContent={fileQuery.data.content}
+      diskContent={disk.content}
       onRename={onRename}
-      onVanished={onVanished}
+      setRenamePending={disk.setRenamePending}
     />
   );
 }
 
-function OpenNote({
-  path,
-  delegation,
-  initialContent,
-  diskContent,
-  onRename,
-  onVanished,
-}: NoteViewProps & {
-  /** The content the controller mounts with — fixed for this instance. */
-  initialContent: string;
-  /** The query's LATEST disk view; every change flows through the
-   * controller's adopt/merge, so a remount served from a stale cache
-   * reconciles the moment the refetch lands. */
+interface OpenNoteProps {
+  path: string;
+  delegation: NoteDelegation;
+  /** The reader's LATEST disk view. The editor mounts from it once; every
+   * later value flows through the controller's adopt/merge. */
   diskContent: string;
-}) {
-  const { api, docEvents } = useWorkspace();
-  const queryClient = useQueryClient();
+  onRename: (toPath: string) => void;
+  setRenamePending: (pending: boolean) => void;
+}
+
+function OpenNote({ path, delegation, diskContent, onRename, setRenamePending }: OpenNoteProps) {
+  const { api } = useWorkspace();
   const controllerRef = useRef<NoteController | null>(null);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
-  // While our own rename is in flight the old path 404s by design; the
-  // external check must not read that as an external delete. The flag stays
-  // set on success — the path change remounts this component anyway.
-  const renamePendingRef = useRef(false);
 
   // The chip data: every thread bound to this doc, mapped to the widget's
   // vocabulary. Invalidated whole by the ws thread sweep.
@@ -300,7 +279,7 @@ function OpenNote({
     editor.view.dispatch({ effects: setThreadChips.of(chipStateRef.current) });
     controllerRef.current = new NoteController({
       buffer: editor,
-      initialContent,
+      initialContent: diskContent,
       save,
       onConflict: () => {
         toast.warning("This note changed on disk while you edited it — kept your version.");
@@ -311,65 +290,13 @@ function OpenNote({
     });
   };
 
-  // The refetch seam (finding: a stale cached mount must never silently
-  // become the base): whatever the query learns flows through adopt/merge.
+  // The ONE seam disk content reaches the buffer through (finding: a stale
+  // mount must never silently become the base). Every read the note's reader
+  // performs — the initial one and every doc-event re-read — lands here, and
+  // the controller no-ops on its own echo.
   useEffect(() => {
     controllerRef.current?.externalContent(diskContent);
   }, [diskContent]);
-
-  // External changes: a doc event naming this path (or a folder above it) —
-  // or an unnamed vault change, which asserts nothing — re-reads the file and
-  // hands the disk content to the controller, which no-ops on its own echo.
-  // A DIRECT read, not fetchQuery: an in-flight rename 404s the old path by
-  // design, and writing that error into the shared query cache would trip
-  // NoteView's own vanished path, which this handler's guard cannot reach.
-  // The cache is refreshed on success only.
-  //
-  // Reads COALESCE: a burst of events (a save's own echo plus the vault
-  // announcement, an agent turn writing repeatedly) holds ONE request in
-  // flight, and events arriving during it collapse into a single trailing
-  // re-read — so the last read always reflects the final disk state.
-  useEffect(() => {
-    let inFlight: Promise<void> | null = null;
-    let repeat = false;
-
-    const readNow = async (): Promise<void> => {
-      try {
-        const data = await unwrap(await api.vault.file.$get({ query: { path } }));
-        queryClient.setQueryData(queryKeys.vaultFile(path), data);
-        controllerRef.current?.externalContent(data.content);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 404 && !renamePendingRef.current) {
-          onVanished();
-        }
-      }
-    };
-
-    const scheduleRead = (): void => {
-      if (inFlight !== null) {
-        repeat = true;
-        return;
-      }
-      const run = (): Promise<void> =>
-        readNow().finally(() => {
-          inFlight = null;
-          if (repeat) {
-            repeat = false;
-            scheduleRead();
-          }
-        });
-      inFlight = run();
-    };
-
-    return docEvents.subscribe((docId) => {
-      // A named folder covers the notes beneath it — a directory rename or
-      // delete names the folder, never each file inside it.
-      if (docId !== null && docId !== path && !path.startsWith(`${docId}/`)) {
-        return;
-      }
-      scheduleRead();
-    });
-  }, [api, docEvents, queryClient, path, onVanished]);
 
   // The tab hiding still has a live page — an ordinary flush. The page GOING
   // AWAY does not: pagehide fires a keepalive PUT of the raw buffer
@@ -408,13 +335,16 @@ function OpenNote({
         <NoteTitle
           path={path}
           onRename={async (toPath) => {
-            renamePendingRef.current = true;
+            // The old path 404s until the reader follows the new one; the
+            // flag stays set on success, because the path change resets the
+            // reader anyway.
+            setRenamePending(true);
             try {
               // The gate: an unsaved buffer must be durable under the OLD
               // path before the file moves; a failed save aborts the rename.
               await controllerRef.current?.flush();
             } catch {
-              renamePendingRef.current = false;
+              setRenamePending(false);
               toast.error("The note could not be saved, so it was not renamed.");
               throw new Error("rename aborted: save failed");
             }
@@ -422,7 +352,7 @@ function OpenNote({
               await unwrap(await api.vault.rename.$post({ json: { from: path, to: toPath } }));
               onRename(toPath);
             } catch (error) {
-              renamePendingRef.current = false;
+              setRenamePending(false);
               if (error instanceof ApiError && error.status === 409) {
                 toast.error("A note with that name already exists.");
               } else {
@@ -436,7 +366,7 @@ function OpenNote({
       </div>
       <MarkdownEditor
         className="note-editor-host"
-        initialDoc={initialContent}
+        initialDoc={diskContent}
         extensions={delegationExtensions}
         onDocChanged={() => controllerRef.current?.docChanged()}
         onEditor={handleEditor}

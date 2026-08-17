@@ -20,7 +20,7 @@ import { readTheme, writeTheme } from "./prefs";
  *  paths); the open note re-checks its own file either way. */
 type DocListener = (docId: string | null) => void;
 
-interface DocEvents {
+export interface DocEvents {
   subscribe: (listener: DocListener) => () => void;
 }
 
@@ -48,7 +48,12 @@ export function useWorkspace(): WorkspaceRuntime {
   return runtime;
 }
 
-function applyChangedMessage(
+/** What one changed message means for this client: which query families go
+ *  stale, and who is told directly. Exported for `__tests__/changed-message`,
+ *  which pins that a doc change reaches the open note's reader and nothing
+ *  else — a cache invalidation riding alongside is a second read of bytes one
+ *  reader already fetched. */
+export function applyChangedMessage(
   queryClient: QueryClient,
   notifyDoc: (docId: string | null) => void,
   notifyThread: ThreadListener,
@@ -76,7 +81,10 @@ function applyChangedMessage(
       }
       break;
     case "doc":
-      void queryClient.invalidateQueries({ queryKey: queryKeys.vaultFile(message.id) });
+      // No cache to invalidate: the note's bytes are not query state (the
+      // buffer IS the file), so the open note's own reader is the ONE answer
+      // to this event. Invalidating a `vaultFile` query alongside it bought a
+      // second read of the same bytes and nothing else.
       notifyDoc(message.id);
       break;
     case "thread":
