@@ -93,6 +93,26 @@ export function applyChangedMessage(
   }
 }
 
+/**
+ * The invalidation model of this app is the ws bus, whole and entire: every
+ * cached family above is swept by a changed message and again on reconnect. So
+ * react-query's own defaults are not a second opinion, they are pure cost —
+ * `staleTime: 0` plus refetch-on-focus/mount/reconnect re-ran every live query
+ * on every alt-tab back, including a full vault walk and a `git status`, to
+ * arrive at the answer the socket had already delivered.
+ *
+ * A query the bus does NOT cover opts out per call (`useSystemStatus`), which
+ * is the honest shape: a fresh-forever default is only safe where something
+ * else says when it went stale.
+ */
+export function createWorkspaceQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false },
+    },
+  });
+}
+
 /** What a reconnect implies for threads: anything may have changed. */
 const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
   type: "changed",
@@ -104,7 +124,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   // The runtime — client, query cache, doc-event hub, the context value —
   // is built ONCE here; nothing about it depends on a render.
   const [runtime] = useState(() => {
-    const queryClient = new QueryClient();
+    const queryClient = createWorkspaceQueryClient();
     const docListeners = new Set<DocListener>();
     const notifyDoc = (docId: string | null): void => {
       for (const listener of docListeners) {

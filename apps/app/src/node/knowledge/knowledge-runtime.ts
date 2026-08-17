@@ -35,7 +35,7 @@ import {
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
-import { contentHashHex, type VaultEntry } from "@repo/server-contract/vault";
+import { contentHashBytesHex, type VaultEntry } from "@repo/server-contract/vault";
 import { mapWithConcurrency } from "../concurrency";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-runtime";
@@ -64,7 +64,7 @@ type ReconcileStats = { projected: number; removed: number; unchanged: number };
  * ignore rules and the read cap. */
 type KnowledgeVaultReader = Pick<
   VaultService,
-  "listTree" | "statEntry" | "listFilesUnder" | "read"
+  "listTree" | "statEntry" | "listFilesUnder" | "readBytes"
 >;
 
 export interface KnowledgeRuntimeArgs {
@@ -93,6 +93,8 @@ export interface KnowledgeRuntime {
   readonly lastReconcile: ReconcileStats | null;
   dispose(): Promise<void>;
 }
+
+const utf8 = new TextDecoder();
 
 function yieldTurn(): Promise<void> {
   return new Promise((resolve) => {
@@ -282,18 +284,21 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
   async function readFileVerdict(path: string): Promise<FileVerdict> {
     if (!isDocPath(path)) return { kind: "other" };
-    let content: string;
+    let bytes: ArrayBuffer;
     try {
-      content = (await args.vault.read(path)).content;
+      bytes = (await args.vault.readBytes(path)).bytes;
     } catch (err) {
       if (!(err instanceof VaultServiceError)) throw err;
       // Over the read cap: unsearchable, but the path stays in the
       // link-resolution universe like any non-doc file.
       return err.code === "too_large" ? { kind: "other" } : { kind: "missing" };
     }
-    const hash = await contentHashHex(content);
+    // Hash the BYTES and decode only what actually moved. The reconcile's
+    // common verdict is `unchanged`, and a decode-then-re-encode is two passes
+    // over a file it is about to decide it does not need.
+    const hash = await contentHashBytesHex(bytes);
     if (hashes.get(path) === hash) return { kind: "unchanged" };
-    return { kind: "projected", update: { path, content, hash } };
+    return { kind: "projected", update: { path, content: utf8.decode(bytes), hash } };
   }
 
   /** Read a batch of file paths with bounded concurrency and apply each

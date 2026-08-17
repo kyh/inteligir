@@ -21,11 +21,7 @@ import {
   type ApprovalPendingInteractionPayload,
 } from "@repo/domain/pending-interactions";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
-import {
-  appendEventsInTransaction,
-  listStoredThreadEvents,
-  type StoredThreadEvent,
-} from "@repo/db/events";
+import { appendEventsInTransaction } from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
 import { NotificationBuffer, type DbNotifier } from "@repo/domain/notifier";
 import {
@@ -70,7 +66,7 @@ import type {
   TimelineResponse,
 } from "@repo/server-contract/threads";
 import { computeTimelineDelta } from "@repo/server-contract/thread-timeline";
-import { buildThreadTimeline } from "@repo/thread-view/build-thread-timeline";
+import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError, type CreateTurnDriver, type TurnDriver } from "./turn-driver";
 import type { ProviderEventSink } from "./turn-driver";
 
@@ -157,10 +153,12 @@ export class ThreadService implements ProviderEventSink {
   private readonly db: DbConnection;
   private readonly notifier: DbNotifier;
   private readonly driver: TurnDriver;
+  private readonly timelines: ThreadTimelineProjector;
 
   constructor(args: ThreadServiceArgs) {
     this.db = args.db;
     this.notifier = args.notifier;
+    this.timelines = new ThreadTimelineProjector(args.db);
     this.driver = args.createTurnDriver(this);
     this.recoverWedgedThreads();
   }
@@ -430,17 +428,13 @@ export class ThreadService implements ProviderEventSink {
     if (getThread(this.db, query.threadId) === null) {
       return null;
     }
-    const events = listStoredThreadEvents(this.db, { threadId: query.threadId });
-    const full = buildThreadTimeline(events);
+    const full = this.timelines.full(query.threadId);
     // A delta is served only for a base this log reconstructs exactly; a
     // client ahead of the log (a rebuilt db) gets the full timeline instead.
     if (query.afterSequence === undefined || query.afterSequence > full.maxSequence) {
       return { kind: "full", timeline: full };
     }
-    const afterSequence = query.afterSequence;
-    const base = buildThreadTimeline(
-      events.filter((entry: StoredThreadEvent) => entry.sequence <= afterSequence),
-    );
+    const base = this.timelines.prefix(query.threadId, query.afterSequence);
     return { kind: "delta", delta: computeTimelineDelta(base, full) };
   }
 

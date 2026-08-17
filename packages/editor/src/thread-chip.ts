@@ -1,9 +1,9 @@
 // The live delegation chip: a thread marker in the buffer renders as a small
 // status chip instead of its raw bytes. Which spans ARE markers is
-// @repo/notes/markdown/thread-marker's syntax-aware answer, never a regex over
-// the text — the same characters inside a fence or inline code are the user's
-// literal text, and a chip there would hide it while a dismiss there would
-// delete it.
+// ./thread-marker-nodes' syntax-aware answer over the buffer's own parse tree,
+// never a regex over the text — the same characters inside a fence or inline
+// code are the user's literal text, and a chip there would hide it while a
+// dismiss there would delete it.
 //
 // Two invariants hold this together. Status NEVER touches the buffer: thread
 // state arrives as a StateEffect, so the only write this extension makes is a
@@ -28,12 +28,9 @@ import {
   type Range,
 } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
-import {
-  findThreadMarkers,
-  threadMarkerRemoval,
-  type ThreadMarker,
-} from "@repo/notes/markdown/thread-marker";
+import { threadMarkerRemoval, type ThreadMarker } from "@repo/notes/markdown/thread-marker";
 import { allowsSelectionRebuild } from "./decoration-update-filter";
+import { threadMarkerNodes } from "./thread-marker-nodes";
 
 /** How a chip is PAINTED — the editor's own vocabulary, because the editor
  *  owns the palette. What each one means about a thread is the app's. */
@@ -148,12 +145,13 @@ class ThreadChipWidget extends WidgetType {
 }
 
 function dismissMarkerAt(view: EditorView, pos: number): void {
-  const content = view.state.doc.toString();
-  const marker = findThreadMarkers(content).find((entry) => pos >= entry.from && pos <= entry.to);
+  const marker = threadMarkerNodes(view.state).find(
+    (entry) => pos >= entry.from && pos <= entry.to,
+  );
   if (marker === undefined) {
     return;
   }
-  const removal = threadMarkerRemoval(content, marker);
+  const removal = threadMarkerRemoval(view.state.doc.toString(), marker);
   view.dispatch({
     changes: { from: removal.from, to: removal.to },
     userEvent: "delete.thread-chip",
@@ -178,7 +176,7 @@ export function threadChipsExtension(config: ThreadChipConfig): Extension {
         ? new Map(chipState.chips.map((chip) => [chip.anchor, chip]))
         : null;
     const ranges: Range<Decoration>[] = [];
-    for (const marker of findThreadMarkers(editorState.doc.toString())) {
+    for (const marker of threadMarkerNodes(editorState)) {
       if (selectionTouches(editorState, marker)) {
         continue;
       }

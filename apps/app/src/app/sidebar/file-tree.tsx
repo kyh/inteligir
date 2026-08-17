@@ -193,7 +193,7 @@ export function FileTree({
   const [activePath, setActivePath] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [menu, setMenu] = useState<{ node: TreeNode; anchor: HTMLElement } | null>(null);
-  const rowElements = useRef(new Map<string, HTMLDivElement>());
+  const treeRef = useRef<HTMLDivElement>(null);
 
   // A header-initiated create arrives as a prop; adopt it into local editing
   // state (expanding the target folder) and hand the token back.
@@ -250,9 +250,19 @@ export function FileTree({
     });
   };
 
+  // Resolved from the DOM by the `data-path` every row already carries, rather
+  // than through a per-row ref callback: an inline arrow has a new identity on
+  // every render, so React detached and re-attached EVERY row's ref whenever
+  // anything moved this tree — and the Map it maintained held exactly what the
+  // rows already announce about themselves.
   const focusPath = (path: string): void => {
     setActivePath(path);
-    rowElements.current.get(path)?.focus();
+    for (const candidate of treeRef.current?.querySelectorAll<HTMLElement>("[data-path]") ?? []) {
+      if (candidate.dataset["path"] === path) {
+        candidate.focus();
+        return;
+      }
+    }
   };
 
   const activate = (node: TreeNode): void => {
@@ -367,7 +377,7 @@ export function FileTree({
   const tabStopPath = visible(activePath) ?? visible(openPath) ?? nodeRows[0]?.node.path ?? null;
 
   return (
-    <div role="tree" aria-label="Vault files" className="flex flex-col py-1">
+    <div ref={treeRef} role="tree" aria-label="Vault files" className="flex flex-col py-1">
       {rows.map((row) => {
         if (row.kind === "editor") {
           if (editing?.mode !== "create") {
@@ -401,13 +411,6 @@ export function FileTree({
         return (
           <div
             key={node.path}
-            ref={(element) => {
-              if (element) {
-                rowElements.current.set(node.path, element);
-              } else {
-                rowElements.current.delete(node.path);
-              }
-            }}
             role="treeitem"
             aria-level={row.depth + 1}
             {...(node.kind === "dir" ? { "aria-expanded": isExpanded } : {})}

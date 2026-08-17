@@ -168,9 +168,17 @@ export type TimelineDelta = z.infer<typeof timelineDeltaSchema>;
  * to. Pure; used by the server to build a {@link TimelineDelta}.
  */
 export function computeTimelineDelta(base: ThreadTimeline, current: ThreadTimeline): TimelineDelta {
-  const prevById = new Map<string, string>();
+  // A row's `sourceSeqEnd` is the last sequence that contributed to it (a turn
+  // row's counts its children), so when `current` EXTENDS `base` a row that has
+  // not moved past `base.maxSequence` is byte-identical to the one base holds —
+  // and serializing it to discover that is the whole cost of this function on a
+  // long thread. The precondition matters: for an arbitrary pair (a shorter
+  // `current`, which the server never asks for but this pure function still
+  // has to answer) the reasoning inverts, so the filter stands down.
+  const extendsBase = current.maxSequence >= base.maxSequence;
+  const prevById = new Map<string, TimelineRow>();
   for (const row of base.rows) {
-    prevById.set(row.id, JSON.stringify(row));
+    prevById.set(row.id, row);
   }
   const upsertRows: TimelineRow[] = [];
   const rowOrder: string[] = [];
@@ -180,7 +188,11 @@ export function computeTimelineDelta(base: ThreadTimeline, current: ThreadTimeli
     if (base.rows[rowOrder.length - 1]?.id !== row.id) {
       orderChanged = true;
     }
-    if (prevById.get(row.id) !== JSON.stringify(row)) {
+    if (extendsBase && row.sourceSeqEnd <= base.maxSequence && prevById.has(row.id)) {
+      continue;
+    }
+    const previous = prevById.get(row.id);
+    if (previous === undefined || JSON.stringify(previous) !== JSON.stringify(row)) {
       upsertRows.push(row);
     }
   }

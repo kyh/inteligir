@@ -77,38 +77,33 @@ async function fsyncDirBestEffort(dirPath: string): Promise<void> {
 async function walk(absDir: string, relDir: string, entries: VaultEntry[]): Promise<void> {
   const dirents = await readdir(absDir, { withFileTypes: true });
   const dirs: string[] = [];
-  const files: Array<{ name: string; size: number }> = [];
+  const files: string[] = [];
   for (const dirent of dirents) {
     if (isIgnoredEntryName(dirent.name)) {
       continue;
     }
     // withFileTypes has lstat semantics: a symlink is NEITHER isDirectory
     // nor isFile here, so links (to files and folders alike) fall through —
-    // the listing never follows one out of the vault.
+    // the listing never follows one out of the vault. It is also the whole
+    // answer: an entry's kind and path are all a row carries, so the walk owes
+    // the filesystem one readdir per directory and no stat at all.
     if (dirent.isDirectory()) {
       dirs.push(dirent.name);
       continue;
     }
     if (dirent.isFile()) {
-      const stats = await lstat(join(absDir, dirent.name)).catch(() => null);
-      if (stats?.isFile() === true) {
-        files.push({ name: dirent.name, size: stats.size });
-      }
+      files.push(dirent.name);
     }
   }
   dirs.sort();
-  files.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  files.sort();
   for (const dir of dirs) {
     const relPath = relDir === "" ? dir : `${relDir}/${dir}`;
     entries.push({ kind: "dir", path: relPath });
     await walk(join(absDir, dir), relPath, entries);
   }
-  for (const file of files) {
-    entries.push({
-      kind: "file",
-      path: relDir === "" ? file.name : `${relDir}/${file.name}`,
-      size: file.size,
-    });
+  for (const name of files) {
+    entries.push({ kind: "file", path: relDir === "" ? name : `${relDir}/${name}` });
   }
 }
 
@@ -219,17 +214,29 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     return stats;
   }
 
+  /** A mutation that changed the TREE — a create, a delete, a rename, a new
+   *  folder. `files-changed` is what makes every client re-walk the vault, so
+   *  only a mutation that moved a row may say it. */
   function announceMutation(paths: readonly string[]): void {
     args.notifier.notifyVault(["files-changed"], paths);
     args.onMutated?.(paths);
   }
 
-  /** The one atomic write: tmp file + fsync + rename, then the announcement.
-   * Callers hold the lock and have already validated the leaf. */
+  /**
+   * The one atomic write: tmp file + fsync + rename, then the announcement.
+   * Callers hold the lock and have already validated the leaf.
+   *
+   * `created` is what separates the two announcements. Overwriting a file
+   * changes its bytes and NOTHING a tree row carries, so a content-only write
+   * says `content-changed` alone — it used to say both, and a `vault`
+   * subscriber received one write as two events, which cost the open note two
+   * reads and the workspace a full re-walk per keystroke's save.
+   */
   async function performAtomicWrite(
     relPath: string,
     absPath: string,
     content: string,
+    created: boolean,
   ): Promise<void> {
     try {
       await mkdir(dirname(absPath), { recursive: true });
@@ -255,7 +262,10 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     }
     await fsyncDirBestEffort(dirname(absPath));
     args.notifier.notifyDoc(relPath, ["content-changed"]);
-    announceMutation([relPath]);
+    if (created) {
+      args.notifier.notifyVault(["files-changed"], [relPath]);
+    }
+    args.onMutated?.([relPath]);
   }
 
   return {
@@ -366,7 +376,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
-        await performAtomicWrite(relPath, absPath, content);
+        await performAtomicWrite(relPath, absPath, content, existing === null);
         return { path: relPath };
       });
     },
@@ -386,7 +396,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         if (current !== expected) {
           return { applied: false, reason: "changed" };
         }
-        await performAtomicWrite(relPath, absPath, content);
+        await performAtomicWrite(relPath, absPath, content, false);
         return { applied: true, path: relPath };
       });
     },
@@ -403,7 +413,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
           if (existing !== null) {
             return { applied: false, reason: "exists" };
           }
-          await performAtomicWrite(relPath, absPath, content);
+          await performAtomicWrite(relPath, absPath, content, true);
           return { applied: true, path: relPath };
         }
         const current =
@@ -420,7 +430,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
             current: { content: current, hash: currentHash },
           };
         }
-        await performAtomicWrite(relPath, absPath, content);
+        await performAtomicWrite(relPath, absPath, content, false);
         return { applied: true, path: relPath };
       });
     },
@@ -515,10 +525,16 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
 }
 
 /**
- * Remove staging files a crash left behind. Runs once at boot, before the
- * watcher starts and before the first auto-commit can `git add` them.
+ * Remove staging files a crash left behind. Housekeeping rather than a
+ * precondition: `git add` never stages one (the prefix is in the repo's own
+ * `.git/info/exclude`) and both the listing and the watcher filter the same
+ * names, so nothing downstream waits on this and boot need not either.
+ *
+ * `olderThan` is what makes running it beside live writes safe — a leftover is
+ * by definition older than the process sweeping for it, so a candidate younger
+ * than that timestamp is somebody's in-flight write and is left alone.
  */
-export async function sweepStaleTmpFiles(root: string): Promise<void> {
+export async function sweepStaleTmpFiles(root: string, olderThan: number): Promise<void> {
   const resolvedRoot = resolve(root);
   async function sweep(absDir: string): Promise<void> {
     let dirents;
@@ -533,7 +549,10 @@ export async function sweepStaleTmpFiles(root: string): Promise<void> {
         continue;
       }
       if (dirent.name.startsWith(VAULT_TMP_PREFIX) && dirent.isFile()) {
-        await unlink(absPath).catch(() => {});
+        const stats = await lstat(absPath).catch(() => null);
+        if (stats !== null && stats.mtimeMs < olderThan) {
+          await unlink(absPath).catch(() => {});
+        }
         continue;
       }
       if (dirent.isDirectory() && !isIgnoredEntryName(dirent.name)) {

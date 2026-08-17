@@ -73,7 +73,12 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
     seed: (vaultRoot) => writeFile(join(vaultRoot, WELCOME_FILE_NAME), WELCOME_CONTENT, "utf8"),
     ...(args.gitEnv ? { env: args.gitEnv } : {}),
   });
-  await sweepStaleTmpFiles(root);
+  // A full recursive walk that nothing waits on — see the sweep's own note.
+  // Boot must not hold the listener open behind it, so it runs beside
+  // everything below and only ever unlinks what predates this call.
+  void sweepStaleTmpFiles(root, Date.now()).catch((error: unknown) => {
+    console.error(`vault: stale staging sweep failed: ${String(error)}`);
+  });
 
   // Watcher batches held back while a sync ran; drained as ONE notification.
   let sawChangesDuringSync = false;
@@ -130,7 +135,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
     onMutated: (paths) => {
       noteSelfWrites(paths);
       args.onFilesChanged?.({ kind: "paths", paths });
-      git.scheduleCommit();
+      git.scheduleCommit(paths);
     },
   });
 
@@ -149,7 +154,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
         }
         args.notifier.notifyVault(["files-changed"], external);
         args.onFilesChanged?.({ kind: "paths", paths: external });
-        git.scheduleCommit();
+        git.scheduleCommit(external);
       },
       onError: (message) => console.error(`vault watcher: ${message}`),
       ...(args.watcherBackend ? { backend: args.watcherBackend } : {}),

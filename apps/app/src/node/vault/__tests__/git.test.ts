@@ -32,18 +32,22 @@ async function makeEngine(args: {
   remoteUrl: string | null;
   quietMs?: number;
   maxWaitMs?: number;
-}): Promise<{ root: string; engine: GitEngine }> {
+}): Promise<{ root: string; engine: GitEngine; statusChanges: () => number }> {
   const root = scratchDir("inteligir-git-vault-");
   await ensureVaultRepo({ root, env });
+  let statusChanges = 0;
   const engine = createGitEngine({
     root,
     remoteUrl: args.remoteUrl,
     env,
+    onStatusChanged: () => {
+      statusChanges += 1;
+    },
     ...(args.quietMs === undefined ? {} : { quietMs: args.quietMs }),
     ...(args.maxWaitMs === undefined ? {} : { maxWaitMs: args.maxWaitMs }),
   });
   cleanups.push(() => engine.dispose());
-  return { root, engine };
+  return { root, engine, statusChanges: () => statusChanges };
 }
 
 async function commitCount(root: string): Promise<number> {
@@ -95,6 +99,61 @@ describe("ensureVaultRepo", () => {
   });
 });
 
+describe("what a scheduled commit costs", () => {
+  it("stages the union of the paths it was told about, and nothing else", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const before = await commitCount(root);
+
+    // Two saves the app announced, and one file it never heard about.
+    await writeFile(join(root, "told-a.md"), "a\n", "utf8");
+    engine.scheduleCommit(["told-a.md"]);
+    await writeFile(join(root, "told-b.md"), "b\n", "utf8");
+    engine.scheduleCommit(["told-b.md"]);
+    await writeFile(join(root, "untold.md"), "c\n", "utf8");
+
+    await waitFor(async () => (await commitCount(root)) === before + 1);
+    const { stdout } = await runGit(root, ["show", "--name-only", "--format=", "HEAD"], { env });
+    expect(stdout.trim().split("\n").toSorted()).toEqual(["told-a.md", "told-b.md"]);
+    // A whole-tree `status` + `add -A` per quiet window is what this replaces;
+    // the sweep still exists for the callers that mean it.
+    expect(await engine.commitNow()).toEqual({ files: 1 });
+  });
+
+  it("falls back to the whole tree when one scheduler named no paths", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const before = await commitCount(root);
+
+    await writeFile(join(root, "told.md"), "a\n", "utf8");
+    engine.scheduleCommit(["told.md"]);
+    await writeFile(join(root, "untold.md"), "b\n", "utf8");
+    // The boot sweep and the post-sync drain both mean "whatever is dirty".
+    engine.scheduleCommit();
+
+    await waitFor(async () => (await commitCount(root)) === before + 1);
+    expect(await engine.commitNow()).toBeNull();
+    await expectCleanRepo(root);
+  });
+
+  it("announces no status change: a commit is not a transition", async () => {
+    const { root, engine, statusChanges } = await makeEngine({
+      remoteUrl: null,
+      quietMs: 50,
+      maxWaitMs: 2_000,
+    });
+    const before = await commitCount(root);
+    await writeFile(join(root, "saved.md"), "a\n", "utf8");
+    engine.scheduleCommit(["saved.md"]);
+    await waitFor(async () => (await commitCount(root)) === before + 1);
+
+    // Every listener answers this by re-fetching the status, and every fetch
+    // is a `git status --porcelain` plus a `rev-list` under the repo lock —
+    // to be told the same word the commit already implied.
+    expect(statusChanges()).toBe(0);
+    await engine.commitNow();
+    expect(statusChanges()).toBe(0);
+  });
+});
+
 describe("auto-commit", () => {
   it("lands a burst of writes as ONE commit with the file count", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
@@ -102,7 +161,7 @@ describe("auto-commit", () => {
 
     for (const name of ["a.md", "b.md", "c.md"]) {
       await writeFile(join(root, name), `# ${name}\n`, "utf8");
-      engine.scheduleCommit();
+      engine.scheduleCommit([name]);
     }
 
     await waitFor(async () => (await commitCount(root)) === before + 1);

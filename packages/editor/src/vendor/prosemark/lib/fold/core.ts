@@ -21,10 +21,52 @@ import {
   selectionTouchesRange,
 } from '../utils';
 
-import type { SyntaxNodeRef } from '@lezer/common';
+import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { syntaxTree } from '@codemirror/language';
 // PATCHED: house drag-freeze seam, see src/decoration-update-filter.ts.
 import { allowsSelectionRebuild } from '../../../../decoration-update-filter';
+
+// PATCHED: upstream built `parents.reverse().join('/')` for EVERY node in the
+// document and then suffix-tested it — a string allocation per node per
+// keystroke, to answer a question about the node's last few ancestors. This
+// consumes the test from its end instead, walking up only as far as the test
+// reaches, and keeps `String.endsWith` semantics exactly (a test may end
+// mid-name, and `pathEndsWith(node, 'istMark')` still matches a `ListMark`).
+const pathEndsWith = (node: SyntaxNodeRef, test: string): boolean => {
+  if (!test.includes('/')) {
+    return node.name.endsWith(test);
+  }
+  let rest = test;
+  let current: SyntaxNode | null = node.node;
+  while (current) {
+    const name = current.name;
+    if (rest.length <= name.length) {
+      return name.endsWith(rest);
+    }
+    if (!rest.endsWith(name)) {
+      return false;
+    }
+    rest = rest.slice(0, rest.length - name.length);
+    if (!rest.endsWith('/')) {
+      return false;
+    }
+    rest = rest.slice(0, -1);
+    current = current.parent;
+  }
+  return rest.length === 0;
+};
+
+// The `nodePath` string a FUNCTION spec is handed. Built only for those specs —
+// none ship today, and the whole point of pathEndsWith is not paying for it.
+const nodePathOf = (node: SyntaxNodeRef): string => {
+  const lineage: string[] = [];
+  let current: SyntaxNode | null = node.node;
+  while (current) {
+    lineage.push(current.name);
+    current = current.parent;
+  }
+  return lineage.reverse().join('/');
+};
 
 const buildDecorations = (state: EditorState) => {
   const decorations: Range<Decoration>[] = [];
@@ -36,26 +78,17 @@ const buildDecorations = (state: EditorState) => {
         node,
       );
 
-      // Generate Path
-      const lineage = [];
-      let node_: SyntaxNodeRef | null = node;
-      while (node_) {
-        lineage.push(node_.name);
-        node_ = node_.node.parent;
-      }
-      const path = lineage.reverse().join('/');
-
       for (const spec of specs) {
         // Check node path
         if (spec.nodePath instanceof Function) {
-          if (!spec.nodePath(path)) {
+          if (!spec.nodePath(nodePathOf(node))) {
             continue;
           }
         } else if (spec.nodePath instanceof Array) {
-          if (!spec.nodePath.some((testPath) => path.endsWith(testPath))) {
+          if (!spec.nodePath.some((testPath) => pathEndsWith(node, testPath))) {
             continue;
           }
-        } else if (!path.endsWith(spec.nodePath)) {
+        } else if (!pathEndsWith(node, spec.nodePath)) {
           continue;
         }
 

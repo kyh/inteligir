@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createConnection, type DbConnection } from "../connection";
 import {
   appendEvents,
@@ -156,5 +156,38 @@ describe("scope policy at the write", () => {
       appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1"), invalid]),
     ).toThrow(/requires turn scope/u);
     expect(getMaxSequence(db, thread.id)).toBe(0);
+  });
+});
+
+// What an appended BURST may cost. The agent's event coalescer hands this a
+// whole run of deltas at once, so anything the loop does per row scales with
+// the burst — and a streaming turn is nothing but bursts.
+describe("the cost of a burst", () => {
+  it("prepares two SELECTs and one INSERT, whatever the burst carries", () => {
+    const { db } = openTempDb();
+    const thread = createThread(db, noopNotifier, {});
+    appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1")]);
+
+    const prepared: string[] = [];
+    const client = db.$client;
+    const original = client.prepare.bind(client);
+    const spy = vi.spyOn(client, "prepare").mockImplementation((source: string) => {
+      prepared.push(source.trim().toLowerCase());
+      return original(source);
+    });
+
+    appendEvents(
+      db,
+      noopNotifier,
+      Array.from({ length: 20 }, (_, index) => agentDelta(thread.id, "turn_1", `d${index}`)),
+    );
+    spy.mockRestore();
+
+    // One SELECT for the thread's high-water sequence, one for the turn's
+    // stored `turn/started` — the second ran per event, and a turn's start
+    // cannot un-happen inside the transaction that asked.
+    expect(prepared.filter((source) => source.startsWith("select"))).toHaveLength(2);
+    // One INSERT, built once and re-run; it was rebuilt per row.
+    expect(prepared.filter((source) => source.startsWith("insert"))).toHaveLength(1);
   });
 });

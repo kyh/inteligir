@@ -32,6 +32,13 @@ export const vaultPathSchema = z.string().transform((value, ctx) => {
   return parsed.path;
 });
 
+/**
+ * A tree row is a KIND and a PATH, and nothing that a content edit moves. The
+ * listing carried a `size` no client ever read, and the cost was paid twice:
+ * one `lstat` per file per walk, and a value that changes on every keystroke's
+ * save — which defeats react-query's structural sharing and re-renders the
+ * whole workspace for a tree that is structurally identical.
+ */
 export const vaultEntrySchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -43,7 +50,6 @@ export const vaultEntrySchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("file"),
       path: z.string().min(1),
-      size: z.number().int().min(0),
     })
     .strict(),
 ]);
@@ -79,7 +85,19 @@ export const VAULT_MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
  * isomorphic (browser and node alike), which is why it is async.
  */
 export async function contentHashHex(content: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content));
+  return contentHashBytesHex(new TextEncoder().encode(content));
+}
+
+/**
+ * The same convention, for a caller that already holds the bytes. A reader
+ * comparing a file against a recorded hash does not need the string at all,
+ * and decoding to UTF-16 only to re-encode to UTF-8 is two passes over every
+ * file it is about to decide was unchanged.
+ */
+export async function contentHashBytesHex(
+  bytes: ArrayBuffer | Uint8Array<ArrayBuffer>,
+): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
