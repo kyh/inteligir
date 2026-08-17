@@ -17,6 +17,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
 import {
   canSyncNow,
+  syncBlockedReason,
   syncStateLabel,
   useSystemStatus,
   useVaultStatus,
@@ -92,7 +93,7 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
               "…"
             ) : status.state === "no-remote" ? (
               <span className="text-muted-foreground">
-                None — set INTELIGIR_VAULT_REMOTE or config.json to sync.
+                {syncBlockedReason(status)} — set INTELIGIR_VAULT_REMOTE or config.json to sync.
               </span>
             ) : (
               <span className="block truncate font-mono text-xs" title={status.remote}>

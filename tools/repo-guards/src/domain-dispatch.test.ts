@@ -77,7 +77,7 @@ const VOCABULARIES: Vocabulary[] = [
       "apps/app/src/node/vault/git.ts":
         "the PRODUCER — `statusSnapshot` is the state machine that decides which state the vault is in; naming them all is what it is for",
       "apps/app/src/app/vault-hooks.ts":
-        "the ONE rendering answer: `syncStateLabel` (the word) and `syncStateDotClass` (the colour), deliberately side by side so a ninth state cannot be answered in one and forgotten in the other",
+        "the ONE client answer, four tables deliberately side by side so a ninth state cannot be answered in one and forgotten in another: `syncStateLabel` (the word), `syncStateDotClass` (the colour), `syncBlockedReason` (why a pass would not run — which `canSyncNow` reads as a boolean) and `syncNowNotice` (what the command owes the user afterwards)",
     },
   },
   {

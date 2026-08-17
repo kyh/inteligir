@@ -8,6 +8,7 @@ import { FilePlusIcon, FolderPlusIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
 import {
   canSyncNow,
+  syncBlockedReason,
   syncStateDotClass,
   syncStateLabel,
   useVaultStatus,
@@ -31,14 +32,9 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
     return <div className="h-6" />;
   }
   const canSync = canSyncNow(status);
-  const title =
-    status.lastError !== null
-      ? status.lastError
-      : status.state === "no-remote"
-        ? "No git remote configured"
-        : status.state === "held"
-          ? "An agent turn holds the vault; the next sync runs when it finishes"
-          : "Sync now";
+  // The server's own sentence first — it names the file or the remote — then
+  // the shared reason this state blocks a pass, then the plain invitation.
+  const title = status.lastError ?? syncBlockedReason(status) ?? "Sync now";
   return (
     <button
       type="button"
