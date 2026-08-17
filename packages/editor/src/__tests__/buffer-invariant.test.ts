@@ -47,6 +47,11 @@ $$
 const x = 1;
 \`\`\`
 
+\`\`\`mermaid
+graph TD
+  A --> B
+\`\`\`
+
 Tail paragraph with enough text to edit into.
 `;
 
@@ -71,6 +76,7 @@ const snippets = [
   "$$",
   "$x$",
   "![a](b.png)",
+  "```mermaid\n",
 ];
 
 // mulberry32: deterministic PRNG so a failure reproduces byte-for-byte.

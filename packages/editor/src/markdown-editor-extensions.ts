@@ -12,6 +12,7 @@ import { hideMarksExtension } from "./hide-marks";
 import { assetResolver, imageEmbedExtension, type AssetResolver } from "./image-embed";
 import { markdownLanguageExtension } from "./markdown-language";
 import { mathExtension } from "./math";
+import { mermaidExtension } from "./mermaid-diagram";
 import { tagChipsExtension, tagClickHandler } from "./tag-chips";
 import { taskCheckboxExtension } from "./task-checkbox";
 import { blockQuoteExtension } from "./vendor/prosemark/lib/blockQuote";
@@ -69,6 +70,7 @@ export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): E
   taskCheckboxExtension,
   mathExtension,
   imageEmbedExtension,
+  mermaidExtension,
   options.resolveAsset === undefined ? [] : assetResolver.of(options.resolveAsset),
   tagChipsExtension,
   options.onOpenTag === undefined ? [] : tagClickHandler.of(options.onOpenTag),

@@ -35,6 +35,15 @@ A broken $\\frobnicate{x}$ shows its own source.
 ![a diagram](assets/diagram.svg)
 
 Refused: ![no](javascript:alert(1)).
+
+\`\`\`mermaid
+graph TD
+  Buffer --> File
+\`\`\`
+
+\`\`\`mermaid
+not a diagram this renderer can draw
+\`\`\`
 `;
 
 const ASSET_PATH = "assets/diagram.svg";
@@ -77,6 +86,11 @@ const PROBE_SCRIPT = `({
     .map((n) => n.getAttribute('src') + ':'
       + (n.complete && n.naturalWidth > 0 ? 'loaded' : 'broken')),
   imageErrors: [...document.querySelectorAll('.cm-content .cm-image-error-message')]
+    .map((n) => n.textContent),
+  mermaid: [...document.querySelectorAll('.cm-content .cm-mermaid')]
+    .map((n) => n.querySelector('svg') ? 'svg'
+      : n.querySelector('.cm-mermaid-error') ? 'error' : 'pending'),
+  mermaidLabels: [...document.querySelectorAll('.cm-content .cm-mermaid svg .node text')]
     .map((n) => n.textContent),
 })`;
 
@@ -144,6 +158,9 @@ export const editorConstructsBrowser: Scenario = {
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
       await agentBrowser(["wait", ".cm-content"], 90_000);
       await agentBrowser(["wait", ".cm-tag"], 30_000);
+      // The mermaid renderer is a lazy chunk, so its first fence paints after
+      // a round trip; everything else is synchronous by the time it does.
+      await agentBrowser(["wait", ".cm-mermaid svg"], 30_000);
 
       const probe = parseProbe(await agentBrowser(["eval", PROBE_SCRIPT]));
 
@@ -183,6 +200,16 @@ export const editorConstructsBrowser: Scenario = {
       expect(
         rendered(probe, "imageErrors").join(" ") === "javascript: images are not loaded",
         `a javascript: src never reaches an <img>, got: ${JSON.stringify(rendered(probe, "imageErrors"))}`,
+      );
+
+      ctx.log("mermaid");
+      expect(
+        rendered(probe, "mermaid").join(" ") === "svg error",
+        `a drawable fence becomes an SVG and an undrawable one falls back, got: ${JSON.stringify(rendered(probe, "mermaid"))}`,
+      );
+      expect(
+        rendered(probe, "mermaidLabels").join(" ") === "Buffer File",
+        `the diagram's own nodes are drawn, got: ${JSON.stringify(rendered(probe, "mermaidLabels"))}`,
       );
 
       ctx.log("the file on disk is byte-identical after rendering");

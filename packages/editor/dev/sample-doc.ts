@@ -91,6 +91,20 @@ def fib(n: int) -> int:
     return n if n < 2 else fib(n - 1) + fib(n - 2)
 \`\`\`
 
+## Diagrams
+
+\`\`\`mermaid
+graph LR
+  Buffer[The buffer] --> File[The file on disk]
+  File --> Git[git commit]
+\`\`\`
+
+A diagram the renderer cannot draw keeps its fence's own source and says why:
+
+\`\`\`mermaid
+gantt is not one of the shapes this renderer knows
+\`\`\`
+
 ---
 
 A horizontal rule above, rendered as a rule until you touch it. Long

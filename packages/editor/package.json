@@ -33,6 +33,8 @@
     "@lezer/markdown": "^1.7.2",
     "@lezer/yaml": "^1.0.4",
     "@repo/notes": "workspace:*",
+    "beautiful-mermaid": "^1.1.3",
+    "dompurify": "^3.4.13",
     "katex": "^0.18.4",
     "react": "catalog:"
   },
