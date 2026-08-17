@@ -5,6 +5,7 @@
 // one invalidation path a second client gets too.
 
 import { useQuery } from "@tanstack/react-query";
+import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/server-contract/vault";
 import type { SystemStatusResponse } from "@repo/server-contract/routes";
 import { unwrap } from "./api";
@@ -50,6 +51,18 @@ export function canSyncNow(status: VaultStatusResponse | undefined): boolean {
   );
 }
 
+/** The note a virgin boot opens: the first doc in the vault root, by the
+ *  DOMAIN's definition of one. The server indexes, links and lists every
+ *  extension `isDocPath` names, so a client rule of its own opens a vault
+ *  whose root holds `README.txt` to an empty pane. */
+export function firstRootDoc(tree: VaultTreeResponse | undefined): string | null {
+  const entry = tree?.entries.find(
+    (candidate) =>
+      candidate.kind === "file" && !candidate.path.includes("/") && isDocPath(candidate.path),
+  );
+  return entry?.path ?? null;
+}
+
 /** The vault's file paths, lowercased for existence checks — the disk this
  *  runs on may be case-insensitive, so name generation must be too. */
 export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<string> {
@@ -65,7 +78,8 @@ export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<st
 /** First of "Untitled.md", "Untitled 2.md", … not present in the folder. */
 export function untitledNotePath(parentDir: string, existing: Set<string>): string {
   for (let n = 1; ; n += 1) {
-    const name = n === 1 ? "Untitled.md" : `Untitled ${n}.md`;
+    const stem = n === 1 ? "Untitled" : `Untitled ${n}`;
+    const name = `${stem}${DEFAULT_DOC_EXTENSION}`;
     const path = parentDir === "" ? name : `${parentDir}/${name}`;
     if (!existing.has(path.toLowerCase())) {
       return path;

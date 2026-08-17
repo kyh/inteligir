@@ -30,6 +30,7 @@ import type { TreeOps } from "./sidebar/file-tree";
 import {
   canSyncNow,
   filePathsLowercased,
+  firstRootDoc,
   untitledNotePath,
   useVaultStatus,
   useVaultTree,
@@ -172,16 +173,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     if (restoreOutcomeRef.current !== "none" || openNote !== null) {
       return;
     }
-    const entries = treeQuery.data?.entries;
-    if (entries === undefined) {
+    if (treeQuery.data === undefined) {
       return;
     }
     restoreOutcomeRef.current = "done";
-    const firstNote = entries.find(
-      (entry) => entry.kind === "file" && !entry.path.includes("/") && entry.path.endsWith(".md"),
-    );
-    if (firstNote !== undefined) {
-      setOpenNote(firstNote.path);
+    const firstNote = firstRootDoc(treeQuery.data);
+    if (firstNote !== null) {
+      setOpenNote(firstNote);
     }
   }, [openNote, treeQuery.data, setOpenNote]);
 

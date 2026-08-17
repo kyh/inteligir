@@ -2,22 +2,17 @@
 // commit renames the file. Enter commits and hands focus to the editor;
 // Escape restores; a blur with changes commits too. Names pass through the
 // domain's ONE gate (@repo/notes checkNoteName) — reject, never sanitize.
+//
+// Which extension the title hides is the domain's answer too (`docExtension`),
+// never `.md` spelled here: the server indexes and lists `.markdown`, `.mdx`
+// and `.txt` as docs, and a title that only knows one of them shows the other
+// three their extension inside the editable name.
 
+import { docExtension, docStem } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
-import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useRef, useState } from "react";
-
-export function noteStem(path: string): string {
-  const name = basenamePath(path);
-  return name.endsWith(".md") ? name.slice(0, -".md".length) : name;
-}
-
-export function pathWithStem(path: string, stem: string): string {
-  const name = basenamePath(path);
-  const fileName = name.endsWith(".md") ? `${stem}.md` : stem;
-  return joinPath(dirnamePath(path), fileName);
-}
 
 export interface NoteTitleProps {
   path: string;
@@ -28,23 +23,23 @@ export interface NoteTitleProps {
 }
 
 export function NoteTitle({ path, onRename, onSubmit }: NoteTitleProps) {
-  const stem = noteStem(path);
+  const stem = docStem(path);
   const [draft, setDraft] = useState(stem);
   const escapedRef = useRef(false);
   // Enter commits and then moves focus, which fires the blur commit too; the
-  // last-sent stem swallows that echo so one rename goes out per edit. A
+  // last-sent path swallows that echo so one rename goes out per edit. A
   // FAILED rename clears it, so the same name can be tried again.
   const lastSentRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setDraft(noteStem(path));
+    setDraft(docStem(path));
     lastSentRef.current = null;
   }, [path]);
 
   const commit = (): void => {
     if (escapedRef.current) {
       escapedRef.current = false;
-      setDraft(noteStem(path));
+      setDraft(docStem(path));
       return;
     }
     const trimmed = draft.trim();
@@ -52,17 +47,19 @@ export function NoteTitle({ path, onRename, onSubmit }: NoteTitleProps) {
       setDraft(stem);
       return;
     }
-    const isMd = basenamePath(path).endsWith(".md");
-    const verdict = checkNoteName(isMd ? `${trimmed}.md` : trimmed);
+    // The gate takes the whole BASENAME, and it has to run before the join:
+    // `joinPath` would resolve a `/` the user typed into a folder, which is
+    // precisely the separator `checkNoteName` exists to refuse.
+    const verdict = checkNoteName(`${trimmed}${docExtension(path)}`);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));
       setDraft(stem);
       return;
     }
-    const next = isMd ? verdict.name.slice(0, -".md".length) : verdict.name;
-    if (next !== stem && next !== lastSentRef.current) {
-      lastSentRef.current = next;
-      onRename(pathWithStem(path, next)).catch(() => {
+    const toPath = joinPath(dirnamePath(path), verdict.name);
+    if (toPath !== path && toPath !== lastSentRef.current) {
+      lastSentRef.current = toPath;
+      onRename(toPath).catch(() => {
         lastSentRef.current = null;
       });
     }
