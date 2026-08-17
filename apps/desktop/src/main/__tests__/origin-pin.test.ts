@@ -4,10 +4,14 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  ALLOWED_PERMISSIONS,
   classifyNavigation,
   classifyWindowOpen,
+  decideExternalOpen,
   isHttpUrl,
+  isPermissionAllowed,
   isSameOriginNavigation,
+  USER_ACTIVATION_WINDOW_MS,
 } from "../origin-pin";
 
 const ORIGIN = "http://127.0.0.1:4664";
@@ -84,6 +88,80 @@ describe("classifyWindowOpen", () => {
       expect(classifyWindowOpen(url)).toBe("deny");
     },
   );
+});
+
+describe("decideExternalOpen", () => {
+  const NOW = 1_000_000;
+
+  it("opens an http(s) URL while a gesture is still recent", () => {
+    expect(
+      decideExternalOpen({ url: "https://example.com/", lastInputAt: NOW - 100, now: NOW }),
+    ).toEqual({ allowed: true, reason: "allowed" });
+  });
+
+  it("refuses a URL the page produced with no user activation at all", () => {
+    // A script loop calling window.open would otherwise become a loop of OS
+    // browser launches, every one outside the origin pin.
+    expect(
+      decideExternalOpen({ url: "https://example.com/", lastInputAt: null, now: NOW }),
+    ).toEqual({
+      allowed: false,
+      reason: "no-user-activation",
+    });
+  });
+
+  it("refuses once the activation window has passed", () => {
+    expect(
+      decideExternalOpen({
+        url: "https://example.com/",
+        lastInputAt: NOW - USER_ACTIVATION_WINDOW_MS - 1,
+        now: NOW,
+      }),
+    ).toEqual({ allowed: false, reason: "no-user-activation" });
+  });
+
+  it.each(["file:///etc/passwd", "javascript:alert(1)", "inteligir://open", "data:text/html,x"])(
+    "refuses %s however recent the gesture was",
+    (url) => {
+      expect(decideExternalOpen({ url, lastInputAt: NOW, now: NOW })).toEqual({
+        allowed: false,
+        reason: "not-http",
+      });
+    },
+  );
+
+  it("checks the scheme BEFORE the gesture, so the reason names the real problem", () => {
+    expect(decideExternalOpen({ url: "file:///x", lastInputAt: null, now: NOW }).reason).toBe(
+      "not-http",
+    );
+  });
+});
+
+describe("isPermissionAllowed", () => {
+  it("grants nothing — the product uses no web permission", () => {
+    // Electron's default is to GRANT most of these to whatever a window loads,
+    // so the empty list is the policy, not an oversight.
+    expect(ALLOWED_PERMISSIONS).toEqual([]);
+  });
+
+  it.each([
+    "media",
+    "geolocation",
+    "notifications",
+    "midi",
+    "midiSysex",
+    "clipboard-read",
+    "display-capture",
+    "openExternal",
+    "pointerLock",
+    "fullscreen",
+    "idle-detection",
+    "serial",
+    "hid",
+    "usb",
+  ])("denies %s", (permission) => {
+    expect(isPermissionAllowed(permission)).toBe(false);
+  });
 });
 
 describe("isHttpUrl", () => {

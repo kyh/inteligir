@@ -24,97 +24,6 @@ const quiet = {
   onTimeout: () => {},
 };
 
-describe("createGracefulShutdown", () => {
-  it("runs the steps in declaration order", async () => {
-    const log: string[] = [];
-    const shutdown = createGracefulShutdown({
-      ...quiet,
-      timeoutMs: 1_000,
-      steps: [
-        recordingStep("listener", log),
-        recordingStep("agent", log),
-        recordingStep("knowledge", log),
-        recordingStep("vault", log),
-        recordingStep("db", log),
-      ],
-    });
-
-    await shutdown.run();
-
-    expect(log).toEqual(["listener", "agent", "knowledge", "vault", "db"]);
-  });
-
-  it("keeps going after a step throws, and names the one that failed", async () => {
-    const log: string[] = [];
-    const failures: string[] = [];
-    const boom = new Error("socket refused to close");
-    const shutdown = createGracefulShutdown({
-      onTimeout: () => {},
-      onStepFailed: (name) => failures.push(name),
-      timeoutMs: 1_000,
-      steps: [
-        {
-          name: "listener",
-          run: () => {
-            log.push("listener");
-            return Promise.reject(boom);
-          },
-        },
-        recordingStep("vault", log),
-      ],
-    });
-
-    await shutdown.run();
-
-    expect(failures).toEqual(["listener"]);
-    // The pending vault commit is exactly what must survive a failed close.
-    expect(log).toEqual(["listener", "vault"]);
-  });
-
-  it("is idempotent — a second call joins the first run", async () => {
-    const log: string[] = [];
-    const shutdown = createGracefulShutdown({
-      ...quiet,
-      timeoutMs: 1_000,
-      steps: [recordingStep("vault", log)],
-    });
-
-    await Promise.all([shutdown.run(), shutdown.run(), shutdown.run()]);
-
-    expect(log).toEqual(["vault"]);
-  });
-
-  it("reports `started` only once run has been called", () => {
-    const shutdown = createGracefulShutdown({ ...quiet, timeoutMs: 1_000, steps: [] });
-    expect(shutdown.started).toBe(false);
-    void shutdown.run();
-    expect(shutdown.started).toBe(true);
-  });
-
-  it("resolves through the deadline when a step never settles", async () => {
-    vi.useFakeTimers();
-    try {
-      let timedOut = false;
-      const shutdown = createGracefulShutdown({
-        onStepFailed: () => {},
-        onTimeout: () => {
-          timedOut = true;
-        },
-        timeoutMs: 5_000,
-        steps: [{ name: "wedged", run: () => new Promise<void>(() => {}) }],
-      });
-
-      const settled = shutdown.run();
-      await vi.advanceTimersByTimeAsync(5_000);
-      await settled;
-
-      expect(timedOut).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-});
-
 function fakeTarget() {
   const handlers = new Map<NodeJS.Signals, () => void>();
   const exits: number[] = [];
@@ -135,17 +44,146 @@ function fakeTarget() {
   };
 }
 
+describe("createGracefulShutdown", () => {
+  it("runs the steps in declaration order", async () => {
+    const log: string[] = [];
+    const shutdown = createGracefulShutdown({
+      ...quiet,
+      steps: [
+        recordingStep("listener", log),
+        recordingStep("agent", log),
+        recordingStep("knowledge", log),
+        recordingStep("vault", log),
+        recordingStep("db", log),
+      ],
+    });
+
+    await expect(shutdown.run()).resolves.toEqual({ ok: true, failed: [] });
+    expect(log).toEqual(["listener", "agent", "knowledge", "vault", "db"]);
+  });
+
+  it("keeps going after a step throws, and names the one that failed", async () => {
+    const log: string[] = [];
+    const failures: string[] = [];
+    const shutdown = createGracefulShutdown({
+      onTimeout: () => {},
+      onStepFailed: (name) => failures.push(name),
+      steps: [
+        {
+          name: "listener",
+          run: () => Promise.reject(new Error("socket refused to close")),
+        },
+        recordingStep("vault", log),
+      ],
+    });
+
+    // The pending vault commit is exactly what must survive a failed close —
+    // and the exit code must still say the shutdown was not clean.
+    await expect(shutdown.run()).resolves.toEqual({ ok: false, failed: ["listener"] });
+    expect(failures).toEqual(["listener"]);
+    expect(log).toEqual(["vault"]);
+  });
+
+  it("TIME-BOXES EACH STEP, so a wedged one cannot starve the rest", async () => {
+    vi.useFakeTimers();
+    try {
+      const log: string[] = [];
+      const shutdown = createGracefulShutdown({
+        ...quiet,
+        steps: [
+          // The blocker's shape: one open websocket leaves the listener close
+          // pending forever. Everything after it is what a graceful shutdown
+          // exists for.
+          { name: "listener", timeoutMs: 1_000, run: () => new Promise<void>(() => {}) },
+          recordingStep("agent", log),
+          recordingStep("vault", log),
+          recordingStep("db", log),
+        ],
+      });
+
+      const settled = shutdown.run();
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(settled).resolves.toEqual({ ok: false, failed: ["listener"] });
+      expect(log).toEqual(["agent", "vault", "db"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("names a step's own budget in the failure it reports", async () => {
+    vi.useFakeTimers();
+    try {
+      const errors: string[] = [];
+      const shutdown = createGracefulShutdown({
+        onTimeout: () => {},
+        onStepFailed: (_name, error) => errors.push(error instanceof Error ? error.message : ""),
+        steps: [{ name: "vault", timeoutMs: 2_500, run: () => new Promise<void>(() => {}) }],
+      });
+      const settled = shutdown.run();
+      await vi.advanceTimersByTimeAsync(2_500);
+      await settled;
+      expect(errors).toEqual(["vault did not finish within 2500ms"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is idempotent — a second call joins the first run", async () => {
+    const log: string[] = [];
+    const shutdown = createGracefulShutdown({
+      ...quiet,
+      steps: [recordingStep("vault", log)],
+    });
+
+    await Promise.all([shutdown.run(), shutdown.run(), shutdown.run()]);
+
+    expect(log).toEqual(["vault"]);
+  });
+
+  it("reports `started` only once run has been called", () => {
+    const shutdown = createGracefulShutdown({ ...quiet, steps: [] });
+    expect(shutdown.started).toBe(false);
+    void shutdown.run();
+    expect(shutdown.started).toBe(true);
+  });
+
+  it("resolves through the whole-sequence backstop", async () => {
+    vi.useFakeTimers();
+    try {
+      let timedOut = false;
+      const shutdown = createGracefulShutdown({
+        onStepFailed: () => {},
+        onTimeout: () => {
+          timedOut = true;
+        },
+        timeoutMs: 5_000,
+        // A step budget longer than the backstop: the backstop is what answers.
+        steps: [{ name: "wedged", timeoutMs: 60_000, run: () => new Promise<void>(() => {}) }],
+      });
+
+      const settled = shutdown.run();
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(settled).resolves.toEqual({ ok: false, failed: ["<deadline>"] });
+
+      expect(timedOut).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("installShutdownSignals", () => {
   it("tears down and exits 0 on the first signal", async () => {
     const log: string[] = [];
     const fake = fakeTarget();
-    const shutdown = createGracefulShutdown({
-      ...quiet,
-      timeoutMs: 1_000,
-      steps: [recordingStep("vault", log)],
-    });
+    const shutdown = createGracefulShutdown({ ...quiet, steps: [recordingStep("vault", log)] });
 
-    installShutdownSignals({ shutdown, target: fake.target, onImpatient: () => {} });
+    installShutdownSignals({
+      shutdown,
+      target: fake.target,
+      onImpatient: () => {},
+      onUncleanExit: () => {},
+    });
     expect(fake.registered()).toEqual([...SHUTDOWN_SIGNALS]);
 
     fake.raise("SIGTERM");
@@ -156,20 +194,42 @@ describe("installShutdownSignals", () => {
     expect(fake.exits).toEqual([0]);
   });
 
-  it("treats a second signal as impatience, not a second teardown", async () => {
-    const log: string[] = [];
-    const impatient: NodeJS.Signals[] = [];
+  it("EXITS NON-ZERO when a step failed, and says which", async () => {
+    // A failed final commit or a database that would not close is not a clean
+    // shutdown; reporting 0 teaches every supervisor above to believe a lie.
     const fake = fakeTarget();
+    const reported: string[][] = [];
     const shutdown = createGracefulShutdown({
       ...quiet,
-      timeoutMs: 1_000,
-      steps: [recordingStep("vault", log)],
+      steps: [{ name: "db", run: () => Promise.reject(new Error("disk I/O error")) }],
     });
 
     installShutdownSignals({
       shutdown,
       target: fake.target,
+      onImpatient: () => {},
+      onUncleanExit: (failed) => reported.push([...failed]),
+    });
+
+    fake.raise("SIGTERM");
+    await shutdown.run();
+    await Promise.resolve();
+
+    expect(reported).toEqual([["db"]]);
+    expect(fake.exits).toEqual([1]);
+  });
+
+  it("treats a second signal as impatience, not a second teardown", async () => {
+    const log: string[] = [];
+    const impatient: NodeJS.Signals[] = [];
+    const fake = fakeTarget();
+    const shutdown = createGracefulShutdown({ ...quiet, steps: [recordingStep("vault", log)] });
+
+    installShutdownSignals({
+      shutdown,
+      target: fake.target,
       onImpatient: (signal) => impatient.push(signal),
+      onUncleanExit: () => {},
     });
 
     fake.raise("SIGINT");

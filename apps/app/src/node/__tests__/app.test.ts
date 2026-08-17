@@ -8,12 +8,14 @@ import {
   apiErrorResponseSchema,
   guideResponseSchema,
   healthResponseSchema,
+  systemIdentityResponseSchema,
   systemStatusResponseSchema,
 } from "@repo/server-contract/routes";
 import { createApiClient } from "@repo/server-contract/client";
 import { serverMessageLenientSchema } from "@repo/server-contract/notifications";
 import { afterEach, describe, expect, it } from "vitest";
 import { type AppFallback } from "../app";
+import { newIdentityChallenge, verifyIdentityProof } from "../instance-identity";
 import { bootTestApp } from "./boot-app";
 import { makeTempDir } from "./temp-dir";
 
@@ -62,6 +64,47 @@ describe("the API over the in-process app", () => {
     expect(status.schemaVersion).toBe(4);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
+
+  it("PROVES its identity on /api/v1/system/identity", async () => {
+    // status only CLAIMS a data dir; a port squatter can claim anything. This
+    // is the route a client uses to make the claim checkable.
+    const { args, composed } = await bootTestApp();
+    const challenge = newIdentityChallenge();
+    const response = await composed.app.request(`/api/v1/system/identity?challenge=${challenge}`);
+    expect(response.status).toBe(200);
+    const identity = systemIdentityResponseSchema.parse(await response.json());
+    expect(identity.dataDir).toBe(args.config.dataDir);
+    expect(verifyIdentityProof(args.instanceSecret, challenge, identity.proof)).toBe(true);
+    // And the proof is bound to THIS challenge.
+    expect(verifyIdentityProof(args.instanceSecret, newIdentityChallenge(), identity.proof)).toBe(
+      false,
+    );
+  });
+
+  it("answers a different proof for every challenge, and never leaks the secret", async () => {
+    const { args, composed } = await bootTestApp();
+    const [first, second] = await Promise.all(
+      [newIdentityChallenge(), newIdentityChallenge()].map(async (challenge) => {
+        const response = await composed.app.request(
+          `/api/v1/system/identity?challenge=${challenge}`,
+        );
+        return systemIdentityResponseSchema.parse(await response.json()).proof;
+      }),
+    );
+    expect(first).not.toBe(second);
+    expect(JSON.stringify({ first, second })).not.toContain(args.instanceSecret);
+  });
+
+  it.each(["", "not-hex", "abc", "A".repeat(64), "a".repeat(200)])(
+    "refuses the malformed identity challenge %o with a 400",
+    async (challenge) => {
+      const { composed } = await bootTestApp();
+      const response = await composed.app.request(
+        `/api/v1/system/identity?challenge=${encodeURIComponent(challenge)}`,
+      );
+      expect(response.status).toBe(400);
+    },
+  );
 
   it("serves the CLI manual on /api/v1/guide per the contract", async () => {
     const { composed } = await bootTestApp();

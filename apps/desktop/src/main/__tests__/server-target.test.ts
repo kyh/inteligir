@@ -2,12 +2,16 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, PROD_SERVER_PORT } from "@repo/app/node/config";
+import { proveIdentity } from "@repo/app/node/instance-identity";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  healthUrl,
+  describeIdentityVerdict,
+  identityUrl,
+  newIdentityChallenge,
   planServerStart,
   resolveServerTarget,
   serverOrigin,
+  verifyServerIdentity,
   windowUrl,
 } from "../server-target";
 
@@ -124,6 +128,12 @@ describe("resolveServerTarget", () => {
     });
   });
 });
+const DATA_DIR = "/Users/kyh/.inteligir";
+const SECRET = "a".repeat(64);
+const CHALLENGE = "b".repeat(64);
+
+/** The local data dir holds SECRET unless a case says otherwise. */
+const readSecret = () => SECRET;
 
 describe("serverOrigin", () => {
   it("is loopback by address, never by name", () => {
@@ -133,12 +143,116 @@ describe("serverOrigin", () => {
   });
 });
 
+describe("identityUrl", () => {
+  it("carries the challenge as an encoded query param", () => {
+    expect(identityUrl("http://127.0.0.1:4664", "ab12")).toBe(
+      "http://127.0.0.1:4664/api/v1/system/identity?challenge=ab12",
+    );
+  });
+});
+
+describe("newIdentityChallenge", () => {
+  it("is fresh every time — a replayed proof must be worthless", () => {
+    const first = newIdentityChallenge();
+    const second = newIdentityChallenge();
+    expect(first).not.toBe(second);
+    expect(first).toMatch(/^[0-9a-f]{64}$/u);
+  });
+});
+
+describe("verifyServerIdentity", () => {
+  it("verifies a responder that answers the challenge for the right data dir", () => {
+    expect(
+      verifyServerIdentity({
+        dataDir: DATA_DIR,
+        challenge: CHALLENGE,
+        answer: { proof: proveIdentity(SECRET, CHALLENGE), dataDir: DATA_DIR },
+        readSecret,
+      }),
+    ).toEqual({ kind: "verified" });
+  });
+
+  it("REFUSES a port squatter that answers health but cannot prove anything", () => {
+    // The finding in one case: any local process can hold 4664 and return 200.
+    expect(
+      verifyServerIdentity({
+        dataDir: DATA_DIR,
+        challenge: CHALLENGE,
+        answer: { proof: "0".repeat(64), dataDir: DATA_DIR },
+        readSecret,
+      }),
+    ).toEqual({ kind: "bad-proof" });
+  });
+
+  it("refuses a proof computed for a DIFFERENT challenge — no replay", () => {
+    expect(
+      verifyServerIdentity({
+        dataDir: DATA_DIR,
+        challenge: CHALLENGE,
+        answer: { proof: proveIdentity(SECRET, "c".repeat(64)), dataDir: DATA_DIR },
+        readSecret,
+      }),
+    ).toEqual({ kind: "bad-proof" });
+  });
+
+  it("refuses a real server that serves a different vault", () => {
+    // It can prove the secret (same user, same file) but it is not the
+    // instance this shell means — adopting it points the window at the wrong
+    // notes.
+    expect(
+      verifyServerIdentity({
+        dataDir: DATA_DIR,
+        challenge: CHALLENGE,
+        answer: { proof: proveIdentity(SECRET, CHALLENGE), dataDir: "/Users/kyh/.inteligir-other" },
+        readSecret,
+      }),
+    ).toEqual({ kind: "wrong-data-dir", claimed: "/Users/kyh/.inteligir-other" });
+  });
+
+  it("fails CLOSED when the local data dir has no secret to check against", () => {
+    expect(
+      verifyServerIdentity({
+        dataDir: DATA_DIR,
+        challenge: CHALLENGE,
+        answer: { proof: proveIdentity(SECRET, CHALLENGE), dataDir: DATA_DIR },
+        readSecret: () => null,
+      }),
+    ).toEqual({ kind: "no-secret" });
+  });
+
+  it("reports an unanswered challenge as unreachable, not as a bad proof", () => {
+    expect(
+      verifyServerIdentity({ dataDir: DATA_DIR, challenge: CHALLENGE, answer: null, readSecret }),
+    ).toEqual({ kind: "unreachable" });
+  });
+});
+
+describe("describeIdentityVerdict", () => {
+  it.each([
+    ["verified" as const],
+    ["no-secret" as const],
+    ["unreachable" as const],
+    ["bad-proof" as const],
+  ])("says something a human can act on for %s", (kind) => {
+    expect(describeIdentityVerdict({ kind }, "http://127.0.0.1:4664").length).toBeGreaterThan(10);
+  });
+
+  it("names the other data dir when that is the mismatch", () => {
+    expect(
+      describeIdentityVerdict(
+        { kind: "wrong-data-dir", claimed: "/elsewhere" },
+        "http://127.0.0.1:4664",
+      ),
+    ).toContain("/elsewhere");
+  });
+});
+
 describe("planServerStart", () => {
-  it("adopts a server that already answered", () => {
+  it("adopts only a VERIFIED server", () => {
     expect(planServerStart(true)).toBe("adopt");
   });
 
-  it("spawns one when nothing answered", () => {
+  it("spawns its own when nothing verified", () => {
     expect(planServerStart(false)).toBe("spawn");
   });
 });
@@ -150,11 +264,5 @@ describe("windowUrl", () => {
 
   it("refuses a non-http origin instead of loading one", () => {
     expect(() => windowUrl("file:///tmp")).toThrow(/http\(s\) URL/u);
-  });
-});
-
-describe("healthUrl", () => {
-  it("names the app's health route", () => {
-    expect(healthUrl("http://127.0.0.1:4664")).toBe("http://127.0.0.1:4664/api/v1/health");
   });
 });

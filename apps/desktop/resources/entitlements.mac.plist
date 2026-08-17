@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The hardened-runtime entitlements, and every one of them is here because
+  something needs it. electron-builder reads this file on the documented
+  signing path, so an entitlement carried "just in case" is a permission the
+  shipped app really holds.
+
+  What is deliberately ABSENT, having been removed rather than never added:
+  device.audio-input (nothing in the product records), automation.apple-events
+  (the shell scripts no other app), and cs.disable-library-validation (it lets
+  the process load unsigned dylibs, and the only native code here is loaded by
+  the server child from inside the app bundle).
+-->
 <plist version="1.0">
 <dict>
+  <!-- V8 compiles JavaScript at runtime; Electron does not start without these. -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>
   <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
   <true/>
+  <!-- The window talks to the local server over loopback HTTP and a websocket,
+       and the vault's git sync dials a remote. -->
   <key>com.apple.security.network.client</key>
-  <true/>
-  <key>com.apple.security.device.audio-input</key>
-  <true/>
-  <key>com.apple.security.cs.disable-library-validation</key>
-  <true/>
-  <key>com.apple.security.automation.apple-events</key>
   <true/>
 </dict>
 </plist>

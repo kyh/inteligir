@@ -23,9 +23,35 @@ export interface BusSocket {
   close(code?: number, reason?: string): void;
   readyState: number;
   send(data: string): void;
+  /** The transport under hono's wrapper — `ws`'s WebSocket in production,
+   *  absent in tests. Only the shutdown path reaches for it, and only to
+   *  TERMINATE a socket that ignored its close frame. */
+  readonly raw?: unknown;
 }
 
 const SOCKET_OPEN_STATE = 1;
+
+/** RFC 6455 "going away" — what a server that is shutting down owes a client,
+ *  so the page can distinguish a deliberate stop from a dropped connection. */
+const GOING_AWAY_CLOSE_CODE = 1001;
+
+/** Invoke `raw.terminate()` if the transport has one. Narrowed rather than
+ *  asserted: the fake sockets the tests inject have no raw at all. */
+function terminateTransport(socket: BusSocket): void {
+  const raw = socket.raw;
+  if (typeof raw !== "object" || raw === null || !("terminate" in raw)) {
+    return;
+  }
+  const terminate: unknown = Reflect.get(raw, "terminate");
+  if (typeof terminate !== "function") {
+    return;
+  }
+  try {
+    Reflect.apply(terminate, raw, []);
+  } catch {
+    // A socket already gone is the outcome we wanted.
+  }
+}
 
 const socketPayloadDecoder = new TextDecoder();
 
@@ -66,6 +92,31 @@ export class WsBus implements DbNotifier {
     // emit against the strict schemas instead of paying a parse per send.
     const hello: HelloMessage = { type: "hello", version: this.version };
     socket.send(JSON.stringify(hello));
+  }
+
+  /**
+   * Ask every client to go away. Shutdown's FIRST act, and it has to be
+   * explicit: an upgraded socket is detached from the HTTP server's connection
+   * tracking, so `server.close()` never completes while one is open and
+   * `closeAllConnections()` does not touch it — the whole teardown stalls
+   * behind a single open tab.
+   */
+  closeAllClients(): void {
+    for (const socket of this.keysBySocket.keys()) {
+      try {
+        socket.close(GOING_AWAY_CLOSE_CODE, "server-shutting-down");
+      } catch {
+        // Already closing; the terminate pass below is the backstop.
+      }
+    }
+  }
+
+  /** The deadline behind {@link closeAllClients}: a client that ignored the
+   *  close frame has its transport destroyed. */
+  terminateAllClients(): void {
+    for (const socket of this.keysBySocket.keys()) {
+      terminateTransport(socket);
+    }
   }
 
   unregisterClient(socket: BusSocket): void {

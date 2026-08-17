@@ -4,6 +4,7 @@
 // invalidation bus), and a fallback — vite middlewares in dev, static client
 // + the Start server entry's fetch in prod.
 
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve } from "node:path";
@@ -24,7 +25,9 @@ import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
+import { buildContentSecurityPolicy, prepareShellTemplate, renderShell } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
+import { proveIdentity } from "./instance-identity";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
@@ -64,6 +67,9 @@ export interface CreateAppArgs {
   /** The thread routes' store; system/status reads nothing from it (schemaVersion below). */
   db: DbConnection;
   fallback: AppFallback;
+  /** This boot's secret (instance-identity.ts). Answers the identity challenge
+   *  a client uses to tell this server from anything else holding the port. */
+  instanceSecret: string;
   knowledge: KnowledgeRuntime;
   /** Resolved once at boot, after migrate — not a SELECT per status request. */
   schemaVersion: number;
@@ -153,6 +159,17 @@ export function createApp(args: CreateAppArgs) {
       agent: args.agent,
     }),
   );
+  // Answers a caller's nonce with an HMAC keyed by this boot's secret, so a
+  // client can tell THIS server from anything else that reached the port
+  // first. Deliberately unauthenticated and unthrottled: the answer is worth
+  // nothing without the secret, and refusing to answer would only stop the
+  // legitimate client. The secret itself never leaves the process.
+  get(apiRoutes.system.identity, (c, query) =>
+    c.json({
+      proof: proveIdentity(args.instanceSecret, query.challenge),
+      dataDir: args.config.dataDir,
+    }),
+  );
   get(apiRoutes.guide, (c) => c.json({ markdown: CLI_SKILL_MD }));
   registerVaultRoutes(registrars, args.vault, (from, to) =>
     renameNoteWithLinkRewrite({
@@ -221,7 +238,12 @@ export function createApp(args: CreateAppArgs) {
     // Read once at boot: a prod build's shell is fixed for the process
     // lifetime, and every SPA navigation answers with it. Copied into a plain
     // ArrayBuffer-backed view — hono's `Data` refuses Buffer's ArrayBufferLike.
-    const spaShell = new Uint8Array(readFileSync(join(clientDir, SPA_SHELL_FILE_NAME)));
+    const spaShellText = readFileSync(join(clientDir, SPA_SHELL_FILE_NAME), "utf8");
+    // Nonce placeholders stamped once; each response substitutes its own. The
+    // shell is small (~1.4kB) and already `no-store`, so building it per
+    // navigation costs nothing worth measuring.
+    const shellTemplate = prepareShellTemplate(spaShellText);
+    const wsOrigin = `ws://127.0.0.1:${args.config.port}`;
     const serveClientFile = serveStatic<AppEnv>({
       root: clientDir,
       onFound: (path, c) => {
@@ -246,9 +268,15 @@ export function createApp(args: CreateAppArgs) {
       serveClientFile,
       (c): Response | Promise<Response> => {
         if (acceptsHtml(c.req.header("accept"))) {
-          return c.body(spaShell, 200, {
+          const nonce = randomBytes(16).toString("base64");
+          return c.body(renderShell(shellTemplate, nonce), 200, {
             "content-type": "text/html; charset=utf-8",
             "cache-control": STATIC_NO_STORE_CACHE_CONTROL,
+            // The document is the only response that can execute anything, so
+            // it is the only one that carries the policy.
+            "content-security-policy": buildContentSecurityPolicy({ nonce, wsOrigin }),
+            "x-content-type-options": "nosniff",
+            "referrer-policy": "no-referrer",
           });
         }
         return fallback.startFetch(c.req.raw);

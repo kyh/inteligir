@@ -113,6 +113,7 @@ async function bootThreadsApp(
     createTurnDriver,
     db,
     fallback: { kind: "none" },
+    instanceSecret: "test-instance-secret",
     knowledge,
     schemaVersion: 2,
     startedAt: Date.now(),

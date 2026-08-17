@@ -44,24 +44,66 @@ function listenOnce(
   });
 }
 
-/**
- * Stop serving: refuse new connections, then destroy the ones already open.
- *
- * `close()` alone waits for every socket to go idle, and the two this app
- * always has — a keep-alive HTTP connection and the /ws invalidation socket —
- * never do, so a graceful shutdown would hang on exactly the healthy case.
- * Destroying after the close is what bounds it; the process is leaving, and a
- * client that reconnects finds nothing listening either way.
- */
-export function closeServer(server: ServerType): Promise<void> {
+/** The websocket half of the shutdown, injected so this module never has to
+ *  know what a bus is. */
+export interface UpgradedSockets {
+  /** Send every client a close frame. */
+  closeAllClients(): void;
+  /** Destroy the transports that did not answer one. */
+  terminateAllClients(): void;
+}
+
+/** How long a client gets to answer its close frame before the transport is
+ *  destroyed. Generous enough for a laptop waking up, far short of the step's
+ *  own budget. */
+const SOCKET_DRAIN_MS = 1_500;
+
+function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
+    setTimeout(resolve, ms).unref?.();
+  });
+}
+
+/**
+ * Stop serving.
+ *
+ * THE WEBSOCKETS MUST BE CLOSED BY NAME, and this is the one thing about
+ * shutdown that is not obvious: an upgraded socket is DETACHED from the HTTP
+ * server's connection tracking, so `server.close()`'s callback never fires
+ * while one is open and `closeAllConnections()` does not touch it. Relying on
+ * those two alone means one open tab stalls the whole teardown — the vault's
+ * pending commit and the database close are queued behind a step that cannot
+ * finish, which is the opposite of what a graceful shutdown is for.
+ *
+ * So: close frames first (a client learns the server is going away rather than
+ * seeing its connection drop), then the keep-alive HTTP connections, then a
+ * bounded drain, then destroy whatever is left.
+ */
+export async function closeServer(server: ServerType, sockets: UpgradedSockets): Promise<void> {
+  let closed = false;
+  const finished = new Promise<void>((resolve) => {
     server.close(() => {
+      closed = true;
       resolve();
     });
-    if ("closeAllConnections" in server) {
-      server.closeAllConnections();
-    }
   });
+
+  sockets.closeAllClients();
+  if ("closeAllConnections" in server) {
+    server.closeAllConnections();
+  }
+
+  await Promise.race([finished, delay(SOCKET_DRAIN_MS)]);
+  if (closed) {
+    return;
+  }
+  sockets.terminateAllClients();
+  await Promise.race([finished, delay(SOCKET_DRAIN_MS)]);
+  if (!closed) {
+    // Reported as a FAILED step rather than swallowed: a listener this process
+    // could not close is a port the next boot will not get.
+    throw new Error(`sockets did not drain within ${SOCKET_DRAIN_MS * 2}ms`);
+  }
 }
 
 export async function listenWithRetry(args: ListenArgs): Promise<ListenResult> {

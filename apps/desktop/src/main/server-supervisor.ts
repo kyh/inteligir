@@ -11,6 +11,8 @@
 // Nothing here imports `electron`, so every path below is drivable from a test
 // with a fake child.
 
+import { SHUTDOWN_TIMEOUT_MS } from "@repo/app/node/shutdown";
+
 export interface SupervisedChild {
   readonly pid: number | undefined;
   kill(signal: NodeJS.Signals): boolean;
@@ -49,6 +51,10 @@ export interface SupervisorLimits {
   stopGraceMs: number;
 }
 
+/** Headroom on top of the server's OWN teardown budget, for the signal to
+ *  arrive and the process to actually leave after its last step. */
+const STOP_GRACE_HEADROOM_MS = 5_000;
+
 export const DEFAULT_SUPERVISOR_LIMITS: SupervisorLimits = {
   bootTimeoutMs: 45_000,
   bootProbeIntervalMs: 250,
@@ -56,7 +62,12 @@ export const DEFAULT_SUPERVISOR_LIMITS: SupervisorLimits = {
   livenessFailuresBeforeRestart: 3,
   restartDelaysMs: [500, 1_000, 2_000, 5_000],
   maxConsecutiveRestarts: 5,
-  stopGraceMs: 8_000,
+  // DERIVED, never a second number. A grace shorter than the server's own
+  // shutdown budget means SIGKILL lands mid-teardown — and the step it lands
+  // on is the vault's final commit, which is the whole reason the teardown is
+  // ordered the way it is. Two hand-written constants drift the moment either
+  // side is tuned; importing the server's is what keeps the inequality true.
+  stopGraceMs: SHUTDOWN_TIMEOUT_MS + STOP_GRACE_HEADROOM_MS,
 };
 
 export type SupervisorState =

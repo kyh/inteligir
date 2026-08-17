@@ -157,8 +157,11 @@ try {
   if (pid === undefined) {
     fail("the packaged server has no pid — it never spawned");
   }
-  process.stdout.write(`smoke: SIGTERM ${pid}\n`);
-  process.kill(-pid, "SIGTERM");
+  // Only the leader, never the group: `kill(-pid)` would take the forked
+  // watcher with it and turn the graceful-exit assertion into a tautology.
+  // POSIX-only, like the group check in apps/launcher's smoke.
+  process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
+  process.kill(pid, "SIGTERM");
   const exit = await Promise.race([
     new Promise((resolvePromise) =>
       server.on("close", (code, signal) => resolvePromise({ code, signal })),

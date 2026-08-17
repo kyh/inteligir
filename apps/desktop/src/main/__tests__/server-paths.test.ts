@@ -7,6 +7,7 @@ import {
   resolveServerEntry,
   resolveServerRuntime,
   serverProcessEnv,
+  sessionPartition,
 } from "../server-paths";
 
 describe("resolveServerEntry", () => {
@@ -76,6 +77,28 @@ describe("resolveServerRuntime", () => {
       executablePath: "node",
       mode: "node",
     });
+  });
+});
+
+describe("sessionPartition", () => {
+  it("is a persisted partition, never the default session", () => {
+    // The default session is shared with everything else this process loads.
+    expect(sessionPartition("/Users/kyh/.inteligir")).toMatch(/^persist:inteligir-[0-9a-f]{16}$/u);
+  });
+
+  it("is stable for one data dir, so storage survives a relaunch", () => {
+    expect(sessionPartition("/Users/kyh/.inteligir")).toBe(
+      sessionPartition("/Users/kyh/.inteligir"),
+    );
+  });
+
+  it("separates two vaults that would otherwise share one port's storage", () => {
+    // `http://127.0.0.1:4664` is a shared NAME, not an identity: without this
+    // a second vault (and anything ever adopted on that port) reads the
+    // first's localStorage, IndexedDB and cookies.
+    expect(sessionPartition("/Users/kyh/.inteligir")).not.toBe(
+      sessionPartition("/Users/kyh/.inteligir-work"),
+    );
   });
 });
 

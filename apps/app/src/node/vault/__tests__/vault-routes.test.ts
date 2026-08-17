@@ -76,6 +76,7 @@ async function bootVaultApp() {
       agentModel: null,
     },
     fallback: { kind: "none" },
+    instanceSecret: "test-instance-secret",
     knowledge,
     schemaVersion: getSchemaVersion(db, knownSchemaVersion),
     startedAt: Date.now(),

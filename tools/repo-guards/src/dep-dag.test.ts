@@ -79,13 +79,15 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // lives in each turbo.json as an explicit `<package>#build`, which is what
   // it is — an ordering, not an import edge.
   inteligir: [],
-  // The shell's ONE module edge, and it is the config resolution rather than
-  // the server: the window is pinned to an origin, so the port that origin
-  // names has to be the one the app itself would bind — env, then
-  // `<dataDir>/config.json`, then the default. A shell with its own partial
-  // copy of that layering points at a dead port. Same call apps/cli's
-  // discovery makes, for the same reason. Bundled by esbuild at build time,
-  // hence a devDependency rather than a runtime one.
+  // The shell's ONE module edge, and it is never the server — it is the three
+  // facts the two processes must AGREE on, imported rather than re-stated:
+  // the config resolution (the window is pinned to an origin, so the port that
+  // origin names has to be the one the app itself would bind — env, then
+  // `<dataDir>/config.json`, then the default; a shell with its own partial
+  // copy points at a dead port), the identity primitives it verifies a
+  // responder with, and the shutdown budget its SIGKILL grace must exceed.
+  // Same call apps/cli's discovery makes, for the same reason. Bundled by
+  // esbuild at build time, hence a devDependency rather than a runtime one.
   "@repo/desktop": ["@repo/app"],
 
   "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],

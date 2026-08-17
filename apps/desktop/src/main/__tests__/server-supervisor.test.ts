@@ -2,9 +2,11 @@
 // below is one the shipped shell takes on a user's machine, and none of them
 // can be reached from a test that spawns a real process.
 
+import { SHUTDOWN_TIMEOUT_MS } from "@repo/app/node/shutdown";
 import { describe, expect, it } from "vitest";
 import {
   createSupervisor,
+  DEFAULT_SUPERVISOR_LIMITS,
   restartDelayMs,
   type SupervisedChild,
   type SupervisorLimits,
@@ -84,6 +86,15 @@ async function settle(): Promise<void> {
     await Promise.resolve();
   }
 }
+
+describe("DEFAULT_SUPERVISOR_LIMITS", () => {
+  it("waits LONGER than the server's own shutdown budget before SIGKILL", () => {
+    // The inequality is the point: a shorter grace lands SIGKILL mid-teardown,
+    // and the step it lands on is the vault's final commit. Derived from the
+    // server's constant so tuning either side cannot silently invert it.
+    expect(DEFAULT_SUPERVISOR_LIMITS.stopGraceMs).toBeGreaterThan(SHUTDOWN_TIMEOUT_MS);
+  });
+});
 
 describe("restartDelayMs", () => {
   it("walks the table and then repeats its last entry", () => {

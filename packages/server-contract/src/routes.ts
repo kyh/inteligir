@@ -1,7 +1,9 @@
+import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
   defineRoute,
   jsonResponse,
   noRequest,
+  queryRequest,
   type ApiSchemaFromRouteDescriptors,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
@@ -75,6 +77,36 @@ export const systemStatusResponseSchema = z
 export type SystemStatusResponse = z.infer<typeof systemStatusResponseSchema>;
 
 /**
+ * The identity challenge. `/system/status` states which data dir the responder
+ * CLAIMS; this route makes it PROVE the claim, which matters because a
+ * loopback port is first-come-first-served and a squatter can claim anything.
+ * The client sends a fresh nonce and gets back an HMAC over it keyed by the
+ * secret the server minted into that data dir — see
+ * apps/app/src/node/instance-identity.ts for what the proof does and does not
+ * establish.
+ */
+export const systemIdentityRequestSchema = z
+  .object({
+    challenge: z
+      .string()
+      .regex(/^[0-9a-f]{32,128}$/u, "challenge must be 16–64 bytes of lowercase hex"),
+  })
+  .strict();
+export type SystemIdentityRequest = z.infer<typeof systemIdentityRequestSchema>;
+
+export const systemIdentityResponseSchema = z
+  .object({
+    /** HMAC-SHA256(instance secret, challenge), hex. */
+    proof: z.string().regex(/^[0-9a-f]{64}$/u),
+    /** Repeated from status so one round trip answers "which instance, and
+     *  prove it" — a client must compare BOTH, since the proof alone says
+     *  nothing about which vault is being served. */
+    dataDir: z.string().min(1),
+  })
+  .strict();
+export type SystemIdentityResponse = z.infer<typeof systemIdentityResponseSchema>;
+
+/**
  * THE route table. One row per endpoint, grouped by domain; handlers register
  * against a row (`get(apiRoutes.health, …)`), the client derives its surface
  * from the whole table, so adding an endpoint is one row plus one handler.
@@ -92,6 +124,15 @@ export const apiRoutes = {
       method: "get",
       request: noRequest(),
       response: jsonResponse<SystemStatusResponse>(),
+    }),
+    identity: defineRoute({
+      path: "/system/identity",
+      method: "get",
+      request: queryRequest<EmptyInput, SystemIdentityRequest>(systemIdentityRequestSchema),
+      response: [
+        jsonResponse<SystemIdentityResponse>(),
+        jsonResponse<ApiErrorResponse>({ status: 400 }),
+      ],
     }),
   },
   guide: defineRoute({

@@ -39,13 +39,39 @@ one process, one exit code; see `apps/launcher`.)
 
 Two consequences worth knowing:
 
-- **A running server is adopted, not fought.** The shell probes the origin
-  before it spawns. If `npx inteligir` is already listening, the window opens on
-  it and quitting the app leaves it running — the shell only kills the child it
-  started (`planServerStart` in `src/main/server-target.ts`).
+- **A running server is adopted, but only once it PROVES who it is.** A
+  loopback port is first-come-first-served and unauthenticated, so "something
+  answered `/health`" identifies nothing — adopting on that alone would hand a
+  port squatter the trusted window and the origin's storage. Every probe is an
+  identity challenge instead: the server mints a per-boot secret into its data
+  dir at `0600` and answers an HMAC over a fresh nonce, and the shell adopts
+  only when that answer checks out against the secret in the data dir it is
+  configured for AND the responder names that same data dir
+  (`verifyServerIdentity` in `src/main/server-target.ts`,
+  `@repo/app/node/instance-identity` for what the proof does and does not
+  establish). The same predicate is the supervisor's liveness probe, so a child
+  that loses a race for the port cannot leave the shell reporting "up" about a
+  stranger. Quitting still leaves an adopted server running — the shell only
+  kills the child it started.
+- **The window has its own storage partition**, keyed to the data dir rather
+  than to the port (`sessionPartition`). `http://127.0.0.1:4664` is a shared
+  name, not an identity: on the default session two different vaults — and
+  anything ever adopted on that port — would read each other's localStorage,
+  IndexedDB and cookies.
+- **Every web permission is denied**, on that session, by both the request and
+  the check handler. The product uses none, and Electron's default is to grant
+  most of them to whatever a window loads.
+- **A page-initiated URL reaches the system browser only with a recent user
+  gesture.** Electron exposes no activation flag on `setWindowOpenHandler` or
+  `will-navigate`, so the shell measures it from `webContents`'s `input-event`;
+  without it a script loop calling `window.open` becomes a loop of OS browser
+  launches. Menu and tray items bypass the gate — the click IS the gesture.
 - **Quit sends SIGTERM first.** That is the signal the server's graceful
   shutdown listens for: it flushes the vault's pending git commit and closes the
-  database. SIGKILL is the deadline behind it, never the first move.
+  database. SIGKILL is the deadline behind it, never the first move — and the
+  grace is DERIVED from the server's own `SHUTDOWN_TIMEOUT_MS` rather than
+  written down twice, because a shell that kills first lands SIGKILL on the
+  vault commit the ordering exists to protect.
 
 ## One config resolution
 
@@ -68,6 +94,10 @@ instance** `pnpm dev` derives, so `pnpm dev:desktop` never drives your real
 vault. The child's own `NODE_ENV` stays `production` because it always runs a
 built bundle — that flag decides which fallback the server mounts (`dist/client`
 vs Vite middleware) and nothing about where its data lives.
+
+That resolution is also what the shell demands PROOF of: it names the data dir
+before anything is listening, so a responder either answers for that dir or is
+refused.
 
 ## Running it
 

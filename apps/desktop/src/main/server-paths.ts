@@ -3,6 +3,7 @@
 // packaged .app) are both pinned by tests instead of discovered on someone's
 // machine.
 
+import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -54,6 +55,26 @@ export function resolveServerEntry(appPath: string): string {
     "dist-node",
     "main.js",
   );
+}
+
+/**
+ * The window's storage partition, keyed by the DATA DIR it serves.
+ *
+ * Never the default session, for two reasons. Electron's default session is
+ * shared with anything else this process ever loads, and — the one that
+ * matters — `http://127.0.0.1:4664` is a shared name, not an identity: two
+ * different vaults on the same port would otherwise read each other's
+ * localStorage, IndexedDB and cookies, and so would anything that ever got
+ * adopted on that port. Keying the partition to the data dir makes the storage
+ * follow the vault instead of the port number, which is what a user means by
+ * "my notes".
+ *
+ * `persist:` so it survives a restart; a per-boot partition would throw away
+ * the workspace's own UI state on every launch.
+ */
+export function sessionPartition(dataDir: string): string {
+  const digest = createHash("sha256").update(dataDir).digest("hex").slice(0, 16);
+  return `persist:inteligir-${digest}`;
 }
 
 export type ServerRuntimeMode = "electron-node" | "node";

@@ -242,3 +242,79 @@ describe("outbound frames against the contract schemas", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Shutdown. An upgraded socket is detached from the HTTP server's connection
+// tracking, so nothing else in the teardown can end it — if the bus does not
+// close its own clients, one open tab stalls the whole sequence at step one
+// (listen.ts says the rest).
+// ---------------------------------------------------------------------------
+
+describe("closing the bus down", () => {
+  it("sends every registered client a going-away frame", () => {
+    const bus = createBus();
+    const first = createFakeSocket();
+    const second = createFakeSocket();
+    bus.registerClient(first);
+    bus.registerClient(second);
+    bus.subscribe(second, { kind: "vault" });
+
+    bus.closeAllClients();
+
+    expect(first.closed).toEqual({ code: 1001, reason: "server-shutting-down" });
+    expect(second.closed).toEqual({ code: 1001, reason: "server-shutting-down" });
+  });
+
+  it("closes a client that never subscribed to anything", () => {
+    // registerClient alone puts a socket in the map; a client that only ever
+    // received the hello frame still holds the connection open.
+    const bus = createBus();
+    const socket = createFakeSocket();
+    bus.registerClient(socket);
+    bus.closeAllClients();
+    expect(socket.closed?.code).toBe(1001);
+  });
+
+  it("does not close a client that already went away", () => {
+    const bus = createBus();
+    const socket = createFakeSocket();
+    bus.registerClient(socket);
+    bus.unregisterClient(socket);
+    bus.closeAllClients();
+    expect(socket.closed).toBeNull();
+  });
+
+  it("survives a close() that throws — the terminate pass is the backstop", () => {
+    const bus = createBus();
+    const socket = createFakeSocket();
+    socket.close = () => {
+      throw new Error("already closing");
+    };
+    bus.registerClient(socket);
+    expect(() => bus.closeAllClients()).not.toThrow();
+  });
+
+  it("terminates the transport of a client that ignored its close frame", () => {
+    const bus = createBus();
+    let terminated = 0;
+    const socket: BusSocket = {
+      readyState: 1,
+      close: () => {},
+      send: () => {},
+      raw: {
+        terminate: () => {
+          terminated += 1;
+        },
+      },
+    };
+    bus.registerClient(socket);
+    bus.terminateAllClients();
+    expect(terminated).toBe(1);
+  });
+
+  it("tolerates a socket with no raw transport at all", () => {
+    const bus = createBus();
+    bus.registerClient(createFakeSocket());
+    expect(() => bus.terminateAllClients()).not.toThrow();
+  });
+});

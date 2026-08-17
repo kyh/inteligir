@@ -185,8 +185,14 @@ try {
   if (pid === undefined) {
     fail("the launcher process has no pid — it never spawned");
   }
-  process.stdout.write(`smoke: SIGTERM ${pid}\n`);
-  process.kill(-pid, "SIGTERM");
+  // Signalled by PID, never by process GROUP. `kill(-pid)` reaches the forked
+  // watcher too, so the launcher would never have had to clean it up and the
+  // orphan assertion below would prove nothing — it would be checking that a
+  // process this script killed is dead. Signalling only the leader is what a
+  // terminal's ^C and a supervisor's stop both do, and it is what makes the
+  // group check a real question about the launcher's own teardown.
+  process.stdout.write(`smoke: SIGTERM ${pid} (the launcher alone)\n`);
+  process.kill(pid, "SIGTERM");
   const exit = await Promise.race([
     new Promise((resolvePromise) =>
       server.on("close", (code, signal) => resolvePromise({ code, signal })),
@@ -201,6 +207,10 @@ try {
   }
   process.stdout.write("smoke: exited 0\n");
 
+  // POSIX-only: signal 0 against a negative pid asks "does this process group
+  // still have members". The launcher was spawned detached, so it IS the group
+  // leader and its forked watcher child is the only other member — anything
+  // left here is an orphan the teardown failed to take with it.
   await delay(500);
   if (processAlive(-pid)) {
     fail(`process group ${pid} still has members — the watcher child was orphaned`);

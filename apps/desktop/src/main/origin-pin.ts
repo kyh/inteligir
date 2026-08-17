@@ -65,3 +65,74 @@ export type WindowOpenVerdict = "deny-and-open-external" | "deny";
 export function classifyWindowOpen(url: string): WindowOpenVerdict {
   return isHttpUrl(url) ? "deny-and-open-external" : "deny";
 }
+
+// ---------------------------------------------------------------------------
+// Handing a URL to the system browser
+// ---------------------------------------------------------------------------
+
+/**
+ * How recently the page must have seen real input for a page-initiated URL to
+ * reach `shell.openExternal`.
+ *
+ * Chromium's own popup blocking works off user activation; Electron exposes
+ * none of it on `setWindowOpenHandler` or `will-navigate` (checked against
+ * Electron 43's `HandlerDetails` — url, frameName, features, disposition,
+ * referrer, postBody, and nothing about a gesture), so the shell tracks it
+ * from `webContents`'s `input-event` and applies its own window. Without this,
+ * a script loop calling `window.open` in the page becomes a loop of OS-level
+ * browser launches — every one of them outside the origin pin, because the
+ * pin's answer to an off-origin URL is exactly "hand it to the browser".
+ */
+export const USER_ACTIVATION_WINDOW_MS = 3_000;
+
+export interface ExternalOpenDecision {
+  allowed: boolean;
+  /** Stated for the log line, because a silently dropped link reads as a bug. */
+  reason: "allowed" | "not-http" | "no-user-activation";
+}
+
+export interface ExternalOpenArgs {
+  url: string;
+  /** `null` when the page has produced no input at all this session. */
+  lastInputAt: number | null;
+  now: number;
+  windowMs?: number;
+}
+
+/**
+ * May this page-initiated URL be opened in the system browser?
+ *
+ * Only http(s), and only while a user gesture is still recent. Menu items and
+ * tray items do NOT go through this — a menu click IS the gesture, and it
+ * produces no `input-event` in the page to measure.
+ */
+export function decideExternalOpen(args: ExternalOpenArgs): ExternalOpenDecision {
+  if (!isHttpUrl(args.url)) {
+    return { allowed: false, reason: "not-http" };
+  }
+  const windowMs = args.windowMs ?? USER_ACTIVATION_WINDOW_MS;
+  if (args.lastInputAt === null || args.now - args.lastInputAt > windowMs) {
+    return { allowed: false, reason: "no-user-activation" };
+  }
+  return { allowed: true, reason: "allowed" };
+}
+
+// ---------------------------------------------------------------------------
+// Permissions
+// ---------------------------------------------------------------------------
+
+/**
+ * Every web permission this product uses. It is EMPTY, and that is the whole
+ * policy: the workspace is markdown, a websocket and HTTP — no camera, no
+ * microphone, no geolocation, no notifications, no clipboard-read, no MIDI, no
+ * serial or HID. Electron's default is to grant most of these to any page it
+ * loads, so an unset handler is a standing grant to whatever the window ends
+ * up rendering.
+ *
+ * A feature that needs one adds it HERE, deliberately, as one row.
+ */
+export const ALLOWED_PERMISSIONS: readonly string[] = [];
+
+export function isPermissionAllowed(permission: string): boolean {
+  return ALLOWED_PERMISSIONS.includes(permission);
+}

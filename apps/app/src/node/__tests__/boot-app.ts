@@ -14,6 +14,7 @@ import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import type { AgentStatus } from "@repo/server-contract/routes";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import { ensureInstanceSecret } from "../instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
@@ -103,6 +104,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     createTurnDriver: driver?.createTurnDriver ?? (() => unavailableTurnDriver),
     db,
     fallback: options.fallback ?? { kind: "none" },
+    instanceSecret: ensureInstanceSecret(dataDir),
     knowledge,
     schemaVersion: getSchemaVersion(db, knownSchemaVersion),
     startedAt: Date.now(),

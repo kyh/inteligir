@@ -84,5 +84,12 @@ try {
   console.error(
     `inteligir failed to start: ${error instanceof Error ? error.message : String(error)}`,
   );
-  process.exitCode = 1;
+  // EXIT, do not merely set a code. The app's boot forks a filesystem watcher
+  // before it binds a port, and that child's IPC channel is a live handle: a
+  // failure after the fork (an occupied port is the ordinary one) leaves an
+  // event loop that never drains, so `npx inteligir` would print its error and
+  // then hang forever with nothing listening. The app tears its own resources
+  // down and exits on its own boot failures; this is the backstop for
+  // everything before and around that — a missing bundle, a bad export.
+  process.exit(1);
 }

@@ -72,13 +72,26 @@ await writeFile(
   `${JSON.stringify({ name: "inteligir-app", private: true, type: "module", version }, null, 2)}\n`,
 );
 
-// The CLI: its own bundle plus the bin shim the agent's PATH points at. The
-// shim prefers a `../src` checkout and falls through to `../dist/index.js`,
-// which is the branch a packaged install takes. Its package.json is generated
-// for the same reason the app's is — `inteligir-cli --version` reads it, and a
-// missing one degrades to the "0.0.0" placeholder rather than failing.
+// The CLI: its own bundle plus the `inteligir` shim two different callers
+// resolve — npm's `inteligir-cli` bin, and the PATH entry the server injects
+// into agent shells.
+//
+// GENERATED rather than copied, and it is a NODE script rather than the
+// checkout's `#!/bin/sh` one. The checkout shim exists to prefer `../src`
+// under tsx, which a package has neither of; and a `sh` shebang is what npm
+// reads to build its Windows `.cmd`, so shipping it makes `inteligir-cli`
+// unresolvable there. A node shebang works on every platform npm supports and
+// still satisfies the agent's PATH resolver, which wants a file named
+// `inteligir` with the execute bit.
+//
+// The generated package.json is what makes the extensionless file ESM (Node
+// resolves a bare entry's module type from the nearest `type` field) and what
+// `--version` reads; without it the CLI degrades to its "0.0.0" placeholder.
 await mkdir(join(stagedCli, "bin"), { recursive: true });
-await cp(join(cliSource, "bin", "inteligir"), join(stagedCli, "bin", "inteligir"));
+await writeFile(
+  join(stagedCli, "bin", "inteligir"),
+  '#!/usr/bin/env node\nimport "../dist/index.js";\n',
+);
 await chmod(join(stagedCli, "bin", "inteligir"), 0o755);
 await cp(join(cliSource, "dist"), join(stagedCli, "dist"), { recursive: true });
 await writeFile(

@@ -18,16 +18,23 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  session,
   shell,
   Tray,
   type MenuItemConstructorOptions,
 } from "electron";
-import { classifyNavigation, classifyWindowOpen } from "./origin-pin";
+import {
+  classifyNavigation,
+  classifyWindowOpen,
+  decideExternalOpen,
+  isPermissionAllowed,
+} from "./origin-pin";
 import {
   resolveAppCheckoutDir,
   resolveServerEntry,
   resolveServerRuntime,
   serverProcessEnv,
+  sessionPartition,
 } from "./server-paths";
 import {
   createSupervisor,
@@ -36,9 +43,12 @@ import {
   type SupervisorState,
 } from "./server-supervisor";
 import {
-  healthUrl,
+  describeIdentityVerdict,
+  identityUrl,
+  newIdentityChallenge,
   planServerStart,
   resolveServerTarget,
+  verifyServerIdentity,
   windowUrl,
   type ServerTarget,
 } from "./server-target";
@@ -51,7 +61,9 @@ let tray: Tray | null = null;
 /** Null while the shell adopted a server it did not start — quitting must
  *  never stop a process someone else owns. */
 let supervisor: ReturnType<typeof createSupervisor> | null = null;
-let dataDir: string | null = null;
+/** The last real input the page saw, for the user-activation gate on
+ *  page-initiated external opens (origin-pin.ts::decideExternalOpen). */
+let lastInputAt: number | null = null;
 
 process.on("uncaughtException", (error) => {
   console.error("[desktop] uncaught exception:", error);
@@ -69,15 +81,47 @@ process.on("unhandledRejection", (reason) => {
 // The server
 // ---------------------------------------------------------------------------
 
-async function healthAnswered(origin: string): Promise<boolean> {
+/**
+ * IS THE SERVER ON THIS ORIGIN OURS? Health alone cannot say — a loopback port
+ * is first-come-first-served — so every probe is an identity challenge, not a
+ * liveness check. Used for the pre-flight AND as the supervisor's own
+ * `probeHealth`, because a child that loses a race for the port would
+ * otherwise leave the supervisor reporting "up" about a stranger.
+ */
+async function verifiedServerAnswered(origin: string, dataDir: string): Promise<boolean> {
+  const challenge = newIdentityChallenge();
+  let answer: { proof: string; dataDir: string } | null = null;
   try {
-    const response = await fetch(healthUrl(origin), {
+    const response = await fetch(identityUrl(origin, challenge), {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     });
-    return response.ok;
+    if (response.ok) {
+      const body: unknown = await response.json();
+      if (
+        typeof body === "object" &&
+        body !== null &&
+        "proof" in body &&
+        "dataDir" in body &&
+        typeof body.proof === "string" &&
+        typeof body.dataDir === "string"
+      ) {
+        answer = { proof: body.proof, dataDir: body.dataDir };
+      }
+    }
   } catch {
-    return false;
+    answer = null;
   }
+  const verdict = verifyServerIdentity({ dataDir, challenge, answer });
+  if (
+    verdict.kind !== "verified" &&
+    verdict.kind !== "unreachable" &&
+    verdict.kind !== "no-secret"
+  ) {
+    // A responder that is REACHABLE but not ours is the case worth a log line:
+    // something is on our port and it is not the vault we mean.
+    console.warn(`[desktop] ${describeIdentityVerdict(verdict, origin)}`);
+  }
+  return verdict.kind === "verified";
 }
 
 function spawnServerChild(entryPath: string, target: ServerTarget): SupervisedChild {
@@ -106,9 +150,8 @@ function spawnServerChild(entryPath: string, target: ServerTarget): SupervisedCh
 }
 
 async function startServer(target: ServerTarget): Promise<void> {
-  const origin = target.origin;
-  if (planServerStart(await healthAnswered(origin)) === "adopt") {
-    console.log(`[desktop] a server is already listening on ${origin} — adopting it`);
+  if (planServerStart(await verifiedServerAnswered(target.origin, target.dataDir)) === "adopt") {
+    console.log(`[desktop] adopting the server already serving ${target.dataDir}`);
     return;
   }
   const entryPath = resolveServerEntry(app.getAppPath());
@@ -118,7 +161,7 @@ async function startServer(target: ServerTarget): Promise<void> {
   supervisor = createSupervisor(
     {
       spawnServer: () => spawnServerChild(entryPath, target),
-      probeHealth: () => healthAnswered(origin),
+      probeHealth: () => verifiedServerAnswered(target.origin, target.dataDir),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       schedule: (intervalMs, tick) => {
         const timer = setInterval(tick, intervalMs);
@@ -142,30 +185,53 @@ function onServerStateChanged(state: SupervisorState): void {
   }
 }
 
-/** Where the RUNNING server keeps its data. Asked of it rather than taken from
- *  the shell's own resolution, because an adopted server is one the shell did
- *  not configure — "Open Data Folder" must open the folder in use, not the one
- *  a spawn would have used. */
-async function fetchDataDir(origin: string): Promise<void> {
-  try {
-    const response = await fetch(`${origin}/api/v1/system/status`, {
-      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-    });
-    const body: unknown = await response.json();
-    if (typeof body === "object" && body !== null && "dataDir" in body) {
-      const value: unknown = Reflect.get(body, "dataDir");
-      dataDir = typeof value === "string" ? value : null;
-    }
-  } catch {
-    dataDir = null;
-  }
-}
+// The shell no longer asks the running server where its data lives. It used to,
+// because an adopted server was one the shell had not configured — but adoption
+// now REQUIRES the responder to name this shell's own data dir and prove it
+// (`verifyServerIdentity`), so the two can no longer differ, and `target` is
+// the answer without trusting a value off the wire.
 
 // ---------------------------------------------------------------------------
 // The window, menu and tray
 // ---------------------------------------------------------------------------
 
-function createWindow(origin: string): BrowserWindow {
+/**
+ * Deny every permission the product does not use, on the window's OWN session.
+ * Electron grants most of them by default to whatever a window loads, so an
+ * unset handler is a standing grant — and this window's content comes from a
+ * server, over a socket, on a port. Both handlers are required: the request
+ * handler answers a prompt, the check handler answers a silent capability
+ * query (`navigator.permissions.query`, `getUserMedia`'s pre-flight).
+ */
+function lockDownSession(partition: string): Electron.Session {
+  const windowSession = session.fromPartition(partition);
+  windowSession.setPermissionRequestHandler((_contents, permission, callback) => {
+    callback(isPermissionAllowed(permission));
+  });
+  windowSession.setPermissionCheckHandler((_contents, permission) =>
+    isPermissionAllowed(permission),
+  );
+  // Serial/HID/USB device pickers, which the permission handlers above do not
+  // cover.
+  windowSession.setDevicePermissionHandler(() => false);
+  return windowSession;
+}
+
+/** Hand a PAGE-INITIATED url to the system browser, or refuse it. Menu and
+ *  tray items call `shell.openExternal` directly: a menu click is the gesture,
+ *  and it produces no page input to measure. */
+function openExternalFromPage(url: string): void {
+  const decision = decideExternalOpen({ url, lastInputAt, now: Date.now() });
+  if (!decision.allowed) {
+    console.warn(`[desktop] refused to open ${url} externally (${decision.reason})`);
+    return;
+  }
+  void shell.openExternal(url);
+}
+
+function createWindow(target: ServerTarget): BrowserWindow {
+  const partition = sessionPartition(target.dataDir);
+  lockDownSession(partition);
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -182,24 +248,35 @@ function createWindow(origin: string): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      // Never the default session: `http://127.0.0.1:<port>` is a shared name
+      // rather than an identity, so the storage follows the VAULT
+      // (server-paths.ts::sessionPartition) instead of the port number.
+      partition,
     },
+  });
+
+  // The user-activation clock for page-initiated external opens. Electron
+  // exposes no activation flag on the navigation or window-open paths, so the
+  // shell measures it here (origin-pin.ts says why).
+  window.webContents.on("input-event", () => {
+    lastInputAt = Date.now();
   });
 
   window.webContents.setWindowOpenHandler((details) => {
     if (classifyWindowOpen(details.url) === "deny-and-open-external") {
-      void shell.openExternal(details.url);
+      openExternalFromPage(details.url);
     }
     return { action: "deny" };
   });
 
   const guardNavigation = (event: Electron.Event, url: string): void => {
-    const verdict = classifyNavigation(url, origin);
+    const verdict = classifyNavigation(url, target.origin);
     if (verdict === "allow") {
       return;
     }
     event.preventDefault();
     if (verdict === "block-and-open-external") {
-      void shell.openExternal(url);
+      openExternalFromPage(url);
     }
   };
   window.webContents.on("will-navigate", guardNavigation);
@@ -219,14 +296,14 @@ function createWindow(origin: string): BrowserWindow {
     }
   });
 
-  void window.loadURL(windowUrl(origin));
+  void window.loadURL(windowUrl(target.origin));
   return window;
 }
 
-function showMainWindow(origin: string): BrowserWindow {
+function showMainWindow(target: ServerTarget): BrowserWindow {
   const existing = mainWindow;
   if (existing === null) {
-    mainWindow = createWindow(origin);
+    mainWindow = createWindow(target);
     return mainWindow;
   }
   if (existing.isMinimized()) {
@@ -238,22 +315,21 @@ function showMainWindow(origin: string): BrowserWindow {
   return existing;
 }
 
-function openDataDir(): void {
-  if (dataDir === null) {
-    dialog.showErrorBox("Inteligir", "The server has not reported its data directory yet.");
-    return;
-  }
-  void shell.openPath(dataDir);
+/** The data dir is the shell's OWN resolution (`resolveServerTarget`), never a
+ *  value read back off the wire — a responder does not get to say where a menu
+ *  item opens a Finder window. */
+function openDataDir(target: ServerTarget): void {
+  void shell.openPath(target.dataDir);
 }
 
-function configureApplicationMenu(origin: string): void {
+function configureApplicationMenu(target: ServerTarget): void {
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
       submenu: [
         { role: "about" },
         { type: "separator" },
-        { label: "Open Data Folder", click: () => openDataDir() },
+        { label: "Open Data Folder", click: () => openDataDir(target) },
         { type: "separator" },
         { role: "services" },
         { type: "separator" },
@@ -273,8 +349,10 @@ function configureApplicationMenu(origin: string): void {
       submenu: [
         {
           label: "Open in Browser",
+          // A menu click IS the user gesture, so this goes straight out rather
+          // than through the page-initiated activation gate.
           click: () => {
-            void shell.openExternal(windowUrl(origin));
+            void shell.openExternal(windowUrl(target.origin));
           },
         },
       ],
@@ -285,7 +363,7 @@ function configureApplicationMenu(origin: string): void {
 
 /** Tray icon, sized and marked as a template so macOS tints it for the menu
  *  bar rather than rendering the full-colour app icon. */
-function createTray(origin: string): Tray | null {
+function createTray(target: ServerTarget): Tray | null {
   const icon = nativeImage
     .createFromPath(join(app.getAppPath(), "resources", "icon.png"))
     .resize({ width: 16, height: 16 });
@@ -298,15 +376,15 @@ function createTray(origin: string): Tray | null {
   created.setToolTip(APP_DISPLAY_NAME);
   created.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `Show ${APP_DISPLAY_NAME}`, click: () => showMainWindow(origin) },
+      { label: `Show ${APP_DISPLAY_NAME}`, click: () => showMainWindow(target) },
       { label: "Hide", click: () => mainWindow?.hide() },
       { type: "separator" },
-      { label: "Open Data Folder", click: () => openDataDir() },
+      { label: "Open Data Folder", click: () => openDataDir(target) },
       { type: "separator" },
       { role: "quit" },
     ]),
   );
-  created.on("click", () => showMainWindow(origin));
+  created.on("click", () => showMainWindow(target));
   return created;
 }
 
@@ -320,32 +398,35 @@ async function onAppReady(target: ServerTarget): Promise<void> {
     applicationName: APP_DISPLAY_NAME,
     applicationVersion: app.getVersion(),
   });
-  configureApplicationMenu(target.origin);
+  configureApplicationMenu(target);
   await startServer(target);
-  await fetchDataDir(target.origin);
-  tray = createTray(target.origin);
-  mainWindow = createWindow(target.origin);
+  tray = createTray(target);
+  mainWindow = createWindow(target);
 }
 
-const resolved = resolveServerTarget({
+// Resolved before `whenReady`, so a bad INTELIGIR_PORT or a config.json that
+// nests the vault inside the data dir is a named error rather than a window on
+// the wrong place.
+const target = resolveServerTarget({
   isPackaged: app.isPackaged,
   appCheckoutDir: resolveAppCheckoutDir(app.getAppPath()),
   env: process.env,
 });
-if (resolved.kind === "refused") {
-  dialog.showErrorBox("Inteligir failed to start", resolved.error);
+if (target.kind === "refused") {
+  dialog.showErrorBox("Inteligir failed to start", target.error);
   app.exit(2);
 } else {
-  const target = resolved.target;
-  const origin = target.origin;
+  const resolved = target.target;
 
   app.on("activate", () => {
-    showMainWindow(origin);
+    showMainWindow(resolved);
   });
 
   // The server is a child of this process, so quitting must take it with it —
   // and the SIGTERM its graceful shutdown listens for is what flushes the
   // vault's pending commit. `before-quit` is where that still has time to run.
+  // `supervisor` is null when the shell ADOPTED a server it did not start;
+  // quitting must leave that one running.
   let teardown: Promise<void> | null = null;
   app.on("before-quit", (event) => {
     if (supervisor === null || teardown !== null) {
@@ -365,11 +446,11 @@ if (resolved.kind === "refused") {
     app.quit();
   } else {
     app.on("second-instance", () => {
-      showMainWindow(origin);
+      showMainWindow(resolved);
     });
     app
       .whenReady()
-      .then(() => onAppReady(target))
+      .then(() => onAppReady(resolved))
       .catch((error: unknown) => {
         console.error("[desktop] fatal startup error", error);
         dialog.showErrorBox(

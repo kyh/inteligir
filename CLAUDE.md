@@ -183,6 +183,36 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   compositor's event loop with better-sqlite3, a watcher fork and `git`. The
   shell adopts an already-listening server rather than fighting it, and only
   kills the child it started.
+- **A LOOPBACK PORT IDENTIFIES NOTHING, so adoption is earned.** Any local
+  process can hold 4664 and answer `/health` 200; adopting on that alone hands
+  a squatter the trusted window and the origin's storage. Every boot mints a
+  secret into `<dataDir>/instance-secret` at 0600 and answers a nonce challenge
+  with an HMAC over it (`/api/v1/system/identity`), and a client adopts only
+  when the answer verifies against the secret in the data dir IT resolved and
+  the responder names that same dir. The bound is honest: it proves the
+  responder can READ that data directory, not that it is this code — which is
+  exactly the line between "the program that owns this vault" and "the program
+  that got to the port first". `/system/status`'s dataDir is a CLAIM; this is
+  the proof.
+- **Shutdown is ORDERED, per-step TIME-BOXED, and its exit code is the truth.**
+  Writers stop, then the vault's pending commit flushes, then the handles
+  close. Each step has its own budget because a single budget for the whole
+  teardown is not a bound on anything — one wedged step consumes it and starves
+  every step behind it, which is precisely how the vault flush gets skipped.
+  The listener step must CLOSE THE WEBSOCKETS BY NAME: an upgraded socket is
+  detached from the HTTP server's connection tracking, so `server.close()`
+  never completes while one is open and `closeAllConnections()` does not touch
+  it — one open browser tab stalled the entire teardown at step one, exited 0,
+  and left the database un-closed. A step that fails or times out exits
+  non-zero and says which.
+- **The prod document carries a nonce CSP with `'strict-dynamic'`, not a hash
+  list.** The built shell's one inline script hashes cleanly, but the Start
+  router INJECTS further inline scripts at runtime whose content varies per
+  render, so a hash allowlist blocks the app the moment it hydrates (measured,
+  not assumed). `style-src` keeps `'unsafe-inline'` because CodeMirror injects
+  its theme at runtime — the one stated residual. The directive that earns the
+  most here is `connect-src`: a script that cannot reach a third-party origin
+  cannot exfiltrate the vault.
 - **Better Auth's `baseURL` is derived per-request from the request origin**,
   never configured or allowlisted. Every hostname that reaches this Worker is
   one the deployment owns, and Cloudflare routes by hostname, so a spoofed

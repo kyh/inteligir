@@ -1,5 +1,5 @@
-// Graceful shutdown: the ordered teardown a signal runs, and the deadline that
-// guarantees the process leaves either way.
+// Graceful shutdown: the ordered teardown a signal runs, and the deadlines
+// that guarantee the process leaves either way.
 //
 // ORDER IS THE CONTRACT, and it is one rule: every writer stops before the
 // durable flush, and the flush happens before the handles close. So the steps
@@ -12,10 +12,16 @@
 // socket refused to close, which is the opposite of what a graceful shutdown
 // is for; failures are reported and the sequence continues.
 //
-// THE DEADLINE IS NOT OPTIONAL. A step that never settles (a wedged git
-// subprocess, a socket that will not drain) would leave a process that ignores
-// ^C, so the whole sequence races a timer and the caller force-exits when it
-// wins.
+// EVERY STEP IS INDEPENDENTLY TIME-BOXED, and the whole-sequence deadline is
+// only a backstop. A single budget for the whole teardown is not a bound on
+// anything: a step that never settles (a wedged git subprocess, a socket that
+// will not drain) consumes the entire budget and starves every step behind it,
+// so the vault flush is skipped for exactly the reason the flush exists.
+// Per-step means a wedged listener costs its own step and nothing else.
+//
+// THE EXIT CODE IS THE TRUTH. A failed final commit or a database that would
+// not close is not a clean shutdown, and reporting 0 for one teaches every
+// supervisor above to believe a lie.
 //
 // A CRASH IS A SHUTDOWN TOO. An uncaught exception or an unhandled rejection
 // exits by Node's default, skipping every step above — including the SQLite
@@ -23,18 +29,36 @@
 // last edits. `installFatalErrorHandlers` routes both through this same
 // sequence and then leaves non-zero.
 
+/** How long the whole teardown gets. A backstop behind the per-step budgets,
+ *  not the thing that bounds them — it only catches a step whose own timer
+ *  somehow does not fire. */
+export const SHUTDOWN_TIMEOUT_MS = 15_000;
+
+/** The default per-step budget. A step with a different shape (a git commit
+ *  over a large tree) states its own. */
+export const DEFAULT_STEP_TIMEOUT_MS = 5_000;
+
 export interface ShutdownStep {
   /** Named for the log line a failure prints. */
   name: string;
+  /** This step's own budget; {@link DEFAULT_STEP_TIMEOUT_MS} when absent. */
+  timeoutMs?: number;
   run(): Promise<void>;
+}
+
+/** What the teardown actually managed. `failed` names the steps that threw or
+ *  ran out of time, in order, so a caller can both exit honestly and say why. */
+export interface ShutdownResult {
+  ok: boolean;
+  failed: readonly string[];
 }
 
 export interface GracefulShutdownArgs {
   steps: readonly ShutdownStep[];
-  /** How long the whole sequence gets before `onTimeout` fires. */
-  timeoutMs: number;
+  /** Whole-sequence backstop; {@link SHUTDOWN_TIMEOUT_MS} when absent. */
+  timeoutMs?: number;
   onStepFailed(name: string, error: unknown): void;
-  /** Called once, from the deadline, when the sequence has not finished. */
+  /** Called once, from the backstop, when the sequence has not finished. */
   onTimeout(): void;
 }
 
@@ -44,34 +68,66 @@ export interface GracefulShutdown {
    * a SIGINT) joins the first run rather than starting a concurrent teardown
    * over half-closed resources.
    */
-  run(): Promise<void>;
+  run(): Promise<ShutdownResult>;
   /** True once `run` has been called — the force-exit branch's condition. */
   readonly started: boolean;
 }
 
-export function createGracefulShutdown(args: GracefulShutdownArgs): GracefulShutdown {
-  let inflight: Promise<void> | null = null;
+class StepTimeoutError extends Error {
+  constructor(name: string, timeoutMs: number) {
+    super(`${name} did not finish within ${timeoutMs}ms`);
+  }
+}
 
-  async function runSteps(): Promise<void> {
-    for (const step of args.steps) {
+function runStep(step: ShutdownStep): Promise<void> {
+  const timeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new StepTimeoutError(step.name, timeoutMs));
+    }, timeoutMs);
+    // `unref` so a step's own timer can never be the thing keeping the process
+    // alive after the teardown has moved on.
+    timer.unref?.();
+    void (async () => {
       try {
         await step.run();
+        clearTimeout(timer);
+        resolve();
       } catch (error) {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    })();
+  });
+}
+
+export function createGracefulShutdown(args: GracefulShutdownArgs): GracefulShutdown {
+  let inflight: Promise<ShutdownResult> | null = null;
+
+  async function runSteps(): Promise<ShutdownResult> {
+    const failed: string[] = [];
+    for (const step of args.steps) {
+      try {
+        await runStep(step);
+      } catch (error) {
+        failed.push(step.name);
         args.onStepFailed(step.name, error);
       }
     }
+    return { ok: failed.length === 0, failed };
   }
 
-  async function runOnce(): Promise<void> {
+  async function runOnce(): Promise<ShutdownResult> {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const deadline = new Promise<void>((resolve) => {
+    const backstop = new Promise<ShutdownResult>((resolve) => {
       timer = setTimeout(() => {
         args.onTimeout();
-        resolve();
-      }, args.timeoutMs);
+        resolve({ ok: false, failed: ["<deadline>"] });
+      }, args.timeoutMs ?? SHUTDOWN_TIMEOUT_MS);
+      timer.unref?.();
     });
     try {
-      await Promise.race([runSteps(), deadline]);
+      return await Promise.race([runSteps(), backstop]);
     } finally {
       if (timer !== null) {
         clearTimeout(timer);
@@ -108,6 +164,9 @@ export interface InstallShutdownSignalsArgs {
    *  the supervisor) has asked twice; honour it by leaving immediately rather
    *  than by starting a concurrent teardown over half-closed resources. */
   onImpatient(signal: NodeJS.Signals): void;
+  /** Told which steps failed, so the operator learns it from the log and the
+   *  supervisor from the exit code. */
+  onUncleanExit(failed: readonly string[]): void;
 }
 
 export function installShutdownSignals(args: InstallShutdownSignalsArgs): void {
@@ -118,8 +177,11 @@ export function installShutdownSignals(args: InstallShutdownSignalsArgs): void {
         return;
       }
       void (async () => {
-        await args.shutdown.run();
-        args.target.exit(0);
+        const result = await args.shutdown.run();
+        if (!result.ok) {
+          args.onUncleanExit(result.failed);
+        }
+        args.target.exit(result.ok ? 0 : 1);
       })();
     });
   }

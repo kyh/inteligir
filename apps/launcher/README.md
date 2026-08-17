@@ -52,6 +52,21 @@ Everything else is inlined at build time.
 the CLI is on `PATH` under its own name, `inteligir`, which is what the agent's
 instructions promise it.
 
+## Supported platforms
+
+| Surface                      | macOS | Linux | Windows                      |
+| ---------------------------- | ----- | ----- | ---------------------------- |
+| `npx inteligir`              | yes   | yes   | yes                          |
+| `inteligir-cli`              | yes   | yes   | yes (npm generates the shim) |
+| `inteligir` on an agent PATH | yes   | yes   | **no** — see below           |
+| The desktop app              | yes   | no    | no                           |
+
+Both bins are node entries, so npm builds a working `.cmd` for each on Windows.
+What does not work there is the agent's PATH injection: the server puts
+`dist/apps/cli/bin` on the agent shell's PATH and the agent types `inteligir`,
+which cmd cannot resolve without an extension. On Windows an agent can still
+drive the product by calling `inteligir-cli`.
+
 ## Developing
 
 This package is built, not written by hand beyond `src/`: `scripts/build.mjs`
