@@ -7,6 +7,7 @@ import {
   type ApiSchemaFromRouteDescriptors,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
+import type { ApiErrorResponse } from "./errors";
 import { knowledgeRoutes } from "./knowledge";
 import { threadRoutes } from "./threads";
 import { vaultRoutes } from "./vault";
@@ -16,19 +17,6 @@ export const API_BASE_PATH = "/api/v1";
 
 export const healthResponseSchema = z.object({ ok: z.literal(true) }).strict();
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
-
-/**
- * Every non-2xx API body. `error` is a stable machine-readable class
- * (`invalid_request`, `forbidden_origin`, `not_found`, `internal`);
- * `message` is safe for display — internals never reach it.
- */
-export const apiErrorResponseSchema = z
-  .object({
-    error: z.string().min(1),
-    message: z.string(),
-  })
-  .strict();
-export type ApiErrorResponse = z.infer<typeof apiErrorResponseSchema>;
 
 /**
  * What the boot-time driver resolution decided. `mode` is the configuration

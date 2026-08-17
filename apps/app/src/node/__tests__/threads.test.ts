@@ -9,7 +9,7 @@ import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import { serverMessageLenientSchema } from "@repo/server-contract/notifications";
-import { apiErrorResponseSchema } from "@repo/server-contract/routes";
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import {
   pendingInteractionSchema,
   threadSchema,

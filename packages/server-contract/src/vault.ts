@@ -12,7 +12,7 @@ import {
   queryRequest,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
-import type { ApiErrorResponse } from "./routes";
+import { apiErrorResponseSchema, type ApiErrorResponse } from "./errors";
 
 /**
  * EVERY caller-supplied vault path on the wire. The grammar is
@@ -116,24 +116,20 @@ export const vaultWriteResponseSchema = z.object({ path: z.string().min(1) }).st
 export type VaultWriteResponse = z.infer<typeof vaultWriteResponseSchema>;
 
 /**
- * Every 409 a write can answer, one schema: `error` is the refusal class
- * (`cas_mismatch`, `already_exists`, or the service's plain `conflict`), and
- * `current` is present exactly for `cas_mismatch` on a file that still
- * exists — the content and hash a merging client needs to retry against.
+ * Every 409 a write can answer: the error envelope plus `current`, present
+ * exactly for `cas_mismatch` on a file that still exists — the content and
+ * hash a merging client needs to retry against. This is the body the envelope
+ * is deliberately non-strict for.
  */
-export const vaultWriteConflictSchema = z
-  .object({
-    error: z.string().min(1),
-    message: z.string(),
-    current: z
-      .object({
-        content: z.string(),
-        hash: z.string().regex(/^[0-9a-f]{64}$/u),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict();
+export const vaultWriteConflictSchema = apiErrorResponseSchema.extend({
+  current: z
+    .object({
+      content: z.string(),
+      hash: z.string().regex(/^[0-9a-f]{64}$/u),
+    })
+    .strict()
+    .optional(),
+});
 export type VaultWriteConflict = z.infer<typeof vaultWriteConflictSchema>;
 
 export const vaultRenameRequestSchema = z

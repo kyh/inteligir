@@ -12,7 +12,7 @@ import {
   queryRequest,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
-import type { ApiErrorResponse } from "./routes";
+import type { ApiErrorResponse } from "./errors";
 import { threadTimelineSchema, timelineDeltaSchema } from "./thread-timeline";
 import { vaultPathSchema } from "./vault";
 

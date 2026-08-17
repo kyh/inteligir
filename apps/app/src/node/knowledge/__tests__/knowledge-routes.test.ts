@@ -7,7 +7,7 @@ import {
   knowledgeTagsResponseSchema,
   renameCandidatesResponseSchema,
 } from "@repo/server-contract/knowledge";
-import { apiErrorResponseSchema } from "@repo/server-contract/routes";
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 

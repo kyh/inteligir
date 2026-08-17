@@ -18,8 +18,7 @@
     "@repo/domain": "workspace:*",
     "@repo/server-contract": "workspace:*",
     "@repo/thread-view": "workspace:*",
-    "commander": "^14.0.0",
-    "zod": "catalog:"
+    "commander": "^14.0.0"
   },
   "devDependencies": {
     "@hono/node-server": "catalog:",

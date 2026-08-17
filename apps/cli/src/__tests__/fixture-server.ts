@@ -6,11 +6,8 @@
 // suites pin what the CLI itself owns (rendering, flags, exit codes).
 
 import { serve } from "@hono/node-server";
-import type {
-  AgentStatus,
-  ApiErrorResponse,
-  SystemStatusResponse,
-} from "@repo/server-contract/routes";
+import type { ApiErrorCode, ApiErrorResponse } from "@repo/server-contract/errors";
+import type { AgentStatus, SystemStatusResponse } from "@repo/server-contract/routes";
 import { apiRoutes, API_BASE_PATH } from "@repo/server-contract/routes";
 import type {
   BacklinkEntryWire,
@@ -45,9 +42,9 @@ export interface FixtureState {
   dataDir: string;
   /** When set, EVERY api route answers this instead — the fitness test's
    *  "does each leaf check the status?" lever. */
-  failWith: { status: 400 | 500; error: string; message: string } | null;
+  failWith: { status: 400 | 500; error: ApiErrorCode; message: string } | null;
   /** Refuse only /threads/send — the window `thread new` must not orphan in. */
-  refuseSend: { error: string; message: string } | null;
+  refuseSend: { error: ApiErrorCode; message: string } | null;
   vault: Map<string, string>;
   searchResults: SearchResultWire[];
   tags: TagCountWire[];

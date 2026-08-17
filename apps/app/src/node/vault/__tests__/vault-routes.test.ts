@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
-import { apiErrorResponseSchema } from "@repo/server-contract/routes";
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import {
   VAULT_MAX_CONTENT_LENGTH,
   vaultReadResponseSchema,
