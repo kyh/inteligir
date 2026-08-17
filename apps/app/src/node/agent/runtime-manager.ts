@@ -62,7 +62,16 @@ import {
   type VaultPathResolver,
 } from "./agent-commits";
 import { loadAgentInstructions } from "./agent-instructions";
+import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
+
+/** Statically-always-dropped kinds that arrive on every token tick: the
+ * translation emits them as the pair of thread/tokenUsage/updated (persisted)
+ * and thread/contextWindowUsage/updated (not) — dropping the second half is
+ * the steady state, not worth a debug line each time. */
+const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<RuntimeThreadEvent["type"]> = new Set([
+  "thread/contextWindowUsage/updated",
+]);
 
 const CODEX_PROVIDER_ID = "codex";
 const DEFAULT_REAP_INTERVAL_MS = 60_000;
@@ -128,6 +137,10 @@ class CodexTurnDriver implements TurnDriver {
   private readonly resolveVaultPath: VaultPathResolver;
   private runtime: AgentRuntime | null = null;
   private reapTimer: ReturnType<typeof setInterval> | null = null;
+  /** One ingest txn + one ws frame per streaming burst, not per delta. */
+  private readonly events = new ProviderEventCoalescer((threadId, batch) =>
+    this.sink.ingestProviderEvents(threadId, batch),
+  );
   private readonly turnsByThreadId = new Map<string, ActiveTurn>();
   /** Bumped on every provider-process exit that hosted the thread. */
   private readonly exitGenerationByThreadId = new Map<string, number>();
@@ -366,7 +379,7 @@ class CodexTurnDriver implements TurnDriver {
       state.acceptedGeneration = this.exitGenerationByThreadId.get(threadId) ?? 0;
       const mapped = mapProviderEvent(event, state.ourTurnId);
       if (mapped.kind === "mapped") {
-        this.sink.ingestProviderEvents(threadId, [mapped.event]);
+        this.events.push(threadId, mapped.event);
       }
       return;
     }
@@ -410,16 +423,21 @@ class CodexTurnDriver implements TurnDriver {
 
     const mapped = mapProviderEvent(event, hostTurnId);
     if (mapped.kind === "dropped") {
-      this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
+      if (!SILENTLY_DROPPED_EVENT_TYPES.has(event.type)) {
+        this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
+      }
       return;
     }
     if (event.type === "turn/completed") {
-      // Settle BEFORE ingest: the ingest transaction drains the queue and can
-      // synchronously dispatch the next turn through startTurn, which must
-      // find this turn fully released.
+      // Settle BEFORE ingest (and settle flushes the buffered deltas first):
+      // the ingest transaction drains the queue and can synchronously
+      // dispatch the next turn through startTurn, which must find this turn
+      // fully released.
       this.settleTurn(threadId);
+      this.sink.ingestProviderEvents(threadId, [mapped.event]);
+      return;
     }
-    this.sink.ingestProviderEvents(threadId, [mapped.event]);
+    this.events.push(threadId, mapped.event);
   }
 
   private async onInteractiveRequest(
@@ -489,6 +507,9 @@ class CodexTurnDriver implements TurnDriver {
   }
 
   private settleTurn(threadId: string): void {
+    // Buffered deltas must be in the log before anything reads the turn as
+    // settled — a queue drain's next turn included.
+    this.events.flush(threadId);
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined || state.settled) {
       return;
@@ -538,6 +559,7 @@ class CodexTurnDriver implements TurnDriver {
 
   async dispose(): Promise<void> {
     this.disposed = true;
+    this.events.flushAll();
     if (this.reapTimer !== null) {
       clearInterval(this.reapTimer);
       this.reapTimer = null;

@@ -4,8 +4,11 @@
 //
 // PROJECTION IS DRIVEN BY ANNOUNCED PATHS. The vault service and the watcher
 // both name the paths they touched, so a pass reads exactly those files —
-// projectDoc once per changed doc, store write, graph mirror. A change with no
-// paths (the consolidated post-sync notification) triggers a RECONCILE instead.
+// projectDoc once per changed doc, store write, graph mirror. What each
+// announced path IS comes from a stat of THAT path, never from a listing of
+// the whole vault: only an announced DIRECTORY costs a walk, and only of its
+// own subtree. A change with no paths (the consolidated post-sync
+// notification) triggers a RECONCILE instead.
 //
 // RECONCILE IS A HASH DIFF, and it is the boot path: walk the vault's listing,
 // hash each doc's bytes, and re-project only where the hash disagrees with what
@@ -33,6 +36,7 @@ import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { contentHashHex, type VaultEntry } from "@repo/server-contract/vault";
+import { mapWithConcurrency } from "../concurrency";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-runtime";
 import { messageOf } from "./message-of";
@@ -49,11 +53,19 @@ const CHANGE_DEBOUNCE_MS = 100;
  * one uninterrupted synchronous unit, not a throughput knob. */
 const BATCH_DOCS = 200;
 
+/** Reads in flight while a batch is gathered. The apply stays synchronous and
+ * batched; this only stops a cold reconcile from paying one file's latency at
+ * a time, without handing the filesystem an unbounded fan-out. */
+const READ_CONCURRENCY = 8;
+
 type ReconcileStats = { projected: number; removed: number; unchanged: number };
 
 /** What the runtime reads — the vault service, which owns containment, the
  * ignore rules and the read cap. */
-type KnowledgeVaultReader = Pick<VaultService, "listTree" | "read">;
+type KnowledgeVaultReader = Pick<
+  VaultService,
+  "listTree" | "statEntry" | "listFilesUnder" | "read"
+>;
 
 export interface KnowledgeRuntimeArgs {
   /** The app's data dir; the index file lives at its root. */
@@ -259,32 +271,60 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
     others.add(path);
   }
 
-  async function indexDocPath(
-    path: string,
-    updates: DocUpdate[],
-  ): Promise<"projected" | "unchanged" | "gone"> {
+  /** What ONE file path needs, read but not yet applied — the async half of
+   * a batch, so a chunk's reads can run concurrently while the apply below
+   * stays one ordered synchronous transaction. */
+  type FileVerdict =
+    | { kind: "projected"; update: DocUpdate }
+    | { kind: "unchanged" }
+    | { kind: "other" }
+    | { kind: "missing" };
+
+  async function readFileVerdict(path: string): Promise<FileVerdict> {
+    if (!isDocPath(path)) return { kind: "other" };
     let content: string;
     try {
       content = (await args.vault.read(path)).content;
     } catch (err) {
       if (!(err instanceof VaultServiceError)) throw err;
-      if (err.code === "too_large") {
-        // Over the read cap: unsearchable, but the path stays in the
-        // link-resolution universe like any non-doc file.
-        indexOther(path);
-      } else {
-        removeIndexed(path);
-      }
-      return "gone";
+      // Over the read cap: unsearchable, but the path stays in the
+      // link-resolution universe like any non-doc file.
+      return err.code === "too_large" ? { kind: "other" } : { kind: "missing" };
     }
     const hash = await contentHashHex(content);
-    if (hashes.get(path) === hash) return "unchanged";
-    updates.push({ path, content, hash });
-    if (updates.length >= BATCH_DOCS) {
-      applyDocUpdates(updates.splice(0));
-      await yieldTurn();
+    if (hashes.get(path) === hash) return { kind: "unchanged" };
+    return { kind: "projected", update: { path, content, hash } };
+  }
+
+  /** Read a batch of file paths with bounded concurrency and apply each
+   * chunk's verdicts in one transaction, in input order. */
+  async function projectFiles(paths: readonly string[], stats?: ReconcileStats): Promise<void> {
+    for (let start = 0; start < paths.length; start += BATCH_DOCS) {
+      const chunk = paths.slice(start, start + BATCH_DOCS);
+      const verdicts = await mapWithConcurrency(chunk, READ_CONCURRENCY, readFileVerdict);
+      const updates: DocUpdate[] = [];
+      for (const [index, verdict] of verdicts.entries()) {
+        const path = chunk[index];
+        if (path === undefined) continue;
+        switch (verdict.kind) {
+          case "projected":
+            updates.push(verdict.update);
+            if (stats !== undefined) stats.projected += 1;
+            break;
+          case "unchanged":
+            if (stats !== undefined) stats.unchanged += 1;
+            break;
+          case "other":
+            indexOther(path);
+            break;
+          case "missing":
+            removeIndexed(path);
+            break;
+        }
+      }
+      applyDocUpdates(updates);
+      if (start + BATCH_DOCS < paths.length) await yieldTurn();
     }
-    return "projected";
   }
 
   async function listFiles(): Promise<string[]> {
@@ -304,55 +344,42 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       stats.removed += 1;
     }
 
-    const updates: DocUpdate[] = [];
-    for (const path of files) {
-      if (!isDocPath(path)) {
-        indexOther(path);
-        continue;
-      }
-      const verdict = await indexDocPath(path, updates);
-      if (verdict === "projected") stats.projected += 1;
-      if (verdict === "unchanged") stats.unchanged += 1;
-    }
-    applyDocUpdates(updates);
+    await projectFiles(files, stats);
     return stats;
   }
 
   /** Apply a batch of announced paths: files re-index, directories re-index
-   * their subtree, missing paths (and anything indexed beneath them) drop. */
+   * their own subtree, missing paths (and anything indexed beneath them)
+   * drop. Each announced path is STATTED — a listing of the whole vault is
+   * the reconcile's job, not a per-batch cost. */
   async function applyChangedPaths(paths: readonly string[]): Promise<void> {
-    const { entries } = await args.vault.listTree();
-    const kinds = new Map<string, VaultEntry["kind"]>();
-    for (const entry of entries) kinds.set(entry.path, entry.kind);
+    const kinds = await mapWithConcurrency(paths, READ_CONCURRENCY, (path) =>
+      args.vault.statEntry(path),
+    );
+    // ONE snapshot of what is indexed, taken before any removal: a missing
+    // path drops its own subtree, and re-reading the live maps per path would
+    // walk the whole index again for every announced deletion.
+    const indexedSnapshot: string[] = kinds.includes(null) ? [...hashes.keys(), ...others] : [];
 
-    const updates: DocUpdate[] = [];
-    for (const path of paths) {
-      switch (kinds.get(path)) {
-        case "file": {
-          if (isDocPath(path)) await indexDocPath(path, updates);
-          else indexOther(path);
-          break;
-        }
-        case "dir": {
-          const prefix = `${path}/`;
-          for (const [entryPath, kind] of kinds) {
-            if (kind !== "file" || !entryPath.startsWith(prefix)) continue;
-            if (isDocPath(entryPath)) await indexDocPath(entryPath, updates);
-            else indexOther(entryPath);
-          }
-          break;
-        }
-        case undefined: {
-          const prefix = `${path}/`;
-          removeIndexed(path);
-          for (const indexed of [...hashes.keys(), ...others]) {
-            if (indexed.startsWith(prefix)) removeIndexed(indexed);
-          }
-          break;
-        }
+    const files: string[] = [];
+    for (const [index, kind] of kinds.entries()) {
+      const path = paths[index];
+      if (path === undefined) continue;
+      if (kind === "file") {
+        files.push(path);
+        continue;
+      }
+      if (kind === "dir") {
+        files.push(...(await args.vault.listFilesUnder(path)));
+        continue;
+      }
+      const prefix = `${path}/`;
+      removeIndexed(path);
+      for (const indexed of indexedSnapshot) {
+        if (indexed.startsWith(prefix)) removeIndexed(indexed);
       }
     }
-    applyDocUpdates(updates);
+    await projectFiles(files);
   }
 
   function settle(): Promise<void> {

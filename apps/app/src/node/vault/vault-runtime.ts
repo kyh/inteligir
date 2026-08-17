@@ -159,7 +159,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
         if (external.length === 0) {
           return;
         }
-        args.notifier.notifyVault(["files-changed"]);
+        args.notifier.notifyVault(["files-changed"], external);
         args.onFilesChanged?.({ kind: "paths", paths: external });
         git.scheduleCommit();
       },

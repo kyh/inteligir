@@ -47,6 +47,9 @@ export interface CommandPaletteProps {
 
 type Page = "root" | "new-note-folder";
 
+/** One quiet keystroke gap before the source is asked at all. */
+const SEARCH_DEBOUNCE_MS = 120;
+
 interface StaticCommand {
   id: string;
   label: string;
@@ -80,26 +83,30 @@ export function CommandPalette({
     }
   }, [open]);
 
-  // Async hits with a staleness guard: a slow answer for an old query must
-  // never overwrite a fresh one.
+  // Async hits, debounced and abortable: a keystroke cancels the pending
+  // timer AND aborts an in-flight request, and an aborted answer never
+  // overwrites a fresh one.
   useEffect(() => {
     if (!open || page !== "root") {
       return undefined;
     }
-    let stale = false;
-    void (async () => {
-      let hits: NoteSearchHit[];
-      try {
-        hits = await searchSource(query);
-      } catch {
-        hits = [];
-      }
-      if (!stale) {
-        setNoteHits(hits);
-      }
-    })();
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void (async () => {
+        let hits: NoteSearchHit[];
+        try {
+          hits = await searchSource(query, controller.signal);
+        } catch {
+          hits = [];
+        }
+        if (!controller.signal.aborted) {
+          setNoteHits(hits);
+        }
+      })();
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
-      stale = true;
+      clearTimeout(timer);
+      controller.abort();
     };
   }, [open, page, query, searchSource]);
 

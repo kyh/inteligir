@@ -4,10 +4,11 @@
 // param — deep-linkable, back/forward works — mirrored to localStorage so a
 // fresh boot reopens where the user left off.
 
+import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, queryKeys, unwrap } from "./api";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { NoteView } from "./note/note-view";
@@ -35,6 +36,8 @@ export interface WorkspaceProps {
   openNote: string | null;
   onOpenNote: (path: string | null) => void;
 }
+
+const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 
 export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const { api } = useWorkspace();
@@ -95,10 +98,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     }
   }, [openNote, treeQuery.data, setOpenNote]);
 
+  // During the drag the width goes straight onto the aside's style — a move
+  // per frame must not re-render the whole workspace; ONE setState lands the
+  // final width on release.
   const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
+  const asideRef = useRef<HTMLElement | null>(null);
   const resizingRef = useRef(false);
+  const dragWidthRef = useRef(0);
   const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     resizingRef.current = true;
+    dragWidthRef.current = sidebarWidth;
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const onResizePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -106,15 +115,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       return;
     }
     const width = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, event.clientX));
-    setSidebarWidth(width);
+    dragWidthRef.current = width;
+    if (asideRef.current !== null) {
+      asideRef.current.style.width = `${width}px`;
+    }
   };
   const onResizePointerUp = (): void => {
     if (resizingRef.current) {
       resizingRef.current = false;
-      setSidebarWidth((width) => {
-        writeSidebarWidth(width);
-        return width;
-      });
+      writeSidebarWidth(dragWidthRef.current);
+      setSidebarWidth(dragWidthRef.current);
     }
   };
 
@@ -166,62 +176,74 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     })();
   }, [api, queryClient]);
 
-  const treeOps: TreeOps = {
-    createNote: (path) => {
-      void createNote(path);
-    },
-    createFolder: (path) => {
-      void (async () => {
-        try {
-          await unwrap(await api.vault.mkdir.$post({ json: { path } }));
-        } catch (error) {
-          toast.error(error instanceof ApiError ? error.message : `Could not create ${path}.`);
-        }
-      })();
-    },
-    renameEntry: (fromPath, toPath) => {
-      void (async () => {
-        try {
-          await unwrap(await api.vault.rename.$post({ json: { from: fromPath, to: toPath } }));
-          if (openNote === fromPath) {
-            setOpenNote(toPath);
-          } else if (openNote !== null && openNote.startsWith(`${fromPath}/`)) {
-            setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
+  const treeOps = useMemo<TreeOps>(
+    () => ({
+      createNote: (path) => {
+        void createNote(path);
+      },
+      createFolder: (path) => {
+        void (async () => {
+          try {
+            await unwrap(await api.vault.mkdir.$post({ json: { path } }));
+          } catch (error) {
+            toast.error(error instanceof ApiError ? error.message : `Could not create ${path}.`);
           }
-        } catch (error) {
-          toast.error(
-            error instanceof ApiError && error.status === 409
-              ? "That name is already taken."
-              : `Could not rename ${fromPath}.`,
-          );
-        }
-      })();
-    },
-    removeEntry: (path, kind) => {
-      void (async () => {
-        const confirmed = await confirm({
-          title: kind === "dir" ? `Delete the folder ${path}?` : `Delete ${path}?`,
-          body:
-            kind === "dir"
-              ? "Everything inside it is deleted with it."
-              : "The note is removed from the vault.",
-          confirmLabel: "Delete",
-          destructive: true,
-        });
-        if (!confirmed) {
-          return;
-        }
-        try {
-          await unwrap(await api.vault.delete.$post({ json: { path } }));
-          if (openNote !== null && (openNote === path || openNote.startsWith(`${path}/`))) {
-            setOpenNote(null);
+        })();
+      },
+      renameEntry: (fromPath, toPath) => {
+        void (async () => {
+          try {
+            await unwrap(await api.vault.rename.$post({ json: { from: fromPath, to: toPath } }));
+            if (openNote === fromPath) {
+              setOpenNote(toPath);
+            } else if (openNote !== null && openNote.startsWith(`${fromPath}/`)) {
+              setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
+            }
+          } catch (error) {
+            toast.error(
+              error instanceof ApiError && error.status === 409
+                ? "That name is already taken."
+                : `Could not rename ${fromPath}.`,
+            );
           }
-        } catch (error) {
-          toast.error(error instanceof ApiError ? error.message : `Could not delete ${path}.`);
-        }
-      })();
-    },
-  };
+        })();
+      },
+      removeEntry: (path, kind) => {
+        void (async () => {
+          const confirmed = await confirm({
+            title: kind === "dir" ? `Delete the folder ${path}?` : `Delete ${path}?`,
+            body:
+              kind === "dir"
+                ? "Everything inside it is deleted with it."
+                : "The note is removed from the vault.",
+            confirmLabel: "Delete",
+            destructive: true,
+          });
+          if (!confirmed) {
+            return;
+          }
+          try {
+            await unwrap(await api.vault.delete.$post({ json: { path } }));
+            if (openNote !== null && (openNote === path || openNote.startsWith(`${path}/`))) {
+              setOpenNote(null);
+            }
+          } catch (error) {
+            toast.error(error instanceof ApiError ? error.message : `Could not delete ${path}.`);
+          }
+        })();
+      },
+    }),
+    [api, createNote, openNote, setOpenNote],
+  );
+
+  const onOpenSettings = useCallback((): void => {
+    setSettingsOpen(true);
+  }, []);
+
+  const onNoteVanished = useCallback((): void => {
+    toast.info("The open note was deleted on disk.");
+    setOpenNote(null);
+  }, [setOpenNote]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -249,19 +271,27 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // search (`tag:<name>` terms parse engine-side), with the filename tiers as
   // the zero-query view and the fallback when the index answers nothing (a
   // filename-shaped query FTS misses) or errors.
-  const treeEntries = treeQuery.data?.entries;
-  const searchSource = useCallback<NoteSearchSource>(
-    async (query) => {
-      const filePaths = (treeEntries ?? [])
+  const treeEntries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
+  const sortedFilePaths = useMemo(
+    () =>
+      treeEntries
         .filter((entry) => entry.kind === "file")
-        .map((entry) => entry.path);
-      const byFilename = () => searchNotesByFilename(query, filePaths);
+        .map((entry) => entry.path)
+        .toSorted(),
+    [treeEntries],
+  );
+  const searchSource = useCallback<NoteSearchSource>(
+    async (query, signal) => {
+      const byFilename = () => searchNotesByFilename(query, sortedFilePaths);
       if (query.trim() === "") {
         return byFilename();
       }
       try {
         const response = await unwrap(
-          await api.knowledge.search.$get({ query: { q: query, limit: NOTE_SEARCH_LIMIT } }),
+          await api.knowledge.search.$get(
+            { query: { q: query, limit: NOTE_SEARCH_LIMIT } },
+            { init: { signal } },
+          ),
         );
         if (response.results.length === 0) {
           return byFilename();
@@ -275,12 +305,24 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         return byFilename();
       }
     },
-    [api, treeEntries],
+    [api, sortedFilePaths],
+  );
+
+  const paletteActions = useMemo(
+    () => ({
+      openNote: setOpenNote,
+      newNote: newUntitledNote,
+      openDailyNote,
+      syncNow,
+      openSettings: onOpenSettings,
+    }),
+    [setOpenNote, newUntitledNote, openDailyNote, syncNow, onOpenSettings],
   );
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background text-foreground">
       <aside
+        ref={asideRef}
         style={{ width: sidebarWidth }}
         className="shrink-0 border-r border-border/60 bg-sidebar text-sidebar-foreground"
       >
@@ -289,7 +331,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           onOpenFile={setOpenNote}
           ops={treeOps}
           onSyncNow={syncNow}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={onOpenSettings}
         />
       </aside>
       <div
@@ -310,29 +352,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             </p>
           </div>
         ) : (
-          <NoteView
-            path={openNote}
-            onRename={setOpenNote}
-            onVanished={() => {
-              toast.info("The open note was deleted on disk.");
-              setOpenNote(null);
-            }}
-          />
+          <NoteView path={openNote} onRename={setOpenNote} onVanished={onNoteVanished} />
         )}
       </main>
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        entries={treeQuery.data?.entries ?? []}
+        entries={treeEntries}
         searchSource={searchSource}
         canSync={canSync}
-        actions={{
-          openNote: setOpenNote,
-          newNote: newUntitledNote,
-          openDailyNote,
-          syncNow,
-          openSettings: () => setSettingsOpen(true),
-        }}
+        actions={paletteActions}
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onSyncNow={syncNow} />
       <ConfirmDialogHost />

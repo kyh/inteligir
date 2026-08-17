@@ -29,9 +29,14 @@ import { titleFromPath } from "@repo/notes/knowledge/link-extract";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 import type { VaultRenameResponse, VaultRenameSkipReason } from "@repo/server-contract/vault";
+import { mapWithConcurrency } from "../concurrency";
 import { normalizeVaultPath } from "../vault/vault-paths";
 import type { VaultService } from "../vault/vault-service";
 import type { KnowledgeRuntime } from "./knowledge-runtime";
+
+/** Snapshot reads in flight before the move; the rewrite that follows stays
+ * strictly sequential (each write re-reads under the mutation lock). */
+const SNAPSHOT_CONCURRENCY = 8;
 
 export interface RenameNoteArgs {
   service: VaultService;
@@ -61,18 +66,27 @@ export async function renameNoteWithLinkRewrite(
   }
   const fromPath = source.path;
 
-  const candidates = await knowledge.renameCandidates(fromPath, toPath);
+  const candidates = (await knowledge.renameCandidates(fromPath, toPath)).filter(isDocPath);
+  // Snapshots are gathered with bounded concurrency and recorded IN CANDIDATE
+  // ORDER: the rewrite below is order-sensitive, the filesystem is not.
+  const snapshots = await mapWithConcurrency(candidates, SNAPSHOT_CONCURRENCY, async (candidate) =>
+    service
+      .read(candidate)
+      .then((file) => file.content)
+      .catch(() => null),
+  );
   const docs = new Map<string, string>();
   const skipped: Array<{ path: string; reason: VaultRenameSkipReason }> = [];
-  for (const candidate of candidates) {
-    if (!isDocPath(candidate)) continue;
-    try {
-      docs.set(candidate, (await service.read(candidate)).content);
-    } catch {
+  for (const [index, snapshot] of snapshots.entries()) {
+    const candidate = candidates[index];
+    if (candidate === undefined) continue;
+    if (snapshot === null) {
       // A candidate that cannot be snapshotted (vanished, over the read cap)
       // is not rewritten; the recorded alias below still covers its links.
       skipped.push({ path: candidate, reason: "unreadable" });
+      continue;
     }
+    docs.set(candidate, snapshot);
   }
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 

@@ -158,7 +158,16 @@ function changedMessagePair<
 }
 
 const systemChangedMessagePair = changedMessagePair("system", SYSTEM_CHANGE_KINDS, {});
-const vaultChangedMessagePair = changedMessagePair("vault", VAULT_CHANGE_KINDS, {});
+/**
+ * `paths` NAMES the vault-relative paths a files-changed announcement covers,
+ * so a client re-reads a note only when that note can have changed. It is
+ * OPTIONAL because absence is a claim of its own: the post-sync consolidated
+ * notification held its batches back and has no path list, and a client that
+ * sees none must assume everything moved.
+ */
+const vaultChangedMessagePair = changedMessagePair("vault", VAULT_CHANGE_KINDS, {
+  paths: z.array(z.string().min(1)).readonly().optional(),
+});
 const docChangedMessagePair = changedMessagePair("doc", DOC_CHANGE_KINDS, {
   id: z.string().min(1),
 });

@@ -142,8 +142,13 @@ export class WsBus implements DbNotifier {
     this.notifyClients({ type: "changed", entity: "system", changes });
   }
 
-  notifyVault(changes: VaultChangeKind[]): void {
-    this.notifyClients({ type: "changed", entity: "vault", changes });
+  notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {
+    this.notifyClients({
+      type: "changed",
+      entity: "vault",
+      changes,
+      ...(paths === undefined ? {} : { paths }),
+    });
   }
 
   notifyDoc(docId: string, changes: DocChangeKind[]): void {

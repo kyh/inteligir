@@ -51,7 +51,15 @@ function applyChangedMessage(
     case "vault":
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTree });
-        notifyDoc(null);
+        // A NAMED change reaches only the notes it names; an unnamed one
+        // asserts nothing, so every open note re-checks its own file.
+        if (message.paths === undefined) {
+          notifyDoc(null);
+        } else {
+          for (const path of message.paths) {
+            notifyDoc(path);
+          }
+        }
       }
       if (message.changes.includes("sync-status-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.vaultStatus });

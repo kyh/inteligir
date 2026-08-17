@@ -15,7 +15,9 @@ export interface NoteSearchHit {
   snippet?: string;
 }
 
-export type NoteSearchSource = (query: string) => Promise<NoteSearchHit[]>;
+/** `signal` aborts a superseded query's request; the palette owns the
+ *  controller and never renders an aborted answer. */
+export type NoteSearchSource = (query: string, signal: AbortSignal) => Promise<NoteSearchHit[]>;
 
 export const NOTE_SEARCH_LIMIT = 12;
 

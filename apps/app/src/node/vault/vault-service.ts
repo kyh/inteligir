@@ -142,6 +142,14 @@ type GuardedWriteResult =
 
 export interface VaultService {
   listTree(): Promise<VaultTreeResponse>;
+  /** What ONE path is, without listing the vault — the targeted alternative
+   *  to `listTree` for a consumer that already knows which paths moved. null
+   *  covers "missing" and every entry the vault refuses to expose (a symlink,
+   *  a staging file, anything under .git). */
+  statEntry(path: string): Promise<"file" | "dir" | null>;
+  /** The file paths under a directory, depth-first — `listTree` scoped to one
+   *  announced subtree. An empty result covers a missing or empty folder. */
+  listFilesUnder(path: string): Promise<string[]>;
   read(path: string): Promise<{ path: string; content: string }>;
   write(path: string, content: string): Promise<{ path: string }>;
   /** Write `content` only if the file still holds exactly `expected`, with the
@@ -209,7 +217,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
   }
 
   function announceMutation(paths: readonly string[]): void {
-    args.notifier.notifyVault(["files-changed"]);
+    args.notifier.notifyVault(["files-changed"], paths);
     args.onMutated?.(paths);
   }
 
@@ -252,6 +260,44 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
       const entries: VaultEntry[] = [];
       await walk(rootReal, "", entries);
       return { root: rootReal, entries };
+    },
+
+    async statEntry(path) {
+      let relPath: string;
+      let absPath: string;
+      try {
+        ({ relPath, absPath } = resolveVaultPath(rootReal, path));
+      } catch {
+        // A path the vault refuses is not an entry, the same as a missing one.
+        return null;
+      }
+      const stats = await lstat(absPath).catch(() => null);
+      if (stats === null || stats.isSymbolicLink()) {
+        return null;
+      }
+      // The listing hides ignored names; a stat must agree with it.
+      if (relPath.split("/").some((segment) => isIgnoredEntryName(segment))) {
+        return null;
+      }
+      if (stats.isDirectory()) {
+        return "dir";
+      }
+      return stats.isFile() ? "file" : null;
+    },
+
+    async listFilesUnder(path) {
+      let relPath: string;
+      let absPath: string;
+      try {
+        ({ relPath, absPath } = resolveVaultPath(rootReal, path));
+      } catch {
+        return [];
+      }
+      const entries: VaultEntry[] = [];
+      await walk(absPath, relPath, entries).catch(() => {
+        // Gone or not a directory: nothing under it to index.
+      });
+      return entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
     },
 
     async read(path) {

@@ -192,15 +192,39 @@ describe("outbound frames against the contract schemas", () => {
     bus.subscribe(socket, { kind: "thread-list" });
     bus.notifySystem(["config-changed"]);
     bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["files-changed"], ["notes/a.md"]);
     bus.notifyDoc("d1", ["content-changed"]);
     bus.notifyThread("t1", ["thread-created"]);
 
-    expect(socket.sent.length).toBe(5);
+    expect(socket.sent.length).toBe(6);
     for (const raw of socket.sent) {
       const frame: unknown = JSON.parse(raw);
       expect(() => serverMessageSchema.parse(frame)).not.toThrow();
       expect(() => serverMessageLenientSchema.parse(frame)).not.toThrow();
     }
+  });
+
+  it("a files-changed frame carries the paths it names, and omits the field when it names none", () => {
+    const bus = createBus();
+    const socket = createFakeSocket();
+    bus.registerClient(socket);
+    bus.subscribe(socket, { kind: "vault" });
+    bus.notifyVault(["files-changed"], ["notes/a.md", "notes/b.md"]);
+    bus.notifyVault(["files-changed"]);
+
+    const [, named, unnamed] = socket.sent;
+    expect(JSON.parse(named ?? "null")).toEqual({
+      type: "changed",
+      entity: "vault",
+      changes: ["files-changed"],
+      paths: ["notes/a.md", "notes/b.md"],
+    });
+    // Absent, never `paths: []` — an empty list would read as "nothing moved".
+    expect(JSON.parse(unnamed ?? "null")).toEqual({
+      type: "changed",
+      entity: "vault",
+      changes: ["files-changed"],
+    });
   });
 
   it("a future server's extra kinds would be filtered, not fatal", () => {

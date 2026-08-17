@@ -86,6 +86,38 @@ describe("the knowledge runtime", () => {
     expect(hits.map((h) => h.path).toSorted()).toEqual(["archive/one.md", "archive/two.md"]);
   });
 
+  it("indexes an announced batch by STATTING it, never by listing the vault", async () => {
+    const dirs = makeDirs();
+    const service = createVaultService({ root: dirs.root, notifier: noopNotifier });
+    let listTreeCalls = 0;
+    const counted: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "read"> = {
+      listTree: () => {
+        listTreeCalls += 1;
+        return service.listTree();
+      },
+      statEntry: (path) => service.statEntry(path),
+      listFilesUnder: (path) => service.listFilesUnder(path),
+      read: (path) => service.read(path),
+    };
+    const knowledge = createKnowledgeRuntime({
+      dataDir: dirs.dataDir,
+      vault: counted,
+      vaultRoot: dirs.root,
+    });
+    cleanups.push(() => knowledge.dispose());
+    // The boot reconcile is the one listing; everything after it is targeted.
+    await knowledge.settle();
+    const afterBoot = listTreeCalls;
+
+    writeFileSync(join(dirs.root, "quoll.md"), "# Quoll\n\nQuoll sightings.\n");
+    knowledge.noteVaultChange({ kind: "paths", paths: ["quoll.md"] });
+    await knowledge.settle();
+    expect((await knowledge.search({ query: "quoll", limit: 10 })).map((h) => h.path)).toEqual([
+      "quoll.md",
+    ]);
+    expect(listTreeCalls).toBe(afterBoot);
+  });
+
   it("reconciles offline mutations at boot with an exact hash diff", async () => {
     const dirs = makeDirs();
     writeFileSync(join(dirs.root, "kept.md"), "# Kept\n\nStable content.\n");
@@ -180,8 +212,10 @@ describe("the knowledge runtime", () => {
     writeFileSync(join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
     const service = createVaultService({ root: dirs.root, notifier: noopNotifier });
     let failNextRead = false;
-    const flaky: Pick<VaultService, "listTree" | "read"> = {
+    const flaky: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "read"> = {
       listTree: () => service.listTree(),
+      statEntry: (path) => service.statEntry(path),
+      listFilesUnder: (path) => service.listFilesUnder(path),
       read: (path) => {
         if (failNextRead) {
           failNextRead = false;

@@ -13,7 +13,10 @@ import type {
  */
 export interface DbNotifier {
   notifySystem(changes: SystemChangeKind[]): void;
-  notifyVault(changes: VaultChangeKind[]): void;
+  /** `paths` names the vault-relative paths a files-changed announcement
+   *  covers; omitted means the change has no path list and every consumer
+   *  must re-diff (see the contract's vault changed message). */
+  notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void;
   notifyDoc(docId: string, changes: DocChangeKind[]): void;
   notifyThread(threadId: string, changes: ThreadChangeKind[]): void;
 }
@@ -39,8 +42,8 @@ export class NotificationBuffer implements DbNotifier {
     this.deliveries.push((target) => target.notifySystem(changes));
   }
 
-  notifyVault(changes: VaultChangeKind[]): void {
-    this.deliveries.push((target) => target.notifyVault(changes));
+  notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {
+    this.deliveries.push((target) => target.notifyVault(changes, paths));
   }
 
   notifyDoc(docId: string, changes: DocChangeKind[]): void {

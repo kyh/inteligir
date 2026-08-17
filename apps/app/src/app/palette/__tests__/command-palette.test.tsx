@@ -84,17 +84,45 @@ describe("note search", () => {
     expect(actions.openNote).toHaveBeenCalledWith("notes/ideas.md");
   });
 
-  it("drops a stale slow answer that resolves after a newer one", async () => {
-    let releaseSlow: (hits: { path: string }[]) => void = noop;
-    const slow = new Promise<{ path: string }[]>((resolve) => {
-      releaseSlow = resolve;
-    });
-    const source: NoteSearchSource = (query) =>
-      query === "old" ? slow : Promise.resolve([{ path: "fresh.md" }]);
+  it("debounces: a query superseded within the window never reaches the source", async () => {
+    const asked: string[] = [];
+    const source: NoteSearchSource = (query) => {
+      asked.push(query);
+      return Promise.resolve([{ path: `${query}.md` }]);
+    };
     renderPalette({ searchSource: source });
     fireEvent.change(searchBox(), { target: { value: "old" } });
     fireEvent.change(searchBox(), { target: { value: "new" } });
+    expect(await screen.findByText("new.md")).toBeDefined();
+    expect(asked).not.toContain("old");
+  });
+
+  it("aborts an in-flight query and drops its answer when a newer one arrives", async () => {
+    let releaseSlow: (hits: { path: string }[]) => void = noop;
+    let slowSignal: AbortSignal | undefined;
+    let slowAsked: () => void = noop;
+    const slowReached = new Promise<void>((resolve) => {
+      slowAsked = resolve;
+    });
+    const slow = new Promise<{ path: string }[]>((resolve) => {
+      releaseSlow = resolve;
+    });
+    const source: NoteSearchSource = (query, signal) => {
+      if (query === "old") {
+        slowSignal = signal;
+        slowAsked();
+        return slow;
+      }
+      return Promise.resolve([{ path: "fresh.md" }]);
+    };
+    renderPalette({ searchSource: source });
+    fireEvent.change(searchBox(), { target: { value: "old" } });
+    // Only once the slow request is actually in flight does the newer query
+    // exercise the abort rather than the debounce.
+    await slowReached;
+    fireEvent.change(searchBox(), { target: { value: "new" } });
     expect(await screen.findByText("fresh.md")).toBeDefined();
+    expect(slowSignal?.aborted).toBe(true);
     releaseSlow([{ path: "stale.md" }]);
     await waitFor(() => {
       expect(screen.queryByText("stale.md")).toBeNull();

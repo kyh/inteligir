@@ -156,29 +156,57 @@ function OpenNote({
     controllerRef.current?.externalContent(diskContent);
   }, [diskContent]);
 
-  // External changes: any doc event naming this path — or an unnamed vault
-  // change (the watcher does not attribute paths) — re-reads the file and
+  // External changes: a doc event naming this path (or a folder above it) —
+  // or an unnamed vault change, which asserts nothing — re-reads the file and
   // hands the disk content to the controller, which no-ops on its own echo.
   // A DIRECT read, not fetchQuery: an in-flight rename 404s the old path by
   // design, and writing that error into the shared query cache would trip
   // NoteView's own vanished path, which this handler's guard cannot reach.
   // The cache is refreshed on success only.
+  //
+  // Reads COALESCE: a burst of events (a save's own echo plus the vault
+  // announcement, an agent turn writing repeatedly) holds ONE request in
+  // flight, and events arriving during it collapse into a single trailing
+  // re-read — so the last read always reflects the final disk state.
   useEffect(() => {
-    return docEvents.subscribe((docId) => {
-      if (docId !== null && docId !== path) {
+    let inFlight: Promise<void> | null = null;
+    let repeat = false;
+
+    const readNow = async (): Promise<void> => {
+      try {
+        const data = await unwrap(await api.vault.file.$get({ query: { path } }));
+        queryClient.setQueryData(queryKeys.vaultFile(path), data);
+        controllerRef.current?.externalContent(data.content);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404 && !renamePendingRef.current) {
+          onVanished();
+        }
+      }
+    };
+
+    const scheduleRead = (): void => {
+      if (inFlight !== null) {
+        repeat = true;
         return;
       }
-      void (async () => {
-        try {
-          const data = await unwrap(await api.vault.file.$get({ query: { path } }));
-          queryClient.setQueryData(queryKeys.vaultFile(path), data);
-          controllerRef.current?.externalContent(data.content);
-        } catch (error) {
-          if (error instanceof ApiError && error.status === 404 && !renamePendingRef.current) {
-            onVanished();
+      const run = (): Promise<void> =>
+        readNow().finally(() => {
+          inFlight = null;
+          if (repeat) {
+            repeat = false;
+            scheduleRead();
           }
-        }
-      })();
+        });
+      inFlight = run();
+    };
+
+    return docEvents.subscribe((docId) => {
+      // A named folder covers the notes beneath it — a directory rename or
+      // delete names the folder, never each file inside it.
+      if (docId !== null && docId !== path && !path.startsWith(`${docId}/`)) {
+        return;
+      }
+      scheduleRead();
     });
   }, [api, docEvents, queryClient, path, onVanished]);
 
