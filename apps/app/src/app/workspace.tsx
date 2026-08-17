@@ -31,6 +31,8 @@ import type { TreeOps } from "./sidebar/file-tree";
 import {
   canSyncNow,
   filePathsLowercased,
+  firstRootDoc,
+  renameVaultEntry,
   untitledNotePath,
   useVaultStatus,
   useVaultTree,
@@ -181,16 +183,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     if (restoreOutcomeRef.current !== "none" || openNote !== null) {
       return;
     }
-    const entries = treeQuery.data?.entries;
-    if (entries === undefined) {
+    if (treeQuery.data === undefined) {
       return;
     }
     restoreOutcomeRef.current = "done";
-    const firstNote = entries.find(
-      (entry) => entry.kind === "file" && !entry.path.includes("/") && entry.path.endsWith(".md"),
-    );
-    if (firstNote !== undefined) {
-      setOpenNote(firstNote.path);
+    const firstNote = firstRootDoc(treeQuery.data);
+    if (firstNote !== null) {
+      setOpenNote(firstNote);
     }
   }, [openNote, treeQuery.data, setOpenNote]);
 
@@ -298,19 +297,15 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       },
       renameEntry: (fromPath, toPath) => {
         void (async () => {
-          try {
-            await unwrap(await api.vault.rename.$post({ json: { from: fromPath, to: toPath } }));
-            if (openNote === fromPath) {
-              setOpenNote(toPath);
-            } else if (openNote !== null && openNote.startsWith(`${fromPath}/`)) {
-              setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
-            }
-          } catch (error) {
-            toast.error(
-              error instanceof ApiError && error.status === 409
-                ? "That name is already taken."
-                : `Could not rename ${fromPath}.`,
-            );
+          const outcome = await renameVaultEntry(api, fromPath, toPath);
+          if (!outcome.ok) {
+            toast.error(outcome.message);
+            return;
+          }
+          if (openNote === fromPath) {
+            setOpenNote(toPath);
+          } else if (openNote !== null && openNote.startsWith(`${fromPath}/`)) {
+            setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
           }
         })();
       },

@@ -53,6 +53,11 @@ export const vaultTreeResponseSchema = z
   .object({
     /** Absolute path of the vault root on this machine. */
     root: z.string().min(1),
+    /** What to CALL the vault — `root`'s last segment, split by the server,
+     *  which is the only side that knows which separator this machine uses.
+     *  A browser splitting an absolute path on `/` renders a whole Windows
+     *  path as the vault's name. */
+    name: z.string().min(1),
     /** Depth-first, parents before children, folders sorted before files. */
     entries: z.array(vaultEntrySchema),
   })

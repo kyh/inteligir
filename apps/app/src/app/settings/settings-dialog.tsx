@@ -15,29 +15,13 @@ import {
 import { Separator } from "@repo/ui/components/separator";
 import { cn } from "@repo/ui/lib/utils";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
-import type { VaultStatusResponse } from "@repo/server-contract/vault";
-import { canSyncNow, useSystemStatus, useVaultStatus, useVaultTree } from "../vault-hooks";
-
-function syncStateLabel(status: VaultStatusResponse): string {
-  switch (status.state) {
-    case "no-remote":
-      return "Local only";
-    case "clean":
-      return "Synced";
-    case "dirty":
-      return "Unsynced changes";
-    case "syncing":
-      return "Syncing…";
-    case "held":
-      return "Waiting on an agent turn";
-    case "offline":
-      return "Offline — the remote could not be reached";
-    case "conflict":
-      return "Conflict";
-    case "broken":
-      return "Broken — manual repair needed";
-  }
-}
+import {
+  canSyncNow,
+  syncStateLabel,
+  useSystemStatus,
+  useVaultStatus,
+  useVaultTree,
+} from "../vault-hooks";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -2,27 +2,50 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NoteTitle, noteStem, pathWithStem } from "../note-title";
+import { NoteTitle } from "../note-title";
 
 afterEach(cleanup);
 
 const renameOk = () => vi.fn<(toPath: string) => Promise<void>>().mockResolvedValue(undefined);
 
-describe("path helpers", () => {
-  it("extracts the stem of a markdown file", () => {
-    expect(noteStem("notes/daily/2026-08-16.md")).toBe("2026-08-16");
-    expect(noteStem("Welcome.md")).toBe("Welcome");
-    expect(noteStem("data.txt")).toBe("data.txt");
-  });
-
-  it("rebuilds the path around a new stem", () => {
-    expect(pathWithStem("notes/ideas.md", "plans")).toBe("notes/plans.md");
-    expect(pathWithStem("Welcome.md", "Hello")).toBe("Hello.md");
-    expect(pathWithStem("notes/data.txt", "renamed.txt")).toBe("notes/renamed.txt");
-  });
-});
-
 describe("the editable H1", () => {
+  // The server treats .md/.markdown/.mdx/.txt alike, so the title has to as
+  // well: a private `.md`-only rule shows the other three their extension
+  // inside the name the user edits, and renames them to `name.markdown.md`.
+  it("hides the extension of EVERY doc the server indexes", () => {
+    for (const [path, stem] of [
+      ["notes/ideas.md", "ideas"],
+      ["notes/spec.markdown", "spec"],
+      ["notes/page.mdx", "page"],
+      ["README.txt", "README"],
+    ] as const) {
+      const onRename = renameOk();
+      render(<NoteTitle path={path} onRename={onRename} onSubmit={vi.fn()} />);
+      const input = screen.getByLabelText("Note title");
+      expect(input instanceof HTMLInputElement && input.value).toBe(stem);
+      cleanup();
+    }
+  });
+
+  it("renames a non-.md doc back onto its own extension", () => {
+    const onRename = renameOk();
+    render(<NoteTitle path="notes/spec.markdown" onRename={onRename} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText("Note title");
+    fireEvent.change(input, { target: { value: "plans" } });
+    fireEvent.blur(input);
+    expect(onRename).toHaveBeenCalledWith("notes/plans.markdown");
+  });
+
+  it("leaves a file that is not a doc showing its whole name", () => {
+    const onRename = renameOk();
+    render(<NoteTitle path="assets/logo.png" onRename={onRename} onSubmit={vi.fn()} />);
+    const input = screen.getByLabelText("Note title");
+    expect(input instanceof HTMLInputElement && input.value).toBe("logo.png");
+    fireEvent.change(input, { target: { value: "mark.png" } });
+    fireEvent.blur(input);
+    expect(onRename).toHaveBeenCalledWith("assets/mark.png");
+  });
+
   it("shows the stem and renames on Enter", () => {
     const onRename = renameOk();
     const onSubmit = vi.fn();

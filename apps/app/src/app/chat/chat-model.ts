@@ -3,10 +3,10 @@
 // delegation's first message is composed from. Pure functions so the
 // composer, the checkbox fast path and the tests share one answer.
 
-import type { ThreadChipStatus } from "@repo/editor/thread-chip";
+import type { ThreadChipTone } from "@repo/editor/thread-chip";
 import { checkboxMarkerAt } from "@repo/notes/knowledge/source-lines";
 import { threadMarkerText } from "@repo/notes/markdown/thread-marker";
-import type { DocThreadActivity, Thread } from "@repo/server-contract/threads";
+import type { Thread } from "@repo/server-contract/threads";
 
 /**
  * Which chat thread a fresh session OPENS ON: the newest unarchived thread
@@ -26,12 +26,43 @@ export function initialChatThread(threads: readonly Thread[]): Thread | null {
   );
 }
 
-export function chipStatusFor(activity: DocThreadActivity): ThreadChipStatus {
-  const { thread } = activity;
+/**
+ * WHAT A THREAD IS DOING, as every surface shows it. The lifecycle statuses
+ * the contract carries are not it: three of them mean "running" to a reader,
+ * and two of the six answers here (`needs-approval`, `queued`) are not thread
+ * columns at all but counts of rows in other tables.
+ *
+ * ONE derivation, because the alternative is visible: the same thread read
+ * "running" in the palette while the dock painted it amber and the doc chip
+ * said "queued", and every new surface added a fourth vocabulary.
+ */
+export type ThreadActivity =
+  | "queued"
+  | "running"
+  | "needs-approval"
+  | "done"
+  | "failed"
+  | "archived";
+
+/** The two counts a `Thread` alone cannot answer. */
+export interface ThreadActivityCounts {
+  openInteractionCount: number;
+  queuedCount: number;
+}
+
+/** For a surface holding a bare `Thread`: the list route answers no counts,
+ *  so such a row reads the thread's own lifecycle and never claims an
+ *  approval or a queue it was not told about. */
+export const NO_ACTIVITY_COUNTS: ThreadActivityCounts = {
+  openInteractionCount: 0,
+  queuedCount: 0,
+};
+
+export function threadActivity(thread: Thread, counts: ThreadActivityCounts): ThreadActivity {
   if (thread.archivedAt !== null) {
     return "archived";
   }
-  if (activity.openInteractionCount > 0) {
+  if (counts.openInteractionCount > 0) {
     return "needs-approval";
   }
   switch (thread.status) {
@@ -42,8 +73,43 @@ export function chipStatusFor(activity: DocThreadActivity): ThreadChipStatus {
     case "error":
       return "failed";
     case "idle":
-      return activity.queuedCount > 0 ? "queued" : "done";
+      return counts.queuedCount > 0 ? "queued" : "done";
   }
+}
+
+/** The one word every surface names an activity with. */
+export const THREAD_ACTIVITY_LABELS: Record<ThreadActivity, string> = {
+  queued: "queued",
+  running: "running",
+  "needs-approval": "needs approval",
+  done: "done",
+  failed: "failed",
+  archived: "archived",
+};
+
+/** The status dot beside a thread, in the chrome Tailwind paints. */
+export const THREAD_ACTIVITY_DOT_CLASSES: Record<ThreadActivity, string> = {
+  queued: "bg-muted-foreground/40",
+  running: "bg-sky-500 animate-pulse",
+  "needs-approval": "bg-amber-500",
+  done: "bg-muted-foreground/40",
+  failed: "bg-destructive",
+  archived: "bg-muted-foreground/40",
+};
+
+/** The same activity in the editor chip's own palette vocabulary. */
+export const THREAD_ACTIVITY_TONES: Record<ThreadActivity, ThreadChipTone> = {
+  queued: "neutral",
+  running: "busy",
+  "needs-approval": "attention",
+  done: "positive",
+  failed: "negative",
+  archived: "muted",
+};
+
+/** Only a settled thread's marker may be removed from the buffer. */
+export function isSettledActivity(activity: ThreadActivity): boolean {
+  return activity === "archived";
 }
 
 export type DelegationIntent = "do" | "ask";

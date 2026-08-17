@@ -32,10 +32,14 @@ import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentHashHex } from "@repo/server-contract/vault";
-import { ApiError, unwrap } from "../api";
+import { ApiError } from "../api";
+import { renameVaultEntry } from "../vault-hooks";
 import {
-  chipStatusFor,
+  isSettledActivity,
   taskPrompt,
+  threadActivity,
+  THREAD_ACTIVITY_LABELS,
+  THREAD_ACTIVITY_TONES,
   type DelegationDraft,
   type DelegationIntent,
 } from "../chat/chat-model";
@@ -120,8 +124,10 @@ function OpenNote({
   const controllerRef = useRef<NoteController | null>(null);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
 
-  // The chip data: every thread bound to this doc, mapped to the widget's
-  // vocabulary. Invalidated whole by the ws thread sweep.
+  // The chip data: every thread bound to this doc, rendered from the ONE
+  // activity derivation the palette and the dock read too — the editor is
+  // handed a word, a tone and a dismiss verdict, never a status to interpret.
+  // Invalidated whole by the ws thread sweep.
   const docThreadsQuery = useDocThreads(path);
   const docThreads = docThreadsQuery.data?.threads;
   // `loading` until the query genuinely ANSWERS — never an empty list, which
@@ -132,17 +138,21 @@ function OpenNote({
         ? { kind: "loading" }
         : {
             kind: "ready",
-            chips: docThreads.flatMap<ThreadChipInfo>((activity) =>
-              activity.thread.originAnchor === null
-                ? []
-                : [
-                    {
-                      anchor: activity.thread.originAnchor,
-                      status: chipStatusFor(activity),
-                      title: activity.thread.title,
-                    },
-                  ],
-            ),
+            chips: docThreads.flatMap<ThreadChipInfo>((docThread) => {
+              if (docThread.thread.originAnchor === null) {
+                return [];
+              }
+              const activity = threadActivity(docThread.thread, docThread);
+              return [
+                {
+                  anchor: docThread.thread.originAnchor,
+                  tone: THREAD_ACTIVITY_TONES[activity],
+                  activity: THREAD_ACTIVITY_LABELS[activity],
+                  title: docThread.thread.title,
+                  dismissable: isSettledActivity(activity),
+                },
+              ];
+            }),
           },
     [docThreads],
   );
@@ -344,7 +354,7 @@ function OpenNote({
         }
       }}
     >
-      <div className="mx-auto w-full max-w-[var(--editor-width,44rem)] px-7 pt-12">
+      <div className="mx-auto w-full max-w-[var(--editor-width)] px-7 pt-12">
         <NoteTitle
           path={path}
           onRename={async (toPath) => {
@@ -361,18 +371,15 @@ function OpenNote({
               toast.error("The note could not be saved, so it was not renamed.");
               throw new Error("rename aborted: save failed");
             }
-            try {
-              await unwrap(await api.vault.rename.$post({ json: { from: path, to: toPath } }));
-              onRename(toPath);
-            } catch (error) {
+            const outcome = await renameVaultEntry(api, path, toPath);
+            if (!outcome.ok) {
               setRenamePending(false);
-              if (error instanceof ApiError && error.status === 409) {
-                toast.error("A note with that name already exists.");
-              } else {
-                toast.error("Could not rename the note.");
-              }
-              throw error;
+              toast.error(outcome.message);
+              // The title re-arms its commit guard on a rejection, so the
+              // same name can be retried once the refusal is dealt with.
+              throw new Error(outcome.message);
             }
+            onRename(toPath);
           }}
           onSubmit={() => editorRef.current?.focus()}
         />

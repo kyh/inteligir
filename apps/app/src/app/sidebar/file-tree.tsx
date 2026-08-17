@@ -12,8 +12,9 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
+import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
-import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -346,7 +347,8 @@ export function FileTree({
 
   const commitCreate = (state: EditingState & { mode: "create" }, name: string): void => {
     setEditing(null);
-    const fileName = state.kind === "file" && !name.includes(".") ? `${name}.md` : name;
+    const fileName =
+      state.kind === "file" && extnamePath(name) === "" ? `${name}${DEFAULT_DOC_EXTENSION}` : name;
     const path = joinPath(state.parentDir, fileName);
     if (state.kind === "file") {
       ops.createNote(path);

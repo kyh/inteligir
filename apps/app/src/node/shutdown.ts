@@ -19,6 +19,12 @@
 // so the vault flush is skipped for exactly the reason the flush exists.
 // Per-step means a wedged listener costs its own step and nothing else.
 //
+// WHICH IS WHY THE SEQUENCE DEADLINE IS DERIVED, never declared. A number
+// written beside the steps rather than FROM them is a second budget that
+// silently becomes the real one the moment it falls below their sum — and
+// what it then cuts short is whatever the order put last, which is the vault
+// flush. Deriving is what makes "only a backstop" true rather than intended.
+//
 // THE EXIT CODE IS THE TRUTH. A failed final commit or a database that would
 // not close is not a clean shutdown, and reporting 0 for one teaches every
 // supervisor above to believe a lie.
@@ -29,14 +35,46 @@
 // last edits. `installFatalErrorHandlers` routes both through this same
 // sequence and then leaves non-zero.
 
-/** How long the whole teardown gets. A backstop behind the per-step budgets,
- *  not the thing that bounds them — it only catches a step whose own timer
- *  somehow does not fire. */
-export const SHUTDOWN_TIMEOUT_MS = 15_000;
-
 /** The default per-step budget. A step with a different shape (a git commit
- *  over a large tree) states its own. */
+ *  over a large tree) states its own, in {@link TEARDOWN_BUDGETS_MS}. */
 export const DEFAULT_STEP_TIMEOUT_MS = 5_000;
+
+/**
+ * EVERY step this process can register, with the budget it gets — the one
+ * place a teardown budget is written. `registerTeardown` takes a name from
+ * this table, so a step cannot arrive carrying a number of its own, and the
+ * deadlines below are sums over it rather than opinions about it.
+ *
+ * The order is the teardown order stated in the header; the sums do not
+ * depend on it, but a reader comparing the two should not have to reorder.
+ */
+export const TEARDOWN_BUDGETS_MS = {
+  listener: DEFAULT_STEP_TIMEOUT_MS,
+  agent: DEFAULT_STEP_TIMEOUT_MS,
+  knowledge: DEFAULT_STEP_TIMEOUT_MS,
+  /** The final commit is a git subprocess over the whole dirty tree, which a
+   *  large vault can make slow — and this is the step the entire ordering
+   *  exists to protect. */
+  vault: 8_000,
+  db: DEFAULT_STEP_TIMEOUT_MS,
+} as const satisfies Record<string, number>;
+
+export type TeardownStepName = keyof typeof TEARDOWN_BUDGETS_MS;
+
+/** Slack for the machinery between steps (the loop, the failure reporting),
+ *  so the backstop cannot land ON a step's own deadline. */
+const DEADLINE_SLACK_MS = 1_000;
+
+function deadlineFor(budgets: readonly number[]): number {
+  return budgets.reduce((total, budget) => total + budget, 0) + DEADLINE_SLACK_MS;
+}
+
+/**
+ * The longest a teardown of EVERY step can honestly take. Exported for the
+ * supervisor outside this process, which derives its own SIGKILL grace from
+ * it: a grace shorter than this lands the kill mid-flush.
+ */
+export const SHUTDOWN_TIMEOUT_MS = deadlineFor(Object.values(TEARDOWN_BUDGETS_MS));
 
 export interface ShutdownStep {
   /** Named for the log line a failure prints. */
@@ -44,6 +82,17 @@ export interface ShutdownStep {
   /** This step's own budget; {@link DEFAULT_STEP_TIMEOUT_MS} when absent. */
   timeoutMs?: number;
   run(): Promise<void>;
+}
+
+function stepTimeoutMs(step: ShutdownStep): number {
+  return step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+}
+
+/** What the steps ACTUALLY registered can spend, plus slack — the deadline a
+ *  sequence gets when its caller states none, and the only bound under which
+ *  "a backstop" is a true description of it. */
+export function shutdownDeadlineMs(steps: readonly ShutdownStep[]): number {
+  return deadlineFor(steps.map(stepTimeoutMs));
 }
 
 /** What the teardown actually managed. `failed` names the steps that threw or
@@ -54,12 +103,14 @@ export interface ShutdownResult {
 }
 
 export interface GracefulShutdownArgs {
+  /** Read at RUN time, so a caller that fills the array as its boot proceeds
+   *  gets a deadline over what it actually registered. */
   steps: readonly ShutdownStep[];
-  /** Whole-sequence backstop; {@link SHUTDOWN_TIMEOUT_MS} when absent. */
-  timeoutMs?: number;
   onStepFailed(name: string, error: unknown): void;
-  /** Called once, from the backstop, when the sequence has not finished. */
-  onTimeout(): void;
+  /** Called once, from the backstop, when the sequence has not finished. Told
+   *  the deadline it just passed, because that number is derived and nobody
+   *  else holds it. */
+  onTimeout(deadlineMs: number): void;
 }
 
 export interface GracefulShutdown {
@@ -80,7 +131,7 @@ class StepTimeoutError extends Error {
 }
 
 function runStep(step: ShutdownStep): Promise<void> {
-  const timeoutMs = step.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+  const timeoutMs = stepTimeoutMs(step);
   return new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new StepTimeoutError(step.name, timeoutMs));
@@ -118,12 +169,13 @@ export function createGracefulShutdown(args: GracefulShutdownArgs): GracefulShut
   }
 
   async function runOnce(): Promise<ShutdownResult> {
+    const deadlineMs = shutdownDeadlineMs(args.steps);
     let timer: ReturnType<typeof setTimeout> | null = null;
     const backstop = new Promise<ShutdownResult>((resolve) => {
       timer = setTimeout(() => {
-        args.onTimeout();
+        args.onTimeout(deadlineMs);
         resolve({ ok: false, failed: ["<deadline>"] });
-      }, args.timeoutMs ?? SHUTDOWN_TIMEOUT_MS);
+      }, deadlineMs);
       timer.unref?.();
     });
     try {

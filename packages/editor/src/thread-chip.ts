@@ -8,10 +8,17 @@
 // Two invariants hold this together. Status NEVER touches the buffer: thread
 // state arrives as a StateEffect, so the only write this extension makes is a
 // dismiss. And a chip whose threads the app has not fetched yet renders as
-// `loading`, never as `unknown` — "no thread claims this anchor" is a claim
-// only an ANSWERED query can make, and offering dismiss on an unanswered one
-// invites deleting a live delegation's anchor. A selection touching the marker
+// LOADING, never as "no thread claims this anchor" — that is a claim only an
+// ANSWERED query can make, and offering dismiss on an unanswered one invites
+// deleting a live delegation's anchor. A selection touching the marker
 // reveals the raw comment, same rule as every other folded construct.
+//
+// WHAT A THREAD IS DOING IS NOT THIS PACKAGE'S VOCABULARY. The app derives it
+// once, for every surface that shows it, and hands this widget the rendering:
+// a word, a tone, and whether the marker may be removed. A status union
+// declared here would be a second answer to a question the palette and the
+// chat dock also ask — and a chip reading "running" beside a palette row
+// reading "idle" is that duplication becoming visible.
 
 import {
   StateEffect,
@@ -28,22 +35,21 @@ import {
 } from "@repo/notes/markdown/thread-marker";
 import { allowsSelectionRebuild } from "./decoration-update-filter";
 
-export type ThreadChipStatus =
-  | "queued"
-  | "running"
-  | "needs-approval"
-  | "done"
-  | "failed"
-  | "archived"
-  /** The app has not answered which threads this doc has yet. */
-  | "loading"
-  /** ANSWERED, and no thread claims this anchor (deleted db, foreign vault). */
-  | "unknown";
+/** How a chip is PAINTED — the editor's own vocabulary, because the editor
+ *  owns the palette. What each one means about a thread is the app's. */
+export type ThreadChipTone = "neutral" | "busy" | "attention" | "positive" | "negative" | "muted";
 
 export interface ThreadChipInfo {
   anchor: string;
-  status: ThreadChipStatus;
+  tone: ThreadChipTone;
+  /** The app's own word for what this thread is doing. Rendered verbatim in
+   *  the chip's accessible name, and as its label when the thread is
+   *  untitled. */
+  activity: string;
   title: string | null;
+  /** Only a settled thread's marker may be removed; the app decides which of
+   *  its threads are settled. */
+  dismissable: boolean;
 }
 
 /** What the app knows about this doc's threads. `loading` is not an empty
@@ -59,44 +65,43 @@ export interface ThreadChipConfig {
 
 export const setThreadChips = StateEffect.define<ThreadChipState>();
 
-const STATUS_LABELS: Record<ThreadChipStatus, string> = {
-  queued: "queued",
-  running: "running",
-  "needs-approval": "needs approval",
-  done: "done",
-  failed: "failed",
-  archived: "archived",
-  loading: "delegation",
-  unknown: "no thread",
+/** The two chips the app cannot describe, because both are facts about its
+ *  ANSWER rather than about a thread: the query has not landed, and it landed
+ *  claiming nothing for this anchor (deleted db, foreign vault). Only the
+ *  second may be dismissed, and neither opens anything. */
+const NO_INFO: Record<ThreadChipState["kind"], Omit<ThreadChipInfo, "anchor">> = {
+  loading: { tone: "muted", activity: "delegation", title: null, dismissable: false },
+  ready: { tone: "muted", activity: "no thread", title: null, dismissable: true },
 };
-
-/** Only a settled thread's marker may be removed — and `unknown` counts only
- *  because it is the ANSWERED "no such thread", never the unanswered one. */
-const isDismissable = (status: ThreadChipStatus): boolean =>
-  status === "archived" || status === "unknown";
 
 class ThreadChipWidget extends WidgetType {
   constructor(
-    readonly anchor: string,
-    readonly status: ThreadChipStatus,
-    readonly title: string | null,
-    readonly onOpen: (anchor: string) => void,
+    readonly info: ThreadChipInfo,
+    /** Null when no thread claims this anchor — nothing to open. */
+    readonly onOpen: ((anchor: string) => void) | null,
   ) {
     super();
   }
 
   override eq(other: ThreadChipWidget): boolean {
     return (
-      other.anchor === this.anchor && other.status === this.status && other.title === this.title
+      other.info.anchor === this.info.anchor &&
+      other.info.tone === this.info.tone &&
+      other.info.activity === this.info.activity &&
+      other.info.title === this.info.title &&
+      other.info.dismissable === this.info.dismissable &&
+      (other.onOpen === null) === (this.onOpen === null)
     );
   }
 
   override toDOM(view: EditorView): HTMLElement {
+    const { anchor, tone, activity, title, dismissable } = this.info;
     const chip = document.createElement("span");
-    chip.className = "cm-thread-chip";
-    chip.dataset["status"] = this.status;
+    chip.className =
+      this.onOpen === null ? "cm-thread-chip cm-thread-chip-inert" : "cm-thread-chip";
+    chip.dataset["tone"] = tone;
     chip.setAttribute("role", "button");
-    chip.setAttribute("aria-label", `Delegation ${STATUS_LABELS[this.status]}`);
+    chip.setAttribute("aria-label", `Delegation ${activity}`);
 
     const dot = document.createElement("span");
     dot.className = "cm-thread-chip-dot";
@@ -104,17 +109,18 @@ class ThreadChipWidget extends WidgetType {
 
     const label = document.createElement("span");
     label.className = "cm-thread-chip-label";
-    label.textContent = this.title ?? STATUS_LABELS[this.status];
+    label.textContent = title ?? activity;
     chip.append(label);
 
-    if (this.status !== "unknown" && this.status !== "loading") {
+    const onOpen = this.onOpen;
+    if (onOpen !== null) {
       chip.addEventListener("click", (event) => {
         event.preventDefault();
-        this.onOpen(this.anchor);
+        onOpen(anchor);
       });
     }
 
-    if (isDismissable(this.status)) {
+    if (dismissable) {
       const dismiss = document.createElement("button");
       dismiss.type = "button";
       dismiss.className = "cm-thread-chip-dismiss";
@@ -177,10 +183,12 @@ export function threadChipsExtension(config: ThreadChipConfig): Extension {
         continue;
       }
       const info = byAnchor?.get(marker.anchor);
-      const status: ThreadChipStatus = info?.status ?? (byAnchor === null ? "loading" : "unknown");
       ranges.push(
         Decoration.replace({
-          widget: new ThreadChipWidget(marker.anchor, status, info?.title ?? null, config.onOpen),
+          widget: new ThreadChipWidget(
+            info ?? { anchor: marker.anchor, ...NO_INFO[chipState.kind] },
+            info === undefined ? null : config.onOpen,
+          ),
         }).range(marker.from, marker.to),
       );
     }
@@ -213,7 +221,7 @@ export function threadChipsExtension(config: ThreadChipConfig): Extension {
   return [field, chipTheme];
 }
 
-const running = "var(--chip-running)";
+const busy = "var(--chip-busy)";
 
 // Same light/dark carrier as editor-theme.ts: light tokens on the editor root,
 // dark under `:root[data-theme="dark"]`, which the host stamps. A
@@ -222,22 +230,22 @@ const running = "var(--chip-running)";
 const chipLightTokens: Record<string, string> = {
   "--chip-border": "oklch(88% 0.01 260)",
   "--chip-fg": "oklch(50% 0.03 257)",
-  "--chip-queued": "oklch(72% 0.015 260)",
-  "--chip-running": "oklch(62% 0.1 240)",
-  "--chip-needs-approval": "oklch(70% 0.13 75)",
-  "--chip-done": "oklch(62% 0.1 150)",
-  "--chip-failed": "oklch(58% 0.16 25)",
+  "--chip-neutral": "oklch(72% 0.015 260)",
+  "--chip-busy": "oklch(62% 0.1 240)",
+  "--chip-attention": "oklch(70% 0.13 75)",
+  "--chip-positive": "oklch(62% 0.1 150)",
+  "--chip-negative": "oklch(58% 0.16 25)",
   "--chip-muted": "oklch(80% 0.01 260)",
 };
 
 const chipDarkTokens: Record<string, string> = {
   "--chip-border": "oklch(38% 0.015 260)",
   "--chip-fg": "oklch(68% 0.025 257)",
-  "--chip-queued": "oklch(55% 0.02 260)",
-  "--chip-running": "oklch(70% 0.1 240)",
-  "--chip-needs-approval": "oklch(75% 0.12 75)",
-  "--chip-done": "oklch(68% 0.1 150)",
-  "--chip-failed": "oklch(66% 0.15 25)",
+  "--chip-neutral": "oklch(55% 0.02 260)",
+  "--chip-busy": "oklch(70% 0.1 240)",
+  "--chip-attention": "oklch(75% 0.12 75)",
+  "--chip-positive": "oklch(68% 0.1 150)",
+  "--chip-negative": "oklch(66% 0.15 25)",
   "--chip-muted": "oklch(45% 0.015 260)",
 };
 
@@ -260,7 +268,7 @@ const chipTheme = EditorView.theme({
     userSelect: "none",
     verticalAlign: "baseline",
   },
-  '.cm-thread-chip[data-status="unknown"], .cm-thread-chip[data-status="loading"]': {
+  ".cm-thread-chip-inert": {
     cursor: "default",
   },
   ".cm-thread-chip-label": {
@@ -275,28 +283,28 @@ const chipTheme = EditorView.theme({
     borderRadius: "999px",
     background: "var(--chip-muted)",
   },
-  '.cm-thread-chip[data-status="queued"] .cm-thread-chip-dot': {
-    background: "var(--chip-queued)",
+  '.cm-thread-chip[data-tone="neutral"] .cm-thread-chip-dot': {
+    background: "var(--chip-neutral)",
   },
-  '.cm-thread-chip[data-status="running"] .cm-thread-chip-dot': {
-    background: running,
+  '.cm-thread-chip[data-tone="busy"] .cm-thread-chip-dot': {
+    background: busy,
     animation: "cm-thread-chip-pulse 1.6s ease-in-out infinite",
   },
-  '.cm-thread-chip[data-status="needs-approval"] .cm-thread-chip-dot': {
-    background: "var(--chip-needs-approval)",
+  '.cm-thread-chip[data-tone="attention"] .cm-thread-chip-dot': {
+    background: "var(--chip-attention)",
   },
-  '.cm-thread-chip[data-status="done"] .cm-thread-chip-dot': {
-    background: "var(--chip-done)",
+  '.cm-thread-chip[data-tone="positive"] .cm-thread-chip-dot': {
+    background: "var(--chip-positive)",
   },
-  '.cm-thread-chip[data-status="failed"] .cm-thread-chip-dot': {
-    background: "var(--chip-failed)",
+  '.cm-thread-chip[data-tone="negative"] .cm-thread-chip-dot': {
+    background: "var(--chip-negative)",
   },
   "@keyframes cm-thread-chip-pulse": {
     "0%, 100%": { opacity: "1" },
     "50%": { opacity: "0.35" },
   },
   "@media (prefers-reduced-motion: reduce)": {
-    '.cm-thread-chip[data-status="running"] .cm-thread-chip-dot': {
+    '.cm-thread-chip[data-tone="busy"] .cm-thread-chip-dot': {
       animation: "none",
     },
   },

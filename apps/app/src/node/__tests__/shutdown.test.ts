@@ -5,9 +5,16 @@ import {
   installFatalErrorHandlers,
   installShutdownSignals,
   SHUTDOWN_SIGNALS,
+  SHUTDOWN_TIMEOUT_MS,
+  shutdownDeadlineMs,
+  TEARDOWN_BUDGETS_MS,
   type FatalEvent,
   type ShutdownStep,
 } from "../shutdown";
+
+function wedgedStep(name: string, timeoutMs: number): ShutdownStep {
+  return { name, timeoutMs, run: () => new Promise<void>(() => {}) };
+}
 
 function recordingStep(name: string, log: string[], run?: () => Promise<void>): ShutdownStep {
   return {
@@ -147,28 +154,65 @@ describe("createGracefulShutdown", () => {
     expect(shutdown.started).toBe(true);
   });
 
-  it("resolves through the whole-sequence backstop", async () => {
+  it("DERIVES the sequence deadline, so no step is starved by the backstop", async () => {
+    // A whole-sequence total written as its own number is the bug: every step
+    // behind the point it expires is skipped — and the order puts the vault
+    // flush last on purpose. Five wedged steps must each cost their own
+    // budget and be NAMED, not be cut off by the deadline that bounds them.
     vi.useFakeTimers();
     try {
+      const steps = [
+        wedgedStep("listener", 5_000),
+        wedgedStep("agent", 5_000),
+        wedgedStep("knowledge", 5_000),
+        wedgedStep("vault", 8_000),
+        wedgedStep("db", 5_000),
+      ];
       let timedOut = false;
       const shutdown = createGracefulShutdown({
         onStepFailed: () => {},
         onTimeout: () => {
           timedOut = true;
         },
-        timeoutMs: 5_000,
-        // A step budget longer than the backstop: the backstop is what answers.
-        steps: [{ name: "wedged", timeoutMs: 60_000, run: () => new Promise<void>(() => {}) }],
+        steps,
       });
 
       const settled = shutdown.run();
-      await vi.advanceTimersByTimeAsync(5_000);
-      await expect(settled).resolves.toEqual({ ok: false, failed: ["<deadline>"] });
-
-      expect(timedOut).toBe(true);
+      await vi.advanceTimersByTimeAsync(shutdownDeadlineMs(steps));
+      await expect(settled).resolves.toEqual({
+        ok: false,
+        failed: ["listener", "agent", "knowledge", "vault", "db"],
+      });
+      expect(timedOut).toBe(false);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("reads the deadline at RUN time, from the steps registered by then", async () => {
+    // The boot fills the array as its resources come up, so a deadline taken
+    // at construction would bound an empty sequence.
+    vi.useFakeTimers();
+    try {
+      const steps: ShutdownStep[] = [];
+      const shutdown = createGracefulShutdown({ ...quiet, steps });
+      steps.push({ name: "vault", timeoutMs: 8_000, run: () => new Promise<void>(() => {}) });
+
+      const settled = shutdown.run();
+      await vi.advanceTimersByTimeAsync(8_000);
+      await expect(settled).resolves.toEqual({ ok: false, failed: ["vault"] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the exported ceiling", () => {
+  it("covers every step budget the process can register", () => {
+    const declared = Object.values(TEARDOWN_BUDGETS_MS).reduce((total, ms) => total + ms, 0);
+    // The supervisor's SIGKILL grace derives from this; a ceiling under the
+    // sum kills the process during whatever the order put last.
+    expect(SHUTDOWN_TIMEOUT_MS).toBeGreaterThan(declared);
   });
 });
 
@@ -272,7 +316,6 @@ describe("installFatalErrorHandlers", () => {
     const fake = fakeFatalTarget();
     const shutdown = createGracefulShutdown({
       ...quiet,
-      timeoutMs: 1_000,
       steps: [recordingStep("vault", log), recordingStep("db", log)],
     });
 
@@ -299,7 +342,6 @@ describe("installFatalErrorHandlers", () => {
     const fake = fakeFatalTarget();
     const shutdown = createGracefulShutdown({
       ...quiet,
-      timeoutMs: 1_000,
       steps: [recordingStep("vault", log)],
     });
 

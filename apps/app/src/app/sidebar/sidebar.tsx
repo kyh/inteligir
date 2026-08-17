@@ -7,7 +7,7 @@ import { cn } from "@repo/ui/lib/utils";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { FilePlusIcon, FolderPlusIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
-import { canSyncNow, useVaultStatus, useVaultTree } from "../vault-hooks";
+import { canSyncNow, syncStateLabel, useVaultStatus, useVaultTree } from "../vault-hooks";
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
 
 /** A failed listing renders as "The vault could not be read", never as the
@@ -17,35 +17,6 @@ function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
     return "failed";
   }
   return query.data === undefined ? "loading" : "loaded";
-}
-
-function vaultName(root: string | undefined): string {
-  if (root === undefined) {
-    return "Vault";
-  }
-  const segments = root.split("/").filter((segment) => segment !== "");
-  return segments.at(-1) ?? "Vault";
-}
-
-function syncPillLabel(status: VaultStatusResponse): string {
-  switch (status.state) {
-    case "no-remote":
-      return "Local only";
-    case "clean":
-      return "Synced";
-    case "dirty":
-      return "Unsynced changes";
-    case "syncing":
-      return "Syncing…";
-    case "held":
-      return "Waiting on the agent";
-    case "offline":
-      return "Offline";
-    case "conflict":
-      return `Conflict (${status.conflict.files.length})`;
-    case "broken":
-      return "Sync broken";
-  }
 }
 
 function syncPillDotClass(status: VaultStatusResponse): string {
@@ -95,7 +66,7 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
       )}
     >
       <span className={cn("size-1.5 rounded-full", syncPillDotClass(status))} />
-      {syncPillLabel(status)}
+      {syncStateLabel(status)}
     </button>
   );
 }
@@ -119,7 +90,7 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center gap-1 px-3 pt-3 pb-2">
         <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
-          {vaultName(treeQuery.data?.root)}
+          {treeQuery.data?.name ?? "Vault"}
         </h2>
         <Button
           variant="ghost"

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
@@ -37,6 +37,16 @@ function bootService() {
   });
   return { root, notifier, service, mutationCount: () => mutations };
 }
+
+describe("what the vault is CALLED", () => {
+  it("is the root's last segment, split by the side that owns the separator", async () => {
+    // The client renders this verbatim. Splitting an absolute path in a
+    // browser means splitting on `/` — which on Windows leaves the whole
+    // path standing in for the vault's name.
+    const { root, service } = bootService();
+    expect((await service.listTree()).name).toBe(basename(root));
+  });
+});
 
 describe("vault CRUD", () => {
   it("round-trips write → list → read → rename → delete", async () => {
