@@ -6,6 +6,7 @@ import { calloutMarkdownSyntaxExtension } from "./callouts";
 import { escapeMarkdownSyntaxExtension } from "./vendor/prosemark/lib/hide/index";
 import { dashMarkdownSyntaxExtension } from "./vendor/prosemark/lib/fold/dashes";
 import { frontmatterMarkdownSyntaxExtension } from "./vendor/prosemark/lib/markdown/frontmatter";
+import { mathMarkdownSyntaxExtension } from "./vendor/prosemark/lib/markdown/mathMarkdown";
 import { nestedLinkAsPlainText } from "./vendor/prosemark/lib/markdown/nestedLinkAsPlainText";
 import { additionalMarkdownSyntaxTags } from "./vendor/prosemark/lib/syntaxHighlighting";
 
@@ -41,5 +42,6 @@ export const markdownLanguageExtension = (): LanguageSupport =>
       escapeMarkdownSyntaxExtension,
       dashMarkdownSyntaxExtension,
       calloutMarkdownSyntaxExtension,
+      mathMarkdownSyntaxExtension,
     ],
   });

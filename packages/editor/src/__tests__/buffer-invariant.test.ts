@@ -28,6 +28,12 @@ Tagged prose: #alpha and #nested/child, plus a literal \`#incode\` one.
 > [!WARNING] A callout
 > with a second line.
 
+Inline $e^{i\\pi} + 1 = 0$ math, and a display block:
+
+$$
+\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}
+$$
+
 - item one
 - [ ] task open
 - [x] task done
@@ -60,6 +66,8 @@ const snippets = [
   "{{x}}",
   "#tag ",
   "> [!NOTE] ",
+  "$$",
+  "$x$",
 ];
 
 // mulberry32: deterministic PRNG so a failure reproduces byte-for-byte.

@@ -49,6 +49,18 @@ seeds its search with \`tag:<name>\`. Inside \`#code\` or a [labelled
 
 > [!totally-made-up] An unknown type still gets a box and its own label.
 
+## Math
+
+Inline math like $e^{i\\pi} + 1 = 0$ sits in the line; a display block gets
+its own:
+
+$$
+\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}
+$$
+
+A padded $ span like this $ is not math, an escaped \\$5 is a price, and a
+broken $\\frobnicate{x}$ shows its own source plus the reason.
+
 ## Code
 
 \`\`\`ts

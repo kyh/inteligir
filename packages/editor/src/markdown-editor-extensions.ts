@@ -10,6 +10,7 @@ import { forceParseHealerExtension } from "./force-parse-healer";
 import { headingMarginMarksExtension } from "./heading-margin-marks";
 import { hideMarksExtension } from "./hide-marks";
 import { markdownLanguageExtension } from "./markdown-language";
+import { mathExtension } from "./math";
 import { tagChipsExtension, tagClickHandler } from "./tag-chips";
 import { taskCheckboxExtension } from "./task-checkbox";
 import { blockQuoteExtension } from "./vendor/prosemark/lib/blockQuote";
@@ -61,6 +62,7 @@ export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): E
   horizonalRuleExtension,
   dashExtension,
   taskCheckboxExtension,
+  mathExtension,
   tagChipsExtension,
   options.onOpenTag === undefined ? [] : tagClickHandler.of(options.onOpenTag),
   codeBlockDecorationsExtension,

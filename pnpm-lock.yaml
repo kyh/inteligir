@@ -561,6 +561,9 @@ importers:
       '@repo/notes':
         specifier: workspace:*
         version: link:../notes
+      katex:
+        specifier: ^0.18.4
+        version: 0.18.4
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -6242,6 +6245,10 @@ packages:
 
   katex@0.16.47:
     resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
+    hasBin: true
+
+  katex@0.18.4:
+    resolution: {integrity: sha512-IMPntbRLOU+eu88XDiFKqQ8Akhr9Tv7jDMXqPhjG9SI1JMA4DIgXk4x9k4skJz2NZJXBRbC+2pYBLj9olqcZow==}
     hasBin: true
 
   keyv@4.5.4:
@@ -14365,6 +14372,10 @@ snapshots:
       graceful-fs: 4.2.11
 
   katex@0.16.47:
+    dependencies:
+      commander: 8.3.0
+
+  katex@0.18.4:
     dependencies:
       commander: 8.3.0
 

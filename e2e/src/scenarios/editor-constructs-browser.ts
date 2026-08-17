@@ -23,6 +23,14 @@ Prose carrying #alpha and #nested/child, plus a literal \`#incode\` one.
 > A second line inside the same callout.
 
 > An ordinary quote, which is not a callout.
+
+Inline $a^2 + b^2 = c^2$ math, then a display block:
+
+$$
+\\int_0^1 x^2 \\, dx = \\frac{1}{3}
+$$
+
+A broken $\\frobnicate{x}$ shows its own source.
 `;
 
 /** What one `eval` pass reports about the rendered editor: a named list of
@@ -53,6 +61,11 @@ const PROBE_SCRIPT = `({
     .map((n) => n.textContent + ':' + n.dataset.callout),
   calloutLines: [...document.querySelectorAll('.cm-content .cm-callout-line')]
     .map((n) => n.dataset.callout),
+  math: [...document.querySelectorAll('.cm-content .cm-math')]
+    .map((n) => (n.classList.contains('cm-math-display') ? 'display' : 'inline')
+      + ':' + (n.querySelector('.katex') ? 'katex' : 'error')),
+  mathErrors: [...document.querySelectorAll('.cm-content .cm-math-error-source')]
+    .map((n) => n.textContent),
 })`;
 
 function isStringArray(value: unknown): value is string[] {
@@ -135,6 +148,16 @@ export const editorConstructsBrowser: Scenario = {
       expect(
         rendered(probe, "calloutLines").join(" ") === "warning warning",
         `both callout lines carry the box, and the plain quote none, got: ${JSON.stringify(rendered(probe, "calloutLines"))}`,
+      );
+
+      ctx.log("math");
+      expect(
+        rendered(probe, "math").join(" ") === "inline:katex display:katex inline:error",
+        `KaTeX renders inline and display math, and a broken formula falls back, got: ${JSON.stringify(rendered(probe, "math"))}`,
+      );
+      expect(
+        rendered(probe, "mathErrors").join(" ") === "$\\frobnicate{x}$",
+        `the failed formula keeps its own source on screen, got: ${JSON.stringify(rendered(probe, "mathErrors"))}`,
       );
 
       ctx.log("the file on disk is byte-identical after rendering");
