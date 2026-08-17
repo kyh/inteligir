@@ -79,7 +79,10 @@ interface TurnAccumulator {
   status: TimelineRowStatus;
   completedAt: number | null;
   sourceSeqStart: number;
-  sourceSeqEnd: number;
+  /** The turn's OWN last contributing sequence — started and completed. The
+   *  row's `sourceSeqEnd` takes the max of this and its children's at assembly;
+   *  see the note on that loop for why it is not every turn-scoped event. */
+  ownSeqEnd: number;
   createdAt: number;
 }
 
@@ -139,12 +142,6 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
     const { event } = entry;
     maxSequence = Math.max(maxSequence, entry.sequence);
     const scopeTurnId = event.scope.kind === "turn" ? event.scope.turnId : null;
-    if (scopeTurnId !== null) {
-      const turn = turnsByTurnId.get(scopeTurnId);
-      if (turn) {
-        turn.sourceSeqEnd = entry.sequence;
-      }
-    }
 
     switch (event.type) {
       case "client/turn/requested": {
@@ -170,7 +167,7 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
             status: "pending",
             completedAt: null,
             sourceSeqStart: entry.sequence,
-            sourceSeqEnd: entry.sequence,
+            ownSeqEnd: entry.sequence,
             createdAt: entry.createdAt,
           });
           turnOrder.push(scopeTurnId);
@@ -182,6 +179,7 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
         if (turn) {
           turn.status = turnStatusToRowStatus(event.status);
           turn.completedAt = entry.createdAt;
+          turn.ownSeqEnd = entry.sequence;
         }
         break;
       }
@@ -280,6 +278,16 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
     const children = (turnChildren.get(turnId) ?? []).toSorted(
       (left, right) => left.seq - right.seq,
     );
+    // The turn row's last contributing sequence is its own plus its children's,
+    // NOT every turn-scoped event. A streaming assistant message is turn-scoped
+    // and lands as a TOP-LEVEL row, so counting it here moved this row on every
+    // delta — and a turn row carries its whole subtree, so the diff resent every
+    // child of the active turn per token. What the field means and what the
+    // delta needs are the same thing once it names only real contributors.
+    let sourceSeqEnd = turn.ownSeqEnd;
+    for (const child of children) {
+      sourceSeqEnd = Math.max(sourceSeqEnd, child.row.sourceSeqEnd);
+    }
     const row: TimelineTurnRow = {
       kind: "turn",
       id: `turn:${turnId}`,
@@ -289,7 +297,7 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
       completedAt: turn.completedAt,
       children: children.map((child) => child.row),
       sourceSeqStart: turn.sourceSeqStart,
-      sourceSeqEnd: turn.sourceSeqEnd,
+      sourceSeqEnd,
       createdAt: turn.createdAt,
     };
     topLevel.push({ seq: turn.sourceSeqStart, row });

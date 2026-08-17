@@ -309,16 +309,27 @@ describe("buildThreadTimeline", () => {
     }
   });
 
-  it("omits rowOrder while a row is merely streaming new content", () => {
+  it("a streaming delta carries ONLY the row that streamed", () => {
     const events = stored(streamedTurnEvents());
     // Between deltas 10 and 11 only the assistant row's text changes.
     const before = buildThreadTimeline(events.slice(0, 10));
     const after = buildThreadTimeline(events.slice(0, 11));
     const delta = computeTimelineDelta(before, after);
+    // Membership and order stay implicit.
     expect(delta.rowOrder).toBeUndefined();
-    // The streaming row and its turn (whose sourceSeqEnd advanced) upsert;
-    // membership and order stay implicit.
-    expect(delta.upsertRows.map((row) => row.id)).toEqual(["turn:turn_1", "item:turn_1:item_a"]);
+    // The turn row must NOT ride along. It carries its whole subtree — the
+    // reasoning and command rows of this turn — so sending it per token is a
+    // full resend of the active turn on every frame.
+    expect(delta.upsertRows.map((row) => row.id)).toEqual(["item:turn_1:item_a"]);
+  });
+
+  it("a turn row still upserts when one of its own children changes", () => {
+    const events = stored(streamedTurnEvents());
+    // Event 7 is the command's outputDelta — a child of the turn row.
+    const before = buildThreadTimeline(events.slice(0, 6));
+    const after = buildThreadTimeline(events.slice(0, 7));
+    const delta = computeTimelineDelta(before, after);
+    expect(delta.upsertRows.map((row) => row.id)).toContain("turn:turn_1");
   });
 
   it("projects an empty log to an empty timeline", () => {
