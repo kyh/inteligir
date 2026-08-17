@@ -46,8 +46,9 @@ export type DocProjection = {
    * resolver's below-path tiers and the `[[` picker's extra keywords. */
   aliases: string[];
   /** The doc's GFM task items in ordinal order (empty under the `tasks:
-   * false` opt-out) — the Tasks view's whole-vault query source. Persisted
-   * child-keyed by (path, ordinal), never by offsets. */
+   * false` opt-out). Persisted, and read by no query today: the scan counts
+   * them regardless — that count is the editor's checkbox lockstep — so
+   * carrying the result costs one json field and no second parse. */
   tasks: ExtractedTask[];
 };
 
