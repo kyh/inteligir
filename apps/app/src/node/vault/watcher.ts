@@ -4,13 +4,14 @@
 // without taking the server down.
 
 import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
+import { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
+import { relativeUnder } from "../path-containment";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 import { createForkChannel } from "./watcher/fork-channel";
 import type { ParcelAsyncSubscription, ParcelWatcherBackend } from "./watcher/parcel-backend";
 import { toWatchErrorMessage } from "./watcher/parcel-backend";
 import { createParcelWatcherProxy, type ParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
-import { isIgnoredEntryName } from "./vault-paths";
 
 const DEBOUNCE_MS = 200;
 const MAX_WAIT_MS = 1_000;
@@ -67,17 +68,11 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
   });
 
   function toVaultRelativePath(absPath: string): string | null {
-    const rel = relative(root, absPath);
-    // A bare startsWith("..") would also eat a legal root entry named
-    // "..draft.md" — outside-the-root is exactly these three shapes.
-    if (rel.length === 0 || rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) {
+    const rel = relativeUnder(root, absPath);
+    if (rel === null) {
       return null;
     }
-    const segments = rel.split(sep);
-    if (segments.some((segment) => isIgnoredEntryName(segment))) {
-      return null;
-    }
-    return segments.join("/");
+    return rel.split("/").some((segment) => isIgnoredEntryName(segment)) ? null : rel;
   }
 
   function scheduleResubscribe(): void {

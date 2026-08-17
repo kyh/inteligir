@@ -1,5 +1,8 @@
 // The knowledge wire contract: read-only queries over the derived vault index
-// (search, backlinks, tags, rename candidates). Every schema here MIRRORS an
+// (search, backlinks, tags, rename candidates). Paths are `vaultPathSchema`,
+// the same grammar the vault's own routes take — answering an index query for
+// a path the vault would refuse invites the client to then act on it.
+// Every schema here MIRRORS an
 // engine type from @repo/notes — the handlers assign engine values straight
 // into these shapes. A field the engine RENAMES or removes fails the handler's
 // compile; a field the engine ADDS is invisible to the compiler (structural
@@ -20,7 +23,7 @@ import {
   queryRequest,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
-import type { ApiErrorResponse } from "./routes";
+import { vaultPathSchema } from "./vault";
 
 export const KNOWLEDGE_SEARCH_MAX_LIMIT = 100;
 export const KNOWLEDGE_BACKLINKS_MAX = 500;
@@ -74,7 +77,7 @@ export const backlinkEntrySchema = z
   .strict();
 export type BacklinkEntryWire = z.infer<typeof backlinkEntrySchema>;
 
-export const knowledgeBacklinksRequestSchema = z.object({ path: z.string().min(1) }).strict();
+export const knowledgeBacklinksRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type KnowledgeBacklinksRequest = z.infer<typeof knowledgeBacklinksRequestSchema>;
 
 export const knowledgeBacklinksResponseSchema = z
@@ -106,8 +109,8 @@ export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
 
 export const renameCandidatesRequestSchema = z
   .object({
-    from: z.string().min(1),
-    to: z.string().min(1),
+    from: vaultPathSchema,
+    to: vaultPathSchema,
   })
   .strict();
 export type RenameCandidatesRequest = z.infer<typeof renameCandidatesRequestSchema>;
@@ -133,10 +136,7 @@ export const knowledgeRoutes = {
     path: "/knowledge/backlinks",
     method: "get",
     request: queryRequest<EmptyInput, KnowledgeBacklinksRequest>(knowledgeBacklinksRequestSchema),
-    response: [
-      jsonResponse<KnowledgeBacklinksResponse>(),
-      jsonResponse<ApiErrorResponse>({ status: 400 }),
-    ],
+    response: jsonResponse<KnowledgeBacklinksResponse>(),
   }),
   tags: defineRoute({
     path: "/knowledge/tags",
@@ -148,9 +148,6 @@ export const knowledgeRoutes = {
     path: "/knowledge/rename-candidates",
     method: "get",
     request: queryRequest<EmptyInput, RenameCandidatesRequest>(renameCandidatesRequestSchema),
-    response: [
-      jsonResponse<RenameCandidatesResponse>(),
-      jsonResponse<ApiErrorResponse>({ status: 400 }),
-    ],
+    response: jsonResponse<RenameCandidatesResponse>(),
   }),
 };

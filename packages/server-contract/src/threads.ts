@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 import type { ApiErrorResponse } from "./routes";
 import { threadTimelineSchema, timelineDeltaSchema } from "./thread-timeline";
+import { vaultPathSchema } from "./vault";
 
 export const threadSchema = z
   .object({
@@ -52,37 +53,6 @@ export const pendingInteractionSchema = z
 export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
 
 const MAX_THREAD_TITLE_LENGTH = 200;
-const MAX_VAULT_PATH_LENGTH = 1024;
-
-/**
- * The vault-path rules this boundary can state as a VALUE (the server's own
- * `normalizeVaultPath` remains the gate for anything that touches the
- * filesystem): relative, `/`-separated, no traversal, no reach into `.git`.
- * A thread's origin is a stored path nothing else re-validates, so a bad one
- * would sit in the database forever, unmatched by every by-doc query.
- */
-const vaultDocPathSchema = z
-  .string()
-  .min(1)
-  .max(MAX_VAULT_PATH_LENGTH)
-  .refine((value) => !value.includes("\0") && !value.includes("\\"), {
-    message: "path must use / separators and contain no null bytes",
-  })
-  .refine((value) => !value.startsWith("/"), {
-    message: "path must be relative to the vault root",
-  })
-  .refine(
-    (value) => {
-      const segments = value.split("/").filter((segment) => segment.length > 0);
-      return (
-        segments.length > 0 &&
-        segments.every(
-          (segment) => segment !== "." && segment !== ".." && segment.toLowerCase() !== ".git",
-        )
-      );
-    },
-    { message: "path must name an entry inside the vault" },
-  );
 
 /** The anchor token grammar, stated once in @repo/notes and validated here so
  *  a stored anchor always matches what the marker in the file can spell. */
@@ -93,7 +63,9 @@ const originAnchorSchema = z.string().regex(new RegExp(THREAD_ANCHOR_TOKEN_PATTE
 export const createThreadRequestSchema = z
   .object({
     title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
-    originDocPath: vaultDocPathSchema.optional(),
+    /** A thread's origin is a stored path nothing else re-validates, so a bad
+     *  one would sit in the database forever, unmatched by every by-doc query. */
+    originDocPath: vaultPathSchema.optional(),
     originAnchor: originAnchorSchema.optional(),
   })
   .strict()

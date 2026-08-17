@@ -133,9 +133,11 @@ describe("the vault routes", () => {
     expect(miss.status).toBe(404);
     expect(apiErrorResponseSchema.parse(await miss.json()).error).toBe("not_found");
 
+    // The path grammar is on the request schema, so a traversal is refused by
+    // the validator before a handler can be entered with it.
     const traversal = await app.request("/api/v1/vault/file?path=..%2Fescape.md");
     expect(traversal.status).toBe(400);
-    expect(apiErrorResponseSchema.parse(await traversal.json()).error).toBe("invalid_path");
+    expect(apiErrorResponseSchema.parse(await traversal.json()).error).toBe("invalid_request");
 
     const gitReach = await app.request(
       "/api/v1/vault/file",

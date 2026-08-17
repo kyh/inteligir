@@ -44,10 +44,12 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   "@repo/ui": [],
 
   "@repo/editor": ["@repo/notes"],
-  // The @repo/notes edge is the delegation anchor's token grammar, and it is
-  // narrow ON PURPOSE: `markdown/thread-anchor` is parser-free, so validating
-  // an anchor in the contract cannot drag remark into every client bundle.
-  // Widening this edge to a remark-carrying module is the regression to catch.
+  // The @repo/notes edge is two grammars the contract validates against —
+  // the delegation anchor's token (`markdown/thread-anchor`) and the vault
+  // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules
+  // are parser-free, so refusing a bad value in the contract cannot drag
+  // remark into every client bundle. Widening this edge to a remark-carrying
+  // module is the regression to catch.
   "@repo/server-contract": ["@repo/domain", "@repo/notes", "@repo/typed-routes"],
   "@repo/agent-runtime": ["@repo/domain"],
   // Persistence sits BELOW the wire: the store announces its writes through

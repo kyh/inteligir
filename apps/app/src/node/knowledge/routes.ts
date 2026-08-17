@@ -1,9 +1,9 @@
 // The knowledge routes, registered against the contract rows. Read-only:
 // every handler settles the index (via the runtime) and answers from it.
 // `tag:<name>` terms are parsed ENGINE-side (parseSearchQuery), so the route's
-// grammar is the same one every other search surface gets. Paths are refused
-// with the same rules the vault's own routes apply — answering an index query
-// for a path the vault would refuse invites the client to then act on it.
+// grammar is the same one every other search surface gets. Paths arrive
+// already parsed and normalized by `vaultPathSchema`, so nothing here can be
+// handed a traversal to refuse.
 
 import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
@@ -13,14 +13,8 @@ import {
   KNOWLEDGE_TAGS_MAX,
   knowledgeRoutes,
 } from "@repo/server-contract/knowledge";
-import type { ApiErrorResponse } from "@repo/server-contract/routes";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
-import { normalizeVaultPath, VaultPathError } from "../vault/vault-paths";
 import type { KnowledgeRuntime } from "./knowledge-runtime";
-
-function invalidPath(error: VaultPathError): ApiErrorResponse {
-  return { error: "invalid_path", message: error.message };
-}
 
 export function registerKnowledgeRoutes(
   registrars: Pick<TypedRoutesRegistrars, "get">,
@@ -39,18 +33,12 @@ export function registerKnowledgeRoutes(
   });
 
   get(knowledgeRoutes.backlinks, async (c, query) => {
-    try {
-      const path = normalizeVaultPath(query.path);
-      const backlinks = await knowledge.backlinks(path);
-      return c.json({
-        path,
-        backlinks: backlinks.slice(0, KNOWLEDGE_BACKLINKS_MAX),
-        total: backlinks.length,
-      });
-    } catch (error) {
-      if (error instanceof VaultPathError) return c.json(invalidPath(error), 400);
-      throw error;
-    }
+    const backlinks = await knowledge.backlinks(query.path);
+    return c.json({
+      path: query.path,
+      backlinks: backlinks.slice(0, KNOWLEDGE_BACKLINKS_MAX),
+      total: backlinks.length,
+    });
   });
 
   get(knowledgeRoutes.tags, async (c) => {
@@ -59,18 +47,10 @@ export function registerKnowledgeRoutes(
   });
 
   get(knowledgeRoutes.renameCandidates, async (c, query) => {
-    try {
-      const candidates = await knowledge.renameCandidates(
-        normalizeVaultPath(query.from),
-        normalizeVaultPath(query.to),
-      );
-      return c.json({
-        candidates: candidates.slice(0, KNOWLEDGE_RENAME_CANDIDATES_MAX),
-        total: candidates.length,
-      });
-    } catch (error) {
-      if (error instanceof VaultPathError) return c.json(invalidPath(error), 400);
-      throw error;
-    }
+    const candidates = await knowledge.renameCandidates(query.from, query.to);
+    return c.json({
+      candidates: candidates.slice(0, KNOWLEDGE_RENAME_CANDIDATES_MAX),
+      total: candidates.length,
+    });
   });
 }

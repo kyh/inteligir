@@ -15,7 +15,8 @@
 //   unrelated edits stay uncommitted for their own settle/debounce commit.
 
 import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, resolve } from "node:path";
+import { relativeUnder } from "../path-containment";
 import type { CommitAuthor, GitEngine } from "../vault/git";
 
 const AGENT_COMMIT_AUTHOR: CommitAuthor = {
@@ -25,17 +26,6 @@ const AGENT_COMMIT_AUTHOR: CommitAuthor = {
 
 function agentCommitSubject(threadId: string): string {
   return `agent: vault update\n\nThread: ${threadId}`;
-}
-
-function relativeUnder(root: string, reported: string): string | null {
-  const rel = relative(root, reported);
-  if (rel.length === 0 || rel === "." || isAbsolute(rel)) {
-    return null;
-  }
-  if (rel === ".." || rel.startsWith(`..${sep}`) || rel.startsWith("../")) {
-    return null;
-  }
-  return rel.split(sep).join("/");
 }
 
 export type VaultPathResolver = (reported: string) => string | null;

@@ -68,14 +68,18 @@ describe("the knowledge routes", () => {
     expect(candidates.toSorted()).toEqual(["linker.md", "target.md"]);
     expect(total).toBe(2);
 
+    // The request validator answers, not the handler: the path grammar is on
+    // the schema, so an index query can never be RUN against a hostile path.
     const hostile = await app.request(
       "/api/v1/knowledge/rename-candidates?from=..%2Fescape.md&to=x.md",
     );
     expect(hostile.status).toBe(400);
-    expect(apiErrorResponseSchema.parse(await hostile.json()).error).toBe("invalid_path");
+    expect(apiErrorResponseSchema.parse(await hostile.json()).error).toBe("invalid_request");
 
     const hostileBacklinks = await app.request("/api/v1/knowledge/backlinks?path=..%2Fescape.md");
     expect(hostileBacklinks.status).toBe(400);
-    expect(apiErrorResponseSchema.parse(await hostileBacklinks.json()).error).toBe("invalid_path");
+    expect(apiErrorResponseSchema.parse(await hostileBacklinks.json()).error).toBe(
+      "invalid_request",
+    );
   });
 });

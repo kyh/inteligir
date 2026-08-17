@@ -5,9 +5,10 @@
 // sync holds that lock and replaced by ONE consolidated notification after.
 
 import { writeFile } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
+import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import { createGitEngine, ensureVaultRepo, type GitEngine } from "./git";
 import { createVaultService, sweepStaleTmpFiles, type VaultService } from "./vault-service";
 import { createVaultWatcher, type VaultWatcher } from "./watcher";
@@ -61,24 +62,11 @@ export interface VaultRuntime {
   dispose(): Promise<void>;
 }
 
-function pathContains(parent: string, child: string): boolean {
-  return child === parent || child.startsWith(parent + sep);
-}
-
-function assertDisjoint(vaultDir: string, dataDir: string): void {
-  if (pathContains(vaultDir, dataDir) || pathContains(dataDir, vaultDir)) {
-    throw new Error(
-      `The vault directory and the data directory must be disjoint, but vault "${vaultDir}" and data dir "${dataDir}" nest. ` +
-        `Set INTELIGIR_VAULT_DIR (or config.json's vaultDir) to a folder outside the data dir.`,
-    );
-  }
-}
-
 export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultRuntime> {
   const root = resolve(args.vaultDir);
   // Config refuses this earlier for the shipping boot; re-asserted here so a
   // directly-composed runtime (tests, future callers) cannot skip it.
-  assertDisjoint(root, resolve(args.dataDir));
+  assertVaultAndDataDirDisjoint(root, resolve(args.dataDir));
 
   await ensureVaultRepo({
     root,

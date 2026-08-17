@@ -5,7 +5,7 @@
 import { apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
 import type { VaultRenameResponse, VaultWriteConflict } from "@repo/server-contract/vault";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
-import { VaultPathError } from "./vault-paths";
+import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import type { VaultRuntime } from "./vault-runtime";
 import { VaultServiceError, type GuardedWriteGuard } from "./vault-service";
 

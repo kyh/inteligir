@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/prom
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { VaultPathError, VAULT_TMP_PREFIX } from "../vault-paths";
+import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
 
