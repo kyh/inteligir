@@ -130,11 +130,18 @@ pnpm format:fix && pnpm verify
 gate, in one command so no caller can drift from it. It is check-only on
 purpose: `format:fix` runs FIRST.
 
-CI runs those six and then three more that `verify` cannot: it installs
+CI runs those six and then a few more that `verify` cannot: it installs
 agent-browser and runs the scenario suite in BOTH modes (`pnpm e2e` and
 `pnpm e2e --prod`). Both, because they serve different code — dev runs Vite's
 middleware and no CSP, prod serves the built shell under the real policy. So a
 green `verify` is not a green CI; run `pnpm e2e` too before claiming one.
+
+That "plus a few more" is a CLAIM, and
+`tools/repo-guards/src/ci-verify-parity.test.ts` is what keeps it one: every
+gate workflow runs `pnpm verify` or its chain in verify's own order, and every
+step on top of that is a row in `DECLARED_CI_EXTRAS` with its reason. A step
+nobody declared fails the guard rather than quietly becoming a build a
+developer cannot reproduce.
 
 **There is no seeded login, and sign-up is invite-only.** `AGENTS.md` has the
 recipe. Never run `db:push` or `db:studio`: both hit production D1; the local
