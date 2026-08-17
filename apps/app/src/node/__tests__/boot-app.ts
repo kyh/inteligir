@@ -59,7 +59,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   mkdirSync(dataDir, { recursive: true });
   const databasePath = join(dataDir, "inteligir.db");
   const db = createConnection(databasePath);
-  runMigrations(db);
+  const knownSchemaVersion = runMigrations(db);
 
   const bus = new WsBus({ version: "0.1.0-test" });
   let knowledgeSink: KnowledgeRuntime | null = null;
@@ -104,7 +104,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     db,
     fallback: options.fallback ?? { kind: "none" },
     knowledge,
-    schemaVersion: getSchemaVersion(db),
+    schemaVersion: getSchemaVersion(db, knownSchemaVersion),
     startedAt: Date.now(),
     vault,
     version: "0.1.0-test",

@@ -23,14 +23,25 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 import { classifyNavigation, classifyWindowOpen } from "./origin-pin";
-import { resolveServerEntry, resolveServerRuntime, serverProcessEnv } from "./server-paths";
+import {
+  resolveAppCheckoutDir,
+  resolveServerEntry,
+  resolveServerRuntime,
+  serverProcessEnv,
+} from "./server-paths";
 import {
   createSupervisor,
   DEFAULT_SUPERVISOR_LIMITS,
   type SupervisedChild,
   type SupervisorState,
 } from "./server-supervisor";
-import { healthUrl, planServerStart, resolvePort, serverOrigin, windowUrl } from "./server-target";
+import {
+  healthUrl,
+  planServerStart,
+  resolveServerTarget,
+  windowUrl,
+  type ServerTarget,
+} from "./server-target";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
 const HEALTH_TIMEOUT_MS = 2_000;
@@ -69,10 +80,18 @@ async function healthAnswered(origin: string): Promise<boolean> {
   }
 }
 
-function spawnServerChild(entryPath: string, port: number): SupervisedChild {
+function spawnServerChild(entryPath: string, target: ServerTarget): SupervisedChild {
   const runtime = resolveServerRuntime({ isPackaged: app.isPackaged, execPath: process.execPath });
   const child = spawn(runtime.executablePath, [entryPath], {
-    env: serverProcessEnv(process.env, runtime.mode, { INTELIGIR_PORT: String(port) }),
+    // The shell's resolution is handed down whole. The child re-deriving any
+    // of it would be a second answer to a question already asked — and its
+    // cwd is this process's, not the app checkout's, so a re-derived dev
+    // instance would not even be the same one.
+    env: serverProcessEnv(process.env, runtime.mode, {
+      INTELIGIR_DATA_DIR: target.dataDir,
+      INTELIGIR_PORT: String(target.port),
+      INTELIGIR_VAULT_DIR: target.vaultDir,
+    }),
     stdio: ["ignore", "inherit", "inherit"],
   });
   return {
@@ -86,7 +105,8 @@ function spawnServerChild(entryPath: string, port: number): SupervisedChild {
   };
 }
 
-async function startServer(origin: string, port: number): Promise<void> {
+async function startServer(target: ServerTarget): Promise<void> {
+  const origin = target.origin;
   if (planServerStart(await healthAnswered(origin)) === "adopt") {
     console.log(`[desktop] a server is already listening on ${origin} — adopting it`);
     return;
@@ -97,7 +117,7 @@ async function startServer(origin: string, port: number): Promise<void> {
   }
   supervisor = createSupervisor(
     {
-      spawnServer: () => spawnServerChild(entryPath, port),
+      spawnServer: () => spawnServerChild(entryPath, target),
       probeHealth: () => healthAnswered(origin),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       schedule: (intervalMs, tick) => {
@@ -122,8 +142,10 @@ function onServerStateChanged(state: SupervisorState): void {
   }
 }
 
-/** Where the running server keeps its data, asked of the server rather than
- *  re-derived — the shell must never own a second copy of that resolution. */
+/** Where the RUNNING server keeps its data. Asked of it rather than taken from
+ *  the shell's own resolution, because an adopted server is one the shell did
+ *  not configure — "Open Data Folder" must open the folder in use, not the one
+ *  a spawn would have used. */
 async function fetchDataDir(origin: string): Promise<void> {
   try {
     const response = await fetch(`${origin}/api/v1/system/status`, {
@@ -292,25 +314,30 @@ function createTray(origin: string): Tray | null {
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-async function onAppReady(origin: string, port: number): Promise<void> {
+async function onAppReady(target: ServerTarget): Promise<void> {
   app.setName(APP_DISPLAY_NAME);
   app.setAboutPanelOptions({
     applicationName: APP_DISPLAY_NAME,
     applicationVersion: app.getVersion(),
   });
-  configureApplicationMenu(origin);
-  await startServer(origin, port);
-  await fetchDataDir(origin);
-  tray = createTray(origin);
-  mainWindow = createWindow(origin);
+  configureApplicationMenu(target.origin);
+  await startServer(target);
+  await fetchDataDir(target.origin);
+  tray = createTray(target.origin);
+  mainWindow = createWindow(target.origin);
 }
 
-const port = resolvePort(process.env.INTELIGIR_PORT);
-if (typeof port !== "number") {
-  dialog.showErrorBox("Inteligir failed to start", port.error);
+const resolved = resolveServerTarget({
+  isPackaged: app.isPackaged,
+  appCheckoutDir: resolveAppCheckoutDir(app.getAppPath()),
+  env: process.env,
+});
+if (resolved.kind === "refused") {
+  dialog.showErrorBox("Inteligir failed to start", resolved.error);
   app.exit(2);
 } else {
-  const origin = serverOrigin(port);
+  const target = resolved.target;
+  const origin = target.origin;
 
   app.on("activate", () => {
     showMainWindow(origin);
@@ -342,7 +369,7 @@ if (typeof port !== "number") {
     });
     app
       .whenReady()
-      .then(() => onAppReady(origin, port))
+      .then(() => onAppReady(target))
       .catch((error: unknown) => {
         console.error("[desktop] fatal startup error", error);
         dialog.showErrorBox(

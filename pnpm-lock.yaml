@@ -305,6 +305,9 @@ importers:
         specifier: workspace:*
         version: link:../launcher
     devDependencies:
+      '@repo/app':
+        specifier: workspace:*
+        version: link:../app
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1
@@ -774,6 +777,9 @@ importers:
 
   tools/repo-guards:
     devDependencies:
+      '@repo/app':
+        specifier: workspace:*
+        version: link:../../apps/app
       '@repo/server-contract':
         specifier: workspace:*
         version: link:../../packages/server-contract

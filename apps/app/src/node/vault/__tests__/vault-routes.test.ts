@@ -40,7 +40,7 @@ async function bootVaultApp() {
   const vaultDir = join(instanceDir, "vault");
   mkdirSync(dataDir, { recursive: true });
   const db = createConnection(join(dataDir, "inteligir.db"));
-  runMigrations(db);
+  const knownSchemaVersion = runMigrations(db);
   const bus = new WsBus({ version: "0.1.0-test" });
   const vault = await createVaultRuntime({
     vaultDir,
@@ -77,7 +77,7 @@ async function bootVaultApp() {
     },
     fallback: { kind: "none" },
     knowledge,
-    schemaVersion: getSchemaVersion(db),
+    schemaVersion: getSchemaVersion(db, knownSchemaVersion),
     startedAt: Date.now(),
     vault,
     version: "0.1.0-test",

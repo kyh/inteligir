@@ -16,7 +16,11 @@ import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry } from "./listen";
-import { createGracefulShutdown, installShutdownSignals } from "./shutdown";
+import {
+  createGracefulShutdown,
+  installFatalErrorHandlers,
+  installShutdownSignals,
+} from "./shutdown";
 import { redactRemoteUrl } from "./vault/git";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
@@ -124,8 +128,7 @@ const fallbackPromise =
   config.mode === "dev" ? createDevFallback(config.devHmrPort) : createProdFallback();
 
 const db = createConnection(config.databasePath);
-runMigrations(db, migrationsFolder);
-const schemaVersion = getSchemaVersion(db);
+const schemaVersion = getSchemaVersion(db, runMigrations(db, migrationsFolder));
 
 const version = readAppVersion();
 const bus = new WsBus({ version });
@@ -227,6 +230,14 @@ installShutdownSignals({
   onImpatient: (signal) => {
     console.error(`shutdown: ${signal} again — leaving now`);
     process.exit(1);
+  },
+});
+
+installFatalErrorHandlers({
+  shutdown,
+  target: process,
+  onFatal: (event, reason) => {
+    console.error(`fatal: ${event} —`, reason);
   },
 });
 

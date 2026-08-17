@@ -1,15 +1,20 @@
 // Where the shell's window points, and who owns the process behind it.
 //
-// The port is FIXED rather than derived, because the origin is the pin: a port
-// that moved between launches would move the origin the window is locked to,
-// and with it everything the browser keys per-origin. 4664 is the app's own
-// production default, so the shell and `npx inteligir` land on the same place
-// on purpose — which is why the shell probes before it spawns.
+// The shell does NOT decide any of that itself: it asks the app's own
+// resolver (`@repo/app/node/config`, the same module apps/cli's discovery
+// reuses), because a second, partial copy of that resolution is how a window
+// ends up on a dead port. `resolveAppConfig` layers env → `<dataDir>/config.json`
+// → default, and a shell that read only `INTELIGIR_PORT` would probe 4664,
+// find nothing, and spawn a child that binds the CONFIGURED port instead —
+// leaving the window pinned to an origin no server listens on while a second
+// server runs against the same vault.
+//
+// The origin is still a PIN: it is fixed for the whole launch, and the child
+// is told the exact port (and data/vault dirs) this resolution produced, so
+// nothing downstream can land somewhere else.
 
+import { resolveAppConfig } from "@repo/app/node/config";
 import { isHttpUrl } from "./origin-pin";
-
-/** The app's production default (apps/app/src/node/config.ts). */
-export const DEFAULT_SERVER_PORT = 4664;
 
 /** Loopback, never `localhost`: the name resolves to ::1 or 127.0.0.1
  *  depending on the machine, and the two are different ORIGINS to the pin. */
@@ -21,21 +26,55 @@ export function healthUrl(origin: string): string {
   return `${origin}/api/v1/health`;
 }
 
-/**
- * A port from the environment, or the default. Refuses anything that is not a
- * TCP port rather than falling back silently — a typo that quietly lands on
- * 4664 is a user pointing at a server they did not mean.
- */
-export function resolvePort(raw: string | undefined): number | { error: string } {
-  if (raw === undefined || raw.trim().length === 0) {
-    return DEFAULT_SERVER_PORT;
+/** One resolution, carried whole: the origin the window is pinned to and the
+ *  three facts a spawned child is handed so it cannot resolve them again and
+ *  disagree. */
+export interface ServerTarget {
+  origin: string;
+  port: number;
+  dataDir: string;
+  vaultDir: string;
+}
+
+export type ServerTargetResult =
+  | { kind: "resolved"; target: ServerTarget }
+  /** A configuration the app itself refuses (a bad port, nested dirs); shown
+   *  rather than silently replaced by a default the user did not ask for. */
+  | { kind: "refused"; error: string };
+
+export interface ResolveServerTargetArgs {
+  isPackaged: boolean;
+  /** The apps/app checkout, whose path the dev instance derivation hashes.
+   *  A packaged resolution derives nothing from it. */
+  appCheckoutDir: string;
+  env: NodeJS.ProcessEnv;
+  homeDir?: string;
+}
+
+export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTargetResult {
+  try {
+    const config = resolveAppConfig({
+      checkoutPath: args.appCheckoutDir,
+      // `app.isPackaged` decides the mode, never the ambient NODE_ENV: a
+      // packaged install IS the production one and a checkout is not, and
+      // neither is something the launching environment may reinterpret. A
+      // shell that ran as production from a checkout would drive the
+      // developer's own ~/.inteligir and ~/Inteligir.
+      env: { ...args.env, NODE_ENV: args.isPackaged ? "production" : "development" },
+      ...(args.homeDir !== undefined ? { homeDir: args.homeDir } : {}),
+    });
+    return {
+      kind: "resolved",
+      target: {
+        origin: serverOrigin(config.port),
+        port: config.port,
+        dataDir: config.dataDir,
+        vaultDir: config.vaultDir,
+      },
+    };
+  } catch (error) {
+    return { kind: "refused", error: error instanceof Error ? error.message : String(error) };
   }
-  const trimmed = raw.trim();
-  const port = Number(trimmed);
-  if (String(port) !== trimmed || !Number.isInteger(port) || port < 1 || port > 65_535) {
-    return { error: `INTELIGIR_PORT must be a valid TCP port (got "${raw}")` };
-  }
-  return port;
 }
 
 /**

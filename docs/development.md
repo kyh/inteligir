@@ -30,6 +30,15 @@ is probed upward and the winner logged. `INTELIGIR_PORT` and
 `INTELIGIR_DATA_DIR` override; a dev data dir is marked with its checkout
 path on first boot and refuses a different checkout thereafter.
 
+Every `INTELIGIR_*` variable that module declares works on `pnpm dev`, and
+that is a fact `apps/app/turbo.json` has to keep: turbo runs in STRICT env
+mode, so a variable its `dev` task does not name is stripped before the
+process starts — silently, with no error to read, so
+`INTELIGIR_AGENT=scripted pnpm dev` would simply boot the default agent. The
+task list is held against the module's own declared set by
+`tools/repo-guards/src/turbo-passthrough.test.ts`, so adding a variable to
+`config.ts` fails the gate until the task names it.
+
 The prod path is `pnpm -F @repo/app build && pnpm -F @repo/app start`:
 `build` emits the SPA (`dist/`) and the bundled Node entry
 (`dist-node/main.js`, migrations copied beside it); `start` runs plain

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createCodexProviderAdapter } from "../codex/adapter";
 import type { ProviderAdapterFactory } from "../runtime-provider-process";
 
-export type FakeCodexMode = "happy" | "approval" | "approval-once" | "auth-once";
+export type FakeCodexMode = "happy" | "approval" | "approval-once" | "auth-once" | "hang";
 
 export interface FakeCodexAdapterOptions {
   /** auth-once: the cross-process marker whose absence fails the first turn. */

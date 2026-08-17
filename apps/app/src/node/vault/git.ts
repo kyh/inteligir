@@ -44,13 +44,33 @@ interface RunGitOptions {
   env?: Record<string, string>;
 }
 
+/**
+ * git must NEVER ask this process a question. Nothing here has a terminal to
+ * answer on, and every invocation runs under the repo lock — so a credential
+ * prompt on an unreachable or auth-requiring remote does not fail, it BLOCKS,
+ * holding the lock (and with it every vault write) until the call's timeout.
+ *
+ * `GIT_TERMINAL_PROMPT=0` covers git's own prompting. ssh does its own, which
+ * only `BatchMode=yes` refuses — so an ssh remote gets it too, but only when
+ * the environment carries no `GIT_SSH_COMMAND` of its own: a caller who set
+ * one has chosen how ssh runs, and overriding it would break the setups that
+ * exist to make these fetches work.
+ */
+function nonInteractiveGitEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const base: Record<string, string> = { GIT_TERMINAL_PROMPT: "0" };
+  if (env.GIT_SSH_COMMAND === undefined) {
+    base.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
+  }
+  return base;
+}
+
 export function runGit(
   cwd: string,
   gitArgs: readonly string[],
   options: RunGitOptions = {},
 ): Promise<{ stdout: string }> {
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       "git",
       [...gitArgs],
       {
@@ -58,7 +78,7 @@ export function runGit(
         encoding: "utf8",
         maxBuffer: GIT_MAX_BUFFER_BYTES,
         timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
-        env: { ...process.env, ...options.env },
+        env: { ...process.env, ...nonInteractiveGitEnv(process.env), ...options.env },
       },
       (error, stdout, stderr) => {
         if (error) {
@@ -68,6 +88,10 @@ export function runGit(
         resolve({ stdout });
       },
     );
+    // execFile hands the child a stdin PIPE nobody ever writes to. No command
+    // this engine runs reads stdin, so closing it turns anything that asks
+    // anyway into an immediate EOF rather than a wait on the timeout.
+    child.stdin?.end();
   });
 }
 
@@ -221,6 +245,16 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   let lastConflict: VaultConflict | null = null;
   /** Set when a failed rebase could not be aborted; syncs stop until repaired. */
   let broken = false;
+  /**
+   * Set when a pass could not REACH the remote, cleared by one that did. The
+   * status below measures "unpushed" against the remote-tracking ref, and a
+   * failed fetch leaves that ref exactly where it was — so without this a
+   * vault with nothing local to push answers `clean` ("Synced") while the
+   * remote is unreachable and may have moved. A push that the remote REFUSED
+   * is not this: contact was made, and the local commits it left behind show
+   * up as `dirty` on their own.
+   */
+  let remoteUnreachable = false;
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -236,6 +270,17 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
 
   function run(gitArgs: readonly string[], options: RunGitOptions = {}) {
     return runGit(root, gitArgs, { ...options, env: { ...extraEnv, ...options.env } });
+  }
+
+  /** The two invocations that actually dial the remote. A failure here is what
+   *  `remoteUnreachable` records; every other git call is local. */
+  async function runNetwork(gitArgs: readonly string[]) {
+    try {
+      return await run(gitArgs, { timeoutMs: NETWORK_GIT_TIMEOUT_MS });
+    } catch (error) {
+      remoteUnreachable = true;
+      throw error;
+    }
   }
 
   async function countDirtyPaths(): Promise<number> {
@@ -437,12 +482,14 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
 
     let remoteHasBranch = true;
     try {
-      await run(["fetch", "origin", branch], { timeoutMs: NETWORK_GIT_TIMEOUT_MS });
+      await runNetwork(["fetch", "origin", branch]);
     } catch (error) {
       if (!isMissingRemoteRef(error)) {
         throw error;
       }
       // A fresh remote: nothing to rebase onto, the push below creates it.
+      // The remote ANSWERED, so this is not an unreachable one.
+      remoteUnreachable = false;
       remoteHasBranch = false;
     }
 
@@ -496,10 +543,11 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       }
     }
 
-    await run(["push", "origin", branch], { timeoutMs: NETWORK_GIT_TIMEOUT_MS });
+    await runNetwork(["push", "origin", branch]);
     lastConflict = null;
     lastSyncAt = Date.now();
     lastError = null;
+    remoteUnreachable = false;
   }
 
   async function statusSnapshot(): Promise<VaultStatusResponse> {
@@ -523,6 +571,16 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         lastSyncAt,
         lastError,
       };
+    }
+    // Both of these outrank the porcelain read below, because both mean the
+    // clean/dirty answer would be a claim about the remote that this engine
+    // cannot make: no pass may start under a hold, and a pass that could not
+    // reach the remote left the tracking ref stale.
+    if (commitHoldCount > 0) {
+      return { state: "held", remote, lastSyncAt, lastError };
+    }
+    if (remoteUnreachable) {
+      return { state: "offline", remote, lastSyncAt, lastError };
     }
     // The porcelain reads run behind the repo lock, so a status can never
     // report the half-way tree of a sync or commit in flight.
@@ -549,6 +607,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     }
     // A sync pass starts by committing the dirty tree, which is exactly what
     // a commit hold exists to prevent; the interval retries after release.
+    // The snapshot SAYS so (`held`) rather than answering as if a pass ran —
+    // a "Sync now" that reported `clean` here would be a silent no-op.
     if (remoteUrl === null || broken || commitHoldCount > 0) {
       return statusSnapshot();
     }

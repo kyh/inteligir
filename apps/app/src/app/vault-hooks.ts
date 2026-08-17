@@ -35,6 +35,21 @@ export function useSystemStatus() {
   });
 }
 
+/**
+ * Whether "Sync now" would actually start a pass. THREE surfaces offer the
+ * command (the sidebar pill, the palette, the settings dialog), and a state
+ * each of them judges for itself is a state one of them forgets — leaving a
+ * live button that fires a request no pass can answer.
+ */
+export function canSyncNow(status: VaultStatusResponse | undefined): boolean {
+  return (
+    status !== undefined &&
+    status.state !== "no-remote" &&
+    status.state !== "syncing" &&
+    status.state !== "held"
+  );
+}
+
 /** The vault's file paths, lowercased for existence checks — the disk this
  *  runs on may be case-insensitive, so name generation must be too. */
 export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<string> {

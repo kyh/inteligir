@@ -16,7 +16,7 @@ import { Separator } from "@repo/ui/components/separator";
 import { cn } from "@repo/ui/lib/utils";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
-import { useSystemStatus, useVaultStatus, useVaultTree } from "../vault-hooks";
+import { canSyncNow, useSystemStatus, useVaultStatus, useVaultTree } from "../vault-hooks";
 
 function syncStateLabel(status: VaultStatusResponse): string {
   switch (status.state) {
@@ -28,6 +28,10 @@ function syncStateLabel(status: VaultStatusResponse): string {
       return "Unsynced changes";
     case "syncing":
       return "Syncing…";
+    case "held":
+      return "Waiting on an agent turn";
+    case "offline":
+      return "Offline — the remote could not be reached";
     case "conflict":
       return "Conflict";
     case "broken":
@@ -101,9 +105,7 @@ export function SettingsDialog({ open, onOpenChange, onSyncNow }: SettingsDialog
               <Row label="Sync">
                 <span className="flex items-center gap-2">
                   {status === undefined ? "…" : syncStateLabel(status)}
-                  {status !== undefined &&
-                  status.state !== "no-remote" &&
-                  status.state !== "syncing" ? (
+                  {canSyncNow(status) ? (
                     <Button variant="outline" size="xs" onClick={onSyncNow}>
                       Sync now
                     </Button>

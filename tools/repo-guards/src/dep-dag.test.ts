@@ -72,15 +72,21 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // survive on workerd — see the workerd rule below for what enforces that
   // beyond this row.
   "@repo/web": ["@repo/cloud-contract", "@repo/ui"],
-  // The two SHIPPING surfaces, and both rows are empty because both consume
-  // the product as BUILT DIRECTORIES rather than as modules. The launcher
-  // stages @repo/app's and @repo/cli's dist into its own package and imports
-  // the staged bundle by path; the shell spawns that bundle as a child. The
-  // build ORDER those relationships need lives in each turbo.json as an
-  // explicit `<package>#build`, which is what it is — an ordering, not an
-  // import edge.
+  // The two SHIPPING surfaces. Both consume the product as a BUILT DIRECTORY
+  // rather than as a module — the launcher stages @repo/app's and @repo/cli's
+  // dist into its own package and imports the staged bundle by path; the shell
+  // spawns that bundle as a child. The build ORDER those relationships need
+  // lives in each turbo.json as an explicit `<package>#build`, which is what
+  // it is — an ordering, not an import edge.
   inteligir: [],
-  "@repo/desktop": [],
+  // The shell's ONE module edge, and it is the config resolution rather than
+  // the server: the window is pinned to an origin, so the port that origin
+  // names has to be the one the app itself would bind — env, then
+  // `<dataDir>/config.json`, then the default. A shell with its own partial
+  // copy of that layering points at a dead port. Same call apps/cli's
+  // discovery makes, for the same reason. Bundled by esbuild at build time,
+  // hence a devDependency rather than a runtime one.
+  "@repo/desktop": ["@repo/app"],
 
   "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
   "@repo/repo-guards": [],

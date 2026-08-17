@@ -212,6 +212,29 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncFieldsShape,
     })
     .strict(),
+  /** An agent turn holds the vault's commits, which a sync pass would have to
+   *  break to run — so no pass starts while one is open. Its own state rather
+   *  than a silent no-op: "Sync now" that answered `clean` under a hold would
+   *  report a sync that never happened. Transient; the next pass runs when the
+   *  turn settles. */
+  z
+    .object({
+      state: z.literal("held"),
+      remote: z.string().min(1),
+      ...syncFieldsShape,
+    })
+    .strict(),
+  /** The last pass could not reach the remote. NOT `clean`: "unpushed" is
+   *  measured against the remote-tracking ref, which a failed fetch leaves
+   *  exactly where it was — so a repo that is clean against a STALE ref would
+   *  otherwise claim a sync that never happened, remote commits and all. */
+  z
+    .object({
+      state: z.literal("offline"),
+      remote: z.string().min(1),
+      ...syncFieldsShape,
+    })
+    .strict(),
   z
     .object({
       state: z.literal("conflict"),

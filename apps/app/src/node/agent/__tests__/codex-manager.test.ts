@@ -32,7 +32,15 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-async function bootWithManager(mode: FakeCodexMode, markerPath?: string): Promise<BootedTestApp> {
+interface ManagerOptions {
+  markerPath?: string;
+  turnIdleTimeoutMs?: number;
+}
+
+async function bootWithManager(
+  mode: FakeCodexMode,
+  options: ManagerOptions = {},
+): Promise<BootedTestApp> {
   return bootTestApp({
     agent: { mode: "codex", runtime: "codex", detail: null },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
@@ -44,9 +52,12 @@ async function bootWithManager(mode: FakeCodexMode, markerPath?: string): Promis
         model: null,
         adapterFactory: createFakeCodexAdapterFactory(
           mode,
-          markerPath !== undefined ? { markerPath } : undefined,
+          options.markerPath !== undefined ? { markerPath: options.markerPath } : undefined,
         ),
         reapIntervalMs: null,
+        ...(options.turnIdleTimeoutMs === undefined
+          ? {}
+          : { turnIdleTimeoutMs: options.turnIdleTimeoutMs }),
       });
       return {
         createTurnDriver: manager.createTurnDriver,
@@ -191,7 +202,7 @@ describe("the codex runtime manager over real HTTP", () => {
 
   it("survives the account-restart window: a turn dispatched into it lands on the replacement", async () => {
     const marker = join(makeTempDir("inteligir-codex-marker-"), "auth-restored");
-    const harness = await bootWithManager("auth-once", marker);
+    const harness = await bootWithManager("auth-once", { markerPath: marker });
     const threadId = await createThread(harness.client);
 
     // Turn A fails with the provider's unauthorized error and flags the
@@ -303,5 +314,33 @@ describe("the codex runtime manager over real HTTP", () => {
     const command = rows.find((row) => row.kind === "work" && row.workKind === "command");
     expect(command).toMatchObject({ status: "completed", turnId });
     expect((await getThreadDetail(harness.client, threadId)).pendingInteractions).toEqual([]);
+  });
+
+  it("fails a turn the provider accepted and then went silent on", async () => {
+    // The process stays healthy, so onProcessExit never fires — nothing else
+    // settles this shape, and the turn's commit hold defers the vault's
+    // auto-commit and blocks every sync pass for as long as it is open.
+    const harness = await bootWithManager("hang", { turnIdleTimeoutMs: 150 });
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "wedge me");
+
+    await awaitThreadStatus(harness, threadId, "error");
+
+    // Failed through the ordinary grammar — a provider/error and a failed
+    // turn, under the host's own turn id — not a special case downstream.
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.find((row) => row.kind === "turn")).toMatchObject({ turnId, status: "error" });
+    expect(rows.find((row) => row.kind === "error")).toMatchObject({
+      message: "The agent provider failed",
+      detail:
+        "The agent produced nothing for 150ms; the turn was abandoned so the vault can commit and sync again",
+    });
+
+    // The per-thread state was released with it: the thread takes a new turn
+    // rather than answering "already has a running turn".
+    const next = await harness.client.threads.send.$post({
+      json: { threadId, text: "again", mode: "steer-if-active" },
+    });
+    expect(next.status).toBe(200);
   });
 });

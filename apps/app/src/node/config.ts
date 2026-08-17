@@ -200,6 +200,19 @@ const ENV_VARS = {
   }),
 };
 
+/**
+ * Every variable the table above declares, DERIVED from it rather than
+ * retyped. `apps/app/turbo.json`'s `dev.passThroughEnv` must name exactly
+ * these: turbo runs in strict env mode and strips anything unnamed, so a
+ * variable declared here and missing there is silently IGNORED through the
+ * root `pnpm dev` rather than refused — the failure mode has no error message
+ * at all. `tools/repo-guards/src/turbo-passthrough.test.ts` holds the two
+ * against each other.
+ */
+export const ENV_VAR_NAMES: readonly string[] = Object.values(ENV_VARS)
+  .map((definition) => definition.name)
+  .toSorted();
+
 function readEnvVar<TValue>(
   definition: EnvVarDefinition<TValue>,
   env: NodeJS.ProcessEnv,

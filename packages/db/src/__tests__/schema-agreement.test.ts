@@ -204,11 +204,11 @@ describe("the migrations and the declared schema agree", () => {
   });
 
   it("leave meta.schema_version at the latest migration's generation", () => {
+    const entries = journal().entries;
     const db = createConnection(migratedDatabase());
-    const version = getSchemaVersion(db);
+    const version = getSchemaVersion(db, entries.length);
     db.$client.close();
 
-    const entries = journal().entries;
     const latest = entries.at(-1);
     if (latest === undefined) throw new Error("drizzle/meta/_journal.json has no entries");
     expect(

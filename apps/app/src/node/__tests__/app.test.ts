@@ -102,7 +102,7 @@ describe("the API over the in-process app", () => {
     // surfacing as a 500 per status request.
     const dataDir = makeTempDir("inteligir-app-test-");
     const db = createConnection(join(dataDir, "inteligir.db"));
-    expect(() => getSchemaVersion(db)).toThrow(/no such table: meta/);
+    expect(() => getSchemaVersion(db, 4)).toThrow(/no such table: meta/);
   });
 });
 

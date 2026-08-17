@@ -7,8 +7,17 @@ import { cn } from "@repo/ui/lib/utils";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { FilePlusIcon, FolderPlusIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
-import { useVaultStatus, useVaultTree } from "../vault-hooks";
-import { FileTree, type TreeOps } from "./file-tree";
+import { canSyncNow, useVaultStatus, useVaultTree } from "../vault-hooks";
+import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
+
+/** A failed listing renders as "The vault could not be read", never as the
+ *  empty vault it is indistinguishable from once the entries default to []. */
+function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
+  if (query.isError) {
+    return "failed";
+  }
+  return query.data === undefined ? "loading" : "loaded";
+}
 
 function vaultName(root: string | undefined): string {
   if (root === undefined) {
@@ -28,6 +37,10 @@ function syncPillLabel(status: VaultStatusResponse): string {
       return "Unsynced changes";
     case "syncing":
       return "Syncing…";
+    case "held":
+      return "Waiting on the agent";
+    case "offline":
+      return "Offline";
     case "conflict":
       return `Conflict (${status.conflict.files.length})`;
     case "broken":
@@ -45,6 +58,10 @@ function syncPillDotClass(status: VaultStatusResponse): string {
       return "bg-amber-500";
     case "syncing":
       return "bg-sky-500 animate-pulse";
+    case "held":
+      return "bg-sky-500";
+    case "offline":
+      return "bg-muted-foreground/60";
     case "conflict":
     case "broken":
       return "bg-destructive";
@@ -57,13 +74,15 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
   if (status === undefined) {
     return <div className="h-6" />;
   }
-  const canSync = status.state !== "no-remote" && status.state !== "syncing";
+  const canSync = canSyncNow(status);
   const title =
     status.lastError !== null
       ? status.lastError
       : status.state === "no-remote"
         ? "No git remote configured"
-        : "Sync now";
+        : status.state === "held"
+          ? "An agent turn holds the vault; the next sync runs when it finishes"
+          : "Sync now";
   return (
     <button
       type="button"
@@ -122,6 +141,8 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
       <div className="min-h-0 flex-1 overflow-y-auto">
         <FileTree
           entries={treeQuery.data?.entries ?? []}
+          loadState={treeLoadState(treeQuery)}
+          onRetry={() => void treeQuery.refetch()}
           openPath={openPath}
           onOpenFile={onOpenFile}
           ops={ops}

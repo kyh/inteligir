@@ -24,42 +24,60 @@ afterEach(() => {
   }
 });
 
+/**
+ * A copy of the shipped migrations folder cut off after `generations` — an
+ * OLDER build of this package, as far as `runMigrations` can tell.
+ */
+function freezeMigrationsAt(dir: string, generations: number): void {
+  cpSync(fileURLToPath(new URL("../../drizzle", import.meta.url)), dir, { recursive: true });
+  const journalPath = join(dir, "meta", "_journal.json");
+  const parsed: unknown = JSON.parse(readFileSync(journalPath, "utf8"));
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("drizzle/meta/_journal.json is not an object");
+  }
+  const journal: Record<string, unknown> = { ...parsed };
+  const entries = journal["entries"];
+  if (!Array.isArray(entries)) {
+    throw new Error("drizzle/meta/_journal.json has no entries array");
+  }
+  journal["entries"] = entries.filter((entry: unknown) => {
+    if (typeof entry !== "object" || entry === null) {
+      throw new Error("a journal entry is not an object");
+    }
+    const idx = Reflect.get(entry, "idx");
+    const tag = Reflect.get(entry, "tag");
+    if (typeof idx !== "number" || typeof tag !== "string") {
+      throw new Error("a journal entry is missing idx/tag");
+    }
+    if (idx >= generations) {
+      unlinkSync(join(dir, `${tag}.sql`));
+      return false;
+    }
+    return true;
+  });
+  writeFileSync(journalPath, JSON.stringify(journal));
+}
+
 describe("boot", () => {
   it("migrates on boot and bumps meta.schema_version to the latest generation", () => {
     const db = openTempDb();
-    runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(4);
+    expect(getSchemaVersion(db, runMigrations(db))).toBe(4);
     expect(getMetaValue(db, "schema_version")).toBe("4");
   });
 
   it("is idempotent across boots", () => {
     const db = openTempDb();
     runMigrations(db);
-    runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(4);
+    expect(getSchemaVersion(db, runMigrations(db))).toBe(4);
   });
 
   it("upgrades a POPULATED v2 database in place: child rows survive, FKs hold", () => {
-    // A migrations folder frozen at generation 2 (the shipped 0000+0001).
-    const sourceMigrations = fileURLToPath(new URL("../../drizzle", import.meta.url));
     const v2Migrations = mkdtempSync(join(tmpdir(), "inteligir-db-migrations-v2-"));
     tempDirs.push(v2Migrations);
-    cpSync(sourceMigrations, v2Migrations, { recursive: true });
-    const journalPath = join(v2Migrations, "meta", "_journal.json");
-    const journal = JSON.parse(readFileSync(journalPath, "utf8")) as {
-      entries: Array<{ idx: number; tag: string }>;
-    };
-    for (const entry of journal.entries) {
-      if (entry.idx >= 2) {
-        unlinkSync(join(v2Migrations, `${entry.tag}.sql`));
-      }
-    }
-    journal.entries = journal.entries.filter((entry) => entry.idx < 2);
-    writeFileSync(journalPath, JSON.stringify(journal));
+    freezeMigrationsAt(v2Migrations, 2);
 
     const db = openTempDb();
-    runMigrations(db, v2Migrations);
-    expect(getSchemaVersion(db)).toBe(2);
+    expect(getSchemaVersion(db, runMigrations(db, v2Migrations))).toBe(2);
 
     // Populate a thread with rows in every child table.
     const now = Date.now();
@@ -79,8 +97,7 @@ describe("boot", () => {
           VALUES ('qmsg_v2', 'thr_v2', 'queued', 'a', ${now}, ${now})`,
     );
 
-    runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(4);
+    expect(getSchemaVersion(db, runMigrations(db))).toBe(4);
 
     // Every child row survived the upgrade and still resolves its parent.
     expect(db.get(sql`SELECT count(*) AS n FROM events WHERE thread_id = 'thr_v2'`)).toEqual({
@@ -103,7 +120,26 @@ describe("boot", () => {
   it("refuses to answer a schema version before migrations ran", () => {
     const db = openTempDb();
     // Pre-migration the meta table itself is missing, so sqlite refuses.
-    expect(() => getSchemaVersion(db)).toThrow();
+    expect(() => getSchemaVersion(db, 4)).toThrow();
+  });
+
+  it("refuses a database a NEWER build already upgraded", () => {
+    // The v2 folder is a stand-in for an older build: it applies nothing to a
+    // v4 file (drizzle skips migrations older than the last applied one), so
+    // without a ceiling the boot would carry on reading a schema it has no
+    // SQL for — silently, until a query hit a column that moved.
+    const db = openTempDb();
+    runMigrations(db);
+
+    const older = mkdtempSync(join(tmpdir(), "inteligir-db-migrations-old-"));
+    tempDirs.push(older);
+    freezeMigrationsAt(older, 2);
+
+    const known = runMigrations(db, older);
+    expect(known).toBe(2);
+    expect(() => getSchemaVersion(db, known)).toThrow(
+      /on schema v4, but this build only knows v2/u,
+    );
   });
 
   it("opens with WAL and synchronous=NORMAL", () => {

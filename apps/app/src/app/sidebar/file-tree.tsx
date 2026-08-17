@@ -25,8 +25,20 @@ export interface TreeOps {
   removeEntry: (path: string, kind: "file" | "dir") => void;
 }
 
+/**
+ * Why a tree with no rows has no rows. THREE different sentences, and only one
+ * of them is "empty": a listing that has not answered yet, one that FAILED,
+ * and a vault that genuinely holds nothing. Collapsing the first two into the
+ * third tells a user whose vault is unreadable that they have no notes.
+ */
+export type TreeLoadState = "loading" | "loaded" | "failed";
+
 export interface FileTreeProps {
   entries: readonly VaultEntry[];
+  loadState: TreeLoadState;
+  /** Offered on `failed`, because a refusal the user cannot act on is a blank
+   *  pane with extra words. */
+  onRetry: () => void;
   openPath: string | null;
   onOpenFile: (path: string) => void;
   ops: TreeOps;
@@ -143,8 +155,31 @@ function InlineNameInput({
   );
 }
 
+function EmptyRows({ loadState, onRetry }: { loadState: TreeLoadState; onRetry: () => void }) {
+  if (loadState === "loading") {
+    return <p className="px-3 py-2 text-xs text-muted-foreground">Loading…</p>;
+  }
+  if (loadState === "loaded") {
+    return <p className="px-3 py-2 text-xs text-muted-foreground">The vault is empty.</p>;
+  }
+  return (
+    <div className="px-3 py-2 text-xs">
+      <p className="text-destructive">The vault could not be read.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-1 rounded px-1 py-0.5 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
 export function FileTree({
   entries,
+  loadState,
+  onRetry,
   openPath,
   onOpenFile,
   ops,
@@ -422,7 +457,7 @@ export function FileTree({
         );
       })}
       {entries.length === 0 && editing === null ? (
-        <p className="px-3 py-2 text-xs text-muted-foreground">The vault is empty.</p>
+        <EmptyRows loadState={loadState} onRetry={onRetry} />
       ) : null}
       <DropdownMenu
         open={menu !== null}

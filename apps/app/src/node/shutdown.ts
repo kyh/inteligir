@@ -16,6 +16,12 @@
 // subprocess, a socket that will not drain) would leave a process that ignores
 // ^C, so the whole sequence races a timer and the caller force-exits when it
 // wins.
+//
+// A CRASH IS A SHUTDOWN TOO. An uncaught exception or an unhandled rejection
+// exits by Node's default, skipping every step above — including the SQLite
+// close that checkpoints the WAL sidecar and the vault flush that commits the
+// last edits. `installFatalErrorHandlers` routes both through this same
+// sequence and then leaves non-zero.
 
 export interface ShutdownStep {
   /** Named for the log line a failure prints. */
@@ -88,7 +94,7 @@ export function createGracefulShutdown(args: GracefulShutdownArgs): GracefulShut
  *  stop) use to ask for a clean exit. */
 export const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM"] as const;
 
-/** The `process` surface the installer touches — injected so the wiring is
+/** The `process` surface the installers touch — injected so the wiring is
  *  drivable without signalling the test runner's own process. */
 interface SignalTarget {
   on(signal: NodeJS.Signals, handler: () => void): void;
@@ -114,6 +120,52 @@ export function installShutdownSignals(args: InstallShutdownSignalsArgs): void {
       void (async () => {
         await args.shutdown.run();
         args.target.exit(0);
+      })();
+    });
+  }
+}
+
+/** The two ways this process can die without anyone asking it to. */
+export const FATAL_EVENTS = ["uncaughtException", "unhandledRejection"] as const;
+export type FatalEvent = (typeof FATAL_EVENTS)[number];
+
+interface FatalTarget {
+  on(event: FatalEvent, handler: (reason: unknown) => void): void;
+  exit(code: number): void;
+}
+
+export interface InstallFatalErrorHandlersArgs {
+  shutdown: GracefulShutdown;
+  target: FatalTarget;
+  /** Reported before the teardown runs, because the teardown can take seconds
+   *  and the cause is what someone reading the log needs first. */
+  onFatal(event: FatalEvent, reason: unknown): void;
+}
+
+/**
+ * A crash runs the SAME teardown a signal does, then leaves non-zero.
+ *
+ * Node's default for either event is to print and exit immediately, and this
+ * process cannot afford that: SQLite runs in WAL, whose sidecar is
+ * checkpointed only by the clean `closeConnection` that the shutdown sequence
+ * performs, and the vault's pending auto-commit is flushed by the same
+ * sequence. Dying without it leaves a `-wal` file to be recovered on the next
+ * boot and the last few edits uncommitted — a data outcome, from a stray
+ * rejection in some unrelated background task.
+ *
+ * The exit code is 1 and never 0: a supervisor (the Electron shell, a shell
+ * script, systemd) has to be able to tell a crash from a quit.
+ */
+export function installFatalErrorHandlers(args: InstallFatalErrorHandlersArgs): void {
+  for (const event of FATAL_EVENTS) {
+    args.target.on(event, (reason) => {
+      args.onFatal(event, reason);
+      void (async () => {
+        // `run()` is idempotent, so a second fatal during the teardown joins
+        // the first sequence instead of tearing down over half-closed
+        // resources — and the deadline inside it guarantees this returns.
+        await args.shutdown.run();
+        args.target.exit(1);
       })();
     });
   }

@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { resolveServerEntry, resolveServerRuntime, serverProcessEnv } from "../server-paths";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  resolveAppCheckoutDir,
+  resolveServerEntry,
+  resolveServerRuntime,
+  serverProcessEnv,
+} from "../server-paths";
 
 describe("resolveServerEntry", () => {
   it("finds the staged app bundle in a checkout", () => {
@@ -21,6 +29,37 @@ describe("resolveServerEntry", () => {
   it("is idempotent — an already-unpacked path is left alone", () => {
     const once = resolveServerEntry("/A/Contents/Resources/app.asar");
     expect(resolveServerEntry("/A/Contents/Resources/app.asar.unpacked")).toBe(once);
+  });
+});
+
+describe("resolveAppCheckoutDir", () => {
+  const scratch: string[] = [];
+  afterEach(() => {
+    for (const dir of scratch.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("names the sibling apps/app checkout, realpath'd", () => {
+    // The dev instance (data dir, vault, port) is derived from the SERVER's
+    // own cwd, and `pnpm dev` runs it from apps/app — so the shell has to
+    // resolve against that directory, not its own.
+    const repo = mkdtempSync(join(tmpdir(), "inteligir-checkout-"));
+    scratch.push(repo);
+    mkdirSync(join(repo, "apps", "app"), { recursive: true });
+    mkdirSync(join(repo, "apps", "desktop"), { recursive: true });
+    expect(resolveAppCheckoutDir(join(repo, "apps", "desktop"))).toBe(
+      resolveAppCheckoutDir(join(repo, "apps", "app", "..", "desktop")),
+    );
+    expect(resolveAppCheckoutDir(join(repo, "apps", "desktop")).endsWith("/apps/app")).toBe(true);
+  });
+
+  it("returns the joined path when there is no checkout to resolve", () => {
+    // A packaged app has nothing under apps/; production derives nothing from
+    // this path, so it is returned rather than guessed at.
+    expect(resolveAppCheckoutDir("/Applications/Inteligir.app/Contents/Resources/app.asar")).toBe(
+      "/Applications/Inteligir.app/Contents/Resources/app",
+    );
   });
 });
 
@@ -49,6 +88,18 @@ describe("serverProcessEnv", () => {
     expect(env.INTELIGIR_PORT).toBe("4664");
     expect(env.NODE_ENV).toBe("production");
     expect(env.PATH).toBe("/usr/bin");
+  });
+
+  it("lets the shell's resolution win over an inherited one", () => {
+    // The child always runs a BUILT bundle (hence NODE_ENV=production), but
+    // which instance it opens is the shell's answer, not the bundle's — an
+    // inherited INTELIGIR_DATA_DIR must not decide it.
+    const env = serverProcessEnv({ INTELIGIR_DATA_DIR: "/inherited" }, "node", {
+      INTELIGIR_DATA_DIR: "/resolved/data",
+      INTELIGIR_VAULT_DIR: "/resolved/vault",
+    });
+    expect(env.INTELIGIR_DATA_DIR).toBe("/resolved/data");
+    expect(env.INTELIGIR_VAULT_DIR).toBe("/resolved/vault");
   });
 
   it("strips an inherited ELECTRON_RUN_AS_NODE for a plain node child", () => {

@@ -10,6 +10,10 @@
 //                   provider/unhandled).
 //   approval-once — approval on the FIRST turn of this process only; later
 //                   turns run happy (drain-race tests).
+//   hang          — the turn is accepted and STARTED, then nothing: no items,
+//                   no completion, and the process stays healthy. What a
+//                   wedged provider looks like from the host's side, and the
+//                   one shape onProcessExit cannot settle.
 //   auth-once     — while the marker file (argv[3]) is absent, the turn fails
 //                   with a codex `unauthorized` error (and writes the
 //                   marker); with the marker present, turns run happy — the
@@ -48,6 +52,9 @@ function runTurn(params) {
   const text = `Echo: ${params.input?.[0]?.text ?? ""}`;
   const midpoint = Math.ceil(text.length / 2);
   notify("turn/started", { threadId, turn: { id: turnId, status: "inProgress" } });
+  if (mode === "hang") {
+    return;
+  }
   if (mode === "auth-once" && markerPath !== undefined && !existsSync(markerPath)) {
     writeFileSync(markerPath, "expired\n");
     notify("error", {

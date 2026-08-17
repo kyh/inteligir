@@ -3,10 +3,32 @@
 // packaged .app) are both pinned by tests instead of discovered on someone's
 // machine.
 
-import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 /** The published package this shell wraps (apps/launcher). */
 const RUNTIME_PACKAGE = "inteligir";
+
+/**
+ * The sibling `apps/app` checkout, which is what the server hashes as its cwd
+ * for the per-checkout dev instance (data dir, vault dir, port). Structural,
+ * and the same derivation apps/cli's discovery makes from its own package
+ * root: the shell and the app ship in one checkout, one level apart.
+ * realpath'd because the server hashes its (already real) cwd.
+ *
+ * A packaged app has no checkout — nothing under `apps/` exists inside the
+ * asar — and derives nothing from this: production resolves `~/.inteligir`
+ * and port 4664 without it. The unresolvable path is returned as-is rather
+ * than guessed at.
+ */
+export function resolveAppCheckoutDir(appPath: string): string {
+  const appDir = resolve(appPath, "..", "app");
+  try {
+    return realpathSync(appDir);
+  } catch {
+    return appDir;
+  }
+}
 
 /**
  * The Node entry to spawn, derived from Electron's `app.getAppPath()`.
@@ -64,9 +86,22 @@ export function resolveServerRuntime(args: ResolveServerRuntimeArgs): ServerRunt
     : { executablePath: "node", mode: "node" };
 }
 
-/** The child's environment. `ELECTRON_RUN_AS_NODE` is set for the packaged
- *  runtime and REMOVED otherwise — an inherited one would make a plain `node`
- *  child behave like neither. */
+/**
+ * The child's environment.
+ *
+ * `ELECTRON_RUN_AS_NODE` is set for the packaged runtime and REMOVED
+ * otherwise — an inherited one would make a plain `node` child behave like
+ * neither.
+ *
+ * `NODE_ENV` is always production, and that is a statement about the BUNDLE
+ * rather than about the install: the child is always the built
+ * `dist-node/main.js`, so a dev NODE_ENV would send it down the Vite
+ * middleware path, into a `vite` import its bundle does not carry and a root
+ * with no sources under it. Which data dir, vault and port that child uses is
+ * NOT read from this flag — the shell resolves all three through the app's own
+ * config module and passes them in `overrides`, so a checkout's shell drives
+ * the per-checkout dev instance and never the developer's real vault.
+ */
 export function serverProcessEnv(
   env: NodeJS.ProcessEnv,
   mode: ServerRuntimeMode,

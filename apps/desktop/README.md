@@ -47,9 +47,27 @@ Two consequences worth knowing:
   shutdown listens for: it flushes the vault's pending git commit and closes the
   database. SIGKILL is the deadline behind it, never the first move.
 
-The port is **fixed** (4664, the app's own production default; `INTELIGIR_PORT`
-overrides it). A port that moved between launches would move the origin the
-window is pinned to, and with it everything the browser keys per-origin.
+## One config resolution
+
+The shell owns **no** copy of the app's configuration. `resolveServerTarget`
+(`src/main/server-target.ts`) calls `@repo/app/node/config`'s own
+`resolveAppConfig` — the same module `apps/cli`'s discovery reuses — and hands
+the answer (port, data dir, vault dir) to the child as environment. The layering
+is env → `<dataDir>/config.json` → default, and reading only part of it is what
+puts a window on a dead port: a shell that knew `INTELIGIR_PORT` alone would
+probe 4664, find nothing, and spawn a child that bound the configured port
+instead.
+
+The origin is still a **pin**: fixed for the whole launch, and the child is told
+exactly which port to bind, so it can never land somewhere the window is not.
+
+Which mode that resolution runs in is decided by `app.isPackaged`, never by the
+ambient `NODE_ENV`: a packaged install is the production one (`~/.inteligir`,
+`~/Inteligir`, port 4664) and a checkout gets the same **per-checkout dev
+instance** `pnpm dev` derives, so `pnpm dev:desktop` never drives your real
+vault. The child's own `NODE_ENV` stays `production` because it always runs a
+built bundle — that flag decides which fallback the server mounts (`dist/client`
+vs Vite middleware) and nothing about where its data lives.
 
 ## Running it
 

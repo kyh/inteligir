@@ -22,6 +22,12 @@
 //   and answers the provider with a deny.
 // - COMMITS: a turn takes the vault's commit hold at dispatch and the settle
 //   path commits as the agent — see agent-commits.ts for the race design.
+// - THE WATCHDOG: a turn that goes quiet for too long is FAILED through the
+//   same grammar, because the hold it carries is not local to the thread —
+//   while it is open the vault's auto-commit defers and no sync pass may
+//   start. A provider that hangs (rather than crashing, which onProcessExit
+//   already covers) would hold both until the process restarts, so a turn is
+//   bounded rather than trusted.
 
 import {
   createAgentRuntimeWithAdapters,
@@ -82,6 +88,16 @@ const DEFAULT_REAP_INTERVAL_MS = 60_000;
 const DEFAULT_IDLE_REAP_MS = 10 * 60_000;
 const INTERACTION_TIMEOUT_MS = 30 * 60_000;
 
+/**
+ * How long a dispatched turn may produce NOTHING before it is failed. Idle
+ * time, not wall time: a turn that streams for an hour is working, and a turn
+ * parked on an approval is waiting on the user (that wait has its own clock,
+ * INTERACTION_TIMEOUT_MS, and this one is disarmed for its duration). What is
+ * left is a provider that accepted a turn and then went silent, which no other
+ * path settles — the process is alive, so `onProcessExit` never fires.
+ */
+const DEFAULT_TURN_IDLE_TIMEOUT_MS = 10 * 60_000;
+
 export interface CodexRuntimeManagerDeps {
   db: DbConnection;
   notifier: DbNotifier;
@@ -109,6 +125,8 @@ export interface CodexRuntimeManagerDeps {
   createRuntime?: typeof createAgentRuntimeWithAdapters;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
+  /** The idle budget a dispatched turn gets; null disables the watchdog. */
+  turnIdleTimeoutMs?: number | null;
   onDebug?: (message: string) => void;
 }
 
@@ -132,6 +150,9 @@ interface ActiveTurn {
   acceptedGeneration: number | null;
   settled: boolean;
   commit: AgentTurnCommit;
+  /** The idle watchdog, re-armed by every provider event and disarmed while
+   *  an approval is parked. Null means unarmed, not "no budget". */
+  idleTimer: ReturnType<typeof setTimeout> | null;
 }
 
 interface InteractionWaiter {
@@ -265,10 +286,57 @@ class CodexTurnDriver implements TurnDriver {
       acceptedGeneration: null,
       settled: false,
       commit: beginAgentTurnCommit(this.deps.git, args.threadId),
+      idleTimer: null,
     });
+    this.armWatchdog(args.threadId);
     void this.dispatchTurn(args).catch((error: unknown) => {
       this.failTurn(args.threadId, error);
     });
+  }
+
+  /** True while an approval for this thread is parked on the user's answer. */
+  private hasParkedApproval(threadId: string): boolean {
+    for (const waiter of this.waitersByInteractionId.values()) {
+      if (waiter.threadId === threadId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * (Re)start the idle budget for a thread's turn — called at dispatch and on
+   * every provider event, so the budget measures SILENCE rather than duration.
+   * A parked approval leaves it disarmed: that wait belongs to the user and to
+   * INTERACTION_TIMEOUT_MS, and the deny that clock produces re-arms this one.
+   */
+  private armWatchdog(threadId: string): void {
+    const state = this.turnsByThreadId.get(threadId);
+    if (state === undefined || state.settled || this.disposed) {
+      return;
+    }
+    this.disarmWatchdog(state);
+    const budgetMs = this.deps.turnIdleTimeoutMs ?? DEFAULT_TURN_IDLE_TIMEOUT_MS;
+    if (this.deps.turnIdleTimeoutMs === null || this.hasParkedApproval(threadId)) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      this.failTurn(
+        threadId,
+        new Error(
+          `The agent produced nothing for ${budgetMs}ms; the turn was abandoned so the vault can commit and sync again`,
+        ),
+      );
+    }, budgetMs);
+    timer.unref();
+    state.idleTimer = timer;
+  }
+
+  private disarmWatchdog(state: ActiveTurn): void {
+    if (state.idleTimer !== null) {
+      clearTimeout(state.idleTimer);
+      state.idleTimer = null;
+    }
   }
 
   private async dispatchTurn(args: TurnDriverStartArgs): Promise<void> {
@@ -390,6 +458,9 @@ class CodexTurnDriver implements TurnDriver {
       return;
     }
     const state = this.turnsByThreadId.get(threadId);
+    // ANY frame for this thread is the provider proving it is alive; the
+    // budget below measures silence, so every one of them resets it.
+    this.armWatchdog(threadId);
 
     if (event.type === "turn/started") {
       if (state === undefined || state.settled || state.started) {
@@ -500,6 +571,7 @@ class CodexTurnDriver implements TurnDriver {
             threadId: create.threadId,
           });
           settle({ decision: "deny" });
+          this.armWatchdog(create.threadId);
         }
       }, INTERACTION_TIMEOUT_MS);
       timer.unref();
@@ -509,8 +581,14 @@ class CodexTurnDriver implements TurnDriver {
         resolve: (resolution) => {
           clearTimeout(timer);
           settle(resolution);
+          // The provider is free to work again, so its silence starts counting
+          // again from here.
+          this.armWatchdog(create.threadId);
         },
       });
+      // Parked on the user: disarm, or the turn budget would quietly become
+      // the approval budget.
+      this.armWatchdog(create.threadId);
     });
   }
 
@@ -537,6 +615,7 @@ class CodexTurnDriver implements TurnDriver {
       return;
     }
     state.settled = true;
+    this.disarmWatchdog(state);
     this.turnsByThreadId.delete(threadId);
     this.cancelWaiters(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
@@ -587,6 +666,11 @@ class CodexTurnDriver implements TurnDriver {
       this.reapTimer = null;
     }
     this.cancelWaiters();
+    // After the waiters, not before: resolving one re-arms its thread's
+    // budget, and `disposed` above is what stops that from outliving us.
+    for (const state of this.turnsByThreadId.values()) {
+      this.disarmWatchdog(state);
+    }
     if (this.runtime !== null) {
       await this.runtime.shutdown();
       this.runtime = null;

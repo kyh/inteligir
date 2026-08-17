@@ -31,6 +31,8 @@ function renderTree(overrides: Partial<React.ComponentProps<typeof FileTree>> = 
   render(
     <FileTree
       entries={ENTRIES}
+      loadState="loaded"
+      onRetry={() => {}}
       openPath={null}
       onOpenFile={onOpenFile}
       ops={ops}
@@ -77,6 +79,30 @@ describe("rendering", () => {
   it("auto-expands the ancestors of the open note", () => {
     renderTree({ openPath: "notes/daily/2026-08-16.md" });
     expect(screen.getByText("2026-08-16.md")).toBeDefined();
+  });
+});
+
+describe("a tree with no rows says WHY it has none", () => {
+  it("calls an empty vault empty", () => {
+    renderTree({ entries: [], loadState: "loaded" });
+    expect(screen.getByText("The vault is empty.")).toBeDefined();
+  });
+
+  it("does not call a listing that has not answered yet empty", () => {
+    renderTree({ entries: [], loadState: "loading" });
+    expect(screen.queryByText("The vault is empty.")).toBeNull();
+  });
+
+  it("says a FAILED read failed, and offers the retry", () => {
+    // The entries default to [] on failure, which is indistinguishable from an
+    // empty vault — so a user whose vault is unreadable gets told they have no
+    // notes.
+    const onRetry = vi.fn();
+    renderTree({ entries: [], loadState: "failed", onRetry });
+    expect(screen.queryByText("The vault is empty.")).toBeNull();
+    expect(screen.getByText("The vault could not be read.")).toBeDefined();
+    fireEvent.click(screen.getByText("Try again"));
+    expect(onRetry).toHaveBeenCalled();
   });
 });
 
@@ -182,6 +208,8 @@ describe("inline create", () => {
     render(
       <FileTree
         entries={ENTRIES}
+        loadState="loaded"
+        onRetry={vi.fn()}
         openPath={null}
         onOpenFile={vi.fn()}
         ops={ops}
@@ -201,6 +229,8 @@ describe("inline create", () => {
     render(
       <FileTree
         entries={ENTRIES}
+        loadState="loaded"
+        onRetry={vi.fn()}
         openPath={null}
         onOpenFile={vi.fn()}
         ops={ops}

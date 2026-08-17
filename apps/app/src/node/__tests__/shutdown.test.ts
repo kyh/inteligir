@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createGracefulShutdown,
+  FATAL_EVENTS,
+  installFatalErrorHandlers,
   installShutdownSignals,
   SHUTDOWN_SIGNALS,
+  type FatalEvent,
   type ShutdownStep,
 } from "../shutdown";
 
@@ -175,5 +178,79 @@ describe("installShutdownSignals", () => {
 
     expect(log).toEqual(["vault"]);
     expect(impatient).toEqual(["SIGINT"]);
+  });
+});
+
+function fakeFatalTarget() {
+  const handlers = new Map<FatalEvent, (reason: unknown) => void>();
+  const exits: number[] = [];
+  return {
+    exits,
+    raise(event: FatalEvent, reason: unknown) {
+      handlers.get(event)?.(reason);
+    },
+    registered: () => [...handlers.keys()],
+    target: {
+      on(event: FatalEvent, handler: (reason: unknown) => void) {
+        handlers.set(event, handler);
+      },
+      exit(code: number) {
+        exits.push(code);
+      },
+    },
+  };
+}
+
+describe("installFatalErrorHandlers", () => {
+  it.each(FATAL_EVENTS)("runs the ordinary teardown for %s, then exits non-zero", async (event) => {
+    // Node's default is to print and leave, skipping the SQLite close that
+    // checkpoints the WAL sidecar and the vault flush that commits the last
+    // edits — so a stray rejection in a background task becomes a data
+    // outcome.
+    const log: string[] = [];
+    const seen: Array<{ event: FatalEvent; reason: unknown }> = [];
+    const fake = fakeFatalTarget();
+    const shutdown = createGracefulShutdown({
+      ...quiet,
+      timeoutMs: 1_000,
+      steps: [recordingStep("vault", log), recordingStep("db", log)],
+    });
+
+    installFatalErrorHandlers({
+      shutdown,
+      target: fake.target,
+      onFatal: (fatalEvent, reason) => seen.push({ event: fatalEvent, reason }),
+    });
+    expect(fake.registered()).toEqual([...FATAL_EVENTS]);
+
+    const boom = new Error("a background task rejected");
+    fake.raise(event, boom);
+    await shutdown.run();
+    await Promise.resolve();
+
+    expect(seen).toEqual([{ event, reason: boom }]);
+    expect(log).toEqual(["vault", "db"]);
+    // 1, never 0: a supervisor has to tell a crash from a quit.
+    expect(fake.exits).toEqual([1]);
+  });
+
+  it("joins the teardown a signal already started rather than racing it", async () => {
+    const log: string[] = [];
+    const fake = fakeFatalTarget();
+    const shutdown = createGracefulShutdown({
+      ...quiet,
+      timeoutMs: 1_000,
+      steps: [recordingStep("vault", log)],
+    });
+
+    installFatalErrorHandlers({ shutdown, target: fake.target, onFatal: () => {} });
+
+    void shutdown.run();
+    fake.raise("uncaughtException", new Error("boom"));
+    await shutdown.run();
+    await Promise.resolve();
+
+    expect(log).toEqual(["vault"]);
+    expect(fake.exits).toEqual([1]);
   });
 });

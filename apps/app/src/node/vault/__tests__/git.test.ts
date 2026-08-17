@@ -274,4 +274,78 @@ describe("sync", () => {
     // The conflict is sticky across status reads until a sync succeeds.
     expect((await b.engine.status()).state).toBe("conflict");
   });
+
+  it("says a hold is holding it instead of answering as if a pass ran", async () => {
+    const remote = await makeBareRemote();
+    const { engine } = await makeEngine({ remoteUrl: remote });
+    expect((await engine.syncNow()).state).toBe("clean");
+
+    const release = engine.holdCommits();
+    // No pass may start under a hold — the state names WHY rather than
+    // reporting the clean tree a sync would have left behind.
+    expect((await engine.syncNow()).state).toBe("held");
+    expect((await engine.status()).state).toBe("held");
+
+    release();
+    expect((await engine.syncNow()).state).toBe("clean");
+  });
+
+  it("says offline rather than clean when the remote cannot be reached", async () => {
+    // A vault with nothing local to push: `unpushed` is measured against the
+    // remote-tracking ref, so a stale one would answer "clean" — a sync this
+    // engine never performed.
+    const { engine } = await makeEngine({ remoteUrl: join(await makeBareRemote(), "gone") });
+    const status = await engine.syncNow();
+    expect(status.state).toBe("offline");
+    expect(status.lastError).not.toBeNull();
+    // Sticky: a status read after the failed pass makes the same claim.
+    expect((await engine.status()).state).toBe("offline");
+  });
+
+  it("clears offline once a pass reaches the remote again", async () => {
+    const parent = scratchDir("inteligir-git-late-remote-");
+    const remote = join(parent, "late.git");
+    const { engine } = await makeEngine({ remoteUrl: remote });
+    expect((await engine.syncNow()).state).toBe("offline");
+
+    await runGit(parent, ["init", "--bare", "-b", "main", "late.git"], { env });
+    const recovered = await engine.syncNow();
+    expect(recovered.state).toBe("clean");
+    expect(recovered.lastError).toBeNull();
+  });
+});
+
+describe("runGit", () => {
+  /** What git itself sees in its environment, read back through a shell alias. */
+  async function gitEnvValue(root: string, name: string): Promise<string> {
+    const { stdout } = await runGit(
+      root,
+      ["-c", `alias.dumpenv=!printenv ${name} || true`, "dumpenv"],
+      { env },
+    );
+    return stdout.trim();
+  }
+
+  it("never lets git ask this process a question", async () => {
+    // A prompt on an unreachable or auth-requiring remote does not fail, it
+    // BLOCKS — under the repo lock, so every vault write stalls behind it
+    // until the call's timeout.
+    const root = scratchDir("inteligir-git-env-");
+    await ensureVaultRepo({ root, env });
+    expect(await gitEnvValue(root, "GIT_TERMINAL_PROMPT")).toBe("0");
+    expect(await gitEnvValue(root, "GIT_SSH_COMMAND")).toBe("ssh -o BatchMode=yes");
+  });
+
+  it("leaves a caller's own GIT_SSH_COMMAND alone", async () => {
+    // Someone who configured how ssh runs has made a choice; overriding it
+    // would break the setups that exist to make these fetches work at all.
+    const root = scratchDir("inteligir-git-ssh-");
+    await ensureVaultRepo({ root, env });
+    const { stdout } = await runGit(
+      root,
+      ["-c", "alias.dumpenv=!printenv GIT_SSH_COMMAND || true", "dumpenv"],
+      { env: { ...env, GIT_SSH_COMMAND: "ssh -F /custom/config" } },
+    );
+    expect(stdout.trim()).toBe("ssh -F /custom/config");
+  });
 });

@@ -26,7 +26,13 @@ import {
 import { SettingsDialog } from "./settings/settings-dialog";
 import { Sidebar } from "./sidebar/sidebar";
 import type { TreeOps } from "./sidebar/file-tree";
-import { filePathsLowercased, untitledNotePath, useVaultStatus, useVaultTree } from "./vault-hooks";
+import {
+  canSyncNow,
+  filePathsLowercased,
+  untitledNotePath,
+  useVaultStatus,
+  useVaultTree,
+} from "./vault-hooks";
 import {
   readLastOpenNote,
   readSidebarWidth,
@@ -245,6 +251,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         queryClient.setQueryData(queryKeys.vaultStatus, status);
         if (status.state === "conflict") {
           toast.warning("Sync hit a conflict — both sides changed the same files.");
+        } else if (status.state === "held") {
+          // No pass ran: an agent turn holds the vault's commits. Silence here
+          // is indistinguishable from a sync that succeeded.
+          toast.info("An agent turn is running — the vault syncs when it finishes.");
+        } else if (status.state === "offline") {
+          toast.error(
+            status.lastError === null
+              ? "Could not reach the git remote."
+              : `Could not reach the git remote: ${status.lastError}`,
+          );
         } else if (status.lastError !== null) {
           toast.error(`Sync failed: ${status.lastError}`);
         }
@@ -340,10 +356,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openDailyNote]);
 
-  const canSync =
-    statusQuery.data !== undefined &&
-    statusQuery.data.state !== "no-remote" &&
-    statusQuery.data.state !== "syncing";
+  const canSync = canSyncNow(statusQuery.data);
 
   // The palette's search source: the knowledge index's full-text + tag
   // search (`tag:<name>` terms parse engine-side), with the filename tiers as
