@@ -1,20 +1,12 @@
-// The policy is applied to the shell being served, so the test that matters is
-// over the shell this repo actually builds — a hand-written fixture would pass
-// while production shipped a blocked script. (The end-to-end proof is
-// `pnpm e2e --prod`, which renders the real page in a real browser; these pin
-// the pieces so a failure names itself.)
+// The policy STRING only. What the document actually carries is asserted where
+// a fresh build is guaranteed: `app.test.ts` holds the served nonce against the
+// policy that names it, and `pnpm e2e --prod`'s browser-smoke reads the real
+// built document. Nothing here may read `dist/` — `pnpm verify` runs the tests
+// BEFORE the build, so such a test asserts over the PREVIOUS build's output
+// and either skips on a clean checkout or fails on a stale one.
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  buildContentSecurityPolicy,
-  prepareShellTemplate,
-  renderShell,
-  SHELL_NONCE_PLACEHOLDER,
-} from "../csp";
-
-const BUILT_SHELL = join(import.meta.dirname, "..", "..", "..", "dist", "client", "_shell.html");
+import { buildContentSecurityPolicy } from "../csp";
 
 function directive(policy: string, name: string): string {
   const found = policy.split("; ").find((entry) => entry.startsWith(`${name} `));
@@ -23,33 +15,6 @@ function directive(policy: string, name: string): string {
   }
   return found;
 }
-
-describe("prepareShellTemplate / renderShell", () => {
-  it("nonces every script tag, inline and sourced alike", () => {
-    const template = prepareShellTemplate(
-      '<script>a</script><script type="module" src="/x.js"></script>',
-    );
-    const html = renderShell(template, "N0NCE");
-    expect(html).toBe(
-      '<script nonce="N0NCE">a</script><script nonce="N0NCE" type="module" src="/x.js"></script>',
-    );
-  });
-
-  it("leaves nothing behind when a nonce is substituted", () => {
-    const html = renderShell(prepareShellTemplate("<script>a</script>"), "N0NCE");
-    expect(html).not.toContain(SHELL_NONCE_PLACEHOLDER);
-  });
-
-  it("uses a placeholder no browser would accept as a real nonce", () => {
-    // A template that escaped un-rendered must be refused, not quietly trusted.
-    expect(SHELL_NONCE_PLACEHOLDER).not.toMatch(/^[A-Za-z0-9+/]+={0,2}$/u);
-  });
-
-  it("touches nothing else in the document", () => {
-    const html = "<head><title>t</title></head><body><div id=a></div></body>";
-    expect(renderShell(prepareShellTemplate(html), "N")).toBe(html);
-  });
-});
 
 describe("buildContentSecurityPolicy", () => {
   const policy = buildContentSecurityPolicy({ nonce: "N0NCE", wsOrigin: "ws://127.0.0.1:4664" });
@@ -82,15 +47,5 @@ describe("buildContentSecurityPolicy", () => {
     // CodeMirror injects its theme as a runtime <style>; nothing here can
     // nonce that. Pinned so the weakness stays deliberate.
     expect(directive(policy, "style-src")).toBe("style-src 'self' 'unsafe-inline'");
-  });
-});
-
-describe("over the BUILT shell", () => {
-  it.runIf(existsSync(BUILT_SHELL))("nonces every script the production shell carries", () => {
-    const html = readFileSync(BUILT_SHELL, "utf8");
-    const scriptTags = html.match(/<script/gu) ?? [];
-    expect(scriptTags.length).toBeGreaterThan(0);
-    const rendered = renderShell(prepareShellTemplate(html), "N0NCE");
-    expect(rendered.match(/<script nonce="N0NCE"/gu)).toHaveLength(scriptTags.length);
   });
 });

@@ -12,6 +12,13 @@ interface WorkspaceSearch {
 }
 
 export const Route = createFileRoute("/")({
+  // This subtree reaches `window` before its first paint (the api client, the
+  // editor), so it renders in the browser only. The root route still renders
+  // the document server-side, which is what makes the response a SHELL: the
+  // head and the client entry are real, this route is a boundary the client
+  // fills. `spa: { enabled: true }` alone does not arrange that — it
+  // prerenders _shell.html and leaves the deployed entry rendering for real.
+  ssr: false,
   validateSearch: (search: Record<string, unknown>): WorkspaceSearch => {
     const note = search["note"];
     return typeof note === "string" && note !== "" ? { note } : {};
