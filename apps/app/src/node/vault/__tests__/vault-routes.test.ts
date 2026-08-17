@@ -67,6 +67,7 @@ async function bootVaultApp() {
       databasePath: join(dataDir, "inteligir.db"),
       dataDir,
       dataDirSource: "env",
+      devHmrPort: 0,
       mode: "dev",
       port: 0,
       portSource: "env",

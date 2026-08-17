@@ -67,7 +67,7 @@ function readAppVersion(): string {
   return z.object({ version: z.string().min(1) }).parse(JSON.parse(raw)).version;
 }
 
-async function createDevFallback(hmrPort: number | undefined): Promise<AppFallback> {
+async function createDevFallback(hmrPort: number): Promise<AppFallback> {
   const { createServer } = await import("vite");
   const vite = await createServer({
     root: fileURLToPath(appDirUrl),
@@ -75,7 +75,7 @@ async function createDevFallback(hmrPort: number | undefined): Promise<AppFallba
     // port injected into @vite/client — so the pair stays matched. (`ws:
     // false` is not enough: it stops the server while the injected client
     // still dials, and every page load throws.)
-    server: { middlewareMode: true, ...(hmrPort === undefined ? {} : { ws: { port: hmrPort } }) },
+    server: { middlewareMode: true, ws: { port: hmrPort } },
   });
   return { kind: "dev", middlewares: vite.middlewares };
 }
