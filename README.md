@@ -54,7 +54,9 @@ apps/
 packages/
   notes/             @repo/notes — pure platform-neutral domain: markdown
                      pipeline, knowledge engine (links, tags, tasks, search)
-  editor/            @repo/editor — CodeMirror 6 markdown live-preview
+  editor/            @repo/editor — CodeMirror 6 markdown live-preview:
+                     marks, headings, lists, quotes, fences, tables, math,
+                     mermaid, images, callouts, tag chips
   ui/                @repo/ui — vendored shadcn components
   domain/            @repo/domain — the thread grammar and lifecycle, zod-only
   server-contract/   @repo/server-contract — THE route table + ws schemas

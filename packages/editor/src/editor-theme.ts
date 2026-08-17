@@ -8,10 +8,18 @@ const monoStack =
 const accent = "var(--editor-accent, var(--editor-accent-fallback))";
 
 // Palettes as CSS custom properties so the vendored ProseMark pieces (which
-// read --pm-*) and the house rules share one source. The light palette lives
-// on the editor root; dark redefines only the tokens, twice: under the media
-// query guarded against an explicit light choice, and under the explicit
-// data-theme="dark" override.
+// read --pm-*) and the house rules share one source. Light is the base, on the
+// editor root; dark redefines only the tokens, under `:root[data-theme="dark"]`.
+//
+// THE HOST STAMPS `data-theme`, and a `prefers-color-scheme` media query is
+// not an option here — it is a style-mod limitation, not a preference.
+// `EditorView.theme` compiles through style-mod, which substitutes `&` with
+// the ENCLOSING SELECTOR, and inside an at-rule that enclosing selector is the
+// at-rule's own text: `@media (…) { ":root:not(…) &": tokens }` compiles to
+// `.cm-theme :root:not(…) @media (…) { … }`, which matches nothing and fails
+// silently. Every consumer therefore resolves the theme itself and stamps it
+// (apps/app's EditorThemeCarrier; `dev/main.ts` for the demo);
+// `__tests__/theme-carrier.test.ts` keeps the dead pattern from coming back.
 const lightTokens: Record<string, string> = {
   "--editor-accent-fallback": "oklch(58.8% 0.158 241.966)",
   "--editor-fg": "oklch(24% 0.012 260)",
@@ -70,8 +78,8 @@ const darkTokens: Record<string, string> = {
  * The house look: typography and palette driven entirely by CSS custom
  * properties (--editor-font/-mono/-size/-line-height/-width/-accent) so the
  * app's appearance system can restyle the editor without touching extensions.
- * Light/dark follows prefers-color-scheme, with a data-theme override on any
- * ancestor of :root semantics: an explicit choice always wins.
+ * Light is the base; `:root[data-theme="dark"]` swaps the palette, and the
+ * host is what stamps it (see the note above).
  */
 export const editorThemeExtension = EditorView.theme({
   "&": {
@@ -81,9 +89,6 @@ export const editorThemeExtension = EditorView.theme({
     fontFamily: `var(--editor-font, ${fontStack})`,
     fontSize: "var(--editor-size, 1rem)",
     lineHeight: "var(--editor-line-height, 1.75)",
-  },
-  "@media (prefers-color-scheme: dark)": {
-    ':root:not([data-theme="light"]) &': darkTokens,
   },
   ':root[data-theme="dark"] &': darkTokens,
 

@@ -1,6 +1,6 @@
 export const sampleDoc = `---
 title: Live preview sample
-tags: [editor, first-cut]
+tags: [editor, live-preview]
 ---
 
 # The buffer is the file
@@ -14,6 +14,12 @@ Some **bold text**, some _emphasis_, some \`inline code\`,
 ~~struck through~~, an escape \\*not emphasis\\*, and a
 [markdown link](https://codemirror.net) beside a bare URL
 https://example.com — plus en--dash and em---dash folding.
+
+## Tags
+
+Prose carrying #alpha, #nested/child and #writing — click one and the host app
+seeds its search with \`tag:<name>\`. Inside \`#code\` or a [labelled
+#link](https://example.com/#frag) a hash is literal text, so no chip appears.
 
 ## Lists and tasks
 
@@ -32,6 +38,40 @@ https://example.com — plus en--dash and em---dash folding.
 > A blockquote keeps its bar while the \`>\` marks fade.
 > > Nesting draws a second bar.
 
+## Callouts
+
+> [!NOTE] A note with a title
+> The header token folds to the label on the left; click into it and the
+> \`[!NOTE]\` bytes come back while the box stays.
+
+> [!WARNING]
+> A callout needs no title.
+
+> [!totally-made-up] An unknown type still gets a box and its own label.
+
+## Images
+
+A vault-relative embed alone on its line renders as a block:
+
+![the buffer is the file](assets/diagram.svg)
+
+An inline one ![the same picture](assets/diagram.svg) sits in the sentence. A
+scheme the editor will not load — ![no](javascript:alert(1)) — keeps its own
+bytes and says why, and so does a path nothing can resolve:
+![missing](assets/nowhere.png).
+
+## Math
+
+Inline math like $e^{i\\pi} + 1 = 0$ sits in the line; a display block gets
+its own:
+
+$$
+\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}
+$$
+
+A padded $ span like this $ is not math, an escaped \\$5 is a price, and a
+broken $\\frobnicate{x}$ shows its own source plus the reason.
+
 ## Code
 
 \`\`\`ts
@@ -49,6 +89,31 @@ export const open = (path: string): Vault => ({
 \`\`\`python
 def fib(n: int) -> int:
     return n if n < 2 else fib(n - 1) + fib(n - 2)
+\`\`\`
+
+## Tables
+
+| Construct | Renders as | Where the source is |
+| --- | :---: | ---: |
+| \`**bold**\` | **bold** | in the cell |
+| A [link](https://codemirror.net) | its label, inert | click to unfold |
+| \`$x^2$\` | \`$x^2$\` | no case for it, so its own bytes |
+
+Click into the table and the widget gives way to the real lines — the bytes
+were always there.
+
+## Diagrams
+
+\`\`\`mermaid
+graph LR
+  Buffer[The buffer] --> File[The file on disk]
+  File --> Git[git commit]
+\`\`\`
+
+A diagram the renderer cannot draw keeps its fence's own source and says why:
+
+\`\`\`mermaid
+gantt is not one of the shapes this renderer knows
 \`\`\`
 
 ---

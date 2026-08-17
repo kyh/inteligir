@@ -44,6 +44,7 @@ import { NoteController, type SaveResult } from "./note-controller";
 import { useNoteDisk } from "./note-disk";
 import { NoteTitle } from "./note-title";
 import { sendKeepaliveWrite } from "./keepalive-write";
+import { vaultAssetUrl } from "./vault-asset";
 import { useWorkspace } from "../workspace-context";
 
 /** How the note surface hands delegation intents up to the workspace. */
@@ -62,9 +63,11 @@ export interface NoteViewProps {
   onRename: (toPath: string) => void;
   /** The note disappeared from disk under us (external delete). */
   onVanished: () => void;
+  /** A `#tag` chip was clicked: narrow the palette's search to that tag. */
+  onSearchTag: (tag: string) => void;
 }
 
-export function NoteView({ path, delegation, onRename, onVanished }: NoteViewProps) {
+export function NoteView({ path, delegation, onRename, onVanished, onSearchTag }: NoteViewProps) {
   const { api, docEvents } = useWorkspace();
   const disk = useNoteDisk({ api, docEvents, path, onVanished });
 
@@ -88,6 +91,7 @@ export function NoteView({ path, delegation, onRename, onVanished }: NoteViewPro
       diskContent={disk.content}
       onRename={onRename}
       setRenamePending={disk.setRenamePending}
+      onSearchTag={onSearchTag}
     />
   );
 }
@@ -95,6 +99,8 @@ export function NoteView({ path, delegation, onRename, onVanished }: NoteViewPro
 interface OpenNoteProps {
   path: string;
   delegation: NoteDelegation;
+  /** A `#tag` chip was clicked: narrow the palette's search to that tag. */
+  onSearchTag: (tag: string) => void;
   /** The reader's LATEST disk view. The editor mounts from it once; every
    * later value flows through the controller's adopt/merge. */
   diskContent: string;
@@ -102,7 +108,14 @@ interface OpenNoteProps {
   setRenamePending: (pending: boolean) => void;
 }
 
-function OpenNote({ path, delegation, diskContent, onRename, setRenamePending }: OpenNoteProps) {
+function OpenNote({
+  path,
+  delegation,
+  diskContent,
+  onRename,
+  setRenamePending,
+  onSearchTag,
+}: OpenNoteProps) {
   const { api } = useWorkspace();
   const controllerRef = useRef<NoteController | null>(null);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
@@ -369,6 +382,8 @@ function OpenNote({ path, delegation, diskContent, onRename, setRenamePending }:
         initialDoc={diskContent}
         extensions={delegationExtensions}
         onDocChanged={() => controllerRef.current?.docChanged()}
+        onOpenTag={onSearchTag}
+        resolveAsset={vaultAssetUrl}
         onEditor={handleEditor}
       />
     </div>

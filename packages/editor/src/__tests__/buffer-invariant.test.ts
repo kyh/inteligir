@@ -23,15 +23,37 @@ an escape \\* and dashes -- here.
 > quote level one
 > > nested quote
 
+Tagged prose: #alpha and #nested/child, plus a literal \`#incode\` one.
+
+> [!WARNING] A callout
+> with a second line.
+
+![an embed](assets/diagram.svg) and ![refused](javascript:alert(1)).
+
+Inline $e^{i\\pi} + 1 = 0$ math, and a display block:
+
+$$
+\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}
+$$
+
 - item one
 - [ ] task open
 - [x] task done
 1. ordered
 
+| Col | **B** |
+| --- | ---: |
+| one | \`two\` |
+
 ***
 
 \`\`\`js
 const x = 1;
+\`\`\`
+
+\`\`\`mermaid
+graph TD
+  A --> B
 \`\`\`
 
 Tail paragraph with enough text to edit into.
@@ -53,6 +75,14 @@ const snippets = [
   "plain words ",
   "<div>",
   "{{x}}",
+  "#tag ",
+  "> [!NOTE] ",
+  "$$",
+  "$x$",
+  "![a](b.png)",
+  "```mermaid\n",
+  "| a | b |\n",
+  " | ",
 ];
 
 // mulberry32: deterministic PRNG so a failure reproduces byte-for-byte.
@@ -145,6 +175,11 @@ describe("buffer == file", () => {
     const link = view.contentDOM.querySelector(".cm-rendered-link");
     expect(link).not.toBeNull();
     link?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+    // Same for a tag chip: it acts, it never writes.
+    const chip = view.contentDOM.querySelector(".cm-tag");
+    expect(chip).not.toBeNull();
+    chip?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
 
     expect(openedLinks.length).toBeLessThanOrEqual(1);
     expect(docChanges).toEqual([]);

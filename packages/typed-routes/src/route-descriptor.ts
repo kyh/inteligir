@@ -149,6 +149,18 @@ export function jsonResponse<Output, const Status extends ContentfulStatusCode>(
   };
 }
 
+/**
+ * A response whose body is BYTES. The handler builds it with `c.body(...)`,
+ * which the registrar never constrains — only `c.json` is typed against the
+ * row — so the descriptor carries no Output type. `never` is what makes that
+ * safe rather than merely untyped: it removes this row from the `c.json`
+ * argument union, so a handler cannot answer a binary row with JSON and call
+ * it a 200.
+ */
+export function binaryResponse(): RouteResponseDescriptor<never, 200, "binary"> {
+  return { status: 200, format: "binary" };
+}
+
 export function noRequest<Input = EmptyInput>(): NoRouteRequest<Input> {
   return { source: "none" };
 }

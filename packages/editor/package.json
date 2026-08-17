@@ -2,7 +2,7 @@
   "name": "@repo/editor",
   "version": "0.1.0",
   "private": true,
-  "description": "CodeMirror 6 markdown live-preview editor (Obsidian model: the buffer IS the file; syntax marks hide except near the selection). Vendors @prosemark/core (MIT, pinned in src/vendor/prosemark/PROVENANCE.md) and layers the house surface on top: heading hashes hung in the left margin, interactive task checkboxes, drag-freeze, viewport force-parse healing, and a CSS custom-property theme the app's appearance system can drive.",
+  "description": "CodeMirror 6 markdown live-preview editor (Obsidian model: the buffer IS the file; syntax marks hide except near the selection). Vendors @prosemark/core (MIT, pinned in src/vendor/prosemark/PROVENANCE.md) and layers the house surface on top: heading hashes hung in the left margin, interactive task checkboxes, inline #tag chips, callouts, KaTeX math, image embeds behind an injected vault resolver, mermaid diagrams on a lazy chunk, GFM tables that unfold to source, drag-freeze, viewport force-parse healing, and a CSS custom-property theme the app's appearance system can drive.",
   "type": "module",
   "exports": {
     "./create-markdown-editor": "./src/create-markdown-editor.ts",
@@ -34,6 +34,9 @@
     "@lezer/markdown": "^1.7.2",
     "@lezer/yaml": "^1.0.4",
     "@repo/notes": "workspace:*",
+    "beautiful-mermaid": "^1.1.3",
+    "dompurify": "^3.4.13",
+    "katex": "^0.18.4",
     "react": "catalog:"
   },
   "devDependencies": {
