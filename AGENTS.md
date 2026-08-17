@@ -1,14 +1,16 @@
 # AGENTS.md
 
-**inteligir** is an AI-native notes app — Obsidian with an agent. The repo is
-mid-rewrite: the v3 architecture is GitHub issue #542, and features land with
-their own issues from that index. What runs today: `apps/app` — THE PRODUCT, a
-local Node process (TanStack Start SPA + typed /api/v1 + ws invalidation bus
-over SQLite) — and `apps/web`, one Cloudflare Worker serving the marketing
-site and Better Auth on D1, plus the carried domain packages (`@repo/notes`,
-`@repo/ui`). This is the tool-agnostic guide for coding agents; `CLAUDE.md`
-holds the architecture and the durable decisions, `CONTEXT.md` the domain
-glossary, `apps/web/README.md` the Worker's own routes and deploy.
+**inteligir** is an AI-native notes app — Obsidian with an agent, local-first.
+`apps/app` is THE PRODUCT: one local Node process (TanStack Start SPA + typed
+/api/v1 + ws invalidation bus over SQLite) that owns a git-versioned markdown
+vault, indexes it, and drives Codex over it. `apps/cli` is how an agent drives
+that product from bash; `apps/launcher` publishes it as `npx inteligir` and
+`apps/desktop` wraps it in a window. `apps/web` is the one hosted piece — a
+Cloudflare Worker carrying the marketing site, Better Auth on D1, device
+pairing and cross-device thread sync. This is the tool-agnostic guide for
+coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
+GitHub issue #542 the decision record, `CONTEXT.md` the domain glossary,
+`apps/web/README.md` the Worker's own routes and deploy.
 
 ## Quickstart
 

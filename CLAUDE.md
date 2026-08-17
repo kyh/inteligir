@@ -2,11 +2,15 @@
 
 ## Project Overview
 
-**inteligir** — an AI-native notes app (Obsidian-with-an-agent). The repo is
-mid-rewrite: **v3 architecture is GitHub issue
-[#542](https://github.com/kyh/inteligir/issues/542)**, and features land with
-their own issues from that index. What runs today is the marketing site and the
-account surface, plus the carried domain packages.
+**inteligir** — an AI-native notes app (Obsidian-with-an-agent), local-first.
+The vault is markdown files in a git repo the user owns; one local Node process
+serves the workspace, owns the vault, indexes it, and drives a coding agent
+that edits those same files. The only hosted piece is a Cloudflare Worker
+carrying the marketing site, accounts, and cross-device thread sync.
+
+**The architecture's decision record is GitHub issue
+[#542](https://github.com/kyh/inteligir/issues/542)** — what was chosen, and
+what was rejected and why.
 
 Turborepo + pnpm monorepo.
 
@@ -131,6 +135,54 @@ command is `db:push:local`.
 
 ## Decisions
 
+- **THE BUFFER IS THE FILE.** The editor is CodeMirror over the markdown
+  source, so byte-stability is a property of the design rather than a
+  round-trip to defend: there is no rich-model serializer that can disagree
+  with disk. Every construct renders as a decoration over the real text.
+- **A write carries the base it was computed from.** `expectedHash` on the
+  vault write route is compared under the repo lock; a mismatch answers 409
+  WITH the current content, and the client merges (diff3) and retries. Creation
+  uses `ifAbsent` instead. Without this, an agent write landing between a
+  client's read and its save is silently overwritten — the failure mode is
+  invisible, so the guard has to be in the protocol, not the UI.
+- **Containment is PHYSICAL, not lexical.** The vault realpaths the deepest
+  existing ancestor and refuses symlinked leaves. A lexical check passes
+  `notes.md` when that name is a symlink to `~/.ssh/id_ed25519`, and a `git
+pull` from a hostile remote is enough to plant one.
+- **The vault dir and the data dir must be disjoint**, refused at boot. A data
+  dir inside the vault gets committed and pushed — the SQLite database and the
+  config with it.
+- **Ingest is ONE transaction.** Appending a provider event, projecting the
+  thread's lifecycle, and touching the queue happen in one immediate
+  transaction; notifications flush after commit. Separately: lifecycle CAS
+  predicates include the TURN identity, so a late completion for turn A cannot
+  settle turn B.
+- **Agent commits stage the turn's own write set**, taken from the fileChange
+  events, under a counted commit hold that defers the vault's debounce and
+  blocks a sync from starting. Committing the whole dirty tree attributes a
+  concurrent turn's writes — and the user's — to whoever settles first.
+- **Cloud state names its Durable Object from a VERIFIED credential**, never
+  from anything a caller supplies. Account deletion revokes credentials FIRST,
+  then purges, then writes a tombstone every route refuses against — the
+  reorder alone still leaves an in-flight verified request able to recreate
+  state after the purge.
+- **Say the delivery guarantee you implement.** Captures are at-least-once
+  delivery with exactly-once deletion by the owning claim, so the client's
+  apply must be idempotent on the capture id. "Exactly-once" was written first
+  and was false in both directions.
+- **A delegation marker is parsed, never matched.** `<!-- inteligir:thread
+anc_… -->` counts only as a block-level node alone on its line, so the same
+  text inside a fence or frontmatter stays literal — and insertion computes a
+  legal block boundary, because a marker spliced into frontmatter invalidates
+  the YAML and silently changes what `tags:` and `tasks: false` mean. The
+  invariant under test: inserting a marker leaves the rest of the document
+  parsing identically.
+- **The launcher boots in-process; the desktop shell supervises a child.**
+  Opposite answers because the failure differs: `npx` wants one exit code and
+  a `^C` that reaches the vault's owner, while the shell must not share its
+  compositor's event loop with better-sqlite3, a watcher fork and `git`. The
+  shell adopts an already-listening server rather than fighting it, and only
+  kills the child it started.
 - **Better Auth's `baseURL` is derived per-request from the request origin**,
   never configured or allowlisted. Every hostname that reaches this Worker is
   one the deployment owns, and Cloudflare routes by hostname, so a spoofed
@@ -184,10 +236,9 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   inert** — the `"use client"` directives it produces are ignored by every
   consumer, all plain Vite builds with no RSC bundler in the graph.
 
-**Before raising a "new" finding, read the `note` issues** —
-[#446](https://github.com/kyh/inteligir/issues/446),
-[#453](https://github.com/kyh/inteligir/issues/453),
-[#472](https://github.com/kyh/inteligir/issues/472),
-[#474](https://github.com/kyh/inteligir/issues/474) hold investigated-and-
-declined findings. An issue's plan can name paths that no longer exist even
-when its concern is live — verify every path before following it.
+**Before raising a "new" finding, read
+[#542](https://github.com/kyh/inteligir/issues/542)** — the decision record
+carries what was rejected as well as what was chosen. The older `note` issues
+(#446, #453, #472, #474) catalogue findings declined against the hosted
+Durable-Object architecture this rewrite replaced; their concerns rarely
+survive the move, and none of their paths do.
