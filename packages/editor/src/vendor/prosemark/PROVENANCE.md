@@ -63,6 +63,14 @@ instead of marked per line.
   until an unrelated dispatch; the patch nudges the view with an empty
   transaction when the set changed (softIndentExtension's own pattern), with a
   destroy guard.
+- `lib/markdownFormattingKeymap.ts` — `insertLink` moved from `Mod-k` to
+  `Mod-Shift-k`. `Mod-k` is the host app's command palette
+  (`apps/app/src/app/global-shortcuts.ts`), which listens on the window: a
+  CodeMirror binding preventDefaults but does not stop propagation, so both
+  ran and `[]()` was spliced into the note the palette opened over. The new
+  key shadows CodeMirror's `deleteLine`, which this keymap outranks anyway by
+  being spread first at composition. Re-vendoring restores the collision;
+  `apps/app/src/app/__tests__/global-shortcuts.test.tsx` fails when it does.
 - `lib/clickLink.ts` — imports `EditorView` from `@codemirror/view` instead of
   the `codemirror` metapackage; explicit `return undefined` in the
   `iterChildren` callback (`noImplicitReturns`).

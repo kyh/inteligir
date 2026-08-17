@@ -15,6 +15,7 @@ import { ChatDock } from "./chat/chat-dock";
 import { ANCHOR_FAILURE_MESSAGES, type DelegationDraft } from "./chat/chat-model";
 import { createDelegation } from "./chat/chat-service";
 import { useThreads } from "./chat/thread-hooks";
+import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { NoteView, type NoteDelegation } from "./note/note-view";
 import { CommandPalette } from "./palette/command-palette";
@@ -59,6 +60,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Read once: the platform does not change under a running window.
+  const [shortcutModifier] = useState(platformShortcutModifier);
 
   // The chat dock's state lives HERE, beside the note — never above it, so
   // no chat interaction can remount the editor.
@@ -339,22 +342,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     setOpenNote(null);
   }, [setOpenNote]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (!(event.metaKey || event.ctrlKey)) {
-        return;
-      }
-      if (event.key === "k") {
-        event.preventDefault();
+  useGlobalShortcuts(shortcutModifier, (action) => {
+    switch (action) {
+      case "open-palette":
         setPaletteOpen((current) => !current);
-      } else if (event.key === "d") {
-        event.preventDefault();
+        break;
+      case "open-daily-note":
         openDailyNote();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openDailyNote]);
+        break;
+    }
+  });
 
   const canSync = canSyncNow(statusQuery.data);
 
