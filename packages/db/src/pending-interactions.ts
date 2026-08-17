@@ -3,7 +3,7 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import type { DbConnection } from "./connection";
 import { createPendingInteractionId } from "./ids";
-import type { DbNotifier } from "./notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import { pendingInteractions } from "./schema";
 
 export type PendingInteractionRow = typeof pendingInteractions.$inferSelect;

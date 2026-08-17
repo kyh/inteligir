@@ -3,7 +3,7 @@
 // the single-flight chat resolver, the delegation create's ordering, and the
 // approval answer the inline card emits.
 
-import { noopNotifier } from "@repo/db/notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction } from "@repo/db/pending-interactions";
 import { threadMarkerText } from "@repo/notes/markdown/thread-marker";
 import { describe, expect, it } from "vitest";

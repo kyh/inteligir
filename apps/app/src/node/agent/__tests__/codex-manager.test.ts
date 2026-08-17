@@ -14,7 +14,7 @@ import {
 import {
   parseApprovalResolution,
   type PendingInteractionPayload,
-} from "@repo/agent-runtime/domain/pending-interactions";
+} from "@repo/domain/pending-interactions";
 import { getThread } from "@repo/db/threads";
 import { describe, expect, it } from "vitest";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";

@@ -1,10 +1,10 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { requireThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
-import type { ThreadEvent } from "./domain/provider-event.js";
+import type { ProviderEvent } from "./vocabulary/provider-event.js";
 
 export type RuntimeTurnReplayFilterResult =
-  | { kind: "emit"; event: ThreadEvent }
+  | { kind: "emit"; event: ProviderEvent }
   | { kind: "drop-replayed-turn-start"; threadId: string; turnId: string };
 
 /**
@@ -23,7 +23,7 @@ export class RuntimeTurnReplayFilter {
     this.completedTurnIdsByThreadId.delete(threadId);
   }
 
-  observe(event: ThreadEvent): RuntimeTurnReplayFilterResult {
+  observe(event: ProviderEvent): RuntimeTurnReplayFilterResult {
     if (event.type === "turn/started") {
       const turnId = requireThreadEventScopeTurnId({
         type: event.type,

@@ -3,13 +3,13 @@
 // tools / tool calls, no archive/rename, no background-work reporting, no
 // ACP — see PROVENANCE.md for what each trim cost.
 
-import type { RuntimeThreadExecutionOptions } from "./domain/shared-types.js";
+import type { RuntimeThreadExecutionOptions } from "./vocabulary/shared-types.js";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
-} from "./domain/pending-interactions.js";
-import type { ThreadEvent } from "./domain/provider-event.js";
-import type { AvailableModel } from "./domain/provider-types.js";
+} from "@repo/domain/pending-interactions";
+import type { ProviderEvent } from "./vocabulary/provider-event.js";
+import type { AvailableModel } from "./vocabulary/provider-types.js";
 import type { PromptInput } from "./provider-adapter.js";
 
 export type AgentRuntimeShellEnvironment = Record<string, string>;
@@ -50,7 +50,7 @@ export interface AgentRuntimeOptions {
 
   /** Called when a provider emits a translated event.
    *  Every event has `threadId` (host id) and `providerThreadId` (provider's internal id). */
-  onEvent: (event: ThreadEvent) => void;
+  onEvent: (event: ProviderEvent) => void;
 
   /** Called when a provider pauses for user permission or approval.
    *  The runtime converts provider-native requests into the shared pending-interaction contract. */

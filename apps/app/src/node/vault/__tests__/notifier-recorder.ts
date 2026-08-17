@@ -1,5 +1,5 @@
-import type { DbNotifier } from "@repo/db/notifier";
-import type { DocChangeKind, VaultChangeKind } from "@repo/server-contract/notifications";
+import type { DbNotifier } from "@repo/domain/notifier";
+import type { DocChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 
 export interface NotifierRecorder extends DbNotifier {
   vaultChanges: VaultChangeKind[][];

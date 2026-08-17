@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { requireThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
-import type { ThreadEvent } from "./domain/provider-event.js";
+import type { ProviderEvent } from "./vocabulary/provider-event.js";
 
 interface PendingActiveTurnWaiter {
   resolve: (turnId: string | null) => void;
@@ -70,7 +70,7 @@ export class RuntimeTurnState {
     });
   }
 
-  observe(event: ThreadEvent): void {
+  observe(event: ProviderEvent): void {
     if (event.type === "turn/started") {
       const turnId = requireThreadEventScopeTurnId({
         type: event.type,

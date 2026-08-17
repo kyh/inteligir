@@ -4,10 +4,7 @@
 // shared approval grammar, so a typo names the decisions the request actually
 // offers instead of reaching the host and settling as a silent deny.
 
-import {
-  approvalPendingInteractionPayloadSchema,
-  parseApprovalResolution,
-} from "@repo/agent-runtime/domain/pending-interactions";
+import { parseApprovalResolution } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/server-contract/threads";
 import type { Command } from "commander";
 import { CliExitError, invalidUsage } from "../cli-error";
@@ -20,19 +17,19 @@ interface ThreadScopedOptions extends JsonOutputOptions {
 
 /**
  * The interaction's own payload is what says which decisions are on offer, so
- * validation needs the row. A payload this build cannot parse is NOT a
- * refusal: the host is the authority and will answer 400 itself — refusing
- * here would strand a caller on a grammar the server accepts.
+ * validation needs the row. A null payload is NOT a refusal: the host is the
+ * authority and will answer 400 itself — refusing here would strand a caller
+ * on a grammar the server accepts.
  */
 function assertResolutionValid(interaction: PendingInteraction, resolution: string): void {
-  const payload = approvalPendingInteractionPayloadSchema.safeParse(interaction.payload);
-  if (!payload.success) {
+  const payload = interaction.payload;
+  if (payload === null) {
     return;
   }
-  const parsed = parseApprovalResolution(resolution, payload.data);
+  const parsed = parseApprovalResolution(resolution, payload);
   if (!parsed.ok) {
     throw invalidUsage(
-      `${parsed.reason}. Pass a bare decision verb (${payload.data.availableDecisions.join(", ")}, deny) ` +
+      `${parsed.reason}. Pass a bare decision verb (${payload.availableDecisions.join(", ")}, deny) ` +
         `or the resolution JSON.`,
     );
   }

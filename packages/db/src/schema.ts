@@ -1,3 +1,4 @@
+import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import type { ThreadEventItemType, ThreadEventType } from "@repo/domain/provider-event";
 import type { ThreadEventScopeKind } from "@repo/domain/thread-event-scope";
 import { threadStatusValues } from "@repo/domain/thread-status";
@@ -134,14 +135,6 @@ export const queuedThreadMessages = sqliteTable(
     index("queued_thread_messages_thread_sort_idx").on(table.threadId, table.sortKey, table.id),
   ],
 );
-
-export const pendingInteractionStatusValues = [
-  "pending",
-  "resolving",
-  "resolved",
-  "interrupted",
-] as const;
-export type PendingInteractionStatusValue = (typeof pendingInteractionStatusValues)[number];
 
 export const pendingInteractions = sqliteTable(
   "pending_interactions",

@@ -1,9 +1,14 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Trimmed to the execution-context builder and its capability assertion; the
+// Trimmed to the codex classifier and the execution-context builder; the
 // claude-code normalizers and service-tier assertions are not carried.
 
-import type { RuntimePermissionPolicy } from "./domain/shared-types.js";
-import type { ProviderAdapter, ProviderExecutionContext } from "./provider-adapter.js";
+import type { RuntimePermissionPolicy } from "./vocabulary/shared-types.js";
+import type {
+  ClassifyProviderExecutionSettingsChangeArgs,
+  ProviderAdapter,
+  ProviderExecutionContext,
+  ProviderExecutionSettingsChange,
+} from "./provider-adapter.js";
 import type { AgentRuntimeExecutionOptions } from "./types.js";
 
 interface AssertProviderSupportsExecutionOptionsArgs {

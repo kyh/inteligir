@@ -11,13 +11,13 @@ import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import {
   providerRawEventSchema,
   type ProviderRawEvent,
-  type ThreadEvent,
-} from "../domain/provider-event.js";
+  type ProviderEvent,
+} from "../vocabulary/provider-event.js";
 import type { JsonRpcMessage } from "../runtime-json-rpc.js";
 import { getStringProperty, isRecord } from "./provider-visibility-helpers.js";
 import { UNSTAMPED_THREAD_ID } from "./unstamped-thread-id.js";
 
-type ProviderUnhandledEvent = Extract<ThreadEvent, { type: "provider/unhandled" }>;
+type ProviderUnhandledEvent = Extract<ProviderEvent, { type: "provider/unhandled" }>;
 
 export interface CreateUnhandledProviderEventArgs {
   providerId: string;

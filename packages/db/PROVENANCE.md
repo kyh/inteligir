@@ -30,16 +30,15 @@ Each row names the upstream file at the pinned commit, and whether the code is
 upstream's (`vendored`) or upstream's shape with the bodies rewritten
 (`adapted`).
 
-| File                          | Upstream                                                                             | Carried  |
-| ----------------------------- | ------------------------------------------------------------------------------------ | -------- |
-| `src/connection.ts`           | `packages/db/src/connection.ts`                                                      | vendored |
-| `src/events.ts`               | `packages/db/src/data/events.ts`                                                     | vendored |
-| `src/ids.ts`                  | `packages/db/src/ids.ts`, `packages/domain/src/raw-thread-id.ts`                     | vendored |
-| `src/notifier.ts`             | `packages/db/src/notifier.ts`, `apps/server/src/services/lib/notification-buffer.ts` | adapted  |
-| `src/pending-interactions.ts` | `packages/db/src/data/pending-interactions.ts`                                       | adapted  |
-| `src/queued-messages.ts`      | `packages/db/src/data/queued-thread-messages.ts`                                     | vendored |
-| `src/schema.ts`               | `packages/db/src/schema.ts`                                                          | vendored |
-| `src/threads.ts`              | `packages/db/src/data/threads.ts`                                                    | vendored |
+| File                          | Upstream                                                         | Carried  |
+| ----------------------------- | ---------------------------------------------------------------- | -------- |
+| `src/connection.ts`           | `packages/db/src/connection.ts`                                  | vendored |
+| `src/events.ts`               | `packages/db/src/data/events.ts`                                 | vendored |
+| `src/ids.ts`                  | `packages/db/src/ids.ts`, `packages/domain/src/raw-thread-id.ts` | vendored |
+| `src/pending-interactions.ts` | `packages/db/src/data/pending-interactions.ts`                   | adapted  |
+| `src/queued-messages.ts`      | `packages/db/src/data/queued-thread-messages.ts`                 | vendored |
+| `src/schema.ts`               | `packages/db/src/schema.ts`                                      | vendored |
+| `src/threads.ts`              | `packages/db/src/data/threads.ts`                                | vendored |
 
 ## Partial copies
 
@@ -71,12 +70,15 @@ upstream code in the rest will not find it:
   `createSortKeyAfter`, and upstream's grouping/reorder/stale-claim half is not
   carried.
 
-The two `adapted` rows are the weakest claims in the package and are kept
-attributed on purpose. `src/notifier.ts` keeps upstream's decomposition and
-names while rewriting the buffer's body; `src/pending-interactions.ts` keeps
-the names and the status vocabulary while rewriting every body — its create is
-idempotent where upstream's is a plain insert, and its resolve returns a
-three-way union where upstream returns a row or null.
+The `adapted` row is the weakest claim in the package and is kept attributed on
+purpose. `src/pending-interactions.ts` keeps the names and the status
+vocabulary while rewriting every body — its create is idempotent where
+upstream's is a plain insert, and its resolve returns a three-way union where
+upstream returns a row or null.
+
+Upstream's `packages/db/src/notifier.ts` is vendored here too, but into
+`packages/domain` — the seam types both the store and the wire contract, so it
+sits below both. Its record is that package's.
 
 ## Re-vendor recipe
 

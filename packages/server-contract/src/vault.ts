@@ -1,7 +1,8 @@
 // The vault wire contract: file CRUD over the vault directory plus the git
-// sync surface. Paths are vault-relative POSIX strings; the server validates
-// them (no traversal, no .git) and answers 400 for a path it refuses.
+// sync surface. Paths are vault-relative POSIX strings, refused at the request
+// boundary by `vaultPathSchema` below.
 
+import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
   binaryResponse,
@@ -12,7 +13,24 @@ import {
   queryRequest,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
-import type { ApiErrorResponse } from "./routes";
+import { apiErrorResponseSchema, type ApiErrorResponse } from "./errors";
+
+/**
+ * EVERY caller-supplied vault path on the wire. The grammar is
+ * `@repo/notes/knowledge/vault-path` — the same one the server's filesystem
+ * gate runs — so a traversal is a 400 from the request validator rather than a
+ * refusal each handler has to remember to catch, and the two can never disagree
+ * about what a legal path is. It normalizes as it parses, which is why handlers
+ * downstream can treat the value as canonical.
+ */
+export const vaultPathSchema = z.string().transform((value, ctx) => {
+  const parsed = parseVaultPath(value);
+  if (!parsed.ok) {
+    ctx.addIssue({ code: "custom", message: parsed.message });
+    return z.NEVER;
+  }
+  return parsed.path;
+});
 
 export const vaultEntrySchema = z.discriminatedUnion("kind", [
   z
@@ -87,7 +105,7 @@ export const VAULT_ASSET_MEDIA_TYPES: Readonly<Record<string, string>> = {
   ".webp": "image/webp",
 };
 
-export const vaultReadRequestSchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultReadRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
 
 export const vaultReadResponseSchema = z
@@ -100,7 +118,7 @@ export type VaultReadResponse = z.infer<typeof vaultReadResponseSchema>;
 
 export const vaultWriteRequestSchema = z
   .object({
-    path: z.string().min(1),
+    path: vaultPathSchema,
     content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
     /** Compare-and-swap guard: sha-256 hex of the UTF-8 bytes of the content
      * this write was derived from. The server compares against the file's
@@ -126,30 +144,26 @@ export const vaultWriteResponseSchema = z.object({ path: z.string().min(1) }).st
 export type VaultWriteResponse = z.infer<typeof vaultWriteResponseSchema>;
 
 /**
- * Every 409 a write can answer, one schema: `error` is the refusal class
- * (`cas_mismatch`, `already_exists`, or the service's plain `conflict`), and
- * `current` is present exactly for `cas_mismatch` on a file that still
- * exists — the content and hash a merging client needs to retry against.
+ * Every 409 a write can answer: the error envelope plus `current`, present
+ * exactly for `cas_mismatch` on a file that still exists — the content and
+ * hash a merging client needs to retry against. This is the body the envelope
+ * is deliberately non-strict for.
  */
-export const vaultWriteConflictSchema = z
-  .object({
-    error: z.string().min(1),
-    message: z.string(),
-    current: z
-      .object({
-        content: z.string(),
-        hash: z.string().regex(/^[0-9a-f]{64}$/u),
-      })
-      .strict()
-      .optional(),
-  })
-  .strict();
+export const vaultWriteConflictSchema = apiErrorResponseSchema.extend({
+  current: z
+    .object({
+      content: z.string(),
+      hash: z.string().regex(/^[0-9a-f]{64}$/u),
+    })
+    .strict()
+    .optional(),
+});
 export type VaultWriteConflict = z.infer<typeof vaultWriteConflictSchema>;
 
 export const vaultRenameRequestSchema = z
   .object({
-    from: z.string().min(1),
-    to: z.string().min(1),
+    from: vaultPathSchema,
+    to: vaultPathSchema,
   })
   .strict();
 export type VaultRenameRequest = z.infer<typeof vaultRenameRequestSchema>;
@@ -177,13 +191,13 @@ export const vaultRenameResponseSchema = z
   .strict();
 export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 
-export const vaultMkdirRequestSchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultMkdirRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;
 
 export const vaultMkdirResponseSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 
-export const vaultDeleteRequestSchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultDeleteRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultDeleteRequest = z.infer<typeof vaultDeleteRequestSchema>;
 
 export const vaultDeleteResponseSchema = z.object({ ok: z.literal(true) }).strict();

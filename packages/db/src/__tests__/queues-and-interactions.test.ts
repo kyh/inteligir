@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createConnection, type DbConnection } from "../connection";
 import { runMigrations } from "../migrate";
-import { noopNotifier } from "../notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 import {
   createPendingInteraction,
   listOpenPendingInteractions,

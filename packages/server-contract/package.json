@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
+    "./errors": "./src/errors.ts",
     "./knowledge": "./src/knowledge.ts",
     "./notifications": "./src/notifications.ts",
     "./routes": "./src/routes.ts",

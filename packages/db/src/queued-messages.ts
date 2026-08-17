@@ -3,7 +3,7 @@
 import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
-import type { DbNotifier } from "./notifier";
+import type { DbNotifier } from "@repo/domain/notifier";
 import { queuedThreadMessages } from "./schema";
 
 export type QueuedThreadMessageRow = typeof queuedThreadMessages.$inferSelect;

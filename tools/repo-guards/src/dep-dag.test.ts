@@ -44,13 +44,20 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   "@repo/ui": [],
 
   "@repo/editor": ["@repo/notes"],
-  // The @repo/notes edge is the delegation anchor's token grammar, and it is
-  // narrow ON PURPOSE: `markdown/thread-anchor` is parser-free, so validating
-  // an anchor in the contract cannot drag remark into every client bundle.
-  // Widening this edge to a remark-carrying module is the regression to catch.
+  // The @repo/notes edge is two grammars the contract validates against —
+  // the delegation anchor's token (`markdown/thread-anchor`) and the vault
+  // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules
+  // are parser-free, so refusing a bad value in the contract cannot drag
+  // remark into every client bundle. Widening this edge to a remark-carrying
+  // module is the regression to catch.
   "@repo/server-contract": ["@repo/domain", "@repo/notes", "@repo/typed-routes"],
   "@repo/agent-runtime": ["@repo/domain"],
-  "@repo/db": ["@repo/domain", "@repo/server-contract"],
+  // Persistence sits BELOW the wire: the store announces its writes through
+  // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
+  // serializes. An edge the other way would drag hono, the route machinery and
+  // the contract's own @repo/notes edge into the build graph of a package that
+  // only writes rows.
+  "@repo/db": ["@repo/domain"],
   "@repo/thread-view": ["@repo/domain", "@repo/server-contract"],
 
   // The product: the one workspace that composes everything.
@@ -67,7 +74,10 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   ],
   // Drives a RUNNING app over the typed client; the @repo/app edge is the
   // discovery config (which port/dataDir this checkout means), not the server.
-  "@repo/cli": ["@repo/agent-runtime", "@repo/app", "@repo/server-contract", "@repo/thread-view"],
+  // It reaches no runtime — an approval it prints is domain grammar, and a
+  // client that could not print one without the package that spawns provider
+  // processes would be carrying a process tree to format a string.
+  "@repo/cli": ["@repo/app", "@repo/domain", "@repo/server-contract", "@repo/thread-view"],
   // The Cloudflare Worker. Only the two zod-only/browser-only packages it can
   // survive on workerd — see the workerd rule below for what enforces that
   // beyond this row.
@@ -139,6 +149,10 @@ const PURITY_RULES: Record<string, PurityRule> = {
   "@repo/thread-view": {
     forbidden: ["node", "react", "electron"],
     why: "isomorphic: the same projection folds a thread's events on the server and in any client",
+  },
+  "@repo/agent-runtime": {
+    forbidden: ["react", "electron"],
+    why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
   },
   "@repo/editor": {
     forbidden: ["node", "electron"],

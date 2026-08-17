@@ -10,8 +10,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
-} from "../domain/pending-interactions";
-import type { ThreadEvent } from "../domain/provider-event";
+} from "@repo/domain/pending-interactions";
+import type { ProviderEvent } from "../vocabulary/provider-event";
 import { createAgentRuntimeWithAdapters } from "../runtime";
 import type { AgentRuntime, AgentRuntimeExecutionOptions } from "../types";
 import {
@@ -36,7 +36,7 @@ const options: AgentRuntimeExecutionOptions = {
 
 interface Harness {
   runtime: AgentRuntime;
-  events: ThreadEvent[];
+  events: ProviderEvent[];
   interactions: PendingInteractionCreate[];
 }
 
@@ -46,7 +46,7 @@ function bootRuntime(
 ): Harness {
   const workspacePath = mkdtempSync(join(tmpdir(), "inteligir-runtime-test-"));
   cleanups.push(() => rmSync(workspacePath, { recursive: true, force: true }));
-  const events: ThreadEvent[] = [];
+  const events: ProviderEvent[] = [];
   const interactions: PendingInteractionCreate[] = [];
   const runtime = createAgentRuntimeWithAdapters({
     workspacePath,

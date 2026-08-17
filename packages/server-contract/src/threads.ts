@@ -1,3 +1,5 @@
+import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
+import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { THREAD_ANCHOR_TOKEN_PATTERN } from "@repo/notes/markdown/thread-anchor";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
@@ -10,8 +12,9 @@ import {
   queryRequest,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
-import type { ApiErrorResponse } from "./routes";
+import type { ApiErrorResponse } from "./errors";
 import { threadTimelineSchema, timelineDeltaSchema } from "./thread-timeline";
+import { vaultPathSchema } from "./vault";
 
 export const threadSchema = z
   .object({
@@ -30,14 +33,6 @@ export const threadSchema = z
   .strict();
 export type Thread = z.infer<typeof threadSchema>;
 
-export const pendingInteractionStatusSchema = z.enum([
-  "pending",
-  "resolving",
-  "resolved",
-  "interrupted",
-]);
-export type PendingInteractionStatus = z.infer<typeof pendingInteractionStatusSchema>;
-
 export const pendingInteractionSchema = z
   .object({
     id: z.string().min(1),
@@ -45,7 +40,11 @@ export const pendingInteractionSchema = z
     turnId: z.string().nullable(),
     requestKey: z.string().min(1),
     status: pendingInteractionStatusSchema,
-    payload: z.unknown(),
+    /** The approval grammar, parsed server-side out of the row's JSON column.
+     *  null when those bytes do not match it: the card is still answerable —
+     *  deny is the one decision every request accepts — and a whole thread
+     *  must not fail to load because one payload is unreadable. */
+    payload: approvalPendingInteractionPayloadSchema.nullable(),
     resolution: z.string().nullable(),
     createdAt: z.number(),
     resolvedAt: z.number().nullable(),
@@ -54,37 +53,6 @@ export const pendingInteractionSchema = z
 export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
 
 const MAX_THREAD_TITLE_LENGTH = 200;
-const MAX_VAULT_PATH_LENGTH = 1024;
-
-/**
- * The vault-path rules this boundary can state as a VALUE (the server's own
- * `normalizeVaultPath` remains the gate for anything that touches the
- * filesystem): relative, `/`-separated, no traversal, no reach into `.git`.
- * A thread's origin is a stored path nothing else re-validates, so a bad one
- * would sit in the database forever, unmatched by every by-doc query.
- */
-const vaultDocPathSchema = z
-  .string()
-  .min(1)
-  .max(MAX_VAULT_PATH_LENGTH)
-  .refine((value) => !value.includes("\0") && !value.includes("\\"), {
-    message: "path must use / separators and contain no null bytes",
-  })
-  .refine((value) => !value.startsWith("/"), {
-    message: "path must be relative to the vault root",
-  })
-  .refine(
-    (value) => {
-      const segments = value.split("/").filter((segment) => segment.length > 0);
-      return (
-        segments.length > 0 &&
-        segments.every(
-          (segment) => segment !== "." && segment !== ".." && segment.toLowerCase() !== ".git",
-        )
-      );
-    },
-    { message: "path must name an entry inside the vault" },
-  );
 
 /** The anchor token grammar, stated once in @repo/notes and validated here so
  *  a stored anchor always matches what the marker in the file can spell. */
@@ -95,7 +63,9 @@ const originAnchorSchema = z.string().regex(new RegExp(THREAD_ANCHOR_TOKEN_PATTE
 export const createThreadRequestSchema = z
   .object({
     title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
-    originDocPath: vaultDocPathSchema.optional(),
+    /** A thread's origin is a stored path nothing else re-validates, so a bad
+     *  one would sit in the database forever, unmatched by every by-doc query. */
+    originDocPath: vaultPathSchema.optional(),
     originAnchor: originAnchorSchema.optional(),
   })
   .strict()
@@ -242,12 +212,11 @@ export const answerInteractionRequestSchema = z
     interactionId: z.string().min(1),
     /**
      * The approval-resolution grammar, owned by
-     * `@repo/agent-runtime/domain/pending-interactions` (`parseApprovalResolution`
-     * is the one parser, shared by the route's 400 gate and the runtime): a
-     * bare decision verb — `"allow_once"`, `"allow_for_session"`, `"deny"` —
-     * or the JSON of `approvalPendingInteractionResolutionSchema`. Anything
-     * else answers 400; it stays a string here because the row stores and
-     * replays it verbatim.
+     * `@repo/domain/pending-interactions` (`parseApprovalResolution` is the one
+     * parser, shared by the route's 400 gate and the runtime): a bare decision
+     * verb — `"allow_once"`, `"allow_for_session"`, `"deny"` — or the JSON of
+     * `approvalPendingInteractionResolutionSchema`. Anything else answers 400;
+     * it stays a string here because the row stores and replays it verbatim.
      */
     resolution: z.string().min(1),
   })

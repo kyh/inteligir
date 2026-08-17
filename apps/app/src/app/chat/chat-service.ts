@@ -11,7 +11,7 @@
 // whole matrix is proven against the server's own transitions.
 
 import type { ApiClient } from "@repo/server-contract/client";
-import { apiErrorResponseSchema } from "@repo/server-contract/routes";
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import type { SendMessageRequest, Thread } from "@repo/server-contract/threads";
 import {
   composeDelegationMessage,
@@ -38,7 +38,7 @@ export interface SendToThreadArgs {
 
 async function refusalMessage(response: { json(): Promise<unknown> }): Promise<string> {
   try {
-    const parsed = apiErrorResponseSchema.loose().safeParse(await response.json());
+    const parsed = apiErrorResponseSchema.safeParse(await response.json());
     return parsed.success ? parsed.data.message : "The send was refused.";
   } catch {
     return "The send was refused.";
@@ -71,7 +71,7 @@ export async function sendToThread(
   if (first.status !== 409) {
     return { kind: "refused", message: await refusalMessage(first) };
   }
-  const refusal = apiErrorResponseSchema.loose().safeParse(await first.json());
+  const refusal = apiErrorResponseSchema.safeParse(await first.json());
   const errorClass = refusal.success ? refusal.data.error : "conflict";
   if (errorClass === "not_steerable") {
     const queued = await api.threads.send.$post({

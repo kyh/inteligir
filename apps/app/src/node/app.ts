@@ -13,12 +13,8 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import type { HttpBindings } from "@hono/node-server";
 import type { DbConnection } from "@repo/db/connection";
 import { rebindThreadOrigins } from "@repo/db/threads";
-import {
-  API_BASE_PATH,
-  apiRoutes,
-  type AgentStatus,
-  type ApiErrorResponse,
-} from "@repo/server-contract/routes";
+import type { ApiErrorResponse } from "@repo/server-contract/errors";
+import { API_BASE_PATH, apiRoutes, type AgentStatus } from "@repo/server-contract/routes";
 import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";

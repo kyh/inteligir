@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { VaultConflict, VaultStatusResponse } from "@repo/server-contract/vault";
-import { VAULT_TMP_PREFIX } from "./vault-paths";
+import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 
 const LOCAL_GIT_TIMEOUT_MS = 30_000;

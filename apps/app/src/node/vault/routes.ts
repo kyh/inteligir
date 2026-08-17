@@ -2,14 +2,15 @@
 // refusals (bad path, missing entry, overwrite) answer with their declared
 // statuses here; anything unexpected falls through to the API's generic 500.
 
-import { apiRoutes, type ApiErrorResponse } from "@repo/server-contract/routes";
+import type { ApiErrorResponse } from "@repo/server-contract/errors";
+import { apiRoutes } from "@repo/server-contract/routes";
 import {
   VAULT_ASSET_MEDIA_TYPES,
   type VaultRenameResponse,
   type VaultWriteConflict,
 } from "@repo/server-contract/vault";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
-import { VaultPathError } from "./vault-paths";
+import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import type { VaultRuntime } from "./vault-runtime";
 import { VaultServiceError, type GuardedWriteGuard } from "./vault-service";
 

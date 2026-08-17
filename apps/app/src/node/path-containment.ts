@@ -1,0 +1,55 @@
+// "Is this path under that root?", answered ONCE. Every caller in this process
+// asks the same question about a real machine's paths — the vault root against
+// a resolved write target, the data dir against the vault, a provider-reported
+// path against the repo — and each hand-rolled answer had its own edge cases:
+// whether the root itself counts, whether `..draft.md` is an escape, whether a
+// separator-less `..` is. A path that one gate admits and another refuses is
+// how a traversal reaches the second gate believing it passed the first.
+//
+// Neither helper resolves or realpaths its arguments: containment is only
+// meaningful between paths the CALLER has already made comparable, and a
+// helper that silently resolved would hide a missing realpath from the one
+// caller (`vault-service`) whose whole guard is physical.
+
+import { isAbsolute, relative, sep } from "node:path";
+
+/** True when `child` IS `parent` or sits beneath it. Prefix-compared with the
+ *  separator attached, so `/vault-backup` is not inside `/vault`. */
+export function pathContains(parent: string, child: string): boolean {
+  return child === parent || child.startsWith(parent + sep);
+}
+
+/**
+ * `absPath` as a `/`-joined path relative to `root`, or null when it is not
+ * strictly beneath it. The root itself answers null: every caller wants an
+ * entry, and `""` is not one.
+ *
+ * The refusal is these four shapes rather than a bare `startsWith("..")`,
+ * which would also eat a legal root entry named `..draft.md`.
+ */
+export function relativeUnder(root: string, absPath: string): string | null {
+  const rel = relative(root, absPath);
+  if (rel.length === 0 || rel === "." || isAbsolute(rel)) {
+    return null;
+  }
+  if (rel === ".." || rel.startsWith(`..${sep}`) || rel.startsWith("../")) {
+    return null;
+  }
+  return rel.split(sep).join("/");
+}
+
+/**
+ * The vault is a git repo the sync loop pushes; a data dir inside it would be
+ * staged and shipped (SQLite, config, secrets), and a vault inside the data
+ * dir would be swept by data-dir tooling. Neither nesting has a sane meaning,
+ * so the configuration is refused instead of half-guarded at runtime. Both
+ * arguments must already be resolved.
+ */
+export function assertVaultAndDataDirDisjoint(vaultDir: string, dataDir: string): void {
+  if (pathContains(vaultDir, dataDir) || pathContains(dataDir, vaultDir)) {
+    throw new Error(
+      `The vault directory and the data directory must be disjoint, but vault "${vaultDir}" and data dir "${dataDir}" nest. ` +
+        `Set INTELIGIR_VAULT_DIR (or config.json's vaultDir) to a folder outside the data dir.`,
+    );
+  }
+}

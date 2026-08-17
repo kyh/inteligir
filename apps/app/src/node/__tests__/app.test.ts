@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import {
-  apiErrorResponseSchema,
   guideResponseSchema,
   healthResponseSchema,
   systemIdentityResponseSchema,

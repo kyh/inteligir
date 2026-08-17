@@ -3,13 +3,13 @@ import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createConnection, type DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
-import { noopNotifier } from "@repo/db/notifier";
+import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import { serverMessageLenientSchema } from "@repo/server-contract/notifications";
-import { apiErrorResponseSchema } from "@repo/server-contract/routes";
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import {
   pendingInteractionSchema,
   threadSchema,
@@ -652,22 +652,32 @@ describe("pending interactions over the API", () => {
   it("lists open interactions on the thread and answers them exactly once", async () => {
     const { bus, client, db } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
+    const payload = {
+      kind: "approval",
+      subject: {
+        kind: "command",
+        itemId: "item_1",
+        command: "rm -rf node_modules",
+        cwd: null,
+        actions: [],
+        sessionGrant: null,
+      },
+      reason: null,
+      availableDecisions: ["allow_once", "deny"],
+    };
     const interaction = createPendingInteraction(db, bus, {
       threadId,
       requestKey: "req-1",
-      payload: JSON.stringify({ kind: "approval", command: "rm -rf node_modules" }),
+      payload: JSON.stringify(payload),
     });
 
     const detailResponse = await client.threads.get.$get({ query: { threadId } });
     const detail = threadDetailSchema.parse(await detailResponse.json());
     expect(detail.pendingInteractions.map((row) => row.id)).toEqual([interaction.id]);
-    expect(detail.pendingInteractions[0]?.payload).toEqual({
-      kind: "approval",
-      command: "rm -rf node_modules",
-    });
+    expect(detail.pendingInteractions[0]?.payload).toEqual(payload);
 
     const answered = await client.threads.interaction.answer.$post({
-      json: { threadId, interactionId: interaction.id, resolution: "allow" },
+      json: { threadId, interactionId: interaction.id, resolution: "allow_once" },
     });
     expect(answered.status).toBe(200);
 

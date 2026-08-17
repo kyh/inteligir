@@ -5,20 +5,22 @@
 // notifications parse as unhandled and surface as provider/unhandled.
 // `translateCodexEvent` is stateless as a result.
 
-import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type {
-  ThreadEvent,
-  ThreadEventContextWindowUsage,
-  ThreadEventItem,
   ThreadEventItemApprovalStatus,
   ThreadEventItemStatus,
   ThreadEventTurnStatus,
-  ThreadEventUserContent,
-  ThreadEventWebFetchItem,
-  ThreadEventWebSearchItem,
+} from "@repo/domain/provider-event";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import type {
   ProviderErrorCategory,
   ProviderErrorInfo,
-} from "../domain/provider-event.js";
+  ProviderEvent,
+  ProviderEventContextWindowUsage,
+  ProviderEventItem,
+  ProviderEventUserContent,
+  ProviderEventWebFetchItem,
+  ProviderEventWebSearchItem,
+} from "../vocabulary/provider-event.js";
 import { toOptionalRecord } from "../shared/adapter-utils.js";
 import { createUnhandledProviderEvent } from "../shared/provider-unhandled-event.js";
 import { UNSTAMPED_THREAD_ID } from "../shared/unstamped-thread-id.js";
@@ -45,20 +47,20 @@ interface CodexLastTokenUsage {
   totalTokens: number;
 }
 
-type CodexNormalizedWebItem = ThreadEventWebSearchItem | ThreadEventWebFetchItem;
+type CodexNormalizedWebItem = ProviderEventWebSearchItem | ProviderEventWebFetchItem;
 
 type CodexErrorEvent = Extract<CodexHandledEvent, { method: "error" }>;
 type CodexErrorPayload = CodexErrorEvent["params"]["error"];
 
 type CodexItemTranslationResult =
-  | { kind: "translated"; item: ThreadEventItem }
+  | { kind: "translated"; item: ProviderEventItem }
   | { kind: "ignored" }
   | { kind: "unhandled" };
 
 function toCodexContextWindowUsage(
   lastTokenUsage: CodexLastTokenUsage,
   modelContextWindow: number | null,
-): ThreadEventContextWindowUsage {
+): ProviderEventContextWindowUsage {
   return {
     usedTokens: lastTokenUsage.totalTokens,
     modelContextWindow,
@@ -173,7 +175,7 @@ interface CodexUnhandledEventArgs {
   turnId?: string;
 }
 
-function buildUnhandledCodexEvent(args: CodexUnhandledEventArgs): ThreadEvent[] {
+function buildUnhandledCodexEvent(args: CodexUnhandledEventArgs): ProviderEvent[] {
   const description = codexVisibilityMetadata.describeRawEvent(args.rawEvent);
   if (description.coverage !== "unknown" && args.rawType === undefined) {
     return [];
@@ -233,7 +235,7 @@ function toApprovalStatus(
   return null;
 }
 
-function translateCodexUserContent(content: CodexParsedUserInput): ThreadEventUserContent {
+function translateCodexUserContent(content: CodexParsedUserInput): ProviderEventUserContent {
   switch (content.type) {
     case "text":
       return { type: "text", text: content.text };
@@ -474,7 +476,7 @@ function translateCodexItem(
   }
 }
 
-export function translateCodexEvent(event: ProviderRuntimeEvent): ThreadEvent[] {
+export function translateCodexEvent(event: ProviderRuntimeEvent): ProviderEvent[] {
   const envelope = codexBridgeEnvelopeSchema.safeParse(event);
   if (!envelope.success) {
     return [];
@@ -518,7 +520,7 @@ export function translateCodexEvent(event: ProviderRuntimeEvent): ThreadEvent[] 
         },
       ];
     case "thread/started": {
-      const events: ThreadEvent[] = [
+      const events: ProviderEvent[] = [
         {
           type: "thread/started",
           threadId: handledEvent.params.thread.id,

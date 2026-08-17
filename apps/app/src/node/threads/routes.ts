@@ -2,7 +2,7 @@
 // only translate typed service outcomes into the contract's response union —
 // nothing here reads the db or knows a send mode.
 
-import type { ApiErrorResponse } from "@repo/server-contract/routes";
+import type { ApiErrorResponse } from "@repo/server-contract/errors";
 import { threadRoutes } from "@repo/server-contract/threads";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import type { ThreadService } from "./service";

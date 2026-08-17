@@ -22,8 +22,13 @@ import {
   rm,
   unlink,
 } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
-import type { DbNotifier } from "@repo/db/notifier";
+import { dirname, join, resolve } from "node:path";
+import type { DbNotifier } from "@repo/domain/notifier";
+import {
+  isIgnoredEntryName,
+  VaultPathError,
+  VAULT_TMP_PREFIX,
+} from "@repo/notes/knowledge/vault-path";
 import {
   contentHashHex,
   VAULT_MAX_CONTENT_LENGTH,
@@ -31,12 +36,8 @@ import {
   type VaultTreeResponse,
 } from "@repo/server-contract/vault";
 import { errnoCode } from "../errno";
-import {
-  isIgnoredEntryName,
-  resolveVaultPath,
-  VaultPathError,
-  VAULT_TMP_PREFIX,
-} from "./vault-paths";
+import { pathContains, relativeUnder } from "../path-containment";
+import { resolveVaultPath } from "./vault-paths";
 
 export type VaultServiceErrorCode = "not_found" | "conflict" | "too_large";
 
@@ -190,10 +191,6 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
   const rootReal = realpathSync(resolve(args.root));
   const lock = args.lock ?? (<T>(work: () => Promise<T>) => work());
 
-  function isInsideRoot(realPath: string): boolean {
-    return realPath === rootReal || realPath.startsWith(rootReal + sep);
-  }
-
   /**
    * Physically verify the path's ancestry: the deepest EXISTING ancestor of
    * `absPath`, fully symlink-resolved, must sit inside the vault. Checked
@@ -208,7 +205,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
       dir = dirname(dir);
     }
     const real = await realpath(dir);
-    if (!isInsideRoot(real)) {
+    if (!pathContains(rootReal, real)) {
       throw new VaultPathError("path escapes the vault root through a symlinked folder");
     }
   }
@@ -529,7 +526,7 @@ export async function sweepStaleTmpFiles(root: string): Promise<void> {
     }
     for (const dirent of dirents) {
       const absPath = join(absDir, dirent.name);
-      if (!absPath.startsWith(resolvedRoot + sep)) {
+      if (relativeUnder(resolvedRoot, absPath) === null) {
         continue;
       }
       if (dirent.name.startsWith(VAULT_TMP_PREFIX) && dirent.isFile()) {

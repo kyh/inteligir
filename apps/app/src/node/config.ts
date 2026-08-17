@@ -3,9 +3,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve, sep } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { errnoCode } from "./errno";
+import { assertVaultAndDataDirDisjoint } from "./path-containment";
 
 type RuntimeMode = "dev" | "prod";
 
@@ -90,27 +91,6 @@ function parseRemoteUrlValue(name: string, rawValue: string): string {
     );
   }
   return trimmed;
-}
-
-function pathContains(parent: string, child: string): boolean {
-  return child === parent || child.startsWith(parent + sep);
-}
-
-/**
- * The vault is a git repo the sync loop pushes; a data dir inside it would be
- * staged and shipped (SQLite, config, secrets), and a vault inside the data
- * dir would be swept by data-dir tooling. Neither nesting has a sane meaning,
- * so the configuration is refused at boot instead of half-guarded at runtime.
- */
-function assertVaultAndDataDirDisjoint(vaultDir: string, dataDir: string): void {
-  const vault = resolve(vaultDir);
-  const data = resolve(dataDir);
-  if (pathContains(vault, data) || pathContains(data, vault)) {
-    throw new Error(
-      `The vault directory and the data directory must be disjoint, but vault "${vault}" and data dir "${data}" nest. ` +
-        `Set INTELIGIR_VAULT_DIR (or config.json's vaultDir) to a folder outside the data dir.`,
-    );
-  }
 }
 
 const AGENT_MODE_VALUES = ["auto", "codex", "scripted", "off"] as const;
@@ -361,7 +341,7 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     (mode === "prod"
       ? join(homeDir, PROD_VAULT_DIR_NAME)
       : join(devInstanceDir, DEV_INSTANCE_VAULT_DIR_NAME));
-  assertVaultAndDataDirDisjoint(vaultDir, dataDir);
+  assertVaultAndDataDirDisjoint(resolve(vaultDir), resolve(dataDir));
 
   const envVaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir);
   const vaultRemote =

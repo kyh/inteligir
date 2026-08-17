@@ -10,9 +10,8 @@
     "./provider-adapter": "./src/provider-adapter.ts",
     "./runtime-json-rpc": "./src/runtime-json-rpc.ts",
     "./codex-adapter": "./src/codex/adapter.ts",
-    "./domain/provider-event": "./src/domain/provider-event.ts",
-    "./domain/pending-interactions": "./src/domain/pending-interactions.ts",
-    "./domain/shared-types": "./src/domain/shared-types.ts",
+    "./vocabulary/provider-event": "./src/vocabulary/provider-event.ts",
+    "./vocabulary/shared-types": "./src/vocabulary/shared-types.ts",
     "./test-support/fake-codex-adapter": "./src/test-support/fake-codex-adapter.ts"
   },
   "scripts": {

@@ -6,6 +6,10 @@
 // the pending_interactions TABLE and its wire shape live in @repo/db and
 // @repo/server-contract; these schemas are the PAYLOAD contract inside a
 // row's JSON `payload` / `resolution` columns.
+//
+// Provider-neutral by construction: the adapter that RAISES an approval spawns
+// processes, and this grammar is what the store, the wire contract, the CLI
+// and a React card all read — so it sits in the domain, below all of them.
 
 import { z } from "zod";
 
@@ -254,12 +258,17 @@ export function parseApprovalResolution(
   return { ok: true, resolution: parsed };
 }
 
-export const pendingInteractionCreateSchema = z.object({
-  threadId: z.string().min(1),
-  turnId: z.string().min(1),
-  providerId: z.string().min(1),
-  providerThreadId: z.string().min(1),
-  providerRequestId: z.string().min(1),
-  payload: approvalPendingInteractionPayloadSchema,
-});
-export type PendingInteractionCreate = z.infer<typeof pendingInteractionCreateSchema>;
+/**
+ * What a provider adapter hands the host when a request needs answering. An
+ * interface rather than a schema: it is constructed and consumed inside one
+ * program and never serialized — only `payload` crosses a boundary, into the
+ * row's JSON column, and it is parsed on the way back out.
+ */
+export interface PendingInteractionCreate {
+  threadId: string;
+  turnId: string;
+  providerId: string;
+  providerThreadId: string;
+  providerRequestId: string;
+  payload: ApprovalPendingInteractionPayload;
+}

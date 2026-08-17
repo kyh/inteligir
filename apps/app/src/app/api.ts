@@ -4,7 +4,11 @@
 // class.
 
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import { apiErrorResponseSchema } from "@repo/server-contract/routes";
+import {
+  apiErrorResponseSchema,
+  type ApiErrorCode,
+  type ApiErrorResponse,
+} from "@repo/server-contract/errors";
 
 export function createWorkspaceApiClient(): ApiClient {
   return createApiClient(window.location.origin);
@@ -23,10 +27,10 @@ export const queryKeys = {
 
 export class ApiError extends Error {
   readonly status: number;
-  /** The contract's stable error class (`not_found`, `conflict`, …). */
-  readonly code: string;
+  /** The contract's refusal class — an enum, so a switch on it is exhaustive. */
+  readonly code: ApiErrorCode;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: ApiErrorCode, message: string) {
     super(message);
     this.status = status;
     this.code = code;
@@ -51,14 +55,14 @@ export async function unwrap<T>(response: SuccessResponse<T> | FailureResponse):
   if (response.ok) {
     return response.json();
   }
-  const fallback = { error: "internal", message: `Request failed with status ${response.status}` };
-  // Lenient: refusal bodies may carry MORE than {error, message} (the write
-  // 409 carries the file's current content); the class and message must
-  // survive that.
+  const fallback: ApiErrorResponse = {
+    error: "internal",
+    message: `Request failed with status ${response.status}`,
+  };
   const body = await response
     .json()
     .then((raw) => {
-      const parsed = apiErrorResponseSchema.loose().safeParse(raw);
+      const parsed = apiErrorResponseSchema.safeParse(raw);
       return parsed.success ? parsed.data : fallback;
     })
     .catch(() => fallback);

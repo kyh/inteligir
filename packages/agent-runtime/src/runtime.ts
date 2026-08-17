@@ -17,8 +17,8 @@ import type {
   ProviderCommandPlan,
   ProviderRequestCommandPlan,
 } from "./provider-adapter.js";
-import type { InstructionMode } from "./domain/shared-types.js";
-import type { ProviderErrorCategory, ThreadEvent } from "./domain/provider-event.js";
+import type { InstructionMode } from "./vocabulary/shared-types.js";
+import type { ProviderErrorCategory, ProviderEvent } from "./vocabulary/provider-event.js";
 import {
   assertProviderSupportsExecutionOptions,
   toProviderExecutionContext,
@@ -127,7 +127,7 @@ interface RuntimeJsonRpcResponseArgs extends RuntimeParsedMessageArgs {
 }
 
 interface EmitTranslatedEventsArgs {
-  events: ThreadEvent[];
+  events: ProviderEvent[];
   proc: ProviderProcess;
   sourceThreadId?: string;
 }
@@ -396,7 +396,7 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
     }
   }
 
-  function observeProviderSessionIdleState(event: ThreadEvent): void {
+  function observeProviderSessionIdleState(event: ProviderEvent): void {
     if (event.type === "turn/started") {
       pendingTurnStartThreadIds.delete(event.threadId);
       markProviderSessionNotIdle(event.threadId);
@@ -461,7 +461,10 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
     return providerThreadId;
   }
 
-  function shouldRestartCodexThreadAfterEvent(event: ThreadEvent, proc: ProviderProcess): boolean {
+  function shouldRestartCodexThreadAfterEvent(
+    event: ProviderEvent,
+    proc: ProviderProcess,
+  ): boolean {
     if (
       proc.providerId !== CODEX_PROVIDER_ID ||
       event.type !== "provider/error" ||

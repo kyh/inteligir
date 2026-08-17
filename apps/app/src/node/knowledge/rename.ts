@@ -36,7 +36,7 @@ import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 import type { VaultRenameResponse, VaultRenameSkipReason } from "@repo/server-contract/vault";
 import { mapWithConcurrency } from "../concurrency";
-import { normalizeVaultPath } from "../vault/vault-paths";
+import { normalizeVaultPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultService } from "../vault/vault-service";
 import type { KnowledgeRuntime } from "./knowledge-runtime";
 

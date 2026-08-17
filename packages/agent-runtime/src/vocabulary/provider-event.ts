@@ -1,23 +1,28 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// The runtime's provider-event grammar: what a provider adapter may emit.
-// This is bb's ProviderEvent side, as TYPES — the runtime constructs these,
-// it never parses them (parsing happens where events cross a process
-// boundary, which for this deployment is the manager in apps/app narrowing
-// onto @repo/domain's persisted grammar). Trimmed families: background
-// tasks, goals, rate limits, model fallback, context-window clearing,
-// turn/input/accepted correlation and the system/* events — none has a
-// kept producer (see PROVENANCE.md). Never invent a divergent shape for an
-// event bb already names; re-vendor it instead.
+// The EMITTED grammar: what a provider adapter may produce. `ProviderEvent`
+// here and `ThreadEvent` in @repo/domain are two unions on purpose — this one
+// is wider (it carries kinds no renderer persists) and is TYPES only, because
+// the runtime constructs these and never parses them. Parsing happens where
+// events cross into the host, which narrows this union onto the persisted one
+// (`apps/app/src/node/agent/event-mapping.ts`). The leaves the two unions
+// share are single-sourced from @repo/domain below, so a narrowing can assign
+// them across rather than respell them field by field.
+//
+// Trimmed families: background tasks, goals, rate limits, model fallback,
+// context-window clearing, turn/input/accepted correlation and the system/*
+// events — none has a kept producer (see PROVENANCE.md). Never invent a
+// divergent shape for an event bb already names; re-vendor it instead.
 
-import { z } from "zod";
+import type {
+  ThreadEventFileChange,
+  ThreadEventItemApprovalStatus,
+  ThreadEventItemStatus,
+  ThreadEventTokenUsage,
+  ThreadEventTurnStatus,
+} from "@repo/domain/provider-event";
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
+import { z } from "zod";
 import { jsonValueSchema } from "./json-value";
-
-export type ThreadEventItemStatus = "pending" | "completed" | "failed" | "interrupted";
-
-export type ThreadEventItemApprovalStatus = "waiting_for_approval" | "denied" | null;
-
-export type ThreadEventTurnStatus = "completed" | "failed" | "interrupted";
 
 export const providerErrorCategoryValues = [
   "active-turn-not-steerable",
@@ -43,51 +48,30 @@ export interface ProviderErrorInfo {
   httpStatusCode: number | null;
 }
 
-export interface ThreadEventFileChange {
-  path: string;
-  kind: "add" | "delete" | "update";
-  movePath?: string;
-  diff?: string;
-}
-
-export interface ThreadEventPlanStep {
+export interface ProviderEventPlanStep {
   step: string;
   status?: "pending" | "active" | "completed" | "failed";
 }
 
-export interface ThreadEventTokenUsageBreakdown {
-  totalTokens: number;
-  inputTokens: number;
-  cachedInputTokens: number;
-  outputTokens: number;
-  reasoningOutputTokens: number;
-}
-
-export interface ThreadEventTokenUsage {
-  total: ThreadEventTokenUsageBreakdown;
-  last: ThreadEventTokenUsageBreakdown;
-  modelContextWindow: number | null;
-}
-
-export interface ThreadEventContextWindowUsage {
+export interface ProviderEventContextWindowUsage {
   usedTokens: number | null;
   modelContextWindow: number | null;
   estimated: boolean;
 }
 
-export type ThreadEventUserContent =
+export type ProviderEventUserContent =
   | { type: "text"; text: string }
   | { type: "image"; url: string }
   | { type: "localImage"; path: string };
 
-export interface ThreadEventWebSearchItem {
+export interface ProviderEventWebSearchItem {
   type: "webSearch";
   id: string;
   queries: string[];
   resultText: string | null;
 }
 
-export interface ThreadEventWebFetchItem {
+export interface ProviderEventWebFetchItem {
   type: "webFetch";
   id: string;
   url: string;
@@ -96,8 +80,8 @@ export interface ThreadEventWebFetchItem {
   resultText: string | null;
 }
 
-export type ThreadEventItem =
-  | { type: "userMessage"; id: string; content: ThreadEventUserContent[] }
+export type ProviderEventItem =
+  | { type: "userMessage"; id: string; content: ProviderEventUserContent[] }
   | { type: "agentMessage"; id: string; text: string }
   | {
       type: "commandExecution";
@@ -118,8 +102,8 @@ export type ThreadEventItem =
       status: ThreadEventItemStatus;
       approvalStatus: ThreadEventItemApprovalStatus;
     }
-  | ThreadEventWebSearchItem
-  | ThreadEventWebFetchItem
+  | ProviderEventWebSearchItem
+  | ProviderEventWebFetchItem
   | { type: "imageView"; id: string; path: string }
   | {
       type: "toolCall";
@@ -136,7 +120,7 @@ export type ThreadEventItem =
   | { type: "plan"; id: string; text: string }
   | { type: "contextCompaction"; id: string };
 
-export type ThreadEventItemType = ThreadEventItem["type"];
+export type ProviderEventItemType = ProviderEventItem["type"];
 
 export const providerRawEventSchema = z.object({
   jsonrpc: z.literal("2.0"),
@@ -165,7 +149,7 @@ interface ItemDeltaEventData extends ProviderThreadEventData {
  * one carries `threadId` (the host's id, stamped by the runtime) and — for
  * all but `thread/started` — `providerThreadId`, the provider's internal id.
  */
-export type ThreadEvent =
+export type ProviderEvent =
   | ({ type: "thread/started"; threadId: string } & ScopedEventData)
   | ({ type: "thread/identity" } & ProviderThreadEventData)
   | ({ type: "thread/name/updated"; threadName: string } & ProviderThreadEventData)
@@ -180,8 +164,8 @@ export type ThreadEvent =
       status: ThreadEventTurnStatus;
       error?: { message: string };
     } & ScopedEventData)
-  | ({ type: "item/started"; item: ThreadEventItem } & ProviderThreadEventData)
-  | ({ type: "item/completed"; item: ThreadEventItem } & ProviderThreadEventData)
+  | ({ type: "item/started"; item: ProviderEventItem } & ProviderThreadEventData)
+  | ({ type: "item/completed"; item: ProviderEventItem } & ProviderThreadEventData)
   | ({ type: "item/agentMessage/delta" } & ItemDeltaEventData)
   | ({
       type: "item/commandExecution/outputDelta";
@@ -199,11 +183,11 @@ export type ThreadEvent =
     } & ProviderThreadEventData)
   | ({
       type: "thread/contextWindowUsage/updated";
-      contextWindowUsage: ThreadEventContextWindowUsage;
+      contextWindowUsage: ProviderEventContextWindowUsage;
     } & ProviderThreadEventData)
   | ({
       type: "turn/plan/updated";
-      plan: ThreadEventPlanStep[];
+      plan: ProviderEventPlanStep[];
       explanation?: string;
     } & ProviderThreadEventData)
   | ({ type: "turn/diff/updated"; diff?: string } & ProviderThreadEventData)
@@ -227,4 +211,4 @@ export type ThreadEvent =
       rawEvent: ProviderRawEvent;
     } & ProviderThreadEventData);
 
-export type ThreadEventType = ThreadEvent["type"];
+export type ProviderEventType = ProviderEvent["type"];

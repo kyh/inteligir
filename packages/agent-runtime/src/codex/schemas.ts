@@ -12,8 +12,8 @@ import {
   pendingInteractionFileSystemPermissionsSchema,
   pendingInteractionMacOsPermissionsSchema,
   pendingInteractionNetworkPermissionsSchema,
-} from "../domain/pending-interactions.js";
-import type { PendingInteractionCommandAction } from "../domain/pending-interactions.js";
+} from "@repo/domain/pending-interactions";
+import type { PendingInteractionCommandAction } from "@repo/domain/pending-interactions";
 import { jsonRpcEnvelopeSchema } from "../shared/json-rpc-envelope.js";
 
 const codexTurnStatusSchema = z.enum(["completed", "failed", "interrupted", "inProgress"]);
