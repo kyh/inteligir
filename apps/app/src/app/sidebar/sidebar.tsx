@@ -7,7 +7,7 @@ import { cn } from "@repo/ui/lib/utils";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { FilePlusIcon, FolderPlusIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
-import { canSyncNow, useVaultStatus, useVaultTree } from "../vault-hooks";
+import { canSyncNow, syncStateLabel, useVaultStatus, useVaultTree } from "../vault-hooks";
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
 
 /** A failed listing renders as "The vault could not be read", never as the
@@ -25,27 +25,6 @@ function vaultName(root: string | undefined): string {
   }
   const segments = root.split("/").filter((segment) => segment !== "");
   return segments.at(-1) ?? "Vault";
-}
-
-function syncPillLabel(status: VaultStatusResponse): string {
-  switch (status.state) {
-    case "no-remote":
-      return "Local only";
-    case "clean":
-      return "Synced";
-    case "dirty":
-      return "Unsynced changes";
-    case "syncing":
-      return "Syncing…";
-    case "held":
-      return "Waiting on the agent";
-    case "offline":
-      return "Offline";
-    case "conflict":
-      return `Conflict (${status.conflict.files.length})`;
-    case "broken":
-      return "Sync broken";
-  }
 }
 
 function syncPillDotClass(status: VaultStatusResponse): string {
@@ -95,7 +74,7 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
       )}
     >
       <span className={cn("size-1.5 rounded-full", syncPillDotClass(status))} />
-      {syncPillLabel(status)}
+      {syncStateLabel(status)}
     </button>
   );
 }

@@ -37,6 +37,39 @@ export function useSystemStatus() {
 }
 
 /**
+ * What a sync state is CALLED. Same reason as `canSyncNow` below, one step
+ * further in: two tables over the same eight states drifted on half of them,
+ * so one vault answered "Waiting on the agent" in the sidebar and "Waiting on
+ * an agent turn" in settings, "Sync broken" in one and "Broken — manual
+ * repair needed" in the other. A user comparing two pieces of the same
+ * window cannot tell a wording difference from a state difference.
+ *
+ * The pill is the narrow surface, so the sentence is sized for it; what
+ * settings has and the pill does not is `lastError`, which it already shows
+ * beneath this label.
+ */
+export function syncStateLabel(status: VaultStatusResponse): string {
+  switch (status.state) {
+    case "no-remote":
+      return "Local only";
+    case "clean":
+      return "Synced";
+    case "dirty":
+      return "Unsynced changes";
+    case "syncing":
+      return "Syncing…";
+    case "held":
+      return "Waiting on an agent turn";
+    case "offline":
+      return "Offline";
+    case "conflict":
+      return `Conflict (${status.conflict.files.length})`;
+    case "broken":
+      return "Sync broken — manual repair needed";
+  }
+}
+
+/**
  * Whether "Sync now" would actually start a pass. THREE surfaces offer the
  * command (the sidebar pill, the palette, the settings dialog), and a state
  * each of them judges for itself is a state one of them forgets — leaving a
