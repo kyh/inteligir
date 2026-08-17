@@ -58,11 +58,21 @@ instead of marked per line.
   backslash, backslash-newline). Restricted to CommonMark's ASCII-punctuation
   escapes. Also: `firstChild!` replaced with a null guard (this repo forbids
   non-null assertions).
-- `lib/blockQuote.ts` — upstream swapped the plugin's decorations inside a
-  measure write without invalidating the view, so new ranges sat unrendered
-  until an unrelated dispatch; the patch nudges the view with an empty
-  transaction when the set changed (softIndentExtension's own pattern), with a
-  destroy guard.
+- `lib/fold/core.ts` — `buildDecorations` built `lineage.reverse().join('/')`
+  for EVERY node in the document and then suffix-tested that string, so a
+  keystroke allocated one path string per node to answer a question about each
+  node's last few ancestors. Replaced with `pathEndsWith`, which consumes the
+  test from its end while walking up, keeping `String.endsWith` semantics
+  exactly; the path string is still built for the (unused) function-valued
+  `nodePath` specs.
+- `lib/blockQuote.ts` — two patches. Upstream swapped the plugin's decorations
+  inside a measure write without invalidating the view, so new ranges sat
+  unrendered until an unrelated dispatch; the patch nudges the view with an
+  empty transaction when the set changed (softIndentExtension's own pattern),
+  with a destroy guard. And `measureBlockQuotes` walked the WHOLE document —
+  in a ViewPlugin, whose decorations are only ever read for the viewport, and
+  whose `coordsAtPos` answers nothing off-screen anyway — so it is scoped to
+  `view.visibleRanges`, the way `lib/codeFenceExtension.ts` already was.
 - `lib/markdownFormattingKeymap.ts` — `insertLink` moved from `Mod-k` to
   `Mod-Shift-k`. `Mod-k` is the host app's command palette
   (`apps/app/src/app/global-shortcuts.ts`), which listens on the window: a
