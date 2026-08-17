@@ -1,15 +1,14 @@
 // ---------------------------------------------------------------------------
-// The typed-properties and privacy kernel over a doc's leading `---` block.
+// The typed-properties kernel over a doc's leading `---` block.
 //
 // Two layers. `splitFrontmatter` is the body↔properties seam: it touches only
 // the leading fence and preserves the body verbatim — no markdown reparse, no
-// byte surgery. Above it, the typed-property ADT is the file-properties panel's
+// byte surgery. Above it, the typed-property ADT is the file-properties
 // parse/serialize contract (CLAUDE.md § Decisions: the markdown file is the
-// ONLY property store), so YAML the panel cannot represent is preserved
+// ONLY property store), so YAML the ADT cannot represent is preserved
 // byte-exactly rather than coerced or dropped.
 //
-// Platform-neutral (pure `yaml`, no node/dom), so it runs in a client,
-// worker, or RN like the rest of @repo/notes.
+// Platform-neutral (pure `yaml`, no node/dom) like the rest of @repo/notes.
 // ---------------------------------------------------------------------------
 
 import { isMap, isScalar, parse as parseYaml, parseDocument } from "yaml";
@@ -65,20 +64,18 @@ export function splitFrontmatter(text: string): SplitDoc {
 }
 
 // ---------------------------------------------------------------------------
-// Typed properties — the file-properties panel's parse/serialize contract
-// (CLAUDE.md § Decisions: the markdown file is the ONLY property store).
-// This sits ONE layer above splitFrontmatter: the panel already holds the
-// frontmatter block's raw yaml (the Plate frontmatter node's `value`), so these
-// helpers work on that yaml text directly. Kept here beside the split seam so
-// there is a single core home for frontmatter/YAML knowledge, and no consumer
-// forks a second YAML parser.
+// Typed properties — the editable-property contract over a frontmatter block's
+// raw yaml (CLAUDE.md § Decisions: the markdown file is the ONLY property
+// store). It sits ONE layer above splitFrontmatter and works on the yaml TEXT,
+// so a caller holding only the header's source never forks a second YAML
+// parser.
 //
 // Conservative typing (YAML 1.2 core schema, the `yaml` package's default):
 // `true`/`false` are the ONLY booleans, so `yes/no/on/off` stay text; the core
 // schema has no timestamp tag, so dates are recognized ONLY from explicit
-// `YYYY-MM-DD` strings; anything the panel can't safely round-trip (nested
-// maps, mixed/non-string arrays, nulls, anchors) is "unsupported" — displayed
-// read-only and preserved byte-for-byte on save via the Document API.
+// `YYYY-MM-DD` strings; anything that cannot round-trip through the ADT
+// (nested maps, mixed/non-string arrays, nulls, anchors) is "unsupported" —
+// carried as its own source bytes and written back untouched.
 // ---------------------------------------------------------------------------
 
 export type PropertyType = "text" | "number" | "checkbox" | "date" | "tags" | "unsupported";
@@ -96,9 +93,9 @@ export type TypedProperty =
 
 /** The result of typing a frontmatter block:
  *  - `none`    — the block is empty (no properties to show).
- *  - `invalid` — malformed yaml, duplicate keys, or a non-mapping root. The
- *                panel shows "properties unavailable" and NEVER rewrites the
- *                block: what it can't read, it can't destroy.
+ *  - `invalid` — malformed yaml, duplicate keys, or a non-mapping root. A
+ *                caller must NEVER rewrite the block on this verdict: what it
+ *                can't read, it can't destroy.
  *  - `valid`   — a top-level mapping, each key classified. */
 export type ParsedProperties =
   | { kind: "valid"; properties: TypedProperty[] }
@@ -154,59 +151,6 @@ export function parseProperties(yamlText: string): ParsedProperties {
   return { kind: "valid", properties };
 }
 
-/** A note's `private: true` verdict, read from its raw text. `indeterminate`
- * means frontmatter exists but can't be typed (malformed yaml, duplicate keys,
- * non-mapping root) — AI paths treat that as private (fail-closed: what we
- * can't read, we don't send to a model); user-facing UI treats it as
- * not-private (no lock badge for a yaml typo). */
-export type NotePrivacy = "public" | "private" | "indeterminate";
-
-/** The ONE `private` verdict kernel, over already-parsed frontmatter: an
- * empty block is public, an untypeable one is indeterminate, and only a
- * boolean `private: true` checkbox reads private (`yes`/`"true"` stay text
- * and read public, exactly like the properties panel shows them). Every
- * privacy read — notePrivacy here, the index's projection, the editor's
- * live probe — calls this; each caller keeps only its own substrate read and
- * its fail-open vs fail-closed mapping of `indeterminate`. */
-export function privacyOfParsed(parsed: ParsedProperties): NotePrivacy {
-  if (parsed.kind === "none") return "public";
-  if (parsed.kind === "invalid") return "indeterminate";
-  const prop = parsed.properties.find((p) => p.key === "private");
-  return prop !== undefined && prop.type === "checkbox" && prop.value ? "private" : "public";
-}
-
-/** The `private`-flag toggle transform shared by the raw-text and editor-node
- * writers: ON replaces any existing `private` key with an appended
- * `private: true`; OFF removes the key (absent == public). */
-export function withPrivateFlag(properties: TypedProperty[], on: boolean): TypedProperty[] {
-  const rest = properties.filter((p) => p.key !== "private");
-  return on ? [...rest, { key: "private", type: "checkbox", value: true }] : rest;
-}
-
-/** Classify a doc's privacy from its raw text — privacyOfParsed over the
- * leading frontmatter block. No frontmatter is public. */
-export function notePrivacy(text: string): NotePrivacy {
-  const yaml = frontmatterYaml(text);
-  if (yaml === null) return "public";
-  return privacyOfParsed(parseProperties(yaml));
-}
-
-/** Set/clear a doc's `private` flag at the TEXT level (the raw-mode path of
- * the palette toggle; rich mode edits the frontmatter node instead — both
- * flow through parseProperties/serializeProperties, one YAML brain). Turning
- * ON appends `private: true`; turning OFF removes the key (absent == public,
- * and an emptied block disappears entirely). Returns null when the existing
- * frontmatter can't be typed — what we can't read, we never rewrite. */
-export function setNotePrivate(text: string, value: boolean): string | null {
-  const yaml = frontmatterYaml(text);
-  const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") return null;
-  const next = withPrivateFlag(parsed.kind === "valid" ? parsed.properties : [], value);
-  const nextYaml = serializeProperties(next, yaml ?? "");
-  const body = splitFrontmatter(text).body;
-  return nextYaml === "" ? body : `---\n${nextYaml}\n---\n${body}`;
-}
-
 /** Record `alias` in a doc's frontmatter `aliases:` — the byte-preserving
  * writer the rename pipeline uses so an old title keeps resolving. Runs over
  * the yaml Document API (serializeProperties) rather than a parse-and-restringify
@@ -249,10 +193,10 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
   return `---\n${nextYaml}\n---\n${body}`;
 }
 
-/** Type a single new key from a user-entered raw value (the panel's "Add
- * property" flow): the value is read as a YAML scalar so `true`, `42`,
- * `2026-07-01`, `[a, b]` type naturally, exactly as if it had been typed into
- * the block. An empty value is an empty text property. */
+/** Type a single new key from a user-entered raw value: the value is read as a
+ * YAML scalar so `true`, `42`, `2026-07-01`, `[a, b]` type naturally, exactly
+ * as if it had been typed into the block. An empty value is an empty text
+ * property. */
 export function typeNewProperty(key: string, rawValue: string): TypedProperty {
   if (rawValue.trim() === "") return { key, type: "text", value: "" };
   let value: unknown;
@@ -268,7 +212,7 @@ function typedValue(prop: TypedProperty): unknown {
   return prop.type === "unsupported" ? undefined : prop.value;
 }
 
-/** Property-value equality as the panel defines it: strict for scalars,
+/** Property-value equality as the typed ADT defines it: strict for scalars,
  * element-wise for the flat string arrays `tags` carries. */
 function valueEqual(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
