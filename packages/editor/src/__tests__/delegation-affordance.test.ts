@@ -1,4 +1,5 @@
 import { EditorSelection } from "@codemirror/state";
+import { fireEvent } from "@testing-library/dom";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createMarkdownEditor, type MarkdownEditor } from "../create-markdown-editor";
 import {
@@ -38,6 +39,12 @@ const mount = (config: Partial<DelegationAffordanceConfig> = {}) => {
 const tooltipButtons = (mounted: MarkdownEditor): HTMLButtonElement[] =>
   Array.from(mounted.view.dom.querySelectorAll<HTMLButtonElement>(".cm-delegate-button"));
 
+const requireButton = (buttons: HTMLButtonElement[], index: number): HTMLButtonElement => {
+  const button = buttons[index];
+  if (button === undefined) throw new Error(`no tooltip button at ${String(index)}`);
+  return button;
+};
+
 describe("the delegation affordance", () => {
   test("a non-empty selection offers Delegate and Ask, carrying the selected text", () => {
     const onDelegateSelection = vi.fn();
@@ -47,7 +54,7 @@ describe("the delegation affordance", () => {
     mounted.view.dispatch({ selection: EditorSelection.single(from, to) });
     const buttons = tooltipButtons(mounted);
     expect(buttons.map((button) => button.textContent)).toEqual(["Delegate…", "Ask…"]);
-    buttons[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    fireEvent.click(requireButton(buttons, 1));
     expect(onDelegateSelection).toHaveBeenCalledWith("ask", {
       from,
       to,
@@ -62,7 +69,7 @@ describe("the delegation affordance", () => {
     mounted.view.dispatch({ selection: EditorSelection.single(taskPos) });
     const buttons = tooltipButtons(mounted);
     expect(buttons.map((button) => button.textContent)).toEqual(["Delegate task"]);
-    buttons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    fireEvent.click(requireButton(buttons, 0));
     expect(onDelegateTask).toHaveBeenCalledWith({
       from: posOf(doc, "- [ ] water"),
       to: posOf(doc, "- [ ] water") + "- [ ] water the plants".length,

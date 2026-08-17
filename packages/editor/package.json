@@ -10,6 +10,7 @@
     "./editor-theme": "./src/editor-theme.ts",
     "./thread-chip": "./src/thread-chip.ts",
     "./delegation-affordance": "./src/delegation-affordance.ts",
+    "./pending-anchor": "./src/pending-anchor.ts",
     "./react/markdown-editor": "./src/react/markdown-editor.tsx",
     "./test-support/jsdom-stubs": "./src/test-support/jsdom-stubs.ts"
   },
@@ -35,6 +36,7 @@
     "react": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
     "@types/react": "catalog:",
     "jsdom": "^30.0.1",
     "typescript": "catalog:",

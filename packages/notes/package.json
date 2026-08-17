@@ -31,7 +31,8 @@
     "./markdown/remark-opaque": "./src/markdown/remark-opaque.ts",
     "./markdown/md-plugins": "./src/markdown/md-plugins.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",
-    "./markdown/thread-marker": "./src/markdown/thread-marker.ts"
+    "./markdown/thread-marker": "./src/markdown/thread-marker.ts",
+    "./markdown/thread-anchor": "./src/markdown/thread-anchor.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

@@ -1,9 +1,14 @@
-// The composer's server conversation, framework-free over the typed client:
-// steer-first sending with the queue fallback, the lazy chat-thread create,
-// and the whole delegation create (anchor mint -> thread create -> marker
-// insert -> composed first send). Tested against the REAL ThreadService over
-// an in-process app, so the send-mode matrix here is proven against the
-// server's own transitions, not a mock of them.
+// The composer's server conversation, framework-free over the typed client.
+//
+// EVERY SEND STATES WHAT THE VIEW BELIEVES, and the server decides. A steer
+// carries the turn id the user is watching; a send from a view that believes
+// the thread is idle carries none, which the server reads as "this client has
+// not seen the running turn" and refuses — so text can never land in a turn
+// the user never saw. The refusal is recoverable, not fatal: re-read the
+// thread, and steer the turn that is actually open or fall back to the queue.
+//
+// The suites here drive the REAL ThreadService over an in-process app, so the
+// whole matrix is proven against the server's own transitions.
 
 import type { ApiClient } from "@repo/server-contract/client";
 import { apiErrorResponseSchema } from "@repo/server-contract/routes";
@@ -11,8 +16,10 @@ import type { SendMessageRequest, Thread } from "@repo/server-contract/threads";
 import {
   composeDelegationMessage,
   delegationTitle,
-  designatedChatThread,
+  initialChatThread,
   newAnchorToken,
+  type AnchorFailure,
+  type AnchorOutcome,
   type DelegationIntent,
 } from "./chat-model";
 
@@ -39,11 +46,13 @@ async function refusalMessage(response: { json(): Promise<unknown> }): Promise<s
 }
 
 /**
- * Steer when a turn is running, start when idle, queue when the thread is in
- * a state that can take neither (starting/stopping, or a provider that
- * refuses the steer). One stale-turn retry with the server's fresh turn id —
- * the timeline is live over the socket, so the user has seen the newer turn
- * by the time the retry lands.
+ * Steer when a turn is running, start when idle, queue when the thread can
+ * take neither (starting/stopping, or a provider that refuses the steer).
+ *
+ * The stale-turn branch is the recovery for the guard above: the view's belief
+ * was wrong, so re-read the thread and act on what is actually open. The retry
+ * is bounded to one — it re-reads once and then queues rather than racing a
+ * thread that keeps moving.
  */
 export async function sendToThread(
   api: ApiClient,
@@ -107,21 +116,44 @@ export async function sendToThread(
   };
 }
 
-/** The lazy chat thread: the designated one, minted on first need. */
-export async function ensureChatThread(api: ApiClient): Promise<Thread> {
-  const listed = await api.threads.list.$get();
-  if (listed.ok) {
-    const { threads } = await listed.json();
-    const designated = designatedChatThread(threads);
-    if (designated !== null) {
-      return designated;
+/**
+ * The lazy chat thread, SINGLE-FLIGHT. list-then-create is a read followed by
+ * a write with no lock between them, so two sends racing the empty state both
+ * read "no chat" and both create one — and the loser's thread becomes the
+ * designated one the moment its `updatedAt` wins, moving the conversation the
+ * user is typing into out from under them. One in-flight promise per session
+ * makes the second caller await the first's answer instead of racing it.
+ */
+export function createChatThreadResolver(api: ApiClient): () => Promise<Thread> {
+  let inFlight: Promise<Thread> | null = null;
+  return () => {
+    if (inFlight !== null) {
+      return inFlight;
     }
-  }
-  const created = await api.threads.create.$post({ json: {} });
-  if (!created.ok) {
-    throw new Error("Could not create the chat thread");
-  }
-  return (await created.json()).thread;
+    const attempt = (async () => {
+      const listed = await api.threads.list.$get();
+      if (listed.ok) {
+        const { threads } = await listed.json();
+        const designated = initialChatThread(threads);
+        if (designated !== null) {
+          return designated;
+        }
+      }
+      const created = await api.threads.create.$post({ json: {} });
+      if (!created.ok) {
+        throw new Error("Could not create the chat thread");
+      }
+      return (await created.json()).thread;
+    })();
+    inFlight = attempt;
+    // A FAILED attempt must not be cached: the next send retries.
+    void attempt.catch(() => {
+      if (inFlight === attempt) {
+        inFlight = null;
+      }
+    });
+    return attempt;
+  };
 }
 
 export interface CreateDelegationArgs {
@@ -129,23 +161,34 @@ export interface CreateDelegationArgs {
   docPath: string;
   selectionText: string;
   prompt: string;
-  /** Splices the marker into the live buffer (the normal CAS save persists
-   *  it); false when the buffer is gone — the thread still runs, chipless. */
-  insertAnchor: (anchor: string) => boolean;
+  /** Splices the marker AND makes it durable; see DelegationDraft.anchor. */
+  anchor: (anchor: string) => Promise<AnchorOutcome>;
 }
 
-export interface CreatedDelegation {
-  threadId: string;
-  anchor: string;
-  anchored: boolean;
-  send: ComposerSendOutcome;
-}
+export type CreateDelegationResult =
+  | { kind: "created"; threadId: string; anchor: string; send: ComposerSendOutcome }
+  | { kind: "not-anchored"; reason: AnchorFailure };
 
+/**
+ * THE ORDER IS THE CONTRACT: anchor and flush FIRST, create the thread only
+ * once those bytes are durable, and start the turn last.
+ *
+ * Creating first is what the obvious reading of "mint a thread, then mark the
+ * doc" gives you, and it is wrong twice over. The agent materializes the vault
+ * from disk, so a turn started before the flush can read the doc WITHOUT the
+ * anchor it is told to work at. And an anchor that never lands — the save 409s,
+ * the tab closes, the user hits undo — leaves a thread bound to a doc nothing
+ * marks: a delegation with no chip, invisible except in the thread list.
+ */
 export async function createDelegation(
   api: ApiClient,
   args: CreateDelegationArgs,
-): Promise<CreatedDelegation> {
+): Promise<CreateDelegationResult> {
   const anchor = newAnchorToken();
+  const anchored = await args.anchor(anchor);
+  if (!anchored.ok) {
+    return { kind: "not-anchored", reason: anchored.reason };
+  }
   const created = await api.threads.create.$post({
     json: {
       title: delegationTitle(args.prompt),
@@ -157,7 +200,6 @@ export async function createDelegation(
     throw new Error("Could not create the delegation thread");
   }
   const { thread } = await created.json();
-  const anchored = args.insertAnchor(anchor);
   const send = await sendToThread(api, {
     threadId: thread.id,
     text: composeDelegationMessage({
@@ -169,5 +211,5 @@ export async function createDelegation(
     }),
     activeTurnId: null,
   });
-  return { threadId: thread.id, anchor, anchored, send };
+  return { kind: "created", threadId: thread.id, anchor, send };
 }

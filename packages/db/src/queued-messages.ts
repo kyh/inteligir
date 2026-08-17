@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
 import type { DbNotifier } from "./notifier";
@@ -201,4 +201,32 @@ export function releaseQueuedMessageClaim(
     return true;
   }
   return false;
+}
+
+/** Unclaimed queued-message counts for many threads in ONE grouped query —
+ *  the same bound the interaction counts take, for the same reason. */
+export function countQueuedThreadMessagesByThread(
+  db: DbConnection,
+  threadIds: readonly string[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (threadIds.length === 0) {
+    return counts;
+  }
+  const rows = db
+    .select({ threadId: queuedThreadMessages.threadId, total: count() })
+    .from(queuedThreadMessages)
+    .where(
+      and(
+        inArray(queuedThreadMessages.threadId, [...threadIds]),
+        isNull(queuedThreadMessages.claimedAt),
+        isNull(queuedThreadMessages.claimToken),
+      ),
+    )
+    .groupBy(queuedThreadMessages.threadId)
+    .all();
+  for (const row of rows) {
+    counts.set(row.threadId, row.total);
+  }
+  return counts;
 }

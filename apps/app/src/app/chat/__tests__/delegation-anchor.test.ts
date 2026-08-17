@@ -6,19 +6,14 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { insertThreadMarker, threadMarkerText } from "@repo/notes/markdown/thread-marker";
+import { contentHashHex } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { contentHashHex } from "../../note/content-hash";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 import { NoteController, type NoteBuffer, type SaveResult } from "../../note/note-controller";
 import { bootChatHarness } from "./chat-harness";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  vi.useRealTimers();
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 const DOC = `# Plans
 
@@ -53,7 +48,7 @@ describe("anchor insertion through the save pipeline", () => {
       onSaveError: () => {},
     });
 
-    buffer.content = insertThreadMarker(DOC, DOC.indexOf("paragraph"), "anc_ctrl");
+    buffer.content = insertThreadMarker(DOC, DOC.indexOf("paragraph"), "anc_00000000000c");
     controller.docChanged();
     await controller.flush();
 
@@ -62,19 +57,19 @@ describe("anchor insertion through the save pipeline", () => {
     expect(saves[0]?.content).toBe(`# Plans
 
 First paragraph.
-${threadMarkerText("anc_ctrl")}
+${threadMarkerText("anc_00000000000c")}
 `);
     expect(controller.isDirty()).toBe(false);
     controller.dispose();
   });
 
   it("the real vault CAS accepts the marker write and the bytes land on disk", async () => {
-    const { client, vaultDir } = await bootChatHarness({ mode: "manual" }, cleanups);
+    const { client, vaultDir } = await bootChatHarness({ mode: "manual" });
     const path = "Notes/Plans.md";
     const put = await client.vault.file.$put({ json: { path, content: DOC, ifAbsent: true } });
     expect(put.status).toBe(200);
 
-    const withMarker = insertThreadMarker(DOC, DOC.indexOf("paragraph"), "anc_cas");
+    const withMarker = insertThreadMarker(DOC, DOC.indexOf("paragraph"), "anc_00000000000d");
     const guarded = await client.vault.file.$put({
       json: { path, content: withMarker, expectedHash: await contentHashHex(DOC) },
     });

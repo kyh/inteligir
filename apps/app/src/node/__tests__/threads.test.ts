@@ -556,12 +556,16 @@ describe("the by-doc query", () => {
     const plainChat = await createThread(client);
     void plainChat;
     const boundResponse = await client.threads.create.$post({
-      json: { title: "Fix the intro", originDocPath: "Notes/Plans.md", originAnchor: "anc_one" },
+      json: {
+        title: "Fix the intro",
+        originDocPath: "Notes/Plans.md",
+        originAnchor: "anc_00000000000a",
+      },
     });
     expect(boundResponse.status).toBe(201);
     const bound = threadEnvelopeSchema.parse(await boundResponse.json()).thread;
     const otherDocResponse = await client.threads.create.$post({
-      json: { originDocPath: "Other.md", originAnchor: "anc_two" },
+      json: { originDocPath: "Other.md", originAnchor: "anc_00000000000b" },
     });
     expect(otherDocResponse.status).toBe(201);
 
@@ -602,7 +606,7 @@ describe("the by-doc query", () => {
     expect(body.threads).toHaveLength(1);
     const activity = body.threads[0];
     expect(activity?.thread.id).toBe(bound.id);
-    expect(activity?.thread.originAnchor).toBe("anc_one");
+    expect(activity?.thread.originAnchor).toBe("anc_00000000000a");
     expect(activity?.openInteractionCount).toBe(1);
     expect(activity?.queuedCount).toBe(1);
 

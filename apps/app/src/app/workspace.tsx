@@ -12,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, queryKeys, unwrap } from "./api";
 import { ChatDock } from "./chat/chat-dock";
-import type { DelegationDraft } from "./chat/chat-model";
+import { ANCHOR_FAILURE_MESSAGES, type DelegationDraft } from "./chat/chat-model";
 import { createDelegation } from "./chat/chat-service";
 import { useThreads } from "./chat/thread-hooks";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
@@ -74,20 +74,25 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           docPath: draft.docPath,
           selectionText: draft.selectionText,
           prompt,
-          insertAnchor: draft.insertAnchor,
+          anchor: draft.anchor,
         });
+        // An anchor that did not land means NO thread was created — say which
+        // failure it was rather than leaving the user with a silent no-op.
+        if (created.kind === "not-anchored") {
+          toast.error(ANCHOR_FAILURE_MESSAGES[created.reason]);
+          return;
+        }
         if (created.send.kind === "refused") {
           toast.error(`The delegation could not start: ${created.send.message}`);
         }
-        setChatThreadId(created.threadId);
-        setChatExpanded(true);
+        openThread(created.threadId);
       } catch {
         toast.error("Could not create the delegation.");
       } finally {
         void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
       }
     },
-    [api, queryClient],
+    [api, queryClient, openThread],
   );
 
   const noteDelegation = useMemo<NoteDelegation>(
@@ -101,8 +106,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [runDelegation, openThread],
   );
 
+  // Cancelling drops the editor's tracked position too — an abandoned draft
+  // must not leave one armed for the next delegation to inherit.
   const onCancelDraft = useCallback((): void => {
-    setDelegationDraft(null);
+    setDelegationDraft((current) => {
+      current?.cancel();
+      return null;
+    });
   }, []);
 
   const onSubmitDelegation = useCallback(

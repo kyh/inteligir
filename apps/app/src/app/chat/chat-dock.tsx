@@ -1,10 +1,10 @@
 // The bottom chat dock, pinned under the editor column and living BESIDE the
 // note (its state never wraps the editor, so nothing here can remount it).
-// One surface for both mechanisms: plain chat sends into the designated
-// thread (minted lazily on first send), and a delegation draft — armed by
-// the editor's selection affordance — turns the same composer into the
-// delegation's prompt input. Collapsed shows the last exchange; expanded is
-// a scrollable timeline with approvals answerable inline.
+// One surface for both mechanisms: plain chat sends into the held chat thread
+// (minted lazily, single-flight, on the first send), and a delegation draft —
+// armed by the editor's selection affordance — turns the same composer into
+// that delegation's prompt input. Collapsed shows the last exchange; expanded
+// is a scrollable timeline with approvals answerable inline.
 
 import type { Thread } from "@repo/server-contract/threads";
 import type { TimelineRow } from "@repo/server-contract/thread-timeline";
@@ -18,8 +18,8 @@ import { useEffect, useRef, useState } from "react";
 import { queryKeys, unwrap } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { ApprovalCard } from "./approval-card";
-import { designatedChatThread, type DelegationDraft } from "./chat-model";
-import { ensureChatThread, sendToThread } from "./chat-service";
+import { initialChatThread, type DelegationDraft } from "./chat-model";
+import { createChatThreadResolver, sendToThread } from "./chat-service";
 import { TimelineRowView } from "./timeline-rows";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 
@@ -75,8 +75,28 @@ export function ChatDock({
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const threadsQuery = useThreads();
-  const designated = designatedChatThread(threadsQuery.data?.threads ?? []);
-  const viewingId = viewThreadId ?? designated?.id ?? null;
+
+  // The chat target is HELD, not derived. The initial list picks it once; from
+  // then on only the user moves it (a chip, the palette, "New chat"). See
+  // `initialChatThread` for why re-deriving would swap the visible
+  // conversation whenever an unrelated thread's updatedAt moved.
+  const [chatThreadId, setChatThreadId] = useState<string | null>(null);
+  const listedThreads = threadsQuery.data?.threads;
+  useEffect(() => {
+    if (chatThreadId !== null || listedThreads === undefined) {
+      return;
+    }
+    const initial = initialChatThread(listedThreads);
+    if (initial !== null) {
+      setChatThreadId(initial.id);
+    }
+  }, [chatThreadId, listedThreads]);
+
+  // ONE resolver per mounted dock, so concurrent sends into an empty state
+  // await one create instead of racing two.
+  const [resolveChatThread] = useState(() => createChatThreadResolver(api));
+
+  const viewingId = viewThreadId ?? chatThreadId;
   const detailQuery = useThreadDetail(viewingId);
   const timeline = useThreadTimeline(viewingId);
 
@@ -117,7 +137,11 @@ export function ChatDock({
           setText("");
           return;
         }
-        const threadId = viewingId ?? (await ensureChatThread(api)).id;
+        let threadId = viewingId;
+        if (threadId === null) {
+          threadId = (await resolveChatThread()).id;
+          setChatThreadId(threadId);
+        }
         const outcome = await sendToThread(api, {
           threadId,
           text: trimmed,
@@ -161,6 +185,11 @@ export function ChatDock({
     void (async () => {
       try {
         await unwrap(await api.threads.archive.$post({ json: { threadId } }));
+        // Archiving IS how a chat ends: clear the held target so the next send
+        // mints a fresh one. Nothing else may move it.
+        if (threadId === chatThreadId) {
+          setChatThreadId(null);
+        }
         onViewThread(null);
       } catch {
         toast.error("Could not archive the thread.");
@@ -175,7 +204,7 @@ export function ChatDock({
   const queued = detailQuery.data?.queuedMessages ?? [];
   const needsApproval = pending.length > 0;
   const exchange = timeline === null ? null : lastExchange(timeline.rows);
-  const viewingDesignated = thread !== null && designated !== null && thread.id === designated.id;
+  const viewingChat = thread !== null && thread.originDocPath === null;
   const title =
     thread === null
       ? "Chat"
@@ -206,7 +235,7 @@ export function ChatDock({
                 </button>
               ) : null}
               <span className="flex-1" />
-              {viewingDesignated ? (
+              {viewingChat ? (
                 <Button
                   size="xs"
                   variant="ghost"

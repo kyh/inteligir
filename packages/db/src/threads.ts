@@ -5,7 +5,7 @@ import type {
   ThreadLifecycleNoopReason,
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, like } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
 import type { DbNotifier } from "./notifier";
@@ -71,6 +71,65 @@ export function listThreads(db: DbConnection): ThreadRow[] {
     .orderBy(desc(threads.updatedAt))
     .all();
   return [...live, ...archived];
+}
+
+/** Threads bound to one doc, newest-updated first — answered by
+ *  `threads_origin_doc_idx` rather than a scan of every thread. */
+export function listThreadsByOriginDoc(db: DbConnection, docPath: string): ThreadRow[] {
+  return db
+    .select()
+    .from(threads)
+    .where(eq(threads.originDocPath, docPath))
+    .orderBy(desc(threads.updatedAt))
+    .all();
+}
+
+/**
+ * Follow a moved doc: every thread bound to it (or, for a directory move, to
+ * anything under it) keeps pointing at the file it was spawned from.
+ *
+ * Without this a rename orphans every delegation on the doc — the marker moves
+ * with the bytes, but `originDocPath` still names a path that no longer
+ * exists, so the open note's by-doc query returns nothing and every chip in
+ * the renamed file goes `unknown` (and therefore dismissable). Runs in the
+ * same operation as the link rewrite, for the same reason that one does.
+ */
+export function rebindThreadOrigins(
+  db: DbConnection,
+  notifier: DbNotifier,
+  args: { from: string; to: string },
+): number {
+  const moved = db
+    .update(threads)
+    .set({ originDocPath: args.to, updatedAt: Date.now() })
+    .where(eq(threads.originDocPath, args.from))
+    .returning({ id: threads.id })
+    .all();
+  // A directory move carries every doc under it; `/` is appended so a sibling
+  // sharing the name's prefix (`Notes2/`) is never caught.
+  const prefix = `${args.from}/`;
+  const descendants = db
+    .select({ id: threads.id, originDocPath: threads.originDocPath })
+    .from(threads)
+    .where(like(threads.originDocPath, `${prefix.replaceAll("%", "\\%")}%`))
+    .all();
+  for (const row of descendants) {
+    if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
+      continue;
+    }
+    db.update(threads)
+      .set({
+        originDocPath: `${args.to}/${row.originDocPath.slice(prefix.length)}`,
+        updatedAt: Date.now(),
+      })
+      .where(eq(threads.id, row.id))
+      .run();
+    moved.push({ id: row.id });
+  }
+  for (const row of moved) {
+    notifier.notifyThread(row.id, ["origin-changed"]);
+  }
+  return moved.length;
 }
 
 export function archiveThread(

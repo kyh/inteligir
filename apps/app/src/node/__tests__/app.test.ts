@@ -56,7 +56,7 @@ describe("the API over the in-process app", () => {
     const status = systemStatusResponseSchema.parse(await response.json());
     expect(status.version).toBe("0.1.0-test");
     expect(status.dataDir).toBe(args.config.dataDir);
-    expect(status.schemaVersion).toBe(3);
+    expect(status.schemaVersion).toBe(4);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
 

@@ -22,6 +22,13 @@
       "when": 1786893371175,
       "tag": "0002_shiny_morg",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786940194022,
+      "tag": "0003_secret_lila_cheney",
+      "breakpoints": true
     }
   ]
 }

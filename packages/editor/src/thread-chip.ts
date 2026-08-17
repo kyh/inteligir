@@ -1,11 +1,17 @@
-// The live delegation chip: a thread marker comment in the buffer
-// (`<!-- inteligir:thread anc_x -->`, grammar owned by
-// @repo/notes/markdown/thread-marker) renders as a small status chip instead
-// of its raw bytes. The buffer is never touched by status changes — thread
-// state arrives as a StateEffect from the app, and the only writes this
-// extension makes are the dismiss (deleting the marker bytes) the widget
-// offers once a thread is archived or unknown. A selection touching the
-// marker reveals the raw comment, same rule as every other folded construct.
+// The live delegation chip: a thread marker in the buffer renders as a small
+// status chip instead of its raw bytes. Which spans ARE markers is
+// @repo/notes/markdown/thread-marker's syntax-aware answer, never a regex over
+// the text — the same characters inside a fence or inline code are the user's
+// literal text, and a chip there would hide it while a dismiss there would
+// delete it.
+//
+// Two invariants hold this together. Status NEVER touches the buffer: thread
+// state arrives as a StateEffect, so the only write this extension makes is a
+// dismiss. And a chip whose threads the app has not fetched yet renders as
+// `loading`, never as `unknown` — "no thread claims this anchor" is a claim
+// only an ANSWERED query can make, and offering dismiss on an unanswered one
+// invites deleting a live delegation's anchor. A selection touching the marker
+// reveals the raw comment, same rule as every other folded construct.
 
 import {
   StateEffect,
@@ -29,7 +35,9 @@ export type ThreadChipStatus =
   | "done"
   | "failed"
   | "archived"
-  /** The marker names an anchor no thread claims (deleted db, foreign vault). */
+  /** The app has not answered which threads this doc has yet. */
+  | "loading"
+  /** ANSWERED, and no thread claims this anchor (deleted db, foreign vault). */
   | "unknown";
 
 export interface ThreadChipInfo {
@@ -38,12 +46,18 @@ export interface ThreadChipInfo {
   title: string | null;
 }
 
+/** What the app knows about this doc's threads. `loading` is not an empty
+ *  list: the two differ precisely in whether dismiss may be offered. */
+export type ThreadChipState =
+  | { kind: "loading" }
+  | { kind: "ready"; chips: readonly ThreadChipInfo[] };
+
 export interface ThreadChipConfig {
   /** A chip was clicked: open that anchor's thread in the chat panel. */
   onOpen: (anchor: string) => void;
 }
 
-export const setThreadChips = StateEffect.define<readonly ThreadChipInfo[]>();
+export const setThreadChips = StateEffect.define<ThreadChipState>();
 
 const STATUS_LABELS: Record<ThreadChipStatus, string> = {
   queued: "queued",
@@ -52,9 +66,12 @@ const STATUS_LABELS: Record<ThreadChipStatus, string> = {
   done: "done",
   failed: "failed",
   archived: "archived",
+  loading: "delegation",
   unknown: "no thread",
 };
 
+/** Only a settled thread's marker may be removed — and `unknown` counts only
+ *  because it is the ANSWERED "no such thread", never the unanswered one. */
 const isDismissable = (status: ThreadChipStatus): boolean =>
   status === "archived" || status === "unknown";
 
@@ -90,7 +107,7 @@ class ThreadChipWidget extends WidgetType {
     label.textContent = this.title ?? STATUS_LABELS[this.status];
     chip.append(label);
 
-    if (this.status !== "unknown") {
+    if (this.status !== "unknown" && this.status !== "loading") {
       chip.addEventListener("click", (event) => {
         event.preventDefault();
         this.onOpen(this.anchor);
@@ -106,7 +123,11 @@ class ThreadChipWidget extends WidgetType {
       dismiss.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        dismissMarker(view, this.anchor);
+        // THIS chip's marker, resolved from where the widget currently sits —
+        // never the first marker carrying the token. Two anchors can share a
+        // token only through a corrupt file, but a chip that deletes a range
+        // it does not occupy is a data-loss bug either way.
+        dismissMarkerAt(view, view.posAtDOM(chip));
       });
       chip.append(dismiss);
     }
@@ -120,9 +141,9 @@ class ThreadChipWidget extends WidgetType {
   }
 }
 
-function dismissMarker(view: EditorView, anchor: string): void {
+function dismissMarkerAt(view: EditorView, pos: number): void {
   const content = view.state.doc.toString();
-  const marker = findThreadMarkers(content).find((entry) => entry.anchor === anchor);
+  const marker = findThreadMarkers(content).find((entry) => pos >= entry.from && pos <= entry.to);
   if (marker === undefined) {
     return;
   }
@@ -134,7 +155,7 @@ function dismissMarker(view: EditorView, anchor: string): void {
 }
 
 interface ChipFieldValue {
-  chips: readonly ThreadChipInfo[];
+  state: ThreadChipState;
   decorations: DecorationSet;
 }
 
@@ -142,23 +163,24 @@ function selectionTouches(state: EditorState, marker: ThreadMarker): boolean {
   return state.selection.ranges.some((range) => range.from <= marker.to && range.to >= marker.from);
 }
 
+const LOADING: ThreadChipState = { kind: "loading" };
+
 export function threadChipsExtension(config: ThreadChipConfig): Extension {
-  const build = (state: EditorState, chips: readonly ThreadChipInfo[]): DecorationSet => {
-    const byAnchor = new Map(chips.map((chip) => [chip.anchor, chip]));
+  const build = (editorState: EditorState, chipState: ThreadChipState): DecorationSet => {
+    const byAnchor =
+      chipState.kind === "ready"
+        ? new Map(chipState.chips.map((chip) => [chip.anchor, chip]))
+        : null;
     const ranges: Range<Decoration>[] = [];
-    for (const marker of findThreadMarkers(state.doc.toString())) {
-      if (selectionTouches(state, marker)) {
+    for (const marker of findThreadMarkers(editorState.doc.toString())) {
+      if (selectionTouches(editorState, marker)) {
         continue;
       }
-      const info = byAnchor.get(marker.anchor);
+      const info = byAnchor?.get(marker.anchor);
+      const status: ThreadChipStatus = info?.status ?? (byAnchor === null ? "loading" : "unknown");
       ranges.push(
         Decoration.replace({
-          widget: new ThreadChipWidget(
-            marker.anchor,
-            info?.status ?? "unknown",
-            info?.title ?? null,
-            config.onOpen,
-          ),
+          widget: new ThreadChipWidget(marker.anchor, status, info?.title ?? null, config.onOpen),
         }).range(marker.from, marker.to),
       );
     }
@@ -166,13 +188,13 @@ export function threadChipsExtension(config: ThreadChipConfig): Extension {
   };
 
   const field = StateField.define<ChipFieldValue>({
-    create: (state) => ({ chips: [], decorations: build(state, []) }),
+    create: (state) => ({ state: LOADING, decorations: build(state, LOADING) }),
     update: (value, tr) => {
-      let chips = value.chips;
+      let chipState = value.state;
       let chipsChanged = false;
       for (const effect of tr.effects) {
         if (effect.is(setThreadChips)) {
-          chips = effect.value;
+          chipState = effect.value;
           chipsChanged = true;
         }
       }
@@ -181,9 +203,9 @@ export function threadChipsExtension(config: ThreadChipConfig): Extension {
         chipsChanged ||
         (tr.selection !== undefined && allowsSelectionRebuild(tr))
       ) {
-        return { chips, decorations: build(tr.state, chips) };
+        return { state: chipState, decorations: build(tr.state, chipState) };
       }
-      return { chips, decorations: value.decorations.map(tr.changes) };
+      return { state: chipState, decorations: value.decorations.map(tr.changes) };
     },
     provide: (f) => EditorView.decorations.from(f, (value) => value.decorations),
   });
@@ -240,7 +262,7 @@ const chipTheme = EditorView.theme({
     userSelect: "none",
     verticalAlign: "baseline",
   },
-  '.cm-thread-chip[data-status="unknown"]': {
+  '.cm-thread-chip[data-status="unknown"], .cm-thread-chip[data-status="loading"]': {
     cursor: "default",
   },
   ".cm-thread-chip-label": {

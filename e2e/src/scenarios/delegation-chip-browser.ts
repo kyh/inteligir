@@ -20,7 +20,7 @@ const DOC = `# Plans
 
 First paragraph to delegate.
 `;
-const ANCHOR = "anc_chip_browser";
+const ANCHOR = "anc_0c81b0405e11";
 const PROMPT = "Summarize the paragraph";
 const TURN_DEADLINE_MS = 30_000;
 
