@@ -13,19 +13,13 @@
 // and there is no honest way for a person to supply one.
 
 import type { Proposal } from "@repo/server-contract/proposals";
-import type { Command } from "commander";
+import { defineCommand } from "citty";
 import { CliExitError } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { outputJson, requireOk, type JsonOutputOptions } from "../output";
-
-interface ListOptions extends JsonOutputOptions {
-  doc?: string;
-  thread?: string;
-  all?: boolean;
-}
+import { jsonArg, out, outputJson, requireOk, writeLines, type JsonOutputOptions } from "../output";
 
 interface VerbOptions extends JsonOutputOptions {
-  hunk?: string;
+  hunk?: string | undefined;
 }
 
 function summaryLine(proposal: Proposal): string {
@@ -74,77 +68,6 @@ function parseHunkIndex(raw: string | undefined): number | undefined {
   return value;
 }
 
-export function registerProposalCommands(program: Command, deps: CliDeps): void {
-  const proposals = program
-    .command("proposals")
-    .description("Suggested edits a review-mode delegation left for you");
-
-  proposals
-    .command("list")
-    .description("Suggestions awaiting review")
-    .option("--doc <path>", "Only suggestions against this vault file")
-    .option("--thread <id>", "Only suggestions from this thread")
-    .option("--all", "Include resolved suggestions, not just the queue")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (opts: ListOptions) => {
-      const api = await apiFor(deps);
-      const listing = await requireOk(
-        await api.proposals.list.$get({
-          query: {
-            ...(opts.doc === undefined ? {} : { docPath: opts.doc }),
-            ...(opts.thread === undefined ? {} : { threadId: opts.thread }),
-            ...(opts.all === true ? { includeResolved: "true" as const } : {}),
-          },
-        }),
-      );
-      const body = await listing.json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      for (const proposal of body.proposals) {
-        console.log(summaryLine(proposal));
-      }
-    });
-
-  proposals
-    .command("show <id>")
-    .description("One suggestion as a unified diff")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (id: string, opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const fetched = await requireOk(await api.proposals.get.$get({ query: { proposalId: id } }));
-      const body = await fetched.json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      console.log(summaryLine(body.proposal));
-      if (body.proposal.status === "stale") {
-        console.log("(stale — the file changed after this was written, so it cannot be applied)");
-      }
-      for (const line of unifiedDiff(body.proposal)) {
-        console.log(line);
-      }
-    });
-
-  proposals
-    .command("accept <id>")
-    .description("Apply a suggestion (or one hunk of it) through the vault's guarded write")
-    .option("--hunk <index>", "Apply only this hunk; omitted applies the whole suggestion")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (id: string, opts: VerbOptions) => {
-      await runVerb(deps, "accept", id, opts);
-    });
-
-  proposals
-    .command("reject <id>")
-    .description("Discard a suggestion (or one hunk of it); no file is touched")
-    .option("--hunk <index>", "Discard only this hunk; omitted discards the whole suggestion")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (id: string, opts: VerbOptions) => {
-      await runVerb(deps, "reject", id, opts);
-    });
-}
-
 async function runVerb(
   deps: CliDeps,
   verb: "accept" | "reject",
@@ -171,10 +94,107 @@ async function runVerb(
   if (outputJson(opts, body)) {
     return;
   }
-  const remaining = body.proposal.hunks.length;
-  console.log(
-    body.proposal.status === "pending"
-      ? `${body.proposal.id} still pending — ${remaining} hunk(s) left to review`
-      : `${body.proposal.id} ${body.proposal.status}`,
-  );
+  if (body.proposal.status === "pending") {
+    out.info(
+      `${body.proposal.id} still pending — ${body.proposal.hunks.length} hunk(s) left to review`,
+    );
+    return;
+  }
+  out.success(`${body.proposal.id} ${body.proposal.status}`);
+}
+
+export function proposalsCommand(deps: CliDeps) {
+  return defineCommand({
+    meta: {
+      name: "proposals",
+      description: "Suggested edits a review-mode delegation left for you",
+    },
+    subCommands: {
+      list: defineCommand({
+        meta: { name: "list", description: "Suggestions awaiting review" },
+        args: {
+          doc: { type: "string", description: "Only suggestions against this vault file" },
+          thread: { type: "string", description: "Only suggestions from this thread" },
+          all: { type: "boolean", description: "Include resolved suggestions, not just the queue" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const listing = await requireOk(
+            await api.proposals.list.$get({
+              query: {
+                ...(args.doc === undefined ? {} : { docPath: args.doc }),
+                ...(args.thread === undefined ? {} : { threadId: args.thread }),
+                ...(args.all === true ? { includeResolved: "true" as const } : {}),
+              },
+            }),
+          );
+          const body = await listing.json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          writeLines(body.proposals.map(summaryLine));
+        },
+      }),
+
+      show: defineCommand({
+        meta: { name: "show", description: "One suggestion as a unified diff" },
+        args: {
+          id: { type: "positional", required: true, description: "The suggestion id" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const fetched = await requireOk(
+            await api.proposals.get.$get({ query: { proposalId: args.id } }),
+          );
+          const body = await fetched.json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          writeLines([summaryLine(body.proposal)]);
+          if (body.proposal.status === "stale") {
+            out.info("(stale — the file changed after this was written, so it cannot be applied)");
+          }
+          writeLines(unifiedDiff(body.proposal));
+        },
+      }),
+
+      accept: defineCommand({
+        meta: {
+          name: "accept",
+          description: "Apply a suggestion (or one hunk of it) through the vault's guarded write",
+        },
+        args: {
+          id: { type: "positional", required: true, description: "The suggestion id" },
+          hunk: {
+            type: "string",
+            description: "Apply only this hunk; omitted applies the whole suggestion",
+          },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          await runVerb(deps, "accept", args.id, args);
+        },
+      }),
+
+      reject: defineCommand({
+        meta: {
+          name: "reject",
+          description: "Discard a suggestion (or one hunk of it); no file is touched",
+        },
+        args: {
+          id: { type: "positional", required: true, description: "The suggestion id" },
+          hunk: {
+            type: "string",
+            description: "Discard only this hunk; omitted discards the whole suggestion",
+          },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          await runVerb(deps, "reject", args.id, args);
+        },
+      }),
+    },
+  });
 }

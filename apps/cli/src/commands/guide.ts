@@ -1,21 +1,23 @@
 // `inteligir guide` — print the manual the RUNNING server serves, so the
 // text an agent reads always matches the build it is driving.
 
-import type { Command } from "commander";
+import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
-import { outputJson, requireOk, type JsonOutputOptions } from "../output";
+import { jsonArg, outputJson, requireOk, writeOut } from "../output";
 
-export function registerGuideCommand(program: Command, deps: CliDeps): void {
-  program
-    .command("guide")
-    .description("Print the agent manual served by the app")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (opts: JsonOutputOptions) => {
+export function guideCommand(deps: CliDeps) {
+  return defineCommand({
+    meta: { name: "guide", description: "Print the agent manual served by the app" },
+    args: { ...jsonArg },
+    run: async ({ args }) => {
       const api = await apiFor(deps);
       const body = await (await requireOk(await api.guide.$get())).json();
-      if (outputJson(opts, body)) {
+      if (outputJson(args, body)) {
         return;
       }
-      console.log(body.markdown);
-    });
+      // Raw, not consola: the manual is markdown, and consola's reporter
+      // rewrites every `backtick` span in a message it formats.
+      writeOut(`${body.markdown}\n`);
+    },
+  });
 }

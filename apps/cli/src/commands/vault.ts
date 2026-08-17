@@ -4,14 +4,10 @@
 
 import { buffer } from "node:stream/consumers";
 import { VAULT_MAX_CONTENT_LENGTH, type VaultStatusResponse } from "@repo/server-contract/vault";
-import type { Command } from "commander";
+import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { outputJson, requireOk, type JsonOutputOptions } from "../output";
-
-interface WriteOptions extends JsonOutputOptions {
-  content?: string;
-}
+import { jsonArg, out, outputJson, requireOk, writeLines, writeOut } from "../output";
 
 function renderVaultStatus(status: VaultStatusResponse): string[] {
   const lines = [`state: ${status.state}`];
@@ -63,139 +59,178 @@ function assertContentWithinBound(content: string): void {
   }
 }
 
-export function registerVaultCommands(program: Command, deps: CliDeps): void {
-  const vault = program.command("vault").description("Files in the vault (markdown on disk)");
+export function vaultCommand(deps: CliDeps) {
+  return defineCommand({
+    meta: { name: "vault", description: "Files in the vault (markdown on disk)" },
+    subCommands: {
+      list: defineCommand({
+        meta: { name: "list", description: "List the vault tree (folders end with /)" },
+        args: {
+          dir: {
+            type: "positional",
+            required: false,
+            description: "Only this folder's subtree",
+          },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const tree = await (await requireOk(await api.vault.tree.$get())).json();
+          const prefix = args.dir?.replace(/\/+$/u, "");
+          const entries =
+            prefix === undefined || prefix.length === 0
+              ? tree.entries
+              : tree.entries.filter(
+                  (entry) => entry.path === prefix || entry.path.startsWith(`${prefix}/`),
+                );
+          if (outputJson(args, { root: tree.root, entries })) {
+            return;
+          }
+          writeLines(
+            entries.map((entry) => (entry.kind === "dir" ? `${entry.path}/` : entry.path)),
+          );
+        },
+      }),
 
-  vault
-    .command("list [dir]")
-    .description("List the vault tree (folders end with /)")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (dir: string | undefined, opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const tree = await (await requireOk(await api.vault.tree.$get())).json();
-      const prefix = dir?.replace(/\/+$/u, "");
-      const entries =
-        prefix === undefined || prefix.length === 0
-          ? tree.entries
-          : tree.entries.filter(
-              (entry) => entry.path === prefix || entry.path.startsWith(`${prefix}/`),
-            );
-      if (outputJson(opts, { root: tree.root, entries })) {
-        return;
-      }
-      for (const entry of entries) {
-        console.log(entry.kind === "dir" ? `${entry.path}/` : entry.path);
-      }
-    });
+      read: defineCommand({
+        meta: { name: "read", description: "Print a file's content" },
+        args: {
+          path: { type: "positional", required: true, description: "The vault-relative path" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const body = await (
+            await requireOk(await api.vault.file.$get({ query: { path: args.path } }))
+          ).json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          writeOut(body.content);
+        },
+      }),
 
-  vault
-    .command("read <path>")
-    .description("Print a file's content")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (path: string, opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const body = await (await requireOk(await api.vault.file.$get({ query: { path } }))).json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      process.stdout.write(body.content);
-    });
+      write: defineCommand({
+        meta: {
+          name: "write",
+          description: "Write a file (content from --content, else stdin); parents are created",
+        },
+        args: {
+          path: { type: "positional", required: true, description: "The vault-relative path" },
+          content: {
+            type: "string",
+            description: "The content to write; omitted means read stdin",
+          },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          let content: string;
+          if (args.content === undefined) {
+            content = await readContentFromStdin();
+          } else {
+            assertContentWithinBound(args.content);
+            content = args.content;
+          }
+          const api = await apiFor(deps);
+          const written = await requireOk(
+            await api.vault.file.$put({ json: { path: args.path, content } }),
+          );
+          const body = await written.json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Wrote ${body.path}`);
+        },
+      }),
 
-  vault
-    .command("write <path>")
-    .description("Write a file (content from --content, else stdin); parents are created")
-    .option("--content <text>", "The content to write; omitted means read stdin")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (path: string, opts: WriteOptions) => {
-      let content: string;
-      if (opts.content === undefined) {
-        content = await readContentFromStdin();
-      } else {
-        assertContentWithinBound(opts.content);
-        content = opts.content;
-      }
-      const api = await apiFor(deps);
-      const written = await requireOk(await api.vault.file.$put({ json: { path, content } }));
-      const body = await written.json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      console.log(`Wrote ${body.path}`);
-    });
+      rename: defineCommand({
+        meta: {
+          name: "rename",
+          description: "Rename/move a note; wiki links into it are rewritten",
+        },
+        args: {
+          from: { type: "positional", required: true, description: "The current path" },
+          to: { type: "positional", required: true, description: "The new path" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const renamed = await requireOk(
+            await api.vault.rename.$post({ json: { from: args.from, to: args.to } }),
+          );
+          const body = await renamed.json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Renamed ${args.from} -> ${body.path}`);
+          writeLines([
+            ...body.rewritten.map((rewritten) => `  rewrote links in ${rewritten}`),
+            ...body.skipped.map((skipped) => `  skipped ${skipped.path} (${skipped.reason})`),
+          ]);
+        },
+      }),
 
-  vault
-    .command("rename <from> <to>")
-    .description("Rename/move a note; wiki links into it are rewritten")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (from: string, to: string, opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const renamed = await requireOk(await api.vault.rename.$post({ json: { from, to } }));
-      const body = await renamed.json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      console.log(`Renamed ${from} -> ${body.path}`);
-      for (const rewritten of body.rewritten) {
-        console.log(`  rewrote links in ${rewritten}`);
-      }
-      for (const skipped of body.skipped) {
-        console.log(`  skipped ${skipped.path} (${skipped.reason})`);
-      }
-    });
+      delete: defineCommand({
+        meta: { name: "delete", description: "Delete a file or folder" },
+        args: {
+          path: { type: "positional", required: true, description: "The vault-relative path" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const body = await (
+            await requireOk(await api.vault.delete.$post({ json: { path: args.path } }))
+          ).json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Deleted ${args.path}`);
+        },
+      }),
 
-  vault
-    .command("delete <path>")
-    .description("Delete a file or folder")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (path: string, opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const body = await (await requireOk(await api.vault.delete.$post({ json: { path } }))).json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      console.log(`Deleted ${path}`);
-    });
+      mkdir: defineCommand({
+        meta: { name: "mkdir", description: "Create a folder" },
+        args: {
+          path: { type: "positional", required: true, description: "The vault-relative path" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const body = await (
+            await requireOk(await api.vault.mkdir.$post({ json: { path: args.path } }))
+          ).json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Created ${body.path}/`);
+        },
+      }),
 
-  vault
-    .command("mkdir <path>")
-    .description("Create a folder")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (path: string, opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const body = await (await requireOk(await api.vault.mkdir.$post({ json: { path } }))).json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      console.log(`Created ${body.path}/`);
-    });
+      status: defineCommand({
+        meta: { name: "status", description: "Git sync state (remote, dirty, conflicts)" },
+        args: { ...jsonArg },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const body = await (await requireOk(await api.vault.status.$get())).json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          writeLines(renderVaultStatus(body));
+        },
+      }),
 
-  vault
-    .command("status")
-    .description("Git sync state (remote, dirty, conflicts)")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const body = await (await requireOk(await api.vault.status.$get())).json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      for (const line of renderVaultStatus(body)) {
-        console.log(line);
-      }
-    });
-
-  vault
-    .command("sync")
-    .description("Sync against the configured remote now")
-    .option("--json", "Print machine-readable JSON output")
-    .action(async (opts: JsonOutputOptions) => {
-      const api = await apiFor(deps);
-      const body = await (await requireOk(await api.vault.sync.$post())).json();
-      if (outputJson(opts, body)) {
-        return;
-      }
-      for (const line of renderVaultStatus(body)) {
-        console.log(line);
-      }
-    });
+      sync: defineCommand({
+        meta: { name: "sync", description: "Sync against the configured remote now" },
+        args: { ...jsonArg },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const body = await (await requireOk(await api.vault.sync.$post())).json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          writeLines(renderVaultStatus(body));
+        },
+      }),
+    },
+  });
 }
