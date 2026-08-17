@@ -7,14 +7,14 @@ import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import { resolveServerBaseUrl, SERVER_URL_ENV_VAR } from "./server-discovery";
+import { resolveServer, SERVER_URL_ENV_VAR, type ResolvedServer } from "./server-discovery";
 
 const THREAD_ID_ENV_VAR = "INTELIGIR_THREAD_ID";
 
 export interface CliDeps {
   env: NodeJS.ProcessEnv;
   /** Resolved lazily on the first command that needs the server, then cached. */
-  resolveServer(): Promise<string>;
+  resolveServer(): Promise<ResolvedServer>;
 }
 
 /**
@@ -35,18 +35,18 @@ function defaultAppCheckoutDir(): string {
 }
 
 export function createCliDeps(env: NodeJS.ProcessEnv = process.env): CliDeps {
-  let cached: Promise<string> | null = null;
+  let cached: Promise<ResolvedServer> | null = null;
   return {
     env,
     resolveServer() {
-      cached ??= resolveServerBaseUrl({ env, appCheckoutDir: defaultAppCheckoutDir() });
+      cached ??= resolveServer({ env, appCheckoutDir: defaultAppCheckoutDir() });
       return cached;
     },
   };
 }
 
 export async function apiFor(deps: CliDeps): Promise<ApiClient> {
-  return createApiClient(await deps.resolveServer());
+  return createApiClient((await deps.resolveServer()).baseUrl);
 }
 
 export function contextThreadId(env: NodeJS.ProcessEnv): string | undefined {

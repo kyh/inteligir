@@ -30,6 +30,7 @@ import { NotificationBuffer, type DbNotifier } from "@repo/db/notifier";
 import {
   getPendingInteraction,
   interruptOpenPendingInteractions,
+  listAllOpenPendingInteractions,
   listOpenPendingInteractions,
   resolvePendingInteraction,
   type PendingInteractionRow,
@@ -170,6 +171,14 @@ export class ThreadService implements ProviderEventSink {
         toWirePendingInteraction,
       ),
     };
+  }
+
+  listInteractions(threadId: string | undefined): PendingInteraction[] {
+    const rows =
+      threadId === undefined
+        ? listAllOpenPendingInteractions(this.db)
+        : listOpenPendingInteractions(this.db, threadId);
+    return rows.map(toWirePendingInteraction);
   }
 
   archive(threadId: string): Thread | null {

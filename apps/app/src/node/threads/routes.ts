@@ -67,6 +67,10 @@ export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
     return c.json(response);
   });
 
+  routes.get(threadRoutes.listInteractions, (c, query) =>
+    c.json({ interactions: service.listInteractions(query.threadId) }),
+  );
+
   routes.post(threadRoutes.answerInteraction, (c, body) => {
     const outcome = service.answerInteraction(body);
     switch (outcome.kind) {

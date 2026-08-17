@@ -88,6 +88,12 @@ export interface CodexRuntimeManagerDeps {
    * constructed before; it is read at runtime construction, on the first turn.
    */
   shellEnv?: () => AgentRuntimeShellEnvironment;
+  /**
+   * Where the `inteligir` binary lives, or null when this deployment ships
+   * none. The instructions only PROMISE the CLI when the shell env can
+   * really reach it — see agent-shell-env.ts.
+   */
+  cliBinDir?: string | null;
   /** Tests: point the runtime at a fake app-server. */
   adapterFactory?: ProviderAdapterFactory;
   /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
@@ -269,7 +275,7 @@ class CodexTurnDriver implements TurnDriver {
   }
 
   private async openThreadSession(runtime: AgentRuntime, threadId: string): Promise<void> {
-    const instructions = loadAgentInstructions(this.deps.vaultDir);
+    const instructions = loadAgentInstructions(this.deps.vaultDir, this.deps.cliBinDir ?? null);
     const persisted = getThread(this.deps.db, threadId)?.providerThreadId ?? null;
     if (persisted !== null) {
       try {
@@ -278,7 +284,7 @@ class CodexTurnDriver implements TurnDriver {
           providerThreadId: persisted,
           providerId: CODEX_PROVIDER_ID,
           options: this.options,
-          instructions,
+          ...(instructions === undefined ? {} : { instructions }),
         });
         setThreadProviderSession(this.deps.db, {
           threadId,
@@ -301,7 +307,7 @@ class CodexTurnDriver implements TurnDriver {
       threadId,
       providerId: CODEX_PROVIDER_ID,
       options: this.options,
-      instructions,
+      ...(instructions === undefined ? {} : { instructions }),
     });
     setThreadProviderSession(this.deps.db, {
       threadId,

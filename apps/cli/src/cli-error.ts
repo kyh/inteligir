@@ -1,18 +1,33 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// (action wrapper shape + fetch-cause unwrapping); the exit-code table is
-// this CLI's own and is documented in the served guide (cli-skill.ts).
+// (action wrapper shape + fetch-cause unwrapping); the exit-code table and
+// the error CLASSES are this CLI's own and are documented in the served
+// guide (cli-skill.ts).
 
 export const EXIT_ERROR = 1;
 export const EXIT_WAIT_TIMEOUT = 2;
 export const EXIT_UNREACHABLE = 3;
 
+/**
+ * A machine-readable failure class, so `--json` callers can branch without
+ * parsing prose. Server refusals pass the SERVER's own class through
+ * (`not_found`, `invalid_request`, …) rather than being flattened into one
+ * CLI code.
+ */
 export class CliExitError extends Error {
   readonly exitCode: number;
-  constructor(message: string, exitCode: number = EXIT_ERROR) {
+  readonly code: string;
+
+  constructor(message: string, options: { code: string; exitCode?: number }) {
     super(message);
     this.name = "CliExitError";
-    this.exitCode = exitCode;
+    this.code = options.code;
+    this.exitCode = options.exitCode ?? EXIT_ERROR;
   }
+}
+
+/** Local refusal: bad flags, contradictory arguments, oversized input. */
+export function invalidUsage(message: string): CliExitError {
+  return new CliExitError(message, { code: "invalid_usage" });
 }
 
 /**

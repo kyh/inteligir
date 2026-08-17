@@ -8,18 +8,13 @@
 
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { createAgentRuntimeWithAdapters } from "@repo/agent-runtime/runtime";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { delimiter } from "node:path";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
+import { buildAgentShellEnv } from "../agent-shell-env";
 import { createCodexRuntimeManager } from "../runtime-manager";
-import { bootAgentApp, createThread, waitFor } from "./agent-test-harness";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
+import { bootTestApp } from "../../__tests__/boot-app";
+import { createThread, waitFor } from "./agent-test-harness";
 
 type RuntimeOptions = Parameters<typeof createAgentRuntimeWithAdapters>[0];
 type StartThreadArgs = Parameters<AgentRuntime["startThread"]>[0];
@@ -60,9 +55,8 @@ describe("codex runtime shell env wiring", () => {
   it("constructs the runtime with the resolved shellEnv and CLI-pointing instructions", async () => {
     const recorded: Recorded = { options: [], startThreads: [] };
     const shellEnv: Record<string, string> = {};
-    const harness = await bootAgentApp({
+    const harness = await bootTestApp({
       agent: { mode: "codex", runtime: "codex", detail: null },
-      cleanups,
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const manager = createCodexRuntimeManager({
           db,
@@ -70,6 +64,7 @@ describe("codex runtime shell env wiring", () => {
           vaultDir,
           git: vault.git,
           model: null,
+          cliBinDir: "/repo/apps/cli/bin",
           shellEnv: () => ({ ...shellEnv }),
           createRuntime: recordingCreateRuntime(recorded),
           reapIntervalMs: null,
@@ -79,7 +74,14 @@ describe("codex runtime shell env wiring", () => {
     });
 
     // What main.ts does after listen: the getter observes the late binding.
-    shellEnv.INTELIGIR_SERVER_URL = "http://127.0.0.1:21999";
+    Object.assign(
+      shellEnv,
+      buildAgentShellEnv({
+        serverUrl: "http://127.0.0.1:21999",
+        env: { PATH: "/usr/bin" },
+        cliBinDir: "/repo/apps/cli/bin",
+      }),
+    );
 
     const threadId = await createThread(harness.client);
     const send = await harness.client.threads.send.$post({
@@ -88,7 +90,10 @@ describe("codex runtime shell env wiring", () => {
     expect(send.status).toBe(200);
 
     const options = await waitFor(() => recorded.options[0], "the runtime to be constructed");
-    expect(options.shellEnv).toEqual({ INTELIGIR_SERVER_URL: "http://127.0.0.1:21999" });
+    expect(options.shellEnv).toEqual({
+      INTELIGIR_SERVER_URL: "http://127.0.0.1:21999",
+      PATH: `/repo/apps/cli/bin${delimiter}/usr/bin`,
+    });
     expect(options.workspacePath).toBe(harness.vaultDir);
 
     const started = await waitFor(() => recorded.startThreads[0], "the session to start");

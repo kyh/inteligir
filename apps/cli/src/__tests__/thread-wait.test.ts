@@ -73,7 +73,7 @@ describe("thread wait", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain('still "active" after 0.2s');
+    expect(result.stderr).toContain("did not settle within 0.2s");
   });
 
   it("exits 1 for a thread that does not exist", async () => {
@@ -83,6 +83,6 @@ describe("thread wait", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain("(not_found)");
+    expect(result.stderr).toBe("Error: Not found\n");
   });
 });

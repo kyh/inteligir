@@ -55,8 +55,17 @@ export const systemStatusResponseSchema = z
   .object({
     /** Version of the running @repo/app package, read from its package.json. */
     version: z.string().min(1),
-    /** Absolute path of the active data directory (where the DB lives). */
+    /**
+     * Absolute path of the active data directory (where the DB lives). This
+     * is the instance's IDENTITY on the wire: a client that derived which
+     * instance it means compares this before trusting a port it probed, so a
+     * neighbouring checkout's server answering first is caught rather than
+     * silently written to.
+     */
     dataDir: z.string().min(1),
+    /** Absolute path of the vault this instance serves — the other half of
+     *  the identity, and what a caller is actually about to write into. */
+    vaultDir: z.string().min(1),
     /** The `meta.schema_version` row — proves migrate-on-boot ran. */
     schemaVersion: z.number().int().min(1),
     uptimeMs: z.number().min(0),

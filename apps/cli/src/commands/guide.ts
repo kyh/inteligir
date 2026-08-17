@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { apiFor, type CliDeps } from "../context";
-import { outputJson, type JsonOutputOptions } from "../output";
+import { outputJson, requireOk, type JsonOutputOptions } from "../output";
 
 export function registerGuideCommand(program: Command, deps: CliDeps): void {
   program
@@ -12,8 +12,7 @@ export function registerGuideCommand(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.guide.$get();
-      const body = await response.json();
+      const body = await (await requireOk(await api.guide.$get())).json();
       if (outputJson(opts, body)) {
         return;
       }

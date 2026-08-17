@@ -1,6 +1,12 @@
 // Program assembly + the run loop, kept apart from the bin entry so tests
 // build the same program with injected deps and read the exit code as a
 // value — no process.exit anywhere in command code.
+//
+// A failure prints in the SAME shape the invocation asked for: prose on
+// stderr normally, an `{error, message}` envelope on stderr under --json (the
+// server's own vocabulary, so a script branching on `.error` reads one set of
+// classes end to end). Never on stdout: a --json caller parses stdout, and a
+// refusal printed there is indistinguishable from an answer.
 
 import { readFileSync } from "node:fs";
 import { Command, CommanderError } from "commander";
@@ -54,6 +60,13 @@ export function buildProgram(deps: CliDeps): Command {
 export async function runCli(argv: readonly string[], deps: CliDeps): Promise<number> {
   const program = buildProgram(deps);
   program.exitOverride();
+  // Which OUTPUT MODE the invoked leaf asked for — known only once commander
+  // has parsed it, and needed by the catch below. Closure state, never module
+  // scope: two runCli calls in one process must not share it.
+  let jsonMode = false;
+  program.hook("preAction", (_program, actionCommand) => {
+    jsonMode = actionCommand.opts().json === true;
+  });
   try {
     await program.parseAsync([...argv]);
     return 0;
@@ -63,11 +76,15 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     if (error instanceof CommanderError) {
       return error.exitCode;
     }
-    if (error instanceof CliExitError) {
-      console.error(`Error: ${error.message}`);
-      return error.exitCode;
-    }
-    console.error(`Error: ${getErrorMessage(error)}`);
-    return EXIT_ERROR;
+    const failure =
+      error instanceof CliExitError
+        ? { code: error.code, message: error.message, exitCode: error.exitCode }
+        : { code: "unexpected", message: getErrorMessage(error), exitCode: EXIT_ERROR };
+    console.error(
+      jsonMode
+        ? JSON.stringify({ error: failure.code, message: failure.message })
+        : `Error: ${failure.message}`,
+    );
+    return failure.exitCode;
   }
 }

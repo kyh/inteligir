@@ -5,6 +5,7 @@ import {
   jsonRequest,
   jsonResponse,
   noRequest,
+  optionalQueryRequest,
   queryRequest,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
@@ -85,6 +86,22 @@ export type ThreadIdQuery = z.infer<typeof threadIdQuerySchema>;
 export interface GetThreadResponse {
   thread: Thread;
   pendingInteractions: PendingInteraction[];
+}
+
+/**
+ * `threadId` narrows to one thread; omitted, the answer is every OPEN
+ * interaction this host holds. One request either way — a client must never
+ * have to walk the thread list to find what is waiting on it.
+ */
+export const listInteractionsQuerySchema = z
+  .object({
+    threadId: z.string().min(1).optional(),
+  })
+  .strict();
+export type ListInteractionsQuery = z.infer<typeof listInteractionsQuerySchema>;
+
+export interface ListInteractionsResponse {
+  interactions: PendingInteraction[];
 }
 
 export const archiveThreadRequestSchema = z
@@ -221,6 +238,12 @@ export const threadRoutes = {
       jsonResponse<TimelineResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
     ] as const,
+  }),
+  listInteractions: defineRoute({
+    path: "/threads/interaction/list",
+    method: "get",
+    request: optionalQueryRequest<EmptyInput, ListInteractionsQuery>(listInteractionsQuerySchema),
+    response: jsonResponse<ListInteractionsResponse>(),
   }),
   answerInteraction: defineRoute({
     path: "/threads/interaction/answer",

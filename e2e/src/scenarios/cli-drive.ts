@@ -1,12 +1,16 @@
-// The CLI against a real instance: build the actual shipped bundle, point it
-// at a booted app with INTELIGIR_SERVER_URL (the same variable the agent
-// runtime injects into codex shells), and drive the product the way an agent
-// would — write a note, search finds it, thread new + wait under the scripted
-// driver, show renders the timeline.
+// The CLI against a real instance, invoked the way an AGENT invokes it: the
+// bare command name, resolved through the PATH the runtime composes for a
+// codex shell (agent-shell-env.ts). An absolute path to dist/index.js would
+// prove the code works and leave the headline flow — a model typing
+// `inteligir …` in bash — untested; that gap is exactly what this scenario
+// exists to close. Then: write a note, search finds it, thread new + wait
+// under the scripted driver, show renders the timeline.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { pathToFileURL } from "node:url";
+import { buildAgentShellEnv, resolveCliBinDir } from "@repo/app/node/agent/agent-shell-env";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv, type ExecResult } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
@@ -27,18 +31,35 @@ export const cliDrive: Scenario = {
       env: hermeticProcessEnv(),
       timeoutMs: 120_000,
     });
-    const cliEntry = join(ctx.repoRoot, "apps", "cli", "dist", "index.js");
 
     const app = await ctx.boot({
       name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
     });
 
+    // The env a codex shell gets, composed by the app's own resolver against
+    // this checkout — so a broken PATH or a missing bin fails HERE.
+    const cliBinDir = resolveCliBinDir(
+      pathToFileURL(join(ctx.repoRoot, "apps", "app", "src", "node", "agent", "x.ts")).href,
+    );
+    expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
+    const agentShellEnv = buildAgentShellEnv({
+      serverUrl: app.baseUrl,
+      env: hermeticProcessEnv(),
+      cliBinDir,
+    });
+
+    // `inteligir`, not a path: found through PATH exactly as an agent's bash
+    // would find it. `shell: false` still resolves a bare name via PATH.
     const cli = (...argv: string[]): Promise<ExecResult> =>
-      exec(process.execPath, [cliEntry, ...argv], {
-        env: { ...hermeticProcessEnv(), INTELIGIR_SERVER_URL: app.baseUrl },
+      exec("inteligir", argv, {
+        env: { ...hermeticProcessEnv(), ...agentShellEnv },
         timeoutMs: 60_000,
       });
+
+    ctx.log("the bare command resolves through the agent's PATH");
+    const which = await cli("--version");
+    expect(which.stdout.trim().length > 0, "`inteligir --version` answered");
 
     ctx.log("vault write + read through the CLI, verified on disk");
     await cli("vault", "write", NOTE_PATH, "--content", NOTE_CONTENT);

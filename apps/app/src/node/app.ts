@@ -146,6 +146,7 @@ export function createApp(args: CreateAppArgs) {
     c.json({
       version: args.version,
       dataDir: args.config.dataDir,
+      vaultDir: args.config.vaultDir,
       schemaVersion: args.schemaVersion,
       uptimeMs: Date.now() - args.startedAt,
       agent: args.agent,

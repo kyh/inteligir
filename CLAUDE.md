@@ -21,12 +21,17 @@ apps/
                  mounts Vite middlewareMode in-process; prod serves
                  dist/client + the Start server entry's fetch.
   cli/           @repo/cli — the `inteligir` CLI (issue #553): commander over
-                 the typed hc client. Every leaf takes --json (fitness test);
-                 discovery reuses @repo/app/node/config (env url → configured
-                 port → derived range + prod fallback, health-probed); the app
-                 serves the agent manual on GET /api/v1/guide and the codex
-                 runtime injects INTELIGIR_SERVER_URL/INTELIGIR_THREAD_ID into
-                 agent shells so the model drives the product through bash.
+                 the typed hc client. Every leaf takes --json and is EXECUTED
+                 by the fitness test against 400/500; `requireOk` is the one
+                 status gate, returning hono's success member so a refusal
+                 cannot be printed as an answer. Discovery reuses
+                 @repo/app/node/config, then requires the responder's
+                 /system/status dataDir to match this checkout's (a
+                 neighbouring dev server is refused, never adopted). The app
+                 serves the agent manual on GET /api/v1/guide, and the codex
+                 runtime injects INTELIGIR_SERVER_URL + a PATH carrying the
+                 CLI's bin dir into agent shells, so a model drives the
+                 product by typing `inteligir …` in bash.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
                  marketing site, the auth pages, and Better Auth on D1
                  (invite-gated sign-up). src/worker/ is its own tsconfig

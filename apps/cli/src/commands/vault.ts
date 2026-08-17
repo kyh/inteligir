@@ -2,11 +2,12 @@
 // contract row. Human output stays one-line-per-fact so shell pipelines can
 // consume it without --json.
 
-import { text } from "node:stream/consumers";
-import type { VaultStatusResponse } from "@repo/server-contract/vault";
+import { buffer } from "node:stream/consumers";
+import { VAULT_MAX_CONTENT_LENGTH, type VaultStatusResponse } from "@repo/server-contract/vault";
 import type { Command } from "commander";
+import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { failFromResponse, outputJson, type JsonOutputOptions } from "../output";
+import { outputJson, requireOk, type JsonOutputOptions } from "../output";
 
 interface WriteOptions extends JsonOutputOptions {
   content?: string;
@@ -32,6 +33,36 @@ function renderVaultStatus(status: VaultStatusResponse): string[] {
   return lines;
 }
 
+/**
+ * stdin is read as BYTES and decoded strictly: `fatal` refuses invalid UTF-8
+ * instead of substituting U+FFFD (silent corruption of a file the user asked
+ * to store verbatim), and `ignoreBOM` keeps a leading BOM as content rather
+ * than eating it. The size bound is checked here too — the server's refusal
+ * would arrive only after the whole body crossed the socket.
+ */
+async function readContentFromStdin(): Promise<string> {
+  const bytes = await buffer(process.stdin);
+  if (bytes.byteLength > VAULT_MAX_CONTENT_LENGTH) {
+    throw invalidUsage(
+      `stdin is ${bytes.byteLength} bytes; the vault refuses anything over ${VAULT_MAX_CONTENT_LENGTH}`,
+    );
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    throw invalidUsage("stdin is not valid UTF-8; vault files are text");
+  }
+}
+
+function assertContentWithinBound(content: string): void {
+  const byteLength = new TextEncoder().encode(content).byteLength;
+  if (byteLength > VAULT_MAX_CONTENT_LENGTH) {
+    throw invalidUsage(
+      `--content is ${byteLength} bytes; the vault refuses anything over ${VAULT_MAX_CONTENT_LENGTH}`,
+    );
+  }
+}
+
 export function registerVaultCommands(program: Command, deps: CliDeps): void {
   const vault = program.command("vault").description("Files in the vault (markdown on disk)");
 
@@ -41,8 +72,7 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (dir: string | undefined, opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.vault.tree.$get();
-      const tree = await response.json();
+      const tree = await (await requireOk(await api.vault.tree.$get())).json();
       const prefix = dir?.replace(/\/+$/u, "");
       const entries =
         prefix === undefined || prefix.length === 0
@@ -64,11 +94,7 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (path: string, opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.vault.file.$get({ query: { path } });
-      if (response.status !== 200) {
-        return failFromResponse(response);
-      }
-      const body = await response.json();
+      const body = await (await requireOk(await api.vault.file.$get({ query: { path } }))).json();
       if (outputJson(opts, body)) {
         return;
       }
@@ -81,13 +107,16 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--content <text>", "The content to write; omitted means read stdin")
     .option("--json", "Print machine-readable JSON output")
     .action(async (path: string, opts: WriteOptions) => {
-      const content = opts.content ?? (await text(process.stdin));
-      const api = await apiFor(deps);
-      const response = await api.vault.file.$put({ json: { path, content } });
-      if (response.status !== 200) {
-        return failFromResponse(response);
+      let content: string;
+      if (opts.content === undefined) {
+        content = await readContentFromStdin();
+      } else {
+        assertContentWithinBound(opts.content);
+        content = opts.content;
       }
-      const body = await response.json();
+      const api = await apiFor(deps);
+      const written = await requireOk(await api.vault.file.$put({ json: { path, content } }));
+      const body = await written.json();
       if (outputJson(opts, body)) {
         return;
       }
@@ -100,11 +129,8 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (from: string, to: string, opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.vault.rename.$post({ json: { from, to } });
-      if (response.status !== 200) {
-        return failFromResponse(response);
-      }
-      const body = await response.json();
+      const renamed = await requireOk(await api.vault.rename.$post({ json: { from, to } }));
+      const body = await renamed.json();
       if (outputJson(opts, body)) {
         return;
       }
@@ -123,11 +149,7 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (path: string, opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.vault.delete.$post({ json: { path } });
-      if (response.status !== 200) {
-        return failFromResponse(response);
-      }
-      const body = await response.json();
+      const body = await (await requireOk(await api.vault.delete.$post({ json: { path } }))).json();
       if (outputJson(opts, body)) {
         return;
       }
@@ -140,11 +162,7 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (path: string, opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.vault.mkdir.$post({ json: { path } });
-      if (response.status !== 200) {
-        return failFromResponse(response);
-      }
-      const body = await response.json();
+      const body = await (await requireOk(await api.vault.mkdir.$post({ json: { path } }))).json();
       if (outputJson(opts, body)) {
         return;
       }
@@ -157,8 +175,7 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.vault.status.$get();
-      const body = await response.json();
+      const body = await (await requireOk(await api.vault.status.$get())).json();
       if (outputJson(opts, body)) {
         return;
       }
@@ -173,8 +190,7 @@ export function registerVaultCommands(program: Command, deps: CliDeps): void {
     .option("--json", "Print machine-readable JSON output")
     .action(async (opts: JsonOutputOptions) => {
       const api = await apiFor(deps);
-      const response = await api.vault.sync.$post();
-      const body = await response.json();
+      const body = await (await requireOk(await api.vault.sync.$post())).json();
       if (outputJson(opts, body)) {
         return;
       }

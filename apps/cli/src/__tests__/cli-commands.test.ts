@@ -4,11 +4,13 @@
 // @repo/thread-view renderer end to end through `thread show`.
 
 import type { ThreadTimeline } from "@repo/server-contract/thread-timeline";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   makeFixtureState,
   makeThread,
   serveFixture,
+  EMPTY_TIMELINE,
   type FixtureServer,
   type FixtureState,
 } from "./fixture-server";
@@ -132,7 +134,8 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(miss.code).toBe(1);
-    expect(miss.stderr).toBe("Error: No file at nope.md (not_found)\n");
+    expect(miss.stderr).toBe("Error: No file at nope.md\n");
+    expect(miss.stdout).toBe("");
   });
 
   it("writes via --content and reports the path", async () => {
@@ -215,7 +218,7 @@ describe("knowledge commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(bad.code).toBe(1);
-    expect(bad.stderr).toContain("--limit must be a positive integer");
+    expect(bad.stderr).toContain("--limit must be an integer between 1 and 100");
   });
 
   it("renders backlinks and tags", async () => {
@@ -355,8 +358,9 @@ describe("status, guide and help", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toBe(
       [
-        `inteligir 9.9.9-fixture — ${server.baseUrl}`,
+        `inteligir 9.9.9-fixture — ${server.baseUrl} (explicit)`,
         "Data dir: /fixture/data",
+        "Vault: /fixture/vault",
         "Schema: v3 — uptime 65s",
         "Agent: codex (mode auto)",
         "Thread context: thr_ctx",
@@ -381,5 +385,137 @@ describe("status, guide and help", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("INTELIGIR_SERVER_URL");
     expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
+  });
+});
+
+describe("vault write reads stdin as BYTES", () => {
+  it("preserves a BOM and non-ASCII exactly", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const content = "﻿# Héllo 😀\n";
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/bytes.md"],
+      baseUrl: server.baseUrl,
+      stdin: new TextEncoder().encode(content),
+    });
+    expect(result.code).toBe(0);
+    expect(state.vault.get("notes/bytes.md")).toBe(content);
+  });
+
+  it("refuses invalid UTF-8 instead of substituting U+FFFD", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/bad.md"],
+      baseUrl: server.baseUrl,
+      // A lone continuation byte: no valid decoding exists.
+      stdin: Uint8Array.from([0x23, 0x20, 0xff, 0x0a]),
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("not valid UTF-8");
+    expect(state.vault.has("notes/bad.md")).toBe(false);
+  });
+
+  it("refuses content over the vault's bound before sending it", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["vault", "write", "notes/big.md"],
+      baseUrl: server.baseUrl,
+      stdin: new Uint8Array(VAULT_MAX_CONTENT_LENGTH + 1).fill(0x61),
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("refuses anything over");
+    expect(state.vault.has("notes/big.md")).toBe(false);
+  });
+});
+
+describe("thread new never orphans a thread silently", () => {
+  it("names the created thread when its first turn fails", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    // The thread is created, THEN the send refuses — exactly the window where
+    // the id would otherwise be lost.
+    state.refuseSend = { error: "provider_unavailable", message: "no agent" };
+    const result = await runCliForTest({
+      argv: ["thread", "new", "do a thing"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("thr_created_1");
+    expect(result.stderr).toContain("was created but its first turn failed");
+    expect(result.stderr).toContain("inteligir thread send thr_created_1");
+  });
+});
+
+describe("interactions answer validates the resolution locally", () => {
+  it("refuses a decision the request never offered, naming the ones it did", async () => {
+    const state = seededState();
+    state.threads.push({
+      thread: makeThread({ id: "thr_a", status: "active" }),
+      pendingInteractions: [
+        {
+          id: "int_a",
+          threadId: "thr_a",
+          turnId: "turn_a",
+          requestKey: "req_a",
+          status: "pending",
+          payload: {
+            kind: "approval",
+            subject: {
+              kind: "command",
+              itemId: "cmd_1",
+              command: "rm -rf /",
+              cwd: null,
+              actions: [],
+              sessionGrant: null,
+            },
+            reason: null,
+            availableDecisions: ["allow_once", "deny"],
+          },
+          resolution: null,
+          createdAt: 1_700_000_000_000,
+          resolvedAt: null,
+        },
+      ],
+      timeline: EMPTY_TIMELINE,
+    });
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["interactions", "answer", "int_a", "allow_for_session"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("allow_once, deny");
+    expect(state.threads.at(-1)?.pendingInteractions[0]?.status).toBe("pending");
+  });
+});
+
+describe("--json failures", () => {
+  it("puts the error envelope on stderr and leaves stdout empty", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["vault", "read", "nope.md", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "not_found",
+      message: "No file at nope.md",
+    });
+  });
+
+  it("reports a local usage refusal with a CLI-side class", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["thread", "new", "x", "--doc", "a.md", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "invalid_usage",
+      message: "--doc and --anchor must be provided together",
+    });
   });
 });

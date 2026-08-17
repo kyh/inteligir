@@ -86,6 +86,18 @@ export function listOpenPendingInteractions(
     .all();
 }
 
+/** Every open interaction this host holds, across threads — what a client
+ *  asking "what is waiting on me?" needs in ONE query instead of a walk of
+ *  the thread list. Same order as the per-thread listing. */
+export function listAllOpenPendingInteractions(db: DbConnection): PendingInteractionRow[] {
+  return db
+    .select()
+    .from(pendingInteractions)
+    .where(inArray(pendingInteractions.status, ["pending", "resolving"]))
+    .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
+    .all();
+}
+
 /** Settle ONE still-open interaction as interrupted (e.g. its wait timed out). */
 export function interruptPendingInteraction(
   db: DbConnection,

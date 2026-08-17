@@ -35,6 +35,13 @@ interface FixtureThread {
 }
 
 export interface FixtureState {
+  /** The instance identity discovery compares against. */
+  dataDir: string;
+  /** When set, EVERY api route answers this instead — the fitness test's
+   *  "does each leaf check the status?" lever. */
+  failWith: { status: 400 | 500; error: string; message: string } | null;
+  /** Refuse only /threads/send — the window `thread new` must not orphan in. */
+  refuseSend: { error: string; message: string } | null;
   vault: Map<string, string>;
   searchResults: SearchResultWire[];
   tags: TagCountWire[];
@@ -64,6 +71,9 @@ export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thr
 
 export function makeFixtureState(): FixtureState {
   return {
+    dataDir: "/fixture/data",
+    failWith: null,
+    refuseSend: null,
     vault: new Map(),
     searchResults: [],
     tags: [],
@@ -100,13 +110,24 @@ function findThread(state: FixtureState, threadId: string): FixtureThread | unde
 
 function createFixtureApp(state: FixtureState): Hono {
   const api = new Hono();
+  // Flipped by a test to make every route refuse: what proves a command
+  // CHECKS the status rather than printing whatever body arrives.
+  api.use("*", async (c, next) => {
+    const failure = state.failWith;
+    if (failure === null) {
+      await next();
+      return undefined;
+    }
+    return c.json({ error: failure.error, message: failure.message }, failure.status);
+  });
   const { get, post, put } = typedRoutes(api);
 
   get(apiRoutes.health, (c) => c.json({ ok: true }));
   get(apiRoutes.system.status, (c) => {
     const status: SystemStatusResponse = {
       version: "9.9.9-fixture",
-      dataDir: "/fixture/data",
+      dataDir: state.dataDir,
+      vaultDir: "/fixture/vault",
       schemaVersion: 3,
       uptimeMs: 65_000,
       agent: state.agent,
@@ -194,8 +215,19 @@ function createFixtureApp(state: FixtureState): Hono {
     if (entry === undefined) {
       return c.json(NOT_FOUND, 404);
     }
+    const refusal = state.refuseSend;
+    if (refusal !== null) {
+      return c.json({ error: refusal.error, message: refusal.message }, 503);
+    }
     return c.json({ kind: "started", turnId: `turn_for_${body.threadId}` });
   });
+  get(apiRoutes.threads.listInteractions, (c, query) =>
+    c.json({
+      interactions: state.threads
+        .filter((entry) => query.threadId === undefined || entry.thread.id === query.threadId)
+        .flatMap((entry) => entry.pendingInteractions),
+    }),
+  );
   get(apiRoutes.threads.timeline, (c, query) => {
     const entry = findThread(state, query.threadId);
     if (entry === undefined) {

@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./node/config": "./src/node/config.ts"
+    "./node/agent/agent-shell-env": "./src/node/agent/agent-shell-env.ts",
+    "./node/config": "./src/node/config.ts",
+    "./node/guide/cli-skill": "./src/node/guide/cli-skill.ts"
   },
   "scripts": {
     "build": "vite build && node scripts/build-node-entry.mjs",

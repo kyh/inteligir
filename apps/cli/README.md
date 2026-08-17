@@ -19,13 +19,22 @@ packaged, so dev edits are never shadowed by a stale build.
 
 ## Server discovery
 
-`INTELIGIR_SERVER_URL` wins. Otherwise the CLI REUSES the app's own config
-module (`@repo/app/node/config` — node builtins + zod only, no server
-machinery) to derive candidates exactly the way the app derives its listen
-port: a configured `INTELIGIR_PORT`/managed-config port is dialed exactly; a
-derived dev port is probed across the same upward range the server may have
-bound (`DEV_PORT_PROBE_LIMIT`), then the installed prod default. Each
-candidate must answer `/api/v1/health` with the contract body.
+`INTELIGIR_SERVER_URL` wins, trusted without a probe — you named it, you own
+it (`inteligir status` prints the data dir and vault it bound to, and says
+`explicit`). Otherwise the CLI REUSES the app's own config module
+(`@repo/app/node/config` — node builtins + zod only, no server machinery) to
+derive candidates exactly the way the app derives its listen port: a
+configured `INTELIGIR_PORT`/managed-config port is dialed exactly; a derived
+dev port is probed across the same upward range the server may have bound
+(`DEV_PORT_PROBE_LIMIT`), then the installed prod default.
+
+A probed candidate must clear two gates, not one: `/api/v1/health` answering
+the contract body, AND `/api/v1/system/status` reporting the same `dataDir`
+this checkout's config resolution derived. The second is what stops a
+NEIGHBOURING checkout's dev server — a real inteligir answering an earlier
+port in the probe range — from being adopted, which would write notes into
+someone else's vault. A foreign responder is skipped; exhausting the range
+exits 3 naming the conflict.
 
 ## Command surface
 
@@ -37,13 +46,32 @@ candidate must answer `/api/v1/health` with the contract body.
 Exit codes: 0 success · 1 error (incl. a thread settling in error) ·
 2 `thread wait` timeout · 3 no server reachable.
 
+**Every command checks the HTTP status before printing** — `requireOk`
+(`src/output.ts`) is the only way a body is reached, and it returns the
+SUCCESS member of hono's response union, so a command cannot call `.json()`
+on a refusal. Failures go to stderr with stdout left empty; under `--json`
+the failure itself is `{"error","message"}` JSON on stderr, carrying the
+server's own error class where there is one.
+
+## Agent reachability
+
+The agent runs `inteligir` as a BARE command, so the app resolves the CLI's
+bin directory (`apps/app/src/node/agent/agent-shell-env.ts`) and PREPENDS it
+to the PATH the codex runtime injects into the agent's shell, alongside
+`INTELIGIR_SERVER_URL`. If no binary resolves, the PATH entry is omitted AND
+the session instructions drop the CLI pointer — instructions never promise a
+command the shell cannot run. The e2e `cli-drive` scenario invokes the bare
+name through that same composed env.
+
 ## Doc-sync discipline
 
 The served manual (`apps/app/src/node/guide/cli-skill.ts`) must name every
-leaf command — `src/__tests__/guide-covers-commands.test.ts` walks the real
-command tree against it, and `json-flag-enforcement.test.ts` (bb's pattern,
-MIT) walks the same tree for `--json`. Changing the command surface means
-updating the manual in the same change; the tests make forgetting impossible.
+leaf command AND every flag those leaves accept —
+`src/__tests__/guide-covers-commands.test.ts` walks the real commander tree
+against the guide's rendered bytes (not its source: a comment used to satisfy
+it). `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree
+and EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits
+with empty stdout when the server answers 400 or 500.
 
 ## Tests
 

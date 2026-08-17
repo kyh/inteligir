@@ -1,44 +1,41 @@
 // `inteligir interactions …` — the approvals an agent turn is parked on.
-// There is no global interactions route (an interaction belongs to a thread),
-// so the unscoped listing folds the per-thread details; `answer` locates the
-// owning thread the same way when --thread is not given.
+// Both leaves are ONE request against the host's own listing route; the CLI
+// never walks the thread list. A resolution is validated LOCALLY against the
+// shared approval grammar, so a typo names the decisions the request actually
+// offers instead of reaching the host and settling as a silent deny.
 
-import type { ApiClient } from "@repo/server-contract/client";
+import {
+  approvalPendingInteractionPayloadSchema,
+  parseApprovalResolution,
+} from "@repo/agent-runtime/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/server-contract/threads";
 import type { Command } from "commander";
-import { CliExitError } from "../cli-error";
+import { CliExitError, invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { failFromResponse, outputJson, type JsonOutputOptions } from "../output";
+import { outputJson, requireOk, type JsonOutputOptions } from "../output";
 
 interface ThreadScopedOptions extends JsonOutputOptions {
   thread?: string;
 }
 
-async function interactionsForThread(
-  api: ApiClient,
-  threadId: string,
-): Promise<PendingInteraction[]> {
-  const response = await api.threads.get.$get({ query: { threadId } });
-  if (response.status !== 200) {
-    return failFromResponse(response);
+/**
+ * The interaction's own payload is what says which decisions are on offer, so
+ * validation needs the row. A payload this build cannot parse is NOT a
+ * refusal: the host is the authority and will answer 400 itself — refusing
+ * here would strand a caller on a grammar the server accepts.
+ */
+function assertResolutionValid(interaction: PendingInteraction, resolution: string): void {
+  const payload = approvalPendingInteractionPayloadSchema.safeParse(interaction.payload);
+  if (!payload.success) {
+    return;
   }
-  return (await response.json()).pendingInteractions;
-}
-
-async function collectInteractions(
-  api: ApiClient,
-  threadId: string | undefined,
-): Promise<PendingInteraction[]> {
-  if (threadId !== undefined) {
-    return interactionsForThread(api, threadId);
+  const parsed = parseApprovalResolution(resolution, payload.data);
+  if (!parsed.ok) {
+    throw invalidUsage(
+      `${parsed.reason}. Pass a bare decision verb (${payload.data.availableDecisions.join(", ")}, deny) ` +
+        `or the resolution JSON.`,
+    );
   }
-  const listResponse = await api.threads.list.$get();
-  const { threads } = await listResponse.json();
-  const collected: PendingInteraction[] = [];
-  for (const thread of threads) {
-    collected.push(...(await interactionsForThread(api, thread.id)));
-  }
-  return collected;
 }
 
 export function registerInteractionsCommands(program: Command, deps: CliDeps): void {
@@ -53,11 +50,16 @@ export function registerInteractionsCommands(program: Command, deps: CliDeps): v
     .option("--json", "Print machine-readable JSON output")
     .action(async (opts: ThreadScopedOptions) => {
       const api = await apiFor(deps);
-      const rows = await collectInteractions(api, opts.thread);
-      if (outputJson(opts, { interactions: rows })) {
+      const listing = await requireOk(
+        await api.threads.interaction.list.$get({
+          query: opts.thread === undefined ? {} : { threadId: opts.thread },
+        }),
+      );
+      const body = await listing.json();
+      if (outputJson(opts, body)) {
         return;
       }
-      for (const row of rows) {
+      for (const row of body.interactions) {
         console.log(`${row.id}  ${row.threadId}  ${row.status}`);
       }
     });
@@ -65,25 +67,32 @@ export function registerInteractionsCommands(program: Command, deps: CliDeps): v
   interactions
     .command("answer <id> <resolution>")
     .description("Answer one (allow_once, allow_for_session, or deny)")
-    .option("--thread <id>", "The owning thread (located by scanning when omitted)")
+    .option("--thread <id>", "The owning thread; looked up from the listing when omitted")
     .option("--json", "Print machine-readable JSON output")
     .action(async (id: string, resolution: string, opts: ThreadScopedOptions) => {
       const api = await apiFor(deps);
-      let threadId = opts.thread;
-      if (threadId === undefined) {
-        const rows = await collectInteractions(api, undefined);
-        threadId = rows.find((row) => row.id === id)?.threadId;
-        if (threadId === undefined) {
-          throw new CliExitError(`No thread holds interaction ${id} — pass --thread <id>`);
-        }
+      const listing = await requireOk(
+        await api.threads.interaction.list.$get({
+          query: opts.thread === undefined ? {} : { threadId: opts.thread },
+        }),
+      );
+      const listed = await listing.json();
+      const interaction = listed.interactions.find((row) => row.id === id);
+      if (interaction === undefined) {
+        throw new CliExitError(
+          opts.thread === undefined
+            ? `No open interaction ${id}`
+            : `No open interaction ${id} on thread ${opts.thread}`,
+          { code: "not_found" },
+        );
       }
-      const response = await api.threads.interaction.answer.$post({
-        json: { threadId, interactionId: id, resolution },
-      });
-      if (response.status !== 200) {
-        return failFromResponse(response);
-      }
-      const body = await response.json();
+      assertResolutionValid(interaction, resolution);
+      const answered = await requireOk(
+        await api.threads.interaction.answer.$post({
+          json: { threadId: interaction.threadId, interactionId: id, resolution },
+        }),
+      );
+      const body = await answered.json();
       if (outputJson(opts, body)) {
         return;
       }

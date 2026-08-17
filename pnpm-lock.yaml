@@ -252,6 +252,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@repo/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
       '@repo/app':
         specifier: workspace:*
         version: link:../app
@@ -368,6 +371,9 @@ importers:
 
   e2e:
     dependencies:
+      '@repo/app':
+        specifier: workspace:*
+        version: link:../apps/app
       '@repo/server-contract':
         specifier: workspace:*
         version: link:../packages/server-contract

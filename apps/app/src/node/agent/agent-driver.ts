@@ -23,9 +23,13 @@ export interface ResolveAgentDriverArgs {
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
-  /** Env injected into the agent's shell (INTELIGIR_SERVER_URL); a getter
-   *  because the bound port exists only after listen. */
+  /** Env injected into the agent's shell (the server URL and a PATH that
+   *  reaches the CLI); a getter because the bound port exists only after
+   *  listen. */
   shellEnv?: () => Record<string, string>;
+  /** Where `inteligir` lives, or null when none ships — decides whether the
+   *  session instructions may promise the command. */
+  cliBinDir?: string | null;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -100,6 +104,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     git: args.vault.git,
     model: args.config.agentModel,
     ...(args.shellEnv !== undefined ? { shellEnv: args.shellEnv } : {}),
+    ...(args.cliBinDir !== undefined ? { cliBinDir: args.cliBinDir } : {}),
     onDebug,
   });
   return {
