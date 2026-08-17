@@ -6,7 +6,6 @@
 // that delegation's prompt input. Collapsed shows the last exchange; expanded
 // is a scrollable timeline with approvals answerable inline.
 
-import type { Thread } from "@repo/server-contract/threads";
 import type { TimelineRow } from "@repo/server-contract/thread-timeline";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -18,7 +17,12 @@ import { useEffect, useRef, useState } from "react";
 import { queryKeys, unwrap } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { ApprovalCard } from "./approval-card";
-import { initialChatThread, type DelegationDraft } from "./chat-model";
+import {
+  initialChatThread,
+  threadActivity,
+  THREAD_ACTIVITY_DOT_CLASSES,
+  type DelegationDraft,
+} from "./chat-model";
 import { createChatThreadResolver, sendToThread } from "./chat-service";
 import { TimelineRowView } from "./timeline-rows";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
@@ -34,22 +38,6 @@ export interface ChatDockProps {
   /** Runs the delegation create for the armed draft; resolves when sent. */
   onSubmitDelegation: (prompt: string) => Promise<void>;
   onOpenDoc: (path: string) => void;
-}
-
-function statusDotClass(status: Thread["status"], needsApproval: boolean): string {
-  if (needsApproval) {
-    return "bg-amber-500";
-  }
-  switch (status) {
-    case "starting":
-    case "active":
-    case "stopping":
-      return "bg-sky-500 animate-pulse";
-    case "error":
-      return "bg-destructive";
-    case "idle":
-      return "bg-muted-foreground/40";
-  }
 }
 
 function lastExchange(rows: readonly TimelineRow[]): { role: string; text: string } | null {
@@ -203,6 +191,15 @@ export function ChatDock({
   const pending = detailQuery.data?.pendingInteractions ?? [];
   const queued = detailQuery.data?.queuedMessages ?? [];
   const needsApproval = pending.length > 0;
+  const dotClass =
+    thread === null
+      ? null
+      : THREAD_ACTIVITY_DOT_CLASSES[
+          threadActivity(thread, {
+            openInteractionCount: pending.length,
+            queuedCount: queued.length,
+          })
+        ];
   const exchange = timeline === null ? null : lastExchange(timeline.rows);
   const viewingChat = thread !== null && thread.originDocPath === null;
   const title =
@@ -216,14 +213,9 @@ export function ChatDock({
         {expanded && viewingId !== null ? (
           <div className="flex flex-col">
             <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-              {thread !== null ? (
-                <span
-                  className={cn(
-                    "size-1.5 shrink-0 rounded-full",
-                    statusDotClass(thread.status, needsApproval),
-                  )}
-                />
-              ) : null}
+              {dotClass === null ? null : (
+                <span className={cn("size-1.5 shrink-0 rounded-full", dotClass)} />
+              )}
               <span className="truncate font-medium text-foreground">{title}</span>
               {thread?.originDocPath !== null && thread?.originDocPath !== undefined ? (
                 <button
@@ -291,14 +283,9 @@ export function ChatDock({
             className="flex w-full items-center gap-2 py-2 text-left text-xs text-muted-foreground"
             onClick={() => onExpandedChange(true)}
           >
-            {thread !== null ? (
-              <span
-                className={cn(
-                  "size-1.5 shrink-0 rounded-full",
-                  statusDotClass(thread.status, needsApproval),
-                )}
-              />
-            ) : null}
+            {dotClass === null ? null : (
+              <span className={cn("size-1.5 shrink-0 rounded-full", dotClass)} />
+            )}
             <span className="truncate">
               {needsApproval
                 ? "The agent needs an approval"

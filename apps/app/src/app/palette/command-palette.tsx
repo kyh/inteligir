@@ -25,6 +25,7 @@ import {
   SettingsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { NO_ACTIVITY_COUNTS, threadActivity, THREAD_ACTIVITY_LABELS } from "../chat/chat-model";
 import type { NoteSearchHit, NoteSearchSource } from "./note-search";
 
 export interface PaletteActions {
@@ -52,21 +53,13 @@ export interface CommandPaletteProps {
 
 type Page = "root" | "new-note-folder" | "threads";
 
-const THREAD_STATUS_LABELS: Record<Thread["status"], string> = {
-  idle: "idle",
-  starting: "running",
-  active: "running",
-  stopping: "running",
-  error: "failed",
-};
-
 function threadRowLabel(thread: Thread): string {
   return thread.title ?? (thread.originDocPath === null ? "Chat" : "Delegation");
 }
 
 function threadRowDetail(thread: Thread): string {
-  const status = thread.archivedAt !== null ? "archived" : THREAD_STATUS_LABELS[thread.status];
-  return thread.originDocPath === null ? status : `${status} · ${thread.originDocPath}`;
+  const activity = THREAD_ACTIVITY_LABELS[threadActivity(thread, NO_ACTIVITY_COUNTS)];
+  return thread.originDocPath === null ? activity : `${activity} · ${thread.originDocPath}`;
 }
 
 /** One quiet keystroke gap before the source is asked at all. */

@@ -34,8 +34,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentHashHex } from "@repo/server-contract/vault";
 import { ApiError, unwrap } from "../api";
 import {
-  chipStatusFor,
+  isSettledActivity,
   taskPrompt,
+  threadActivity,
+  THREAD_ACTIVITY_LABELS,
+  THREAD_ACTIVITY_TONES,
   type DelegationDraft,
   type DelegationIntent,
 } from "../chat/chat-model";
@@ -107,8 +110,10 @@ function OpenNote({ path, delegation, diskContent, onRename, setRenamePending }:
   const controllerRef = useRef<NoteController | null>(null);
   const editorRef = useRef<MarkdownEditorHandle | null>(null);
 
-  // The chip data: every thread bound to this doc, mapped to the widget's
-  // vocabulary. Invalidated whole by the ws thread sweep.
+  // The chip data: every thread bound to this doc, rendered from the ONE
+  // activity derivation the palette and the dock read too — the editor is
+  // handed a word, a tone and a dismiss verdict, never a status to interpret.
+  // Invalidated whole by the ws thread sweep.
   const docThreadsQuery = useDocThreads(path);
   const docThreads = docThreadsQuery.data?.threads;
   // `loading` until the query genuinely ANSWERS — never an empty list, which
@@ -119,17 +124,21 @@ function OpenNote({ path, delegation, diskContent, onRename, setRenamePending }:
         ? { kind: "loading" }
         : {
             kind: "ready",
-            chips: docThreads.flatMap<ThreadChipInfo>((activity) =>
-              activity.thread.originAnchor === null
-                ? []
-                : [
-                    {
-                      anchor: activity.thread.originAnchor,
-                      status: chipStatusFor(activity),
-                      title: activity.thread.title,
-                    },
-                  ],
-            ),
+            chips: docThreads.flatMap<ThreadChipInfo>((docThread) => {
+              if (docThread.thread.originAnchor === null) {
+                return [];
+              }
+              const activity = threadActivity(docThread.thread, docThread);
+              return [
+                {
+                  anchor: docThread.thread.originAnchor,
+                  tone: THREAD_ACTIVITY_TONES[activity],
+                  activity: THREAD_ACTIVITY_LABELS[activity],
+                  title: docThread.thread.title,
+                  dismissable: isSettledActivity(activity),
+                },
+              ];
+            }),
           },
     [docThreads],
   );

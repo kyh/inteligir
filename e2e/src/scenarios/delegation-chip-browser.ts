@@ -1,6 +1,6 @@
 // The chip renders in a real headless browser: a doc seeded WITH a marker, a
 // bound thread whose scripted turn has settled, and the workspace page shows
-// a `.cm-thread-chip[data-status="done"]` widget in place of the raw comment.
+// a `.cm-thread-chip[data-tone="positive"]` widget in place of the raw comment.
 // Selection driving (drag-select then click the CM tooltip) is not attempted
 // here — the harness CLI drives selectors, not text drags — so the create
 // flow is exercised at the API level (delegation-scripted) and this scenario
@@ -95,7 +95,7 @@ export const delegationChipBrowser: Scenario = {
       await agentBrowser(["wait", ".cm-content"], 90_000);
 
       ctx.log("waiting for the chip to render done");
-      await agentBrowser(["wait", '.cm-thread-chip[data-status="done"]'], 90_000);
+      await agentBrowser(["wait", '.cm-thread-chip[data-tone="positive"]'], 90_000);
 
       const chipText = await agentBrowser(["get", "text", ".cm-thread-chip"]);
       expect(chipText.includes(PROMPT), `chip shows the thread title, got: ${chipText}`);
