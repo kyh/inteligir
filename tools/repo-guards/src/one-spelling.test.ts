@@ -128,7 +128,7 @@ function allSourceFiles(): string[] {
   return workspaces()
     .flatMap((workspace) => {
       const files = workspaceFiles(workspace);
-      return [...files.shipped, ...files.test];
+      return files.shipped.concat(files.test);
     })
     .filter((file) => file !== SELF)
     .toSorted();

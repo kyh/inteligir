@@ -15,6 +15,13 @@ import { accessSync, constants, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  CLI_BIN_NAME,
+  appBundleDir,
+  appServerEntry,
+  cliBinDirFromAppBundle,
+  installRootIn,
+} from "./staged-layout.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BOOT_TIMEOUT_MS = 60_000;
@@ -112,7 +119,7 @@ try {
     env: { ...process.env, npm_config_cache: join(scratch, "npm-cache") },
   });
 
-  const bin = join(installDir, "node_modules", ".bin", "inteligir");
+  const bin = join(installDir, "node_modules", ".bin", CLI_BIN_NAME);
   if (!existsSync(bin)) {
     fail(`the installed package exposes no bin at ${bin}`);
   }
@@ -123,19 +130,12 @@ try {
   // hardcoded path — a layout drift on either side has to fail somewhere, and
   // the failure it produces in production is the agent silently losing the
   // ability to drive the product.
-  const appBundleDir = join(
-    installDir,
-    "node_modules",
-    "inteligir",
-    "dist",
-    "apps",
-    "app",
-    "dist-node",
-  );
-  if (!existsSync(join(appBundleDir, "main.js"))) {
-    fail(`the packaged app bundle is missing at ${appBundleDir}`);
+  const installRoot = installRootIn(installDir);
+  const bundleDir = appBundleDir(installRoot);
+  if (!existsSync(appServerEntry(installRoot))) {
+    fail(`the packaged app bundle is missing at ${bundleDir}`);
   }
-  const cliBin = resolve(appBundleDir, "..", "..", "cli", "bin", "inteligir");
+  const cliBin = join(cliBinDirFromAppBundle(bundleDir), CLI_BIN_NAME);
   if (!existsSync(cliBin)) {
     fail(`the packaged CLI is missing at ${cliBin}`);
   }

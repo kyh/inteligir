@@ -18,13 +18,24 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  CLI_BIN_NAME,
+  appBundleDir,
+  appServerEntry,
+  cliBinDirFromAppBundle,
+  installRootIn,
+} from "inteligir/scripts/staged-layout.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appDir = join(packageRoot, ".output", "bin", "mac-arm64", "Inteligir.app");
 const electronBinary = join(appDir, "Contents", "MacOS", "Inteligir");
 const unpacked = join(appDir, "Contents", "Resources", "app.asar.unpacked");
-const runtimeRoot = join(unpacked, "node_modules", "inteligir", "dist", "apps");
-const serverEntry = join(runtimeRoot, "app", "dist-node", "main.js");
+// The layout is the launcher's, imported rather than re-typed: this file used
+// to spell `dist/apps/app/dist-node/main.js` out again, which meant a flatten
+// on the producing side left this smoke passing against a path that no longer
+// described the tree it was checking.
+const runtimeRoot = installRootIn(unpacked);
+const serverEntry = appServerEntry(runtimeRoot);
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
 
@@ -93,7 +104,7 @@ if (!existsSync(serverEntry)) {
 // (apps/app/src/node/agent/agent-shell-env.ts::resolveCliBinDir), so the same
 // walk is done here — and the execute bit is checked, because the resolver
 // refuses a file without one and the capability then disappears silently.
-const cliBin = resolve(serverEntry, "..", "..", "..", "cli", "bin", "inteligir");
+const cliBin = join(cliBinDirFromAppBundle(appBundleDir(runtimeRoot)), CLI_BIN_NAME);
 if (!existsSync(cliBin)) {
   fail(`the packaged CLI is missing at ${cliBin}`);
 }

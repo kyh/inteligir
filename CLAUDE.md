@@ -35,7 +35,12 @@ apps/
                  serves the agent manual on GET /api/v1/guide, and the codex
                  runtime injects INTELIGIR_SERVER_URL + a PATH carrying the
                  CLI's bin dir into agent shells, so a model drives the
-                 product by typing `inteligir …` in bash.
+                 product by typing `inteligir …` in bash. The staged layout
+                 itself is `apps/launcher/scripts/staged-layout.mjs` — the
+                 build and both smokes import it, and the encoders that
+                 cannot (apps/app, the shell, the published `bin` map) are
+                 held against it by
+                 tools/repo-guards/src/install-layout.test.ts.
   launcher/      inteligir — THE PUBLISHED ARTIFACT (issue #555). `npx
                  inteligir` boots the product IN THIS PROCESS: parse the
                  command line, hand it to the app's own boot as environment,

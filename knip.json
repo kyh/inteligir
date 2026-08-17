@@ -36,13 +36,14 @@
       "ignoreDependencies": ["tsx"]
     },
     // The Electron shell. `main` points at a build output, so the entries are
-    // named here; `inteligir` is a dependency it never imports — the shell
-    // reaches the packaged app as a DIRECTORY (src/main/server-paths.ts) and
-    // electron-builder packs it from node_modules.
+    // named here. The shipped main process still reaches `inteligir` as a
+    // DIRECTORY rather than a module (src/main/server-paths.ts), and
+    // electron-builder packs it from node_modules — but the packaged smoke now
+    // imports that package's `staged-layout.mjs` instead of re-typing the
+    // tree, which is what makes the dependency visible here.
     "apps/desktop": {
       "entry": ["scripts/*.{mjs,cjs}", "src/main/index.ts", "src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts", "scripts/*.{mjs,cjs}"],
-      "ignoreDependencies": ["inteligir"]
+      "project": ["src/**/*.ts", "scripts/*.{mjs,cjs}"]
     },
     // The published artifact. Its `bin` points at a build output, so the real
     // entries are named here. The two native modules are runtime deps of the

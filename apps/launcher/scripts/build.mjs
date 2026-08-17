@@ -24,16 +24,30 @@
 // ORDER that leaves is turbo.json's business.
 
 import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import {
+  APP_BUNDLE_DIR,
+  APP_CLIENT_DIR,
+  APP_DIR,
+  CLI_BIN_DIR,
+  CLI_BIN_NAME,
+  CLI_DIR,
+  cliBin,
+  cliBinDir,
+  distDir as installDistDir,
+  launcherEntry,
+  stagedAppDir,
+  stagedCliDir,
+} from "./staged-layout.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const distDir = join(packageRoot, "dist");
-const appSource = resolve(packageRoot, "..", "app");
-const cliSource = resolve(packageRoot, "..", "cli");
-const stagedApp = join(distDir, "apps", "app");
-const stagedCli = join(distDir, "apps", "cli");
+const distDir = installDistDir(packageRoot);
+const appSource = resolve(packageRoot, "..", APP_DIR);
+const cliSource = resolve(packageRoot, "..", CLI_DIR);
+const stagedApp = stagedAppDir(packageRoot);
+const stagedCli = stagedCliDir(packageRoot);
 
 const { version } = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
 if (typeof version !== "string" || version.length === 0) {
@@ -56,17 +70,17 @@ await build({
   format: "esm",
   legalComments: "none",
   logLevel: "info",
-  outfile: join(distDir, "inteligir.mjs"),
+  outfile: launcherEntry(packageRoot),
   platform: "node",
   sourcemap: true,
   target: "node24",
 });
-await chmod(join(distDir, "inteligir.mjs"), 0o755);
+await chmod(launcherEntry(packageRoot), 0o755);
 
 // The app: the Node bundle (with its forked watcher child and the migrations
 // copied beside it) plus the built SPA the prod fallback serves.
-await cp(join(appSource, "dist-node"), join(stagedApp, "dist-node"), { recursive: true });
-await cp(join(appSource, "dist"), join(stagedApp, "dist"), { recursive: true });
+await cp(join(appSource, APP_BUNDLE_DIR), join(stagedApp, APP_BUNDLE_DIR), { recursive: true });
+await cp(join(appSource, APP_CLIENT_DIR), join(stagedApp, APP_CLIENT_DIR), { recursive: true });
 await writeFile(
   join(stagedApp, "package.json"),
   `${JSON.stringify({ name: "inteligir-app", private: true, type: "module", version }, null, 2)}\n`,
@@ -87,16 +101,15 @@ await writeFile(
 // The generated package.json is what makes the extensionless file ESM (Node
 // resolves a bare entry's module type from the nearest `type` field) and what
 // `--version` reads; without it the CLI degrades to its "0.0.0" placeholder.
-await mkdir(join(stagedCli, "bin"), { recursive: true });
-await writeFile(
-  join(stagedCli, "bin", "inteligir"),
-  '#!/usr/bin/env node\nimport "../dist/index.js";\n',
-);
-await chmod(join(stagedCli, "bin", "inteligir"), 0o755);
+await mkdir(cliBinDir(packageRoot), { recursive: true });
+await writeFile(cliBin(packageRoot), '#!/usr/bin/env node\nimport "../dist/index.js";\n');
+await chmod(cliBin(packageRoot), 0o755);
 await cp(join(cliSource, "dist"), join(stagedCli, "dist"), { recursive: true });
 await writeFile(
   join(stagedCli, "package.json"),
   `${JSON.stringify({ name: "inteligir-cli", private: true, type: "module", version }, null, 2)}\n`,
 );
 
-process.stdout.write(`inteligir ${version}: staged dist/apps/{app,cli}\n`);
+process.stdout.write(
+  `${CLI_BIN_NAME} ${version}: staged ${relative(packageRoot, stagedApp)} + ${relative(packageRoot, stagedCli)}, cli bin ${CLI_BIN_DIR}/${CLI_BIN_NAME}\n`,
+);
