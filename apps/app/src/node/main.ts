@@ -21,16 +21,13 @@ import {
   createGracefulShutdown,
   installFatalErrorHandlers,
   installShutdownSignals,
-  SHUTDOWN_TIMEOUT_MS,
+  TEARDOWN_BUDGETS_MS,
   type ShutdownStep,
+  type TeardownStepName,
 } from "./shutdown";
 import { redactRemoteUrl } from "./vault/git";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
-
-/** The vault's own step budget: the final commit is a git subprocess over the
- *  whole dirty tree, which a large vault can make slow. */
-const VAULT_FLUSH_TIMEOUT_MS = 8_000;
 
 interface EntryLayout {
   /** The app directory (where package.json and dist/ live). */
@@ -128,8 +125,8 @@ async function createProdFallback(): Promise<AppFallback> {
  * watcher's IPC channel and listening to nothing.
  */
 const teardownSteps: ShutdownStep[] = [];
-function registerTeardown(step: ShutdownStep): void {
-  teardownSteps.unshift(step);
+function registerTeardown(name: TeardownStepName, run: () => Promise<void>): void {
+  teardownSteps.unshift({ name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run });
 }
 
 async function boot(): Promise<{ serverUrl: string }> {
@@ -146,11 +143,8 @@ async function boot(): Promise<{ serverUrl: string }> {
     config.mode === "dev" ? createDevFallback(config.devHmrPort) : createProdFallback();
 
   const db = createConnection(config.databasePath);
-  registerTeardown({
-    name: "db",
-    run: async () => {
-      closeConnection(db);
-    },
+  registerTeardown("db", async () => {
+    closeConnection(db);
   });
   const schemaVersion = getSchemaVersion(db, runMigrations(db, migrationsFolder));
 
@@ -173,20 +167,13 @@ async function boot(): Promise<{ serverUrl: string }> {
       ? {}
       : { syncIntervalMs: config.vaultSyncIntervalMs }),
   });
-  registerTeardown({
-    name: "vault",
-    // The final commit is a git subprocess over the whole dirty tree; a large
-    // vault earns more than the default step budget, and this is the step the
-    // entire ordering exists to protect.
-    timeoutMs: VAULT_FLUSH_TIMEOUT_MS,
-    run: () => vault.dispose(),
-  });
+  registerTeardown("vault", () => vault.dispose());
   const knowledge = createKnowledgeRuntime({
     dataDir: config.dataDir,
     vault: vault.service,
     vaultRoot: config.vaultDir,
   });
-  registerTeardown({ name: "knowledge", run: () => knowledge.dispose() });
+  registerTeardown("knowledge", () => knowledge.dispose());
   knowledgeRef = knowledge;
   const fallback = await fallbackPromise;
 
@@ -202,7 +189,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     cliBinDir,
     shellEnv: () => ({ ...agentShellEnv }),
   });
-  registerTeardown({ name: "agent", run: () => agentDriver.dispose() });
+  registerTeardown("agent", () => agentDriver.dispose());
 
   const { app, injectWebSocket } = createApp({
     agent: agentDriver.status,
@@ -225,7 +212,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     port: config.port,
     probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
   });
-  registerTeardown({ name: "listener", run: () => closeServer(server, bus) });
+  registerTeardown("listener", () => closeServer(server, bus));
   injectWebSocket(server);
   agentShellEnv = buildAgentShellEnv({
     serverUrl: `http://127.0.0.1:${port}`,
@@ -246,8 +233,8 @@ const shutdown = createGracefulShutdown({
   onStepFailed: (name, error) => {
     console.error(`shutdown: ${name} failed`, error);
   },
-  onTimeout: () => {
-    console.error(`shutdown: still running after ${SHUTDOWN_TIMEOUT_MS}ms — exiting anyway`);
+  onTimeout: (deadlineMs) => {
+    console.error(`shutdown: still running after ${deadlineMs}ms — exiting anyway`);
   },
 });
 
