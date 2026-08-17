@@ -92,6 +92,29 @@ inteligir thread wait "$id" && inteligir thread show "$id"
   request may offer only some of them, and the CLI says which). \`--thread\`
   names the owning thread; omitted, it is looked up from the listing.
 
+## Proposals — suggested edits waiting for review
+
+A delegation created in **review mode** does not write the vault. Its file
+writes are captured as suggestions against the revision the turn started from,
+and the working tree is left exactly as it was — so the loop below is how that
+work reaches the file.
+
+- \`inteligir proposals list [--doc <path>] [--thread <id>] [--all]\` — the
+  review queue: one line per suggestion (\`<id> <status> <path> <shape>\`).
+  \`--doc\` and \`--thread\` narrow it; \`--all\` includes resolved ones.
+- \`inteligir proposals show <id>\` — the suggestion as a unified diff, with
+  each hunk's INDEX in its \`@@\` header.
+- \`inteligir proposals accept <id> [--hunk <index>]\` — apply it through the
+  vault's guarded write. Omit \`--hunk\` for the whole suggestion; pass one to
+  apply a single hunk and leave the rest reviewable.
+- \`inteligir proposals reject <id> [--hunk <index>]\` — discard it (or one
+  hunk of it). No file is touched.
+
+A \`stale\` status means the file changed after the suggestion was written, so
+its hunks no longer describe what is on disk. Accepting one answers 409
+\`cas_mismatch\` rather than overwriting; redo the task against the current
+file instead.
+
 ## System
 
 - \`inteligir status\` — server version, data dir, agent runtime state, and

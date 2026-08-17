@@ -14,6 +14,7 @@ import { CliExitError, EXIT_ERROR, getErrorMessage } from "./cli-error";
 import { registerGuideCommand } from "./commands/guide";
 import { registerInteractionsCommands } from "./commands/interactions";
 import { registerKnowledgeCommands } from "./commands/knowledge";
+import { registerProposalCommands } from "./commands/proposals";
 import { registerStatusCommand } from "./commands/status";
 import { registerThreadCommands } from "./commands/thread";
 import { registerVaultCommands } from "./commands/vault";
@@ -52,6 +53,7 @@ export function buildProgram(deps: CliDeps): Command {
   registerKnowledgeCommands(program, deps);
   registerThreadCommands(program, deps);
   registerInteractionsCommands(program, deps);
+  registerProposalCommands(program, deps);
   registerStatusCommand(program, deps);
   registerGuideCommand(program, deps);
   return program;

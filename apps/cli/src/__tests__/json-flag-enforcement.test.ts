@@ -22,6 +22,7 @@ import {
 } from "./command-tree";
 import {
   makeFixtureState,
+  makeProposal,
   makeThread,
   serveFixture,
   EMPTY_TIMELINE,
@@ -52,6 +53,8 @@ function seedFixture(state: FixtureState): void {
   state.backlinks = [
     { sourcePath: "Welcome.md", line: 1, snippet: "[[hello]]", kind: "wiki", embed: false },
   ];
+  state.proposals.length = 0;
+  state.proposals.push(makeProposal({ id: "prp_1" }));
   state.threads.length = 0;
   state.threads.push({
     thread: makeThread({ id: "thr_1", status: "idle" }),

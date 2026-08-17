@@ -60,6 +60,10 @@ export const LEAF_INVOCATIONS: Readonly<Record<string, readonly string[]>> = {
   "thread archive": ["thread", "archive", "thr_1"],
   "interactions list": ["interactions", "list"],
   "interactions answer": ["interactions", "answer", "int_1", "allow_once"],
+  "proposals list": ["proposals", "list"],
+  "proposals show": ["proposals", "show", "prp_1"],
+  "proposals accept": ["proposals", "accept", "prp_1"],
+  "proposals reject": ["proposals", "reject", "prp_1"],
   status: ["status"],
   guide: ["guide"],
 };
