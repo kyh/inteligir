@@ -2,6 +2,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { foldNodeProp, type LanguageSupport } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import type { MarkdownConfig } from "@lezer/markdown";
+import { calloutMarkdownSyntaxExtension } from "./callouts";
 import { escapeMarkdownSyntaxExtension } from "./vendor/prosemark/lib/hide/index";
 import { dashMarkdownSyntaxExtension } from "./vendor/prosemark/lib/fold/dashes";
 import { frontmatterMarkdownSyntaxExtension } from "./vendor/prosemark/lib/markdown/frontmatter";
@@ -24,12 +25,9 @@ const frontmatterFold: MarkdownConfig = {
 
 /**
  * The markdown language for the live-preview surface: GFM (tasks,
- * strikethrough, tables-as-text for now) plus the vendored ProseMark syntax
- * extensions, with fenced-code highlighting resolved through
+ * strikethrough, tables) plus the vendored ProseMark syntax extensions and the
+ * house callout parser, with fenced-code highlighting resolved through
  * `@codemirror/language-data` (per-grammar dynamic import, incremental).
- *
- * Deliberately NOT wired yet: ProseMark's math syntax — parsing `$…$` without
- * a renderer would only restyle delimiters; it lands with the math pass.
  */
 export const markdownLanguageExtension = (): LanguageSupport =>
   markdown({
@@ -42,5 +40,6 @@ export const markdownLanguageExtension = (): LanguageSupport =>
       nestedLinkAsPlainText,
       escapeMarkdownSyntaxExtension,
       dashMarkdownSyntaxExtension,
+      calloutMarkdownSyntaxExtension,
     ],
   });

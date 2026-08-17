@@ -3,6 +3,7 @@ import { foldGutter, foldKeymap } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import type { Extension } from "@codemirror/state";
 import { dropCursor, EditorView, keymap } from "@codemirror/view";
+import { calloutsExtension } from "./callouts";
 import { dragFreezeExtension } from "./drag-freeze";
 import { editorThemeExtension } from "./editor-theme";
 import { forceParseHealerExtension } from "./force-parse-healer";
@@ -55,6 +56,7 @@ export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): E
   hideMarksExtension,
   headingMarginMarksExtension,
   blockQuoteExtension,
+  calloutsExtension,
   bulletListExtension,
   horizonalRuleExtension,
   dashExtension,

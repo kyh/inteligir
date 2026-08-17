@@ -25,6 +25,9 @@ an escape \\* and dashes -- here.
 
 Tagged prose: #alpha and #nested/child, plus a literal \`#incode\` one.
 
+> [!WARNING] A callout
+> with a second line.
+
 - item one
 - [ ] task open
 - [x] task done
@@ -56,6 +59,7 @@ const snippets = [
   "<div>",
   "{{x}}",
   "#tag ",
+  "> [!NOTE] ",
 ];
 
 // mulberry32: deterministic PRNG so a failure reproduces byte-for-byte.

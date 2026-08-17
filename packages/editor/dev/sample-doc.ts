@@ -38,6 +38,17 @@ seeds its search with \`tag:<name>\`. Inside \`#code\` or a [labelled
 > A blockquote keeps its bar while the \`>\` marks fade.
 > > Nesting draws a second bar.
 
+## Callouts
+
+> [!NOTE] A note with a title
+> The header token folds to the label on the left; click into it and the
+> \`[!NOTE]\` bytes come back while the box stays.
+
+> [!WARNING]
+> A callout needs no title.
+
+> [!totally-made-up] An unknown type still gets a box and its own label.
+
 ## Code
 
 \`\`\`ts

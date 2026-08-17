@@ -18,6 +18,11 @@ const DOC_PATH = "Constructs.md";
 const DOC = `# Constructs
 
 Prose carrying #alpha and #nested/child, plus a literal \`#incode\` one.
+
+> [!WARNING] Mind the gap
+> A second line inside the same callout.
+
+> An ordinary quote, which is not a callout.
 `;
 
 /** What one `eval` pass reports about the rendered editor: a named list of
@@ -44,6 +49,10 @@ function describeExecError(error: unknown): string {
 // serializes the returned value as JSON, so the script returns the object.
 const PROBE_SCRIPT = `({
   tags: [...document.querySelectorAll('.cm-content .cm-tag')].map((n) => n.textContent),
+  calloutLabels: [...document.querySelectorAll('.cm-content .cm-callout-label')]
+    .map((n) => n.textContent + ':' + n.dataset.callout),
+  calloutLines: [...document.querySelectorAll('.cm-content .cm-callout-line')]
+    .map((n) => n.dataset.callout),
 })`;
 
 function isStringArray(value: unknown): value is string[] {
@@ -116,6 +125,16 @@ export const editorConstructsBrowser: Scenario = {
       expect(
         tags.join(" ") === "#alpha #nested/child",
         `the tag chips are exactly the index's tokens, got: ${JSON.stringify(tags)}`,
+      );
+
+      ctx.log("callouts");
+      expect(
+        rendered(probe, "calloutLabels").join(" ") === "WARNING:warning",
+        `the callout header folds to its label, got: ${JSON.stringify(rendered(probe, "calloutLabels"))}`,
+      );
+      expect(
+        rendered(probe, "calloutLines").join(" ") === "warning warning",
+        `both callout lines carry the box, and the plain quote none, got: ${JSON.stringify(rendered(probe, "calloutLines"))}`,
       );
 
       ctx.log("the file on disk is byte-identical after rendering");
