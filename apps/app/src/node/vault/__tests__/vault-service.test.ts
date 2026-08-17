@@ -61,7 +61,7 @@ describe("vault CRUD", () => {
     const tree = await service.listTree();
     expect(tree.entries).toEqual([
       { kind: "dir", path: "notes" },
-      { kind: "file", path: "notes/today.md", size: 8 },
+      { kind: "file", path: "notes/today.md" },
     ]);
 
     const read = await service.read("notes/today.md");
@@ -98,9 +98,7 @@ describe("vault CRUD", () => {
     await writeFile(join(root, ".git", "config"), "[core]\n");
     await service.write("real.md", "x");
 
-    expect((await service.listTree()).entries).toEqual([
-      { kind: "file", path: "real.md", size: 1 },
-    ]);
+    expect((await service.listTree()).entries).toEqual([{ kind: "file", path: "real.md" }]);
     await expect(service.read(".git/config")).rejects.toThrow(VaultPathError);
     await expect(service.write(".git/hooks/pre-commit", "#!/bin/sh")).rejects.toThrow(
       VaultPathError,
@@ -156,6 +154,43 @@ describe("vault CRUD", () => {
     holder.release();
     await write;
     expect(await readFile(join(root, "held.md"), "utf8")).toBe("waited for the lock");
+  });
+});
+
+// What a SAVE costs its subscribers. Autosave runs this path per pause, so
+// anything it announces is announced on that cadence to every open client.
+describe("what a write announces", () => {
+  it("says content-changed alone when only the bytes moved", async () => {
+    const { notifier, service } = bootService();
+    await service.write("note.md", "one");
+    notifier.reset();
+
+    await service.write("note.md", "two");
+
+    expect(notifier.docChanges).toEqual([{ docId: "note.md", changes: ["content-changed"] }]);
+    // `files-changed` makes every client re-walk the vault and reaches the open
+    // note's reader as a SECOND event, so one save cost two reads and a walk.
+    expect(notifier.vaultChanges).toEqual([]);
+  });
+
+  it("still says files-changed when the write CREATES the file", async () => {
+    const { notifier, service } = bootService();
+    await service.write("fresh.md", "one");
+    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
+
+    notifier.reset();
+    await service.writeGuarded("guarded.md", "one", { ifAbsent: true });
+    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
+  });
+
+  it("leaves the listing byte-identical across a content edit", async () => {
+    const { service } = bootService();
+    await service.write("note.md", "one");
+    const before = await service.listTree();
+    await service.write("note.md", "a much longer body than before");
+    // The client's tree query holds this by identity: a row that carries a
+    // size changes on every keystroke's save and re-renders the workspace.
+    expect(await service.listTree()).toEqual(before);
   });
 });
 
@@ -239,8 +274,6 @@ describe("physical containment (symlinks)", () => {
     await symlink(outside, join(root, "dir-link"), "dir");
     await service.write("real.md", "x");
 
-    expect((await service.listTree()).entries).toEqual([
-      { kind: "file", path: "real.md", size: 1 },
-    ]);
+    expect((await service.listTree()).entries).toEqual([{ kind: "file", path: "real.md" }]);
   });
 });

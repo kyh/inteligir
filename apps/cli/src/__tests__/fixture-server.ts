@@ -102,7 +102,6 @@ function deriveTree(vault: Map<string, string>): VaultEntry[] {
   const fileEntries: VaultEntry[] = [...vault.keys()].toSorted().map((path) => ({
     kind: "file",
     path,
-    size: vault.get(path)?.length ?? 0,
   }));
   return [...dirEntries, ...fileEntries];
 }

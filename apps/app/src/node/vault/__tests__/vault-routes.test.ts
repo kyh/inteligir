@@ -114,8 +114,8 @@ describe("the vault routes", () => {
     expect(parsedTree.root).toBe(realpathSync(vaultDir));
     expect(parsedTree.entries).toEqual([
       { kind: "dir", path: "notes" },
-      { kind: "file", path: "notes/api.md", size: 10 },
-      { kind: "file", path: "Welcome.md", size: expect.any(Number) },
+      { kind: "file", path: "notes/api.md" },
+      { kind: "file", path: "Welcome.md" },
     ]);
 
     const read = await app.request("/api/v1/vault/file?path=notes%2Fapi.md");

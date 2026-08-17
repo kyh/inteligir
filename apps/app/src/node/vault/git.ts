@@ -19,6 +19,10 @@ const GIT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 const AUTO_COMMIT_QUIET_MS = 2_000;
 const AUTO_COMMIT_MAX_WAIT_MS = 10_000;
 
+/** Past this many known paths a scoped commit stops being the cheap one: every
+ *  path is an argv entry twice over, and the unscoped sweep has no such bound. */
+const MAX_SCOPED_COMMIT_PATHS = 200;
+
 /** Commits the engine makes on its own carry this identity; an agent-attributed
  *  commit (#549) overrides the AUTHOR half only, so the committer always says
  *  which machine wrote it. */
@@ -182,7 +186,16 @@ export interface GitEngineArgs {
   root: string;
   /** null = local-only: commits still happen, the sync loop stays idle. */
   remoteUrl: string | null;
-  /** Fired on every sync-status transition (sync start/end, commit landed). */
+  /**
+   * Fired on every sync-status TRANSITION, which is a sync starting and a sync
+   * ending — and not a commit. A commit only ever runs with something dirty,
+   * so the state before it was `dirty`; the commit it makes is by construction
+   * unpushed, so the state after it is `dirty` too (`held` on both sides under
+   * an agent's hold, `no-remote` on both without a remote). Announcing it made
+   * every client re-fetch the status, and every fetch is a `git status
+   * --porcelain` plus a `rev-list` under the repo lock, to be told the same
+   * word twice.
+   */
   onStatusChanged?: () => void;
   /** Fired when a sync moved the working tree (a rebase applied remote work). */
   onFilesChanged?: () => void;
@@ -194,8 +207,22 @@ export interface GitEngineArgs {
 }
 
 export interface GitEngine {
-  /** Debounced: a burst of writes lands as ONE commit after the quiet window. */
-  scheduleCommit(): void;
+  /**
+   * Debounced: a burst of writes lands as ONE commit after the quiet window.
+   * `paths` is what the caller KNOWS moved, and the flush stages exactly the
+   * union of what the window collected — a whole-tree `status` + `add -A` is
+   * two full worktree scans to commit one saved note. Calling with no paths
+   * means "whatever is dirty", which is what the boot sweep and the post-sync
+   * drain mean, and one such call makes the whole window's flush unscoped.
+   *
+   * What that trades, stated: a change nobody announced is not in the union,
+   * so it waits for a caller that means the whole tree — a sync pass, an
+   * explicit `commitNow`, shutdown, or the next boot. Both producers of vault
+   * changes DO announce (the service's own mutations and the watcher's
+   * batches), so the gap is the watcher having failed — by which point the
+   * file tree and the knowledge index have already stopped being current.
+   */
+  scheduleCommit(paths?: readonly string[]): void;
   /** Commit whatever is dirty right now; null when the tree was clean.
    *  `subject` replaces the default one-line message (trailers ride in it). */
   commitNow(author?: CommitAuthor, subject?: string): Promise<{ files: number } | null>;
@@ -296,6 +323,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     if (files === 0) {
       return null;
     }
+    // `add -A` unscoped, deliberately: the scoped form passes every path as an
+    // argument, and the first commit of a large vault would exceed ARG_MAX.
     await run(["add", "-A"]);
     await run(
       ["-c", "commit.gpgsign=false", "commit", "-m", subject ?? `vault: update ${files} files`],
@@ -303,7 +332,6 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         env: identityEnv(author),
       },
     );
-    args.onStatusChanged?.();
     return { files };
   }
 
@@ -341,8 +369,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
 
   async function commitPathsIfDirty(
     paths: readonly string[],
-    author: CommitAuthor,
-    subject: string,
+    author: CommitAuthor | undefined,
+    subject: string | ((files: number) => string),
   ): Promise<{ files: number } | null> {
     if (paths.length === 0) {
       return null;
@@ -356,10 +384,16 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // -A with a pathspec stages deletions under it too; the commit takes only
     // the index, so everything else dirty stays for its own commit.
     await run(["add", "-A", "--", ...dirty]);
-    await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
-      env: identityEnv(author),
-    });
-    args.onStatusChanged?.();
+    await run(
+      [
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-m",
+        typeof subject === "string" ? subject : subject(dirty.length),
+      ],
+      { env: identityEnv(author) },
+    );
     return { files: dirty.length };
   }
 
@@ -370,6 +404,26 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   let commitHoldCount = 0;
   let flushDeferredWhileHeld = false;
 
+  /** What the next flush stages: the union of the paths its schedulers named,
+   *  or null for "whatever is dirty" — the boot sweep and the post-sync drain
+   *  both mean that, and one of them in the window decides the whole flush. */
+  let pendingCommitPaths: Set<string> | null = new Set();
+
+  function noteCommitPaths(paths: readonly string[] | undefined): void {
+    if (paths === undefined || pendingCommitPaths === null) {
+      pendingCommitPaths = null;
+      return;
+    }
+    for (const path of paths) {
+      pendingCommitPaths.add(path);
+    }
+    // Every path becomes an argv entry twice (the status pathspec, then the
+    // add); past a point the unscoped sweep is both cheaper and safe.
+    if (pendingCommitPaths.size > MAX_SCOPED_COMMIT_PATHS) {
+      pendingCommitPaths = null;
+    }
+  }
+
   const commitScheduler = createDebouncedCallbackScheduler({
     debounceMs: args.quietMs ?? AUTO_COMMIT_QUIET_MS,
     maxWaitMs: args.maxWaitMs ?? AUTO_COMMIT_MAX_WAIT_MS,
@@ -378,10 +432,20 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         return;
       }
       if (commitHoldCount > 0) {
+        // The paths stay pending: the release re-arms this same flush.
         flushDeferredWhileHeld = true;
         return;
       }
-      void withRepoLock(() => commitIfDirty()).catch((error: unknown) => {
+      const scoped = pendingCommitPaths;
+      pendingCommitPaths = new Set();
+      void withRepoLock(() =>
+        scoped === null
+          ? commitIfDirty()
+          : commitPathsIfDirty([...scoped], undefined, (files) => `vault: update ${files} files`),
+      ).catch((error: unknown) => {
+        // Whatever failed is still dirty and its paths are spent, so the next
+        // flush has to be the one that sweeps everything.
+        pendingCommitPaths = null;
         args.onError?.(error instanceof Error ? error.message : "auto-commit failed");
       });
     },
@@ -632,8 +696,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   }
 
   return {
-    scheduleCommit() {
+    scheduleCommit(paths?: readonly string[]) {
       if (!disposed) {
+        noteCommitPaths(paths);
         commitScheduler.schedule();
       }
     },

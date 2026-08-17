@@ -9,8 +9,8 @@ import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
   { kind: "dir", path: "notes/daily" },
-  { kind: "file", path: "notes/ideas.md", size: 5 },
-  { kind: "file", path: "Welcome.md", size: 20 },
+  { kind: "file", path: "notes/ideas.md" },
+  { kind: "file", path: "Welcome.md" },
 ];
 
 const FILE_PATHS = ENTRIES.filter((entry) => entry.kind === "file").map((entry) => entry.path);

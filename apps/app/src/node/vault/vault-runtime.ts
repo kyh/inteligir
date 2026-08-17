@@ -130,7 +130,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
     onMutated: (paths) => {
       noteSelfWrites(paths);
       args.onFilesChanged?.({ kind: "paths", paths });
-      git.scheduleCommit();
+      git.scheduleCommit(paths);
     },
   });
 
@@ -149,7 +149,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
         }
         args.notifier.notifyVault(["files-changed"], external);
         args.onFilesChanged?.({ kind: "paths", paths: external });
-        git.scheduleCommit();
+        git.scheduleCommit(external);
       },
       onError: (message) => console.error(`vault watcher: ${message}`),
       ...(args.watcherBackend ? { backend: args.watcherBackend } : {}),

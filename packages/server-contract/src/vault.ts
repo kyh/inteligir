@@ -32,6 +32,13 @@ export const vaultPathSchema = z.string().transform((value, ctx) => {
   return parsed.path;
 });
 
+/**
+ * A tree row is a KIND and a PATH, and nothing that a content edit moves. The
+ * listing carried a `size` no client ever read, and the cost was paid twice:
+ * one `lstat` per file per walk, and a value that changes on every keystroke's
+ * save — which defeats react-query's structural sharing and re-renders the
+ * whole workspace for a tree that is structurally identical.
+ */
 export const vaultEntrySchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -43,7 +50,6 @@ export const vaultEntrySchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("file"),
       path: z.string().min(1),
-      size: z.number().int().min(0),
     })
     .strict(),
 ]);

@@ -8,9 +8,9 @@ import { FileTree, type TreeOps } from "../file-tree";
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
   { kind: "dir", path: "notes/daily" },
-  { kind: "file", path: "notes/daily/2026-08-16.md", size: 10 },
-  { kind: "file", path: "notes/ideas.md", size: 5 },
-  { kind: "file", path: "Welcome.md", size: 20 },
+  { kind: "file", path: "notes/daily/2026-08-16.md" },
+  { kind: "file", path: "notes/ideas.md" },
+  { kind: "file", path: "Welcome.md" },
 ];
 
 function makeOps(): TreeOps {
