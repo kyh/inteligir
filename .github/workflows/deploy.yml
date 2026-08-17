@@ -21,11 +21,11 @@ on:
     types: [completed]
     branches: [main]
 
-# Deploying needs no repo write. The credential that matters is
-# CLOUDFLARE_API_TOKEN below; GITHUB_TOKEN's only consumer here is checkout,
-# which needs read. Pin it rather than inheriting the repo's write-scoped
-# default — this workflow runs on `push` to main, so it never gets the
-# read-only token a fork pull_request would.
+# Read by default; the one job that needs more says so itself. The credential
+# that matters is CLOUDFLARE_API_TOKEN below — GITHUB_TOKEN's consumers here
+# are checkout and the deploy marker tag. Pin it rather than inheriting the
+# repo's write-scoped default: this workflow runs on `push` to main, so it
+# never gets the read-only token a fork pull_request would.
 permissions:
   contents: read
 
@@ -56,11 +56,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The base is what is DEPLOYED, not the previous commit. Comparing against
+      # `HEAD^` answers "did this one commit touch web", so a push of several
+      # commits whose last one is a docs edit reads as "web unchanged" and a
+      # whole cycle of real changes never ships. The `deployed/web` tag is moved
+      # by the deploy job below, so the window is always publish-to-publish; an
+      # absent tag (first run, or a deleted tag) deploys rather than assuming.
       - name: Detect changed apps
         id: check
         run: |
-          BASE="$(git rev-parse "${{ github.event.workflow_run.head_sha }}^" 2>/dev/null || echo 0000000000000000000000000000000000000000)"
-          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+          BASE="$(git rev-parse -q --verify refs/tags/deployed/web 2>/dev/null || true)"
+          if [ -z "$BASE" ]; then
+            echo "no deployed/web tag — deploying" >&2
             echo "web=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -78,6 +85,10 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    # Write, solely to move the `deployed/web` tag that bounds the next run's
+    # change window. Scoped to this job so the detector cannot write anything.
+    permissions:
+      contents: write
     # A named environment is the seam a deploy gate hangs off: required
     # reviewers, a wait timer and a branch policy are configured against the
     # environment in repo settings, not in this file. It also gives each run a
@@ -147,3 +158,11 @@ jobs:
         run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # Moved only after a successful publish, so the next run's window starts
+      # at what is actually live. A failed deploy leaves the tag where it was
+      # and the next run reconsiders the same changes.
+      - name: Mark what was deployed
+        run: |
+          git tag -f deployed/web "${{ github.event.workflow_run.head_sha }}"
+          git push -f origin refs/tags/deployed/web
