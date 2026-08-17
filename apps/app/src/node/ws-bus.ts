@@ -13,7 +13,6 @@ import {
   type DocChangeKind,
   type HelloMessage,
   type RealtimeSubscriptionTarget,
-  type SystemChangeKind,
   type ThreadChangeKind,
   type VaultChangeKind,
 } from "@repo/server-contract/notifications";
@@ -187,10 +186,6 @@ export class WsBus implements DbNotifier {
     if (sockets.size === 0) {
       this.socketsByKey.delete(key);
     }
-  }
-
-  notifySystem(changes: SystemChangeKind[]): void {
-    this.notifyClients({ type: "changed", entity: "system", changes });
   }
 
   notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {

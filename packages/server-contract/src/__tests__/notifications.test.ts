@@ -9,7 +9,6 @@ import {
 
 describe("realtimeSubscriptionTargetKey", () => {
   it("keys detail targets by id and list targets by kind", () => {
-    expect(realtimeSubscriptionTargetKey({ kind: "system" })).toBe("system");
     expect(realtimeSubscriptionTargetKey({ kind: "vault" })).toBe("vault");
     expect(realtimeSubscriptionTargetKey({ kind: "doc-detail", docId: "d1" })).toBe(
       "doc-detail:d1",
@@ -35,8 +34,8 @@ describe("strict outbound schemas", () => {
   it("rejects an unknown field", () => {
     const result = changedMessageSchema.safeParse({
       type: "changed",
-      entity: "system",
-      changes: ["config-changed"],
+      entity: "vault",
+      changes: ["files-changed"],
       extra: true,
     });
     expect(result.success).toBe(false);
@@ -54,7 +53,7 @@ describe("strict outbound schemas", () => {
   it("rejects a subscribe message with an extra target field", () => {
     const result = clientMessageSchema.safeParse({
       type: "subscribe",
-      target: { kind: "system", extra: 1 },
+      target: { kind: "vault", extra: 1 },
     });
     expect(result.success).toBe(false);
   });
@@ -62,7 +61,7 @@ describe("strict outbound schemas", () => {
   it("rejects a subscribe message with an extra top-level field", () => {
     const result = clientMessageSchema.safeParse({
       type: "subscribe",
-      target: { kind: "system" },
+      target: { kind: "vault" },
       extra: 1,
     });
     expect(result.success).toBe(false);

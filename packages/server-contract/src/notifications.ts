@@ -5,9 +5,6 @@ import { z } from "zod";
 /** Where the invalidation bus is served; the upgrade endpoint every client dials. */
 export const WS_PATH = "/ws";
 
-export const SYSTEM_CHANGE_KINDS = ["config-changed"] as const;
-export type SystemChangeKind = (typeof SYSTEM_CHANGE_KINDS)[number];
-
 export const VAULT_CHANGE_KINDS = ["files-changed", "sync-status-changed"] as const;
 export type VaultChangeKind = (typeof VAULT_CHANGE_KINDS)[number];
 
@@ -16,7 +13,6 @@ export type DocChangeKind = (typeof DOC_CHANGE_KINDS)[number];
 
 export const THREAD_CHANGE_KINDS = [
   "thread-created",
-  "thread-deleted",
   "events-appended",
   "status-changed",
   "archived-changed",
@@ -27,7 +23,6 @@ export const THREAD_CHANGE_KINDS = [
 ] as const;
 export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];
 
-export const systemChangeKindSchema = z.enum(SYSTEM_CHANGE_KINDS);
 export const vaultChangeKindSchema = z.enum(VAULT_CHANGE_KINDS);
 export const docChangeKindSchema = z.enum(DOC_CHANGE_KINDS);
 export const threadChangeKindSchema = z.enum(THREAD_CHANGE_KINDS);
@@ -35,11 +30,6 @@ export const threadChangeKindSchema = z.enum(THREAD_CHANGE_KINDS);
 /** What a client can subscribe to. How a changed message reaches these targets
  * is `subscriptionKeysForMessage` below — the one fan-out mapping. */
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.literal("system"),
-    })
-    .strict(),
   z
     .object({
       kind: z.literal("vault"),
@@ -99,8 +89,6 @@ function assertUnhandledRealtimeSubscriptionTarget(target: never): never {
 
 export function realtimeSubscriptionTargetKey(target: RealtimeSubscriptionTarget): string {
   switch (target.kind) {
-    case "system":
-      return "system";
     case "vault":
       return "vault";
     case "doc-detail":
@@ -159,7 +147,6 @@ function changedMessagePair<
   };
 }
 
-const systemChangedMessagePair = changedMessagePair("system", SYSTEM_CHANGE_KINDS, {});
 /**
  * `paths` NAMES the vault-relative paths a files-changed announcement covers,
  * so a client re-reads a note only when that note can have changed. It is
@@ -177,9 +164,6 @@ const threadChangedMessagePair = changedMessagePair("thread", THREAD_CHANGE_KIND
   id: z.string().optional(),
 });
 
-export const systemChangedMessageSchema = systemChangedMessagePair.strict;
-export type SystemChangedMessage = z.infer<typeof systemChangedMessageSchema>;
-
 export const vaultChangedMessageSchema = vaultChangedMessagePair.strict;
 export type VaultChangedMessage = z.infer<typeof vaultChangedMessageSchema>;
 
@@ -190,7 +174,6 @@ export const threadChangedMessageSchema = threadChangedMessagePair.strict;
 export type ThreadChangedMessage = z.infer<typeof threadChangedMessageSchema>;
 
 export const changedMessageSchema = z.discriminatedUnion("entity", [
-  systemChangedMessageSchema,
   vaultChangedMessageSchema,
   docChangedMessageSchema,
   threadChangedMessageSchema,
@@ -210,7 +193,6 @@ export const serverMessageSchema = z.union([helloMessageSchema, changedMessageSc
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
 export const changedMessageLenientSchema = z.discriminatedUnion("entity", [
-  systemChangedMessagePair.lenient,
   vaultChangedMessagePair.lenient,
   docChangedMessagePair.lenient,
   threadChangedMessagePair.lenient,
@@ -226,7 +208,6 @@ export const serverMessageLenientSchema = z.union([
   changedMessageLenientSchema,
 ]);
 
-const SYSTEM_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "system" });
 const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
 const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
 
@@ -238,8 +219,6 @@ const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-lis
  */
 export function subscriptionKeysForMessage(message: ChangedMessage): string[] {
   switch (message.entity) {
-    case "system":
-      return [SYSTEM_TARGET_KEY];
     case "vault":
       return [VAULT_TARGET_KEY];
     case "doc":

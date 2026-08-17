@@ -11,7 +11,6 @@ export function createNotifierRecorder(): NotifierRecorder {
   const recorder: NotifierRecorder = {
     vaultChanges: [],
     docChanges: [],
-    notifySystem() {},
     notifyVault(changes) {
       recorder.vaultChanges.push(changes);
     },

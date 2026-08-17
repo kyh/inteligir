@@ -2,7 +2,6 @@
 
 import type {
   DocChangeKind,
-  SystemChangeKind,
   ThreadChangeKind,
   VaultChangeKind,
 } from "@repo/server-contract/notifications";
@@ -12,7 +11,6 @@ import type {
  * implements it at the edge; everything below it stays transport-blind.
  */
 export interface DbNotifier {
-  notifySystem(changes: SystemChangeKind[]): void;
   /** `paths` names the vault-relative paths a files-changed announcement
    *  covers; omitted means the change has no path list and every consumer
    *  must re-diff (see the contract's vault changed message). */
@@ -22,7 +20,6 @@ export interface DbNotifier {
 }
 
 export const noopNotifier: DbNotifier = {
-  notifySystem() {},
   notifyVault() {},
   notifyDoc() {},
   notifyThread() {},
@@ -37,10 +34,6 @@ export const noopNotifier: DbNotifier = {
  */
 export class NotificationBuffer implements DbNotifier {
   private deliveries: Array<(target: DbNotifier) => void> = [];
-
-  notifySystem(changes: SystemChangeKind[]): void {
-    this.deliveries.push((target) => target.notifySystem(changes));
-  }
 
   notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {
     this.deliveries.push((target) => target.notifyVault(changes, paths));

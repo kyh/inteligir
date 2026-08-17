@@ -106,8 +106,8 @@ describe("subscriptions", () => {
     h.client.start();
     const socket = h.sockets[0];
     socket?.open();
-    const release = h.client.subscribe({ kind: "system" });
-    h.client.subscribe({ kind: "system" });
+    const release = h.client.subscribe({ kind: "vault" });
+    h.client.subscribe({ kind: "vault" });
     release();
     release();
     const unsubscribes = socket

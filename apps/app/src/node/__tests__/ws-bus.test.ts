@@ -91,11 +91,11 @@ describe("subscribe/broadcast", () => {
     const closing = createFakeSocket();
     bus.registerClient(open);
     bus.registerClient(closing);
-    bus.subscribe(open, { kind: "system" });
-    bus.subscribe(closing, { kind: "system" });
+    bus.subscribe(open, { kind: "vault" });
+    bus.subscribe(closing, { kind: "vault" });
     closing.readyState = 2;
 
-    bus.notifySystem(["config-changed"]);
+    bus.notifyVault(["files-changed"]);
     expect(open.sent).toHaveLength(2);
     expect(closing.sent).toHaveLength(1);
   });
@@ -104,18 +104,18 @@ describe("subscribe/broadcast", () => {
     const bus = createBus();
     const socket = createFakeSocket();
     bus.registerClient(socket);
-    bus.subscribe(socket, { kind: "system" });
+    bus.subscribe(socket, { kind: "vault" });
 
-    bus.notifySystem(["config-changed"]);
+    bus.notifyVault(["files-changed"]);
     expect(socket.sent).toHaveLength(2);
 
-    bus.unsubscribe(socket, { kind: "system" });
-    bus.notifySystem(["config-changed"]);
+    bus.unsubscribe(socket, { kind: "vault" });
+    bus.notifyVault(["files-changed"]);
     expect(socket.sent).toHaveLength(2);
 
-    bus.subscribe(socket, { kind: "system" });
+    bus.subscribe(socket, { kind: "vault" });
     bus.unregisterClient(socket);
-    bus.notifySystem(["config-changed"]);
+    bus.notifyVault(["files-changed"]);
     expect(socket.sent).toHaveLength(2);
   });
 });
@@ -141,10 +141,10 @@ describe("handleMessage", () => {
     const socket = createFakeSocket();
     bus.registerClient(socket);
     const payload = new TextEncoder().encode(
-      JSON.stringify({ type: "subscribe", target: { kind: "system" } }),
+      JSON.stringify({ type: "subscribe", target: { kind: "vault" } }),
     );
     bus.handleMessage(socket, payload);
-    bus.notifySystem(["config-changed"]);
+    bus.notifyVault(["files-changed"]);
     expect(socket.sent).toHaveLength(2);
   });
 
@@ -170,7 +170,7 @@ describe("handleMessage", () => {
     bus.registerClient(extraField);
     bus.handleMessage(
       extraField,
-      JSON.stringify({ type: "subscribe", target: { kind: "system" }, extra: 1 }),
+      JSON.stringify({ type: "subscribe", target: { kind: "vault" }, extra: 1 }),
     );
     expect(extraField.closed).toEqual({
       code: 1008,
@@ -187,16 +187,14 @@ describe("outbound frames against the contract schemas", () => {
     const bus = createBus();
     const socket = createFakeSocket();
     bus.registerClient(socket);
-    bus.subscribe(socket, { kind: "system" });
     bus.subscribe(socket, { kind: "vault" });
     bus.subscribe(socket, { kind: "thread-list" });
-    bus.notifySystem(["config-changed"]);
     bus.notifyVault(["files-changed"]);
     bus.notifyVault(["files-changed"], ["notes/a.md"]);
     bus.notifyDoc("d1", ["content-changed"]);
     bus.notifyThread("t1", ["thread-created"]);
 
-    expect(socket.sent.length).toBe(6);
+    expect(socket.sent.length).toBe(5);
     for (const raw of socket.sent) {
       const frame: unknown = JSON.parse(raw);
       expect(() => serverMessageSchema.parse(frame)).not.toThrow();

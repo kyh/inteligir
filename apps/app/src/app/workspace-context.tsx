@@ -55,9 +55,6 @@ function applyChangedMessage(
   message: ChangedMessage,
 ): void {
   switch (message.entity) {
-    case "system":
-      void queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus });
-      break;
     case "vault":
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTree });
@@ -145,19 +142,20 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       onChanged: (message) =>
         applyChangedMessage(runtime.queryClient, runtime.notifyDoc, runtime.notifyThread, message),
       // Mutations during a connection gap produced no frames; on reconnect,
-      // invalidate everything the subscriptions cover — the vault, system and
-      // thread key families — and make the open note and any live timeline
-      // re-check their state.
+      // invalidate everything the subscriptions cover — the vault and thread
+      // key families — and make the open note and any live timeline re-check
+      // their state. System status is swept alongside them for a different
+      // reason: a socket that dropped most likely means the server restarted,
+      // which changes every field on it.
       onReconnected: () => {
         void runtime.queryClient.invalidateQueries({ queryKey: ["vault"] });
-        void runtime.queryClient.invalidateQueries({ queryKey: ["system"] });
+        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
         runtime.notifyDoc(null);
         runtime.notifyThread(THREAD_RECONNECT_SWEEP);
       },
     });
     invalidation.start();
-    invalidation.subscribe({ kind: "system" });
     invalidation.subscribe({ kind: "vault" });
     invalidation.subscribe({ kind: "thread-list" });
     return () => {

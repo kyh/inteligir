@@ -21,7 +21,6 @@
 
 import {
   DOC_CHANGE_KINDS,
-  SYSTEM_CHANGE_KINDS,
   THREAD_CHANGE_KINDS,
   VAULT_CHANGE_KINDS,
 } from "@repo/server-contract/notifications";
@@ -30,31 +29,18 @@ import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
 /** Entity → the kinds the contract declares → the call that fires one. */
 const ENTITIES = [
-  { entity: "system", notifier: "notifySystem", kinds: SYSTEM_CHANGE_KINDS },
   { entity: "vault", notifier: "notifyVault", kinds: VAULT_CHANGE_KINDS },
   { entity: "doc", notifier: "notifyDoc", kinds: DOC_CHANGE_KINDS },
   { entity: "thread", notifier: "notifyThread", kinds: THREAD_CHANGE_KINDS },
 ] as const;
 
 /**
- * Kinds the contract declares that NO shipped producer fires. Each is an open
- * gap, not a sanctioned state — the list exists so the other nine kinds stay
- * guarded while these two are resolved, and the drain test below fails the
- * moment one gains a producer, so a fix cannot leave a stale entry behind.
- *
- * Resolving one means either building the write that announces it or deleting
- * the kind. Both are contract changes with consumers to move, which is why
- * neither happened inside the change that added this guard.
+ * Kinds the contract declares that NO shipped producer fires. EMPTY, and that
+ * is the point: a kind belongs in the contract when the write that announces
+ * it exists, so the honest way to add one here is to not need to. The drain
+ * test below fails on a stale entry, so an exception cannot outlive its gap.
  */
-const DECLARED_WITHOUT_PRODUCER: Record<string, string> = {
-  // The whole `system` entity has no writer. The UI subscribes to it
-  // (apps/app/src/app/workspace-context.tsx) and invalidates the system-status
-  // query on it, so the subscription is live and the frame is unreachable.
-  "system/config-changed": "the `system` entity has no writer; only the suites call notifySystem",
-  // No thread deletion exists anywhere: no route row, no ThreadService method,
-  // no @repo/db function. Carried in with the rest of bb's contract.
-  "thread/thread-deleted": "nothing in this repo deletes a thread",
-};
+const DECLARED_WITHOUT_PRODUCER: Record<string, string> = {};
 
 const QUOTED = /["']([^"']+)["']/g;
 
