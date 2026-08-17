@@ -262,6 +262,22 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   derives every value it compares. No hardcoded counts, no hand-copied lists —
   the one exception is `dep-dag.test.ts`'s `DECLARED_EDGES`, which IS the pin
   rather than a copy of one.
+- **Vendored code carries a RECORD, and the record's own shape says which rule
+  it opts into.** A `PROVENANCE.md` names the upstream, a 40-hex commit pin and
+  the license, with that license's own text beside it — MIT names a copyright
+  holder no per-file notice carries. With no `## Files` manifest it governs its
+  WHOLE directory (`packages/agent-runtime`, the prosemark tree); with one it
+  governs exactly the files listed, which is what a package that is only partly
+  vendored needs (`apps/app`, `apps/cli`, `packages/db`, `packages/domain`,
+  `packages/server-contract`, `packages/typed-routes`). Each row names its
+  upstream path and whether the code is upstream's or upstream's shape with the
+  bodies rewritten, so a re-vendor knows which files will diff. **"Vendored
+  from" is the CLAIM** — the phrase `vendor-provenance.test.ts` sweeps for. A
+  header saying a file's shape FOLLOWS an upstream's is citing an influence and
+  owes nothing; keep the two spellings apart, and do not put the claim over
+  code that only borrows an idiom. What no walk can catch is a copy that
+  arrives with no notice at all, so whether one is owed is decided when the
+  code is copied, not by a green suite.
 - **`packages/ui/components.json` declares `rsc: true` and it is deliberately
   inert** — the `"use client"` directives it produces are ignored by every
   consumer, all plain Vite builds with no RSC bundler in the graph.

@@ -1,6 +1,10 @@
-// Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Trimmed to v1's grammar: bb's projection additionally folds web activity,
-// background tasks, approvals, compaction, goals and window eviction.
+// Folds stored thread events into the timeline rows the contract declares.
+// The row grammar is bb's (github.com/get-bb/bb, MIT) and the row constructors
+// follow its idiom, but the fold is this repo's: bb projects events into
+// messages through a stateful multi-module pipeline and converts those to
+// rows, where this is one pass over accumulators keyed by turn and item. v1's
+// grammar also has no web activity, background tasks, compaction or goals to
+// fold.
 
 import type {
   ThreadEvent,

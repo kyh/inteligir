@@ -1,3 +1,6 @@
+// Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors —
+// `collectLeafCommands` only; the rest is house. See ../../PROVENANCE.md.
+//
 // Shared by the surface fitness tests (--json enforcement + honest exits,
 // guide coverage): the real program object, a walk of its leaf commands, and
 // ONE runnable invocation per leaf — the table those tests drive.

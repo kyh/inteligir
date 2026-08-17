@@ -14,7 +14,10 @@ export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 const WORKSPACE_GROUPS = ["apps", "packages", "tools"];
 const STANDALONE_WORKSPACES = ["e2e"];
 
-const SKIP_DIR_NAMES = new Set([
+/** Directories no guard walks: dependencies, and build output that would be
+ *  read as source. Shared, because a guard with its own shorter list passes on
+ *  CI and fails on a machine that has run a build. */
+export const SKIP_DIR_NAMES = new Set([
   "node_modules",
   "dist",
   "dist-node",
