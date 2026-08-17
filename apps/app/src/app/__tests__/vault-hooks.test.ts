@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import {
   vaultStatusResponseSchema,
   type VaultStatusResponse,
@@ -9,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   filePathsLowercased,
   firstRootDoc,
+  renameVaultEntry,
   syncStateLabel,
   untitledNotePath,
 } from "../vault-hooks";
@@ -44,6 +46,41 @@ describe("the note a virgin boot opens", () => {
   });
 });
 
+const renameApi = (response: () => Response): ApiClient =>
+  createApiClient("http://local.test", { fetch: () => Promise.resolve(response()) });
+
+const jsonResponse = (status: number, body: unknown): Response =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+describe("renaming a vault entry", () => {
+  // A surface that words the 409 itself ("that name is already taken")
+  // drops the half the user needs — WHICH target — and nothing the server
+  // ever adds to that sentence reaches them.
+  it("carries the server's refusal, verbatim", async () => {
+    const api = renameApi(() =>
+      jsonResponse(409, { error: "conflict", message: "Target already exists: notes/plans.md" }),
+    );
+    const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
+    expect(outcome).toEqual({
+      ok: false,
+      message: "Target already exists: notes/plans.md",
+    });
+  });
+
+  it("falls back only when the failure carries no contract body", async () => {
+    const api = createApiClient("http://local.test", {
+      fetch: () => Promise.reject(new Error("connection lost")),
+    });
+    const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
+    expect(outcome).toEqual({ ok: false, message: "Could not rename notes/ideas.md." });
+  });
+
+  it("reports a rename that landed", async () => {
+    const api = renameApi(() => jsonResponse(200, { from: "a.md", to: "b.md", rewritten: [] }));
+    await expect(renameVaultEntry(api, "a.md", "b.md")).resolves.toEqual({ ok: true });
+  });
+});
+
 const SYNC_FIELDS = { lastSyncAt: null, lastError: null };
 const REMOTE = { remote: "git@example.com:vault.git", ...SYNC_FIELDS };
 
@@ -76,10 +113,9 @@ describe("naming a sync state", () => {
     }
   });
 
-  // Two tables over these eight states had already drifted on half of them:
-  // one vault answered "Waiting on the agent" in the sidebar and "Waiting on
-  // an agent turn" in settings. The sentences belong to one module, and a
-  // surface that spells one of its own is what this catches.
+  // Two tables over eight states drift, and the drift is invisible until one
+  // vault answers two sentences in two pieces of the same window — which a
+  // reader cannot tell from two different states.
   it.each(["src/app/sidebar/sidebar.tsx", "src/app/settings/settings-dialog.tsx"])(
     "%s writes none of the sentences itself",
     (relative) => {

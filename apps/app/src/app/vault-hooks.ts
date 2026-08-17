@@ -6,9 +6,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
+import type { ApiClient } from "@repo/server-contract/client";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/server-contract/vault";
 import type { SystemStatusResponse } from "@repo/server-contract/routes";
-import { unwrap } from "./api";
+import { ApiError, unwrap } from "./api";
 import { queryKeys } from "./api";
 import { useWorkspace } from "./workspace-context";
 
@@ -82,6 +83,38 @@ export function canSyncNow(status: VaultStatusResponse | undefined): boolean {
     status.state !== "syncing" &&
     status.state !== "held"
   );
+}
+
+/** A refused rename, with the sentence to show for it. */
+export type RenameOutcome = { ok: true } | { ok: false; message: string };
+
+/**
+ * Rename a vault entry, reporting the SERVER'S refusal. Two surfaces rename
+ * (the sidebar tree and the page-title H1), and copy each of them writes for
+ * itself discards a message the contract already carries — the server names
+ * which target exists, or which parent a file shadows, and neither surface
+ * could say that. Worse, it forks: the server can improve its refusal and no
+ * user ever sees the better sentence.
+ *
+ * The caller shows the message and owns what else a rename means to it (the
+ * open note follows, the title re-arms) — only the words are shared.
+ */
+export async function renameVaultEntry(
+  api: ApiClient,
+  from: string,
+  to: string,
+): Promise<RenameOutcome> {
+  try {
+    await unwrap(await api.vault.rename.$post({ json: { from, to } }));
+    return { ok: true };
+  } catch (error) {
+    // A failure with no contract body (a dropped connection) has no message
+    // of the server's to render.
+    return {
+      ok: false,
+      message: error instanceof ApiError ? error.message : `Could not rename ${from}.`,
+    };
+  }
 }
 
 /** The note a virgin boot opens: the first doc in the vault root, by the

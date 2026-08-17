@@ -31,6 +31,7 @@ import {
   canSyncNow,
   filePathsLowercased,
   firstRootDoc,
+  renameVaultEntry,
   untitledNotePath,
   useVaultStatus,
   useVaultTree,
@@ -287,19 +288,15 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       },
       renameEntry: (fromPath, toPath) => {
         void (async () => {
-          try {
-            await unwrap(await api.vault.rename.$post({ json: { from: fromPath, to: toPath } }));
-            if (openNote === fromPath) {
-              setOpenNote(toPath);
-            } else if (openNote !== null && openNote.startsWith(`${fromPath}/`)) {
-              setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
-            }
-          } catch (error) {
-            toast.error(
-              error instanceof ApiError && error.status === 409
-                ? "That name is already taken."
-                : `Could not rename ${fromPath}.`,
-            );
+          const outcome = await renameVaultEntry(api, fromPath, toPath);
+          if (!outcome.ok) {
+            toast.error(outcome.message);
+            return;
+          }
+          if (openNote === fromPath) {
+            setOpenNote(toPath);
+          } else if (openNote !== null && openNote.startsWith(`${fromPath}/`)) {
+            setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
           }
         })();
       },

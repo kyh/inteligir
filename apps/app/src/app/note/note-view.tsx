@@ -32,7 +32,8 @@ import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentHashHex } from "@repo/server-contract/vault";
-import { ApiError, unwrap } from "../api";
+import { ApiError } from "../api";
+import { renameVaultEntry } from "../vault-hooks";
 import {
   isSettledActivity,
   taskPrompt,
@@ -357,18 +358,15 @@ function OpenNote({ path, delegation, diskContent, onRename, setRenamePending }:
               toast.error("The note could not be saved, so it was not renamed.");
               throw new Error("rename aborted: save failed");
             }
-            try {
-              await unwrap(await api.vault.rename.$post({ json: { from: path, to: toPath } }));
-              onRename(toPath);
-            } catch (error) {
+            const outcome = await renameVaultEntry(api, path, toPath);
+            if (!outcome.ok) {
               setRenamePending(false);
-              if (error instanceof ApiError && error.status === 409) {
-                toast.error("A note with that name already exists.");
-              } else {
-                toast.error("Could not rename the note.");
-              }
-              throw error;
+              toast.error(outcome.message);
+              // The title re-arms its commit guard on a rejection, so the
+              // same name can be retried once the refusal is dealt with.
+              throw new Error(outcome.message);
             }
+            onRename(toPath);
           }}
           onSubmit={() => editorRef.current?.focus()}
         />
