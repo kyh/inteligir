@@ -502,22 +502,6 @@ export const codexHandledEventSchema = z.discriminatedUnion("method", [
       .passthrough(),
   ),
   createCodexEventSchema(
-    "thread/archived",
-    z
-      .object({
-        threadId: z.string(),
-      })
-      .passthrough(),
-  ),
-  createCodexEventSchema(
-    "thread/unarchived",
-    z
-      .object({
-        threadId: z.string(),
-      })
-      .passthrough(),
-  ),
-  createCodexEventSchema(
     "thread/name/updated",
     z
       .object({

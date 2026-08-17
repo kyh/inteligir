@@ -37,7 +37,6 @@ import type {
   ProviderCommandPlan,
   ProviderExecutionContext,
 } from "../provider-adapter.js";
-import { classifySessionExecutionSettingsChange } from "../execution-options.js";
 import type { ProviderInboundRequest, ProviderRuntimeEvent } from "../runtime-json-rpc.js";
 import { translateCodexEvent } from "./event-translation.js";
 import {
@@ -166,12 +165,6 @@ function toCodexUserInput(input: PromptInput[]): CodexUserInput[] {
         return { type: "image", url: chunk.url };
       case "localImage":
         return { type: "localImage", path: chunk.path };
-      case "localFile":
-        return {
-          type: "text",
-          text: `[Attached file: ${chunk.path}]`,
-          text_elements: [],
-        };
     }
   });
 }
@@ -323,7 +316,6 @@ export function createCodexProviderAdapter(
     displayName: "Codex",
     capabilities: CODEX_PROVIDER_CAPABILITIES,
     approvalRequestPolicy: "runtime",
-    classifyExecutionSettingsChange: classifySessionExecutionSettingsChange,
     // Codex app-server connections are owned by the runtime process manager;
     // live threads run on thread-scoped app-server processes, while
     // provider-only probes (model listing) use a provider-scoped one.

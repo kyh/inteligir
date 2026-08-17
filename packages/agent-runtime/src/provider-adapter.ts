@@ -20,10 +20,6 @@ import type { ProviderInboundRequest, ProviderRuntimeEvent } from "./runtime-jso
 /** What a turn's prompt is made of; bb's PromptInput, mentions dropped. */
 export type PromptInput = ThreadEventUserContent;
 
-export interface ProviderTranslationContext {
-  threadId?: string;
-}
-
 export interface ProviderRequestCommandPlan {
   kind: "request";
   method: string;
@@ -38,12 +34,6 @@ export interface ProviderNoopCommandPlan {
 }
 
 export type ProviderCommandPlan = ProviderRequestCommandPlan | ProviderNoopCommandPlan;
-
-export interface ProviderPostInitializeRequest {
-  plan: ProviderRequestCommandPlan;
-  required: boolean;
-  onResult(result: unknown): void;
-}
 
 export type ProviderInteractiveResponse =
   | boolean
@@ -64,6 +54,9 @@ export interface DecodedInteractiveRequest {
    */
   turnId: string | null;
   payload: PendingInteractionPayload;
+  /** Host thread id when the adapter already knows it; read as
+   * `threadIdHint` by the request router, which otherwise resolves from
+   * `providerThreadId`. */
   threadId?: string;
 }
 
@@ -121,13 +114,6 @@ export type AdapterCommand =
       activeTurnId: string | null;
     };
 
-export type ProviderExecutionSettingsChange = "unchanged" | "live" | "session";
-
-export interface ClassifyProviderExecutionSettingsChangeArgs {
-  current: RuntimeThreadExecutionOptions;
-  next: RuntimeThreadExecutionOptions;
-}
-
 export interface ProviderAdapter {
   id: string;
   displayName: string;
@@ -137,26 +123,11 @@ export interface ProviderAdapter {
    * every approval request and rely on the runtime's current thread policy.
    */
   approvalRequestPolicy: "runtime" | "provider";
-  /**
-   * Classifies execution-setting drift for this provider. `live` settings are
-   * carried by the next turn command; `session` settings require rebuilding
-   * the provider session.
-   */
-  classifyExecutionSettingsChange(
-    args: ClassifyProviderExecutionSettingsChangeArgs,
-  ): ProviderExecutionSettingsChange;
   process: { command: string; args: string[]; env?: Record<string, string> };
 
   buildCommandPlan(command: AdapterCommand): ProviderCommandPlan;
-  /**
-   * Optional provider-specific reads performed after the protocol initialize
-   * request and before any thread work starts. Best-effort requests let newer
-   * providers hydrate adapter-local state without making older provider
-   * versions unusable when they do not implement the read.
-   */
-  buildPostInitializeRequests?(): readonly ProviderPostInitializeRequest[];
   parseModelListResult(result: unknown): { models: AvailableModel[] };
-  translateEvent(event: ProviderRuntimeEvent, context?: ProviderTranslationContext): ThreadEvent[];
+  translateEvent(event: ProviderRuntimeEvent): ThreadEvent[];
   decodeInteractiveRequest?(request: ProviderInboundRequest): DecodedInteractiveRequest | null;
   buildInteractiveResponse?(args: BuildInteractiveResponseArgs): ProviderInteractiveResponse;
 }

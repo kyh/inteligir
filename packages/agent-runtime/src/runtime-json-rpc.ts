@@ -22,14 +22,6 @@ export interface ProviderInboundRequest {
 
 export type ProviderRuntimeEvent = JsonRpcObject;
 
-export type JsonValue =
-  | boolean
-  | number
-  | string
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue | undefined };
-
 export const JSON_RPC_INVALID_PARAMS_CODE = -32602;
 
 export class ProviderRequestDecodeError extends Error {

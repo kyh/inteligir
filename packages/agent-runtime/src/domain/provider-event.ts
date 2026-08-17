@@ -24,17 +24,12 @@ export const providerErrorCategoryValues = [
   "bad-request",
   "connection-failed",
   "context-window-exceeded",
-  "billing",
-  "budget-exceeded",
   "internal",
-  "max-output-tokens",
-  "max-turns",
   "overloaded",
   "policy",
   "rate-limit",
   "sandbox",
   "stream-disconnected",
-  "structured-output-retries",
   "thread-rollback-failed",
   "too-many-failed-attempts",
   "unauthorized",
@@ -83,8 +78,7 @@ export interface ThreadEventContextWindowUsage {
 export type ThreadEventUserContent =
   | { type: "text"; text: string }
   | { type: "image"; url: string }
-  | { type: "localImage"; path: string }
-  | { type: "localFile"; path: string };
+  | { type: "localImage"; path: string };
 
 export interface ThreadEventWebSearchItem {
   type: "webSearch";
@@ -222,7 +216,7 @@ export type ThreadEvent =
     } & ProviderThreadEventData)
   | ({
       type: "provider/warning";
-      category: "deprecation" | "config" | "general";
+      category: "deprecation" | "config";
       summary?: string;
       details?: string;
     } & ProviderThreadEventData)
