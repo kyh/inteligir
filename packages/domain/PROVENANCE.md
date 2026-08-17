@@ -32,14 +32,15 @@ Each row names the upstream file at the pinned commit, and whether the code is
 upstream's (`vendored`) or upstream's shape with the bodies rewritten
 (`adapted`).
 
-| File                        | Upstream                                                                             | Carried  |
-| --------------------------- | ------------------------------------------------------------------------------------ | -------- |
-| `src/change-kinds.ts`       | `packages/domain/src/change-kinds.ts`                                                | adapted  |
-| `src/notifier.ts`           | `packages/db/src/notifier.ts`, `apps/server/src/services/lib/notification-buffer.ts` | adapted  |
-| `src/provider-event.ts`     | `packages/domain/src/provider-event.ts`                                              | vendored |
-| `src/thread-event-scope.ts` | `packages/domain/src/thread-event-scope.ts`                                          | vendored |
-| `src/thread-lifecycle.ts`   | `packages/domain/src/thread-lifecycle.ts`                                            | vendored |
-| `src/thread-status.ts`      | `packages/domain/src/thread-status.ts`                                               | vendored |
+| File                                | Upstream                                                                             | Carried  |
+| ----------------------------------- | ------------------------------------------------------------------------------------ | -------- |
+| `src/change-kinds.ts`               | `packages/domain/src/change-kinds.ts`                                                | adapted  |
+| `src/notifier.ts`                   | `packages/db/src/notifier.ts`, `apps/server/src/services/lib/notification-buffer.ts` | adapted  |
+| `src/pending-interaction-status.ts` | `packages/db/src/schema.ts` (the `pending_interactions` status enum)                 | adapted  |
+| `src/provider-event.ts`             | `packages/domain/src/provider-event.ts`                                              | vendored |
+| `src/thread-event-scope.ts`         | `packages/domain/src/thread-event-scope.ts`                                          | vendored |
+| `src/thread-lifecycle.ts`           | `packages/domain/src/thread-lifecycle.ts`                                            | vendored |
+| `src/thread-status.ts`              | `packages/domain/src/thread-status.ts`                                               | vendored |
 
 ## Local edits worth knowing before a re-vendor
 
@@ -48,6 +49,9 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
   and host.
 - `src/notifier.ts` keeps upstream's decomposition and names while rewriting
   the buffer's body.
+- `src/pending-interaction-status.ts` is upstream's status vocabulary lifted
+  out of the table declaration, with a house zod enum beside it so the wire
+  and the column read one tuple.
 - `src/provider-event.ts` is a subset: web search and fetch, image view,
   background tasks, compaction, goals, rate limits, warnings, model fallback
   and the whole `system/*` family are not carried. The `userMessage` item is

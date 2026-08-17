@@ -7,6 +7,7 @@
   "exports": {
     "./change-kinds": "./src/change-kinds.ts",
     "./notifier": "./src/notifier.ts",
+    "./pending-interaction-status": "./src/pending-interaction-status.ts",
     "./thread-status": "./src/thread-status.ts",
     "./thread-lifecycle": "./src/thread-lifecycle.ts",
     "./thread-event-scope": "./src/thread-event-scope.ts",

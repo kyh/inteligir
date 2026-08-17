@@ -1,3 +1,4 @@
+import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { THREAD_ANCHOR_TOKEN_PATTERN } from "@repo/notes/markdown/thread-anchor";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
@@ -29,14 +30,6 @@ export const threadSchema = z
   })
   .strict();
 export type Thread = z.infer<typeof threadSchema>;
-
-export const pendingInteractionStatusSchema = z.enum([
-  "pending",
-  "resolving",
-  "resolved",
-  "interrupted",
-]);
-export type PendingInteractionStatus = z.infer<typeof pendingInteractionStatusSchema>;
 
 export const pendingInteractionSchema = z
   .object({
