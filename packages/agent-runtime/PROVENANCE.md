@@ -2,7 +2,7 @@
 
 - **Upstream**: https://github.com/get-bb/bb, directory
   `packages/agent-runtime` (plus the domain modules it leans on from
-  `packages/domain`, vendored under `src/domain/`)
+  `packages/domain`, vendored under `src/vocabulary/`)
 - **Commit**: `8e6fc83582881509077ce67ac5e4b59784d83121`
 - **License**: MIT — `LICENSE.bb` in this directory is upstream's own text,
   copied verbatim. The per-file notice below is not a substitute for it: MIT
@@ -12,10 +12,13 @@
 
 Vendored rather than depended on because bb publishes no packages and this
 repo carries only the codex slice of a three-provider runtime. Files keep
-upstream's names and layout so a re-vendor diffs cleanly. House-authored
-files in this package: `src/thread-shell-environment.ts` (rewritten around
-INTELIGIR_* variables), `src/domain/reasoning-efforts.ts` (constants folded),
-and everything under `src/test-support/` and `__tests__/`.
+upstream's names so a re-vendor diffs cleanly; the one layout change is the
+directory, `src/domain/` → `src/vocabulary/`, because `@repo/domain` is a
+package here and two things called domain in one import list is a reader's
+trap. House-authored files in this package: `src/thread-shell-environment.ts`
+(rewritten around INTELIGIR_* variables), `src/vocabulary/reasoning-efforts.ts`
+(constants folded), and everything under `src/test-support/` and
+`__tests__/`.
 
 ## Attribution
 
@@ -87,11 +90,22 @@ vitest.config.ts         house scaffolding; the vendored surface is src/
 ## Local patches (beyond the trims)
 
 - Every file: attribution header prepended; `@bb/domain` imports point at
-  `src/domain/` (or `@repo/domain/thread-event-scope`, whose scope schema is
-  the identical vendored shape both grammars share).
-- `src/domain/provider-event.ts` is the provider grammar as TYPES — the
+  `src/vocabulary/` (or at `@repo/domain`, whose scope schema and shared event
+  leaves are the identical vendored shapes both grammars use).
+- `src/vocabulary/provider-event.ts` is the provider grammar as TYPES — the
   runtime constructs events, it never parses them; parsing happens where
   events cross into the host (`apps/app/src/node/agent/event-mapping.ts`).
+  Two renames against upstream, both to make the split legible where the two
+  unions meet: upstream's `ThreadEvent`/`ThreadEventItem`/`ThreadEventType`
+  are `ProviderEvent`/`ProviderEventItem`/`ProviderEventType` here (the
+  persisted union in `@repo/domain` keeps upstream's `ThreadEvent`), and the
+  same prefix swap covers `…UserContent`, `…WebSearchItem`, `…WebFetchItem`,
+  `…PlanStep` and `…ContextWindowUsage`. The six leaves the two unions SHARE —
+  `ThreadEventItemStatus`, `ThreadEventItemApprovalStatus`,
+  `ThreadEventTurnStatus`, `ThreadEventFileChange`,
+  `ThreadEventTokenUsageBreakdown`, `ThreadEventTokenUsage` — keep upstream's
+  names and are imported from `@repo/domain` rather than re-declared, so the
+  narrowing assigns them across instead of respelling them.
 - **No type assertions anywhere** (house rule): `UNSTAMPED_THREAD_ID` loses
   upstream's unique-symbol brand; `codex/models.ts` reads loose fields
   through record guards and carries `noUncheckedIndexedAccess` fallbacks;
@@ -102,7 +116,7 @@ vitest.config.ts         house scaffolding; the vendored surface is src/
   with the trimmed payload union (claude-code's ExitPlanMode; upstream's
   branch only threw for codex).
 - Upstream's `packages/domain/src/pending-interactions.ts` is vendored into
-  `@repo/domain` rather than `src/domain/`: the approval grammar is
+  `@repo/domain` rather than `src/vocabulary/`: the approval grammar is
   provider-neutral, and the store, the wire contract, the CLI and a React card
   all read it. Its record is that package's.
 - `item/reasoning/summaryTextDelta` was re-vendored INTO `@repo/domain`'s

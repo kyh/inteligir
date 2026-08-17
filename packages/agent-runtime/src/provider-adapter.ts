@@ -8,17 +8,17 @@ import type {
   InstructionMode,
   RuntimePermissionPolicy,
   RuntimeThreadExecutionOptions,
-} from "./domain/shared-types.js";
-import type { AvailableModel, ProviderCapabilities } from "./domain/provider-types.js";
+} from "./vocabulary/shared-types.js";
+import type { AvailableModel, ProviderCapabilities } from "./vocabulary/provider-types.js";
 import type {
   PendingInteractionPayload,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
-import type { ThreadEvent, ThreadEventUserContent } from "./domain/provider-event.js";
+import type { ProviderEvent, ProviderEventUserContent } from "./vocabulary/provider-event.js";
 import type { ProviderInboundRequest, ProviderRuntimeEvent } from "./runtime-json-rpc.js";
 
 /** What a turn's prompt is made of; bb's PromptInput, mentions dropped. */
-export type PromptInput = ThreadEventUserContent;
+export type PromptInput = ProviderEventUserContent;
 
 export interface ProviderTranslationContext {
   threadId?: string;
@@ -156,7 +156,10 @@ export interface ProviderAdapter {
    */
   buildPostInitializeRequests?(): readonly ProviderPostInitializeRequest[];
   parseModelListResult(result: unknown): { models: AvailableModel[] };
-  translateEvent(event: ProviderRuntimeEvent, context?: ProviderTranslationContext): ThreadEvent[];
+  translateEvent(
+    event: ProviderRuntimeEvent,
+    context?: ProviderTranslationContext,
+  ): ProviderEvent[];
   decodeInteractiveRequest?(request: ProviderInboundRequest): DecodedInteractiveRequest | null;
   buildInteractiveResponse?(args: BuildInteractiveResponseArgs): ProviderInteractiveResponse;
 }

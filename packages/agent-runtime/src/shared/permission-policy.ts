@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import type { PermissionEscalation } from "../domain/shared-types.js";
+import type { PermissionEscalation } from "../vocabulary/shared-types.js";
 
 export interface InteractiveRequestPolicyInput {
   permissionEscalation: PermissionEscalation | null;

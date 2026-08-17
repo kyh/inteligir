@@ -38,7 +38,7 @@ import type {
   AgentRuntimeExecutionOptions,
   AgentRuntimeShellEnvironment,
 } from "@repo/agent-runtime/types";
-import type { ThreadEvent as RuntimeThreadEvent } from "@repo/agent-runtime/domain/provider-event";
+import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import {
   approvalPendingInteractionPayloadSchema,
   parseApprovalResolution,
@@ -79,7 +79,7 @@ import { mapProviderEvent } from "./event-mapping";
  * translation emits them as the pair of thread/tokenUsage/updated (persisted)
  * and thread/contextWindowUsage/updated (not) — dropping the second half is
  * the steady state, not worth a debug line each time. */
-const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<RuntimeThreadEvent["type"]> = new Set([
+const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<ProviderEvent["type"]> = new Set([
   "thread/contextWindowUsage/updated",
 ]);
 
@@ -451,7 +451,7 @@ class CodexTurnDriver implements TurnDriver {
     waiter.resolve(parsed.resolution);
   }
 
-  private onRuntimeEvent(event: RuntimeThreadEvent): void {
+  private onRuntimeEvent(event: ProviderEvent): void {
     const threadId = event.threadId;
     if (threadId.length === 0) {
       this.debug(`dropped unstamped provider event ${event.type}`);

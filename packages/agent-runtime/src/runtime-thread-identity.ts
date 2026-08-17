@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import type { ThreadEvent } from "./domain/provider-event.js";
+import type { ProviderEvent } from "./vocabulary/provider-event.js";
 import type { AgentRuntimeProviderSession } from "./types.js";
 
 interface PendingIdentityWaiter {
@@ -55,7 +55,7 @@ export interface ResolveProviderEventThreadIdArgs {
 }
 
 export interface StampThreadEventScopeArgs {
-  event: ThreadEvent;
+  event: ProviderEvent;
   providerThreadId: string | undefined;
   threadId: string;
 }
@@ -225,7 +225,7 @@ export class RuntimeThreadIdentityRegistry {
   }
 }
 
-export function stampThreadEventScope(args: StampThreadEventScopeArgs): ThreadEvent {
+export function stampThreadEventScope(args: StampThreadEventScopeArgs): ProviderEvent {
   if ("providerThreadId" in args.event && args.providerThreadId) {
     return {
       ...args.event,

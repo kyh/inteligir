@@ -4,9 +4,9 @@
 // indexed reads carry the noUncheckedIndexedAccess fallbacks.
 
 import { z } from "zod";
-import { reasoningEffortsForLevels } from "../domain/reasoning-efforts";
-import type { AvailableModel, ModelReasoningEffort } from "../domain/provider-types";
-import { reasoningLevelSchema, type ReasoningLevel } from "../domain/shared-types";
+import { reasoningEffortsForLevels } from "../vocabulary/reasoning-efforts";
+import type { AvailableModel, ModelReasoningEffort } from "../vocabulary/provider-types";
+import { reasoningLevelSchema, type ReasoningLevel } from "../vocabulary/shared-types";
 import { isRecord } from "../shared/provider-visibility-helpers.js";
 
 const FALLBACK_REASONING_LEVEL: ReasoningLevel = "medium";

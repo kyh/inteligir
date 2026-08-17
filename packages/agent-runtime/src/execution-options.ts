@@ -2,7 +2,7 @@
 // Trimmed to the codex classifier and the execution-context builder; the
 // claude-code normalizers and service-tier assertions are not carried.
 
-import type { RuntimePermissionPolicy } from "./domain/shared-types.js";
+import type { RuntimePermissionPolicy } from "./vocabulary/shared-types.js";
 import type {
   ClassifyProviderExecutionSettingsChangeArgs,
   ProviderAdapter,

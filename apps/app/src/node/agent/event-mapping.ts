@@ -1,13 +1,16 @@
-// Narrows the runtime's provider grammar (@repo/agent-runtime — bb's full
-// provider event union) onto @repo/domain's persisted grammar, which IS that
-// grammar trimmed to the kinds v1 renders. The rule from the domain header
+// Narrows `ProviderEvent` (@repo/agent-runtime — the EMITTED grammar, bb's
+// full union) onto `ThreadEvent` (@repo/domain — the PERSISTED grammar, that
+// union trimmed to the kinds v1 renders). The rule from the domain header
 // applies here in reverse: an event kind the persisted grammar does not
 // carry is DROPPED with a stated reason, never re-shaped — re-vendor the
 // kind into @repo/domain when it earns a renderer. Turn identity is
 // rewritten from the provider's turn id to the host's: the manager owns the
 // binding, this module only stamps the id it is handed.
+//
+// Every leaf the two unions share is one type in @repo/domain, so a narrowing
+// ASSIGNS it. A field-by-field respelling here would mean the two had drifted.
 
-import type { ThreadEvent as RuntimeThreadEvent } from "@repo/agent-runtime/domain/provider-event";
+import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 
@@ -19,7 +22,7 @@ function dropped(reason: string): MapProviderEventResult {
   return { kind: "dropped", reason };
 }
 
-type ProviderItem = Extract<RuntimeThreadEvent, { type: "item/started" }>["item"];
+type ProviderItem = Extract<ProviderEvent, { type: "item/started" }>["item"];
 
 function mapItem(item: ProviderItem): ThreadEventItem | null {
   switch (item.type) {
@@ -43,12 +46,7 @@ function mapItem(item: ProviderItem): ThreadEventItem | null {
       return {
         type: "fileChange",
         id: item.id,
-        changes: item.changes.map((change) => ({
-          path: change.path,
-          kind: change.kind,
-          ...(change.movePath !== undefined ? { movePath: change.movePath } : {}),
-          ...(change.diff !== undefined ? { diff: change.diff } : {}),
-        })),
+        changes: item.changes,
         status: item.status,
         approvalStatus: item.approvalStatus,
       };
@@ -83,7 +81,7 @@ function mapItem(item: ProviderItem): ThreadEventItem | null {
  * the manager holds no binding (then only thread-scoped kinds survive).
  */
 export function mapProviderEvent(
-  event: RuntimeThreadEvent,
+  event: ProviderEvent,
   turnId: string | null,
 ): MapProviderEventResult {
   switch (event.type) {

@@ -26,8 +26,8 @@ import type { ThreadStartParams } from "./generated/codex-app-server/schema/v2/T
 import type { UserInput as CodexUserInput } from "./generated/codex-app-server/schema/v2/UserInput.js";
 import type { AskForApproval } from "./generated/codex-app-server/schema/v2/AskForApproval.js";
 import type { ApprovalsReviewer } from "./generated/codex-app-server/schema/v2/ApprovalsReviewer.js";
-import type { PermissionEscalation, ReasoningLevel } from "../domain/shared-types.js";
-import { CODEX_PROVIDER_CAPABILITIES } from "../domain/provider-types.js";
+import type { PermissionEscalation, ReasoningLevel } from "../vocabulary/shared-types.js";
+import { CODEX_PROVIDER_CAPABILITIES } from "../vocabulary/provider-types.js";
 import { mapBbReasoningLevelToCodex, parseModelsResponse } from "./models.js";
 import { buildShellEnvironmentPolicyConfig } from "../shared/adapter-utils.js";
 import type {
