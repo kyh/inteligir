@@ -2,7 +2,7 @@
   "name": "@repo/repo-guards",
   "version": "0.1.0",
   "private": true,
-  "description": "Derived fitness tests over the repo ITSELF: the invariants that span workspaces and therefore belong to none of them — the package dependency DAG and its platform-purity rules, the guards' own tree walk held against pnpm's workspace globs, ws change-kind reachability, one total dispatch per domain vocabulary, one spelling per cross-cutting predicate, the staged install layout, the environment contract every turbo task that runs the app must pass through, CI against `pnpm verify`, and vendored-code provenance. Every assertion walks the real tree; the written-down lists are the DAG's declared edge table and the per-guard exception rows, and every one of those rows drains.",
+  "description": "Derived fitness tests over the repo ITSELF: the invariants that span workspaces and therefore belong to none of them — the package dependency DAG and its platform-purity rules, the guards' own tree walk held against pnpm's workspace globs, ws change-kind reachability, one total dispatch per domain vocabulary, one spelling per cross-cutting predicate, one spelling per API route path, the staged install layout, the environment contract every turbo task that runs the app must pass through, CI against `pnpm verify` and every smoke against a root script, and vendored-code provenance. Every assertion walks the real tree; the written-down lists are the DAG's declared edge table and the per-guard exception rows, and every one of those rows drains.",
   "type": "module",
   "scripts": {
     "clean": "git clean -xdf .cache .turbo node_modules",

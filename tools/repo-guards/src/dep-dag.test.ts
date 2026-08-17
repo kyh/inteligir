@@ -98,11 +98,46 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // responder with, and the shutdown budget its SIGKILL grace must exceed.
   // Same call apps/cli's discovery makes, for the same reason. Bundled by
   // esbuild at build time, hence a devDependency rather than a runtime one.
-  "@repo/desktop": ["@repo/app"],
+  //
+  // The contract edge is the fourth fact, and it is a WIRE fact rather than a
+  // configuration one: the shell challenges a responder before adopting it, so
+  // it needs the identity row's path and the schema that responder's answer is
+  // held against. A shell narrowing that body for itself is a second, weaker
+  // reading of the one message a squatter gets to compose.
+  "@repo/desktop": ["@repo/app", "@repo/server-contract"],
 
   "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
   "@repo/repo-guards": [],
 };
+
+/**
+ * ARTIFACT edges: a workspace dependency that is real in the MANIFEST and has
+ * no import behind it, because the dependent INSTALLS AND EXECUTES the other
+ * package's build output rather than importing its modules.
+ *
+ * An artifact edge means "this package is installed and executed", never
+ * "this package is imported" — and the two are not degrees of the same thing.
+ * `DECLARED_EDGES` above is the IMPORT graph and stays silent about these; an
+ * artifact edge is deliberately absent from it, so a module import across one
+ * still lands as an UNDECLARED EDGE. The assertion below says that in the
+ * other direction too, because the claim is the whole point of the split.
+ *
+ * They need their own table because the two manifest checks read opposite
+ * things off one row: pnpm must link the dependency and the packager must find
+ * it, while nothing under `src/**` imports it. With no row the phantom check
+ * reads the line that puts the product inside the shell as dead weight and
+ * says to delete it.
+ */
+const DECLARED_ARTIFACT_EDGES: Record<string, Record<string, string>> = {
+  "@repo/desktop": {
+    inteligir:
+      "the shell PACKS the published artifact into the .app and spawns its server entry as a CHILD PROCESS — src/main/server-paths.ts resolves it as a path under node_modules rather than importing it, and the packaged smoke reaches its staged-layout module from scripts/, which is not shipped source either",
+  },
+};
+
+function artifactEdgesFrom(name: string): Record<string, string> {
+  return DECLARED_ARTIFACT_EDGES[name] ?? {};
+}
 
 /** `node:*`, react and electron — the three platform surfaces a package can
  *  accidentally acquire, each fatal on a different target. */
@@ -257,12 +292,59 @@ describe("the package dependency DAG", () => {
         ...(shippedEdges.get(workspace.name) ?? new Map<string, string[]>()).keys(),
         ...(testEdges.get(workspace.name) ?? new Map<string, string[]>()).keys(),
       ]);
+      const artifact = artifactEdgesFrom(workspace.name);
       for (const target of manifestWorkspaceDeps(workspace.manifest)) {
-        if (used.has(target)) continue;
+        if (used.has(target) || artifact[target] !== undefined) continue;
         violations.push(
           `PHANTOM DEPENDENCY  ${workspace.dir}/package.json declares "${target}"\n` +
-            `  rule: a declared dependency has an importer; nothing under ${workspace.dir}/src imports this one`,
+            `  rule: a declared dependency has an importer; nothing under ${workspace.dir}/src imports this one\n` +
+            `  fix: delete it — or, if ${workspace.name} INSTALLS AND EXECUTES ${target}'s build output instead of importing it, add a row to DECLARED_ARTIFACT_EDGES (tools/repo-guards/src/dep-dag.test.ts) saying so`,
         );
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("every declared artifact edge is a real, unimported manifest dependency", () => {
+    const violations: string[] = [];
+    for (const [name, targets] of Object.entries(DECLARED_ARTIFACT_EDGES)) {
+      const workspace = workspaces().find((candidate) => candidate.name === name);
+      if (workspace === undefined) {
+        violations.push(
+          `STALE ARTIFACT EDGE  ${name} is not a workspace\n` +
+            `  rule: an artifact edge names a package that exists, or it only ever excuses something nobody can find\n` +
+            `  fix: delete the entry from DECLARED_ARTIFACT_EDGES`,
+        );
+        continue;
+      }
+      const declared = manifestWorkspaceDeps(workspace.manifest);
+      const imported = new Set([
+        ...(shippedEdges.get(name) ?? new Map<string, string[]>()).keys(),
+        ...(testEdges.get(name) ?? new Map<string, string[]>()).keys(),
+      ]);
+      for (const [target, why] of Object.entries(targets)) {
+        if (!declared.has(target)) {
+          violations.push(
+            `STALE ARTIFACT EDGE  ${workspace.dir}/package.json no longer declares "${target}"\n` +
+              `  the row claimed: ${why}\n` +
+              `  fix: delete the row — an exemption that outlives its dependency only ever loosens the phantom check`,
+          );
+        }
+        if (declaredFor(name).includes(target)) {
+          violations.push(
+            `EDGE DECLARED TWICE  ${name} -> ${target}\n` +
+              `  rule: an artifact edge is INSTALLED AND EXECUTED, an entry in DECLARED_EDGES is IMPORTED — one dependency is one or the other, and a row in both tables makes the import check unenforceable\n` +
+              `  fix: keep the row in whichever table describes what ${name} actually does with ${target}`,
+          );
+        }
+        if (imported.has(target)) {
+          violations.push(
+            `ARTIFACT EDGE IS IMPORTED  ${name} -> ${target}\n` +
+              `  the row claimed: ${why}\n` +
+              `  rule: an artifact edge means "installed and executed", never "imported" — source under ${workspace.dir}/src imports it, so it is an ordinary edge\n` +
+              `  fix: move it to DECLARED_EDGES, or stop importing it`,
+          );
+        }
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

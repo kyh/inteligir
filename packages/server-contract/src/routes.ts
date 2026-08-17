@@ -5,6 +5,7 @@ import {
   noRequest,
   queryRequest,
   type ApiSchemaFromRouteDescriptors,
+  type RouteDefinition,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
 import type { ApiErrorResponse } from "./errors";
@@ -14,6 +15,20 @@ import { vaultRoutes } from "./vault";
 
 /** Where the route table below is mounted; client and server both derive from it. */
 export const API_BASE_PATH = "/api/v1";
+
+/**
+ * The path a route is SERVED at — the mount point plus the row's own path.
+ *
+ * The typed client composes this for itself, so callers that reach the server
+ * any other way (a discovery probe, an identity challenge, an `<img src>`, a
+ * scenario asserting a request URL) had each written their own concatenation,
+ * and several skipped the row entirely and spelled the whole path. Both halves
+ * move: the mount point is a version prefix, and a row's path is edited in the
+ * table below. One function so neither half can be half-derived.
+ */
+export function apiPath(route: RouteDefinition): string {
+  return `${API_BASE_PATH}${route.path}`;
+}
 
 export const healthResponseSchema = z.object({ ok: z.literal(true) }).strict();
 export type HealthResponse = z.infer<typeof healthResponseSchema>;

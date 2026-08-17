@@ -142,14 +142,24 @@ export function workspaces(): Workspace[] {
   return cachedWorkspaces;
 }
 
-/** Every `@repo/*` name the manifest declares, in any dependency group. */
+/**
+ * Every WORKSPACE this manifest declares, in any dependency group.
+ *
+ * Membership is decided by `workspaces()`, never by a name prefix. A prefix
+ * filter reads the repo's naming CONVENTION as if it were the repo's layout,
+ * and the one workspace that breaks the convention is the published artifact —
+ * `inteligir` — which is exactly the dependency a shipping surface installs.
+ * Filtering on `@repo/` made that declaration invisible to both manifest
+ * checks: neither the missing-dependency one nor the phantom one could see it.
+ */
 export function manifestWorkspaceDeps(manifest: Manifest): Set<string> {
   const all = {
     ...manifest.dependencies,
     ...manifest.devDependencies,
     ...manifest.peerDependencies,
   };
-  return new Set(Object.keys(all).filter((name) => name.startsWith("@repo/")));
+  const names = new Set(workspaces().map((workspace) => workspace.name));
+  return new Set(Object.keys(all).filter((name) => names.has(name)));
 }
 
 function walk(dir: string, out: string[]): void {
@@ -198,6 +208,28 @@ export function workspaceFiles(workspace: Workspace): WorkspaceFiles {
   };
   cachedFiles.set(workspace.name, files);
   return files;
+}
+
+const cachedWorkspaceSources = new Map<string, string[]>();
+
+/**
+ * Every source file a workspace CONTAINS, wherever it sits — `src/`, the build
+ * and smoke scripts beside it, a config at its root.
+ *
+ * `workspaceFiles` answers what SHIPS, which is the population a dependency
+ * edge is about. This answers what the repo HOLDS, which is the population a
+ * guard about SPELLING needs: a smoke script that hand-writes a route path
+ * drifts from the table exactly the way a handler does, and it lives nowhere
+ * near `src/`.
+ */
+export function workspaceSourceFiles(workspace: Workspace): string[] {
+  const cached = cachedWorkspaceSources.get(workspace.name);
+  if (cached !== undefined) return cached;
+  const found: string[] = [];
+  walk(path.join(REPO_ROOT, workspace.dir), found);
+  const sorted = found.toSorted();
+  cachedWorkspaceSources.set(workspace.name, sorted);
+  return sorted;
 }
 
 const FULL_LINE_COMMENT = /^\s*(?:\/\/|\*|\/\*)/;

@@ -105,18 +105,87 @@ export function syncStateDotClass(status: VaultStatusResponse): string {
 }
 
 /**
- * Whether "Sync now" would actually start a pass. THREE surfaces offer the
- * command (the sidebar pill, the palette, the settings dialog), and a state
- * each of them judges for itself is a state one of them forgets — leaving a
- * live button that fires a request no pass can answer.
+ * WHY "Sync now" would do nothing right now, or null when it would run.
+ *
+ * The same reason as the two tables above, one question further out: three
+ * surfaces ask this and each was answering half of it in its own words. The
+ * sidebar pill spelled "No git remote configured" and "An agent turn holds the
+ * vault…" in a tooltip; the settings dialog spelled the first one differently
+ * a few lines away; the palette gates the command and then fires it blind, so
+ * the pass that refuses has to say so in a toast. Three partial tables over
+ * eight states is the drift the co-located pair was written to stop — just
+ * spread across three files instead of two.
+ */
+export function syncBlockedReason(status: VaultStatusResponse): string | null {
+  switch (status.state) {
+    case "no-remote":
+      return "No git remote configured";
+    case "syncing":
+      return "A sync is already running";
+    case "held":
+      return "An agent turn holds the vault; the next sync runs when it finishes";
+    case "clean":
+    case "dirty":
+    case "offline":
+    case "conflict":
+    case "broken":
+      return null;
+  }
+}
+
+/**
+ * Whether "Sync now" would actually start a pass — the same answer as
+ * `syncBlockedReason`, read as a boolean, so a state can never be blocked
+ * without a sentence or explained without being blocked.
  */
 export function canSyncNow(status: VaultStatusResponse | undefined): boolean {
-  return (
-    status !== undefined &&
-    status.state !== "no-remote" &&
-    status.state !== "syncing" &&
-    status.state !== "held"
-  );
+  return status !== undefined && syncBlockedReason(status) === null;
+}
+
+/** A toast the "Sync now" command owes the user, with the tone it carries. */
+export interface SyncNowNotice {
+  tone: "info" | "warning" | "error";
+  message: string;
+}
+
+/**
+ * What a "Sync now" pass has to SAY about the state it landed in, or null when
+ * silence is honest — the pill has already changed and a toast would only
+ * repeat it. Total over the states on purpose: silence is indistinguishable
+ * from a sync that worked, so a ninth state must be made to answer here rather
+ * than defaulting into nothing.
+ */
+export function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
+  const blocked = syncBlockedReason(status);
+  if (blocked !== null) {
+    return { tone: "info", message: `${blocked}.` };
+  }
+  switch (status.state) {
+    case "conflict":
+      return {
+        tone: "warning",
+        message: "Sync hit a conflict — both sides changed the same files.",
+      };
+    case "offline":
+      return {
+        tone: "error",
+        message:
+          status.lastError === null
+            ? "Could not reach the git remote."
+            : `Could not reach the git remote: ${status.lastError}`,
+      };
+    case "clean":
+    case "dirty":
+    case "broken":
+      return status.lastError === null
+        ? null
+        : { tone: "error", message: `Sync failed: ${status.lastError}` };
+    case "no-remote":
+    case "syncing":
+    case "held":
+      // Answered by the blocked branch above; listed so the switch stays total.
+      return null;
+  }
 }
 
 /** A refused rename, with the sentence to show for it. */

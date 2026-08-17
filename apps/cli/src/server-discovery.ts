@@ -16,7 +16,12 @@
 // it — and `inteligir status` prints the data dir and vault it bound to.
 
 import { DEV_PORT_PROBE_LIMIT, PROD_SERVER_PORT, resolveAppConfig } from "@repo/app/node/config";
-import { healthResponseSchema, systemStatusResponseSchema } from "@repo/server-contract/routes";
+import {
+  apiPath,
+  apiRoutes,
+  healthResponseSchema,
+  systemStatusResponseSchema,
+} from "@repo/server-contract/routes";
 import { CliExitError, EXIT_UNREACHABLE } from "./cli-error";
 
 export const SERVER_URL_ENV_VAR = "INTELIGIR_SERVER_URL";
@@ -116,12 +121,12 @@ async function probeCandidate(
   try {
     // The body shape, not just a 2xx: another local service on the port can
     // answer 200 with anything.
-    const health = await fetchJson(`${baseUrl}/api/v1/health`, fetchImpl);
+    const health = await fetchJson(`${baseUrl}${apiPath(apiRoutes.health)}`, fetchImpl);
     if (!healthResponseSchema.safeParse(health).success) {
       return { kind: "silent" };
     }
     const status = systemStatusResponseSchema.safeParse(
-      await fetchJson(`${baseUrl}/api/v1/system/status`, fetchImpl),
+      await fetchJson(`${baseUrl}${apiPath(apiRoutes.system.status)}`, fetchImpl),
     );
     if (!status.success) {
       return { kind: "silent" };

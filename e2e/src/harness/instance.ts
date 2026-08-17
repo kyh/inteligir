@@ -9,7 +9,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import { API_BASE_PATH, apiRoutes, healthResponseSchema } from "@repo/server-contract/routes";
+import { apiPath, apiRoutes, healthResponseSchema } from "@repo/server-contract/routes";
 import { hermeticProcessEnv } from "./exec";
 import { reserveFreePorts } from "./ports";
 
@@ -169,7 +169,7 @@ async function pollGroupGone(pgid: number, graceMs: number): Promise<boolean> {
   }
 }
 
-const HEALTH_PATH = `${API_BASE_PATH}${apiRoutes.health.path}`;
+const HEALTH_PATH = apiPath(apiRoutes.health);
 
 async function healthAnswered(baseUrl: string): Promise<boolean> {
   try {

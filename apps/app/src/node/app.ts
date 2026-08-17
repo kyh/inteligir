@@ -13,7 +13,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import type { HttpBindings } from "@hono/node-server";
 import type { DbConnection } from "@repo/db/connection";
 import { rebindThreadOrigins } from "@repo/db/threads";
-import type { ApiErrorResponse } from "@repo/server-contract/errors";
+import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
 import { API_BASE_PATH, apiRoutes, type AgentStatus } from "@repo/server-contract/routes";
 import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
@@ -120,7 +120,7 @@ export function createApp(args: CreateAppArgs) {
         error: "forbidden_origin",
         message: problem,
       };
-      return c.json(body, 403);
+      return c.json(body, API_ERROR_STATUS.forbidden_origin);
     }
     await next();
     return undefined;
@@ -134,7 +134,7 @@ export function createApp(args: CreateAppArgs) {
         error: "invalid_request",
         message: error.message,
       };
-      return context.json(body, 400);
+      return context.json(body, API_ERROR_STATUS.invalid_request);
     }
     // Never echo internals: the full error goes to the server log only.
     console.error(`api error on ${context.req.method} ${context.req.path}`, error);
@@ -142,7 +142,7 @@ export function createApp(args: CreateAppArgs) {
       error: "internal",
       message: "Internal server error",
     };
-    return context.json(body, 500);
+    return context.json(body, API_ERROR_STATUS.internal);
   });
   const registrars = typedRoutes(api, {
     onValidationError: (message) => new ApiValidationError(message),
@@ -197,7 +197,7 @@ export function createApp(args: CreateAppArgs) {
   // the SPA shell or a Vite page from the fallthrough below.
   api.all("*", (c) => {
     const body: ApiErrorResponse = { error: "not_found", message: "Not found" };
-    return c.json(body, 404);
+    return c.json(body, API_ERROR_STATUS.not_found);
   });
 
   app.route(API_BASE_PATH, api);

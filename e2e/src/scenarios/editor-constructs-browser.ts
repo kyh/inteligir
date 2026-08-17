@@ -8,6 +8,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { apiPath, apiRoutes } from "@repo/server-contract/routes";
 import { expect, skip } from "../harness/assert";
 import { exec, ExecError } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
@@ -202,7 +203,7 @@ export const editorConstructsBrowser: Scenario = {
       ctx.log("images");
       expect(
         rendered(probe, "images").join(" ") ===
-          "/api/v1/vault/asset?path=assets%2Fdiagram.svg:loaded",
+          `${apiPath(apiRoutes.vault.asset)}?path=assets%2Fdiagram.svg:loaded`,
         `the vault embed resolves through the asset route and the bytes arrive, got: ${JSON.stringify(rendered(probe, "images"))}`,
       );
       expect(

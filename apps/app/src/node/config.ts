@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { apiPath, apiRoutes } from "@repo/server-contract/routes";
 import { z } from "zod";
 import { errnoCode } from "./errno";
 import { assertVaultAndDataDirDisjoint } from "./path-containment";
@@ -159,8 +160,7 @@ const ENV_VARS = {
   }),
   vaultSyncIntervalMs: defineEnvVar({
     name: "INTELIGIR_SYNC_INTERVAL_MS",
-    description:
-      "Vault auto-sync cadence in milliseconds; 0 disables the loop AND the boot sync, leaving POST /api/v1/vault/sync the only trigger (what a deterministic test harness needs). Unset means the runtime default.",
+    description: `Vault auto-sync cadence in milliseconds; 0 disables the loop AND the boot sync, leaving POST ${apiPath(apiRoutes.vault.syncNow)} the only trigger (what a deterministic test harness needs). Unset means the runtime default.`,
     parse: ({ name, value }) => parseSyncIntervalValue(name, value),
   }),
   devHmrPort: defineEnvVar({
