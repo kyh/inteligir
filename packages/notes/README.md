@@ -5,12 +5,12 @@ The pure, platform-neutral domain core: the knowledge engine
 
 ## Why it exists
 
-This is the sharing seam. ZERO node/electron/react/workspace imports — lint-
+This is the sharing seam. ZERO node/react imports — lint-
 (`.oxlintrc.json` `no-restricted-imports`) and tsconfig-enforced (`lib:
-["ES2023", "WebWorker"]`, `types: []`) — so the same code runs unchanged inside
-the Cloudflare Worker's Durable Object, in the browser workspace, and in React
-Native. Platforms inject capabilities (SQL driver, clock). Everything above it
-depends on it; it depends on nothing in the workspace.
+["ES2023", "WebWorker"]`, `types: []`) — so the same code runs unchanged on a
+server, in a browser and in React Native. Platforms inject capabilities (SQL
+driver, clock). Everything above it depends on it; it depends on nothing in the
+workspace.
 
 ## Layout
 

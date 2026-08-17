@@ -4,8 +4,7 @@ import { describe, expect, it } from "vitest";
 import worker from "../index";
 import { sendResetEmail } from "../auth/reset-email";
 import { createDb } from "../db/client";
-import { verification } from "../db/schema";
-import { mintInvite } from "./host-helpers";
+import { inviteCode, verification } from "../db/schema";
 
 // The password-reset flow, driven against the real in-process Worker +
 // D1. Email delivery is the ONE piece that can't run here (it needs the
@@ -37,9 +36,17 @@ function recordingEmail(): { EMAIL: SendEmail; sent: RecordedEmail[] } {
   return { EMAIL, sent };
 }
 
-/** The pool env with the mock EMAIL swapped in — same D1/DO/R2 as SELF. */
+/** The pool env with the mock EMAIL swapped in — same D1 as SELF. */
 function envWith(EMAIL: SendEmail): Env {
   return { ...env, EMAIL };
+}
+
+/** Mint an invite and hand back its code. A UUID rather than a counter: these
+ * suites share one D1 per file and `code` is the primary key. */
+async function mintInvite(): Promise<string> {
+  const code = crypto.randomUUID();
+  await createDb(env.DB).insert(inviteCode).values({ code });
+  return code;
 }
 
 /** An account, through the invite gate — the only route that creates one. */

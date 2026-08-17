@@ -1,79 +1,70 @@
 # AGENTS.md
 
-**inteligir** is an AI-native notes app — Obsidian with an agent. The product is
-a **Cloudflare Worker** (`apps/web`): the marketing site, Better Auth on D1, and
-`/app` — the workspace UI over a `UserHost` Durable Object per account that
-holds the vault, the knowledge index, the agent and the background work. An
-Electron shell and an Expo app wrap it. This is the tool-agnostic guide for
-coding agents — it's meant to be **run**, not just read. `CLAUDE.md` holds the
-architecture and the durable decisions; `CONTEXT.md` is the glossary, and the
-fastest way to stop guessing what a word means; `apps/web/README.md` the
-product's own protocol and dev recipe. All three point back here.
-
-**Every surface except mobile is headlessly agent-verifiable.** There is no
-excuse for leaving a UI change "unverified".
+**inteligir** is an AI-native notes app — Obsidian with an agent, local-first.
+`apps/app` is THE PRODUCT: one local Node process (TanStack Start SPA + typed
+/api/v1 + ws invalidation bus over SQLite) that owns a git-versioned markdown
+vault, indexes it, and drives Codex over it. `apps/cli` is how an agent drives
+that product from bash; `apps/launcher` publishes it as `npx inteligir` and
+`apps/desktop` wraps it in a window. `apps/web` is the one hosted piece — a
+Cloudflare Worker carrying the marketing site, Better Auth on D1, device
+pairing and cross-device thread sync. This is the tool-agnostic guide for
+coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
+GitHub issue #542 the decision record, `CONTEXT.md` the domain glossary,
+`apps/web/README.md` the Worker's own routes and deploy.
 
 ## Quickstart
 
 ```sh
 pnpm install
+pnpm dev             # → THE PRODUCT (apps/app); prints its own URL, e.g.
+                     #   inteligir 0.1.0 (dev) listening on http://127.0.0.1:26723
+```
+
+That's the whole product setup — no bootstrap script, no Docker, no cloud
+account, no login. The port and the data dir are derived per checkout (hash of
+the checkout path), so parallel worktrees never collide; `INTELIGIR_PORT` and
+`INTELIGIR_DATA_DIR` override. SQLite lives at `<data-dir>/inteligir.db`
+(dev default: `~/.inteligir-dev/<hash>/`).
+
+Requirements: **Node ≥ 24** and **pnpm 10** (`corepack enable`).
+(`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
+
+The agent provider is selected by `INTELIGIR_AGENT` (`auto` · `codex` ·
+`scripted` · `off`; default `auto` — codex when the binary is on PATH, else an
+unavailable driver whose reason `/api/v1/system/status` states under `agent`).
+**`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
+deterministic driver over the REAL ingest/timeline/vault/commit paths — send a
+thread message, watch the turn stream, find the note in the vault with an
+agent-attributed commit. `INTELIGIR_AGENT_MODEL` passes a model through.
+
+**The `inteligir` CLI drives a running instance from the shell** — often
+faster than the browser for vault/search/thread checks:
+
+```sh
+pnpm cli status            # discovers the per-checkout instance and probes it
+pnpm cli guide             # the agent manual the app serves (GET /api/v1/guide)
+```
+
+Every leaf takes `--json`. `INTELIGIR_SERVER_URL` pins the target explicitly
+(agent shells get it injected, plus `INTELIGIR_THREAD_ID` for their own
+thread).
+
+The marketing/auth Worker is separate:
+
+```sh
 cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET
-pnpm dev:web        # → the real Worker on miniflare, http://localhost:5174
+pnpm dev:site        # → the real Worker on miniflare, http://localhost:5174
 ```
 
-That's the whole setup. `pnpm dev:web` runs the product: the site, the auth API,
-the Durable Object, the vault, the index and the agent path — all in-process, no
-deploy, no cloud account. Two prerequisites it does not announce:
-
-- **`.dev.vars` must exist first.** `BETTER_AUTH_SECRET` is what makes
-  `/api/auth/*` answer at all, and `HOST_ALLOWED_ORIGINS=http://localhost:5174`
-  is what admits the dev origin to the ticket mint. The example file carries
-  both, plus `AGENT_RUNTIME=scripted`.
-- **A running Docker daemon.** `wrangler.jsonc` declares a `containers` block,
-  so the vite plugin builds the agent image before the server binds — before any
-  Worker code reads `AGENT_RUNTIME`. Without Docker the start exits with "The
-  Docker CLI is needed to build the configured image before running dev". The
-  test suites need none of it.
-
-(Driving it at runtime also wants the `agent-browser` binary — one `npm i -g`,
-see below.)
-
-The shell around it, when you're changing the shell:
-
-```sh
-INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop   # Electron, CDP :9222
-```
-
-The variable is load-bearing, not decoration: without it the window loads
-`https://inteligir.com` and a change gets "verified" against production.
-
-There is no backend-free UI harness. `packages/workspace/src/dev/fixture-bridge.ts`
-is an in-memory Bridge that the workspace's own tests drive; nothing serves it as
-an app. To see the UI, run the Worker.
-
-## Fresh clone / remote session
-
-`pnpm install` is the only provisioning step — there is no bootstrap script and
-nothing else to stand up. (`.codex/environments/environment.toml` runs `pnpm i`
-for cloud runners.) Requirements: **Node ≥ 24** and **pnpm 10**
-(`corepack enable`), plus **Docker** for `pnpm dev:web` only. Every test suite
-runs anywhere; only the Electron shell wants macOS to package.
-
-One footgun that bites fresh checkouts:
-
-```sh
-# `pnpm dev:desktop` dies with `Error: Electron uninstall` after a fresh
-# checkout — Electron is unpacked but not downloaded:
-node apps/desktop/node_modules/electron/install.js
-```
+`.dev.vars` must exist first: `BETTER_AUTH_SECRET` is what makes `/api/auth/*`
+answer at all. Any value works locally.
 
 ## There is no seeded login, and sign-up is invite-only
 
 This repo ships no seed script and no test account. To get one locally:
 
 ```sh
-cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET to anything
-pnpm dev:web                                       # vite dev on :5174
+pnpm dev:site                                       # vite dev on :5174
 
 # The local D1 file is materialized lazily, on the first request that touches
 # the binding — `dev` alone does not create it. So hit one, THEN push:
@@ -87,11 +78,9 @@ pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --local \
   --command "INSERT INTO invite_code (code) VALUES ('DEV-INVITE-001')"
 ```
 
-Then open `http://localhost:5174/app`, which redirects to sign-in; `/app/sign-up`
-takes the invite code. Signing up returns 200 with a `set-auth-token` header —
-that bearer is what a NON-browser client carries. A browser carries the session
-cookie instead, and the Bridge socket authenticates with neither: it spends a
-single-use ticket minted at `POST /v1/host/ticket`.
+Then `/app/sign-up` takes the invite code. Signing up returns 200 with a
+`set-auth-token` header — that bearer is what a NON-browser client carries; a
+browser carries the session cookie instead.
 
 Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken
@@ -102,7 +91,7 @@ the limiter.
 > the PRODUCTION D1 — `db:studio` is a read/write UI over that same database,
 > not a local inspector. The only local command is `db:push:local`.
 
-## Verify a change end-to-end
+## Verify a change
 
 Static gate — mirrors CI exactly (typecheck · lint · knip · format · test ·
 build):
@@ -111,105 +100,62 @@ build):
 pnpm format:fix && pnpm verify
 ```
 
-`format:fix` runs **FIRST and never after the gates**: a post-gate format run
-rewrites the byte-pinned round-trip fixtures after the tests that guard them
-have already passed, so the gate reads green and the commit ships red.
-`verify` is check-only for exactly that reason.
+`format:fix` runs **FIRST and never after the gates**; `verify` is check-only
+for exactly that reason.
 
-Runtime — type-checks passing is not feature-correct. Drive the running app
-with [agent-browser](https://github.com/vercel-labs/agent-browser):
+Runtime — drive the running site with
+[agent-browser](https://github.com/vercel-labs/agent-browser):
 
 ```sh
 npm i -g agent-browser && agent-browser install   # once, if missing
-pnpm dev:web
-agent-browser open http://localhost:5174/app
-agent-browser snapshot                      # accessibility tree with @eN refs
-agent-browser click @e1
-agent-browser get text                      # assert what changed
-agent-browser screenshot /tmp/after.png
+pnpm dev:site
+agent-browser open http://localhost:5174/
 ```
 
-For the shell, `INTELIGIR_APP_URL=http://localhost:5174 pnpm dev:desktop` then
-`agent-browser connect 9222` attaches to its window over CDP.
-
-Two things worth knowing before you reach for the UI:
-
-- **Drive the Bridge directly.** From `agent-browser eval` on a signed-in `/app`
-  page you can open a second host socket and call ANY Bridge method
-  (`readVaultFile`, `writeVaultFile`, `createDelegation`, …). The credential is a
-  ticket the page mints same-origin against its own session cookie — there is no
-  userId in the URL and no session token in the page. Exact snippet in
-  `docs/e2e-driving.md`.
-- **The agent runs headlessly.** `AGENT_RUNTIME=scripted` swaps the Cloudflare
-  Sandbox for an in-memory container while keeping the production runner, tool
-  executor, transcript, confirmation broker and vault write-back — which is how
-  the whole agent suite runs with no provider account and no image.
-
-## Platform matrix
-
-| Surface       | Dev command                            | Where     | Agent-verifiable at runtime?                                                    |
-| ------------- | -------------------------------------- | --------- | ------------------------------------------------------------------------------- |
-| Web (product) | `pnpm dev:web`                         | :5174     | **Yes** — `agent-browser open`; API by curl; `-F @repo/web test` runs miniflare |
-| Desktop shell | `INTELIGIR_APP_URL=… pnpm dev:desktop` | CDP :9222 | **Yes** — `agent-browser connect 9222`                                          |
-| Mobile (Expo) | `pnpm --filter @repo/mobile dev`       | simulator | **No** — verify with `typecheck` + `test`                                       |
-
 5174 is PINNED (`strictPort`), so a stale process holding it fails the start
-rather than moving the app somewhere the docs don't name. It matters more than
-the number: the ticket mint's Origin allowlist is exact, so a silent bump to
-5175 renders a workspace that cannot reach its own host.
+rather than moving the app somewhere the docs don't name.
 
 ## Rules that matter
 
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
-- **Never hand-edit or format `packages/editor/src/__tests__/fixtures/`** —
-  those bytes _are_ the test contract (trailing spaces, indentation, line
-  endings). Generate them through the `roundTrip` pipeline itself.
 - **No `any`, no non-null `!`, no `as` casts** (lint-enforced). Kebab-case
   filenames. Make illegal states unrepresentable.
-- **Nothing under `packages/` may import `node:*` or `electron`.** Every one of
-  them is bundled into a browser; `notes` and `bridge` also into workerd and
-  React Native. Lint enforces it for those two and `tools/repo-guards` enforces
-  it for the rest, over shipped source only — their tests walk the filesystem on
-  purpose.
-- **A capability this host does not have has no Bridge channel.** A handler that
-  answers only by refusing typechecks, satisfies the completeness guard AND
-  `no-dead-channels`, and fails at runtime. Adding a channel is the LAST step of
-  building a capability; retiring one deletes it.
-- **`pnpm knip` is a CI gate.** A new file must be reachable from a knip `entry`
-  glob in `knip.json` or it reads as unused and CI goes red. A tooling dep may
-  pass for a non-obvious reason — `@libsql/client` survives because it is an
-  optional peer of the used `drizzle-orm`, not because a config plugin found it
-  (knip's drizzle plugin only matches `drizzle.config.{ts,js,json}`, never
-  `drizzle.config.local.ts`, and resolves only the `schema` field).
-  `ignoreDependencies` is the escape hatch for the ones it genuinely can't see,
-  not a blanket rule. Run it rather than guess.
+- **`@repo/notes` is pure and platform-neutral** — no node/react/ui imports
+  (lint-enforced); callers inject platform capabilities (the SQL driver, the
+  clock).
+- **`pnpm knip` is a CI gate.** A new file must be reachable from a knip
+  `entry` glob in `knip.json` or it reads as unused and CI goes red.
+  `@libsql/client` survives because it is an optional peer of the used
+  `drizzle-orm`; `ignoreDependencies` is the escape hatch for what knip
+  genuinely can't see, not a blanket rule.
 - Plan files and ADR docs are deleted on purpose — `CLAUDE.md` § Decisions plus
   GitHub Issues are the record. Don't add `plans/` or `*_GAPS.md`.
 
 ## Map
 
 ```
-apps/web            THE PRODUCT — one CF Worker: marketing site,
-                    Better Auth (D1), and /app over a UserHost
-                    Durable Object per account                     @repo/web
-apps/web/container  The agent image: pi in a per-user Cloudflare
-                    Sandbox, driven by that UserHost     @repo/agent-container
-apps/desktop        Electron SHELL — a window on the hosted app    @repo/desktop
-apps/mobile         Expo — a signed-in shell                       @repo/mobile
-packages/notes      Pure domain — knowledge + markdown             @repo/notes
-packages/bridge     Iso wire contract — IPC registry, ws, grants   @repo/bridge
-packages/ui         Shared components                              @repo/ui
-packages/editor     The note editor — Plate kits, round-trip       @repo/editor
-packages/workspace  The product UI + the fixture Bridge            @repo/workspace
-tools/repo-guards   Derived fitness tests over the repo itself
+apps/app                 THE PRODUCT: local Node server — Start SPA +
+                         /api/v1 + /ws + SQLite                      @repo/app
+apps/cli                 The `inteligir` CLI over the typed client   @repo/cli
+apps/launcher            THE PUBLISHED ARTIFACT: `npx inteligir`,
+                         which boots the server in-process           inteligir
+apps/desktop             Electron shell: one window on the local
+                         server, supervising it as a child          @repo/desktop
+apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
+packages/typed-routes    Contract-first Hono route machinery (bb)    @repo/typed-routes
+packages/server-contract The wire contract: route table + ws proto   @repo/server-contract
+packages/db              drizzle + better-sqlite3, migrations,
+                         DbNotifier, ids                             @repo/db
+packages/agent-runtime   bb's provider runtime, codex slice:
+                         JSON-RPC/stdio + adapter (PROVENANCE.md)    @repo/agent-runtime
+packages/notes           Pure domain — knowledge + markdown          @repo/notes
+packages/ui              Shared components (vendored shadcn)         @repo/ui
+tools/repo-guards        Fitness tests over the repo: the dep DAG,
+                         ws change kinds, vendored provenance        @repo/repo-guards
 ```
 
-- `CLAUDE.md` — architecture, the dep DAG, and § Decisions.
-- `CONTEXT.md` — the glossary: what each domain word means, and the neighbour it
-  is confused with.
-- `apps/web/README.md` — the Worker's routes and protocol, the local loop, the
-  owner-only deploy.
-- `docs/development.md` — the run modes, per-package test commands, the change
-  checklists.
-- `docs/e2e-driving.md` — driving the Bridge and the agent headlessly.
-- `docs/privacy.md` — where notes actually live, and what `private: true` is not.
+- `CLAUDE.md` — architecture and § Decisions.
+- `CONTEXT.md` — the domain glossary.
+- `apps/web/README.md` — the Worker's routes, auth, dev loop, deploy.
+- `docs/development.md` — the dev loop in one page.
+- `docs/privacy.md` — placeholder until the v3 cloud rework (issue #554).

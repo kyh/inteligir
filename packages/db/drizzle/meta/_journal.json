@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1786863867225,
+      "tag": "0000_secret_polaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786869808165,
+      "tag": "0001_early_tana_nile",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786893371175,
+      "tag": "0002_shiny_morg",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786940194022,
+      "tag": "0003_secret_lila_cheney",
+      "breakpoints": true
+    }
+  ]
+}

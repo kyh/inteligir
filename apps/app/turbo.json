@@ -1,0 +1,35 @@
+{
+  "$schema": "https://turborepo.org/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "dist-node/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      // turbo runs in strict env mode and strips anything unnamed, so EVERY
+      // variable src/node/config.ts declares must be named here or it never
+      // reaches the dev process — silently, with no error to read. This list
+      // is `ENV_VAR_NAMES` and is held against it by
+      // tools/repo-guards/src/turbo-passthrough.test.ts.
+      "passThroughEnv": [
+        "INTELIGIR_AGENT",
+        "INTELIGIR_AGENT_MODEL",
+        "INTELIGIR_DATA_DIR",
+        "INTELIGIR_HMR_PORT",
+        "INTELIGIR_PORT",
+        "INTELIGIR_SYNC_INTERVAL_MS",
+        "INTELIGIR_VAULT_DIR",
+        "INTELIGIR_VAULT_REMOTE"
+      ]
+    },
+    // Two tsc programs (UI + node entry, see tsconfig.json), so two incremental
+    // files — the root task's single-file output would cache half the work.
+    "typecheck": {
+      "dependsOn": ["^topo"],
+      "outputs": [".cache/tsbuildinfo*.json"]
+    }
+  }
+}

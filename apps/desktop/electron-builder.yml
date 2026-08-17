@@ -1,69 +1,51 @@
-# NOTE: package only via `release`/`release:publish`. They run `electron-vite
-# build` under `pnpm with-env` (dotenv -e .env), which is what bakes
-# INTELIGIR_APP_URL into the shell — a build without it ships pointing at the
-# production default.
+# Packaging for the macOS arm64 build. UNSIGNED and un-notarized on purpose:
+# the signing identity is owner-gated, so this config produces a local artifact
+# and README.md documents the release path rather than running it.
 appId: com.inteligir.desktop
 productName: Inteligir
-# inteligir:// deep links (capture + nav verbs). CFBundleURLTypes on macOS —
-# required for cold-launch delivery; runtime registration in main/deep-link.ts
-# (packaged builds only) covers the rest.
-protocols:
-  - name: Inteligir
-    schemes:
-      - inteligir
 directories:
   buildResources: resources
   output: .output/bin
+# The server is a CHILD PROCESS, so its entry has to be a real file on disk —
+# an asar is not a filesystem a process can be spawned from. Everything under
+# node_modules is unpacked for that reason (src/main/server-paths.ts rewrites
+# the app.asar path to match), which also covers better-sqlite3's .node binary.
+asar: true
+asarUnpack:
+  - node_modules/**
 files:
-  - .output/app/**/*
+  - dist/**
+  - node_modules/**
   - package.json
   - resources/icon.png
-  # The main process bundles all its JS deps (tree-shaken), so node_modules is
-  # dead weight duplicated into the asar.
-  - "!node_modules/**"
+  - "!**/*.map"
+# NO native rebuild step, and that is a fact about the two modules rather than
+# an omission: better-sqlite3 13 and @parcel/watcher are both Node-API addons
+# that ship per-platform prebuilds inside the package, and Node-API is
+# ABI-stable across Node and Electron — so the binary npm installed is the one
+# the packaged app loads. npmRebuild stays OFF because it would rebuild in
+# place, and in a pnpm workspace that means clobbering the shared store's copy
+# every other package and the whole test suite depends on. Re-check this if
+# either module ever goes back to a gyp build.
+npmRebuild: false
 mac:
-  # electron-updater's MacUpdater can only install from a zip (Squirrel.Mac
-  # format) listed in latest-mac.yml — the dmg is first-install only. Dropping
-  # zip here strands every shipped install on its version.
   target:
-    - dmg
-    - zip
-  artifactName: Inteligir-${version}-${arch}-mac.${ext}
+    - target: dmg
+      arch:
+        - arm64
+  artifactName: Inteligir-${version}-${arch}.${ext}
   category: public.app-category.productivity
   icon: resources/icon.icns
-  entitlements: resources/entitlements.mac.plist
-  entitlementsInherit: resources/entitlements.mac.plist
-  hardenedRuntime: true
-  notarize: true
+  # No certificate here. hardenedRuntime without a signature produces an app
+  # Gatekeeper refuses on another machine, so the local artifact is plainly
+  # unsigned instead of pretending otherwise.
+  identity: null
+  notarize: false
+  hardenedRuntime: false
 dmg:
-  artifactName: Inteligir-${version}-${arch}.${ext}
-# Electron fuses — flipped in the binary pre-signing (app-builder-lib
-# platformPackager). Defence in depth on a notarized app: without these the
-# shipped binary will happily run arbitrary JS as node (ELECTRON_RUN_AS_NODE),
-# accept --inspect, and honour NODE_OPTIONS. Safe to disable for this app:
-# nothing in first-party source reads ELECTRON_RUN_AS_NODE or NODE_OPTIONS, and
-# there is no process.fork/utilityProcess.
-#
-# The window loads an https origin, so `grantFileProtocolExtraPrivileges` no
-# longer has anything to grant and is revoked.
-#
-# MUST be validated with a real packaged build before shipping — hardened
-# runtime is not applied by `pnpm dev:desktop`, so this cannot be exercised in
-# dev. enableEmbeddedAsarIntegrityValidation + onlyLoadAppFromAsar are the two
-# that fail CLOSED (the app will not launch) on an asar hash mismatch.
-electronFuses:
-  runAsNode: false
-  enableNodeOptionsEnvironmentVariable: false
-  enableNodeCliInspectArguments: false
-  enableCookieEncryption: true
-  enableEmbeddedAsarIntegrityValidation: true
-  onlyLoadAppFromAsar: true
-  grantFileProtocolExtraPrivileges: false
-npmRebuild: false
-publish:
-  provider: github
-  owner: kyh
-  repo: inteligir
-  # Publish straight to a live release instead of electron-builder's default
-  # draft, so `release:publish` doesn't require a manual un-draft step.
-  releaseType: release
+  sign: false
+# There is NO update feed. The old one was yanked, and a shell that checks an
+# empty channel is worse than one that does not check: it reports failures the
+# user cannot act on. Wiring electron-updater is a follow-up that starts with
+# choosing the channel.
+publish: null

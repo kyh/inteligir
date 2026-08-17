@@ -2,6 +2,7 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "ignorePatterns": [
     "dist",
+    "dist-node",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
@@ -10,11 +11,7 @@
     "out",
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
-    "packages/editor/src/__tests__/fixtures",
-    "apps/desktop/resources/html-app-runtime/tailwind.global.js",
-    "apps/desktop/resources/html-app-runtime/alpine.min.js",
-    ".expo",
-    "expo-env.d.ts",
-    "nativewind-env.d.ts"
+    "packages/editor/src/vendor",
+    "packages/agent-runtime/src/codex/generated"
   ]
 }

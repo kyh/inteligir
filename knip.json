@@ -1,33 +1,59 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": [".design-sync/**"],
-  // `includeEntryExports: true` on every `packages/*` workspace, and it is
-  // load-bearing rather than a preference. These packages publish each source
-  // file as its own subpath export (some through a `./*` wildcard), so knip
-  // reads EVERY file as an entry — and knip's default is to trust an entry's
-  // exports as the public API. The combination turned unused-export reporting
-  // off across the whole of `packages/`, which is how a module can keep a dead
-  // half for months with a green gate. A workspace package's consumers are all
-  // in this repo, so "no importer" is a fact knip can prove; nothing needs to
-  // be taken on trust.
+  // The `packages/*` workspaces publish each source file as its own subpath
+  // export (some through a `./*` wildcard), so knip reads EVERY file as an
+  // entry — and knip's default is to trust an entry's exports as the public
+  // API, which turns unused-export reporting off for the whole package. Each
+  // workspace below states which side of that trade it is on, and why.
   "workspaces": {
     ".": {},
-    "apps/desktop": {
-      "entry": ["src/__tests__/**/*.test.ts"],
+    // The e2e runner (src/run.ts) is already an entry via the package's own
+    // `e2e` script; scenarios are reachable from it through static imports.
+    "e2e": {
       "project": ["src/**/*.ts"]
     },
-    "apps/mobile": {
-      "entry": ["src/app/**/*.tsx", "src/lib/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"]
-      // No `ignoreDependencies` here on purpose. knip's Expo plugin SYNTHESIZES
-      // an `expo-updates` dependency for any app config that doesn't say
-      // `updates: { enabled: false }` (knip/dist/plugins/expo/helpers.js), and
-      // apps/mobile neither declares nor references that package — without the
-      // opt-out, knip demands an ignore for a package nothing installs.
-      // app.config.js declares that opt-out, which is true (no OTA updates, not
-      // registered with EAS) and makes the suppression unnecessary. If knip
-      // reports expo-updates, the opt-out is missing from app.config.js — put
-      // it back there rather than adding an ignore here.
+    "apps/app": {
+      // The Start file routes are the UI roots; the router and the Node entry
+      // are already known to knip (the vite plugin and the dev script). The
+      // watcher child entry is forked, never imported, so knip cannot see its
+      // caller.
+      "entry": [
+        "src/routes/**/*.tsx",
+        "src/node/**/__tests__/**/*.test.ts",
+        "src/app/**/__tests__/**/*.test.{ts,tsx}",
+        "src/node/vault/watcher/parcel-child-entry.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx,css}"],
+      "ignoreDependencies": ["tailwindcss"]
+    },
+    "apps/cli": {
+      // The bin (bin/inteligir, a sh launcher knip cannot read) runs tsx over
+      // src/index.ts in a checkout and the esbuild bundle when packaged —
+      // hence the ignored tsx.
+      "entry": ["src/index.ts", "src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.mjs"],
+      "ignoreDependencies": ["tsx"]
+    },
+    // The Electron shell. `main` points at a build output, so the entries are
+    // named here; `inteligir` is a dependency it never imports — the shell
+    // reaches the packaged app as a DIRECTORY (src/main/server-paths.ts) and
+    // electron-builder packs it from node_modules.
+    "apps/desktop": {
+      "entry": ["scripts/*.{mjs,cjs}", "src/main/index.ts", "src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/*.{mjs,cjs}"],
+      "ignoreDependencies": ["inteligir"]
+    },
+    // The published artifact. Its `bin` points at a build output, so the real
+    // entries are named here. The two native modules are runtime deps of the
+    // app bundle this package STAGES rather than imports — nothing under src/
+    // may import either, so knip cannot see them. (@repo/app and @repo/cli are
+    // deliberately not manifest dependencies at all: the relationship is a
+    // build ORDER, declared in turbo.json.)
+    "apps/launcher": {
+      "entry": ["scripts/*.mjs", "src/main.ts", "src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/*.mjs"],
+      "ignoreDependencies": ["@parcel/watcher", "better-sqlite3"]
     },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it
@@ -43,27 +69,73 @@
       // `cloudflare` package would be worse.
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },
-    // The agent container image is its own npm project, built from this repo by
-    // the Dockerfile. The daemon entry is resolved from the package's `bin`
-    // field; `src/protocol.ts` is the pure wire contract @repo/web imports.
-    "apps/web/container": {
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": true
-    },
-    "packages/bridge": {
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": true
-    },
-    "packages/editor": {
-      "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
-      "project": ["src/**/*.{ts,tsx}"],
-      "includeEntryExports": true
-    },
+    // Carried ahead of its v3 consumers (issue #542): the package's public
+    // surface is deliberately wider than today's importers, so its entry
+    // exports are trusted as API rather than reported. Flip this back to
+    // `includeEntryExports: true` once the v3 features consume it in-repo.
     "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": true
+      "project": ["src/**/*.ts"]
+    },
+    // Same trade as packages/notes: built ahead of its v3 consumers (issue
+    // #550), so entry exports are trusted as API. Every vendored ProseMark
+    // module is an entry for the same reason packages/ui trusts its vendored
+    // components: those exports are the UPSTREAM surface, and trimming them
+    // makes the next re-vendor a conflict. dev/ is the human-eyes vite demo.
+    "packages/editor": {
+      "entry": [
+        "src/**/__tests__/**/*.test.ts",
+        "src/vendor/prosemark/lib/**/*.ts",
+        "src/vendor/prosemark/tests/*.test.ts",
+        "dev/main.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "dev/**/*.ts"]
+    },
+    "packages/typed-routes": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    // Vendored-from-bb thread domain + projection (issue #548): the public
+    // surface is the vendored bb API, wider than today's importers on
+    // purpose — trimming it makes the next re-vendor a conflict.
+    "packages/domain": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    // Vendored-from-bb runtime + codex adapter (issue #549). Entries are the
+    // package exports (knip reads them itself), the tests, and the fake
+    // app-server script (spawned, never imported — knip cannot see its
+    // caller). Unused-export reporting stays ON so trim residue surfaces;
+    // what a re-vendor needs back comes back with the re-vendor. The
+    // generated codex schema keeps upstream's PascalCase file names.
+    "packages/agent-runtime": {
+      "entry": ["src/**/__tests__/**/*.test.ts", "src/test-support/fake-codex-app-server.mjs"],
+      "project": ["src/**/*.{ts,mjs}"]
+    },
+    "packages/thread-view": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/server-contract": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    // Same trade as packages/domain: the cloud contract is built ahead of its
+    // app-side consumer (issue #554's follow-up sync client), so its entry
+    // exports are trusted as API rather than reported.
+    "packages/cloud-contract": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/db": {
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    // Derived fitness tests over the repo itself. Every file is a suite or the
+    // tree walk they share, so the suites ARE the entries.
+    "tools/repo-guards": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
     },
     // The ONE package that keeps knip's default `includeEntryExports: false`,
     // and the reason is the package rather than the findings. `src/components`
@@ -83,15 +155,6 @@
       "entry": [],
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": false
-    },
-    "packages/workspace": {
-      "entry": ["src/__tests__/**/*.test.ts", "src/**/*.test.tsx"],
-      "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
-      "includeEntryExports": true
-    },
-    "tools/repo-guards": {
-      "entry": ["src/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
     }
   }
 }

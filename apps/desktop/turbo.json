@@ -1,20 +1,21 @@
 {
-  "$schema": "https://turbo.build/schema.v2.json",
+  "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
+    // `inteligir` is packed into the app from node_modules and spawned as a
+    // child, never imported, so the ordering is named rather than inherited
+    // through `^build`.
     "build": {
-      "outputs": [".output/**"]
+      "dependsOn": ["inteligir#build"],
+      "outputs": ["dist/**"]
     },
-    // `INTELIGIR_APP_URL` is how a local shell is pointed at `pnpm dev:web`, and
-    // turbo runs in strict env mode — a variable named nowhere is stripped
-    // before the task sees it, so the shell would silently load production.
-    // passThroughEnv rather than env: `dev` is uncached, so this is a
-    // pass-through rather than a hash input (`#build` declares it as an input,
-    // where it is baked into the bundle).
     "dev": {
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["INTELIGIR_APP_URL"]
+      // turbo runs in strict env mode and strips anything unnamed, so the port
+      // override — which decides the origin the window is PINNED to — must be
+      // declared or the shell silently uses the default.
+      "passThroughEnv": ["INTELIGIR_PORT"]
     }
   }
 }

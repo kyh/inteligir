@@ -1,31 +1,34 @@
-import { routeAgentReport, routeOAuthCallback } from "./agent/agent-route";
-import { AgentSandbox } from "./agent/sandbox-class";
+import { handleArtifactsMint } from "./artifacts";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
-import { routeHost } from "./host/host-route";
-import { UserHost } from "./host/user-host";
+import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
+import { handleSyncRoutes } from "./sync/routes";
+
+// The Durable Object class must be exported from the entry the runtime loads:
+// this file for the test suite (vitest.config `main`), ./server.ts for deploy.
+export { ThreadSyncDO } from "./sync/thread-sync-do";
 
 // ---------------------------------------------------------------------------
 // The API half of the one Worker this app deploys (./server.ts routes
 // `OWNED_PREFIXES` here and everything else to the marketing site's SSR
 // handler).
 //
-// Two surfaces:
-//   • /api/auth/*  — Better Auth (email+password, bearer), running in-process
-//     over Drizzle + D1 (`createAuth(env).handler`).
-//   • the workspace host — one `UserHost` Durable Object per user, behind the
-//     one `/v1/host/*` leg (host/host-route.ts). The user's vault lives inside
-//     that object: its manifest in the DO's SQLite, its bytes in R2.
+// Two surfaces, split by CREDENTIAL:
 //
-// AUTH is a Better Auth SESSION throughout, in one of two shapes: the session
-// COOKIE a browser on this origin carries, or `Authorization: Bearer
-// <session-token>` for a native client (the token comes back in the
-// `set-auth-token` header on sign-in/up, and the bearer plugin lets
-// `auth.api.getSession({ headers })` validate it in-process). A user reaches
-// exactly one host object, named after their user id, so there is no ownership
-// table to consult.
+//   • The account surface — /api/auth/* (Better Auth), the invite gate, the
+//     capability probe, the reset page, and /v1/device/* (pairing mint, the
+//     dashboard's device table). AUTH is a Better Auth SESSION: the cookie a
+//     browser on this origin carries, or `Authorization: Bearer
+//     <session-token>` for a native client.
+//   • The device surface — /v1/sync/*, /v1/capture, /v1/artifacts/mint. AUTH
+//     is the durable DEVICE CREDENTIAL pairing minted (`igd_…` bearer, hash
+//     compare per request, never cached), and every one of these is served by
+//     the caller's own ThreadSyncDO (src/worker/sync/).
+//
+// `POST /v1/device/redeem` is the bridge between the two: the one-time code a
+// session minted is its whole authorization.
 //
 // NO CORS. Every browser client is served by this same Worker from this same
 // origin, and the one cross-origin caller left — a native app — is not a
@@ -39,17 +42,6 @@ import { logUnhandled } from "./log";
 // unhandled-exception 500 is unlogged, so the client sees an unexplained
 // network failure and `wrangler tail` shows nothing.
 // ---------------------------------------------------------------------------
-
-// This module is also the test suite's Worker entry (vitest.config.ts `main`),
-// and a Durable Object binding resolves its class against the entry's exports —
-// so dropping this re-export 500s every DO-backed test.
-export { UserHost };
-// The Sandbox subclass and the SDK's ContainerProxy BOTH have to be exported
-// from the Worker entry or the container never deploys and outbound
-// interception never installs — the second failure is silent, which is what
-// makes it worth naming here (see ./agent/sandbox-class).
-export { AgentSandbox };
-export { ContainerProxy } from "@cloudflare/sandbox";
 
 /**
  * The path prefixes this surface owns. `./server.ts` splits on them, so a route
@@ -106,19 +98,22 @@ async function route(request: Request, env: Env): Promise<Response> {
     return await handleInviteSignUp(request, env);
   }
 
-  // The container's report — everything an agent turn produces, arriving as
-  // short authenticated requests so no Durable Object ever awaits a turn.
-  const report = await routeAgentReport(request, env, url.pathname);
-  if (report !== null) return report;
+  // Device pairing (session-authed except redeem, where the code is the
+  // credential) — src/worker/device/routes.ts.
+  if (url.pathname.startsWith("/v1/device/")) {
+    return await handleDeviceRoutes(request, env, url);
+  }
 
-  // The provider OAuth redirect — a browser navigation the provider issues.
-  const oauth = await routeOAuthCallback(request, env, url.pathname);
-  if (oauth !== null) return oauth;
+  // The device-authed sync surface, served by the caller's own ThreadSyncDO —
+  // src/worker/sync/routes.ts.
+  if (url.pathname === "/v1/capture" || url.pathname.startsWith("/v1/sync/")) {
+    return await handleSyncRoutes(request, env, url);
+  }
 
-  // Everything the workspace host serves: the ticket mint, the Bridge socket,
-  // the streamed attachment upload and the deep link (see host/host-route.ts).
-  const host = await routeHost(request, env, url.pathname);
-  if (host !== null) return host;
+  // The Artifacts repo + token mint, feature-flagged — src/worker/artifacts.ts.
+  if (request.method === "POST" && url.pathname === "/v1/artifacts/mint") {
+    return await handleArtifactsMint(request, env);
+  }
 
   return new Response("not found", { status: 404 });
 }

@@ -2,9 +2,8 @@
 // The Worker's one logging helper.
 //
 // Every EXPECTED failure in this Worker is already a value — a 401/403/404
-// response, or an `{ok:false}` body at HTTP 200 (the version-conflict / bad-code
-// convention). So an actual THROW is always a bug or an outage, and both fetch
-// entry points (the Worker and the Durable Object) funnel one into this single
+// response, or a refusal body at HTTP 200. So an actual THROW is always a bug
+// or an outage, and the fetch entry point funnels one into this single
 // structured line. Without it workerd's own unhandled-exception 500 carries no
 // log line at all, and a `wrangler tail` shows nothing to correlate.
 // ---------------------------------------------------------------------------
@@ -24,14 +23,6 @@ export function logUnhandled(surface: string, request: Request, error: unknown):
     path: new URL(request.url).pathname,
     ...errorFields(error),
   });
-}
-
-/**
- * The same line for a throw with no request behind it — a WebSocket callback,
- * an alarm. `callback` takes `method`/`path`'s place as the queryable "where".
- */
-export function logUnhandledCallback(surface: string, callback: string, error: unknown): void {
-  console.error({ event: "unhandled-error", surface, callback, ...errorFields(error) });
 }
 
 function errorFields(error: unknown): { message: string; stack: string | undefined } {

@@ -2,9 +2,12 @@ import { and, eq, isNull } from "drizzle-orm";
 import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
-import { isRecord } from "@repo/bridge/wire-helpers";
 
 import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 // ---------------------------------------------------------------------------
 // `POST /v1/auth/sign-up` — the only way an account is created on this

@@ -1,15 +1,13 @@
-import { resolve } from "node:path";
 import { defineConfig } from "vitest/config";
 
-// The shell is main-process only: pure policy modules (the navigation guard,
-// the deep-link translation, the app origin) driven without an Electron env.
+// The shell is main-process only: the pure policy modules (the origin pin, the
+// server target, the path layouts) and the supervisor over a fake child, all
+// driven with no Electron environment at all.
 export default defineConfig({
-  resolve: { alias: { "@": resolve(import.meta.dirname, "src") } },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
-    // Monorepo worker budget: turbo runs the package suites in parallel and
-    // uncapped pools exhaust the box.
+    // Monorepo worker budget (see packages/notes/vitest.config.ts).
     maxWorkers: 2,
   },
 });

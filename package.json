@@ -5,15 +5,20 @@
     "build": "turbo run build",
     "clean": "git clean -xdf node_modules",
     "clean:workspaces": "turbo run clean",
-    "dev": "turbo watch dev --continue",
-    "dev:desktop": "turbo watch dev -F @repo/desktop...",
-    "dev:web": "turbo watch dev -F @repo/web...",
+    "cli": "apps/cli/bin/inteligir",
+    "dev": "turbo watch dev -F @repo/app...",
+    "dev:desktop": "turbo run build --filter=@repo/desktop && pnpm --filter @repo/desktop dev",
+    "dev:site": "turbo watch dev -F @repo/web...",
+    "e2e": "pnpm --filter @repo/e2e e2e",
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
     "knip": "knip",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
+    "package:app": "turbo run build --filter=inteligir",
+    "package:desktop": "turbo run build --filter=@repo/desktop && pnpm --filter @repo/desktop package",
     "prepare": "git config core.hooksPath .githooks || true",
+    "smoke:package": "turbo run build --filter=inteligir && pnpm --filter inteligir smoke",
     "test": "turbo run test --concurrency=4",
     "typecheck": "turbo run typecheck",
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
@@ -33,8 +38,7 @@
   "packageManager": "pnpm@10.33.2",
   "pnpm": {
     "overrides": {
-      "@types/react": "catalog:",
-      "@expo/metro-config>lightningcss": "1.30.1"
+      "@types/react": "catalog:"
     }
   }
 }

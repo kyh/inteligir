@@ -108,6 +108,15 @@ describe("the count", () => {
     const crlf = "- [ ]   spaced  out  \r\n";
     expect(taskAtOrdinal(crlf, 0)?.raw).toBe("- [ ]   spaced  out  ");
   });
+
+  it("counts ordered and blockquoted items with the marker stripped from `text`", () => {
+    const md = ["1. [ ] numbered", "2) [x] parenthesized", "", "> - [ ] quoted"].join("\n");
+    expect(scanTaskItems(md).map((task) => ({ text: task.text, checked: task.checked }))).toEqual([
+      { text: "numbered", checked: false },
+      { text: "parenthesized", checked: true },
+      { text: "quoted", checked: false },
+    ]);
+  });
 });
 
 // The two state rules, side by side. Same ordinal, same item, different verdict
@@ -243,6 +252,20 @@ describe("toggleTaskAtOrdinal", () => {
       ok: true,
       checked: true,
       content: "# H\r\n\r\n- [ ] first\r\n- [x] second\r\n",
+    });
+  });
+
+  it("accepts the ordered and blockquoted items the editor toggles", () => {
+    const md = ["1. [ ] numbered", "", "> - [ ] quoted"].join("\n");
+    expect(toggleTaskAtOrdinal(md, 0, "1. [ ] numbered")).toEqual({
+      ok: true,
+      checked: true,
+      content: ["1. [x] numbered", "", "> - [ ] quoted"].join("\n"),
+    });
+    expect(toggleTaskAtOrdinal(md, 1, "> - [ ] quoted")).toEqual({
+      ok: true,
+      checked: true,
+      content: ["1. [ ] numbered", "", "> - [x] quoted"].join("\n"),
     });
   });
 });

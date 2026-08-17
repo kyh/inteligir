@@ -14,15 +14,8 @@ interface Env {
   /** Better Auth's signing key. The one REQUIRED secret: without it every
    * /api/auth/* request fails. */
   readonly BETTER_AUTH_SECRET: string;
-  /** Optional extra trusted origins, comma-separated (e.g. a custom scheme). */
+  /** Optional extra trusted origins, comma-separated. */
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string;
-  /**
-   * Optional extra origins allowed to open a host WebSocket, comma-separated
-   * and EXACT (scheme + host + port). The deployed origins are built in; this
-   * is how a dev server gets admitted, from `.dev.vars` rather than a commit —
-   * so a deployment nobody configured admits nothing extra.
-   */
-  readonly HOST_ALLOWED_ORIGINS?: string;
   /** Optional GitHub OAuth credentials — the provider is enabled only when both exist. */
   readonly GITHUB_CLIENT_ID?: string;
   readonly GITHUB_CLIENT_SECRET?: string;
@@ -41,88 +34,16 @@ interface Env {
    * several users would otherwise trip the limiter. Unset in dev/prod → enabled.
    */
   readonly RATE_LIMIT_DISABLED?: string;
-
   /**
-   * Which agent runtime this deployment runs. "scripted" replaces the
-   * Cloudflare Sandbox with the in-memory container (agent/fake-sandbox), which
-   * is what the test suite and any deployment without the Workers Paid plan
-   * use; anything else (including unset) runs the real one.
+   * "true" switches `/v1/artifacts/mint` from the typed `artifacts-not-enabled`
+   * refusal to the real Cloudflare Artifacts calls. Leave unset until the
+   * account's beta access lands (the API answers 10004 before then).
    */
-  readonly AGENT_RUNTIME?: string;
-  /**
-   * The public host this Worker is reached on — the container's report URL and
-   * the provider OAuth redirect URI are both built from it, and the redirect
-   * URI has to match what was registered with the provider byte for byte, so
-   * it cannot be derived per-request the way the Better Auth baseURL is.
-   */
-  readonly PUBLIC_HOST?: string;
-  /**
-   * Extra hostnames the agent container may reach, comma-separated. The
-   * container runs with `enableInternet = false`; the provider APIs and
-   * PUBLIC_HOST are allowed by construction, and everything else — a package
-   * registry, Cloudflare Browser Run — is a deliberate addition here.
-   */
-  readonly AGENT_EXTRA_ALLOWED_HOSTS?: string;
-
-  /**
-   * Cloudflare Browser Run, for the agent's `browser` tool. Both or neither:
-   * the tool is not registered at all without them, because a tool that always
-   * fails is worse in a model's menu than a tool that is not there.
-   *
-   * `AGENT_EXTRA_ALLOWED_HOSTS` must also name `api.cloudflare.com`, and
-   * whether the CDP `wss://` upgrade escapes a Sandbox's egress at all is
-   * UNVERIFIED — the outbound documentation never names WebSocket upgrade.
-   */
-  readonly BROWSER_RUN_API_TOKEN?: string;
-
-  /**
-   * The provider OAuth apps, per provider. All three of a provider's values
-   * must be set for it to be offered at all — the same both-or-nothing gate the
-   * social sign-in providers use, and for the same reason: an OAuth client
-   * belongs to whoever registered it, so a deployment nobody configured must
-   * offer nothing rather than a button that dead-ends.
-   */
-  readonly ANTHROPIC_OAUTH_AUTHORIZE_URL?: string;
-  readonly ANTHROPIC_OAUTH_TOKEN_URL?: string;
-  readonly ANTHROPIC_OAUTH_CLIENT_ID?: string;
-  /** Absent is normal — a public client uses PKCE alone. */
-  readonly ANTHROPIC_OAUTH_CLIENT_SECRET?: string;
-  readonly OPENAI_OAUTH_AUTHORIZE_URL?: string;
-  readonly OPENAI_OAUTH_TOKEN_URL?: string;
-  readonly OPENAI_OAUTH_CLIENT_ID?: string;
-  readonly OPENAI_OAUTH_CLIENT_SECRET?: string;
-
-  /**
-   * The ElevenLabs voice text-to-speech speaks with. Optional: unset falls back
-   * to the product's default voice, so every account sounds the same without
-   * configuration. The API KEY is not here — it is per USER (Settings → Voice),
-   * sealed in their own Durable Object, never a deployment secret.
-   */
-  readonly ELEVENLABS_VOICE_ID?: string;
-
-  /**
-   * Workers AI, for speech-to-text. Both or neither: dictation is refused with
-   * a sentence rather than half-configured, the same both-or-nothing gate
-   * Browser Run and the provider OAuth apps use.
-   *
-   * Reached over the REST API rather than an `ai` binding ON PURPOSE — a
-   * declared binding has no local implementation, so the test pool opens a
-   * remote connection at startup and every test in this package would need a
-   * Cloudflare credential (see voice/voice-upstreams.ts).
-   */
-  readonly WORKERS_AI_API_TOKEN?: string;
-
-  /**
-   * The Cloudflare account every REST-reached Cloudflare service on this
-   * deployment belongs to.
-   *
-   * ONE id, many tokens. Both services below (Browser Run, Workers AI) are
-   * reached over `api.cloudflare.com/client/v4/accounts/<id>/…`, and both are
-   * this deployment's own account by construction — a per-service id could only
-   * ever hold the same value or a wrong one. The API TOKENS stay per service,
-   * because that is the axis where they genuinely differ: a token is scoped to
-   * the one product it may reach, so a leaked Workers AI token cannot drive a
-   * browser. A third Cloudflare service adds a token here, never a second id.
-   */
+  readonly ARTIFACTS_ENABLED?: string;
+  /** Required only when ARTIFACTS_ENABLED — the account that owns the repos. */
   readonly CLOUDFLARE_ACCOUNT_ID?: string;
+  /** Required only when ARTIFACTS_ENABLED — an API token scoped to Artifacts. */
+  readonly CLOUDFLARE_API_TOKEN?: string;
+  /** Optional Artifacts namespace; defaults to "default". */
+  readonly ARTIFACTS_NAMESPACE?: string;
 }

@@ -6,11 +6,14 @@
   "type": "module",
   "exports": {
     "./daily-path": "./src/daily-path.ts",
+    "./text/line-diff": "./src/text/line-diff.ts",
+    "./text/diff3": "./src/text/diff3.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
     "./knowledge/link-extract": "./src/knowledge/link-extract.ts",
     "./knowledge/link-resolve": "./src/knowledge/link-resolve.ts",
     "./knowledge/note-name": "./src/knowledge/note-name.ts",
+    "./knowledge/rename-candidates": "./src/knowledge/rename-candidates.ts",
     "./knowledge/rename-links": "./src/knowledge/rename-links.ts",
     "./knowledge/projection": "./src/knowledge/projection.ts",
     "./knowledge/task-ordinal": "./src/knowledge/task-ordinal.ts",
@@ -27,7 +30,9 @@
     "./markdown/parse": "./src/markdown/parse.ts",
     "./markdown/remark-opaque": "./src/markdown/remark-opaque.ts",
     "./markdown/md-plugins": "./src/markdown/md-plugins.ts",
-    "./markdown/frontmatter": "./src/markdown/frontmatter.ts"
+    "./markdown/frontmatter": "./src/markdown/frontmatter.ts",
+    "./markdown/thread-marker": "./src/markdown/thread-marker.ts",
+    "./markdown/thread-anchor": "./src/markdown/thread-anchor.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

@@ -17,13 +17,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
-    "@cloudflare/sandbox": "0.12.4",
-    "@repo/agent-container": "workspace:*",
-    "@repo/bridge": "workspace:*",
-    "@repo/notes": "workspace:*",
+    "@repo/cloud-contract": "workspace:*",
     "@repo/ui": "workspace:*",
-    "@repo/workspace": "workspace:*",
-    "@sinclair/typebox": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "better-auth": "catalog:",

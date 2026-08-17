@@ -4,24 +4,6 @@
 // vitest.config.ts injects (the D1 schema DDL exported from src/worker/db/schema.ts). No
 // top-level import keeps this an ambient script so the `Cloudflare` namespace
 // merges globally.
-// Vite's `?raw` suffix, hand-declared rather than pulled in with `vite/client`:
-// that package's ambient types assume a DOM the Worker program deliberately
-// does not have. A structural test reads its subject's own source this way —
-// workerd has no filesystem, so the text has to arrive as a module.
-declare module "*?raw" {
-  const source: string;
-  export default source;
-}
-
-// Vite's eager raw glob, hand-declared for the same reason as `*?raw` and
-// narrowed to the one call shape a structural test needs: a set of module
-// patterns in, their source text out.
-interface ImportMeta {
-  glob(
-    patterns: readonly string[],
-    options: { readonly query: "?raw"; readonly import: "default"; readonly eager: true },
-  ): Record<string, string>;
-}
 
 declare namespace Cloudflare {
   interface Env {

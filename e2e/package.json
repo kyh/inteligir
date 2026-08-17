@@ -1,0 +1,22 @@
+{
+  "name": "@repo/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end scenario harness: boots real app instances on scratch data dirs and fixture vaults, drives them over the typed API client and agent-browser, and asserts on the wire and on disk. Deliberately outside `pnpm verify`'s test task — run with `pnpm e2e`.",
+  "type": "module",
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo node_modules",
+    "e2e": "tsx src/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/app": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "@repo/server-contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

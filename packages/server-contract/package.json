@@ -1,0 +1,32 @@
+{
+  "name": "@repo/server-contract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The wire contract between the local server and its clients. `routes` is THE route table (one defineRoute row per endpoint, payload schemas beside it), `client` derives the typed hc client from it, and `notifications` is the ws invalidation protocol — subscription targets, per-entity change kinds, strict outbound / lenient inbound message pairs.",
+  "type": "module",
+  "exports": {
+    "./client": "./src/client.ts",
+    "./knowledge": "./src/knowledge.ts",
+    "./notifications": "./src/notifications.ts",
+    "./routes": "./src/routes.ts",
+    "./thread-timeline": "./src/thread-timeline.ts",
+    "./threads": "./src/threads.ts",
+    "./vault": "./src/vault.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "@repo/typed-routes": "workspace:*",
+    "hono": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

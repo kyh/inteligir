@@ -23,19 +23,16 @@
   },
   "ignorePatterns": [
     "dist",
+    "dist-node",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
-    ".output",
     ".tanstack",
-    "out",
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
     ".design-sync",
     ".ds-sync",
-    ".expo",
-    "expo-env.d.ts",
-    "nativewind-env.d.ts"
+    "packages/agent-runtime/src/codex/generated"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "categories": {
@@ -144,25 +141,8 @@
           {
             "patterns": [
               {
-                "group": [
-                  "node:*",
-                  "electron",
-                  "electron/*",
-                  "react",
-                  "react-dom",
-                  "react/*",
-                  "@repo/bridge",
-                  "@repo/bridge/*",
-                  "@repo/editor",
-                  "@repo/editor/*",
-                  "@repo/ui",
-                  "@repo/ui/*",
-                  "@repo/workspace",
-                  "@repo/workspace/*",
-                  "@repo/desktop",
-                  "@repo/desktop/*"
-                ],
-                "message": "@repo/notes is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities"
+                "group": ["node:*", "react", "react-dom", "react/*", "@repo/ui", "@repo/ui/*"],
+                "message": "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities"
               }
             ]
           }
@@ -170,19 +150,22 @@
       }
     },
     {
-      "files": ["packages/bridge/src/**"],
+      // VENDORED code (ProseMark core, MIT — see the dir's PROVENANCE.md):
+      // upstream's style trips assertion and unicorn rules this repo enforces
+      // on house code. Everything under this glob is upstream-authored files
+      // (house-authored seams live OUTSIDE src/vendor, under full house
+      // rules; the in-file patches are minimal edits, each recorded in
+      // PROVENANCE.md). Kept byte-close for re-vendor diffability; only these
+      // rules relax, and only here. oxfmt ignores the same directory for the
+      // same reason.
+      "files": ["packages/editor/src/vendor/**"],
       "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "@repo/bridge is the isomorphic wire contract — it loads in a browser, in React Native and on workerd alike, so no node/electron imports"
-              }
-            ]
-          }
-        ]
+        "typescript/consistent-type-assertions": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "eslint/no-underscore-dangle": "off",
+        "unicorn/no-array-reverse": "off",
+        "unicorn/no-instanceof-builtins": "off",
+        "unicorn/prefer-add-event-listener": "off"
       }
     }
   ]

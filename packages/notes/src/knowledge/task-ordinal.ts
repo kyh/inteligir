@@ -12,13 +12,6 @@
 // item an ordinal names, whether the caller may have that item, and how it is
 // written back. One counter, and no surface may bring its own.
 //
-// The single exception is the editor's `todoIndex` (@repo/editor/todo-item),
-// which counts the same items over the live Plate tree because a click knows a
-// node and not a byte offset. It cannot come through here — this package never
-// sees a Plate tree — so it is pinned against this count instead, by
-// todo-ordinal-lockstep.test.ts. That test is the whole reason the grammar in
-// scan-parse is the editor's and not CommonMark's.
-//
 // TWO CALLERS, TWO STATE RULES, ONE COUNT. `openTaskAtOrdinal` refuses an item
 // that is already checked, because handing a finished task to a background agent
 // is work nobody asked for and the agent's first act would be to tick a box that
@@ -32,7 +25,12 @@ import type { Heading, ListItem, Nodes } from "mdast";
 
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
-import { splitLines, toggleCheckboxLine, type CheckboxToggleResult } from "./source-lines";
+import {
+  checkboxMarkerAt,
+  splitLines,
+  toggleCheckboxLine,
+  type CheckboxToggleResult,
+} from "./source-lines";
 
 /** One GFM task item (`- [ ]` checkbox), as the projection records it. `raw` is
  * the exact untrimmed source line EXCLUDING its terminator (./source-lines'
@@ -79,9 +77,14 @@ export type TaskAnchorLookup =
   | { readonly ok: true; readonly anchor: TaskAnchor }
   | { readonly ok: false; readonly reason: TaskLookupRefusal };
 
-// The list marker + checkbox prefix on a task line; what's left is the item
-// text.
-const TASK_MARKER_RE = /^\s*[-*+]\s+\[[ xX]\]\s+/;
+// The item text is what follows the checkbox marker; locating the marker goes
+// through ./source-lines' one grammar, so the strip cannot drift from the
+// toggle. A raw line the grammar refuses (an item shape only the parser
+// accepts) keeps its full text rather than a half-stripped one.
+function taskTextOf(raw: string): string {
+  const marker = checkboxMarkerAt(raw);
+  return (marker === null ? raw : raw.slice(marker.checkboxIndex + 2)).trim();
+}
 
 /** Every GFM task item in `source`, in ordinal order — the counting authority.
  * The `tasks: false` frontmatter opt-out is deliberately NOT applied: it hides
@@ -107,7 +110,7 @@ export function tasksInTree(tree: Nodes, source: string): ExtractedTask[] {
     const raw = lines[startLine - 1] ?? "";
     tasks.push({
       checked,
-      text: raw.replace(TASK_MARKER_RE, "").trim(),
+      text: taskTextOf(raw),
       raw,
       line: startLine,
       ordinal,

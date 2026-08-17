@@ -160,7 +160,5 @@ a component that escapes the record has no source identity, so a re-pull cannot
 tell whether it is safe to overwrite. It asserts nothing about the hashes;
 `provenance:check` reports those.
 
-No component renders in-package: behavior is pinned by consumer tests in
-`@repo/workspace` (`src/components/confirm-dialog.test.tsx`,
-`src/settings/self-unmounting-toggles.test.tsx`), and the type gate is
-`pnpm --filter @repo/ui typecheck`.
+No component renders in-package: behavior is pinned by consumer tests, and
+the type gate is `pnpm --filter @repo/ui typecheck`.

@@ -1,4 +1,0 @@
-- [ ] a task with [[wiki]] and <date value="2026-07-02" /> and $$x$$
-- [x] done task
-- plain bullet between todos
-- [ ] another open task

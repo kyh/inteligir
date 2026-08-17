@@ -7,8 +7,7 @@ import type { ActiveSession } from "@/lib/auth-client";
  * route module the code-splitter cannot move — so a STATIC import here would
  * put Better Auth's client (~50 KB with its fetch layer) in the entry chunk
  * that every page loads, marketing included, where there is no auth surface at
- * all. The extra round trip is paid only on the way into an app route, which is
- * already fetching the workspace.
+ * all. The extra round trip is paid only on the way into an auth route.
  *
  * On the server the answer is `null`, and that is established rather than
  * assumed: the only guarded route that server-renders is one gated by

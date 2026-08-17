@@ -1,12 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // `dom` for the `fetch`/`URL`/`AbortSignal` the main process uses; Electron
+    // ships Chromium's globals in it.
     "lib": ["ES2023", "dom"],
-    "types": ["electron-vite/node"],
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "types": ["node"]
   },
-  "include": ["src/**/*", "electron.vite.config.ts", "vitest.config.ts"],
-  "exclude": ["node_modules", "build", "dist", ".output"]
+  "include": ["src", "vitest.config.ts"]
 }

@@ -77,10 +77,10 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   // The DOCUMENT and nothing else. There is no theme provider here: `@repo/ui`'s
-  // provider writes the `.dark` class on <html>, and the workspace mounts its
-  // own (fed from the user's server-side ui-state). Two of them nested means
-  // the outer one's effect runs last and overwrites the inner one's decision,
-  // so each surface owns exactly one — the marketing page's lives on that page.
+  // provider writes the `.dark` class on <html>, and two of them nested means
+  // the outer one's effect runs last and overwrites the inner one's decision —
+  // so each surface owns exactly one, and the marketing page's lives on that
+  // page.
   //
   // suppressHydrationWarning: the inline script below sets the theme class on
   // <html> before hydration, so the server markup and client differ by design.

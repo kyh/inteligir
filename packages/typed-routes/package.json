@@ -1,0 +1,26 @@
+{
+  "name": "@repo/typed-routes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Contract-first route machinery for Hono, vendored from bb (MIT). `defineRoute` rows declare path+method+request+response once; `typedRoutes` enforces handlers against them at compile time; `ApiSchemaFromRouteDescriptors` derives the schema hono/client's `hc` consumes, so server and client share one table.",
+  "type": "module",
+  "exports": {
+    "./endpoint": "./src/endpoint.ts",
+    "./route-descriptor": "./src/route-descriptor.ts",
+    "./typed-routes": "./src/typed-routes.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "hono": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

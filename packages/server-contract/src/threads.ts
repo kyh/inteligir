@@ -1,0 +1,336 @@
+import { threadStatusSchema } from "@repo/domain/thread-status";
+import { THREAD_ANCHOR_TOKEN_PATTERN } from "@repo/notes/markdown/thread-anchor";
+import type { EmptyInput } from "@repo/typed-routes/endpoint";
+import {
+  defineRoute,
+  jsonRequest,
+  jsonResponse,
+  noRequest,
+  optionalQueryRequest,
+  queryRequest,
+} from "@repo/typed-routes/route-descriptor";
+import { z } from "zod";
+import type { ApiErrorResponse } from "./routes";
+import { threadTimelineSchema, timelineDeltaSchema } from "./thread-timeline";
+
+export const threadSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string().nullable(),
+    status: threadStatusSchema,
+    /** The turn the status describes — the client's `expectedTurnId` source. */
+    activeTurnId: z.string().nullable(),
+    /** Set together for a doc-bound delegation; both null for a plain chat. */
+    originDocPath: z.string().nullable(),
+    originAnchor: z.string().nullable(),
+    archivedAt: z.number().nullable(),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+  })
+  .strict();
+export type Thread = z.infer<typeof threadSchema>;
+
+export const pendingInteractionStatusSchema = z.enum([
+  "pending",
+  "resolving",
+  "resolved",
+  "interrupted",
+]);
+export type PendingInteractionStatus = z.infer<typeof pendingInteractionStatusSchema>;
+
+export const pendingInteractionSchema = z
+  .object({
+    id: z.string().min(1),
+    threadId: z.string().min(1),
+    turnId: z.string().nullable(),
+    requestKey: z.string().min(1),
+    status: pendingInteractionStatusSchema,
+    payload: z.unknown(),
+    resolution: z.string().nullable(),
+    createdAt: z.number(),
+    resolvedAt: z.number().nullable(),
+  })
+  .strict();
+export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
+
+const MAX_THREAD_TITLE_LENGTH = 200;
+const MAX_VAULT_PATH_LENGTH = 1024;
+
+/**
+ * The vault-path rules this boundary can state as a VALUE (the server's own
+ * `normalizeVaultPath` remains the gate for anything that touches the
+ * filesystem): relative, `/`-separated, no traversal, no reach into `.git`.
+ * A thread's origin is a stored path nothing else re-validates, so a bad one
+ * would sit in the database forever, unmatched by every by-doc query.
+ */
+const vaultDocPathSchema = z
+  .string()
+  .min(1)
+  .max(MAX_VAULT_PATH_LENGTH)
+  .refine((value) => !value.includes("\0") && !value.includes("\\"), {
+    message: "path must use / separators and contain no null bytes",
+  })
+  .refine((value) => !value.startsWith("/"), {
+    message: "path must be relative to the vault root",
+  })
+  .refine(
+    (value) => {
+      const segments = value.split("/").filter((segment) => segment.length > 0);
+      return (
+        segments.length > 0 &&
+        segments.every(
+          (segment) => segment !== "." && segment !== ".." && segment.toLowerCase() !== ".git",
+        )
+      );
+    },
+    { message: "path must name an entry inside the vault" },
+  );
+
+/** The anchor token grammar, stated once in @repo/notes and validated here so
+ *  a stored anchor always matches what the marker in the file can spell. */
+const originAnchorSchema = z.string().regex(new RegExp(THREAD_ANCHOR_TOKEN_PATTERN, "u"), {
+  message: "originAnchor must be anc_ followed by 12 lowercase hex digits",
+});
+
+export const createThreadRequestSchema = z
+  .object({
+    title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
+    originDocPath: vaultDocPathSchema.optional(),
+    originAnchor: originAnchorSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    // Both-or-neither: a delegation binds to an anchored block, never half a
+    // doc; the db CHECK is the storage-level twin of this refine.
+    if ((value.originAnchor === undefined) !== (value.originDocPath === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "originDocPath and originAnchor must be provided together",
+        path: [value.originAnchor === undefined ? "originAnchor" : "originDocPath"],
+      });
+    }
+  });
+export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
+
+export interface ListThreadsResponse {
+  threads: Thread[];
+}
+
+export const docThreadsQuerySchema = z
+  .object({
+    docPath: z.string().min(1),
+  })
+  .strict();
+export type DocThreadsQuery = z.infer<typeof docThreadsQuerySchema>;
+
+/**
+ * A doc-bound thread with the two activity counts a status chip needs and a
+ * `Thread` alone cannot answer: an open approval and a queued send are rows
+ * in their own tables, not thread columns.
+ */
+export interface DocThreadActivity {
+  thread: Thread;
+  openInteractionCount: number;
+  queuedCount: number;
+}
+
+export interface ListDocThreadsResponse {
+  threads: DocThreadActivity[];
+}
+
+export const threadIdQuerySchema = z
+  .object({
+    threadId: z.string().min(1),
+  })
+  .strict();
+export type ThreadIdQuery = z.infer<typeof threadIdQuerySchema>;
+
+export interface QueuedThreadMessage {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface GetThreadResponse {
+  thread: Thread;
+  pendingInteractions: PendingInteraction[];
+  /** Unclaimed queued sends, drain order — the composer's pending bubbles. */
+  queuedMessages: QueuedThreadMessage[];
+}
+
+/**
+ * `threadId` narrows to one thread; omitted, the answer is every OPEN
+ * interaction this host holds. One request either way — a client must never
+ * have to walk the thread list to find what is waiting on it.
+ */
+export const listInteractionsQuerySchema = z
+  .object({
+    threadId: z.string().min(1).optional(),
+  })
+  .strict();
+export type ListInteractionsQuery = z.infer<typeof listInteractionsQuerySchema>;
+
+export interface ListInteractionsResponse {
+  interactions: PendingInteraction[];
+}
+
+export const archiveThreadRequestSchema = z
+  .object({
+    threadId: z.string().min(1),
+  })
+  .strict();
+export type ArchiveThreadRequest = z.infer<typeof archiveThreadRequestSchema>;
+
+export const sendMessageModeSchema = z.enum(["steer-if-active", "queue-if-active"]);
+export type SendMessageMode = z.infer<typeof sendMessageModeSchema>;
+
+/**
+ * `expectedTurnId` is the staleness guard: the turn the client believes is
+ * running. When it no longer names the open turn — it settled, or another
+ * client started a new one — the send is refused with 409 instead of landing
+ * on a turn the user never saw.
+ */
+export const sendMessageRequestSchema = z
+  .object({
+    threadId: z.string().min(1),
+    text: z.string().min(1),
+    mode: sendMessageModeSchema,
+    expectedTurnId: z.string().min(1).optional(),
+  })
+  .strict();
+export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;
+
+export type SendMessageResponse =
+  | { kind: "started"; turnId: string }
+  | { kind: "steered"; turnId: string }
+  | { kind: "queued"; queuedMessageId: string };
+
+/**
+ * `afterSequence` is the client's own `maxSequence` from its last fetch;
+ * omitted, the server answers the full timeline. Sent, the server answers a
+ * delta based on exactly that prefix — or the full timeline when it cannot
+ * reconstruct the named base — and the client applies it with
+ * `applyTimelineDelta`, refetching in full if that returns null.
+ */
+export const timelineQuerySchema = z
+  .object({
+    threadId: z.string().min(1),
+    afterSequence: z.coerce.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type TimelineQuery = z.infer<typeof timelineQuerySchema>;
+
+export const timelineResponseSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("full"),
+      timeline: threadTimelineSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("delta"),
+      delta: timelineDeltaSchema,
+    })
+    .strict(),
+]);
+export type TimelineResponse = z.infer<typeof timelineResponseSchema>;
+
+export const answerInteractionRequestSchema = z
+  .object({
+    threadId: z.string().min(1),
+    interactionId: z.string().min(1),
+    /**
+     * The approval-resolution grammar, owned by
+     * `@repo/agent-runtime/domain/pending-interactions` (`parseApprovalResolution`
+     * is the one parser, shared by the route's 400 gate and the runtime): a
+     * bare decision verb — `"allow_once"`, `"allow_for_session"`, `"deny"` —
+     * or the JSON of `approvalPendingInteractionResolutionSchema`. Anything
+     * else answers 400; it stays a string here because the row stores and
+     * replays it verbatim.
+     */
+    resolution: z.string().min(1),
+  })
+  .strict();
+export type AnswerInteractionRequest = z.infer<typeof answerInteractionRequestSchema>;
+
+export interface AnswerInteractionResponse {
+  interaction: PendingInteraction;
+}
+
+export const threadRoutes = {
+  list: defineRoute({
+    path: "/threads/list",
+    method: "get",
+    request: noRequest(),
+    response: jsonResponse<ListThreadsResponse>(),
+  }),
+  get: defineRoute({
+    path: "/threads/get",
+    method: "get",
+    request: queryRequest<EmptyInput, ThreadIdQuery>(threadIdQuerySchema),
+    response: [
+      jsonResponse<GetThreadResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+    ] as const,
+  }),
+  byDoc: defineRoute({
+    path: "/threads/by-doc",
+    method: "get",
+    request: queryRequest<EmptyInput, DocThreadsQuery>(docThreadsQuerySchema),
+    response: jsonResponse<ListDocThreadsResponse>(),
+  }),
+  create: defineRoute({
+    path: "/threads/create",
+    method: "post",
+    request: jsonRequest<EmptyInput, CreateThreadRequest>(createThreadRequestSchema),
+    response: jsonResponse<{ thread: Thread }>({ status: 201 }),
+  }),
+  archive: defineRoute({
+    path: "/threads/archive",
+    method: "post",
+    request: jsonRequest<EmptyInput, ArchiveThreadRequest>(archiveThreadRequestSchema),
+    response: [
+      jsonResponse<{ thread: Thread }>(),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+    ] as const,
+  }),
+  send: defineRoute({
+    path: "/threads/send",
+    method: "post",
+    request: jsonRequest<EmptyInput, SendMessageRequest>(sendMessageRequestSchema),
+    response: [
+      jsonResponse<SendMessageResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+      jsonResponse<ApiErrorResponse>({ status: 409 }),
+      jsonResponse<ApiErrorResponse, 503>({ status: 503 }),
+    ] as const,
+  }),
+  timeline: defineRoute({
+    path: "/threads/timeline",
+    method: "get",
+    request: queryRequest<EmptyInput, TimelineQuery>(timelineQuerySchema),
+    response: [
+      jsonResponse<TimelineResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+    ] as const,
+  }),
+  listInteractions: defineRoute({
+    path: "/threads/interaction/list",
+    method: "get",
+    request: optionalQueryRequest<EmptyInput, ListInteractionsQuery>(listInteractionsQuerySchema),
+    response: jsonResponse<ListInteractionsResponse>(),
+  }),
+  answerInteraction: defineRoute({
+    path: "/threads/interaction/answer",
+    method: "post",
+    request: jsonRequest<EmptyInput, AnswerInteractionRequest>(answerInteractionRequestSchema),
+    response: [
+      jsonResponse<AnswerInteractionResponse>(),
+      // A resolution naming a decision the request never offered.
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+      jsonResponse<ApiErrorResponse>({ status: 409 }),
+    ] as const,
+  }),
+};

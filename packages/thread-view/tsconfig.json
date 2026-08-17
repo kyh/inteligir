@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": [],
+    "paths": {
+      "@repo/thread-view/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}

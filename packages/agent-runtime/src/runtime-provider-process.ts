@@ -1,0 +1,657 @@
+// Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
+// Trimmed: the bridge-process machinery (bundled bridges, node executable
+// selection), ACP launch specs, skill-root configuration and the adapter
+// registry are not carried — the adapter factory is a required argument, and
+// providers spawn directly via node:child_process (bb's cross-spawn wrapper
+// served Windows, which this deployment does not target yet).
+
+import { spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { once } from "node:events";
+import { createInterface } from "node:readline";
+import type { Readable, Writable } from "node:stream";
+import type { ProviderAdapter } from "./provider-adapter.js";
+import {
+  ignoredJsonRpcResultSchema,
+  type PendingJsonRpcRequest,
+  sendJsonRpcRequest,
+} from "./runtime-json-rpc.js";
+import type { RuntimeProviderIdentityState } from "./runtime-thread-identity.js";
+import type { AgentRuntimeOptions, AgentRuntimeProcessExitThreadState } from "./types.js";
+
+export type ProviderAdapterFactory = (providerId: string) => ProviderAdapter;
+
+export interface RuntimeProviderProcess {
+  adapter: ProviderAdapter;
+  child: ChildProcess;
+  expectedShutdownExpectations: number;
+  exitFinalized: Promise<void>;
+  identity: RuntimeProviderIdentityState;
+  interactiveRequestScope: string;
+  pending: Map<string | number, PendingJsonRpcRequest>;
+  processKey: string;
+  providerId: string;
+  stderrLineTail: Buffer;
+  stderrTail: Buffer;
+}
+
+interface RuntimeProviderProcessLineArgs {
+  line: string;
+  providerProcess: RuntimeProviderProcess;
+}
+
+export interface RuntimeProviderProcessManagerArgs {
+  adapterFactory: ProviderAdapterFactory;
+  /**
+   * Snapshots a thread's turn/provider state for the process-exit
+   * notification. Invoked before `onProviderThreadDetached` clears the
+   * state, so exit consumers still see what the dead process was running.
+   */
+  captureThreadExitState: (threadId: string) => AgentRuntimeProcessExitThreadState;
+  createProviderIdentityState: (providerId: string) => RuntimeProviderIdentityState;
+  env: Record<string, string> | undefined;
+  getNextRequestId: () => number;
+  handleStdoutLine: (args: RuntimeProviderProcessLineArgs) => void;
+  onProcessExit: AgentRuntimeOptions["onProcessExit"];
+  onProviderIdentityWaitersInterrupted: (providerProcess: RuntimeProviderProcess) => void;
+  onProviderThreadDetached: (threadId: string, providerProcess: RuntimeProviderProcess) => void;
+  onStderr: AgentRuntimeOptions["onStderr"];
+  workspacePath: string;
+}
+
+export interface EnsureRuntimeProviderArgs {
+  processKey: string;
+  providerId: string;
+}
+
+export interface RequireRuntimeProviderProcessArgs {
+  processKey: string;
+  providerId: string;
+}
+
+export interface ShutdownRuntimeProviderArgs {
+  processKey: string;
+  providerId: string;
+  timeoutMs?: number;
+}
+
+interface CleanupFailedStartupArgs {
+  processKey: string;
+  providerId: string;
+  providerProcess: RuntimeProviderProcess;
+  startupError: Error;
+}
+
+interface TerminateProviderProcessArgs {
+  providerProcess: RuntimeProviderProcess;
+  timeoutMs?: number;
+}
+
+interface SpawnProviderArgs {
+  adapter: ProviderAdapter;
+  processKey: string;
+  providerId: string;
+}
+
+interface ProviderProcessExitStatus {
+  code: number | null;
+  signal: string | null;
+}
+
+interface ProviderProcessExitedErrorArgs {
+  providerId: string;
+  status: ProviderProcessExitStatus;
+  stderrTail: Buffer;
+}
+
+const PROVIDER_STDERR_TAIL_MAX_BYTES = 4_000;
+const PROVIDER_PROCESS_CLOSE_GRACE_MS = 1_000;
+
+const noop = (): void => undefined;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+interface PipedChildProcess extends ChildProcess {
+  stdin: Writable;
+  stdout: Readable;
+  stderr: Readable;
+}
+
+function assertPipedProcess(child: ChildProcess): asserts child is PipedChildProcess {
+  if (!child.stdin || !child.stdout || !child.stderr) {
+    throw new Error("Provider child process did not attach piped stdio");
+  }
+}
+
+class ProviderProcessExitedError extends Error {
+  constructor(args: ProviderProcessExitedErrorArgs) {
+    const stderr = formatProviderStderr(args.stderrTail);
+    super(
+      `Provider "${args.providerId}" exited unexpectedly (${formatProviderProcessExitStatus(args.status)})` +
+        (stderr ? `\nstderr: ${stderr}` : ""),
+    );
+    this.name = "ProviderProcessExitedError";
+  }
+}
+
+export class RuntimeProviderProcessManager {
+  private readonly args: RuntimeProviderProcessManagerArgs;
+  private readonly processes = new Map<string, RuntimeProviderProcess>();
+  private readonly providerStarting = new Map<string, Promise<void>>();
+  private shuttingDown = false;
+
+  constructor(args: RuntimeProviderProcessManagerArgs) {
+    this.args = args;
+  }
+
+  async ensureProvider(args: EnsureRuntimeProviderArgs): Promise<void> {
+    const existing = this.providerStarting.get(args.processKey);
+    if (existing) {
+      await existing;
+      return;
+    }
+
+    const existingProcess = this.processes.get(args.processKey);
+    if (existingProcess !== undefined) {
+      if (!hasChildProcessExited(existingProcess.child)) return;
+      await existingProcess.exitFinalized;
+
+      // Another caller may have started the replacement while this caller
+      // waited for the exited process to finish draining its stdio.
+      const concurrentStart = this.providerStarting.get(args.processKey);
+      if (concurrentStart !== undefined) {
+        await concurrentStart;
+        return;
+      }
+      if (this.processes.has(args.processKey)) return;
+    }
+
+    const startPromise = (async () => {
+      const adapter = this.args.adapterFactory(args.providerId);
+      const providerProcess = this.spawnProvider({
+        adapter,
+        processKey: args.processKey,
+        providerId: args.providerId,
+      });
+
+      try {
+        if (hasChildProcessExited(providerProcess.child)) {
+          const stderr = formatProviderStderr(providerProcess.stderrTail)?.slice(0, 500);
+          throw new Error(
+            `Provider "${args.providerId}" exited during startup with ${formatChildProcessExitStatus(providerProcess.child)}` +
+              (stderr ? `\nstderr: ${stderr}` : ""),
+          );
+        }
+
+        const initCmd = adapter.buildCommandPlan({ type: "initialize" });
+        if (initCmd.kind === "request") {
+          await sendJsonRpcRequest({
+            child: providerProcess.child,
+            message: initCmd,
+            pending: providerProcess.pending,
+            getNextId: this.args.getNextRequestId,
+            resultSchema: ignoredJsonRpcResultSchema,
+          });
+        }
+
+        for (const request of adapter.buildPostInitializeRequests?.() ?? []) {
+          try {
+            const result = await sendJsonRpcRequest({
+              child: providerProcess.child,
+              message: request.plan,
+              pending: providerProcess.pending,
+              getNextId: this.args.getNextRequestId,
+              resultSchema: ignoredJsonRpcResultSchema,
+            });
+            request.onResult(result);
+          } catch (error) {
+            if (request.required) throw error;
+          }
+        }
+      } catch (startupError) {
+        await this.cleanupFailedStartup({
+          processKey: args.processKey,
+          providerId: args.providerId,
+          providerProcess,
+          startupError:
+            startupError instanceof Error ? startupError : new Error(String(startupError)),
+        });
+        throw startupError;
+      }
+    })();
+
+    this.providerStarting.set(args.processKey, startPromise);
+    try {
+      await startPromise;
+    } finally {
+      if (this.providerStarting.get(args.processKey) === startPromise) {
+        this.providerStarting.delete(args.processKey);
+      }
+    }
+  }
+
+  requireProviderProcess(args: RequireRuntimeProviderProcessArgs): RuntimeProviderProcess {
+    const providerProcess = this.processes.get(args.processKey);
+    if (!providerProcess) {
+      throw new Error(`Provider "${args.providerId}" is not running`);
+    }
+    if (hasChildProcessExited(providerProcess.child)) {
+      throw new Error(
+        `Provider "${args.providerId}" has exited (${formatChildProcessExitStatus(providerProcess.child)})`,
+      );
+    }
+    return providerProcess;
+  }
+
+  listRunningProviders(): string[] {
+    return [
+      ...new Set(
+        [...this.processes.values()]
+          .filter((proc) => !hasChildProcessExited(proc.child))
+          .map((proc) => proc.providerId),
+      ),
+    ];
+  }
+
+  async shutdownProvider(args: ShutdownRuntimeProviderArgs): Promise<void> {
+    const providerProcess = this.processes.get(args.processKey);
+    if (!providerProcess) {
+      return;
+    }
+
+    if (hasChildProcessExited(providerProcess.child)) {
+      await providerProcess.exitFinalized;
+      return;
+    }
+
+    providerProcess.expectedShutdownExpectations += 1;
+    await this.terminateProviderProcess({
+      providerProcess,
+      ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
+    });
+    if (hasChildProcessExited(providerProcess.child)) {
+      await providerProcess.exitFinalized;
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    this.shuttingDown = true;
+    const shutdownPromises: Promise<void>[] = [];
+
+    for (const [processKey, providerProcess] of this.processes) {
+      if (!hasChildProcessExited(providerProcess.child)) {
+        shutdownPromises.push(
+          new Promise<void>((resolve) => {
+            let settled = false;
+            const settle = (): void => {
+              if (settled) {
+                return;
+              }
+              settled = true;
+              resolve();
+            };
+            const timer = setTimeout(() => {
+              providerProcess.child.kill("SIGKILL");
+              settle();
+            }, 5000);
+
+            providerProcess.child.on("exit", () => {
+              clearTimeout(timer);
+              settle();
+            });
+
+            providerProcess.child.kill("SIGTERM");
+          }),
+        );
+      }
+      for (const [, pending] of providerProcess.pending) {
+        pending.reject(new Error("Runtime shutting down"));
+      }
+      providerProcess.pending.clear();
+      this.args.onProviderIdentityWaitersInterrupted(providerProcess);
+
+      for (const threadId of providerProcess.identity.threadIds) {
+        this.args.onProviderThreadDetached(threadId, providerProcess);
+      }
+      this.processes.delete(processKey);
+    }
+
+    await Promise.all(shutdownPromises);
+  }
+
+  private spawnProvider(args: SpawnProviderArgs): RuntimeProviderProcess {
+    const processConfig = args.adapter.process;
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...this.args.env,
+      ...processConfig.env,
+    };
+
+    const child = spawn(processConfig.command, processConfig.args, {
+      cwd: this.args.workspacePath,
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    assertPipedProcess(child);
+    let finalizeExit: () => void = noop;
+    const exitFinalized = new Promise<void>((resolve) => {
+      finalizeExit = resolve;
+    });
+
+    const providerProcess: RuntimeProviderProcess = {
+      child,
+      adapter: args.adapter,
+      expectedShutdownExpectations: 0,
+      exitFinalized,
+      interactiveRequestScope: randomUUID(),
+      identity: this.args.createProviderIdentityState(args.providerId),
+      pending: new Map(),
+      processKey: args.processKey,
+      providerId: args.providerId,
+      stderrLineTail: Buffer.alloc(0),
+      stderrTail: Buffer.alloc(0),
+    };
+
+    const stdout = createInterface({ input: child.stdout });
+    stdout.on("line", (line) => {
+      if (this.shuttingDown || !this.isCurrentProviderProcess({ providerProcess })) {
+        return;
+      }
+      this.args.handleStdoutLine({
+        line,
+        providerProcess,
+      });
+    });
+
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (this.shuttingDown || !this.isCurrentProviderProcess({ providerProcess })) {
+        return;
+      }
+      consumeProviderStderrChunk({
+        chunk,
+        onLine: this.args.onStderr,
+        providerProcess,
+      });
+    });
+    child.stderr.on("end", () => {
+      if (
+        this.shuttingDown ||
+        !this.isCurrentProviderProcess({ providerProcess }) ||
+        providerProcess.stderrLineTail.length === 0
+      ) {
+        return;
+      }
+      this.args.onStderr?.(decodeStderrLine(providerProcess.stderrLineTail));
+      providerProcess.stderrLineTail = Buffer.alloc(0);
+    });
+
+    child.on("error", (err) => {
+      this.handleProviderProcessError({
+        err,
+        providerId: args.providerId,
+        providerProcess,
+      });
+    });
+    let exitStatus: ProviderProcessExitStatus | null = null;
+    let closeGraceTimer: NodeJS.Timeout | null = null;
+    let exitHandled = false;
+    const handleExit = (status: ProviderProcessExitStatus): void => {
+      if (exitHandled) return;
+      exitHandled = true;
+      if (closeGraceTimer !== null) {
+        clearTimeout(closeGraceTimer);
+      }
+      try {
+        this.handleProviderProcessExit({
+          code: status.code,
+          providerId: args.providerId,
+          providerProcess,
+          signal: status.signal,
+        });
+      } finally {
+        finalizeExit();
+      }
+    };
+
+    child.on("exit", (code, signal) => {
+      const status = {
+        code: code ?? null,
+        signal: signal ?? null,
+      };
+      exitStatus = status;
+      // `exit` can precede the final stdout/stderr data events. Prefer
+      // `close`, which fires after stdio closes, so final provider output is
+      // consumed before pending requests and diagnostics are settled. Bound
+      // the wait because a descendant can inherit and hold a pipe open.
+      closeGraceTimer = setTimeout(() => {
+        // Stop an inherited pipe from outliving its provider entry. Otherwise
+        // a descendant can emit stale protocol messages after the replacement
+        // process has become current, and the unread streams remain retained.
+        stdout.close();
+        child.stdout.destroy();
+        child.stderr.destroy();
+        handleExit(status);
+      }, PROVIDER_PROCESS_CLOSE_GRACE_MS);
+      closeGraceTimer.unref();
+    });
+    child.on("close", (code, signal) => {
+      handleExit(
+        exitStatus ?? {
+          code: code ?? null,
+          signal: signal ?? null,
+        },
+      );
+    });
+
+    this.processes.set(args.processKey, providerProcess);
+    return providerProcess;
+  }
+
+  private async cleanupFailedStartup(args: CleanupFailedStartupArgs): Promise<void> {
+    if (this.processes.get(args.processKey) !== args.providerProcess) {
+      return;
+    }
+
+    this.processes.delete(args.processKey);
+    args.providerProcess.expectedShutdownExpectations += 1;
+    for (const [, pending] of args.providerProcess.pending) {
+      pending.reject(args.startupError);
+    }
+    args.providerProcess.pending.clear();
+    this.args.onProviderIdentityWaitersInterrupted(args.providerProcess);
+
+    await this.terminateProviderProcess({
+      providerProcess: args.providerProcess,
+    });
+  }
+
+  private async terminateProviderProcess(args: TerminateProviderProcessArgs): Promise<void> {
+    if (hasChildProcessExited(args.providerProcess.child)) {
+      return;
+    }
+
+    const child = args.providerProcess.child;
+    const timeoutMs = args.timeoutMs ?? 5000;
+    const softTimer = setTimeout(() => {
+      if (!hasChildProcessExited(child)) {
+        child.kill("SIGKILL");
+      }
+    }, timeoutMs);
+    const exited = once(child, "exit");
+    child.kill("SIGTERM");
+    // The delay bounds a child that never exits; its stray exit listener is
+    // harmless on a process this manager already dropped.
+    await Promise.race([exited, delay(timeoutMs + 1000)]);
+    clearTimeout(softTimer);
+  }
+
+  private handleProviderProcessError(args: ProviderProcessErrorArgs): void {
+    if (this.shuttingDown) return;
+    if (!this.isCurrentProviderProcess(args)) return;
+    const expected = consumeExpectedProviderProcessShutdown(args.providerProcess);
+    this.processes.delete(args.providerProcess.processKey);
+    const message = args.err.message;
+    for (const [, pending] of args.providerProcess.pending) {
+      pending.reject(new Error(`Provider "${args.providerId}" failed to start: ${message}`));
+    }
+    args.providerProcess.pending.clear();
+    this.args.onProviderIdentityWaitersInterrupted(args.providerProcess);
+
+    this.args.onProcessExit?.({
+      providerId: args.providerId,
+      threads: [...args.providerProcess.identity.threadIds].map((threadId) =>
+        this.args.captureThreadExitState(threadId),
+      ),
+      code: null,
+      expected,
+      signal: null,
+      stderr: null,
+    });
+  }
+
+  private handleProviderProcessExit(args: ProviderProcessExitArgs): void {
+    if (this.shuttingDown) return;
+    if (!this.isCurrentProviderProcess(args)) return;
+    const expected = consumeExpectedProviderProcessShutdown(args.providerProcess);
+    this.processes.delete(args.providerProcess.processKey);
+    const threadIds = [...args.providerProcess.identity.threadIds];
+    // Snapshot per-thread state before detaching clears it; the exit
+    // notification below is the last place this state is observable.
+    const threads = threadIds.map((threadId) => this.args.captureThreadExitState(threadId));
+    for (const threadId of threadIds) {
+      this.args.onProviderThreadDetached(threadId, args.providerProcess);
+    }
+    for (const [, pending] of args.providerProcess.pending) {
+      pending.reject(
+        new ProviderProcessExitedError({
+          providerId: args.providerId,
+          status: { code: args.code, signal: args.signal },
+          stderrTail: args.providerProcess.stderrTail,
+        }),
+      );
+    }
+    args.providerProcess.pending.clear();
+    this.args.onProviderIdentityWaitersInterrupted(args.providerProcess);
+
+    this.args.onProcessExit?.({
+      providerId: args.providerId,
+      threads,
+      code: args.code,
+      expected,
+      signal: args.signal,
+      stderr: formatProviderStderr(args.providerProcess.stderrTail),
+    });
+  }
+
+  private isCurrentProviderProcess(
+    args: Pick<ProviderProcessExitArgs, "providerProcess">,
+  ): boolean {
+    return this.processes.get(args.providerProcess.processKey) === args.providerProcess;
+  }
+}
+
+/**
+ * Whether a child process has terminated, covering both normal exits
+ * (`exitCode`) and signal terminations (`signalCode`). Node reports a
+ * signal-killed child with a null `exitCode` and a set `signalCode`.
+ */
+function hasChildProcessExited(child: ChildProcess): boolean {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+function getChildProcessExitStatus(child: ChildProcess): ProviderProcessExitStatus {
+  return { code: child.exitCode, signal: child.signalCode };
+}
+
+function formatChildProcessExitStatus(child: ChildProcess): string {
+  return formatProviderProcessExitStatus(getChildProcessExitStatus(child));
+}
+
+function formatProviderProcessExitStatus(status: ProviderProcessExitStatus): string {
+  if (status.code !== null) {
+    return `code ${status.code}`;
+  }
+  if (status.signal !== null) {
+    return `signal ${status.signal}`;
+  }
+  return "unknown status";
+}
+
+function formatProviderStderr(stderrTail: Buffer): string | null {
+  const stderr = stderrTail.toString("utf8").trim();
+  if (stderr.length === 0) {
+    return null;
+  }
+  return stderr;
+}
+
+function appendBoundedStderrBytes(current: Buffer, chunk: Buffer): Buffer {
+  if (chunk.length >= PROVIDER_STDERR_TAIL_MAX_BYTES) {
+    return Buffer.from(chunk.subarray(chunk.length - PROVIDER_STDERR_TAIL_MAX_BYTES));
+  }
+  const currentBytesToKeep = Math.min(
+    current.length,
+    PROVIDER_STDERR_TAIL_MAX_BYTES - chunk.length,
+  );
+  return Buffer.concat([current.subarray(current.length - currentBytesToKeep), chunk]);
+}
+
+function decodeStderrLine(line: Buffer): string {
+  const end = line.at(-1) === 0x0d ? line.length - 1 : line.length;
+  return line.toString("utf8", 0, end);
+}
+
+function consumeProviderStderrChunk(args: {
+  chunk: Buffer;
+  onLine: AgentRuntimeOptions["onStderr"];
+  providerProcess: RuntimeProviderProcess;
+}): void {
+  args.providerProcess.stderrTail = appendBoundedStderrBytes(
+    args.providerProcess.stderrTail,
+    args.chunk,
+  );
+
+  let offset = 0;
+  let newline = args.chunk.indexOf(0x0a, offset);
+  while (newline !== -1) {
+    args.providerProcess.stderrLineTail = appendBoundedStderrBytes(
+      args.providerProcess.stderrLineTail,
+      args.chunk.subarray(offset, newline),
+    );
+    args.onLine?.(decodeStderrLine(args.providerProcess.stderrLineTail));
+    args.providerProcess.stderrLineTail = Buffer.alloc(0);
+    offset = newline + 1;
+    newline = args.chunk.indexOf(0x0a, offset);
+  }
+
+  if (offset < args.chunk.length) {
+    args.providerProcess.stderrLineTail = appendBoundedStderrBytes(
+      args.providerProcess.stderrLineTail,
+      args.chunk.subarray(offset),
+    );
+  }
+}
+
+function consumeExpectedProviderProcessShutdown(providerProcess: RuntimeProviderProcess): boolean {
+  // One process exit consumes all outstanding explicit shutdown requests.
+  const expected = providerProcess.expectedShutdownExpectations > 0;
+  providerProcess.expectedShutdownExpectations = 0;
+  return expected;
+}
+
+interface ProviderProcessErrorArgs {
+  err: Error;
+  providerId: string;
+  providerProcess: RuntimeProviderProcess;
+}
+
+interface ProviderProcessExitArgs {
+  code: number | null;
+  providerId: string;
+  providerProcess: RuntimeProviderProcess;
+  signal: string | null;
+}

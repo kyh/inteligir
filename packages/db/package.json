@@ -1,0 +1,39 @@
+{
+  "name": "@repo/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The local SQLite database: drizzle over better-sqlite3 (WAL, synchronous=NORMAL), committed SQL migrations applied on boot, the DbNotifier seam the write layer announces changes through, and the prefixed-nanoid id helpers.",
+  "type": "module",
+  "exports": {
+    "./connection": "./src/connection.ts",
+    "./events": "./src/events.ts",
+    "./ids": "./src/ids.ts",
+    "./meta": "./src/meta.ts",
+    "./migrate": "./src/migrate.ts",
+    "./notifier": "./src/notifier.ts",
+    "./pending-interactions": "./src/pending-interactions.ts",
+    "./queued-messages": "./src/queued-messages.ts",
+    "./schema": "./src/schema.ts",
+    "./threads": "./src/threads.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/domain": "workspace:*",
+    "@repo/server-contract": "workspace:*",
+    "better-sqlite3": "catalog:",
+    "drizzle-orm": "catalog:",
+    "nanoid": "catalog:"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -10,7 +10,7 @@ import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
 export const Route = createFileRoute("/app/sign-in")({
   ssr: ssrWhenSignedOut,
   beforeLoad: async () => {
-    if ((await currentSession()) !== null) throw redirect({ to: "/app" });
+    if ((await currentSession()) !== null) throw redirect({ to: "/" });
   },
   component: SignInPage,
 });
@@ -35,9 +35,9 @@ function SignInPage() {
         setBusy(false);
         return;
       }
-      // `navigate` rather than a location assignment: the session cookie is set,
-      // and /app's own beforeLoad is what reads it back.
-      await router.navigate({ to: "/app" });
+      // `navigate` rather than a location assignment: the session cookie is
+      // set, and the destination's own guards are what read it back.
+      await router.navigate({ to: "/" });
     })();
   };
 

@@ -1,32 +1,29 @@
 {
   "name": "@repo/desktop",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Inteligir desktop shell",
+  "description": "The Inteligir desktop shell: one Electron window pinned to the local server's origin, supervising that server as a child process.",
   "author": "kyh",
   "type": "module",
-  "main": "./.output/app/main/index.js",
+  "main": "./dist/main.cjs",
   "scripts": {
-    "build": "electron-vite build",
-    "release": "pnpm verify:release && pnpm with-env electron-vite build && pnpm with-env electron-builder --mac --publish never",
-    "release:publish": "pnpm verify:release && GH_TOKEN=$(gh auth token) pnpm with-env electron-vite build && GH_TOKEN=$(gh auth token) pnpm with-env electron-builder --mac --publish always",
-    "with-env": "dotenv -e .env --",
-    "clean": "rm -rf .cache .output",
-    "dev": "electron-vite dev --remoteDebuggingPort 9222",
-    "start": "electron-vite preview",
+    "build": "node scripts/build.mjs",
+    "clean": "git clean -xdf .cache .output .turbo dist node_modules",
+    "dev": "pnpm run build && electron . --remote-debugging-port=9222",
+    "package": "pnpm run build && electron-builder --mac --arm64 --publish never",
+    "smoke": "node scripts/smoke-packaged.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "verify:release": "pnpm -w verify"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/bridge": "workspace:*",
-    "electron-updater": "^6.8.9"
+    "inteligir": "workspace:*"
   },
   "devDependencies": {
+    "@repo/app": "workspace:*",
     "@types/node": "catalog:",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
-    "electron-vite": "^5.0.0",
+    "esbuild": "^0.28.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

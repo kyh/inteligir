@@ -19,6 +19,7 @@ out/
 
 # build output
 dist/
+dist-node/
 
 # production
 .source
@@ -51,8 +52,6 @@ yarn-error.log*
 .temp
 .superset
 
-# bundled OAuth client secrets — must not be committed
-apps/desktop/resources/agent/client_secret.json
 .claude/scheduled_tasks.lock
 .claude/worktrees
 .playwright-mcp

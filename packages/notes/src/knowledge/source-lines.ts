@@ -81,9 +81,30 @@ export function replaceLineGuarded(
   return { ok: true, content: source.slice(0, span.start) + replacement + source.slice(span.end) };
 }
 
-// The checkbox marker on a task line, split so the flip touches ONLY the
-// state char: (indent + bullet + `[`)(state)(`]`) followed by whitespace.
-const CHECKBOX_MARKER_RE = /^(\s*[-*+]\s+\[)([ xX])(\])(?=\s)/;
+// The checkbox marker on a GFM task line, split so a flip touches ONLY the
+// state char: (indent + blockquote markers + list marker + `[`)(state)`]`
+// followed by whitespace. Bullets, ordered markers (`1.` / `2)`), and `> `
+// prefixes all carry live checkboxes in the editor, so the grammar names them
+// all — a narrower one here would refuse a line the editor just toggled.
+const CHECKBOX_MARKER_RE = /^([ \t]*(?:>[ \t]*)*(?:[-*+]|\d+[.)])[ \t]+\[)([ xX])\](?=\s)/;
+
+export type CheckboxMarker = {
+  /** Offset of the state char (the byte between `[` and `]`). */
+  checkboxIndex: number;
+  checked: boolean;
+};
+
+/** THE checkbox grammar, in one place: the editor's click-to-toggle locates
+ * the state char through this, the guarded write below flips through it, and
+ * ./task-ordinal strips the marker through it — so no surface can accept a
+ * task line another surface refuses. */
+export function checkboxMarkerAt(lineText: string): CheckboxMarker | null {
+  const marker = CHECKBOX_MARKER_RE.exec(lineText);
+  const prefix = marker?.[1];
+  const state = marker?.[2];
+  if (prefix === undefined || state === undefined) return null;
+  return { checkboxIndex: prefix.length, checked: state !== " " };
+}
 
 /** Flip the checkbox state char of the 0-based `lineIndex`-th line, guarded by
  * `expectedRaw` exactly like `replaceLineGuarded`. Only the single marker char
@@ -93,14 +114,13 @@ export function toggleCheckboxLine(
   lineIndex: number,
   expectedRaw: string,
 ): CheckboxToggleResult {
-  const marker = CHECKBOX_MARKER_RE.exec(expectedRaw);
-  const prefix = marker?.[1];
-  const state = marker?.[2];
-  if (marker === null || prefix === undefined || state === undefined) {
-    return { ok: false, reason: "not-a-checkbox" };
-  }
-  const checked = state === " "; // flipping: unchecked becomes checked
-  const flipped = prefix + (checked ? "x" : " ") + expectedRaw.slice(prefix.length + state.length);
+  const marker = checkboxMarkerAt(expectedRaw);
+  if (marker === null) return { ok: false, reason: "not-a-checkbox" };
+  const checked = !marker.checked;
+  const flipped =
+    expectedRaw.slice(0, marker.checkboxIndex) +
+    (checked ? "x" : " ") +
+    expectedRaw.slice(marker.checkboxIndex + 1);
   const replaced = replaceLineGuarded(source, lineIndex, expectedRaw, flipped);
   if (!replaced.ok) return replaced;
   return { ok: true, content: replaced.content, checked };

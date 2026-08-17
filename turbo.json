@@ -15,23 +15,15 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      // What the builds actually emit: vite/wrangler -> dist/, electron-vite ->
-      // .output/. tsbuildinfo belongs to `typecheck` (tsc --noEmit, incremental),
-      // not here — declaring it as a build output caches the wrong artifact.
-      "outputs": ["dist/**", ".output/**"]
+      // What the builds actually emit: vite/wrangler -> dist/. tsbuildinfo
+      // belongs to `typecheck` (tsc --noEmit, incremental), not here —
+      // declaring it as a build output caches the wrong artifact.
+      "outputs": ["dist/**"]
     },
-    // The shell bakes its target origin in at build time, so that variable is a
-    // real input: without it here, a build with a different origin would restore
-    // a cached bundle pointing at the previous one.
-    "@repo/desktop#build": {
-      "dependsOn": ["^build"],
-      "outputs": [".output/**"],
-      "env": ["INTELIGIR_APP_URL"]
-    },
-    // `dev` never exits (vite/electron-vite/expo/wrangler watchers), so it is
-    // declared persistent. This changes nothing under `turbo watch dev` — a
-    // non-exiting task is never restarted either way — but it makes a future
-    // `dependsOn: ["dev"]` a hard error instead of a hang.
+    // `dev` never exits (vite watchers), so it is declared persistent. This
+    // changes nothing under `turbo watch dev` — a non-exiting task is never
+    // restarted either way — but it makes a future `dependsOn: ["dev"]` a hard
+    // error instead of a hang.
     "dev": {
       "cache": false,
       "persistent": true
