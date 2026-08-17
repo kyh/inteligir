@@ -27,7 +27,11 @@ import {
   createAgentRuntimeWithAdapters,
   type ProviderAdapterFactory,
 } from "@repo/agent-runtime/runtime";
-import type { AgentRuntime, AgentRuntimeExecutionOptions } from "@repo/agent-runtime/types";
+import type {
+  AgentRuntime,
+  AgentRuntimeExecutionOptions,
+  AgentRuntimeShellEnvironment,
+} from "@repo/agent-runtime/types";
 import type { ThreadEvent as RuntimeThreadEvent } from "@repo/agent-runtime/domain/provider-event";
 import {
   approvalPendingInteractionPayloadSchema,
@@ -85,8 +89,24 @@ export interface CodexRuntimeManagerDeps {
   git: GitEngine;
   /** null means the provider's default model. */
   model: string | null;
+  /**
+   * Env injected into the agent's SHELL (the runtime adds INTELIGIR_THREAD_ID
+   * per thread) — the seam that hands codex INTELIGIR_SERVER_URL so it can
+   * drive the product through the CLI. A getter, because the value it carries
+   * (the bound port) exists only after listen, while this manager is
+   * constructed before; it is read at runtime construction, on the first turn.
+   */
+  shellEnv?: () => AgentRuntimeShellEnvironment;
+  /**
+   * Where the `inteligir` binary lives, or null when this deployment ships
+   * none. The instructions only PROMISE the CLI when the shell env can
+   * really reach it — see agent-shell-env.ts.
+   */
+  cliBinDir?: string | null;
   /** Tests: point the runtime at a fake app-server. */
   adapterFactory?: ProviderAdapterFactory;
+  /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
+  createRuntime?: typeof createAgentRuntimeWithAdapters;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
   onDebug?: (message: string) => void;
@@ -162,8 +182,10 @@ class CodexTurnDriver implements TurnDriver {
     if (this.runtime !== null) {
       return this.runtime;
     }
-    const runtime = createAgentRuntimeWithAdapters({
+    const createRuntime = this.deps.createRuntime ?? createAgentRuntimeWithAdapters;
+    const runtime = createRuntime({
       workspacePath: this.deps.vaultDir,
+      ...(this.deps.shellEnv !== undefined ? { shellEnv: this.deps.shellEnv() } : {}),
       ...(this.deps.adapterFactory !== undefined
         ? { adapterFactory: this.deps.adapterFactory }
         : {}),
@@ -266,7 +288,7 @@ class CodexTurnDriver implements TurnDriver {
   }
 
   private async openThreadSession(runtime: AgentRuntime, threadId: string): Promise<void> {
-    const instructions = loadAgentInstructions(this.deps.vaultDir);
+    const instructions = loadAgentInstructions(this.deps.vaultDir, this.deps.cliBinDir ?? null);
     const persisted = getThread(this.deps.db, threadId)?.providerThreadId ?? null;
     if (persisted !== null) {
       try {
@@ -275,7 +297,7 @@ class CodexTurnDriver implements TurnDriver {
           providerThreadId: persisted,
           providerId: CODEX_PROVIDER_ID,
           options: this.options,
-          ...(instructions !== undefined ? { instructions } : {}),
+          ...(instructions === undefined ? {} : { instructions }),
         });
         setThreadProviderSession(this.deps.db, {
           threadId,
@@ -298,7 +320,7 @@ class CodexTurnDriver implements TurnDriver {
       threadId,
       providerId: CODEX_PROVIDER_ID,
       options: this.options,
-      ...(instructions !== undefined ? { instructions } : {}),
+      ...(instructions === undefined ? {} : { instructions }),
     });
     setThreadProviderSession(this.deps.db, {
       threadId,

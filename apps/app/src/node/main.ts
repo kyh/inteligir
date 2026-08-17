@@ -10,6 +10,7 @@ import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
+import { buildAgentShellEnv, resolveCliBinDir } from "./agent/agent-shell-env";
 import { createApp, type AppFallback } from "./app";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
@@ -145,7 +146,18 @@ const knowledge = createKnowledgeRuntime({
 knowledgeRef = knowledge;
 const fallback = await fallbackPromise;
 
-const agentDriver = resolveAgentDriver({ config, db, notifier: bus, vault });
+// Filled in after listen (the bound port may be a probed one); read lazily by
+// the codex runtime on the first turn, which an HTTP request precedes.
+let agentShellEnv: Record<string, string> = {};
+const cliBinDir = resolveCliBinDir();
+const agentDriver = resolveAgentDriver({
+  config,
+  db,
+  notifier: bus,
+  vault,
+  cliBinDir,
+  shellEnv: () => ({ ...agentShellEnv }),
+});
 
 const { app, injectWebSocket } = createApp({
   agent: agentDriver.status,
@@ -168,6 +180,11 @@ const { port, server } = await listenWithRetry({
   probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
 });
 injectWebSocket(server);
+agentShellEnv = buildAgentShellEnv({
+  serverUrl: `http://127.0.0.1:${port}`,
+  env: process.env,
+  cliBinDir,
+});
 console.log(
   `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,
 );

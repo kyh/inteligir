@@ -27,6 +27,14 @@
       "project": ["src/**/*.{ts,tsx,css}"],
       "ignoreDependencies": ["tailwindcss"]
     },
+    "apps/cli": {
+      // The bin (bin/inteligir, a sh launcher knip cannot read) runs tsx over
+      // src/index.ts in a checkout and the esbuild bundle when packaged —
+      // hence the ignored tsx.
+      "entry": ["src/index.ts", "src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.mjs"],
+      "ignoreDependencies": ["tsx"]
+    },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it
       // from wrangler.jsonc's `main`. `src/worker/index.ts` is the test suite's

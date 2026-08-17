@@ -43,12 +43,29 @@ export const agentStatusSchema = z
   .strict();
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 
+/**
+ * The built-in agent guide: a SKILL.md-shaped manual for the `inteligir` CLI,
+ * served by the app so an agent (or a human) can always fetch the manual that
+ * matches the running build. The CLI's `guide` command prints it.
+ */
+export const guideResponseSchema = z.object({ markdown: z.string().min(1) }).strict();
+export type GuideResponse = z.infer<typeof guideResponseSchema>;
+
 export const systemStatusResponseSchema = z
   .object({
     /** Version of the running @repo/app package, read from its package.json. */
     version: z.string().min(1),
-    /** Absolute path of the active data directory (where the DB lives). */
+    /**
+     * Absolute path of the active data directory (where the DB lives). This
+     * is the instance's IDENTITY on the wire: a client that derived which
+     * instance it means compares this before trusting a port it probed, so a
+     * neighbouring checkout's server answering first is caught rather than
+     * silently written to.
+     */
     dataDir: z.string().min(1),
+    /** Absolute path of the vault this instance serves — the other half of
+     *  the identity, and what a caller is actually about to write into. */
+    vaultDir: z.string().min(1),
     /** The `meta.schema_version` row — proves migrate-on-boot ran. */
     schemaVersion: z.number().int().min(1),
     uptimeMs: z.number().min(0),
@@ -77,6 +94,12 @@ export const apiRoutes = {
       response: jsonResponse<SystemStatusResponse>(),
     }),
   },
+  guide: defineRoute({
+    path: "/guide",
+    method: "get",
+    request: noRequest(),
+    response: jsonResponse<GuideResponse>(),
+  }),
   knowledge: knowledgeRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,

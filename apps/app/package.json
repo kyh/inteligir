@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./node/agent/agent-shell-env": "./src/node/agent/agent-shell-env.ts",
+    "./node/config": "./src/node/config.ts",
+    "./node/guide/cli-skill": "./src/node/guide/cli-skill.ts"
+  },
   "scripts": {
     "build": "vite build && node scripts/build-node-entry.mjs",
     "clean": "git clean -xdf .cache .tanstack .turbo dist dist-node node_modules",

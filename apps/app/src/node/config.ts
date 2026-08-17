@@ -26,6 +26,14 @@ const DEV_HASH_LENGTH = 12;
 const DEV_PORT_BASE = 21_000;
 const DEV_PORT_BUCKETS = 8_000;
 
+/**
+ * Bound for the upward probe on a busy DERIVED dev port — both halves of it:
+ * `listen.ts` probes this many ports when binding, and the CLI's server
+ * discovery probes the same range when dialing, so the two can never disagree
+ * on where a probed instance may have landed.
+ */
+export const DEV_PORT_PROBE_LIMIT = 10;
+
 interface EnvVarDefinition<TValue> {
   description: string;
   name: string;

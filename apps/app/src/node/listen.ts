@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { DEV_PORT_PROBE_LIMIT } from "./config";
 import { errnoCode } from "./errno";
 
 type ServeOptions = Parameters<typeof serve>[0];
@@ -18,8 +19,9 @@ export interface ListenResult {
   server: ServerType;
 }
 
-/** Bound for the upward probe; the derivation scheme lives in config.ts. */
-const MAX_PORT_PROBES = 10;
+/** The derivation scheme AND the probe bound live in config.ts, so the CLI's
+ *  discovery dials exactly the range this file may bind. */
+const MAX_PORT_PROBES = DEV_PORT_PROBE_LIMIT;
 
 function isAddrInUse(error: unknown): boolean {
   return errnoCode(error) === "EADDRINUSE";
