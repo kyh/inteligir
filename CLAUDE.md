@@ -79,9 +79,9 @@ packages/
                  seam, prefixed-nanoid ids.
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
-                 tags, tasks, rename byte-surgery) and the markdown pipeline
-                 (remark parse, opaque nodes, wiki-links, frontmatter).
-                 No node/react/ui imports — lint-enforced.
+                 tags, tasks, rename byte-surgery) over ONE markdown scan
+                 (scan-parse + wiki-links), plus frontmatter and the
+                 delegation marker. No node/react/ui imports — lint-enforced.
   ui/            @repo/ui — vendored stock shadcn on Base UI; leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
@@ -110,7 +110,8 @@ pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)
 pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
-pnpm verify           # The whole gate, mirroring CI
+pnpm verify           # The static gate (CI adds the e2e suite on top)
+pnpm e2e              # The scenario suite; --prod for the built shell
 ```
 
 `apps/web/README.md` is the product Worker's own guide — routes, auth, the
@@ -125,9 +126,15 @@ Before committing:
 pnpm format:fix && pnpm verify
 ```
 
-`verify` is `typecheck && lint && knip && format && test && build` — the same
-six steps CI runs, in one command so no caller can drift from CI. It is
-check-only on purpose: `format:fix` runs FIRST.
+`verify` is `typecheck && lint && knip && format && test && build` — the STATIC
+gate, in one command so no caller can drift from it. It is check-only on
+purpose: `format:fix` runs FIRST.
+
+CI runs those six and then three more that `verify` cannot: it installs
+agent-browser and runs the scenario suite in BOTH modes (`pnpm e2e` and
+`pnpm e2e --prod`). Both, because they serve different code — dev runs Vite's
+middleware and no CSP, prod serves the built shell under the real policy. So a
+green `verify` is not a green CI; run `pnpm e2e` too before claiming one.
 
 **There is no seeded login, and sign-up is invite-only.** `AGENTS.md` has the
 recipe. Never run `db:push` or `db:studio`: both hit production D1; the local
@@ -238,13 +245,14 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
 - **`KnowledgeIndex` in @repo/notes is not dead code — do not delete it.**
   `@repo/notes` carries no sqlite dependency deliberately (`SqlDriver` is
   platform-injected), so this in-memory composition is the ONLY way the package
-  can test its own knowledge engine; the related-notes, tags, link-graph and
-  perf-oracle suites drive production logic through it.
-- **The editor never refuses a file it can PARSE** — unknown constructs become
-  opaque nodes (`@repo/notes/markdown/remark-opaque`) that serialize back
-  byte-for-byte. `remark-mdx-agnostic.ts` composes the mdx extensions with a
-  crash-free lookahead so JSX runs only where a tag can start; `htmlFlow` and
-  `codeIndented` stay disabled (see the module headers for why).
+  can test its own knowledge engine; the related-notes, tags and link-graph
+  suites drive production logic through it.
+- **The knowledge scan disables `codeIndented` and `htmlFlow`**
+  (`@repo/notes/markdown/scan-parse`). A checkbox is addressed by its POSITION
+  among a doc's task items, so the scan's count has to agree with the set the
+  editor draws — and CommonMark's defaults are where a micromark scan and
+  lezer-markdown diverge. The agreement is pinned from the editor's side by
+  `packages/editor/src/__tests__/checkbox-toggle.test.ts`.
 - **Frontmatter is the ONLY property store.** No metadata table, ever. YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **No coverage tooling, on purpose.** This repo enforces targeted invariants

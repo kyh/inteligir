@@ -1,7 +1,7 @@
 # @repo/notes
 
 The pure, platform-neutral domain core: the knowledge engine
-(links/tags/search/tasks) and the markdown parse pipeline.
+(links/tags/search/tasks) over one markdown scan.
 
 ## Why it exists
 
@@ -39,19 +39,15 @@ src/
     task-schedule.ts, tag-index.ts, related-notes.ts, note-name.ts,
     doc-file.ts, vault-path.ts  # task-date association, tags, related-notes
                        # scorer, name validation, doc test, posix path helpers
-  markdown/            # the remark pipeline
-    parse.ts, md-plugins.ts  # owned unified parse + probe-proven plugin order
-    scan-parse.ts      # the grammar the knowledge scans read: the editor's
-                       # flavor on the two constructs that move a task ordinal
-    remark-opaque.ts   # post-parse transform: a construct the editor has no
-                       # node for becomes an opaque node holding its own
-                       # markdown, so the file opens instead of being refused
-    remark-wiki-link.ts, remark-mdx-agnostic.ts  # own wiki-link tokenizer
-                       # (byte-exact round-trip); MDX without acorn, sharing
-                       # `<` with CommonMark behind a crash-free lookahead
-    frontmatter.ts     # split/recombine + typed properties + the ONE privacy
-                       # kernel (privacyOfParsed answers indeterminate for
-                       # frontmatter it can't type; AI callers fail closed)
+  markdown/            # the one scan, and what reads a doc's header
+    scan-parse.ts      # the grammar every knowledge scan reads; TOTAL, and
+                       # disabling codeIndented/htmlFlow is what keeps its task
+                       # count equal to the set the editor draws
+    remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways
+    frontmatter.ts     # split/recombine + the typed-property ADT (YAML it
+                       # cannot represent is preserved byte-exactly)
+    thread-marker.ts, thread-anchor.ts  # the delegation marker: parsed as a
+                       # block-level node, never matched as text
 ```
 
 ## Invariants
@@ -64,22 +60,20 @@ src/
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **Refusals are values.** A guarded line edit refuses (a VALUE) on any byte
   drift — never a silent wrong write.
-- **One parse per doc** (`projectDoc`); link extraction reuses the editor's
-  own remark-wiki-link tokenizer, so index and editor never disagree.
-- **There is no crawl to exclude anything from.** The host is the only writer
-  of its own manifest, so this package sees a document and its hash, never a
-  directory. Per-vault or per-user hiding is a VIEW filter a consumer applies
-  over the listing.
+- **One parse per doc** (`projectDoc`), over one grammar (`scan-parse.ts`), so
+  no two answers about a document can drift apart.
+- **There is no crawl to exclude anything from.** This package sees a document
+  and its content, never a directory. Per-vault hiding is a VIEW filter a
+  consumer applies over the listing.
 
 ## Seams
 
-- `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds the Durable
-  Object's own SQLite in `apps/web/src/worker/host/knowledge/do-sql-driver.ts`;
-  the fixture Bridge binds SQLite wasm.
+- `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
+  better-sqlite3 in `apps/app/src/node/knowledge/sqlite-driver.ts`.
 - `task-schedule.ts`: injected daily-note config and a `todayIso` clock.
 
 ## Testing
 
 `pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
-knowledge engine: resolver tiers, rename byte surgery, guarded edits,
-daily-path round-trips, a perf oracle.
+knowledge engine: resolver tiers (including an oracle equivalence for the
+basename buckets), rename byte surgery, guarded edits, daily-path round-trips.

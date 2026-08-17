@@ -2,7 +2,7 @@
   "name": "@repo/notes",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps so it runs unchanged in the Cloudflare Worker (apps/web), React Native (apps/mobile), and the desktop renderer. `src/knowledge/` is the link graph, search and projection engine over a vault; `src/markdown/` is the remark parse pipeline. No I/O, no clock, no crypto — the caller injects them.",
+  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the local server, in the browser and on a Worker. `src/knowledge/` is the link graph, search and projection engine over a vault; `src/markdown/` is the one markdown scan it reads, plus frontmatter and the delegation marker. No I/O, no clock, no crypto — the caller injects them.",
   "type": "module",
   "exports": {
     "./daily-path": "./src/daily-path.ts",
