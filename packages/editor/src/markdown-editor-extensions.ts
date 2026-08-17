@@ -2,7 +2,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { foldGutter, foldKeymap } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import type { Extension } from "@codemirror/state";
-import { dropCursor, EditorView, keymap } from "@codemirror/view";
+import { dropCursor, EditorView, keymap, type KeyBinding } from "@codemirror/view";
 import { dragFreezeExtension } from "./drag-freeze";
 import { editorThemeExtension } from "./editor-theme";
 import { forceParseHealerExtension } from "./force-parse-healer";
@@ -36,6 +36,28 @@ export interface MarkdownEditorOptions {
   /** Receives the URL of a clicked rendered link; defaults to a new tab. */
   onOpenLink?: (url: string) => void;
 }
+
+/**
+ * Every binding the editor installs, in precedence order — CodeMirror runs a
+ * key's bindings in array order and stops at the first that returns true, so
+ * the house formatting keymap outranks the CodeMirror defaults it shadows.
+ *
+ * Exported because a host app's window-level shortcuts are the other half of
+ * a fact neither table can state alone: a CodeMirror binding calls
+ * preventDefault but never stopPropagation, so a key bound here AND on the
+ * window fires both. The app checks its own shortcut table against this one.
+ */
+export const markdownEditorKeymap: readonly KeyBinding[] = [
+  ...prosemarkMarkdownFormattingKeymap,
+  ...defaultKeymap,
+  // Mod-d (selectNextOccurrence) is dropped: the host app opens the daily
+  // note on it, and the window listener runs whatever this keymap does.
+  // Mod-Shift-l (selectSelectionMatches) keeps a multi-selection path.
+  ...searchKeymap.filter((binding) => binding.key !== "Mod-d"),
+  ...historyKeymap,
+  ...foldKeymap,
+  indentWithTab,
+];
 
 /**
  * The whole first-cut live-preview stack. Deliberately absent, for later
@@ -80,12 +102,5 @@ export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): E
   dropCursor(),
   foldGutter(),
   EditorView.lineWrapping,
-  keymap.of([
-    ...prosemarkMarkdownFormattingKeymap,
-    ...defaultKeymap,
-    ...searchKeymap,
-    ...historyKeymap,
-    ...foldKeymap,
-    indentWithTab,
-  ]),
+  keymap.of([...markdownEditorKeymap]),
 ];

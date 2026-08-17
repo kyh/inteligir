@@ -189,7 +189,13 @@ export const prosemarkMarkdownFormattingKeymap: readonly KeyBinding[] = [
   { key: 'Mod-b', run: toggleStrongEmphasis, preventDefault: true },
   { key: 'Mod-i', run: toggleEmphasis, preventDefault: true },
   { key: 'Mod-`', run: toggleInlineCode, preventDefault: true },
-  { key: 'Mod-k', run: insertLink, preventDefault: true },
+  // PATCHED: upstream binds this to Mod-k. Mod-k belongs to the host app's
+  // command palette, which listens on the window — and a keymap binding
+  // preventDefaults without stopping propagation, so both ran: the palette
+  // opened and `[]()` was spliced into the note. Mod-Shift-k shadows
+  // CodeMirror's deleteLine, which this keymap outranks by construction (it
+  // is spread ahead of defaultKeymap at composition).
+  { key: 'Mod-Shift-k', run: insertLink, preventDefault: true },
   { key: 'Mod-Shift-x', run: toggleStrikethrough, preventDefault: true },
 ];
 

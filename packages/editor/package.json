@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./create-markdown-editor": "./src/create-markdown-editor.ts",
+    "./markdown-editor-extensions": "./src/markdown-editor-extensions.ts",
     "./external-replace": "./src/external-replace.ts",
     "./editor-theme": "./src/editor-theme.ts",
     "./thread-chip": "./src/thread-chip.ts",
