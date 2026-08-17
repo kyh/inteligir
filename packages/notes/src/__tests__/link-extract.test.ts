@@ -275,23 +275,14 @@ describe("scanDoc — task extraction", () => {
         raw: "- [ ] book the flight",
         line: 3,
         ordinal: 0,
-        wikiTargets: [],
       },
-      {
-        checked: true,
-        text: "already done",
-        raw: "- [x] already done",
-        line: 4,
-        ordinal: 1,
-        wikiTargets: [],
-      },
+      { checked: true, text: "already done", raw: "- [x] already done", line: 4, ordinal: 1 },
       {
         checked: false,
         text: "nested child",
         raw: "  - [ ] nested child", // untrimmed: leading indent preserved
         line: 5,
         ordinal: 2,
-        wikiTargets: [],
       },
       {
         checked: false,
@@ -299,7 +290,6 @@ describe("scanDoc — task extraction", () => {
         raw: "* [ ] **bold** star item",
         line: 7,
         ordinal: 3,
-        wikiTargets: [],
       },
     ]);
   });
@@ -334,22 +324,11 @@ describe("scanDoc — task extraction", () => {
     ]);
   });
 
-  it("collects wiki targets from the item's first paragraph only, in doc order", () => {
-    const src = [
-      "- [ ] see [[2026-07-20]] and ![[hub|alias]] for [[#anchor-only]]",
-      "  - [ ] child with [[child target]]",
-      "  - a sub-bullet with [[not mine]]",
-    ].join("\n");
-    const tasks = scanDoc(src).tasks;
-    expect(tasks[0]?.wikiTargets).toEqual(["2026-07-20", "hub"]);
-    expect(tasks[1]?.wikiTargets).toEqual(["child target"]);
-  });
-
   it("frontmatter `tasks: false` suppresses extraction (scanTaskItems still counts)", () => {
     const src = "---\ntasks: false\n---\n\n- [ ] hidden from the view\n";
     expect(scanDoc(src).tasks).toEqual([]);
-    // The raw counting contract (delegation ordinals, guarded toggle) is
-    // unaffected by the view opt-out.
+    // The raw count is the editor's checkbox lockstep, and the editor draws
+    // every checkbox in the buffer whatever the frontmatter says.
     expect(scanTaskItems(src).map((t) => t.text)).toEqual(["hidden from the view"]);
   });
 

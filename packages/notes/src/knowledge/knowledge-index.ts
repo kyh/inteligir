@@ -20,13 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { LinkGraphIndex } from "./link-graph-index";
-import type {
-  BacklinkEntry,
-  ForwardLinkEntry,
-  LinkGraph,
-  VaultTaskEntry,
-  WikiTarget,
-} from "./link-graph-index";
+import type { BacklinkEntry, ForwardLinkEntry, LinkGraph, WikiTarget } from "./link-graph-index";
 import { titleFromPath } from "./link-extract";
 import { clipSnippet, projectDoc } from "./projection";
 import { splitLines } from "./source-lines";
@@ -108,10 +102,6 @@ export class KnowledgeIndex {
 
   tags(): TagCount[] {
     return this.linkGraph.tags();
-  }
-
-  tasks(): VaultTaskEntry[] {
-    return this.linkGraph.tasks();
   }
 
   notesWithTag(tag: string): string[] {

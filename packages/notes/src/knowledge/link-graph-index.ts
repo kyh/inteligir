@@ -25,7 +25,6 @@
 
 import { isDocPath } from "./doc-file";
 import type { LinkKind } from "./link-extract";
-import type { ExtractedTask } from "./task-ordinal";
 import { buildResolver, type TargetResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex, type TagCount } from "./tag-index";
@@ -88,26 +87,12 @@ export type LinkGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
  * a client's local resolver. */
 export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; aliases?: string[] };
 
-/** One vault task: an ExtractedTask flattened with its doc's identity, so a
- * caller listing across the vault keeps the (path, ordinal) that names it. */
-export type VaultTaskEntry = {
-  path: string;
-  title: string;
-  line: number;
-  raw: string;
-  text: string;
-  checked: boolean;
-  ordinal: number;
-  wikiTargets: string[];
-};
-
 // ---- Engine ------------------------------------------------------------------
 
 type DocRecord = {
   title: string;
   links: StoredLink[];
   aliases: string[];
-  tasks: ExtractedTask[];
   /** Corpus position, assigned when the path first enters `docs` and kept
    * across re-projections — `docs` is a Map, so re-setting a live key holds
    * its slot. It IS the doc iteration order, which is what a from-scratch
@@ -159,7 +144,6 @@ export class LinkGraphIndex {
       title: projection.title,
       links: projection.links,
       aliases: projection.aliases,
-      tasks: projection.tasks,
       seq: prior?.seq ?? this.nextSeq++,
     });
     this.tagIndex.set(path, projection.tags);
@@ -313,28 +297,6 @@ export class LinkGraphIndex {
     return this.tagIndex.all();
   }
 
-  /** Every task in the vault, sorted by path then ordinal — the Tasks view's
-   * whole-vault query. A flatten over stored projections, no resolution pass
-   * (tasks don't participate in ensureResolved). */
-  tasks(): VaultTaskEntry[] {
-    const out: VaultTaskEntry[] = [];
-    for (const [path, record] of [...this.docs.entries()].toSorted(byKey)) {
-      for (const task of record.tasks) {
-        out.push({
-          path,
-          title: record.title,
-          line: task.line,
-          raw: task.raw,
-          text: task.text,
-          checked: task.checked,
-          ordinal: task.ordinal,
-          wikiTargets: task.wikiTargets,
-        });
-      }
-    }
-    return out;
-  }
-
   /** One doc's tags in display case (empty for unknown paths). */
   tagsOf(path: string): string[] {
     return this.tagIndex.tagsOf(path);
@@ -464,8 +426,4 @@ function sameStrings(a: readonly string[], b: readonly string[]): boolean {
 
 function byPath(a: WikiTarget, b: WikiTarget): number {
   return a.path < b.path ? -1 : 1;
-}
-
-function byKey(a: readonly [string, unknown], b: readonly [string, unknown]): number {
-  return a[0] < b[0] ? -1 : 1;
 }

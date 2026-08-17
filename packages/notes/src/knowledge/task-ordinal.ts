@@ -14,7 +14,6 @@
 
 import type { ListItem, Nodes } from "mdast";
 
-import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
 import { checkboxMarkerAt, splitLines } from "./source-lines";
 
@@ -31,9 +30,6 @@ export type ExtractedTask = {
   line: number;
   /** Position among the doc's GFM task items (0-based, document pre-order). */
   ordinal: number;
-  /** Wiki link/embed targets written inside the item's FIRST paragraph, in
-   * document order (never interpreted here). */
-  wikiTargets: string[];
 };
 
 // The item text is what follows the checkbox marker; locating the marker goes
@@ -69,14 +65,7 @@ export function tasksInTree(tree: Nodes, source: string): ExtractedTask[] {
     // slot instead would shift every task after it out from under its ordinal.
     if (startLine === undefined) continue;
     const raw = lines[startLine - 1] ?? "";
-    tasks.push({
-      checked,
-      text: taskTextOf(raw),
-      raw,
-      line: startLine,
-      ordinal,
-      wikiTargets: firstParagraphWikiTargets(item),
-    });
+    tasks.push({ checked, text: taskTextOf(raw), raw, line: startLine, ordinal });
   }
   return tasks;
 }
@@ -93,25 +82,5 @@ function collectTaskItems(node: Nodes, out: Array<{ item: ListItem; checked: boo
   }
   if ("children" in node) {
     for (const child of node.children) collectTaskItems(child, out);
-  }
-}
-
-/** Wiki link/embed targets inside the item's first paragraph (the checkbox
- * line's own text), document order — nested sub-lists don't contribute. */
-function firstParagraphWikiTargets(item: ListItem): string[] {
-  const paragraph = item.children.find((child) => child.type === "paragraph");
-  if (!paragraph) return [];
-  const targets: string[] = [];
-  walkWikiTargets(paragraph, targets);
-  return targets;
-}
-
-function walkWikiTargets(node: Nodes, out: string[]): void {
-  if (node.type === "wikiLink" || node.type === "wikiEmbed") {
-    const target = parseWikiBodyRange(node.body).target;
-    if (target !== "") out.push(target);
-  }
-  if ("children" in node) {
-    for (const child of node.children) walkWikiTargets(child, out);
   }
 }

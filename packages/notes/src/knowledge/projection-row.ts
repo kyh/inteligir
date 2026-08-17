@@ -114,7 +114,6 @@ function parseTask(value: unknown, i: number): ExtractedTask {
     raw: str(row, "raw", what),
     line: num(row, "line", what),
     ordinal: num(row, "ordinal", what),
-    wikiTargets: strings(row, "wikiTargets", what),
   };
 }
 
