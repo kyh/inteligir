@@ -23,7 +23,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, SKIP_DIR_NAMES, WORKSPACE_MANIFEST, workspaceGlobs, workspaces } from "./repo";
+import { REPO_ROOT, isSkippedDir, WORKSPACE_MANIFEST, workspaceGlobs, workspaces } from "./repo";
 
 /** Every package.json in the tree except the repo root's, which is the
  *  monorepo's own and is a member of no glob. */
@@ -32,7 +32,7 @@ function manifestsOnDisk(): string[] {
   const walk = (dir: string): void => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (entry.isDirectory()) {
-        if (SKIP_DIR_NAMES.has(entry.name)) continue;
+        if (isSkippedDir(entry.name)) continue;
         walk(path.join(dir, entry.name));
       } else if (entry.name === "package.json") {
         const relative = path.relative(REPO_ROOT, path.join(dir, entry.name));

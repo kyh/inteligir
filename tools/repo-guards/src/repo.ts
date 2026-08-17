@@ -16,18 +16,18 @@ export const WORKSPACE_MANIFEST = "pnpm-workspace.yaml";
 /** Directories no guard walks: dependencies, and build output that would be
  *  read as source. Shared, because a guard with its own shorter list passes on
  *  CI and fails on a machine that has run a build. */
-export const SKIP_DIR_NAMES = new Set([
-  "node_modules",
-  "dist",
-  "dist-node",
-  ".cache",
-  ".turbo",
-  ".tanstack",
-  ".wrangler",
-  ".output",
-  ".git",
-  "coverage",
-]);
+const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "dist-node", "coverage"]);
+
+/**
+ * Directories a guard must not walk. Dot-directories are excluded wholesale
+ * rather than listed: none of pnpm's globs reaches one, so anything in there
+ * is tooling state (`.turbo`, `.cache`), an ignored sidecar (`.ds-sync`), or —
+ * worst for a guard — an agent worktree under `.claude`, which is a whole
+ * checkout of THIS repo and would be read as if it were this commit's tree.
+ */
+export function isSkippedDir(name: string): boolean {
+  return name.startsWith(".") || SKIP_DIR_NAMES.has(name);
+}
 
 const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/;
 
@@ -157,7 +157,7 @@ function walk(dir: string, out: string[]): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (SKIP_DIR_NAMES.has(entry.name)) continue;
+      if (isSkippedDir(entry.name)) continue;
       walk(full, out);
     } else if (SOURCE_FILE.test(entry.name)) {
       out.push(path.relative(REPO_ROOT, full));

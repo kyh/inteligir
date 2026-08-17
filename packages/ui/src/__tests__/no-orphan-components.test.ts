@@ -24,19 +24,14 @@ const PACKAGE_ROOT = path.resolve(import.meta.dirname, "../..");
 const REPO_ROOT = path.resolve(PACKAGE_ROOT, "../..");
 const COMPONENTS_DIR = path.join(PACKAGE_ROOT, "src", "components");
 
-const SKIP_DIR_NAMES = new Set([
-  "node_modules",
-  "dist",
-  "dist-node",
-  ".cache",
-  ".turbo",
-  ".tanstack",
-  ".wrangler",
-  ".output",
-  ".expo",
-  "coverage",
-  ".git",
-]);
+const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "dist-node", "coverage"]);
+
+/** Dot-directories are skipped wholesale: they hold tooling state, ignored
+ * sidecars, and agent worktrees — whole checkouts of this repo, which a walk
+ * would read as if they were this commit's tree. */
+function isSkippedDir(name: string): boolean {
+  return name.startsWith(".") || SKIP_DIR_NAMES.has(name);
+}
 
 // Carried ahead of their v3 consumers (issue #542): the package rides through
 // the rewrite whole, so these components have no importer YET. Strike a name
@@ -69,7 +64,7 @@ const CARRIED_FOR_V3 = new Set([
 function sourceFiles(dir: string, out: string[]): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (SKIP_DIR_NAMES.has(entry.name)) continue;
+      if (isSkippedDir(entry.name)) continue;
       sourceFiles(path.join(dir, entry.name), out);
     } else if (/\.(tsx?|mdx?|css)$/.test(entry.name)) {
       out.push(path.join(dir, entry.name));

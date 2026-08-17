@@ -33,7 +33,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, SKIP_DIR_NAMES, workspaces } from "./repo";
+import { REPO_ROOT, isSkippedDir, workspaces } from "./repo";
 
 const PROVENANCE_FILE = "PROVENANCE.md";
 /** Everything a copyright notice can ride in. Data files (LICENSE, .json,
@@ -102,7 +102,7 @@ interface VendoredDir {
 function findProvenanceDirs(dir: string, out: string[]): void {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (SKIP_DIR_NAMES.has(entry.name)) continue;
+      if (isSkippedDir(entry.name)) continue;
       findProvenanceDirs(path.join(dir, entry.name), out);
     } else if (entry.name === PROVENANCE_FILE) {
       out.push(path.relative(REPO_ROOT, dir));
@@ -216,7 +216,7 @@ function attributableFiles(dir: string): string[] {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) {
-        if (SKIP_DIR_NAMES.has(entry.name)) continue;
+        if (isSkippedDir(entry.name)) continue;
         walk(full);
       } else if (ATTRIBUTABLE.test(entry.name)) {
         out.push(path.relative(REPO_ROOT, full));
