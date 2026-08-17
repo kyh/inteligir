@@ -2,8 +2,8 @@
 // whole-proposal verbs — the same review, reachable from the conversation
 // that produced it rather than only from the document it touches.
 //
-// The per-hunk review lives in the editor's gutter, so this card links to the
-// doc instead of duplicating it: two places to accept a single hunk is two
+// The per-hunk review lives in the editor, beside the lines, so this card
+// links to the doc instead of duplicating it: two places to accept a single hunk is two
 // places to get the revision guard wrong.
 
 import type { Proposal } from "@repo/server-contract/proposals";

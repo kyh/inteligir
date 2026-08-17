@@ -2,7 +2,7 @@
 // them.
 //
 // A proposal is QUERY STATE, unlike the note's own bytes — several surfaces
-// read the same list (the editor's gutter, the doc bar, the thread dock), and
+// read the same list (the editor's marks, the doc bar, the thread dock), and
 // the ws bus invalidates it on `proposals-changed`. That is the whole reason
 // the change kind exists separately from `content-changed`: an accept moves
 // both, a reject moves only this, and a client that could not tell them apart

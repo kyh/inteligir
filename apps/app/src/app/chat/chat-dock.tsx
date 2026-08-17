@@ -89,6 +89,10 @@ export function ChatDock({
   const viewingId = viewThreadId ?? chatThreadId;
   const detailQuery = useThreadDetail(viewingId);
   const timeline = useThreadTimeline(viewingId);
+  // A delegation's suggestions belong in the thread that made them, not only
+  // in the doc — a thread whose turn "finished" while its edits sit unapplied
+  // is the state this dock has to be able to explain.
+  const proposals = useThreadProposals(viewingId).data ?? [];
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -103,12 +107,15 @@ export function ChatDock({
   }, [draft]);
 
   const rowCount = timeline?.rows.length ?? 0;
+  // Suggestions are counted alongside the rows because they land at the BOTTOM
+  // of the same scroller, after the turn's last message — a card that arrives
+  // without moving the scroll is a card nobody sees.
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller !== null) {
       scroller.scrollTop = scroller.scrollHeight;
     }
-  }, [rowCount, expanded]);
+  }, [rowCount, proposals.length, expanded]);
 
   const invalidateThreads = (): void => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
@@ -193,11 +200,6 @@ export function ChatDock({
   const pending = detailQuery.data?.pendingInteractions ?? [];
   const queued = detailQuery.data?.queuedMessages ?? [];
   const needsApproval = pending.length > 0;
-  // A delegation's suggestions belong in the thread that made them, not only
-  // in the doc — a thread whose turn "finished" while its edits sit unapplied
-  // is the state this dock has to be able to explain.
-  const proposalsQuery = useThreadProposals(viewingId);
-  const proposals = proposalsQuery.data ?? [];
   const proposalActions = useProposalActions((message) => {
     toast.error(message);
   });

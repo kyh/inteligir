@@ -23,11 +23,11 @@ import {
   setPendingAnchor,
 } from "@repo/editor/pending-anchor";
 import {
-  proposalGutterExtension,
+  proposalMarksExtension,
   setProposalHunks,
-  type ProposalGutterState,
   type ProposalHunkView,
-} from "@repo/editor/proposal-gutter";
+  type ProposalMarksState,
+} from "@repo/editor/proposal-marks";
 import {
   setThreadChips,
   threadChipsExtension,
@@ -171,15 +171,15 @@ function OpenNote({
   // The suggestions against this note. `diskContent` is the note's bytes as
   // last READ, which is exactly what the hunks' base line numbers describe —
   // so a proposal can be placed only while the buffer still equals it. Any
-  // unsaved keystroke makes the placement a guess, and the gutter says so by
-  // going dark rather than marking lines the hunk never named.
+  // unsaved keystroke makes the placement a guess, and the editor says so by
+  // withholding the marks rather than highlighting lines the hunk never named.
   const proposalsQuery = useDocProposals(path);
   const proposals = useMemo(() => proposalsQuery.data ?? [], [proposalsQuery.data]);
   const proposalActions = useProposalActions((message) => {
     toast.error(message);
   });
   const [bufferMatchesDisk, setBufferMatchesDisk] = useState(true);
-  const gutterState = useMemo<ProposalGutterState>(() => {
+  const marksState = useMemo<ProposalMarksState>(() => {
     if (proposalsQuery.data === undefined) {
       return { kind: "idle" };
     }
@@ -204,7 +204,7 @@ function OpenNote({
       ),
     };
   }, [proposalsQuery.data, proposals, diskContent, bufferMatchesDisk]);
-  const gutterStateRef = useRef(gutterState);
+  const marksStateRef = useRef(marksState);
   const proposalActionsRef = useRef(proposalActions);
 
   // The editor extensions are fixed at mount, so every callback reads the
@@ -218,7 +218,7 @@ function OpenNote({
   });
   useLayoutEffect(() => {
     chipStateRef.current = chipState;
-    gutterStateRef.current = gutterState;
+    marksStateRef.current = marksState;
     proposalActionsRef.current = proposalActions;
     delegationRef.current = {
       threadIdFor: (anchor) =>
@@ -294,7 +294,7 @@ function OpenNote({
         }
       },
     }),
-    proposalGutterExtension({
+    proposalMarksExtension({
       onAccept: (hunk) => {
         void proposalActionsRef.current.accept({
           proposalId: hunk.proposalId,
@@ -330,8 +330,8 @@ function OpenNote({
   }, [chipState]);
 
   useEffect(() => {
-    editorRef.current?.view.dispatch({ effects: setProposalHunks.of(gutterState) });
-  }, [gutterState]);
+    editorRef.current?.view.dispatch({ effects: setProposalHunks.of(marksState) });
+  }, [marksState]);
 
   // The guarded save: hash the base, PUT with the guard, map a 409 CAS body
   // to the controller's SaveResult. Every other refusal throws.
@@ -382,7 +382,7 @@ function OpenNote({
     editor.view.dispatch({
       effects: [
         setThreadChips.of(chipStateRef.current),
-        setProposalHunks.of(gutterStateRef.current),
+        setProposalHunks.of(marksStateRef.current),
       ],
     });
     controllerRef.current = new NoteController({
@@ -405,7 +405,7 @@ function OpenNote({
   useEffect(() => {
     controllerRef.current?.externalContent(diskContent);
     // An adopted read makes the buffer the disk again (or a merge makes it
-    // dirty); either way the gutter's placement question is re-answered here
+    // dirty); either way the marks' placement question is re-answered here
     // rather than waiting for the next keystroke.
     setBufferMatchesDisk(controllerRef.current?.isDirty() !== true);
   }, [diskContent]);
@@ -447,7 +447,7 @@ function OpenNote({
         <ProposalBar
           proposals={proposals}
           actions={proposalActions}
-          unplaceable={gutterState.kind === "unplaceable"}
+          unplaceable={marksState.kind === "unplaceable"}
           onOpenThread={delegation.onOpenThread}
         />
         <NoteTitle
@@ -485,8 +485,8 @@ function OpenNote({
         extensions={delegationExtensions}
         onDocChanged={() => {
           controllerRef.current?.docChanged();
-          // The gutter's coordinates are the DISK's; the moment they part
-          // company it stops drawing, and a save brings it back.
+          // The marks' coordinates are the DISK's; the moment they part
+          // company they stop drawing, and a save brings them back.
           setBufferMatchesDisk(controllerRef.current?.isDirty() !== true);
         }}
         onOpenTag={onSearchTag}

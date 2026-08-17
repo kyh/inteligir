@@ -1,5 +1,17 @@
-// Suggested edits in the gutter: each hunk of a pending proposal marks its
-// lines and hangs an accept/reject pair beside them (issue #560).
+// Suggested edits in the document: each hunk of a pending proposal highlights
+// its lines and carries an accept/reject pair at the end of the last one
+// (issue #560).
+//
+// THE ACTIONS SIT IN THE TEXT COLUMN, NOT IN A CodeMirror GUTTER. A gutter is
+// the obvious idiom and it was the first shape here; it is wrong for THIS
+// editor. `.cm-content` is centred inside `.cm-scroller` (editor-theme's
+// `max-width` + `margin-inline: auto`), and a gutter is laid out at the
+// scroller's left edge — so the buttons landed ~190px from the lines they
+// governed, which is not a gutter, it is two glyphs floating in the margin.
+// Trying to pull the gutter rightwards is circular: the gutter's own width
+// feeds the space the content centres within. An inline widget rides the text
+// instead, so it is beside its hunk at every window width and needs no
+// positioning arithmetic at all.
 //
 // HUNK POSITIONS ARE THE BASE'S LINE NUMBERS, and the buffer is not obliged to
 // be the base — the user may have typed since the file was read. So this
@@ -8,16 +20,22 @@
 // deliberate refusal rather than a gap: a decoration placed on drifted
 // coordinates marks lines the hunk never described, and the accept button
 // beside it would then look like it applies to the text it is pointing at.
-// What earns the gutter back is the buffer being saved or re-adopted, which
+// What earns the marks back is the buffer being saved or re-adopted, which
 // the note's own controller does.
 //
 // Nothing here writes to the buffer. Accept and reject go to the host, which
 // applies through the vault's compare-and-swap; the file coming back changes
 // the buffer through the editor's ordinary external-change path, so the
-// proposal and the editor never fight over the same bytes.
+// review layer and the editor never fight over the same bytes.
 
-import { StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
-import { Decoration, EditorView, gutter, GutterMarker, type DecorationSet } from "@codemirror/view";
+import {
+  StateEffect,
+  StateField,
+  type EditorState,
+  type Extension,
+  type Range,
+} from "@codemirror/state";
+import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 
 /** One reviewable region, exactly as the host derived it. */
 export interface ProposalHunkView {
@@ -34,7 +52,7 @@ export interface ProposalHunkView {
 
 /** What the app knows about this doc's suggestions. The three states differ in
  *  what may be OFFERED, which is why they are not one nullable list. */
-export type ProposalGutterState =
+export type ProposalMarksState =
   /** Not asked yet, or asked and still waiting. Nothing is drawn. */
   | { kind: "idle" }
   /** Reviewable here and now: the buffer matches every hunk's base. */
@@ -46,46 +64,56 @@ export type ProposalGutterState =
    */
   | { kind: "unplaceable"; count: number };
 
-export interface ProposalGutterConfig {
+export interface ProposalMarksConfig {
   onAccept: (hunk: ProposalHunkView) => void;
   onReject: (hunk: ProposalHunkView) => void;
 }
 
-export const setProposalHunks = StateEffect.define<ProposalGutterState>();
+export const setProposalHunks = StateEffect.define<ProposalMarksState>();
 
-const IDLE: ProposalGutterState = { kind: "idle" };
+const IDLE: ProposalMarksState = { kind: "idle" };
 
 /** The hunks to draw, or [] for every other state. */
-function drawableHunks(state: ProposalGutterState): readonly ProposalHunkView[] {
+function drawableHunks(state: ProposalMarksState): readonly ProposalHunkView[] {
   return state.kind === "ready" ? state.hunks : [];
 }
 
-class HunkMarker extends GutterMarker {
+/** What this hunk would do, in words — the buttons' accessible names, and
+ *  their tooltips. Derived from the two line counts, because "3 lines become
+ *  1" is the only description that is true of every hunk shape. */
+function describeHunk(hunk: ProposalHunkView): string {
+  const removed = hunk.baseEnd - hunk.baseStart;
+  if (removed === 0) {
+    return `add ${hunk.proposedLineCount} line(s)`;
+  }
+  if (hunk.proposedLineCount === 0) {
+    return `remove ${removed} line(s)`;
+  }
+  return `replace ${removed} line(s) with ${hunk.proposedLineCount}`;
+}
+
+class HunkActionsWidget extends WidgetType {
   constructor(
     readonly hunk: ProposalHunkView,
-    readonly config: ProposalGutterConfig,
+    readonly config: ProposalMarksConfig,
   ) {
     super();
   }
 
-  override eq(other: HunkMarker): boolean {
+  override eq(other: HunkActionsWidget): boolean {
     return (
       other.hunk.proposalId === this.hunk.proposalId &&
       other.hunk.revision === this.hunk.revision &&
-      other.hunk.index === this.hunk.index
+      other.hunk.index === this.hunk.index &&
+      other.hunk.baseStart === this.hunk.baseStart &&
+      other.hunk.baseEnd === this.hunk.baseEnd
     );
   }
 
   override toDOM(): HTMLElement {
     const wrap = document.createElement("span");
     wrap.className = "cm-proposal-actions";
-    const removed = this.hunk.baseEnd - this.hunk.baseStart;
-    const label =
-      removed === 0
-        ? `Suggested: add ${this.hunk.proposedLineCount} line(s)`
-        : this.hunk.proposedLineCount === 0
-          ? `Suggested: remove ${removed} line(s)`
-          : `Suggested: replace ${removed} line(s)`;
+    const what = describeHunk(this.hunk);
 
     for (const action of [
       { className: "cm-proposal-accept", glyph: "✓", verb: "Accept", run: this.config.onAccept },
@@ -95,8 +123,8 @@ class HunkMarker extends GutterMarker {
       button.type = "button";
       button.className = action.className;
       button.textContent = action.glyph;
-      button.title = `${action.verb} — ${label}`;
-      button.setAttribute("aria-label", `${action.verb} suggestion: ${label}`);
+      button.title = `${action.verb} this suggestion — ${what}`;
+      button.setAttribute("aria-label", `${action.verb} suggested edit: ${what}`);
       // mousedown would move the caret into the marked lines first.
       button.addEventListener("mousedown", (event) => event.preventDefault());
       button.addEventListener("click", (event) => {
@@ -106,6 +134,12 @@ class HunkMarker extends GutterMarker {
       wrap.append(button);
     }
     return wrap;
+  }
+
+  /** The widget owns every event inside it; the editor must not also move the
+   *  caret to the position it occupies. */
+  override ignoreEvent(): boolean {
+    return true;
   }
 }
 
@@ -118,29 +152,37 @@ function lineSpanOf(state: EditorState, hunk: ProposalHunkView): { from: number;
   return { from, to };
 }
 
-interface GutterFieldValue {
-  state: ProposalGutterState;
+interface MarksFieldValue {
+  state: ProposalMarksState;
   decorations: DecorationSet;
 }
 
 function buildDecorations(
   editorState: EditorState,
-  proposalState: ProposalGutterState,
+  proposalState: ProposalMarksState,
+  config: ProposalMarksConfig,
 ): DecorationSet {
   const lineDecoration = Decoration.line({ class: "cm-proposal-line" });
-  const marks = [];
+  const marks: Range<Decoration>[] = [];
   for (const hunk of drawableHunks(proposalState)) {
     const span = lineSpanOf(editorState, hunk);
     for (let line = span.from; line <= span.to; line += 1) {
       marks.push(lineDecoration.range(editorState.doc.line(line).from));
     }
+    // At the END of the hunk's last line: the buttons trail the text they
+    // govern rather than displacing it, and a hunk of any height gets exactly
+    // one pair.
+    const last = editorState.doc.line(span.to);
+    marks.push(
+      Decoration.widget({ widget: new HunkActionsWidget(hunk, config), side: 1 }).range(last.to),
+    );
   }
   return Decoration.set(marks, true);
 }
 
-export function proposalGutterExtension(config: ProposalGutterConfig): Extension {
-  const field = StateField.define<GutterFieldValue>({
-    create: (state) => ({ state: IDLE, decorations: buildDecorations(state, IDLE) }),
+export function proposalMarksExtension(config: ProposalMarksConfig): Extension {
+  const field = StateField.define<MarksFieldValue>({
+    create: (state) => ({ state: IDLE, decorations: buildDecorations(state, IDLE, config) }),
     update(value, tr) {
       let proposalState = value.state;
       let changed = false;
@@ -155,65 +197,50 @@ export function proposalGutterExtension(config: ProposalGutterConfig): Extension
       // safe answer is to draw nothing rather than mapped-forward marks that
       // no longer name the hunk's own lines.
       if (tr.docChanged) {
-        const next: ProposalGutterState =
+        const next: ProposalMarksState =
           proposalState.kind === "ready"
             ? { kind: "unplaceable", count: proposalState.hunks.length }
             : proposalState;
-        return { state: next, decorations: buildDecorations(tr.state, next) };
+        return { state: next, decorations: buildDecorations(tr.state, next, config) };
       }
       if (changed) {
-        return { state: proposalState, decorations: buildDecorations(tr.state, proposalState) };
+        return {
+          state: proposalState,
+          decorations: buildDecorations(tr.state, proposalState, config),
+        };
       }
       return value;
     },
     provide: (f) => EditorView.decorations.from(f, (value) => value.decorations),
   });
 
-  const markers = gutter({
-    class: "cm-proposal-gutter",
-    lineMarker(view, line) {
-      const value = view.state.field(field, false);
-      if (value === undefined) {
-        return null;
-      }
-      const lineNumber = view.state.doc.lineAt(line.from).number;
-      const hunk = drawableHunks(value.state).find(
-        (candidate) => lineSpanOf(view.state, candidate).from === lineNumber,
-      );
-      return hunk === undefined ? null : new HunkMarker(hunk, config);
-    },
-    // Without this the gutter never re-renders when the effect lands.
-    lineMarkerChange: (update) =>
-      update.transactions.some((tr) => tr.effects.some((effect) => effect.is(setProposalHunks))),
-  });
-
-  return [field, markers, proposalTheme];
+  return [field, proposalTheme];
 }
 
 const proposalTheme = EditorView.theme({
   ".cm-proposal-line": {
-    background: "var(--proposal-line-bg, oklch(93% 0.05 150 / 0.35))",
+    background: "var(--proposal-line-bg, oklch(93% 0.05 150 / 0.4))",
   },
   ':root[data-theme="dark"] & .cm-proposal-line': {
-    background: "oklch(45% 0.06 150 / 0.28)",
-  },
-  ".cm-proposal-gutter": {
-    minWidth: "2.6em",
+    background: "oklch(45% 0.06 150 / 0.3)",
   },
   ".cm-proposal-actions": {
     display: "inline-flex",
     gap: "1px",
-    paddingRight: "0.25em",
+    marginLeft: "0.75em",
+    verticalAlign: "baseline",
+    userSelect: "none",
   },
   ".cm-proposal-accept, .cm-proposal-reject": {
-    border: "none",
-    background: "none",
-    padding: "0 0.15em",
+    border: "1px solid var(--chip-border, oklch(88% 0.01 260))",
+    borderRadius: "5px",
+    background: "var(--pm-code-background-color)",
+    padding: "0 0.4em",
     font: "inherit",
-    fontSize: "0.8em",
-    lineHeight: "1.4",
+    fontSize: "0.75em",
+    lineHeight: "1.6",
     cursor: "pointer",
-    opacity: "0.65",
+    opacity: "0.8",
   },
   ".cm-proposal-accept:hover, .cm-proposal-reject:hover": {
     opacity: "1",

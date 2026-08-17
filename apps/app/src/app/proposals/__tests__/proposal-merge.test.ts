@@ -120,7 +120,7 @@ describe("an accepted suggestion arriving under an unsaved edit", () => {
     );
 
     // The merge is neither side, so it is unsaved work by construction — and
-    // the gutter reads that as unplaceable until it lands.
+    // the editor's marks read that as unplaceable until it lands.
     expect(controller.isDirty()).toBe(true);
   });
 });

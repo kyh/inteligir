@@ -1,12 +1,16 @@
 // The open note's suggestion header: the count, accept-all/reject-all, and —
-// when a suggestion cannot be placed in the gutter — the reason and the way
+// when a suggestion cannot be marked in the document — the reason and the way
 // out.
 //
 // A STALE SUGGESTION OFFERS A RE-RUN, NEVER AN APPLY. Its hunks were computed
 // against bytes the file no longer holds, so applying them would be a guess
 // about text the agent never saw; the accept route refuses it anyway, and
-// offering the button would only turn a refusal into a surprise. Re-running
-// the thread is the honest verb, so that is the one on the card.
+// offering the button would only turn a refusal into a surprise.
+//
+// The re-run affordance OPENS THE THREAD rather than sending anything, and it
+// says so — "Ask again", not "Re-run". A button that silently started a turn
+// would be composing a message on the user's behalf, on a note that has since
+// changed, which is the same class of surprise from the other end.
 
 import type { Proposal } from "@repo/server-contract/proposals";
 import { Button } from "@repo/ui/components/button";
@@ -16,9 +20,11 @@ export interface ProposalBarProps {
   /** Every suggestion against the open note, pending and stale alike. */
   proposals: readonly Proposal[];
   actions: ProposalActions;
-  /** True while the buffer differs from the base, so the gutter is dark. */
+  /** True while the buffer differs from the base, so the in-document marks
+   *  are withheld and this bar is the only surface. */
   unplaceable: boolean;
-  /** Re-run the thread that produced a stale suggestion. */
+  /** Open the thread that produced a stale suggestion, so the user can ask
+   *  for it again against the note as it is now. */
   onOpenThread: (threadId: string) => void;
 }
 
@@ -47,7 +53,7 @@ export function ProposalBar({ proposals, actions, unplaceable, onOpenThread }: P
           <span className="text-muted-foreground">
             {unplaceable
               ? "— save this note to review them line by line"
-              : "— review them in the gutter, or decide all at once"}
+              : "— review them in the document, or decide all at once"}
           </span>
           <span className="ml-auto flex gap-1">
             <Button
@@ -90,7 +96,7 @@ export function ProposalBar({ proposals, actions, unplaceable, onOpenThread }: P
           </span>
           <span className="ml-auto flex gap-1">
             <Button variant="outline" size="xs" onClick={() => onOpenThread(proposal.threadId)}>
-              Re-run
+              Ask again
             </Button>
             <Button
               variant="ghost"

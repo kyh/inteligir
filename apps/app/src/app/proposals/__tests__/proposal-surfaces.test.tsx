@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-// The two surfaces that make a suggestion discoverable without opening the
-// gutter: the doc's own bar and the thread dock's card. The property both
+// The two surfaces that make a suggestion discoverable without reading the
+// document itself: the doc's own bar and the thread dock's card. The property both
 // have to hold is the same one — a STALE suggestion never offers an apply,
 // because its hunks were computed against bytes the file no longer has and
 // the server would refuse them anyway.
@@ -62,7 +62,7 @@ describe("the doc's suggestion bar", () => {
     expect(verbs.accept).toHaveBeenCalledWith({ proposalId: "prp_1", expectedRevision: 2 });
   });
 
-  it("says why the gutter is dark when the buffer has moved", () => {
+  it("says why the in-document marks are missing when the buffer has moved", () => {
     render(
       <ProposalBar
         proposals={[proposal()]}
@@ -74,7 +74,7 @@ describe("the doc's suggestion bar", () => {
     expect(screen.getByText(/save this note to review them line by line/u)).toBeDefined();
   });
 
-  it("a STALE suggestion offers a re-run and a discard, never an accept", () => {
+  it("a STALE suggestion offers the thread and a discard, never an accept", () => {
     const verbs = actions();
     const onOpenThread = vi.fn();
     render(
@@ -86,7 +86,7 @@ describe("the doc's suggestion bar", () => {
       />,
     );
     expect(screen.queryByText("Accept all")).toBeNull();
-    fireEvent.click(screen.getByText("Re-run"));
+    fireEvent.click(screen.getByText("Ask again"));
     expect(onOpenThread).toHaveBeenCalledWith("thr_1");
     fireEvent.click(screen.getByText("Discard"));
     expect(verbs.reject).toHaveBeenCalledWith({ proposalId: "prp_1", expectedRevision: 2 });

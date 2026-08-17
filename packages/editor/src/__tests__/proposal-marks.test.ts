@@ -1,11 +1,7 @@
 import { fireEvent } from "@testing-library/dom";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createMarkdownEditor, type MarkdownEditor } from "../create-markdown-editor";
-import {
-  proposalGutterExtension,
-  setProposalHunks,
-  type ProposalHunkView,
-} from "../proposal-gutter";
+import { proposalMarksExtension, setProposalHunks, type ProposalHunkView } from "../proposal-marks";
 
 const doc = ["# Notes", "", "alpha", "beta", "gamma", ""].join("\n");
 
@@ -25,12 +21,12 @@ afterEach(() => {
   editor = undefined;
 });
 
-const mount = (config: Partial<Parameters<typeof proposalGutterExtension>[0]> = {}) => {
+const mount = (config: Partial<Parameters<typeof proposalMarksExtension>[0]> = {}) => {
   const mounted = createMarkdownEditor({
     parent: document.body,
     doc,
     extensions: [
-      proposalGutterExtension({
+      proposalMarksExtension({
         onAccept: config.onAccept ?? (() => {}),
         onReject: config.onReject ?? (() => {}),
       }),
@@ -43,16 +39,28 @@ const mount = (config: Partial<Parameters<typeof proposalGutterExtension>[0]> = 
 const buttons = (mounted: MarkdownEditor, className: string): HTMLButtonElement[] =>
   Array.from(mounted.view.dom.querySelectorAll<HTMLButtonElement>(`.${className}`));
 
+/** The actions must live INSIDE the text column, beside the lines they
+ *  govern — the whole reason this is a widget and not a CodeMirror gutter. */
+const actionsAreInsideTheContent = (mounted: MarkdownEditor): boolean =>
+  Array.from(mounted.view.dom.querySelectorAll(".cm-proposal-actions")).every((node) =>
+    mounted.view.contentDOM.contains(node),
+  );
+
 const markedLines = (mounted: MarkdownEditor): number =>
   mounted.view.dom.querySelectorAll(".cm-proposal-line").length;
 
+const lineOfActions = (mounted: MarkdownEditor): string | null => {
+  const actions = mounted.view.dom.querySelector(".cm-proposal-actions");
+  return actions?.closest(".cm-line")?.textContent ?? null;
+};
+
 const requireButton = (found: HTMLButtonElement[]): HTMLButtonElement => {
   const button = found[0];
-  if (button === undefined) throw new Error("no gutter button rendered");
+  if (button === undefined) throw new Error("no review button rendered");
   return button;
 };
 
-describe("the proposal gutter", () => {
+describe("proposal marks", () => {
   test("draws nothing until the app answers", () => {
     const mounted = mount();
     expect(markedLines(mounted)).toBe(0);
@@ -67,6 +75,7 @@ describe("the proposal gutter", () => {
     mounted.view.dispatch({ effects: setProposalHunks.of({ kind: "ready", hunks: [view] }) });
 
     expect(markedLines(mounted)).toBe(1);
+    expect(actionsAreInsideTheContent(mounted)).toBe(true);
     fireEvent.click(requireButton(buttons(mounted, "cm-proposal-accept")));
     expect(onAccept).toHaveBeenCalledWith(view);
     fireEvent.click(requireButton(buttons(mounted, "cm-proposal-reject")));
@@ -83,6 +92,8 @@ describe("the proposal gutter", () => {
     });
     expect(markedLines(mounted)).toBe(3);
     expect(buttons(mounted, "cm-proposal-accept")).toHaveLength(1);
+    // At the END of the region, so the pair trails the text it governs.
+    expect(lineOfActions(mounted)).toBe("gamma✓✕");
   });
 
   test("an `unplaceable` answer draws nothing — the count is the doc bar's job", () => {
