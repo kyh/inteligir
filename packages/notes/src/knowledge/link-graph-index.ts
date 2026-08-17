@@ -68,8 +68,7 @@ export type GraphNode = {
   /** Vault path for real files; absent on phantom (unresolved-target) nodes. */
   path?: string;
   phantom: boolean;
-  /** Total edges touching the node, counted over the WHOLE graph — so node
-   * sizing means the same thing in a bounded view as in an unbounded one. */
+  /** Edges touching the node, self-links counted once. */
   degree: number;
 };
 
@@ -83,39 +82,14 @@ export type GraphEdge = {
 
 export type LinkGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
 
-/** How much of the graph a caller wants. Every field is optional and an
- * omitted field means "no bound", so `{}` asks for the whole vault.
- *
- * This is a TRANSFER bound, applied where the graph is assembled: the payload
- * at 50k notes is ~42MB of JSON (55k nodes, 400k edges) and a renderer-side
- * filter would still pay all of it, plus hand d3-force 400k links. */
-export type GraphBounds = {
-  /** Vault path expanded FIRST, so the note the user is looking at and its
-   * neighbourhood always survive the node cap. Ignored when it names no node
-   * (nothing open, or a path outside the graph). */
-  focus?: string | undefined;
-  /** Cap on returned nodes. */
-  maxNodes?: number | undefined;
-  /** Cap on returned edges. */
-  maxEdges?: number | undefined;
-};
-
-/** A possibly-bounded graph plus what the whole vault holds. There is no
- * `truncated` flag on purpose — `nodes.length === totalNodes &&
- * edges.length === totalEdges` IS the "nothing was dropped" test, so no second
- * field can disagree with the arrays. Callers MUST surface a shortfall: a
- * silently truncated graph reads as "these notes are unconnected". */
-export type BoundedLinkGraph = LinkGraph & { totalNodes: number; totalEdges: number };
-
 /** A `[[` picker entry: notes AND attachments suggest (Obsidian-style); the
  * `type` flag lets the picker group them and insert `![[..]]` for assets.
  * `aliases` (docs only, when non-empty) feed the picker's match keywords and
  * a client's local resolver. */
 export type WikiTarget = { path: string; title: string; type: "doc" | "asset"; aliases?: string[] };
 
-/** One vault task for the Tasks view: an ExtractedTask flattened with its
- * doc's identity. `ordinal` doubles as delegation's anchor index and the
- * guarded toggle's key; `raw` is the toggle's expectedRaw. */
+/** One vault task: an ExtractedTask flattened with its doc's identity, so a
+ * caller listing across the vault keeps the (path, ordinal) that names it. */
 export type VaultTaskEntry = {
   path: string;
   title: string;
@@ -457,130 +431,6 @@ export class LinkGraphIndex {
     this.pendingDocs.clear();
     return true;
   }
-}
-
-// ---- Bounding ----------------------------------------------------------------
-//
-// A pure post-pass over an assembled graph rather than a second assembly path:
-// the resolution/collapse/phantom rules stay written exactly once, and a
-// bounded answer is provably a SUBSET of the unbounded one.
-
-/** Narrow `graph` to `bounds`, reporting what the whole graph held.
- *
- * Node selection is one rule with two seeds: breadth-first from `focus`
- * (nearest first — the view the user is standing in), then the highest-degree
- * nodes to fill any remaining budget (the vault's hubs — the view that makes
- * sense with nothing open). A focus is therefore a PRIORITY, not a filter: the
- * graph stays global, it just can't lose the open note to the cap.
- *
- * Edges are the ones induced by the kept nodes; if that still exceeds
- * `maxEdges`, the outermost go first. */
-export function boundGraph(graph: LinkGraph, bounds: GraphBounds): BoundedLinkGraph {
-  const totalNodes = graph.nodes.length;
-  const totalEdges = graph.edges.length;
-  const maxNodes = bounds.maxNodes ?? totalNodes;
-  const maxEdges = bounds.maxEdges ?? totalEdges;
-  if (totalNodes <= maxNodes && totalEdges <= maxEdges) {
-    return { nodes: graph.nodes, edges: graph.edges, totalNodes, totalEdges };
-  }
-
-  const rank = selectNodes(graph, bounds.focus, maxNodes);
-
-  // An edge is induced when BOTH endpoints were selected — and that same pair
-  // of lookups is its cut order: an edge becomes drawable only once its LATER
-  // endpoint is selected, so the later rank is exactly its distance from the
-  // focus. Scoring here rather than in a second pass keeps the "both endpoints
-  // are ranked" invariant TOTAL, with no unreachable missing-endpoint case.
-  const induced: Array<{ edge: GraphEdge; at: number }> = [];
-  for (const edge of graph.edges) {
-    const source = rank.get(edge.source);
-    const target = rank.get(edge.target);
-    if (source === undefined || target === undefined) continue;
-    induced.push({ edge, at: Math.max(source, target) });
-  }
-  const kept =
-    induced.length <= maxEdges
-      ? induced
-      : induced.toSorted((a, b) => a.at - b.at).slice(0, maxEdges);
-
-  // Kept nodes stay even when the edge cut leaves them isolated: dropping them
-  // would make the reported node count a lie.
-  return {
-    nodes: graph.nodes.filter((node) => rank.has(node.id)),
-    edges: kept.map((entry) => entry.edge),
-    totalNodes,
-    totalEdges,
-  };
-}
-
-/** Up to `maxNodes` node ids mapped to their SELECTION ORDER: breadth-first
- * from the focus, then highest-degree to fill the budget. The rank is the
- * insertion index, so it doubles as distance from the focus for the edge cut. */
-function selectNodes(
-  graph: LinkGraph,
-  focus: string | undefined,
-  maxNodes: number,
-): Map<string, number> {
-  const rank = new Map<string, number>();
-  if (maxNodes <= 0) return rank;
-
-  // A focus that names no node contributes nothing, so the adjacency map (the
-  // one O(edges) allocation here) is built only when it will actually be
-  // walked.
-  if (focus !== undefined && graph.nodes.some((node) => node.id === focus)) {
-    const adjacency = buildAdjacency(graph.edges);
-    const queue = [focus];
-    let head = 0;
-    while (head < queue.length && rank.size < maxNodes) {
-      const id = queue[head++];
-      if (id === undefined || rank.has(id)) continue;
-      rank.set(id, rank.size);
-      for (const neighbour of adjacency.get(id) ?? []) {
-        // Never queue more candidates than the remaining budget can consume —
-        // one hub with a 20k in-degree would otherwise make a bounded answer
-        // cost a whole-vault frontier.
-        if (queue.length - head >= maxNodes) break;
-        if (!rank.has(neighbour)) queue.push(neighbour);
-      }
-    }
-  }
-
-  // Degree fill by COUNTING SORT: bucket every node by its degree, then walk
-  // the buckets high to low. Pushes preserve node order within a bucket, so
-  // this selects EXACTLY what a stable descending sort would — in
-  // O(nodes + maxDegree) instead of O(n log n), and it stops the moment the
-  // budget is full rather than ordering the whole vault first. The bucket array
-  // can't outgrow the graph: edges are deduped per (source, target, kind), so a
-  // degree is at most a small multiple of the node count.
-  if (rank.size < maxNodes) {
-    let maxDegree = 0;
-    for (const node of graph.nodes) maxDegree = Math.max(maxDegree, node.degree);
-    const byDegree: Array<GraphNode[] | undefined> = Array.from({ length: maxDegree + 1 });
-    for (const node of graph.nodes) (byDegree[node.degree] ??= []).push(node);
-    for (let degree = maxDegree; degree >= 0 && rank.size < maxNodes; degree--) {
-      for (const node of byDegree[degree] ?? []) {
-        if (rank.size >= maxNodes) break;
-        if (!rank.has(node.id)) rank.set(node.id, rank.size);
-      }
-    }
-  }
-  return rank;
-}
-
-/** Undirected neighbour lists. The graph is drawn undirected, so traversal is
- * too — a note reached only by an inbound link is still a neighbour. */
-function buildAdjacency(edges: readonly GraphEdge[]): Map<string, string[]> {
-  const adjacency = new Map<string, string[]>();
-  const link = (from: string, to: string): void => {
-    const list = adjacency.get(from);
-    if (list === undefined) adjacency.set(from, [to]);
-    else list.push(to);
-  };
-  for (const edge of edges) {
-    link(edge.source, edge.target);
-    if (edge.target !== edge.source) link(edge.target, edge.source);
-  }
-  return adjacency;
 }
 
 /** Insert `occurrence` keeping the target's list in corpus order. Equal seqs

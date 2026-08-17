@@ -4,7 +4,8 @@
 // Two constructs are disabled and both are load-bearing. A checkbox has no id,
 // so everything that points at one points at its POSITION in this count
 // (../knowledge/task-ordinal) — which means the count has to agree with the set
-// of checkboxes the editor DRAWS, or delegation writes to the wrong task. The
+// of checkboxes the editor DRAWS, or a projected ordinal names a different line
+// than the one the reader is looking at. The
 // editor renders through a different parser (@repo/editor over lezer-markdown),
 // and CommonMark's defaults are where the two diverge: indented code hides a
 // 4-space-indented `- [ ]` the editor still shows, and flow HTML lets one

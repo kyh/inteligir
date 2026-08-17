@@ -78,6 +78,10 @@ export function splitFrontmatter(text: string): SplitDoc {
 // carried as its own source bytes and written back untouched.
 // ---------------------------------------------------------------------------
 
+/** The tag set of {@link TypedProperty} — what a property EDITOR switches on,
+ * separately nameable from the value shapes it carries. Nothing edits
+ * properties yet, so knip is told the export is deliberate.
+ * @public */
 export type PropertyType = "text" | "number" | "checkbox" | "date" | "tags" | "unsupported";
 
 /** A frontmatter key parsed into a typed control. The ADT keeps illegal
@@ -196,7 +200,11 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
 /** Type a single new key from a user-entered raw value: the value is read as a
  * YAML scalar so `true`, `42`, `2026-07-01`, `[a, b]` type naturally, exactly
  * as if it had been typed into the block. An empty value is an empty text
- * property. */
+ * property.
+ *
+ * The read path classifies keys already IN a block; this is the add-a-property
+ * half, which no surface offers yet — so knip is told the export is deliberate.
+ * @public */
 export function typeNewProperty(key: string, rawValue: string): TypedProperty {
   if (rawValue.trim() === "") return { key, type: "text", value: "" };
   let value: unknown;

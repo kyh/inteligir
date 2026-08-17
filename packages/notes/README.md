@@ -27,18 +27,16 @@ src/
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
                        # in-memory tiered lexical index (behavior pin)
-    task-ordinal.ts    # what (sourceFile, ordinal) names: the ONE count of a
-                       # doc's checkboxes, the lookup, the two state rules
-                       # (delegation wants an open one, a toggle takes either)
-                       # and the guarded write back
+    task-ordinal.ts    # what an ordinal names: the ONE count of a doc's
+                       # checkboxes, extracted with the bytes of each line
     source-lines.ts    # what a LINE is — content excludes its terminator —
                        # as a split and as a span, so a guarded splice leaves
                        # every other byte, CRLF included, untouched
     vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
                        # command palette and the agent's search_vault
-    task-schedule.ts, tag-index.ts, related-notes.ts, note-name.ts,
-    doc-file.ts, vault-path.ts  # task-date association, tags, related-notes
-                       # scorer, name validation, doc test, posix path helpers
+    tag-index.ts, related-notes.ts, note-name.ts, doc-file.ts,
+    vault-path.ts      # tags, related-notes scorer, name validation, doc
+                       # test, posix path helpers
   markdown/            # the one scan, and what reads a doc's header
     scan-parse.ts      # the grammar every knowledge scan reads; TOTAL, and
                        # disabling codeIndented/htmlFlow is what keeps its task
@@ -70,7 +68,6 @@ src/
 
 - `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
   better-sqlite3 in `apps/app/src/node/knowledge/sqlite-driver.ts`.
-- `task-schedule.ts`: injected daily-note config and a `todayIso` clock.
 
 ## Testing
 

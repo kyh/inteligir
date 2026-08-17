@@ -18,7 +18,6 @@
     "./knowledge/projection": "./src/knowledge/projection.ts",
     "./knowledge/task-ordinal": "./src/knowledge/task-ordinal.ts",
     "./knowledge/source-lines": "./src/knowledge/source-lines.ts",
-    "./knowledge/task-schedule": "./src/knowledge/task-schedule.ts",
     "./knowledge/link-graph-index": "./src/knowledge/link-graph-index.ts",
     "./knowledge/tag-index": "./src/knowledge/tag-index.ts",
     "./knowledge/knowledge-store": "./src/knowledge/knowledge-store.ts",

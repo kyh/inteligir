@@ -1,6 +1,6 @@
 import { Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { toggleTaskAtOrdinal } from "@repo/notes/knowledge/task-ordinal";
+import { scanTaskItems } from "@repo/notes/knowledge/task-ordinal";
 import { afterEach, describe, expect, test } from "vitest";
 import { createMarkdownEditor, type MarkdownEditor } from "../create-markdown-editor";
 
@@ -83,23 +83,26 @@ describe("checkbox toggle", () => {
     );
   });
 
-  test("every click writes exactly what the notes guarded write produces", () => {
-    // The lockstep proof: the click path and @repo/notes' ordinal-guarded
-    // write run the same grammar, so each checkbox's toggle must yield
-    // byte-identical documents through both.
-    const rawLines = [
-      "- [ ] buy milk",
-      "- [x] shipped",
-      "1. [ ] numbered task",
-      "> - [ ] quoted task",
-    ];
+  test("the widgets drawn are @repo/notes' tasks, in ordinal order", () => {
+    // The lockstep proof, and the one assertion here that spans two grammars:
+    // CodeMirror draws these checkboxes off lezer-markdown while @repo/notes
+    // counts them off micromark, and the projection's ordinals name the right
+    // line only while the two agree. So clicking widget N must move exactly the
+    // line @repo/notes calls ordinal N.
     const { editor: e } = mount();
-    for (const [ordinal, raw] of rawLines.entries()) {
+    const scanned = scanTaskItems(doc);
+    expect(checkboxes(e.view).map((box) => box.checked)).toEqual(
+      scanned.map((task) => task.checked),
+    );
+
+    for (const task of scanned) {
       e.setDoc(doc);
-      clickNthCheckbox(e.view, ordinal);
-      const guarded = toggleTaskAtOrdinal(doc, ordinal, raw);
-      if (!guarded.ok) throw new Error(`notes refused ordinal ${String(ordinal)}`);
-      expect(e.getDoc()).toBe(guarded.content);
+      clickNthCheckbox(e.view, task.ordinal);
+      const expected = doc.split("\n");
+      expected[task.line - 1] = task.checked
+        ? task.raw.replace("[x]", "[ ]")
+        : task.raw.replace("[ ]", "[x]");
+      expect(e.getDoc()).toBe(expected.join("\n"));
     }
   });
 });
