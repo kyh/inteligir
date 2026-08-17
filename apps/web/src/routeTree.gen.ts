@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
+import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppDevicesRouteImport } from './routes/app/devices'
 import { Route as AppForgotPasswordRouteImport } from './routes/app/forgot-password'
 import { Route as AppSignInRouteImport } from './routes/app/sign-in'
@@ -31,6 +32,11 @@ const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppDevicesRoute = AppDevicesRouteImport.update({
   id: '/devices',
@@ -61,15 +67,16 @@ export interface FileRoutesByFullPath {
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/app': typeof AppRouteWithChildren
   '/robots.txt': typeof RobotsDottxtRoute
   '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +87,7 @@ export interface FileRoutesById {
   '/app/forgot-password': typeof AppForgotPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,15 +99,16 @@ export interface FileRouteTypes {
     | '/app/forgot-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/app'
     | '/robots.txt'
     | '/app/devices'
     | '/app/forgot-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/app'
   id:
     | '__root__'
     | '/'
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/app/forgot-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -139,6 +149,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/robots.txt'
       preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
     }
     '/app/devices': {
       id: '/app/devices'
@@ -176,6 +193,7 @@ interface AppRouteChildren {
   AppForgotPasswordRoute: typeof AppForgotPasswordRoute
   AppSignInRoute: typeof AppSignInRoute
   AppSignUpRoute: typeof AppSignUpRoute
+  AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -183,6 +201,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppForgotPasswordRoute: AppForgotPasswordRoute,
   AppSignInRoute: AppSignInRoute,
   AppSignUpRoute: AppSignUpRoute,
+  AppIndexRoute: AppIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
