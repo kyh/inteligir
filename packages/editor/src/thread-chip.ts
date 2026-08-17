@@ -215,9 +215,10 @@ export function threadChipsExtension(config: ThreadChipConfig): Extension {
 
 const running = "var(--chip-running)";
 
-// Same light/dark carrier pattern as editor-theme.ts: light tokens on the
-// editor root, dark under the media query guarded against an explicit light
-// choice, and again under the explicit data-theme="dark" override.
+// Same light/dark carrier as editor-theme.ts: light tokens on the editor root,
+// dark under `:root[data-theme="dark"]`, which the host stamps. A
+// `prefers-color-scheme` block cannot work inside a CM theme — see the note in
+// editor-theme.ts.
 const chipLightTokens: Record<string, string> = {
   "--chip-border": "oklch(88% 0.01 260)",
   "--chip-fg": "oklch(50% 0.03 257)",
@@ -242,9 +243,6 @@ const chipDarkTokens: Record<string, string> = {
 
 const chipTheme = EditorView.theme({
   "&": chipLightTokens,
-  "@media (prefers-color-scheme: dark)": {
-    ':root:not([data-theme="light"]) &': chipDarkTokens,
-  },
   ':root[data-theme="dark"] &': chipDarkTokens,
 
   ".cm-thread-chip": {
