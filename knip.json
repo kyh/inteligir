@@ -70,13 +70,28 @@
       // `cloudflare` package would be worse.
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },
-    // Carried ahead of its v3 consumers (issue #542): the package's public
-    // surface is deliberately wider than today's importers, so its entry
-    // exports are trusted as API rather than reported. Flip this back to
-    // `includeEntryExports: true` once the v3 features consume it in-repo.
+    // Unused-export reporting is ON here, which is what makes a subsystem with
+    // no consumer show up rather than hide behind the exports map (every
+    // subpath in it is an entry, and an entry's exports are trusted by
+    // default). Two things narrow that, and both are rules rather than a
+    // blanket:
+    //
+    // `ignoreExportsUsedInFile` — a module that exports a type it also uses
+    // itself is naming a part of its own shape, and a consumer needs the name
+    // to hold the value (GraphNode/GraphEdge inside LinkGraph, WikiBody inside
+    // WikiBodyRange, the schema version the store compares against). WikiLink
+    // and WikiEmbed additionally reach consumers through a `declare module
+    // "mdast"` augmentation, which knip cannot follow at all.
+    //
+    // Everything left is a per-export `@public` tag carrying its own reason.
+    // Today that is exactly three, all genuinely carried ahead of a v3 consumer
+    // (issue #542): `parseWikiBody`, `typeNewProperty`, `PropertyType`. A
+    // FOURTH one appearing fails this gate, which is the point.
     "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": true,
+      "ignoreExportsUsedInFile": true
     },
     // Same trade as packages/notes: built ahead of its v3 consumers (issue
     // #550), so entry exports are trusted as API. Every vendored ProseMark
