@@ -4,14 +4,19 @@
 // param — deep-linkable, back/forward works — mirrored to localStorage so a
 // fresh boot reopens where the user left off.
 
+import type { Thread } from "@repo/server-contract/threads";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, queryKeys, unwrap } from "./api";
+import { ChatDock } from "./chat/chat-dock";
+import { ANCHOR_FAILURE_MESSAGES, type DelegationDraft } from "./chat/chat-model";
+import { createDelegation } from "./chat/chat-service";
+import { useThreads } from "./chat/thread-hooks";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
-import { NoteView } from "./note/note-view";
+import { NoteView, type NoteDelegation } from "./note/note-view";
 import { CommandPalette } from "./palette/command-palette";
 import {
   NOTE_SEARCH_LIMIT,
@@ -38,6 +43,7 @@ export interface WorkspaceProps {
 }
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
+const EMPTY_THREADS: readonly Thread[] = [];
 
 export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const { api } = useWorkspace();
@@ -47,6 +53,78 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // The chat dock's state lives HERE, beside the note — never above it, so
+  // no chat interaction can remount the editor.
+  const threadsQuery = useThreads();
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const [chatThreadId, setChatThreadId] = useState<string | null>(null);
+  const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
+
+  const openThread = useCallback((threadId: string | null): void => {
+    setChatThreadId(threadId);
+    setChatExpanded(true);
+  }, []);
+
+  const runDelegation = useCallback(
+    async (draft: DelegationDraft, prompt: string): Promise<void> => {
+      try {
+        const created = await createDelegation(api, {
+          intent: draft.intent,
+          docPath: draft.docPath,
+          selectionText: draft.selectionText,
+          prompt,
+          anchor: draft.anchor,
+        });
+        // An anchor that did not land means NO thread was created — say which
+        // failure it was rather than leaving the user with a silent no-op.
+        if (created.kind === "not-anchored") {
+          toast.error(ANCHOR_FAILURE_MESSAGES[created.reason]);
+          return;
+        }
+        if (created.send.kind === "refused") {
+          toast.error(`The delegation could not start: ${created.send.message}`);
+        }
+        openThread(created.threadId);
+      } catch {
+        toast.error("Could not create the delegation.");
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
+      }
+    },
+    [api, queryClient, openThread],
+  );
+
+  const noteDelegation = useMemo<NoteDelegation>(
+    () => ({
+      onDraft: setDelegationDraft,
+      onRunTask: (draft, prompt) => {
+        void runDelegation(draft, prompt);
+      },
+      onOpenThread: openThread,
+    }),
+    [runDelegation, openThread],
+  );
+
+  // Cancelling drops the editor's tracked position too — an abandoned draft
+  // must not leave one armed for the next delegation to inherit.
+  const onCancelDraft = useCallback((): void => {
+    setDelegationDraft((current) => {
+      current?.cancel();
+      return null;
+    });
+  }, []);
+
+  const onSubmitDelegation = useCallback(
+    async (prompt: string): Promise<void> => {
+      const draft = delegationDraft;
+      setDelegationDraft(null);
+      if (draft !== null) {
+        await runDelegation(draft, prompt);
+      }
+    },
+    [delegationDraft, runDelegation],
+  );
 
   // Every deliberate open/close goes through here, which is what keeps the
   // localStorage mirror honest; the boot restore below bypasses it on purpose.
@@ -313,11 +391,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       openNote: setOpenNote,
       newNote: newUntitledNote,
       openDailyNote,
+      openThread,
       syncNow,
       openSettings: onOpenSettings,
     }),
-    [setOpenNote, newUntitledNote, openDailyNote, syncNow, onOpenSettings],
+    [setOpenNote, newUntitledNote, openDailyNote, openThread, syncNow, onOpenSettings],
   );
+
+  const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
 
   return (
     <div className="flex h-dvh overflow-hidden bg-background text-foreground">
@@ -343,22 +424,40 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         onPointerMove={onResizePointerMove}
         onPointerUp={onResizePointerUp}
       />
-      <main className="min-w-0 flex-1">
-        {openNote === null ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              Open a note from the sidebar, or press{" "}
-              <kbd className="rounded border border-border px-1 font-mono text-xs">⌘K</kbd>
-            </p>
-          </div>
-        ) : (
-          <NoteView path={openNote} onRename={setOpenNote} onVanished={onNoteVanished} />
-        )}
+      <main className="flex min-w-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1">
+          {openNote === null ? (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm text-muted-foreground">
+                Open a note from the sidebar, or press{" "}
+                <kbd className="rounded border border-border px-1 font-mono text-xs">⌘K</kbd>
+              </p>
+            </div>
+          ) : (
+            <NoteView
+              path={openNote}
+              delegation={noteDelegation}
+              onRename={setOpenNote}
+              onVanished={onNoteVanished}
+            />
+          )}
+        </div>
+        <ChatDock
+          viewThreadId={chatThreadId}
+          onViewThread={setChatThreadId}
+          expanded={chatExpanded}
+          onExpandedChange={setChatExpanded}
+          draft={delegationDraft}
+          onCancelDraft={onCancelDraft}
+          onSubmitDelegation={onSubmitDelegation}
+          onOpenDoc={setOpenNote}
+        />
       </main>
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         entries={treeEntries}
+        threads={threads}
         searchSource={searchSource}
         canSync={canSync}
         actions={paletteActions}

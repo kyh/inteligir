@@ -12,6 +12,8 @@ import {
   createThread,
   getThread,
   listThreads,
+  listThreadsByOriginDoc,
+  rebindThreadOrigins,
 } from "../threads";
 
 const tempDirs: string[] = [];
@@ -231,5 +233,96 @@ describe("listThreads query plan", () => {
         )
         .run(),
     ).toThrow(/CHECK/u);
+  });
+});
+
+describe("doc-bound threads", () => {
+  it("answers by-doc from its own index", () => {
+    const db = openTempDb();
+    const plan = db.$client
+      .prepare(
+        "EXPLAIN QUERY PLAN SELECT * FROM threads WHERE origin_doc_path = 'a.md' ORDER BY updated_at DESC",
+      )
+      .all()
+      .map((step) => JSON.stringify(step))
+      .join("\n");
+    expect(plan).toContain("threads_origin_doc_idx");
+  });
+
+  it("refuses two threads claiming one anchor", () => {
+    const db = openTempDb();
+    createThread(db, noopNotifier, { originDocPath: "a.md", originAnchor: "anc_0123456789ab" });
+    expect(() =>
+      createThread(db, noopNotifier, { originDocPath: "b.md", originAnchor: "anc_0123456789ab" }),
+    ).toThrow(/UNIQUE/u);
+  });
+
+  it("lists only the threads bound to the named doc", () => {
+    const db = openTempDb();
+    const bound = createThread(db, noopNotifier, {
+      originDocPath: "notes/a.md",
+      originAnchor: "anc_00000000000a",
+    });
+    createThread(db, noopNotifier, {
+      originDocPath: "notes/b.md",
+      originAnchor: "anc_00000000000b",
+    });
+    createThread(db, noopNotifier, {});
+    expect(listThreadsByOriginDoc(db, "notes/a.md").map((row) => row.id)).toEqual([bound.id]);
+  });
+});
+
+describe("rebindThreadOrigins", () => {
+  it("follows a renamed file and announces each moved thread", () => {
+    const db = openTempDb();
+    const { notifier, threadChanges } = recordingNotifier();
+    const first = createThread(db, notifier, {
+      originDocPath: "Plans.md",
+      originAnchor: "anc_00000000000a",
+    });
+    const second = createThread(db, notifier, {
+      originDocPath: "Plans.md",
+      originAnchor: "anc_00000000000b",
+    });
+    const elsewhere = createThread(db, notifier, {
+      originDocPath: "Other.md",
+      originAnchor: "anc_00000000000c",
+    });
+    threadChanges.length = 0;
+
+    expect(rebindThreadOrigins(db, notifier, { from: "Plans.md", to: "Archive/Moved.md" })).toBe(2);
+    expect(getThread(db, first.id)?.originDocPath).toBe("Archive/Moved.md");
+    expect(getThread(db, second.id)?.originDocPath).toBe("Archive/Moved.md");
+    expect(getThread(db, elsewhere.id)?.originDocPath).toBe("Other.md");
+    expect(threadChanges.map((change) => change.changes[0])).toEqual([
+      "origin-changed",
+      "origin-changed",
+    ]);
+  });
+
+  it("follows a renamed DIRECTORY for every doc under it", () => {
+    const db = openTempDb();
+    const nested = createThread(db, noopNotifier, {
+      originDocPath: "Notes/deep/a.md",
+      originAnchor: "anc_00000000000a",
+    });
+    // A sibling whose path merely shares the prefix must NOT move.
+    const sibling = createThread(db, noopNotifier, {
+      originDocPath: "Notes2/b.md",
+      originAnchor: "anc_00000000000b",
+    });
+
+    expect(rebindThreadOrigins(db, noopNotifier, { from: "Notes", to: "Archive" })).toBe(1);
+    expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/deep/a.md");
+    expect(getThread(db, sibling.id)?.originDocPath).toBe("Notes2/b.md");
+  });
+
+  it("is a no-op when nothing is bound to the moved path", () => {
+    const db = openTempDb();
+    const { notifier, threadChanges } = recordingNotifier();
+    createThread(db, notifier, {});
+    threadChanges.length = 0;
+    expect(rebindThreadOrigins(db, notifier, { from: "Nothing.md", to: "Else.md" })).toBe(0);
+    expect(threadChanges).toEqual([]);
   });
 });

@@ -28,15 +28,15 @@ describe("boot", () => {
   it("migrates on boot and bumps meta.schema_version to the latest generation", () => {
     const db = openTempDb();
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(3);
-    expect(getMetaValue(db, "schema_version")).toBe("3");
+    expect(getSchemaVersion(db)).toBe(4);
+    expect(getMetaValue(db, "schema_version")).toBe("4");
   });
 
   it("is idempotent across boots", () => {
     const db = openTempDb();
     runMigrations(db);
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(3);
+    expect(getSchemaVersion(db)).toBe(4);
   });
 
   it("upgrades a POPULATED v2 database in place: child rows survive, FKs hold", () => {
@@ -80,7 +80,7 @@ describe("boot", () => {
     );
 
     runMigrations(db);
-    expect(getSchemaVersion(db)).toBe(3);
+    expect(getSchemaVersion(db)).toBe(4);
 
     // Every child row survived the upgrade and still resolves its parent.
     expect(db.get(sql`SELECT count(*) AS n FROM events WHERE thread_id = 'thr_v2'`)).toEqual({

@@ -13,6 +13,8 @@ import { killAllLiveGroups, type AppInstance, type BootMode } from "./harness/in
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { cliDrive } from "./scenarios/cli-drive";
+import { delegationChipBrowser } from "./scenarios/delegation-chip-browser";
+import { delegationScripted } from "./scenarios/delegation-scripted";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
 import { vaultSync } from "./scenarios/vault-sync";
@@ -21,8 +23,10 @@ const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
   vaultSync,
   threadsScripted,
+  delegationScripted,
   cliDrive,
   browserSmoke,
+  delegationChipBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--prod] [--only <names>] [--keep] [--list]

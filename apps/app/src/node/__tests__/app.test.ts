@@ -59,7 +59,7 @@ describe("the API over the in-process app", () => {
     expect(status.dataDir).toBe(args.config.dataDir);
     // The instance IDENTITY the CLI's discovery compares against.
     expect(status.vaultDir).toBe(args.config.vaultDir);
-    expect(status.schemaVersion).toBe(3);
+    expect(status.schemaVersion).toBe(4);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
 

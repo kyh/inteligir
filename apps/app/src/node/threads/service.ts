@@ -28,6 +28,7 @@ import {
 import { createTurnId } from "@repo/db/ids";
 import { NotificationBuffer, type DbNotifier } from "@repo/db/notifier";
 import {
+  countOpenPendingInteractionsByThread,
   getPendingInteraction,
   interruptOpenPendingInteractions,
   listAllOpenPendingInteractions,
@@ -37,8 +38,10 @@ import {
 } from "@repo/db/pending-interactions";
 import {
   claimNextQueuedThreadMessageInTransaction,
+  countQueuedThreadMessagesByThread,
   createQueuedThreadMessageInTransaction,
   deleteClaimedQueuedThreadMessage,
+  listQueuedThreadMessages,
   releaseQueuedMessageClaim,
   type ClaimedQueuedThreadMessageRow,
 } from "@repo/db/queued-messages";
@@ -48,6 +51,7 @@ import {
   createThread,
   getThread,
   listThreads,
+  listThreadsByOriginDoc,
   type ThreadRow,
 } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -56,6 +60,8 @@ import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
+  DocThreadActivity,
+  GetThreadResponse,
   PendingInteraction,
   SendMessageRequest,
   Thread,
@@ -160,7 +166,7 @@ export class ThreadService implements ProviderEventSink {
     return listThreads(this.db).map(toWireThread);
   }
 
-  get(threadId: string): { thread: Thread; pendingInteractions: PendingInteraction[] } | null {
+  get(threadId: string): GetThreadResponse | null {
     const thread = getThread(this.db, threadId);
     if (thread === null) {
       return null;
@@ -170,6 +176,11 @@ export class ThreadService implements ProviderEventSink {
       pendingInteractions: listOpenPendingInteractions(this.db, threadId).map(
         toWirePendingInteraction,
       ),
+      queuedMessages: listQueuedThreadMessages(this.db, threadId).map((row) => ({
+        id: row.id,
+        text: row.text,
+        createdAt: row.createdAt,
+      })),
     };
   }
 
@@ -179,6 +190,28 @@ export class ThreadService implements ProviderEventSink {
         ? listAllOpenPendingInteractions(this.db)
         : listOpenPendingInteractions(this.db, threadId);
     return rows.map(toWirePendingInteraction);
+  }
+
+  /**
+   * Every thread bound to a doc, archived included — a chip for an archived
+   * thread is what carries the dismiss affordance.
+   *
+   * THREE queries, whatever the vault holds: the bound threads by their own
+   * index, then one grouped count each. The open note re-runs this on every
+   * thread invalidation, so the shape that scanned all threads and then asked
+   * two questions per row would grow with the vault and fire while an agent
+   * streams.
+   */
+  listByDoc(docPath: string): DocThreadActivity[] {
+    const bound = listThreadsByOriginDoc(this.db, docPath);
+    const ids = bound.map((row) => row.id);
+    const interactions = countOpenPendingInteractionsByThread(this.db, ids);
+    const queued = countQueuedThreadMessagesByThread(this.db, ids);
+    return bound.map((row) => ({
+      thread: toWireThread(row),
+      openInteractionCount: interactions.get(row.id) ?? 0,
+      queuedCount: queued.get(row.id) ?? 0,
+    }));
   }
 
   archive(threadId: string): Thread | null {
@@ -234,6 +267,22 @@ export class ThreadService implements ProviderEventSink {
       case "active": {
         if (request.mode === "queue-if-active") {
           return this.queueInTransaction(tx, thread.id, request.text, buffer);
+        }
+        // A steer names the turn it joins, ALWAYS. An unguarded steer is not a
+        // client saying "whichever turn is open" — it is a client that believed
+        // the thread was idle, and injecting its text into a turn it has never
+        // seen (another window's, or one that started between its render and
+        // its send) puts words in a conversation the user is not having. The
+        // 409 sends it back to re-read and decide again.
+        if (request.expectedTurnId === undefined) {
+          return {
+            kind: "done",
+            outcome: {
+              kind: "conflict",
+              error: "stale_turn",
+              message: "A turn is already running; steering it must name it",
+            },
+          };
         }
         if (
           thread.activeTurnId === null ||

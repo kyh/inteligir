@@ -25,6 +25,7 @@ function makeActions(): PaletteActions {
     openNote: vi.fn(),
     newNote: vi.fn(),
     openDailyNote: vi.fn(),
+    openThread: vi.fn(),
     syncNow: vi.fn(),
     openSettings: vi.fn(),
   };
@@ -38,6 +39,7 @@ function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPal
       open
       onOpenChange={onOpenChange}
       entries={ENTRIES}
+      threads={[]}
       searchSource={filenameSource}
       canSync={false}
       actions={actions}

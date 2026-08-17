@@ -57,6 +57,13 @@ export const threads = sqliteTable(
       "threads_origin_pair_check",
       sql`(${table.originDocPath} IS NULL) = (${table.originAnchor} IS NULL)`,
     ),
+    // The open note asks "which threads are bound to THIS doc?" on every
+    // thread invalidation, and a rename rebinds by the same key — both are
+    // scans of one column, so both get this index instead of the table.
+    index("threads_origin_doc_idx").on(table.originDocPath),
+    // One anchor, one thread: the client mints the token, and a duplicate
+    // would give a chip two threads to open with no way to choose.
+    uniqueIndex("threads_origin_anchor_idx").on(table.originAnchor),
   ],
 );
 

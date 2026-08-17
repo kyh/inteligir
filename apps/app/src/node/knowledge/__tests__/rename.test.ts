@@ -36,6 +36,9 @@ function boot(): { root: string; service: VaultService; knowledge: KnowledgeRunt
   return { root, service, knowledge };
 }
 
+/** The thread rebind is exercised by its own suite; these assert link surgery. */
+const noRebind = (): void => {};
+
 describe("rename with link rewrite", () => {
   it("rewrites exactly the candidate docs and records the old stem as an alias", async () => {
     const { root, service, knowledge } = boot();
@@ -50,6 +53,7 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       service,
       knowledge,
+      rebindThreads: noRebind,
       from: "notes/target.md",
       to: "archive/moved.md",
     });
@@ -86,7 +90,13 @@ describe("rename with link rewrite", () => {
     const candidates = await knowledge.renameCandidates("other.md", "note.md");
     expect(candidates.toSorted()).toEqual(["other.md", "s.md"]);
 
-    await renameNoteWithLinkRewrite({ service, knowledge, from: "other.md", to: "note.md" });
+    await renameNoteWithLinkRewrite({
+      service,
+      knowledge,
+      rebindThreads: noRebind,
+      from: "other.md",
+      to: "note.md",
+    });
 
     // `[[note]]` used to reach a/note.md; the new root note.md would shadow
     // it, so the link is qualified to keep meaning what it meant.
@@ -103,6 +113,7 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       service,
       knowledge,
+      rebindThreads: noRebind,
       from: "dir",
       to: "moved-dir",
     });
@@ -130,6 +141,7 @@ describe("rename with link rewrite", () => {
     const result = await renameNoteWithLinkRewrite({
       service: racing,
       knowledge,
+      rebindThreads: noRebind,
       from: "target.md",
       to: "moved.md",
     });

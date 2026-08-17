@@ -377,6 +377,9 @@ importers:
       '@repo/app':
         specifier: workspace:*
         version: link:../apps/app
+      '@repo/notes':
+        specifier: workspace:*
+        version: link:../packages/notes
       '@repo/server-contract':
         specifier: workspace:*
         version: link:../packages/server-contract
@@ -512,6 +515,9 @@ importers:
         specifier: 'catalog:'
         version: 19.2.8
     devDependencies:
+      '@testing-library/dom':
+        specifier: ^10.4.1
+        version: 10.4.1
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17
@@ -591,6 +597,9 @@ importers:
       '@repo/domain':
         specifier: workspace:*
         version: link:../domain
+      '@repo/notes':
+        specifier: workspace:*
+        version: link:../notes
       '@repo/typed-routes':
         specifier: workspace:*
         version: link:../typed-routes

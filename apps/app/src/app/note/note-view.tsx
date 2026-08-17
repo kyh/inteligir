@@ -11,25 +11,59 @@
 
 import { MarkdownEditor } from "@repo/editor/react/markdown-editor";
 import type { MarkdownEditor as MarkdownEditorHandle } from "@repo/editor/create-markdown-editor";
+import {
+  delegationAffordanceExtension,
+  type DelegationSelection,
+} from "@repo/editor/delegation-affordance";
+import {
+  pendingAnchorExtension,
+  pendingAnchorPosition,
+  setPendingAnchor,
+} from "@repo/editor/pending-anchor";
+import {
+  setThreadChips,
+  threadChipsExtension,
+  type ThreadChipInfo,
+  type ThreadChipState,
+} from "@repo/editor/thread-chip";
+import { threadMarkerInsertion } from "@repo/notes/markdown/thread-marker";
 import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentHashHex } from "@repo/server-contract/vault";
 import { ApiError, queryKeys, unwrap } from "../api";
+import {
+  chipStatusFor,
+  taskPrompt,
+  type DelegationDraft,
+  type DelegationIntent,
+} from "../chat/chat-model";
+import { useDocThreads } from "../chat/thread-hooks";
 import { NoteController, type SaveResult } from "./note-controller";
 import { NoteTitle } from "./note-title";
 import { sendKeepaliveWrite } from "./keepalive-write";
 import { useWorkspace } from "../workspace-context";
 
+/** How the note surface hands delegation intents up to the workspace. */
+export interface NoteDelegation {
+  /** Selection affordance: arm the composer with a draft. */
+  onDraft: (draft: DelegationDraft) => void;
+  /** Checkbox fast path: one click, the task text already IS the prompt. */
+  onRunTask: (draft: DelegationDraft, prompt: string) => void;
+  /** A chip was clicked: open its thread in the chat panel. */
+  onOpenThread: (threadId: string) => void;
+}
+
 export interface NoteViewProps {
   path: string;
+  delegation: NoteDelegation;
   onRename: (toPath: string) => void;
   /** The note disappeared from disk under us (external delete). */
   onVanished: () => void;
 }
 
-export function NoteView({ path, onRename, onVanished }: NoteViewProps) {
+export function NoteView({ path, delegation, onRename, onVanished }: NoteViewProps) {
   const { api } = useWorkspace();
   const fileQuery = useQuery({
     queryKey: queryKeys.vaultFile(path),
@@ -61,6 +95,7 @@ export function NoteView({ path, onRename, onVanished }: NoteViewProps) {
     <OpenNote
       key={path}
       path={path}
+      delegation={delegation}
       initialContent={fileQuery.data.content}
       diskContent={fileQuery.data.content}
       onRename={onRename}
@@ -71,6 +106,7 @@ export function NoteView({ path, onRename, onVanished }: NoteViewProps) {
 
 function OpenNote({
   path,
+  delegation,
   initialContent,
   diskContent,
   onRename,
@@ -91,6 +127,129 @@ function OpenNote({
   // external check must not read that as an external delete. The flag stays
   // set on success — the path change remounts this component anyway.
   const renamePendingRef = useRef(false);
+
+  // The chip data: every thread bound to this doc, mapped to the widget's
+  // vocabulary. Invalidated whole by the ws thread sweep.
+  const docThreadsQuery = useDocThreads(path);
+  const docThreads = docThreadsQuery.data?.threads;
+  // `loading` until the query genuinely ANSWERS — never an empty list, which
+  // would make every valid anchor look unclaimed and therefore dismissable.
+  const chipState = useMemo<ThreadChipState>(
+    () =>
+      docThreads === undefined
+        ? { kind: "loading" }
+        : {
+            kind: "ready",
+            chips: docThreads.flatMap<ThreadChipInfo>((activity) =>
+              activity.thread.originAnchor === null
+                ? []
+                : [
+                    {
+                      anchor: activity.thread.originAnchor,
+                      status: chipStatusFor(activity),
+                      title: activity.thread.title,
+                    },
+                  ],
+            ),
+          },
+    [docThreads],
+  );
+  const chipStateRef = useRef(chipState);
+
+  // The editor extensions are fixed at mount, so every callback reads the
+  // CURRENT handlers through this ref; assigned in a layout effect so an
+  // event firing between commit and passive effects sees fresh values.
+  const delegationRef = useRef({
+    threadIdFor: (_anchor: string): string | null => null,
+    onDraft: (_draft: DelegationDraft): void => {},
+    onRunTask: (_draft: DelegationDraft, _prompt: string): void => {},
+    onOpenThread: (_threadId: string): void => {},
+  });
+  useLayoutEffect(() => {
+    chipStateRef.current = chipState;
+    delegationRef.current = {
+      threadIdFor: (anchor) =>
+        (docThreads ?? []).find((activity) => activity.thread.originAnchor === anchor)?.thread.id ??
+        null,
+      onDraft: delegation.onDraft,
+      onRunTask: delegation.onRunTask,
+      onOpenThread: delegation.onOpenThread,
+    };
+  });
+
+  /**
+   * The draft the composer finishes. The anchor position is handed to the
+   * EDITOR to track (`setPendingAnchor`) rather than captured as a number: the
+   * user types a prompt and an agent write may merge in before submit, and a
+   * raw offset would name a different block by then.
+   */
+  const draftFor = (intent: DelegationIntent, selection: DelegationSelection): DelegationDraft => {
+    editorRef.current?.view.dispatch({ effects: setPendingAnchor.of(selection.to) });
+    const clearPending = (): void => {
+      editorRef.current?.view.dispatch({ effects: setPendingAnchor.of(null) });
+    };
+    return {
+      intent,
+      docPath: path,
+      selectionText: selection.text,
+      cancel: clearPending,
+      anchor: async (anchorToken) => {
+        const editor = editorRef.current;
+        const controller = controllerRef.current;
+        if (editor === null || controller === null) {
+          return { ok: false, reason: "no-editor" };
+        }
+        const at = pendingAnchorPosition(editor.view.state);
+        if (at === null) {
+          clearPending();
+          return { ok: false, reason: "block-gone" };
+        }
+        const insertion = threadMarkerInsertion(editor.getDoc(), at, anchorToken);
+        editor.view.dispatch({
+          changes: { from: insertion.at, insert: insertion.text },
+          effects: setPendingAnchor.of(null),
+          userEvent: "input.delegate-anchor",
+        });
+        try {
+          // Durable BEFORE any thread exists: flush rejects when the write did
+          // not land, and the caller creates nothing on a rejection.
+          await controller.flush();
+        } catch {
+          return { ok: false, reason: "save-failed" };
+        }
+        return { ok: true };
+      },
+    };
+  };
+  const draftForRef = useRef(draftFor);
+  useLayoutEffect(() => {
+    draftForRef.current = draftFor;
+  });
+
+  const [delegationExtensions] = useState(() => [
+    pendingAnchorExtension,
+    threadChipsExtension({
+      onOpen: (anchor) => {
+        const threadId = delegationRef.current.threadIdFor(anchor);
+        if (threadId !== null) {
+          delegationRef.current.onOpenThread(threadId);
+        }
+      },
+    }),
+    delegationAffordanceExtension({
+      onDelegateSelection: (intent, selection) => {
+        delegationRef.current.onDraft(draftForRef.current(intent, selection));
+      },
+      onDelegateTask: (task) => {
+        delegationRef.current.onRunTask(draftForRef.current("do", task), taskPrompt(task.text));
+      },
+    }),
+  ]);
+
+  // Status changes reach the widgets as an effect — never through the doc.
+  useEffect(() => {
+    editorRef.current?.view.dispatch({ effects: setThreadChips.of(chipState) });
+  }, [chipState]);
 
   // The guarded save: hash the base, PUT with the guard, map a 409 CAS body
   // to the controller's SaveResult. Every other refusal throws.
@@ -137,6 +296,8 @@ function OpenNote({
       return;
     }
     editorRef.current = editor;
+    // Chip data may have landed before the editor did.
+    editor.view.dispatch({ effects: setThreadChips.of(chipStateRef.current) });
     controllerRef.current = new NoteController({
       buffer: editor,
       initialContent,
@@ -276,6 +437,7 @@ function OpenNote({
       <MarkdownEditor
         className="note-editor-host"
         initialDoc={initialContent}
+        extensions={delegationExtensions}
         onDocChanged={() => controllerRef.current?.docChanged()}
         onEditor={handleEditor}
       />

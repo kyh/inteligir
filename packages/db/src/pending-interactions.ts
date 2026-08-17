@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import type { DbConnection } from "./connection";
 import { createPendingInteractionId } from "./ids";
 import type { DbNotifier } from "./notifier";
@@ -191,4 +191,34 @@ export function resolvePendingInteraction(
     return { kind: "not-found" };
   }
   return { kind: "already-resolved", interaction: existing };
+}
+
+/**
+ * Open-interaction counts for many threads in ONE grouped query. The chip data
+ * for a doc needs a count per bound thread, and a query per thread turns one
+ * render into N round trips on every thread invalidation.
+ */
+export function countOpenPendingInteractionsByThread(
+  db: DbConnection,
+  threadIds: readonly string[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (threadIds.length === 0) {
+    return counts;
+  }
+  const rows = db
+    .select({ threadId: pendingInteractions.threadId, total: count() })
+    .from(pendingInteractions)
+    .where(
+      and(
+        inArray(pendingInteractions.threadId, [...threadIds]),
+        inArray(pendingInteractions.status, ["pending", "resolving"]),
+      ),
+    )
+    .groupBy(pendingInteractions.threadId)
+    .all();
+  for (const row of rows) {
+    counts.set(row.threadId, row.total);
+  }
+  return counts;
 }

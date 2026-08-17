@@ -17,7 +17,13 @@
 //      is accepted for a local-first single-writer vault.
 //   4. record the old stem as a frontmatter alias on the moved doc — the
 //      fallback for any link the surgery missed OR skipped, so it must never
-//      be suppressed by an unrelated skip.
+//      be suppressed by an unrelated skip;
+//   5. rebind the delegation threads bound to the moved doc. A thread's
+//      `originDocPath` is a link into the vault exactly like a wiki-link, and
+//      it rots the same way: the anchor marker travels with the bytes, so a
+//      rename that did not follow it leaves every chip in the file unable to
+//      find its thread. It belongs here, in the one operation that already
+//      knows both paths.
 //
 // Every write goes through the vault service, so git, the watcher's echo
 // suppression, the notifier and the knowledge projection all see ordinary
@@ -41,6 +47,8 @@ const SNAPSHOT_CONCURRENCY = 8;
 export interface RenameNoteArgs {
   service: VaultService;
   knowledge: KnowledgeRuntime;
+  /** Follows the moved path for every thread bound to it; see step 5. */
+  rebindThreads: (from: string, to: string) => void;
   from: string;
   to: string;
 }
@@ -61,7 +69,10 @@ export async function renameNoteWithLinkRewrite(
     tree.entries.find((entry) => entry.path === requested) ??
     tree.entries.find((entry) => entry.path.toLowerCase() === requested.toLowerCase());
   if (source === undefined || source.kind !== "file") {
+    // A directory move (or a path the listing does not know) still carries
+    // every delegation under it.
     const plain = await service.rename(requested, toPath);
+    args.rebindThreads(requested, plain.path);
     return { path: plain.path, rewritten: [], skipped: [] };
   }
   const fromPath = source.path;
@@ -91,6 +102,7 @@ export async function renameNoteWithLinkRewrite(
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
   const renamed = await service.rename(fromPath, toPath);
+  args.rebindThreads(fromPath, renamed.path);
 
   // Record the old stem only when the resolvable NAME actually changed — never
   // for a dir-only move (stem unchanged) or a case-only retitle (the old

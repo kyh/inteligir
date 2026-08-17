@@ -1,4 +1,5 @@
 import { threadStatusSchema } from "@repo/domain/thread-status";
+import { THREAD_ANCHOR_TOKEN_PATTERN } from "@repo/notes/markdown/thread-anchor";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
   defineRoute,
@@ -52,11 +53,50 @@ export const pendingInteractionSchema = z
   .strict();
 export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
 
+const MAX_THREAD_TITLE_LENGTH = 200;
+const MAX_VAULT_PATH_LENGTH = 1024;
+
+/**
+ * The vault-path rules this boundary can state as a VALUE (the server's own
+ * `normalizeVaultPath` remains the gate for anything that touches the
+ * filesystem): relative, `/`-separated, no traversal, no reach into `.git`.
+ * A thread's origin is a stored path nothing else re-validates, so a bad one
+ * would sit in the database forever, unmatched by every by-doc query.
+ */
+const vaultDocPathSchema = z
+  .string()
+  .min(1)
+  .max(MAX_VAULT_PATH_LENGTH)
+  .refine((value) => !value.includes("\0") && !value.includes("\\"), {
+    message: "path must use / separators and contain no null bytes",
+  })
+  .refine((value) => !value.startsWith("/"), {
+    message: "path must be relative to the vault root",
+  })
+  .refine(
+    (value) => {
+      const segments = value.split("/").filter((segment) => segment.length > 0);
+      return (
+        segments.length > 0 &&
+        segments.every(
+          (segment) => segment !== "." && segment !== ".." && segment.toLowerCase() !== ".git",
+        )
+      );
+    },
+    { message: "path must name an entry inside the vault" },
+  );
+
+/** The anchor token grammar, stated once in @repo/notes and validated here so
+ *  a stored anchor always matches what the marker in the file can spell. */
+const originAnchorSchema = z.string().regex(new RegExp(THREAD_ANCHOR_TOKEN_PATTERN, "u"), {
+  message: "originAnchor must be anc_ followed by 12 lowercase hex digits",
+});
+
 export const createThreadRequestSchema = z
   .object({
-    title: z.string().min(1).optional(),
-    originDocPath: z.string().min(1).optional(),
-    originAnchor: z.string().min(1).optional(),
+    title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
+    originDocPath: vaultDocPathSchema.optional(),
+    originAnchor: originAnchorSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -76,6 +116,28 @@ export interface ListThreadsResponse {
   threads: Thread[];
 }
 
+export const docThreadsQuerySchema = z
+  .object({
+    docPath: z.string().min(1),
+  })
+  .strict();
+export type DocThreadsQuery = z.infer<typeof docThreadsQuerySchema>;
+
+/**
+ * A doc-bound thread with the two activity counts a status chip needs and a
+ * `Thread` alone cannot answer: an open approval and a queued send are rows
+ * in their own tables, not thread columns.
+ */
+export interface DocThreadActivity {
+  thread: Thread;
+  openInteractionCount: number;
+  queuedCount: number;
+}
+
+export interface ListDocThreadsResponse {
+  threads: DocThreadActivity[];
+}
+
 export const threadIdQuerySchema = z
   .object({
     threadId: z.string().min(1),
@@ -83,9 +145,17 @@ export const threadIdQuerySchema = z
   .strict();
 export type ThreadIdQuery = z.infer<typeof threadIdQuerySchema>;
 
+export interface QueuedThreadMessage {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface GetThreadResponse {
   thread: Thread;
   pendingInteractions: PendingInteraction[];
+  /** Unclaimed queued sends, drain order — the composer's pending bubbles. */
+  queuedMessages: QueuedThreadMessage[];
 }
 
 /**
@@ -203,6 +273,12 @@ export const threadRoutes = {
       jsonResponse<GetThreadResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
     ] as const,
+  }),
+  byDoc: defineRoute({
+    path: "/threads/by-doc",
+    method: "get",
+    request: queryRequest<EmptyInput, DocThreadsQuery>(docThreadsQuerySchema),
+    response: jsonResponse<ListDocThreadsResponse>(),
   }),
   create: defineRoute({
     path: "/threads/create",

@@ -39,9 +39,11 @@ export interface MarkdownEditorOptions {
 
 /**
  * The whole first-cut live-preview stack. Deliberately absent, for later
- * passes: wiki-links, callouts, tables, mermaid, math, image embeds,
- * delegation chips — and ProseMark's image/task folds, which the house image
- * pass and task-checkbox.ts supersede.
+ * passes: wiki-links, callouts, tables, mermaid, math, image embeds — and
+ * ProseMark's image/task folds, which the house image pass and
+ * task-checkbox.ts supersede. The delegation surface (thread-chip.ts,
+ * delegation-affordance.ts) is app-appended rather than listed here: both
+ * take app callbacks, and the house stack stays app-agnostic.
  */
 export const markdownEditorExtensions = (options: MarkdownEditorOptions = {}): Extension => [
   markdownLanguageExtension(),

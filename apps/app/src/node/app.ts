@@ -12,6 +12,7 @@ import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { HttpBindings } from "@hono/node-server";
 import type { DbConnection } from "@repo/db/connection";
+import { rebindThreadOrigins } from "@repo/db/threads";
 import {
   API_BASE_PATH,
   apiRoutes,
@@ -157,6 +158,8 @@ export function createApp(args: CreateAppArgs) {
     renameNoteWithLinkRewrite({
       service: args.vault.service,
       knowledge: args.knowledge,
+      rebindThreads: (movedFrom, movedTo) =>
+        rebindThreadOrigins(args.db, args.bus, { from: movedFrom, to: movedTo }),
       from,
       to,
     }),

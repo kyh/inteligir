@@ -17,7 +17,11 @@ import type {
   SearchResultWire,
   TagCountWire,
 } from "@repo/server-contract/knowledge";
-import type { PendingInteraction, Thread } from "@repo/server-contract/threads";
+import type {
+  PendingInteraction,
+  QueuedThreadMessage,
+  Thread,
+} from "@repo/server-contract/threads";
 import type { ThreadTimeline } from "@repo/server-contract/thread-timeline";
 import type { VaultEntry, VaultStatusResponse } from "@repo/server-contract/vault";
 import type { ThreadStatus } from "@repo/domain/thread-status";
@@ -29,6 +33,8 @@ const NOT_FOUND: ApiErrorResponse = { error: "not_found", message: "Not found" }
 interface FixtureThread {
   thread: Thread;
   pendingInteractions: PendingInteraction[];
+  /** Optional: most fixtures never queue, and the response defaults it. */
+  queuedMessages?: QueuedThreadMessage[];
   timeline: ThreadTimeline;
   /** Each /threads/get consumes one entry; the last one sticks. */
   statusSequence?: ThreadStatus[];
@@ -190,7 +196,11 @@ function createFixtureApp(state: FixtureState): Hono {
     if (nextStatus !== undefined) {
       entry.thread = { ...entry.thread, status: nextStatus };
     }
-    return c.json({ thread: entry.thread, pendingInteractions: entry.pendingInteractions });
+    return c.json({
+      thread: entry.thread,
+      pendingInteractions: entry.pendingInteractions,
+      queuedMessages: entry.queuedMessages ?? [],
+    });
   });
   post(apiRoutes.threads.create, (c, body) => {
     const thread = makeThread({

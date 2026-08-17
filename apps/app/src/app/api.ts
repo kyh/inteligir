@@ -15,6 +15,11 @@ export const queryKeys = {
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
   vaultFile: (path: string) => ["vault", "file", path] as const,
+  /** The whole thread family — what a ws thread invalidation sweeps. */
+  threadsRoot: ["threads"] as const,
+  threads: ["threads", "list"] as const,
+  threadDetail: (threadId: string) => ["threads", "detail", threadId] as const,
+  threadsByDoc: (docPath: string) => ["threads", "by-doc", docPath] as const,
 };
 
 export class ApiError extends Error {
