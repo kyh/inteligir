@@ -15,6 +15,7 @@
 // cannot nest; a dispatch failure is folded back in its own transaction
 // (provider/error + run.failed), so a driver crash cannot wedge `starting`.
 
+import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import {
   approvalPendingInteractionPayloadSchema,
   parseApprovalResolution,
@@ -33,6 +34,7 @@ import {
   resolvePendingInteraction,
   type PendingInteractionRow,
 } from "@repo/db/pending-interactions";
+import { countPendingProposalsByThread } from "@repo/db/proposals";
 import {
   claimNextQueuedThreadMessageInTransaction,
   countQueuedThreadMessagesByThread,
@@ -96,7 +98,13 @@ export type SendOutcome =
   | { kind: "dispatch-failed" };
 
 type SendDecision =
-  | { kind: "dispatch"; threadId: string; turnId: string; text: string }
+  | {
+      kind: "dispatch";
+      threadId: string;
+      turnId: string;
+      text: string;
+      writeMode: AgentWriteMode;
+    }
   | { kind: "done"; outcome: SendOutcome };
 
 export type AnswerInteractionOutcome =
@@ -127,6 +135,7 @@ function toWireThread(row: ThreadRow): Thread {
     activeTurnId: row.activeTurnId,
     originDocPath: row.originDocPath,
     originAnchor: row.originAnchor,
+    writeMode: row.writeMode,
     archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -185,6 +194,7 @@ export class ThreadService implements ProviderEventSink {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.originDocPath !== undefined ? { originDocPath: input.originDocPath } : {}),
         ...(input.originAnchor !== undefined ? { originAnchor: input.originAnchor } : {}),
+        ...(input.writeMode !== undefined ? { writeMode: input.writeMode } : {}),
       }),
     );
   }
@@ -234,10 +244,12 @@ export class ThreadService implements ProviderEventSink {
     const ids = bound.map((row) => row.id);
     const interactions = countOpenPendingInteractionsByThread(this.db, ids);
     const queued = countQueuedThreadMessagesByThread(this.db, ids);
+    const proposals = countPendingProposalsByThread(this.db, ids);
     return bound.map((row) => ({
       thread: toWireThread(row),
       openInteractionCount: interactions.get(row.id) ?? 0,
       queuedCount: queued.get(row.id) ?? 0,
+      pendingProposalCount: proposals.get(row.id) ?? 0,
     }));
   }
 
@@ -290,7 +302,7 @@ export class ThreadService implements ProviderEventSink {
     switch (thread.status) {
       case "idle":
       case "error":
-        return this.prepareTurnInTransaction(tx, thread.id, request.text, buffer);
+        return this.prepareTurnInTransaction(tx, thread, request.text, buffer);
       case "active": {
         if (request.mode === "queue-if-active") {
           return this.queueInTransaction(tx, thread.id, request.text, buffer);
@@ -369,13 +381,16 @@ export class ThreadService implements ProviderEventSink {
   }
 
   /** run.preparing + the recorded request, atomically; dispatch happens after
-   *  the caller's commit. */
+   *  the caller's commit. Takes the loaded ROW rather than an id: the write
+   *  mode the dispatch carries has to be the one this transaction read, not
+   *  one a second query could observe after the thread moved. */
   private prepareTurnInTransaction(
     tx: DbTransaction,
-    threadId: string,
+    thread: ThreadRow,
     text: string,
     buffer: NotificationBuffer,
   ): SendDecision {
+    const threadId = thread.id;
     const outcome = applyThreadLifecycleEventInTransaction(tx, {
       threadId,
       event: { type: "run.preparing" },
@@ -395,15 +410,22 @@ export class ThreadService implements ProviderEventSink {
       { type: "client/turn/requested", threadId, text, kind: "message", scope: threadScope() },
     ]);
     buffer.notifyThread(threadId, ["events-appended"]);
-    return { kind: "dispatch", threadId, turnId: createTurnId(), text };
+    return {
+      kind: "dispatch",
+      threadId,
+      turnId: createTurnId(),
+      text,
+      writeMode: thread.writeMode,
+    };
   }
 
-  private dispatchTurn(decision: { threadId: string; turnId: string; text: string }): SendOutcome {
+  private dispatchTurn(decision: Extract<SendDecision, { kind: "dispatch" }>): SendOutcome {
     try {
       this.driver.startTurn({
         threadId: decision.threadId,
         turnId: decision.turnId,
         text: decision.text,
+        writeMode: decision.writeMode,
       });
     } catch (error) {
       this.recordDispatchFailure(decision.threadId, error);
@@ -543,7 +565,13 @@ export class ThreadService implements ProviderEventSink {
   private dispatchQueuedMessage(threadId: string, claimed: ClaimedQueuedThreadMessageRow): void {
     const buffer = new NotificationBuffer();
     const decision = this.db.transaction(
-      (tx) => this.prepareTurnInTransaction(tx, threadId, claimed.text, buffer),
+      (tx): SendDecision => {
+        const thread = getThread(tx, threadId);
+        if (thread === null) {
+          return { kind: "done", outcome: { kind: "not-found" } };
+        }
+        return this.prepareTurnInTransaction(tx, thread, claimed.text, buffer);
+      },
       { behavior: "immediate" },
     );
     buffer.flushTo(this.notifier);

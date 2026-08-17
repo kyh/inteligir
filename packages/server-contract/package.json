@@ -9,6 +9,7 @@
     "./errors": "./src/errors.ts",
     "./knowledge": "./src/knowledge.ts",
     "./notifications": "./src/notifications.ts",
+    "./proposals": "./src/proposals.ts",
     "./routes": "./src/routes.ts",
     "./thread-timeline": "./src/thread-timeline.ts",
     "./threads": "./src/threads.ts",

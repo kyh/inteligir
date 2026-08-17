@@ -18,6 +18,7 @@ const thread = (over: Partial<Thread> = {}): Thread => ({
   activeTurnId: null,
   originDocPath: null,
   originAnchor: null,
+  writeMode: "direct",
   archivedAt: null,
   createdAt: 0,
   updatedAt: 0,
@@ -33,18 +34,45 @@ describe("threadActivity", () => {
     expect(threadActivity(thread({ status: "idle" }), NO_ACTIVITY_COUNTS)).toBe("done");
   });
 
-  it("reads the counts a Thread cannot carry, and archived beats both", () => {
+  it("reads the counts a Thread cannot carry, and archived beats them all", () => {
     const idle = thread({ status: "idle" });
-    expect(threadActivity(idle, { openInteractionCount: 0, queuedCount: 2 })).toBe("queued");
-    expect(threadActivity(idle, { openInteractionCount: 1, queuedCount: 2 })).toBe(
-      "needs-approval",
-    );
+    expect(threadActivity(idle, { ...NO_ACTIVITY_COUNTS, queuedCount: 2 })).toBe("queued");
+    expect(
+      threadActivity(idle, { ...NO_ACTIVITY_COUNTS, openInteractionCount: 1, queuedCount: 2 }),
+    ).toBe("needs-approval");
     expect(
       threadActivity(thread({ status: "active", archivedAt: 1 }), {
         openInteractionCount: 1,
         queuedCount: 1,
+        pendingProposalCount: 1,
       }),
     ).toBe("archived");
+  });
+
+  it("ranks a pending suggestion above done and below everything blocking", () => {
+    const idle = thread({ status: "idle" });
+    expect(threadActivity(idle, { ...NO_ACTIVITY_COUNTS, pendingProposalCount: 1 })).toBe(
+      "needs-review",
+    );
+    // A queue and an approval both block the AGENT; a suggestion waits on the
+    // user with the turn already over, so it never masks either.
+    expect(
+      threadActivity(idle, { ...NO_ACTIVITY_COUNTS, queuedCount: 1, pendingProposalCount: 1 }),
+    ).toBe("queued");
+    expect(
+      threadActivity(idle, {
+        ...NO_ACTIVITY_COUNTS,
+        openInteractionCount: 1,
+        pendingProposalCount: 1,
+      }),
+    ).toBe("needs-approval");
+    // A running turn is still running, whatever an earlier one left behind.
+    expect(
+      threadActivity(thread({ status: "active" }), {
+        ...NO_ACTIVITY_COUNTS,
+        pendingProposalCount: 1,
+      }),
+    ).toBe("running");
   });
 });
 

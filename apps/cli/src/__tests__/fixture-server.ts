@@ -14,6 +14,7 @@ import type {
   SearchResultWire,
   TagCountWire,
 } from "@repo/server-contract/knowledge";
+import type { Proposal } from "@repo/server-contract/proposals";
 import type {
   PendingInteraction,
   QueuedThreadMessage,
@@ -50,6 +51,7 @@ export interface FixtureState {
   tags: TagCountWire[];
   backlinks: BacklinkEntryWire[];
   threads: FixtureThread[];
+  proposals: Proposal[];
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -58,6 +60,33 @@ export interface FixtureState {
 
 export const EMPTY_TIMELINE: ThreadTimeline = { rows: [], maxSequence: 0, tokenUsage: null };
 
+export function makeProposal(overrides: Partial<Proposal> & Pick<Proposal, "id">): Proposal {
+  return {
+    threadId: "thr_1",
+    turnId: "turn_1",
+    docPath: "notes/hello.md",
+    status: "pending",
+    revision: 1,
+    baseHash: "a".repeat(64),
+    baseContent: "# Hello\n",
+    proposedContent: "# Hello there\n",
+    hunks: [
+      {
+        index: 0,
+        baseStart: 0,
+        baseEnd: 1,
+        baseLines: ["# Hello"],
+        proposedLines: ["# Hello there"],
+      },
+    ],
+    acceptedHunks: 0,
+    createdAt: 1_700_000_000_000,
+    updatedAt: 1_700_000_000_000,
+    resolvedAt: null,
+    ...overrides,
+  };
+}
+
 export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thread {
   return {
     title: null,
@@ -65,6 +94,7 @@ export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thr
     activeTurnId: null,
     originDocPath: null,
     originAnchor: null,
+    writeMode: "direct",
     archivedAt: null,
     createdAt: 1_700_000_000_000,
     updatedAt: 1_700_000_000_000,
@@ -82,6 +112,7 @@ export function makeFixtureState(): FixtureState {
     tags: [],
     backlinks: [],
     threads: [],
+    proposals: [],
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
     agent: { mode: "auto", runtime: "codex", detail: null },
     vaultStatus: { state: "no-remote", lastSyncAt: null, lastError: null },
@@ -108,6 +139,42 @@ function deriveTree(vault: Map<string, string>): VaultEntry[] {
 
 function findThread(state: FixtureState, threadId: string): FixtureThread | undefined {
   return state.threads.find((entry) => entry.thread.id === threadId);
+}
+
+/** The two review verbs, as far as the CLI can tell them apart: the revision
+ *  guard and the settled row. The real arithmetic lives in the app's own
+ *  service and is tested there. Answers a DESCRIPTION rather than a Response,
+ *  because the typed json() is a union of (body, status) tuples that a shared
+ *  helper cannot satisfy — the handler picks the arm. */
+function resolveFixtureProposal(
+  state: FixtureState,
+  body: { proposalId: string; expectedRevision: number },
+  status: "accepted" | "rejected",
+): { ok: true; proposal: Proposal } | { ok: false; status: 404 | 409; body: ApiErrorResponse } {
+  const existing = state.proposals.find((row) => row.id === body.proposalId);
+  if (existing === undefined) {
+    return {
+      ok: false,
+      status: 404,
+      body: { error: "not_found", message: "Suggestion not found" },
+    };
+  }
+  if (existing.revision !== body.expectedRevision) {
+    return {
+      ok: false,
+      status: 409,
+      body: { error: "conflict", message: "This suggestion moved on" },
+    };
+  }
+  const resolved: Proposal = {
+    ...existing,
+    status,
+    revision: existing.revision + 1,
+    hunks: [],
+    resolvedAt: 1_700_000_003_000,
+  };
+  state.proposals = state.proposals.map((row) => (row.id === resolved.id ? resolved : row));
+  return { ok: true, proposal: resolved };
 }
 
 function createFixtureApp(state: FixtureState): Hono {
@@ -257,6 +324,36 @@ function createFixtureApp(state: FixtureState): Hono {
       row.id === resolved.id ? resolved : row,
     );
     return c.json({ interaction: resolved });
+  });
+
+  get(apiRoutes.proposals.list, (c, query) =>
+    c.json({
+      proposals: state.proposals.filter(
+        (proposal) =>
+          (query?.docPath === undefined || proposal.docPath === query.docPath) &&
+          (query?.threadId === undefined || proposal.threadId === query.threadId) &&
+          (query?.includeResolved === true || proposal.status !== "accepted"),
+      ),
+    }),
+  );
+  get(apiRoutes.proposals.get, (c, query) => {
+    const proposal = state.proposals.find((row) => row.id === query.proposalId);
+    if (proposal === undefined) {
+      return c.json({ error: "not_found", message: "Suggestion not found" }, 404);
+    }
+    return c.json({ proposal });
+  });
+  post(apiRoutes.proposals.accept, (c, body) => {
+    const outcome = resolveFixtureProposal(state, body, "accepted");
+    return outcome.ok
+      ? c.json({ proposal: outcome.proposal })
+      : c.json(outcome.body, outcome.status);
+  });
+  post(apiRoutes.proposals.reject, (c, body) => {
+    const outcome = resolveFixtureProposal(state, body, "rejected");
+    return outcome.ok
+      ? c.json({ proposal: outcome.proposal })
+      : c.json(outcome.body, outcome.status);
   });
 
   const app = new Hono();

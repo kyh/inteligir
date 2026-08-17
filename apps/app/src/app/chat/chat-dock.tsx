@@ -15,6 +15,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArchiveIcon, ArrowUpIcon, ChevronDownIcon, PenLineIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys, unwrap } from "../api";
+import { ProposalSummary } from "../proposals/proposal-summary";
+import { useProposalActions, useThreadProposals } from "../proposals/proposal-hooks";
 import { useWorkspace } from "../workspace-context";
 import { ApprovalCard } from "./approval-card";
 import {
@@ -87,6 +89,10 @@ export function ChatDock({
   const viewingId = viewThreadId ?? chatThreadId;
   const detailQuery = useThreadDetail(viewingId);
   const timeline = useThreadTimeline(viewingId);
+  // A delegation's suggestions belong in the thread that made them, not only
+  // in the doc — a thread whose turn "finished" while its edits sit unapplied
+  // is the state this dock has to be able to explain.
+  const proposals = useThreadProposals(viewingId).data ?? [];
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -101,12 +107,15 @@ export function ChatDock({
   }, [draft]);
 
   const rowCount = timeline?.rows.length ?? 0;
+  // Suggestions are counted alongside the rows because they land at the BOTTOM
+  // of the same scroller, after the turn's last message — a card that arrives
+  // without moving the scroll is a card nobody sees.
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller !== null) {
       scroller.scrollTop = scroller.scrollHeight;
     }
-  }, [rowCount, expanded]);
+  }, [rowCount, proposals.length, expanded]);
 
   const invalidateThreads = (): void => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
@@ -191,6 +200,9 @@ export function ChatDock({
   const pending = detailQuery.data?.pendingInteractions ?? [];
   const queued = detailQuery.data?.queuedMessages ?? [];
   const needsApproval = pending.length > 0;
+  const proposalActions = useProposalActions((message) => {
+    toast.error(message);
+  });
   const dotClass =
     thread === null
       ? null
@@ -198,6 +210,7 @@ export function ChatDock({
           threadActivity(thread, {
             openInteractionCount: pending.length,
             queuedCount: queued.length,
+            pendingProposalCount: proposals.length,
           })
         ];
   const exchange = timeline === null ? null : lastExchange(timeline.rows);
@@ -267,6 +280,14 @@ export function ChatDock({
                   onAnswer={answerInteraction}
                 />
               ))}
+              {proposals.map((proposal) => (
+                <ProposalSummary
+                  key={proposal.id}
+                  proposal={proposal}
+                  actions={proposalActions}
+                  onOpenDoc={onOpenDoc}
+                />
+              ))}
               {queued.map((message) => (
                 <div key={message.id} className="flex justify-end">
                   <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground">
@@ -289,7 +310,9 @@ export function ChatDock({
             <span className="truncate">
               {needsApproval
                 ? "The agent needs an approval"
-                : (exchange?.text ?? "No messages yet")}
+                : proposals.length > 0
+                  ? `The agent suggested edits to ${proposals.length} file(s)`
+                  : (exchange?.text ?? "No messages yet")}
             </span>
           </button>
         ) : null}
@@ -298,7 +321,11 @@ export function ChatDock({
           <div className="mb-2 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
             <div className="min-w-0 flex-1">
               <div className="font-medium">
-                {draft.intent === "do" ? "Delegate to the agent" : "Ask about this"}
+                {draft.intent === "ask"
+                  ? "Ask about this"
+                  : draft.writeMode === "propose"
+                    ? "Propose an edit"
+                    : "Delegate to the agent"}
                 <span className="ml-2 font-normal text-muted-foreground">{draft.docPath}</span>
               </div>
               <div className="mt-0.5 truncate text-muted-foreground">

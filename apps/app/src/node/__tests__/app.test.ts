@@ -75,7 +75,11 @@ describe("the API over the in-process app", () => {
     expect(status.dataDir).toBe(args.config.dataDir);
     // The instance IDENTITY the CLI's discovery compares against.
     expect(status.vaultDir).toBe(args.config.vaultDir);
-    expect(status.schemaVersion).toBe(4);
+    // The point is that migrate-on-boot RAN, not which generation it reached;
+    // pinning the number here makes every migration an edit to this suite,
+    // and @repo/db's schema-agreement test already owns that pin.
+    expect(status.schemaVersion).toBe(args.schemaVersion);
+    expect(status.schemaVersion).toBeGreaterThan(0);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
 

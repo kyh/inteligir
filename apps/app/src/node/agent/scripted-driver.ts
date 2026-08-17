@@ -1,9 +1,10 @@
 // INTELIGIR_AGENT=scripted: an in-process driver with a deterministic
 // script, for login-free e2e — every production path around it is real (the
 // ingest transaction, the timeline projection, the ws invalidations, the
-// vault service write, the agent-attributed commit). The script: stream an
-// agent message echoing the user's text, write a note through the VAULT
-// SERVICE, report the fileChange item, commit as the agent, complete.
+// vault service write, the settling of the turn's write set). The script:
+// stream an agent message echoing the user's text, write a note through the
+// VAULT SERVICE, report the fileChange item, settle the write set (an
+// agent-attributed commit, or a reviewable proposal), complete.
 
 import { turnScope } from "@repo/domain/thread-event-scope";
 import type { GitEngine } from "../vault/git";
@@ -14,11 +15,13 @@ import type {
   TurnDriver,
   TurnDriverStartArgs,
 } from "../threads/turn-driver";
-import { beginAgentTurnCommit } from "./agent-commits";
+import { beginAgentTurnWrites, type CaptureTurnProposals } from "./agent-commits";
 
 export interface ScriptedDriverDeps {
   vault: VaultService;
   git: GitEngine;
+  /** Review mode's seam, same as the codex manager's. */
+  captureProposals?: CaptureTurnProposals;
   onError?: (message: string) => void;
 }
 
@@ -78,7 +81,22 @@ class ScriptedTurnDriver implements TurnDriver {
     args: TurnDriverStartArgs,
     scope: ReturnType<typeof turnScope>,
   ): Promise<void> {
-    const turnCommit = beginAgentTurnCommit(this.deps.git, args.threadId);
+    const capture = this.deps.captureProposals;
+    const turnCommit =
+      args.writeMode === "propose" && capture !== undefined
+        ? beginAgentTurnWrites({
+            mode: "propose",
+            git: this.deps.git,
+            threadId: args.threadId,
+            turnId: args.turnId,
+            capture,
+          })
+        : beginAgentTurnWrites({
+            mode: "direct",
+            git: this.deps.git,
+            threadId: args.threadId,
+            turnId: args.turnId,
+          });
     const fileItemId = `item_${args.turnId}_file`;
     try {
       // Wait out any mid-flight sync before writing (same barrier the codex

@@ -17,6 +17,7 @@ import { ensureDevDataDirOwnership } from "./data-dir";
 import { ensureInstanceSecret } from "./instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry } from "./listen";
+import { createTurnProposalCapture } from "./proposals/turn-proposals";
 import {
   createGracefulShutdown,
   installFatalErrorHandlers,
@@ -187,6 +188,15 @@ async function boot(): Promise<{ serverUrl: string }> {
     notifier: bus,
     vault,
     cliBinDir,
+    captureProposals: createTurnProposalCapture({
+      db,
+      notifier: bus,
+      git: vault.git,
+      vault: vault.service,
+      onDebug: (message) => {
+        console.error(`proposals: ${message}`);
+      },
+    }),
     shellEnv: () => ({ ...agentShellEnv }),
   });
   registerTeardown("agent", () => agentDriver.dispose());

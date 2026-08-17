@@ -23,6 +23,10 @@ export const queryKeys = {
   threads: ["threads", "list"] as const,
   threadDetail: (threadId: string) => ["threads", "detail", threadId] as const,
   threadsByDoc: (docPath: string) => ["threads", "by-doc", docPath] as const,
+  /** The whole proposal family — what a ws `proposals-changed` sweeps. */
+  proposalsRoot: ["proposals"] as const,
+  proposalsByDoc: (docPath: string) => ["proposals", "by-doc", docPath] as const,
+  proposalsByThread: (threadId: string) => ["proposals", "by-thread", threadId] as const,
 };
 
 export class ApiError extends Error {

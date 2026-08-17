@@ -12,7 +12,13 @@ import { z } from "zod";
 export const VAULT_CHANGE_KINDS = ["files-changed", "sync-status-changed"] as const;
 export type VaultChangeKind = (typeof VAULT_CHANGE_KINDS)[number];
 
-export const DOC_CHANGE_KINDS = ["content-changed"] as const;
+export const DOC_CHANGE_KINDS = [
+  "content-changed",
+  /** A suggested edit against this doc was captured or resolved. Separate
+   *  from `content-changed` because the doc's BYTES did not move: a reader
+   *  that treats the two alike re-reads a file to learn about a row. */
+  "proposals-changed",
+] as const;
 export type DocChangeKind = (typeof DOC_CHANGE_KINDS)[number];
 
 export const THREAD_CHANGE_KINDS = [
@@ -24,6 +30,9 @@ export const THREAD_CHANGE_KINDS = [
   "interactions-changed",
   /** The doc a delegation is bound to moved (a rename followed it). */
   "origin-changed",
+  /** This thread's suggested edits changed — captured by a turn, or resolved
+   *  by a review. */
+  "proposals-changed",
 ] as const;
 export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];
 

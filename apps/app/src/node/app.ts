@@ -26,6 +26,8 @@ import { proveIdentity } from "./instance-identity";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
+import { ProposalService } from "./proposals/proposal-service";
+import { registerProposalRoutes } from "./proposals/routes";
 import { registerThreadRoutes } from "./threads/routes";
 import { ThreadService } from "./threads/service";
 import type { CreateTurnDriver } from "./threads/turn-driver";
@@ -183,6 +185,15 @@ export function createApp(args: CreateAppArgs) {
     }),
   );
   registerKnowledgeRoutes(registrars, args.knowledge);
+
+  registerProposalRoutes({
+    routes: { get, post },
+    service: new ProposalService({
+      db: args.db,
+      notifier: args.bus,
+      vault: args.vault.service,
+    }),
+  });
 
   registerThreadRoutes({
     routes: { get, post },

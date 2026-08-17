@@ -2,12 +2,14 @@
 // server persistence yet (deliberate: the server's config surface is the
 // vault, not chrome state). Every reader tolerates a missing or broken store.
 
+import { agentWriteModeSchema, type AgentWriteMode } from "@repo/domain/agent-write-mode";
 import { parseTheme, type Theme } from "@repo/ui/lib/theme";
 
 const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
   lastOpenNote: "inteligir.last-open-note",
   theme: "inteligir.theme",
+  delegationWriteMode: "inteligir.delegation-write-mode",
 };
 
 function read(key: string): string | null {
@@ -61,4 +63,19 @@ export function readTheme(): Theme {
 
 export function writeTheme(theme: Theme): void {
   write(KEYS.theme, theme);
+}
+
+/**
+ * What a delegation created WITHOUT an explicit mode does with its writes.
+ * A client preference rather than server config: the server's own default is
+ * `direct` (v1's behaviour, and what the CLI gets), and this is the workspace
+ * choosing differently for the surfaces a person drives.
+ */
+export function readDelegationWriteMode(): AgentWriteMode {
+  const parsed = agentWriteModeSchema.safeParse(read(KEYS.delegationWriteMode));
+  return parsed.success ? parsed.data : "direct";
+}
+
+export function writeDelegationWriteMode(mode: AgentWriteMode): void {
+  write(KEYS.delegationWriteMode, mode);
 }

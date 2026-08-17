@@ -1,3 +1,4 @@
+import { agentWriteModeSchema } from "@repo/domain/agent-write-mode";
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
@@ -26,6 +27,8 @@ export const threadSchema = z
     /** Set together for a doc-bound delegation; both null for a plain chat. */
     originDocPath: z.string().nullable(),
     originAnchor: z.string().nullable(),
+    /** Where this thread's turns land: the vault, or a reviewable proposal. */
+    writeMode: agentWriteModeSchema,
     archivedAt: z.number().nullable(),
     createdAt: z.number(),
     updatedAt: z.number(),
@@ -67,6 +70,9 @@ export const createThreadRequestSchema = z
      *  one would sit in the database forever, unmatched by every by-doc query. */
     originDocPath: vaultPathSchema.optional(),
     originAnchor: originAnchorSchema.optional(),
+    /** Omitted means `direct` — v1's behaviour, so a caller that has never
+     *  heard of review mode keeps the semantics it was written against. */
+    writeMode: agentWriteModeSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -94,14 +100,15 @@ export const docThreadsQuerySchema = z
 export type DocThreadsQuery = z.infer<typeof docThreadsQuerySchema>;
 
 /**
- * A doc-bound thread with the two activity counts a status chip needs and a
- * `Thread` alone cannot answer: an open approval and a queued send are rows
- * in their own tables, not thread columns.
+ * A doc-bound thread with the activity counts a status chip needs and a
+ * `Thread` alone cannot answer: an open approval, a queued send and a pending
+ * proposal are rows in their own tables, not thread columns.
  */
 export interface DocThreadActivity {
   thread: Thread;
   openInteractionCount: number;
   queuedCount: number;
+  pendingProposalCount: number;
 }
 
 export interface ListDocThreadsResponse {

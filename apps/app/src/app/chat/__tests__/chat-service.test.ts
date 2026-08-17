@@ -175,6 +175,7 @@ describe("createDelegation", () => {
     const events: string[] = [];
     const created = await createDelegation(client, {
       intent: "do",
+      writeMode: "direct",
       docPath: "Notes/Plans.md",
       selectionText: "First paragraph.",
       prompt: "Rewrite this",
@@ -218,6 +219,7 @@ describe("createDelegation", () => {
     const { client, driver } = await bootChatHarness({ mode: "manual" });
     await createDelegation(client, {
       intent: "ask",
+      writeMode: "direct",
       docPath: "Notes/Plans.md",
       selectionText: "First paragraph.",
       prompt: "What does this mean?",
@@ -228,11 +230,55 @@ describe("createDelegation", () => {
     expect(sent).toContain("Question: What does this mean?");
   });
 
+  it("a propose delegation records the mode and tells the agent its edits are held", async () => {
+    const { client, driver } = await bootChatHarness({ mode: "manual" });
+    const created = await createDelegation(client, {
+      intent: "do",
+      writeMode: "propose",
+      docPath: "Notes/Plans.md",
+      selectionText: "First paragraph.",
+      prompt: "Rewrite this",
+      anchor: () => Promise.resolve({ ok: true }),
+    });
+    if (created.kind !== "created") {
+      throw new Error(`expected created, got ${created.kind}`);
+    }
+    const detail = await client.threads.get.$get({ query: { threadId: created.threadId } });
+    if (!detail.ok) {
+      throw new Error("thread detail refused");
+    }
+    expect((await detail.json()).thread.writeMode).toBe("propose");
+    // Orientation, not instruction: the agent edits the vault exactly as
+    // always, and without this it would report changes the user cannot see.
+    expect(driver.startedTurns[0]?.text ?? "").toContain("held as a suggestion");
+  });
+
+  it("an ask is created direct whatever the mode was, because it writes nothing", async () => {
+    const { client } = await bootChatHarness({ mode: "manual" });
+    const created = await createDelegation(client, {
+      intent: "ask",
+      writeMode: "propose",
+      docPath: "Notes/Plans.md",
+      selectionText: "First paragraph.",
+      prompt: "What does this mean?",
+      anchor: () => Promise.resolve({ ok: true }),
+    });
+    if (created.kind !== "created") {
+      throw new Error(`expected created, got ${created.kind}`);
+    }
+    const detail = await client.threads.get.$get({ query: { threadId: created.threadId } });
+    if (!detail.ok) {
+      throw new Error("thread detail refused");
+    }
+    expect((await detail.json()).thread.writeMode).toBe("direct");
+  });
+
   for (const reason of ["block-gone", "no-editor", "save-failed"] as const) {
     it(`creates NO thread when the anchor fails: ${reason}`, async () => {
       const { client, driver } = await bootChatHarness({ mode: "manual" });
       const created = await createDelegation(client, {
         intent: "do",
+        writeMode: "direct",
         docPath: "Notes/Plans.md",
         selectionText: "First paragraph.",
         prompt: "Rewrite this",

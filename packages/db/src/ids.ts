@@ -36,3 +36,7 @@ export function createQueuedThreadMessageId(): string {
 export function createPendingInteractionId(): string {
   return createPrefixedId("pint");
 }
+
+export function createProposalId(): string {
+  return createPrefixedId("prp");
+}
