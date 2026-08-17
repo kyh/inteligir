@@ -71,6 +71,36 @@ export function syncStateLabel(status: VaultStatusResponse): string {
 }
 
 /**
+ * What a sync state LOOKS like. Beside the label rather than in the surface
+ * that draws it, and for the reason above rather than for tidiness: these are
+ * two total tables over the same eight states, so a ninth state added in one
+ * file and forgotten in the other is a pill whose colour contradicts its own
+ * word. Exhaustiveness cannot catch that — both tables typecheck perfectly
+ * while saying different things — so what catches it is that they are here
+ * together, and tools/repo-guards/src/domain-dispatch.test.ts fails when a
+ * third one appears somewhere else.
+ */
+export function syncStateDotClass(status: VaultStatusResponse): string {
+  switch (status.state) {
+    case "no-remote":
+      return "bg-muted-foreground/40";
+    case "clean":
+      return "bg-emerald-500";
+    case "dirty":
+      return "bg-amber-500";
+    case "syncing":
+      return "bg-sky-500 animate-pulse";
+    case "held":
+      return "bg-sky-500";
+    case "offline":
+      return "bg-muted-foreground/60";
+    case "conflict":
+    case "broken":
+      return "bg-destructive";
+  }
+}
+
+/**
  * Whether "Sync now" would actually start a pass. THREE surfaces offer the
  * command (the sidebar pill, the palette, the settings dialog), and a state
  * each of them judges for itself is a state one of them forgets — leaving a

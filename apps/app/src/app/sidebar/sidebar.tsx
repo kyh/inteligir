@@ -4,10 +4,15 @@
 
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/utils";
-import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { FilePlusIcon, FolderPlusIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
-import { canSyncNow, syncStateLabel, useVaultStatus, useVaultTree } from "../vault-hooks";
+import {
+  canSyncNow,
+  syncStateDotClass,
+  syncStateLabel,
+  useVaultStatus,
+  useVaultTree,
+} from "../vault-hooks";
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
 
 /** A failed listing renders as "The vault could not be read", never as the
@@ -17,26 +22,6 @@ function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
     return "failed";
   }
   return query.data === undefined ? "loading" : "loaded";
-}
-
-function syncPillDotClass(status: VaultStatusResponse): string {
-  switch (status.state) {
-    case "no-remote":
-      return "bg-muted-foreground/40";
-    case "clean":
-      return "bg-emerald-500";
-    case "dirty":
-      return "bg-amber-500";
-    case "syncing":
-      return "bg-sky-500 animate-pulse";
-    case "held":
-      return "bg-sky-500";
-    case "offline":
-      return "bg-muted-foreground/60";
-    case "conflict":
-    case "broken":
-      return "bg-destructive";
-  }
 }
 
 function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
@@ -65,7 +50,7 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
         canSync && "hover:bg-muted hover:text-foreground",
       )}
     >
-      <span className={cn("size-1.5 rounded-full", syncPillDotClass(status))} />
+      <span className={cn("size-1.5 rounded-full", syncStateDotClass(status))} />
       {syncStateLabel(status)}
     </button>
   );

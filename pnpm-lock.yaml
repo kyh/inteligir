@@ -765,6 +765,9 @@ importers:
       '@repo/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@repo/server-contract':
+        specifier: workspace:*
+        version: link:../../packages/server-contract
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1
@@ -11478,7 +11481,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
     optional: true
 
   '@react-native/normalize-colors@0.86.0':
