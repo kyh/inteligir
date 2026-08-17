@@ -3,6 +3,7 @@
 // not — it is stateful (held rows + maxSequence drive the next delta fetch),
 // so its hook holds it and refreshes off threadEvents directly.
 
+import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import type {
   GetThreadResponse,
   ListDocThreadsResponse,
@@ -43,6 +44,25 @@ export function useDocThreads(docPath: string): UseQueryResult<ListDocThreadsRes
     queryFn: async () => unwrap(await api.threads["by-doc"].$get({ query: { docPath } })),
   });
 }
+
+/**
+ * Which change kinds can have moved the TIMELINE, and therefore earn a delta
+ * fetch. A total table rather than the two-member `||` it replaces: the
+ * timeline is the one thread surface the ws sweep does not cover (it is not
+ * query-cached), so a kind that arrives and is not weighed here is a row the
+ * user never sees until they reopen the thread. "false" is the answer for a
+ * kind whose whole effect is on the LIST — the query sweep beside this
+ * subscriber already refetches that.
+ */
+const MOVES_THE_TIMELINE: Record<ThreadChangeKind, boolean> = {
+  "thread-created": false,
+  "events-appended": true,
+  "status-changed": true,
+  "archived-changed": false,
+  "queue-changed": false,
+  "interactions-changed": false,
+  "origin-changed": false,
+};
 
 /**
  * The live timeline: full fetch on mount, then a delta fetch per
@@ -112,11 +132,7 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
       if (message.id !== undefined && message.id !== threadId) {
         return;
       }
-      if (
-        message.changes.some(
-          (change) => change === "events-appended" || change === "status-changed",
-        )
-      ) {
+      if (message.changes.some((change) => MOVES_THE_TIMELINE[change])) {
         void refresh();
       }
     });

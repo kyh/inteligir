@@ -112,7 +112,10 @@ const VOCABULARIES: Vocabulary[] = [
     name: "thread change kind",
     members: THREAD_CHANGE_KINDS,
     declaredIn: "packages/domain/src/change-kinds.ts",
-    dispatchedIn: {},
+    dispatchedIn: {
+      "apps/app/src/app/chat/thread-hooks.ts":
+        "which kinds move the TIMELINE, and therefore earn a delta fetch — the one thread surface the query sweep does not cover, so a kind nobody weighed here is a row the user never sees; a table rather than a list, because the answer for a new kind is a decision and not a default",
+    },
   },
   {
     name: "vault change kind",

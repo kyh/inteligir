@@ -5,6 +5,7 @@
 // query-cached (the buffer IS the file — see note-view).
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/server-contract/notifications";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -113,11 +114,17 @@ export function createWorkspaceQueryClient(): QueryClient {
   });
 }
 
-/** What a reconnect implies for threads: anything may have changed. */
+/**
+ * What a reconnect implies for threads: anything may have changed — spelled as
+ * the whole vocabulary rather than a list of it, because a list is a CLAIM
+ * about which kinds a gap can hide and this one was already wrong (it named
+ * four of seven, silently asserting that no thread was created, archived or
+ * re-anchored while the socket was down).
+ */
 const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
   type: "changed",
   entity: "thread",
-  changes: ["events-appended", "status-changed", "interactions-changed", "queue-changed"],
+  changes: THREAD_CHANGE_KINDS,
 };
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
