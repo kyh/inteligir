@@ -214,6 +214,14 @@ async function boot(): Promise<{ serverUrl: string }> {
   });
   registerTeardown("listener", () => closeServer(server, bus));
   injectWebSocket(server);
+  // Nothing ever scheduled the boot pass, so the hydrate-and-reconcile landed
+  // in front of whichever query settled first — the user's first ⌘K. Kicked
+  // here rather than before `listen`, because it is not what the port waits on:
+  // an unsettled index only delays the searches that ask for it.
+  void knowledge.settle().catch(() => {
+    // Logged inside the pass; a rebuild that fails again fails the query that
+    // needs it, and boot is not that query.
+  });
   agentShellEnv = buildAgentShellEnv({
     serverUrl: `http://127.0.0.1:${port}`,
     env: process.env,

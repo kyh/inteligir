@@ -85,7 +85,19 @@ export const VAULT_MAX_CONTENT_LENGTH = 10 * 1024 * 1024;
  * isomorphic (browser and node alike), which is why it is async.
  */
 export async function contentHashHex(content: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content));
+  return contentHashBytesHex(new TextEncoder().encode(content));
+}
+
+/**
+ * The same convention, for a caller that already holds the bytes. A reader
+ * comparing a file against a recorded hash does not need the string at all,
+ * and decoding to UTF-16 only to re-encode to UTF-8 is two passes over every
+ * file it is about to decide was unchanged.
+ */
+export async function contentHashBytesHex(
+  bytes: ArrayBuffer | Uint8Array<ArrayBuffer>,
+): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 

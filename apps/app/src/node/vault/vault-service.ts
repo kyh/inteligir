@@ -525,10 +525,16 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
 }
 
 /**
- * Remove staging files a crash left behind. Runs once at boot, before the
- * watcher starts and before the first auto-commit can `git add` them.
+ * Remove staging files a crash left behind. Housekeeping rather than a
+ * precondition: `git add` never stages one (the prefix is in the repo's own
+ * `.git/info/exclude`) and both the listing and the watcher filter the same
+ * names, so nothing downstream waits on this and boot need not either.
+ *
+ * `olderThan` is what makes running it beside live writes safe — a leftover is
+ * by definition older than the process sweeping for it, so a candidate younger
+ * than that timestamp is somebody's in-flight write and is left alone.
  */
-export async function sweepStaleTmpFiles(root: string): Promise<void> {
+export async function sweepStaleTmpFiles(root: string, olderThan: number): Promise<void> {
   const resolvedRoot = resolve(root);
   async function sweep(absDir: string): Promise<void> {
     let dirents;
@@ -543,7 +549,10 @@ export async function sweepStaleTmpFiles(root: string): Promise<void> {
         continue;
       }
       if (dirent.name.startsWith(VAULT_TMP_PREFIX) && dirent.isFile()) {
-        await unlink(absPath).catch(() => {});
+        const stats = await lstat(absPath).catch(() => null);
+        if (stats !== null && stats.mtimeMs < olderThan) {
+          await unlink(absPath).catch(() => {});
+        }
         continue;
       }
       if (dirent.isDirectory() && !isIgnoredEntryName(dirent.name)) {

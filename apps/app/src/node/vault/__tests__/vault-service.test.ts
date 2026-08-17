@@ -211,9 +211,22 @@ describe("atomic writes and crash artifacts", () => {
     await service.write("note.md", "the real write");
     expect((await service.read("note.md")).content).toBe("the real write");
 
-    await sweepStaleTmpFiles(root);
+    await sweepStaleTmpFiles(root, Date.now());
     const names = await readdir(root);
     expect(names.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([]);
+  });
+
+  it("a sweep leaves an in-flight write's staging file alone", async () => {
+    // It runs beside live writes now, so its bound has to be the one thing a
+    // leftover can never satisfy: being older than the sweep that looks for it.
+    const { root } = bootService();
+    const before = Date.now();
+    await writeFile(join(root, `${VAULT_TMP_PREFIX}inflight`), "half a note");
+
+    await sweepStaleTmpFiles(root, before);
+    expect((await readdir(root)).filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([
+      `${VAULT_TMP_PREFIX}inflight`,
+    ]);
   });
 
   it("an overwrite lands the staged content exactly, shorter than the original included", async () => {

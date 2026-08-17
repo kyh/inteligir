@@ -90,14 +90,14 @@ describe("the knowledge runtime", () => {
     const dirs = makeDirs();
     const service = createVaultService({ root: dirs.root, notifier: noopNotifier });
     let listTreeCalls = 0;
-    const counted: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "read"> = {
+    const counted: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "readBytes"> = {
       listTree: () => {
         listTreeCalls += 1;
         return service.listTree();
       },
       statEntry: (path) => service.statEntry(path),
       listFilesUnder: (path) => service.listFilesUnder(path),
-      read: (path) => service.read(path),
+      readBytes: (path) => service.readBytes(path),
     };
     const knowledge = createKnowledgeRuntime({
       dataDir: dirs.dataDir,
@@ -212,16 +212,16 @@ describe("the knowledge runtime", () => {
     writeFileSync(join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
     const service = createVaultService({ root: dirs.root, notifier: noopNotifier });
     let failNextRead = false;
-    const flaky: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "read"> = {
+    const flaky: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "readBytes"> = {
       listTree: () => service.listTree(),
       statEntry: (path) => service.statEntry(path),
       listFilesUnder: (path) => service.listFilesUnder(path),
-      read: (path) => {
+      readBytes: (path) => {
         if (failNextRead) {
           failNextRead = false;
           return Promise.reject(new Error("transient io failure"));
         }
-        return service.read(path);
+        return service.readBytes(path);
       },
     };
     const knowledge = createKnowledgeRuntime({
