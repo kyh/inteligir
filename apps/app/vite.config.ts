@@ -17,13 +17,19 @@ export default defineConfig(({ command }) => ({
   // every SSR render throw `module is not defined`.
   ...(command === "build" ? { ssr: { noExternal: true } } : {}),
   plugins: [
-    // SPA mode: no runtime SSR — the build prerenders `/_shell.html` and the
-    // Node entry (src/node/main.ts) rewrites HTML navigations to it.
+    // No `spa` block, deliberately. It does exactly two things — prerender
+    // `/_shell.html`, and define TSS_SHELL=true for the DEV server — and this
+    // app wants neither. The Start entry answers every HTML navigation in both
+    // modes (src/node/app.ts), and `ssr: false` on the one route that reaches
+    // `window` (src/routes/index.tsx) is what keeps that answer a shell. A
+    // prerendered shell would be a second, staler answer to the same request:
+    // its head is rendered against the whole manifest while its payload names
+    // only __root__, and being a file it can carry no per-request CSP nonce.
+    //
     // `installDevServerMiddleware` is what makes `viteDevServer.middlewares`
     // serve the whole Start app under middlewareMode; without the flag the
     // plugin deliberately skips installing its middleware there.
     tanstackStart({
-      spa: { enabled: true },
       vite: { installDevServerMiddleware: true },
     }),
     viteReact(),

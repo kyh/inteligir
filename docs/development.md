@@ -53,6 +53,7 @@ file. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 | What                                 | Where                                             |
 | ------------------------------------ | ------------------------------------------------- |
 | The product (`pnpm dev`)             | derived port 21000–28999 (hash of checkout path)  |
+| Its vite HMR socket                  | derived port 31000–38999 (same hash)              |
 | The product's SQLite + config.json   | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
 | Site + auth Worker (`pnpm dev:site`) | 5174 (pinned — `strictPort`)                      |
 | Accounts, sessions, invites          | D1 (local file under `apps/web/.wrangler`)        |

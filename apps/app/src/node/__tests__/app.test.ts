@@ -28,18 +28,32 @@ afterEach(async () => {
   }
 });
 
-/** A prod fallback over a fresh client dir holding the shell and one asset. */
+/** A prod fallback over a fresh client dir. The fake Start entry ECHOES the
+ *  nonce it was handed, which is the whole of what this layer owes it: the
+ *  document is the entry's to render, per request, under a nonce the policy
+ *  header will name. */
 function makeProdFallback(): { clientDir: string; fallback: AppFallback } {
   const clientDir = makeTempDir("inteligir-client-test-");
-  writeFileSync(join(clientDir, "_shell.html"), "<!doctype html><title>shell</title>");
   return {
     clientDir,
     fallback: {
       kind: "prod",
       clientDir,
-      startFetch: () => Promise.resolve(new Response("start", { status: 200 })),
+      startFetch: (_request, options) =>
+        Promise.resolve(new Response(`start nonce=${options.context.nonce}`, { status: 200 })),
     },
   };
+}
+
+/** The nonce a policy header names, so a test can hold it against the document
+ *  that was rendered under it. */
+function policyNonce(response: Response): string {
+  const policy = response.headers.get("content-security-policy") ?? "";
+  const found = /'nonce-([^']+)'/u.exec(policy);
+  if (found?.[1] === undefined) {
+    throw new Error(`no nonce in content-security-policy: ${policy}`);
+  }
+  return found[1];
 }
 
 describe("the API over the in-process app", () => {
@@ -121,7 +135,7 @@ describe("the API over the in-process app", () => {
     expect(response.status).toBe(404);
   });
 
-  it("answers unmatched /api/v1 paths with JSON 404, never the SPA shell", async () => {
+  it("answers unmatched /api/v1 paths with JSON 404, never the SPA document", async () => {
     const { composed } = await bootTestApp({ fallback: makeProdFallback().fallback });
 
     const apiMiss = await composed.app.request("/api/v1/nope", {
@@ -136,7 +150,7 @@ describe("the API over the in-process app", () => {
     });
     expect(spaMiss.status).toBe(200);
     expect(spaMiss.headers.get("cache-control")).toBe("no-store");
-    expect(await spaMiss.text()).toContain("shell");
+    expect(await spaMiss.text()).toContain("start");
   });
 
   it("refuses to boot on an un-migrated database — the boot-time schema read throws", () => {
@@ -150,7 +164,7 @@ describe("the API over the in-process app", () => {
 });
 
 describe("the prod static layer", () => {
-  it("serves hashed assets immutable and 404s an asset miss, never the shell", async () => {
+  it("serves hashed assets immutable and 404s an asset miss, never the document", async () => {
     const { clientDir, fallback } = makeProdFallback();
     mkdirSync(join(clientDir, "assets"));
     writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
@@ -166,10 +180,10 @@ describe("the prod static layer", () => {
       headers: { accept: "text/html" },
     });
     expect(miss.status).toBe(404);
-    expect(await miss.text()).not.toContain("shell");
+    expect(await miss.text()).not.toContain("start");
   });
 
-  it("serves non-asset files no-store and hands non-HTML misses to the Start entry", async () => {
+  it("serves non-asset files no-store and renders every other path as a document", async () => {
     const { clientDir, fallback } = makeProdFallback();
     writeFileSync(join(clientDir, "favicon.svg"), "<svg/>");
     const { composed } = await bootTestApp({ fallback });
@@ -178,19 +192,52 @@ describe("the prod static layer", () => {
     expect(file.status).toBe(200);
     expect(file.headers.get("cache-control")).toBe("no-store");
 
-    const shell = await composed.app.request("/", { headers: { accept: "text/html" } });
-    expect(shell.status).toBe(200);
-    expect(shell.headers.get("cache-control")).toBe("no-store");
-    expect(await shell.text()).toContain("shell");
+    const document = await composed.app.request("/", { headers: { accept: "text/html" } });
+    expect(document.status).toBe(200);
+    expect(document.headers.get("cache-control")).toBe("no-store");
+    expect(await document.text()).toContain("start");
 
-    // A non-HTML miss and a non-GET both reach the Start entry untouched —
-    // no cache-control stamped onto its responses.
-    const startMiss = await composed.app.request("/api-docs.json");
-    expect(await startMiss.text()).toBe("start");
-    expect(startMiss.headers.get("cache-control")).toBeNull();
+    // ONE answer per URL, whatever the caller says it accepts. The Accept
+    // header used to pick between a prerendered file and the Start entry, so
+    // curl and a browser were handed different documents for the same path.
+    const nonHtml = await composed.app.request("/some/spa/route");
+    expect(nonHtml.status).toBe(200);
+    expect(nonHtml.headers.get("cache-control")).toBe("no-store");
+    expect(await nonHtml.text()).toContain("start");
 
     const post = await composed.app.request("/anything", { method: "POST" });
-    expect(await post.text()).toBe("start");
+    expect(await post.text()).toContain("start");
+  });
+
+  it("renders each document under a FRESH nonce, and names that nonce in its policy", async () => {
+    const { fallback } = makeProdFallback();
+    const { composed } = await bootTestApp({ fallback });
+
+    const first = await composed.app.request("/", { headers: { accept: "text/html" } });
+    const second = await composed.app.request("/", { headers: { accept: "text/html" } });
+
+    // A policy naming a nonce the document does not carry blocks every script
+    // on the page, so the two halves are asserted against each other rather
+    // than each against a shape.
+    expect(await first.text()).toContain(`nonce=${policyNonce(first)}`);
+    expect(await second.text()).toContain(`nonce=${policyNonce(second)}`);
+    expect(policyNonce(first)).not.toBe(policyNonce(second));
+  });
+
+  it("stamps the document's security headers, and only on the document", async () => {
+    const { clientDir, fallback } = makeProdFallback();
+    mkdirSync(join(clientDir, "assets"));
+    writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
+    const { composed } = await bootTestApp({ fallback });
+
+    const document = await composed.app.request("/", { headers: { accept: "text/html" } });
+    expect(document.headers.get("content-security-policy")).toContain("strict-dynamic");
+    expect(document.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(document.headers.get("referrer-policy")).toBe("no-referrer");
+
+    // The document is the only response that can execute anything.
+    const asset = await composed.app.request("/assets/app-abc123.js");
+    expect(asset.headers.get("content-security-policy")).toBeNull();
   });
 
   it("refuses traversal out of the client dir", async () => {

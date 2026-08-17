@@ -80,9 +80,9 @@ Each feature issue lands with its scenario here (#556).
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
 |                              | boot sync (vault-sync sets it for determinism)         |
 | `INTELIGIR_HMR_PORT`         | dev only: vite's HMR websocket port (server + injected |
-|                              | client) — vite's default is machine-global, so         |
-|                              | concurrent instances collide; each dev boot gets its   |
-|                              | own reserved one                                       |
+|                              | client). The default derives per CHECKOUT; the harness |
+|                              | boots several instances from ONE checkout, so it       |
+|                              | reserves a port per instance and overrides             |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
 |                              | thread and delegation scenarios run against            |
 

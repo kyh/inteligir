@@ -134,10 +134,14 @@ function resolveCommand(mode: BootMode, appDir: string): { file: string; argv: s
     };
   }
   const bundle = join(appDir, "dist-node", "main.js");
-  const shell = join(appDir, "dist", "client", "_shell.html");
-  if (!existsSync(bundle) || !existsSync(shell)) {
+  // The Start server entry, because it is what answers every HTML navigation
+  // in prod — a dist-node bundle beside a missing entry boots and then 500s
+  // the page, which is a worse failure than refusing here.
+  const startEntry = join(appDir, "dist", "server", "server.js");
+  const missing = [bundle, startEntry].find((artifact) => !existsSync(artifact));
+  if (missing !== undefined) {
     throw new Error(
-      `prod mode needs the built app (missing ${existsSync(bundle) ? shell : bundle}); run: pnpm --filter @repo/app build`,
+      `prod mode needs the built app (missing ${missing}); run: pnpm --filter @repo/app build`,
     );
   }
   return { file: process.execPath, argv: [bundle] };

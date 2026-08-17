@@ -93,6 +93,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
       databasePath,
       dataDir,
       dataDirSource: "env",
+      devHmrPort: 0,
       mode: "dev",
       port: options.port ?? 0,
       portSource: "env",

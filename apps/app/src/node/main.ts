@@ -11,7 +11,7 @@ import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
 import { buildAgentShellEnv, resolveCliBinDir } from "./agent/agent-shell-env";
-import { createApp, type AppFallback } from "./app";
+import { createApp, type AppFallback, type StartFetchOptions } from "./app";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { ensureInstanceSecret } from "./instance-identity";
@@ -67,7 +67,7 @@ function readAppVersion(): string {
   return z.object({ version: z.string().min(1) }).parse(JSON.parse(raw)).version;
 }
 
-async function createDevFallback(hmrPort: number | undefined): Promise<AppFallback> {
+async function createDevFallback(hmrPort: number): Promise<AppFallback> {
   const { createServer } = await import("vite");
   const vite = await createServer({
     root: fileURLToPath(appDirUrl),
@@ -75,7 +75,7 @@ async function createDevFallback(hmrPort: number | undefined): Promise<AppFallba
     // port injected into @vite/client — so the pair stays matched. (`ws:
     // false` is not enough: it stops the server while the injected client
     // still dials, and every page load throws.)
-    server: { middlewareMode: true, ...(hmrPort === undefined ? {} : { ws: { port: hmrPort } }) },
+    server: { middlewareMode: true, ws: { port: hmrPort } },
   });
   return { kind: "dev", middlewares: vite.middlewares };
 }
@@ -83,7 +83,7 @@ async function createDevFallback(hmrPort: number | undefined): Promise<AppFallba
 function extractStartFetch(
   entryModule: unknown,
   entryPath: string,
-): (request: Request) => Promise<Response> {
+): (request: Request, options: StartFetchOptions) => Promise<Response> {
   if (typeof entryModule !== "object" || entryModule === null || !("default" in entryModule)) {
     throw new Error(`${entryPath} has no default export`);
   }
@@ -95,8 +95,8 @@ function extractStartFetch(
   if (typeof fetchMember !== "function") {
     throw new Error(`${entryPath} default.fetch is not a function`);
   }
-  return async (request) => {
-    const response: unknown = await fetchMember.call(entry, request);
+  return async (request, options) => {
+    const response: unknown = await fetchMember.call(entry, request, options);
     if (!(response instanceof Response)) {
       throw new Error(`${entryPath} fetch did not return a Response`);
     }

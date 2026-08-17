@@ -25,6 +25,8 @@ export const PROD_SERVER_PORT = 4664;
 const DEV_HASH_LENGTH = 12;
 const DEV_PORT_BASE = 21_000;
 const DEV_PORT_BUCKETS = 8_000;
+const DEV_HMR_PORT_BASE = 31_000;
+const DEV_HMR_PORT_BUCKETS = 8_000;
 
 /**
  * Bound for the upward probe on a busy DERIVED dev port — both halves of it:
@@ -184,7 +186,7 @@ const ENV_VARS = {
   devHmrPort: defineEnvVar({
     name: "INTELIGIR_HMR_PORT",
     description:
-      "Dev only: the port for vite's HMR websocket (server and injected client together). Vite's default is one machine-global port (24678), so concurrent dev instances collide on it and the loser's page throws — a harness that boots several instances gives each its own.",
+      "Dev only: the port for vite's HMR websocket (server and injected client together). Overrides the per-checkout derived default, which a harness booting several instances FROM ONE checkout needs — they share a checkout hash and would otherwise share the port.",
     parse: ({ name, value }) => parsePortValue(name, value.trim()),
   }),
   agent: defineEnvVar({
@@ -268,7 +270,16 @@ function createCheckoutHash(checkoutPath: string): string {
  *   instance  = ~/.inteligir-dev/<hash truncated to 12 hex chars>
  *   data dir  = <instance>/data     (vault default = <instance>/vault — siblings,
  *                                    because the two must be disjoint)
- *   port      = 21000 + (first 8 hex chars of hash % 8000)   → 21000–28999
+ *   port      = 21000 + (hex chars 0–8 of hash % 8000)       → 21000–28999
+ *   hmr port  = 31000 + (hex chars 8–16 of hash % 8000)      → 31000–38999
+ *
+ * Vite's HMR websocket defaults to ONE machine-global port, so it belongs in
+ * this block rather than beside vite: a port that isolates per checkout is
+ * the same fact as the data dir and the app port, and derived here the three
+ * cannot drift apart. It reads a SECOND hash slice and lands in a disjoint
+ * range, so two checkouts that happen to collide on one port do not thereby
+ * collide on the other — the app port has a probe to fall back on, the HMR
+ * port has none.
  *
  * A derived port that turns out taken is probed upward at listen time
  * (`listen.ts`), bounded; env/managed-config ports are never probed — a
@@ -281,6 +292,11 @@ export function resolveDevInstanceId(checkoutPath: string): string {
 export function resolveDevDefaultPort(checkoutPath: string): number {
   const hash = createCheckoutHash(checkoutPath);
   return DEV_PORT_BASE + (Number.parseInt(hash.slice(0, 8), 16) % DEV_PORT_BUCKETS);
+}
+
+export function resolveDevDefaultHmrPort(checkoutPath: string): number {
+  const hash = createCheckoutHash(checkoutPath);
+  return DEV_HMR_PORT_BASE + (Number.parseInt(hash.slice(8, 16), 16) % DEV_HMR_PORT_BUCKETS);
 }
 
 export interface AppConfig {
@@ -299,8 +315,9 @@ export interface AppConfig {
   /** Absent = the runtime's default cadence; null = disabled (explicit syncs
    *  only); a positive number = the cadence in ms. */
   vaultSyncIntervalMs?: number | null;
-  /** Dev only: vite's HMR websocket port; absent = vite's default. */
-  devHmrPort?: number;
+  /** Read only in dev (prod runs no vite): vite's HMR websocket port,
+   *  derived per checkout so parallel dev instances never collide. */
+  devHmrPort: number;
   /** Which turn driver boots (issue #549); "auto" resolves at boot by binary presence. */
   agent: AgentMode;
   /** Model passed through to the provider; null means the provider's default. */
@@ -354,18 +371,20 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
       : parseRemoteUrlValue("config.json vaultRemote", managed.vaultRemote));
 
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
-  const envHmrPort = readEnvVar(ENV_VARS.devHmrPort, args.env, homeDir);
+  const devHmrPort =
+    readEnvVar(ENV_VARS.devHmrPort, args.env, homeDir) ??
+    resolveDevDefaultHmrPort(args.checkoutPath);
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModel =
     readEnvVar(ENV_VARS.agentModel, args.env, homeDir) ?? managed.agentModel ?? null;
 
   return {
-    ...(envHmrPort === undefined ? {} : { devHmrPort: envHmrPort }),
     ...(envSyncIntervalMs === undefined
       ? {}
       : { vaultSyncIntervalMs: envSyncIntervalMs === 0 ? null : envSyncIntervalMs }),
     databasePath: join(dataDir, SQLITE_DATABASE_FILE_NAME),
     dataDir,
+    devHmrPort,
     dataDirSource: envDataDir === undefined ? "default" : "env",
     mode,
     port,

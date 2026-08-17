@@ -41,12 +41,53 @@ function pageIsMounted(bodyText: string): boolean {
   return bodyText.includes("Welcome") && bodyText.includes("Welcome.md");
 }
 
+/**
+ * The document the REAL build serves, asserted over the wire before a browser
+ * touches it. Prod only: the dev fallback is vite's middleware, which carries
+ * no policy.
+ *
+ * This lives here rather than in a unit test because it is a claim about the
+ * built artifact, and `pnpm verify` runs its tests BEFORE the build — a unit
+ * test reading `dist/` asserts over the previous build's output.
+ */
+async function assertDocumentCarriesItsNonce(baseUrl: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/`, { headers: { accept: "text/html" } });
+  expect(response.ok, `GET / answered ${response.status}`);
+  const policy = response.headers.get("content-security-policy");
+  expect(policy !== null, "the prod document carries no content-security-policy");
+  const nonce = /'nonce-([^']+)'/u.exec(policy ?? "")?.[1];
+  expect(nonce !== undefined, `no nonce in the policy: ${policy ?? "(none)"}`);
+  const html = await response.text();
+
+  // A script the policy does not admit is a script the browser refuses, so
+  // every one of them has to carry THIS response's nonce.
+  const unnonced = (html.match(/<script\b[^>]*>/gu) ?? []).filter(
+    (tag) => !tag.includes(`nonce="${nonce ?? ""}"`) && !tag.includes(`nonce='${nonce ?? ""}'`),
+  );
+  expect(
+    unnonced.length === 0,
+    `scripts served without the document's nonce:\n${unnonced.join("\n")}`,
+  );
+
+  // The client router reads the nonce back from this meta and stamps it onto
+  // everything it injects after hydration; without it those go out bare.
+  expect(
+    html.includes('property="csp-nonce"') && html.includes(`content="${nonce ?? ""}"`),
+    'the document does not republish its nonce as <meta property="csp-nonce">',
+  );
+}
+
 export const browserSmoke: Scenario = {
   name: "browser-smoke",
   description: "the page renders headless: title, SPA mount, API reached, clean console",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
     try {
+      if (ctx.mode === "prod") {
+        ctx.log("asserting the served document carries the nonce its policy names");
+        await assertDocumentCarriesItsNonce(app.baseUrl);
+      }
+
       ctx.log("probing the environment: can a headless browser launch at all?");
       try {
         await agentBrowser(["open", "about:blank"], 120_000);

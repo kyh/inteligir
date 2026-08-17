@@ -5,9 +5,8 @@
 // + the Start server entry's fetch in prod.
 
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -25,7 +24,7 @@ import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
-import { buildContentSecurityPolicy, prepareShellTemplate, renderShell } from "./csp";
+import { buildContentSecurityPolicy } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
 import { proveIdentity } from "./instance-identity";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
@@ -47,12 +46,19 @@ type NodeMiddleware = (
   next: (err?: unknown) => void,
 ) => void;
 
+export interface StartFetchOptions {
+  context: { nonce: string };
+}
+
 export type AppFallback =
   | { kind: "dev"; middlewares: NodeMiddleware }
   | {
       kind: "prod";
       clientDir: string;
-      startFetch: (request: Request) => Promise<Response>;
+      /** The Start server entry's fetch. `context` is the request context Start
+       *  threads into the router entry — this app puts the document's nonce
+       *  there (src/router.tsx reads it back). */
+      startFetch: (request: Request, options: StartFetchOptions) => Promise<Response>;
     }
   /** Tests: no UI behind the API — unmatched paths 404. */
   | { kind: "none" };
@@ -78,17 +84,12 @@ export interface CreateAppArgs {
   version: string;
 }
 
-const SPA_SHELL_FILE_NAME = "_shell.html";
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
 const STATIC_NO_STORE_CACHE_CONTROL = "no-store";
 
 /** Marks a request `serveStatic` answered, so the cache-control wrapper can
- * tell a served file from the shell / Start fallthrough behind it. */
+ * tell a served file from the document render behind it. */
 type AppEnv = { Bindings: HttpBindings; Variables: { staticFilePath?: string } };
-
-function acceptsHtml(acceptHeader: string | undefined): boolean {
-  return acceptHeader !== undefined && acceptHeader.includes("text/html");
-}
 
 // Set after the chain answers: serveStatic's own onFound header writes land
 // after it has already built its Response, so they never reach the wire — the
@@ -235,14 +236,6 @@ export function createApp(args: CreateAppArgs) {
 
   if (fallback.kind === "prod") {
     const clientDir = resolve(fallback.clientDir);
-    // Read once at boot: a prod build's shell is fixed for the process
-    // lifetime, and every SPA navigation answers with it. Copied into a plain
-    // ArrayBuffer-backed view — hono's `Data` refuses Buffer's ArrayBufferLike.
-    const spaShellText = readFileSync(join(clientDir, SPA_SHELL_FILE_NAME), "utf8");
-    // Nonce placeholders stamped once; each response substitutes its own. The
-    // shell is small (~1.4kB) and already `no-store`, so building it per
-    // navigation costs nothing worth measuring.
-    const shellTemplate = prepareShellTemplate(spaShellText);
     const wsOrigin = `ws://127.0.0.1:${args.config.port}`;
     const serveClientFile = serveStatic<AppEnv>({
       root: clientDir,
@@ -261,29 +254,44 @@ export function createApp(args: CreateAppArgs) {
       (c) => c.text("Not found", 404),
     );
 
+    // ONE answer per URL, and it is the Start entry's, never a prerendered
+    // file. A build-time shell is stale by construction — its head is rendered
+    // against the whole manifest while its dehydrated payload names only
+    // __root__, and being a file it can carry no per-request nonce. The entry
+    // answers the URL that was actually asked for, so what the client hydrates
+    // is what the client is about to render, and Start threads the nonce
+    // through its own renderer. `ssr: false` on the workspace route
+    // (src/routes/index.tsx) is what keeps that answer a SHELL rather than an
+    // SSR of a browser-only tree.
+    const renderDocument = async (request: Request): Promise<Response> => {
+      const nonce = randomBytes(16).toString("base64");
+      const response = await fallback.startFetch(request, { context: { nonce } });
+      // Rebuilt rather than mutated: a Response the entry streams may carry
+      // immutable headers, and a header set that silently no-ops would ship a
+      // document with no policy on it.
+      const headers = new Headers(response.headers);
+      headers.set("cache-control", STATIC_NO_STORE_CACHE_CONTROL);
+      // The document is the only response that can execute anything, so it is
+      // the only one that carries the policy.
+      headers.set("content-security-policy", buildContentSecurityPolicy({ nonce, wsOrigin }));
+      headers.set("x-content-type-options", "nosniff");
+      headers.set("referrer-policy", "no-referrer");
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    };
+
     app.on(
       ["GET", "HEAD"],
       "*",
       staticCacheControl(STATIC_NO_STORE_CACHE_CONTROL),
       serveClientFile,
-      (c): Response | Promise<Response> => {
-        if (acceptsHtml(c.req.header("accept"))) {
-          const nonce = randomBytes(16).toString("base64");
-          return c.body(renderShell(shellTemplate, nonce), 200, {
-            "content-type": "text/html; charset=utf-8",
-            "cache-control": STATIC_NO_STORE_CACHE_CONTROL,
-            // The document is the only response that can execute anything, so
-            // it is the only one that carries the policy.
-            "content-security-policy": buildContentSecurityPolicy({ nonce, wsOrigin }),
-            "x-content-type-options": "nosniff",
-            "referrer-policy": "no-referrer",
-          });
-        }
-        return fallback.startFetch(c.req.raw);
-      },
+      (c): Promise<Response> => renderDocument(c.req.raw),
     );
 
-    app.all("*", (c) => fallback.startFetch(c.req.raw));
+    app.all("*", (c) => renderDocument(c.req.raw));
   }
 
   return { app, injectWebSocket };

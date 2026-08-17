@@ -6,6 +6,7 @@ import {
   PROD_DATA_DIR_NAME,
   PROD_SERVER_PORT,
   resolveAppConfig,
+  resolveDevDefaultHmrPort,
   resolveDevDefaultPort,
   resolveDevInstanceId,
 } from "../config";
@@ -242,7 +243,7 @@ describe("the vault dir and remote", () => {
     expect(() => resolveWithInterval("1.5")).toThrow(/INTELIGIR_SYNC_INTERVAL_MS/);
   });
 
-  it("INTELIGIR_HMR_PORT: unset = absent, a port sets it, junk refuses", () => {
+  it("INTELIGIR_HMR_PORT overrides the derived default; junk refuses", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const resolveWithHmrPort = (value?: string) =>
       resolveAppConfig({
@@ -251,10 +252,33 @@ describe("the vault dir and remote", () => {
         homeDir,
       });
 
-    expect(resolveWithHmrPort().devHmrPort).toBeUndefined();
+    expect(resolveWithHmrPort().devHmrPort).toBe(resolveDevDefaultHmrPort("/checkout/a"));
     expect(resolveWithHmrPort("31555").devHmrPort).toBe(31555);
     expect(() => resolveWithHmrPort("0")).toThrow(/INTELIGIR_HMR_PORT/);
     expect(() => resolveWithHmrPort("not-a-port")).toThrow(/INTELIGIR_HMR_PORT/);
+  });
+
+  it("the HMR port derives per checkout, disjoint from the app port range", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const a = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
+    const b = resolveAppConfig({ checkoutPath: "/checkout/b", env: {}, homeDir });
+
+    // The whole point: two checkouts running `pnpm dev` at once must not
+    // share vite's HMR socket, or the loser's page throws on every load.
+    expect(a.devHmrPort).toBe(resolveDevDefaultHmrPort("/checkout/a"));
+    expect(a.devHmrPort).not.toBe(b.devHmrPort);
+    expect(resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir }).devHmrPort).toBe(
+      a.devHmrPort,
+    );
+
+    for (const checkout of ["/checkout/a", "/checkout/b", "/checkout/c", "/checkout/d"]) {
+      const hmrPort = resolveDevDefaultHmrPort(checkout);
+      expect(hmrPort).toBeGreaterThanOrEqual(31_000);
+      expect(hmrPort).toBeLessThan(39_000);
+      // A derived app port is probed upward on collision and the HMR port is
+      // not, so the two ranges must never meet.
+      expect(hmrPort).not.toBe(resolveDevDefaultPort(checkout));
+    }
   });
 });
 
