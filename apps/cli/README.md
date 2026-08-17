@@ -41,7 +41,7 @@ exits 3 naming the conflict.
 `vault list|read|write|rename|delete|mkdir|status|sync` ·
 `search` (`tag:` terms pass through) · `backlinks` · `tags` ·
 `thread list|new|send|show|wait|archive` · `interactions list|answer` ·
-`status` · `guide`.
+`proposals list|show|accept|reject` · `status` · `guide`.
 
 Exit codes: 0 success · 1 error (incl. a thread settling in error) ·
 2 `thread wait` timeout · 3 no server reachable.
