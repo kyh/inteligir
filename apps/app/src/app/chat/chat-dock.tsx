@@ -209,7 +209,7 @@ export function ChatDock({
 
   return (
     <div className="shrink-0 border-t border-border/60 bg-background">
-      <div className="mx-auto w-full max-w-[var(--editor-width,44rem)] px-7">
+      <div className="mx-auto w-full max-w-[var(--editor-width)] px-7">
         {expanded && viewingId !== null ? (
           <div className="flex flex-col">
             <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">

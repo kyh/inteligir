@@ -341,7 +341,7 @@ function OpenNote({ path, delegation, diskContent, onRename, setRenamePending }:
         }
       }}
     >
-      <div className="mx-auto w-full max-w-[var(--editor-width,44rem)] px-7 pt-12">
+      <div className="mx-auto w-full max-w-[var(--editor-width)] px-7 pt-12">
         <NoteTitle
           path={path}
           onRename={async (toPath) => {

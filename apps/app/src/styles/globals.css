@@ -1,2 +1,11 @@
 /* Inter Variable + the theme tokens both come from @repo/ui/globals.css. */
 @import "@repo/ui/globals.css";
+
+:root {
+  /* THE measure. Three columns have to line up on it — the page title, the
+     editor's own content, and the chat dock under them — and they sit in
+     different stacking contexts, so :root is the only ancestor all three
+     share. A fallback repeated at each use is three values wearing one
+     name, which is exactly how they stop agreeing. */
+  --editor-width: 44rem;
+}

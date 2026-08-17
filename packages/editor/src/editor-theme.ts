@@ -95,7 +95,7 @@ export const editorThemeExtension = EditorView.theme({
     lineHeight: "inherit",
   },
   ".cm-content": {
-    maxWidth: "var(--editor-width, 44rem)",
+    maxWidth: "var(--editor-width)",
     marginInline: "auto",
     padding: "1.25rem 1.75rem 40vh",
     caretColor: accent,
