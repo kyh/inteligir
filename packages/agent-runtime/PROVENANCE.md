@@ -4,7 +4,10 @@
   `packages/agent-runtime` (plus the domain modules it leans on from
   `packages/domain`, vendored under `src/domain/`)
 - **Commit**: `8e6fc83582881509077ce67ac5e4b59784d83121`
-- **License**: MIT — © bb contributors
+- **License**: MIT — `LICENSE.bb` in this directory is upstream's own text,
+  copied verbatim. The per-file notice below is not a substitute for it: MIT
+  requires the license itself to travel with the copy, and it names a
+  copyright holder no notice line carries.
 - **Vendored**: 2026-08-16
 
 Vendored rather than depended on because bb publishes no packages and this

@@ -158,6 +158,27 @@ describe("vendored provenance", () => {
     }
   });
 
+  it("every vendored directory carries the upstream license text", () => {
+    // The per-file notice is not the license. MIT (and every permissive
+    // licence this repo vendors) requires the license text itself to travel
+    // with the copy, and that text names a copyright holder no notice line
+    // carries. A PROVENANCE.md naming "MIT" while the tree holds no license
+    // file is the exact gap this asserts away.
+    const violations: string[] = [];
+    for (const entry of vendored) {
+      const found = fs
+        .readdirSync(path.join(REPO_ROOT, entry.dir))
+        .some((name) => /^licen[cs]e/i.test(name));
+      if (found) continue;
+      violations.push(
+        `MISSING LICENSE  ${entry.dir}\n` +
+          `  rule: a directory vendoring ${entry.license} code carries that license's own text\n` +
+          `  fix: copy the license file from ${entry.upstream} at ${entry.commit} into ${entry.dir}/`,
+      );
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
   it("every file under a vendored directory carries its attribution", () => {
     const violations: string[] = [];
     for (const entry of vendored) {

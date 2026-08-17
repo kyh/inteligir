@@ -37,13 +37,18 @@ import {
  */
 const DECLARED_EDGES: Record<string, readonly string[]> = {
   // Leaves. Nothing in this repo may be below them.
+  "@repo/cloud-contract": [],
   "@repo/domain": [],
   "@repo/notes": [],
   "@repo/typed-routes": [],
   "@repo/ui": [],
 
   "@repo/editor": ["@repo/notes"],
-  "@repo/server-contract": ["@repo/domain", "@repo/typed-routes"],
+  // The @repo/notes edge is the delegation anchor's token grammar, and it is
+  // narrow ON PURPOSE: `markdown/thread-anchor` is parser-free, so validating
+  // an anchor in the contract cannot drag remark into every client bundle.
+  // Widening this edge to a remark-carrying module is the regression to catch.
+  "@repo/server-contract": ["@repo/domain", "@repo/notes", "@repo/typed-routes"],
   "@repo/agent-runtime": ["@repo/domain"],
   "@repo/db": ["@repo/domain", "@repo/server-contract"],
   "@repo/thread-view": ["@repo/domain", "@repo/server-contract"],
@@ -63,11 +68,12 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // Drives a RUNNING app over the typed client; the @repo/app edge is the
   // discovery config (which port/dataDir this checkout means), not the server.
   "@repo/cli": ["@repo/agent-runtime", "@repo/app", "@repo/server-contract", "@repo/thread-view"],
-  // The Cloudflare Worker. @repo/ui is the ONLY package it may reach — see
-  // the workerd rule below for what enforces that beyond this row.
-  "@repo/web": ["@repo/ui"],
+  // The Cloudflare Worker. Only the two zod-only/browser-only packages it can
+  // survive on workerd — see the workerd rule below for what enforces that
+  // beyond this row.
+  "@repo/web": ["@repo/cloud-contract", "@repo/ui"],
 
-  "@repo/e2e": ["@repo/app", "@repo/server-contract"],
+  "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
   "@repo/repo-guards": [],
 };
 
@@ -104,6 +110,10 @@ const PURITY_RULES: Record<string, PurityRule> = {
   "@repo/server-contract": {
     forbidden: ["node", "react", "electron"],
     why: "a zod-only leaf: the same table builds the server's routes and the browser's client",
+  },
+  "@repo/cloud-contract": {
+    forbidden: ["node", "react", "electron"],
+    why: "a zod-only leaf: the cloud wire runs on workerd, where node builtins do not exist, and the local app parses the same frames",
   },
   "@repo/typed-routes": {
     forbidden: ["node", "react", "electron"],
