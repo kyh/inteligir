@@ -98,7 +98,13 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // responder with, and the shutdown budget its SIGKILL grace must exceed.
   // Same call apps/cli's discovery makes, for the same reason. Bundled by
   // esbuild at build time, hence a devDependency rather than a runtime one.
-  "@repo/desktop": ["@repo/app"],
+  //
+  // The contract edge is the fourth fact, and it is a WIRE fact rather than a
+  // configuration one: the shell challenges a responder before adopting it, so
+  // it needs the identity row's path and the schema that responder's answer is
+  // held against. A shell narrowing that body for itself is a second, weaker
+  // reading of the one message a squatter gets to compose.
+  "@repo/desktop": ["@repo/app", "@repo/server-contract"],
 
   "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
   "@repo/repo-guards": [],

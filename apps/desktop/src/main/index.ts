@@ -24,6 +24,10 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 import {
+  systemIdentityResponseSchema,
+  type SystemIdentityResponse,
+} from "@repo/server-contract/routes";
+import {
   classifyNavigation,
   classifyWindowOpen,
   decideExternalOpen,
@@ -90,23 +94,14 @@ process.on("unhandledRejection", (reason) => {
  */
 async function verifiedServerAnswered(origin: string, dataDir: string): Promise<boolean> {
   const challenge = newIdentityChallenge();
-  let answer: { proof: string; dataDir: string } | null = null;
+  let answer: SystemIdentityResponse | null = null;
   try {
     const response = await fetch(identityUrl(origin, challenge), {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     });
     if (response.ok) {
       const body: unknown = await response.json();
-      if (
-        typeof body === "object" &&
-        body !== null &&
-        "proof" in body &&
-        "dataDir" in body &&
-        typeof body.proof === "string" &&
-        typeof body.dataDir === "string"
-      ) {
-        answer = { proof: body.proof, dataDir: body.dataDir };
-      }
+      answer = systemIdentityResponseSchema.safeParse(body).data ?? null;
     }
   } catch {
     answer = null;

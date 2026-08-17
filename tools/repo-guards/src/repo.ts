@@ -210,6 +210,28 @@ export function workspaceFiles(workspace: Workspace): WorkspaceFiles {
   return files;
 }
 
+const cachedWorkspaceSources = new Map<string, string[]>();
+
+/**
+ * Every source file a workspace CONTAINS, wherever it sits — `src/`, the build
+ * and smoke scripts beside it, a config at its root.
+ *
+ * `workspaceFiles` answers what SHIPS, which is the population a dependency
+ * edge is about. This answers what the repo HOLDS, which is the population a
+ * guard about SPELLING needs: a smoke script that hand-writes a route path
+ * drifts from the table exactly the way a handler does, and it lives nowhere
+ * near `src/`.
+ */
+export function workspaceSourceFiles(workspace: Workspace): string[] {
+  const cached = cachedWorkspaceSources.get(workspace.name);
+  if (cached !== undefined) return cached;
+  const found: string[] = [];
+  walk(path.join(REPO_ROOT, workspace.dir), found);
+  const sorted = found.toSorted();
+  cachedWorkspaceSources.set(workspace.name, sorted);
+  return sorted;
+}
+
 const FULL_LINE_COMMENT = /^\s*(?:\/\/|\*|\/\*)/;
 const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*["']([^"'\n]+)["']/g;
 

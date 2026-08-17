@@ -11,7 +11,7 @@
 // containment is what actually holds (it realpaths and refuses symlinks), but
 // a `../` that reaches the network at all is a request nobody meant to send.
 
-import { API_BASE_PATH } from "@repo/server-contract/routes";
+import { apiPath, apiRoutes } from "@repo/server-contract/routes";
 
 /** The URL for a vault-relative image path, or null when the path is not one
  *  this vault can serve. */
@@ -29,5 +29,5 @@ export function vaultAssetUrl(src: string): string | null {
   if (path === "" || path === ".." || path.startsWith("../") || path.includes("/../")) {
     return null;
   }
-  return `${API_BASE_PATH}/vault/asset?path=${encodeURIComponent(path)}`;
+  return `${apiPath(apiRoutes.vault.asset)}?path=${encodeURIComponent(path)}`;
 }

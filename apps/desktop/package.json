@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@repo/app": "workspace:*",
+    "@repo/server-contract": "workspace:*",
     "@types/node": "catalog:",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",

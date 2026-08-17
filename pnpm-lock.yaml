@@ -302,6 +302,9 @@ importers:
       '@repo/app':
         specifier: workspace:*
         version: link:../app
+      '@repo/server-contract':
+        specifier: workspace:*
+        version: link:../../packages/server-contract
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.1

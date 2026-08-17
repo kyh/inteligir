@@ -30,6 +30,7 @@ import {
   readInstanceSecret,
   verifyIdentityProof,
 } from "@repo/app/node/instance-identity";
+import { apiPath, apiRoutes, type SystemIdentityResponse } from "@repo/server-contract/routes";
 import { isHttpUrl } from "./origin-pin";
 
 /** Loopback, never `localhost`: the name resolves to ::1 or 127.0.0.1
@@ -39,7 +40,8 @@ export function serverOrigin(port: number): string {
 }
 
 export function identityUrl(origin: string, challenge: string): string {
-  return `${origin}/api/v1/system/identity?challenge=${encodeURIComponent(challenge)}`;
+  const path = apiPath(apiRoutes.system.identity);
+  return `${origin}${path}?challenge=${encodeURIComponent(challenge)}`;
 }
 
 /** One resolution, carried whole: the origin the window is pinned to and the
@@ -114,8 +116,12 @@ export interface VerifyIdentityArgs {
   /** The data dir this shell is configured for. */
   dataDir: string;
   challenge: string;
-  /** What the responder answered, or null when it answered nothing usable. */
-  answer: { proof: string; dataDir: string } | null;
+  /** What the responder answered, PARSED against the contract's own row, or
+   *  null when it answered nothing usable. The shape is the contract's rather
+   *  than a local narrowing of two string fields: this is the one message a
+   *  squatter gets to compose, so the schema's own bounds (a 64-hex proof, no
+   *  extra keys) are exactly what should be applied to it. */
+  answer: SystemIdentityResponse | null;
   /** Reads the secret the local data dir holds; injected for the tests. */
   readSecret?: (dataDir: string) => string | null;
 }
