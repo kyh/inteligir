@@ -21,8 +21,13 @@ function plan(query: string): string | undefined {
 }
 
 describe("tokenize", () => {
-  it("lowercases and splits on non-word runs, unicode included", () => {
-    expect(tokenize("Hello, Wörld-42!")).toEqual(["hello", "wörld", "42"]);
+  it("lowercases, folds diacritics, and splits on non-word runs", () => {
+    // The fold is what keeps this tokenizer and FTS5's unicode61 answering the
+    // same question; the store pins the two against each other.
+    expect(tokenize("Hello, Wörld-42!")).toEqual(["hello", "world", "42"]);
+    expect(tokenize("Acción Łódź İstanbul")).toEqual(["accion", "łodz", "istanbul"]);
+    // Letters unicode61 does not fold either are left exactly alone.
+    expect(tokenize("Straße søster 东京")).toEqual(["straße", "søster", "东京"]);
     expect(tokenize("")).toEqual([]);
   });
 });
@@ -37,9 +42,11 @@ describe("stemming", () => {
     expect(stemText("")).toBe("");
   });
 
-  it("leaves a token it has no rule for exactly as it found it", () => {
-    // Identifiers and other languages must search as they always did.
-    expect(stemText("bm25 café _slug_ 42")).toBe("bm25 café _slug_ 42");
+  it("leaves a token it has no rule for as the tokenizer handed it over", () => {
+    // Identifiers and other languages carry no English suffix, so the stemmer
+    // returns them unchanged — folded, because stemming runs over tokens and
+    // the fold is part of tokenizing.
+    expect(stemText("bm25 café _slug_ 42")).toBe("bm25 cafe _slug_ 42");
   });
 
   it("gives every term the stem a whole-word match asks for", () => {

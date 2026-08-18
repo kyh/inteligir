@@ -34,12 +34,19 @@ import { useWorkspace } from "../workspace-context";
  * A doc's related notes. Swept by `relatedRoot` on every content or file
  * change (workspace-context.tsx) rather than re-read on a timer: every signal
  * this ranks on lives in notes other than the open one.
+ *
+ * Only asked while the section is OPEN, which is where it parts company with
+ * backlinks. A backlink read is a graph lookup; this one settles the index and
+ * then runs a lexical probe per title token, and the section is collapsed by
+ * default — so fetching regardless would re-run the vault's most expensive
+ * read on every save, for a list nobody is looking at.
  */
-function useRelatedNotes(docPath: string) {
+function useRelatedNotes(docPath: string, enabled: boolean) {
   const { api } = useWorkspace();
   return useQuery({
     queryKey: queryKeys.related(docPath),
     queryFn: async () => unwrap(await api.knowledge.related.$get({ query: { path: docPath } })),
+    enabled,
   });
 }
 
@@ -54,14 +61,24 @@ export function relatedSummary(shown: number): string {
 
 export interface RelatedPanelProps {
   related: readonly RelatedNoteWire[];
-  /** The query has not answered yet — distinct from "answered zero". */
+  /** No answer yet — distinct from "answered zero", and from never asked. */
   loading: boolean;
+  /** The read refused. A count would be a claim the panel cannot make. */
+  failed: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpen: (path: string) => void;
 }
 
-export function RelatedPanel({ related, loading, open, onOpenChange, onOpen }: RelatedPanelProps) {
+export function RelatedPanel({
+  related,
+  loading,
+  failed,
+  open,
+  onOpenChange,
+  onOpen,
+}: RelatedPanelProps) {
+  const settled = !loading && !failed;
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger className="flex w-full items-center gap-1.5 py-2 text-xs font-medium tracking-wide text-muted-foreground hover:text-foreground">
@@ -69,12 +86,16 @@ export function RelatedPanel({ related, loading, open, onOpenChange, onOpen }: R
           className={cn("size-3.5 transition-transform", open && "rotate-90")}
           aria-hidden
         />
-        {loading ? "Related notes" : relatedSummary(related.length)}
+        {settled ? relatedSummary(related.length) : "Related notes"}
       </CollapsibleTrigger>
       <CollapsibleContent>
         {related.length === 0 ? (
           <p className="pb-4 text-sm text-muted-foreground">
-            {loading ? "…" : "Nothing else in the vault shares this note's links, tags or words."}
+            {failed
+              ? "Could not read the index just now."
+              : loading
+                ? "…"
+                : "Nothing else in the vault shares this note's links, tags or words."}
           </p>
         ) : (
           <ul className="space-y-1 pb-4">
@@ -110,7 +131,7 @@ export interface RelatedSectionProps {
  *  testable without a query client, the way the backlinks section is. */
 export function RelatedSection({ path, onOpen }: RelatedSectionProps) {
   const [open, setOpenState] = useState(readRelatedOpen);
-  const relatedQuery = useRelatedNotes(path);
+  const relatedQuery = useRelatedNotes(path, open);
   const setOpen = (next: boolean): void => {
     writeRelatedOpen(next);
     setOpenState(next);
@@ -119,7 +140,8 @@ export function RelatedSection({ path, onOpen }: RelatedSectionProps) {
   return (
     <RelatedPanel
       related={relatedQuery.data?.related ?? []}
-      loading={relatedQuery.data === undefined}
+      loading={relatedQuery.isPending}
+      failed={relatedQuery.isError}
       open={open}
       onOpenChange={setOpen}
       onOpen={onOpen}

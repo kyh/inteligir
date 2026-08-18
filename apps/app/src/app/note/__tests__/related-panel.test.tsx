@@ -35,6 +35,7 @@ describe("the panel", () => {
       <RelatedPanel
         related={[related(), related({ path: "Daily/2026-08-17.md", title: "Wednesday" })]}
         loading={false}
+        failed={false}
         open
         onOpenChange={vi.fn()}
         onOpen={onOpen}
@@ -51,7 +52,16 @@ describe("the panel", () => {
   });
 
   it("holds the count back while the query is still out", () => {
-    render(<RelatedPanel related={[]} loading open onOpenChange={vi.fn()} onOpen={vi.fn()} />);
+    render(
+      <RelatedPanel
+        related={[]}
+        loading
+        failed={false}
+        open
+        onOpenChange={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByText("No related notes")).toBeNull();
     expect(screen.getByText("Related notes")).toBeDefined();
@@ -59,12 +69,37 @@ describe("the panel", () => {
 
   it("says which signals came up empty, not just that nothing did", () => {
     render(
-      <RelatedPanel related={[]} loading={false} open onOpenChange={vi.fn()} onOpen={vi.fn()} />,
+      <RelatedPanel
+        related={[]}
+        loading={false}
+        failed={false}
+        open
+        onOpenChange={vi.fn()}
+        onOpen={vi.fn()}
+      />,
     );
 
     expect(
       screen.getByText("Nothing else in the vault shares this note's links, tags or words."),
     ).toBeDefined();
+  });
+
+  it("says the read refused rather than counting zero related notes", () => {
+    // A refused read is not an answer of "none" — the panel would otherwise
+    // report a fact about the vault that it never learned.
+    render(
+      <RelatedPanel
+        related={[]}
+        loading={false}
+        failed
+        open
+        onOpenChange={vi.fn()}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("No related notes")).toBeNull();
+    expect(screen.getByText("Could not read the index just now.")).toBeDefined();
   });
 
   it("collapses to its header, keeping the count in reach", () => {
@@ -73,6 +108,7 @@ describe("the panel", () => {
       <RelatedPanel
         related={[related()]}
         loading={false}
+        failed={false}
         open={false}
         onOpenChange={onOpenChange}
         onOpen={vi.fn()}

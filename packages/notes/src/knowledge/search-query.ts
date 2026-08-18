@@ -48,9 +48,27 @@
 
 import { stemmer } from "stemmer";
 
-/** Unicode-aware tokens: letter/number/underscore runs, lowercased. */
+/** Unicode-aware tokens: letter/number/underscore runs, lowercased and folded.
+ *
+ * The FOLD is not a nicety — it is what keeps the two engines answering the
+ * same question. FTS5's `unicode61` strips diacritics itself, so an unfolded
+ * tokenizer here indexes `acción` where the SQL store indexes `accion`, and a
+ * query for `acciones` then reaches one engine and not the other. The literal
+ * path hid that (both sides folded the query the same way they folded their
+ * own index); the stem shadow does not, because the stem is computed HERE and
+ * folded THERE. So the fold moves to the one tokenizer both engines share, and
+ * the store pins `remove_diacritics 2` against it.
+ *
+ * NFD + dropping nonspacing marks is exactly what unicode61 does over the
+ * cases this vault can hold — checked, rather than assumed, in the store's own
+ * suite: `Łódź`, `İstanbul`, `ñandú` fold identically, and `Straße`, `søster`,
+ * Cyrillic and CJK are left alone by both. */
 export function tokenize(text: string): string[] {
-  return text.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? [];
+  return foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
+}
+
+function foldDiacritics(text: string): string {
+  return text.normalize("NFD").replace(/\p{Mn}+/gu, "");
 }
 
 /** `text`'s tokens, each replaced by its stem, in order — what an engine must

@@ -182,21 +182,37 @@ export class SearchIndex {
       .slice(0, limit);
   }
 
-  /** Every doc one term reaches, scored. Whatever shares the term's stem
-   * always counts — that is the whole-word match, and it subsumes the literal
-   * token, whose own stem is this one. A term still being TYPED additionally
-   * reaches whatever merely STARTS with the letters typed so far, at a
-   * discount. Best contribution per doc wins; the term is one term either
-   * way. */
+  /** Every doc one term reaches, scored.
+   *
+   * Whatever shares the term's stem counts — the whole-word match. A doc
+   * holding the LITERAL word counts AGAIN, and that second helping is THE
+   * EXACT TIER, not a double-count: Porter maps `busy` and `business` both to
+   * `busi`, so without it a note titled "Busy" (weight 10) outranks a note
+   * whose body actually says `business` (weight 1) with nothing to separate
+   * them. It adds no docs — a doc holding the token already carries its stem —
+   * so the tier changes ranking only. The SQL store spells the same tier as an
+   * OR of both columns, whose bm25 contributions sum the same way.
+   *
+   * A term still being TYPED additionally reaches whatever merely STARTS with
+   * the letters typed so far. That one is a WEAKER reading of the term, not a
+   * second helping of it, so it is taken at a discount and never lowers what a
+   * doc already earned. */
   private contributionsFor(term: SearchQueryTerm): Map<string, number> {
     const contributions = new Map<string, number>();
+    const add = (path: string, score: number): void => {
+      contributions.set(path, (contributions.get(path) ?? 0) + score);
+    };
     const keep = (path: string, score: number): void => {
       const prior = contributions.get(path);
       if (prior === undefined || score > prior) contributions.set(path, score);
     };
     const stemmed = this.stemPostings.get(term.stem);
     if (stemmed) {
-      for (const [path, counts] of stemmed) keep(path, weightOf(counts));
+      for (const [path, counts] of stemmed) add(path, weightOf(counts));
+    }
+    const exact = this.postings.get(term.token);
+    if (exact) {
+      for (const [path, counts] of exact) add(path, weightOf(counts));
     }
     if (!term.prefix) return contributions;
     // Range-scan just the keys sharing this prefix: sorted keys make the
@@ -207,6 +223,9 @@ export class SearchIndex {
     for (let idx = SearchIndex.lowerBound(sorted, term.token); idx < sorted.length; idx++) {
       const candidate = sorted[idx];
       if (candidate === undefined || !candidate.startsWith(term.token)) break;
+      // The token ITSELF is the exact tier above, already counted at full
+      // weight; re-reading it here would only offer a discounted version.
+      if (candidate === term.token) continue;
       const docs = this.postings.get(candidate);
       if (!docs) continue;
       for (const [path, counts] of docs) keep(path, PREFIX_FACTOR * weightOf(counts));

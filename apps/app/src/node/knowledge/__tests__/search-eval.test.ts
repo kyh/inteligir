@@ -170,6 +170,7 @@ beforeAll(() => {
 
 afterAll(() => {
   store.dispose();
+  for (const built of tierStores.splice(0)) built.dispose();
 });
 
 function probe(match: string, limit: number): string[] {
@@ -194,6 +195,37 @@ const unstemmed: Retrieve = (query, limit) => {
 };
 
 const after: Retrieve = (query, limit) => store.search(query, limit).map((hit) => hit.path);
+
+/** A throwaway store over exactly the notes one invariant needs. Each of these
+ * corpora is built to expose a ranking relation, so they are kept APART: a
+ * shared fixture lets a note added for one test change another's answer. */
+function storeOf(docs: Readonly<Record<string, string>>): SqlKnowledgeStore {
+  const built = createSqlKnowledgeStore(
+    createSqliteDriver(join(makeTempDir("inteligir-search-tier-"), "knowledge.db")),
+    "/vault",
+  );
+  tierStores.push(built);
+  for (const [path, content] of Object.entries(docs)) {
+    built.upsertDoc(
+      {
+        path,
+        contentHash: createHash("sha256").update(content, "utf8").digest("hex"),
+        projection: projectDoc(path, content),
+      },
+      content,
+    );
+  }
+  return built;
+}
+
+/** The same corpus in the pure engine, so a relation can be asserted of both. */
+function pureOf(docs: Readonly<Record<string, string>>): KnowledgeIndex {
+  const index = new KnowledgeIndex();
+  for (const [path, content] of Object.entries(docs)) index.setDoc(path, content);
+  return index;
+}
+
+const tierStores: SqlKnowledgeStore[] = [];
 
 /** Every note the current policy can reach for this query, at any rank. */
 function reachable(query: string): Set<string> {
@@ -309,6 +341,118 @@ describe("vault search — the retrieval measurement", () => {
     expect(before("bm25 ranking", K)).toEqual([]);
     expect(unstemmed("bm25 ranking", K)).toEqual(["projects/vault-search.md"]);
     expect(after("bm25 ranking", K)).toEqual(["projects/vault-search.md"]);
+  });
+
+  it("ranks an exact word above a note that only shares its stem — in BOTH engines", () => {
+    // The tier, and the pin the set-only lockstep check could not make: the
+    // engines spell it differently (bm25 sums the two matched column groups,
+    // the pure index sums the two contributions) and an implementation that
+    // has it on one side only orders these two notes oppositely.
+    const docs = { "stem-only.md": "loop", "exact.md": "loops" };
+    const ranked = ["exact.md", "stem-only.md"];
+    expect(
+      storeOf(docs)
+        .search("loops", 2)
+        .map((hit) => hit.path),
+    ).toEqual(ranked);
+    expect(
+      pureOf(docs)
+        .search("loops", 2)
+        .map((hit) => hit.path),
+    ).toEqual(ranked);
+  });
+
+  it("does not let an over-stemmed collision outrank the word itself", () => {
+    // Porter maps `busy` and `business` to ONE stem, so the shadow alone
+    // cannot tell them apart and the tier is the only thing that can.
+    const docs = { "busy.md": "# Busy\n", "business.md": "# Business\n" };
+    expect(
+      storeOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("business.md");
+    expect(
+      pureOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("business.md");
+  });
+
+  it("still lets a TITLE-level collision beat a BODY-level exact match, in both", () => {
+    // The residual, stated rather than left to be discovered. The tier is
+    // worth one extra helping of a term's own field weight, and the field
+    // gap is 10x — so `busy` in a title still outranks `business` in a body
+    // even though only one of them is the word the user typed. Both engines
+    // agree, which is the part that matters: this is field weighting doing
+    // exactly what it is for, not the two of them drifting.
+    //
+    // Closing it needs a signal neither engine has — how RARE the stem is
+    // across the vault — and bm25 has an idf that pushes this way already,
+    // enough to flip the answer on a corpus with more than two notes in it.
+    // That is a reason not to over-tune the tier, not a bug to patch here.
+    const docs = { "busy.md": "# Busy\n", "body.md": "# Notes\n\nThe business of the week.\n" };
+    expect(
+      storeOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("busy.md");
+    expect(
+      pureOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("busy.md");
+  });
+
+  it("folds diacritics the same way on both sides of the seam", () => {
+    // FTS5's unicode61 strips diacritics itself, so the pure tokenizer has to
+    // as well or `acciones` reaches one engine and not the other. This is the
+    // divergence the stem shadow made reachable: the stem is computed in JS
+    // and folded by SQLite.
+    const docs = { "es.md": "# Acción\n\nUna acción pendiente.\n" };
+    const store = storeOf(docs);
+    const index = pureOf(docs);
+    for (const query of ["acción", "accion", "acciones"]) {
+      expect(
+        store.search(query, 5).map((hit) => hit.path),
+        query,
+      ).toEqual(["es.md"]);
+      expect(
+        index.search(query, 5).map((hit) => hit.path),
+        query,
+      ).toEqual(["es.md"]);
+    }
+  });
+
+  it("shows a stemmed hit at the word that actually matched", () => {
+    // FTS5's snippet() cuts one column from THAT column's offsets, so a hit in
+    // the stem shadow used to render the note's opening filler instead.
+    const docs = {
+      "late.md": `# Late\n\n${"filler ".repeat(30)}\n\nI have been exhausted lately.\n`,
+    };
+    for (const engine of [storeOf(docs), pureOf(docs)]) {
+      const [hit] = engine.search("exhausting", 5);
+      expect(hit?.path).toBe("late.md");
+      expect(hit?.snippet).toContain("exhausted");
+      expect(hit?.snippet).not.toContain("filler");
+    }
+  });
+
+  it("lets one posting satisfy both halves of a conjunction it spells twice", () => {
+    // `policy policies` is two content terms that stem to one, so the AND is
+    // satisfiable by a note holding either spelling. That is the intended
+    // reading — two spellings of one word are not two requirements — and it is
+    // pinned rather than left to be rediscovered.
+    const docs = { "policy.md": "# Policy\n\nOur policies are written down.\n" };
+    expect(
+      storeOf(docs)
+        .search("policy policies", 5)
+        .map((hit) => hit.path),
+    ).toEqual(["policy.md"]);
+    expect(
+      pureOf(docs)
+        .search("policy policies", 5)
+        .map((hit) => hit.path),
+    ).toEqual(["policy.md"]);
   });
 
   it("keeps the two engines in lockstep over the whole corpus", () => {

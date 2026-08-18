@@ -311,10 +311,26 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   labelled corpus stop retrieving anything (`hirin`, `packin`, `migratio`),
   and typing is what the palette does. It would also put half a shared policy
   inside SQLite's C, where the pure `SearchIndex` cannot execute the same one.
-  A settled term asks the stems; the term still being TYPED asks both, because
-  it is a fragment right up until it is a word and a one-word query is nothing
-  but that term. `snippet()` still cuts from the literal body, which is the
-  other thing a rewrite would have cost.
+  EVERY term asks BOTH halves, and that OR is **the exact tier**, not a
+  belt-and-braces duplicate: Porter over-stems (`busy`/`business` → `busi`,
+  `organ`/`organization` → `organ`), so the shadow alone lets a collision in a
+  title outrank the word itself in a body. A doc holding the literal word
+  satisfies both arms and bm25 sums the columns each matched, so it scores
+  about twice a stem-only hit; the pure `SearchIndex` SUMS its two
+  contributions to say the same thing. Implementing it on one side only is a
+  silent lockstep break — the set-comparison lockstep test cannot see an
+  ordering — so it is pinned by a ranking assertion run against BOTH engines.
+  The residual is stated: the tier is one extra helping of a term's own field
+  weight and the title/body gap is 10x, so a title-level collision still beats
+  a body-level exact match. Closing that needs idf, which only bm25 has.
+  **`tokenize()` folds diacritics** (NFD, nonspacing marks dropped) and the
+  store states `remove_diacritics 2` against it — the stem is computed in JS
+  and folded by SQLite, so an unfolded tokenizer made `acciones` reach one
+  engine and not the other. **The snippet is cut in JS**
+  (`knowledge/search-excerpt.ts`), by both engines: `snippet()` cuts one column
+  from THAT column's offsets, and FTS5 will not carry a `body_stems` match
+  across to the literal body, so a stemmed hit rendered the note's opening
+  filler.
 
 - **Connectors are CODEX'S MCP servers, and this app keeps no registry of its
   own.** `codex mcp list|add|remove` over `~/.codex/config.toml` is where the

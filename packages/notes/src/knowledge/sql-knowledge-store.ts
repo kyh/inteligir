@@ -16,7 +16,8 @@
 // durable ever lives in it.
 //
 // Search: FTS5 over (title, headings, body) plus a STEM SHADOW of the same
-// three, unicode61 with `_` kept as a token char to match core tokenize().
+// three, unicode61 with `_` kept as a token char and diacritics folded, to
+// match core tokenize() exactly.
 // WHICH tokens a query asks for, and which of them are stems, is
 // search-query.ts's answer — shared with the pure SearchIndex so the two
 // engines cannot drift — and this file only renders it as a MATCH expression,
@@ -39,10 +40,11 @@ import type { SearchResult } from "./knowledge-index";
 import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
 import { parseStoredProjection } from "./projection-row";
+import { searchExcerpt } from "./search-excerpt";
 import { planSearchQuery, stemText, type SearchQueryPlan } from "./search-query";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 10;
+export const KNOWLEDGE_SCHEMA_VERSION = 11;
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 type SqlValue = null | number | string;
@@ -119,6 +121,12 @@ export type SqlKnowledgeStore = KnowledgeStore & {
 // PROJECTION_VERSION; the wipe-and-rebuild guard IS the migration.
 //
 // `files.path` is the PK, so paged hydration is an index range scan.
+//
+// `remove_diacritics` is STATED rather than defaulted, and it is half of a
+// contract: core's tokenize() folds the same way (NFD, nonspacing marks
+// dropped), so the two engines index the same tokens. A default that moved
+// under us would split them silently, which is exactly the class of bug the
+// stem shadow made reachable.
 const SCHEMA_DDL = `
 CREATE TABLE meta (
   key TEXT PRIMARY KEY,
@@ -134,19 +142,25 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
   title, headings, body,
   title_stems, heading_stems, body_stems,
   path UNINDEXED,
-  tokenize='unicode61 tokenchars ''_'''
+  tokenize='unicode61 remove_diacritics 2 tokenchars ''_'''
 );
 `;
 
 // bm25() returns lower-is-better (negative) ranks; weights mirror the pure
 // SearchIndex's TITLE_WEIGHT/HEADING_WEIGHT/BODY_WEIGHT so a title hit beats a
 // body-only hit, once for the literal columns and once for their stem shadow.
-// Path tiebreak keeps ordering deterministic. The snippet is cut from column 2
-// — the LITERAL body, which is why the stems are a shadow rather than a
-// rewrite of it.
+// Path tiebreak keeps ordering deterministic.
+//
+// The BODY comes back whole and the excerpt is cut in JS (search-excerpt.ts).
+// FTS5's `snippet()` cuts one column from THAT column's match offsets, and a
+// stem-only hit matches `body_stems` — offsets FTS5 will not carry across to
+// column 2 — so it answered with the note's opening words under a hit the
+// reader could not see. Cutting here also puts both engines on one snippet
+// policy, where `snippet()` and the pure index's first-matching-line had
+// quietly been two. The cost is the body of each RETURNED row (LIMIT bounds
+// it), which SQLite reads to satisfy the query either way.
 const SEARCH_SQL = `
-SELECT path, title,
-  snippet(search_fts, 2, '', '', '…', 12) AS snip,
+SELECT path, title, body,
   bm25(search_fts, 10.0, 4.0, 1.0, 10.0, 4.0, 1.0) AS rank
 FROM search_fts
 WHERE search_fts MATCH ?
@@ -187,20 +201,34 @@ const STEM_COLUMNS = "{title_stems heading_stems body_stems}";
  * nothing can close the quote either. The column filters are this file's own
  * text and name columns that exist, so they carry nothing a caller wrote.
  *
- * A settled term asks the STEM shadow alone. The term still being TYPED asks
- * both: a prefix over the literal columns, because a prefix run against stems
- * stops matching the moment it reaches the suffix (stemText states the
- * measurement), OR its stem, because that same term is a whole word the
- * instant the user stops typing — and a one-word query is nothing BUT this
- * term, so without the second half `dentists` would not reach a note that says
- * `dentist`. The two halves are parenthesized so the inner OR cannot bind
- * against the AND joining the terms. */
+ * EVERY term asks both halves — its stem over the shadow, and the literal word
+ * itself over the text — and that OR is THE EXACT TIER rather than a
+ * belt-and-braces duplicate. Matching the shadow alone would let an
+ * over-stemmed collision beat a real hit: Porter maps `busy` and `business`
+ * both to `busi` and `organ` and `organization` both to `organ`, so a note
+ * TITLED "Busy" (weight 10) would outrank a note whose body actually says
+ * `business` (weight 1) with nothing to separate them. A doc holding the word
+ * itself satisfies both arms, and bm25 sums the columns each arm matched, so
+ * it scores about twice a doc that only shares the stem. The literal arm adds
+ * no DOCUMENTS — anything holding the token already carries its stem in the
+ * shadow — so this changes ranking only, never the hit set.
+ *
+ * The term still being TYPED takes the same tier with a prefix on its literal
+ * arm, because a prefix run against stems stops matching the moment it reaches
+ * the suffix (stemText states the measurement) while the stem arm is what lets
+ * a one-word query — nothing BUT this term — reach `dentist` from `dentists`.
+ *
+ * Each term is parenthesized so its inner OR cannot bind against the AND
+ * joining the terms.
+ *
+ * The pure SearchIndex implements the same tier by SUMMING the two
+ * contributions; the two engines are held to it by the store's own suite. */
 function renderFtsMatch(plan: SearchQueryPlan): string {
   return plan.terms
-    .map((term) =>
-      term.prefix
-        ? `(${LITERAL_COLUMNS}: "${term.token}" * OR ${STEM_COLUMNS}: "${term.stem}")`
-        : `${STEM_COLUMNS}: "${term.stem}"`,
+    .map(
+      (term) =>
+        `(${LITERAL_COLUMNS}: "${term.token}"${term.prefix ? " *" : ""}` +
+        ` OR ${STEM_COLUMNS}: "${term.stem}")`,
     )
     .join(plan.match === "all" ? " AND " : " OR ");
 }
@@ -477,7 +505,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         if (rows.length === 0) continue;
         return rows.map((row) => {
           const title = columnString(row, "title");
-          const snippet = columnString(row, "snip").trim();
+          const snippet = searchExcerpt(columnString(row, "body"), plan.terms);
           return {
             path: columnString(row, "path"),
             title,
