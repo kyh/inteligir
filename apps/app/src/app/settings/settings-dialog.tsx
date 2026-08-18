@@ -36,6 +36,7 @@ import {
 } from "../vault-hooks";
 import { ConnectorsSection } from "./connectors-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
+import { SyncSection } from "./sync-section";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
   { value: "system", label: "System" },
@@ -167,6 +168,8 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
       </section>
       <Separator />
       <ConnectorsSection />
+      <Separator />
+      <SyncSection />
       <Separator />
       <section className="space-y-2">
         <SectionHeading>Appearance</SectionHeading>

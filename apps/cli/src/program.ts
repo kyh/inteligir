@@ -25,6 +25,7 @@ import { interactionsCommand } from "./commands/interactions";
 import { backlinksCommand, searchCommand, tagsCommand } from "./commands/knowledge";
 import { proposalsCommand } from "./commands/proposals";
 import { statusCommand } from "./commands/status";
+import { syncCommand } from "./commands/sync";
 import { threadCommand } from "./commands/thread";
 import { vaultCommand } from "./commands/vault";
 import { describeContext, type CliDeps } from "./context";
@@ -75,6 +76,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       interactions: interactionsCommand(deps),
       connectors: connectorsCommand(deps),
       proposals: proposalsCommand(deps),
+      sync: syncCommand(deps),
       status: statusCommand(deps),
       guide: guideCommand(deps),
     },

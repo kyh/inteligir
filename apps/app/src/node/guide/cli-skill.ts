@@ -122,6 +122,25 @@ its hunks no longer describe what is on disk. Accepting one answers 409
 \`cas_mismatch\` rather than overwriting; redo the task against the current
 file instead.
 
+## Sync — this install's account pairing
+
+Cloud sync carries THREADS and their history between the devices on one
+account. It is off until someone pairs, and it never carries vault files —
+those are git's job.
+
+- \`inteligir sync status\` — whether this install is paired, how many events
+  are queued for the account, and how far behind it is.
+- \`inteligir sync pair <code>\` — redeem a one-time code minted on the
+  account's Devices page. \`--name\` sets how this machine appears in that
+  list (default: the hostname).
+- \`inteligir sync push\` — run a pass now (drain the outbox, pull, apply) and
+  print the state it left behind. Use it before reporting a long task done, so
+  the work has actually reached the account.
+
+There is no \`unpair\` here: it discards writes that have not reached the
+account yet, so it lives in the app's Settings → Sync, in front of the state it
+would throw away.
+
 ## System
 
 - \`inteligir status\` — server version, data dir, agent runtime state, and
