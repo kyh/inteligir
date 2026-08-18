@@ -111,11 +111,36 @@ async function readValue<TSchema extends z.ZodType>(
   return { ok: true, value: parsed.data };
 }
 
+/**
+ * How long any one cloud call may take.
+ *
+ * Every call in this client is made from a SINGLE-FLIGHT pass, and every other
+ * trigger — the poll timer, a socket ping, a `sync now` from the UI — coalesces
+ * onto whichever pass is running. So one black-holed request does not stall one
+ * request: it stalls the whole loop, and it stalls the teardown step that waits
+ * for the pass. undici's own default is 300 seconds of headers timeout, which
+ * is not a bound anything here can live inside.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export interface CloudEndpoint {
   /** Origin of the cloud deployment, e.g. `https://inteligir.com`. */
   baseUrl: string;
   /** Injected so a suite can drive the whole runtime without a network. */
   fetch?: CloudFetch;
+  /**
+   * Cancels in-flight calls — the runtime's own, aborted on dispose. Composed
+   * with the per-request timeout rather than replacing it: a shutdown must not
+   * wait out a hung request, and a hung request must not wait for a shutdown.
+   */
+  signal?: AbortSignal;
+}
+
+/** The deadline this call runs under: the caller's cancellation and the
+ *  per-request ceiling, whichever fires first. */
+function callSignal(signal: AbortSignal | undefined): AbortSignal {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
 }
 
 function endpointUrl(baseUrl: string, path: string): string {
@@ -138,6 +163,7 @@ export async function redeemDevice(
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request),
+      signal: callSignal(endpoint.signal),
     });
   } catch (error) {
     return { ok: false, failure: unreachable(error) };
@@ -168,13 +194,15 @@ export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
     json: unknown,
     schema: TSchema,
   ): Promise<CloudResult<z.infer<TSchema>>> {
+    const signal = callSignal(args.signal);
     const init: RequestInit =
       json === undefined
-        ? { method: "GET", headers: { authorization } }
+        ? { method: "GET", headers: { authorization }, signal }
         : {
             method: "POST",
             headers: { authorization, "content-type": "application/json" },
             body: JSON.stringify(json),
+            signal,
           };
     let response: Response;
     try {
