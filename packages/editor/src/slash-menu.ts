@@ -259,8 +259,19 @@ function nextState(value: SlashMenuState, tr: Transaction): SlashMenuState | nul
   return narrow(value.all, query, from);
 }
 
+/** What the `/query` leaves behind, and therefore what has to separate the
+ *  insertion from it. Three cases because the buffer already supplies a
+ *  newline in one of them and not in the other. */
+export type SlashRemainder =
+  /** The block ends where the query does. */
+  | "none"
+  /** Text sits after the query on its own line. */
+  | "same-line"
+  /** The block runs on, but onto a following line. */
+  | "later-line";
+
 /**
- * The bytes to insert, given what the `/query` leaves behind on its line.
+ * The bytes to insert, given what the `/query` leaves behind.
  *
  * A ONE-LINE snippet is a line PREFIX and wants the remainder: `/head` typed
  * at the start of `tail` becomes `# tail`, which is the transform-the-block
@@ -271,28 +282,53 @@ function nextState(value: SlashMenuState, tr: Transaction): SlashMenuState | nul
  * the rest of the document becomes code; a table row and a math paragraph
  * swallow the remainder the same way, one line lower down.
  *
- * So a multi-line snippet followed by text gets a BLANK LINE after it. Not one
- * newline: a table continues across consecutive non-blank lines and a `$$`
- * paragraph continues the same way, so only a blank line ends them. Derived
- * from the snippet rather than declared per item, because an item that forgot
- * to declare it corrupts a document silently.
+ * So a multi-line snippet gets a BLANK LINE between it and the remainder. Not
+ * a single newline: a table continues across consecutive non-blank lines and a
+ * `$$` paragraph continues the same way, so only a blank line ends them. How
+ * MANY newlines that takes depends on where the remainder is — one on a later
+ * line already has this line's own terminator in front of it, one on the same
+ * line has nothing. Derived from the snippet rather than declared per item,
+ * because an item that forgot to declare it corrupts a document silently, and
+ * exported so a host can prove its own vocabulary against the rule instead of
+ * restating it.
  */
-export function slashInsertionFor(text: string, trailing: boolean): string {
-  if (!trailing || !text.includes("\n")) {
+export function slashInsertionFor(text: string, remainder: SlashRemainder): string {
+  if (remainder === "none" || !text.includes("\n")) {
     return text;
   }
-  return `${text.replace(/\n*$/u, "")}\n\n`;
+  const body = text.replace(/\n*$/u, "");
+  return remainder === "same-line" ? `${body}\n\n` : `${body}\n`;
+}
+
+/**
+ * Where the block the `/query` sits in ENDS — the paragraph's end, not the
+ * line's. A paragraph runs across every line up to a blank one, so a menu
+ * opened on the first line of a two-line paragraph has a remainder the caret's
+ * own line knows nothing about, and a table inserted there absorbs the second
+ * line as another row. Falls back to the line when the tree cannot answer,
+ * which is the same direction the trigger fails in: never claim there is no
+ * remainder when the question could not be asked.
+ */
+function blockEndAt(state: EditorState, pos: number): number {
+  const node = syntaxTree(state).resolveInner(pos, 1);
+  const lineEnd = state.doc.lineAt(pos).to;
+  return node.name === "Paragraph" && node.from <= pos ? Math.max(node.to, lineEnd) : lineEnd;
 }
 
 function applyItem(view: EditorView, menu: SlashMenuState, item: SlashItem): void {
   const from = menu.from;
   const to = from + 1 + menu.query.length;
-  const trailing = to < view.state.doc.lineAt(from).to;
-  const insert = item.action.kind === "insert" ? slashInsertionFor(item.action.text, trailing) : "";
+  const line = view.state.doc.lineAt(from);
+  const remainder: SlashRemainder =
+    to < line.to ? "same-line" : to < blockEndAt(view.state, from) ? "later-line" : "none";
+  const insert =
+    item.action.kind === "insert" ? slashInsertionFor(item.action.text, remainder) : "";
   const caret = item.action.kind === "insert" ? (item.action.caret ?? insert.length) : 0;
   // ONE transaction, so a single undo takes the construct AND the `/query`
-  // that asked for it. The `input.type.` prefix is what CodeMirror's history
-  // joins on, which folds this into the group the query was typed in.
+  // that asked for it — BEST EFFORT, not a guarantee: CodeMirror's history
+  // joins on the `input.type.` prefix AND on `time - prevTime < 500ms`, so a
+  // pause longer than that mid-menu leaves the typing and this apply as two
+  // undo steps. Pinned as a known limit rather than papered over.
   view.dispatch({
     changes: { from, to, insert },
     selection: { anchor: from + caret },
@@ -448,8 +484,23 @@ const slashKeymap = Prec.highest(
   ]),
 );
 
+// Closing needs a TRANSACTION, and clicking out of the editor dispatches none:
+// without this the menu stays on screen over an unfocused editor, and a later
+// refocus + Enter applies a row the user armed minutes ago. `focusChangeEffect`
+// is CodeMirror's own seam for exactly this — the alternative, a `blur` DOM
+// handler, is what drag-freeze.ts uses for a window-level concern this is not.
+const closeOnBlur = EditorView.focusChangeEffect.of((state, focusing) =>
+  focusing || currentMenu(state) === null ? null : closeSlashMenu.of(null),
+);
+
 export function slashMenuExtension(config: SlashMenuConfig): Extension {
-  return [slashVocabulary.of(config.items), slashMenuField, slashKeymap, slashMenuTheme];
+  return [
+    slashVocabulary.of(config.items),
+    slashMenuField,
+    slashKeymap,
+    closeOnBlur,
+    slashMenuTheme,
+  ];
 }
 
 // The panel IS the tooltip element — CodeMirror adds `cm-tooltip` to whatever

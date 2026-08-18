@@ -117,6 +117,12 @@ const paragraphParentAt = (mounted: MarkdownEditor, pos: number): string | undef
   return node.name === "Paragraph" && node.from === pos ? node.parent?.name : `!${node.name}`;
 };
 
+/** CodeMirror defers its focus-change pass; this outlives that timer. */
+const settleFocus = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 30);
+  });
+
 const press = (mounted: MarkdownEditor, key: string): void => {
   fireEvent.keyDown(mounted.view.contentDOM, { key, bubbles: true });
 };
@@ -317,6 +323,29 @@ describe("the menu while it is open", () => {
     expect(rows(mounted)).toEqual(["heading-1"]);
   });
 
+  test("blurring the editor closes it — no transaction says so on its own", async () => {
+    const elsewhere = document.createElement("input");
+    document.body.append(elsewhere);
+    try {
+      const mounted = mount("\n");
+      // CodeMirror notices a focus change on a DEFERRED pass, so the editor
+      // has to be known-focused before the blur — blurring in the same tick
+      // leaves it never having noticed either.
+      mounted.view.focus();
+      await settleFocus();
+      type(mounted, "/h");
+      expect(rows(mounted)).toEqual(["heading-1"]);
+      // A click outside the editor dispatches no transaction of its own, so
+      // without focusChangeEffect the menu stays armed and the next Enter
+      // applies a row the user chose minutes ago.
+      elsewhere.focus();
+      await settleFocus();
+      expect(rows(mounted)).toEqual([]);
+    } finally {
+      elsewhere.remove();
+    }
+  });
+
   test("arrows move the highlighted row, wrapping", () => {
     const mounted = mount("\n");
     type(mounted, "/");
@@ -387,6 +416,18 @@ describe("applying an item", () => {
     // Not "```tail": an info string is opener-only, so a fence glued to
     // trailing prose never closes and the document below becomes code.
     expect(mounted.getDoc()).toBe("Intro.\n\n```\n\n```\n\ntail\n");
+  });
+
+  test("the remainder is the rest of the PARAGRAPH, not of the line", () => {
+    // The paragraph opened by the slash runs onto the next line, so the line
+    // ends but the block does not: a table inserted here without a separator
+    // absorbs `Existing paragraph.` as another row.
+    const doc = "Intro.\n\n\nExisting paragraph.\n";
+    const mounted = mount(doc, blockVocabulary);
+    caretAt(mounted, posOf(doc, "\n\n") + 2);
+    type(mounted, "/code");
+    press(mounted, "Enter");
+    expect(mounted.getDoc()).toBe("Intro.\n\n```\n\n```\n\nExisting paragraph.\n");
   });
 
   test("with nothing after it, a multi-line snippet is inserted verbatim", () => {
