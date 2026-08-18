@@ -94,6 +94,31 @@ function parseRemoteUrlValue(name: string, rawValue: string): string {
   return trimmed;
 }
 
+/**
+ * The hosted deployment this install pairs against. Configurable rather than
+ * compiled in, because the local loop needs to point at a miniflare origin and
+ * a self-hosted Worker is the same shape — but it has a DEFAULT, because a
+ * value every ordinary install would have to set is a value that belongs in
+ * the code.
+ */
+export const DEFAULT_CLOUD_URL = "https://inteligir.com";
+
+/** Origin only: the paths are `@repo/cloud-contract`'s, and a base carrying a
+ *  path would silently truncate them (`new URL("/v1/…", base)` drops it). */
+function parseCloudUrlValue(name: string, rawValue: string): string {
+  const trimmed = rawValue.trim();
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new Error(`${name} must be an absolute http(s) URL (got "${trimmed}")`);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(`${name} must be an http:// or https:// URL (got "${trimmed}")`);
+  }
+  return url.origin;
+}
+
 const AGENT_MODE_VALUES = ["auto", "codex", "scripted", "off"] as const;
 type AgentMode = (typeof AGENT_MODE_VALUES)[number];
 
@@ -180,6 +205,11 @@ const ENV_VARS = {
     description: "Model passed through to the agent provider; unset means the provider's default.",
     parse: ({ name, value }) => parseNonEmptyValue(name, value),
   }),
+  cloudUrl: defineEnvVar({
+    name: "INTELIGIR_CLOUD_URL",
+    description: `Origin of the hosted deployment this install pairs against for thread sync; unset means ${DEFAULT_CLOUD_URL}. Pairing is what turns sync on — an unpaired install opens no socket and makes no request whatever this says.`,
+    parse: ({ name, value }) => parseCloudUrlValue(name, value),
+  }),
 };
 
 /**
@@ -217,6 +247,7 @@ const managedConfigSchema = z.object({
   vaultRemote: z.string().min(1).optional(),
   agent: z.enum(AGENT_MODE_VALUES).optional(),
   agentModel: z.string().min(1).optional(),
+  cloudUrl: z.string().min(1).optional(),
 });
 
 function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema> {
@@ -302,6 +333,9 @@ export interface AppConfig {
   agent: AgentMode;
   /** Model passed through to the provider; null means the provider's default. */
   agentModel: string | null;
+  /** Origin of the hosted deployment cloud sync pairs against (issue #572).
+   *  Says WHERE, never WHETHER — the credential in the data dir is the switch. */
+  cloudUrl: string;
 }
 
 export interface ResolveAppConfigArgs {
@@ -357,6 +391,11 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModel =
     readEnvVar(ENV_VARS.agentModel, args.env, homeDir) ?? managed.agentModel ?? null;
+  const cloudUrl =
+    readEnvVar(ENV_VARS.cloudUrl, args.env, homeDir) ??
+    (managed.cloudUrl === undefined
+      ? DEFAULT_CLOUD_URL
+      : parseCloudUrlValue("config.json cloudUrl", managed.cloudUrl));
 
   return {
     ...(envSyncIntervalMs === undefined
@@ -374,5 +413,6 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     vaultRemote,
     agent,
     agentModel,
+    cloudUrl,
   };
 }

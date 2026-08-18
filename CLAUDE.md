@@ -23,7 +23,10 @@ apps/
                  its own tsconfig program) that owns /api/v1 (the contract
                  table on Hono), the /ws invalidation bus, and the db. Dev
                  mounts Vite middlewareMode in-process; prod serves
-                 dist/client + the Start server entry's fetch.
+                 dist/client + the Start server entry's fetch. src/node/cloud/
+                 is the sync CLIENT (issue #572): the credential at rest, the
+                 frozen-body outbox, the pull/apply loop and the local
+                 /cloud/* routes Settings and `inteligir sync` drive.
   cli/           @repo/cli — the `inteligir` CLI (issue #553): citty over
                  the typed hc client, consola for the human path (raw writes
                  for anything verbatim — consola rewrites `backtick` spans).
@@ -70,10 +73,10 @@ apps/
 packages/
   cloud-contract/ @repo/cloud-contract — the cloud wire contract (zod only):
                  pairing, device auth, sync push/pull, captures, the ws ping
-                 frames, the typed error envelope. SERVER-SIDE ONLY today:
-                 apps/web implements every row, and NOTHING consumes the other
-                 half yet — apps/app gets its sync client in a later round of
-                 #554, which is what the contract was shaped for.
+                 frames, the typed error envelope, and the paths all three
+                 spell. TWO implementations: apps/web serves every row and
+                 apps/app's sync client (src/node/cloud/, issue #572) consumes
+                 them.
   typed-routes/  @repo/typed-routes — contract-first Hono route machinery,
                  vendored from bb (MIT): defineRoute rows, compile-time
                  handler enforcement, the hc client schema derivation.
@@ -350,6 +353,84 @@ detail }` when no codex is installed, in the shape the Agent section already
   Settings with the exact invocation on screen, not a verb in the surface built
   for a model to drive.
 
+- **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
+  `<dataDir>/device-credential` at 0600, beside `instance-secret` and for the
+  same reason — and the two places it must NOT go are what fix the location:
+  not `inteligir.db`, which is the thread log this credential exists to upload,
+  and not the vault, which is a git repo pushed to a remote the user chose.
+  There is deliberately no separate "sync enabled" flag: two values that must
+  agree are two values that can disagree, and both disagreements are bad — a
+  flag off beside a live credential leaves a working credential nothing uses,
+  a flag on beside none is a promise no loop can keep. So SYNC IS OFF BY
+  DEFAULT because an unpaired install has no credential, and with none it opens
+  no socket, arms no timer and makes no request (asserted, at the shipping
+  cadence, in `cloud/__tests__/sync-runtime.test.ts`). The cost, accepted:
+  "pause sync" is not expressible — you unpair, which discards the queue.
+- **A pulled event lands through the SAME ingest, marked with its origin**
+  (`ThreadService.applySyncedEvents`, issue #572). A second append path would
+  be a second answer to thread lifecycle. The origin changes exactly three
+  things and each is forced: the thread row is created with the id the LOG
+  gave it (a device minting its own would make one conversation two); nothing
+  is enqueued back to the outbox, or two devices echo forever; and a settle
+  does not drain this device's queue, because the turn ran elsewhere and
+  starting a local one would put two agents on one thread. **THE CURSOR MOVES
+  INSIDE THAT TRANSACTION** — that is what makes the apply exactly-once, and
+  advancing it as a second write is precisely the window a crash duplicates a
+  conversation through. The cursor is not enough on its own, though: a re-pair
+  RESETS it, so a synced row also carries the log row's own identity —
+  `events.origin_device_id` / `origin_device_seq`, under a unique index — and
+  an append that already holds one is skipped. `(device, position)` rather than
+  the account-global `seq`, because a global seq means a DIFFERENT row under a
+  different account and an idempotency check keyed on it would wrongly skip a
+  genuine event. Lifecycle projects over what LANDED, never over what arrived:
+  replaying a `turn/started` whose completion fell on the far side of a page
+  boundary would leave a long-finished turn running.
+- **Only the process that owns a provider may declare it dead.** Crash recovery
+  fails every thread still marked running, and after sync "still running" can
+  mean another device's turn — so `recoverWedgedThreads` reads the `turn/started`
+  row's own provenance and leaves a remote turn alone. Fabricating that failure
+  would be bad locally and worse on the wire: it syncs back to the machine where
+  the work is genuinely still going. The residual is the same trade inverted —
+  a device that never returns leaves the thread active here until it does,
+  because no process can tell "still working" from "gone" across a network.
+- **CONVERGENCE MEANS THE SAME SET, NOT THE SAME ORDER.** `events.sequence` is
+  allocated per thread by whichever device appends — for a synced row, the
+  device that PULLED it — so it is an ARRIVAL order. Two devices that both
+  write before either syncs hold the same rows in different positions, and the
+  local log is append-only under a UNIQUE(thread, sequence), so no renumbering
+  is available to fix it. What IS guaranteed, and pinned: both devices hold the
+  same set, and each writer's own turn stays contiguous and in its order on
+  both. The account log does carry a total order (its global `seq`); projecting
+  THAT instead is the change to make if a shared interleave is ever needed, and
+  it means the timeline stops reading `sequence`.
+- **A SYNC PASS IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
+  Every step re-checks the id it started under after every await, because the
+  dangerous case answers "yes, live" about a DIFFERENT pairing: an old push's
+  ack deletes the outbox rows a re-pairing has since queued, and an old pull's
+  page applies another account's events and drags the new cursor past rows it
+  never saw. Cancellation (an `AbortController` per session, plus a per-request
+  timeout) covers the in-flight half; identity covers the half cancellation
+  cannot reach, where the response already arrived and there is nothing left to
+  abort. Both are needed, and `dispose` aborts too — otherwise the teardown
+  step's budget is a hope, and the pass keeps writing (the vault included)
+  after the process was told to stop.
+- **The outbox stores the bytes it will send, once, at enqueue.** The log calls
+  a stored position replayed with a different body `sync-conflict`, so
+  re-serializing at push time turns every retry after a grammar change into
+  one. `deviceSeq` is its own counter in `sync_state` rather than `MAX()` over
+  the queue, because a pushed row is deleted and a counter over a shrinking
+  table hands a later event a position the log already holds — and it cannot
+  come from `events.sequence`, which is per THREAD and orders nothing about a
+  device. A queued event the contract itself refuses (past the per-event byte
+  ceiling) is dropped from the batch rather than retried, because the log
+  refuses the WHOLE batch for it and one bad event would strand every event
+  behind it.
+- **Sync carries THREADS, not the vault, and the contract has no thread-metadata
+  read.** The pull answers events alone, so lane and title are push-only —
+  nothing reads them back, and this client therefore sends neither. The
+  consequence is stated rather than hidden: a thread with no events never
+  reaches another device, because the merged log is the only channel that
+  carries one.
 - **Cloud state names its Durable Object from a VERIFIED credential**, never
   from anything a caller supplies. Account deletion revokes credentials FIRST,
   then purges, then writes a tombstone every route refuses against — the

@@ -22,7 +22,12 @@ import {
   type ApprovalPendingInteractionPayload,
 } from "@repo/domain/pending-interactions";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
-import { appendEventsInTransaction } from "@repo/db/events";
+import {
+  appendEventsInTransaction,
+  appendSyncedEventsInTransaction,
+  turnStartOriginDeviceId,
+  type SyncedEventInput,
+} from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
 import { NotificationBuffer, type DbNotifier } from "@repo/domain/notifier";
 import {
@@ -48,6 +53,7 @@ import {
   applyThreadLifecycleEventInTransaction,
   archiveThread,
   createThread,
+  ensureThreadInTransaction,
   getThread,
   listThreads,
   listThreadsByOriginDoc,
@@ -123,10 +129,29 @@ export class ThreadEventThreadIdMismatchError extends Error {
   }
 }
 
+/**
+ * The cloud's two seams into this service, and both live INSIDE the
+ * transaction that writes the events — which is the whole reason they are
+ * seams rather than calls the sync runtime makes afterwards.
+ *
+ * `enqueue` commits with the append, so an event is owed to the account's log
+ * exactly when it is in the local one. `recordCursor` commits with the apply,
+ * which is what makes a pulled event land EXACTLY once: advancing the cursor
+ * as a second write leaves a window where a crash replays the page into
+ * duplicate rows.
+ *
+ * Absent when this install is not paired, which is the default (issue #572).
+ */
+export interface ThreadSyncHooks {
+  enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;
+  recordCursor(tx: DbTransaction, cursor: number): void;
+}
+
 export interface ThreadServiceArgs {
   db: DbConnection;
   notifier: DbNotifier;
   createTurnDriver: CreateTurnDriver;
+  sync?: ThreadSyncHooks;
 }
 
 function toWireThread(row: ThreadRow): Thread {
@@ -181,13 +206,27 @@ export class ThreadService implements ProviderEventSink {
   private readonly notifier: DbNotifier;
   private readonly driver: TurnDriver;
   private readonly timelines: ThreadTimelineProjector;
+  private readonly sync: ThreadSyncHooks | null;
 
   constructor(args: ThreadServiceArgs) {
     this.db = args.db;
     this.notifier = args.notifier;
+    this.sync = args.sync ?? null;
     this.timelines = new ThreadTimelineProjector(args.db);
     this.driver = args.createTurnDriver(this);
     this.recoverWedgedThreads();
+  }
+
+  /**
+   * Append events this DEVICE produced. Every local append goes through here
+   * rather than through `appendEventsInTransaction` directly, because the
+   * outbox enqueue has to ride the same transaction and a call site that
+   * forgot it would drop those events out of sync silently — the failure has
+   * no error and no symptom until another device is missing a conversation.
+   */
+  private appendLocal(tx: DbTransaction, events: readonly ThreadEvent[]): void {
+    appendEventsInTransaction(tx, events);
+    this.sync?.enqueue(tx, events);
   }
 
   create(input: CreateThreadRequest): Thread {
@@ -343,7 +382,7 @@ export class ThreadService implements ProviderEventSink {
             },
           };
         }
-        appendEventsInTransaction(tx, [
+        this.appendLocal(tx, [
           {
             type: "client/turn/requested",
             threadId: thread.id,
@@ -423,7 +462,7 @@ export class ThreadService implements ProviderEventSink {
       };
     }
     buffer.notifyThread(threadId, ["status-changed"]);
-    appendEventsInTransaction(tx, [
+    this.appendLocal(tx, [
       {
         type: "client/turn/requested",
         threadId,
@@ -469,9 +508,7 @@ export class ThreadService implements ProviderEventSink {
     const buffer = new NotificationBuffer();
     this.db.transaction(
       (tx) => {
-        appendEventsInTransaction(tx, [
-          { type: "provider/error", threadId, message, scope: threadScope() },
-        ]);
+        this.appendLocal(tx, [{ type: "provider/error", threadId, message, scope: threadScope() }]);
         buffer.notifyThread(threadId, ["events-appended"]);
         const outcome = applyThreadLifecycleEventInTransaction(tx, {
           threadId,
@@ -540,6 +577,46 @@ export class ThreadService implements ProviderEventSink {
    * send uses.
    */
   ingestProviderEvents(threadId: string, events: readonly ThreadEvent[]): void {
+    this.ingest({ origin: "local", threadId, events });
+  }
+
+  /**
+   * Events another device wrote, arriving through the account's merged log.
+   *
+   * The SAME ingest, marked with its origin — a second append path here would
+   * be a second answer to thread lifecycle, which is the class of duplication
+   * this repo's structural guards exist to catch. What the origin changes is
+   * exactly three things, and each is forced:
+   *
+   *  - the thread row is CREATED if this device has never seen it, with the id
+   *    the log gave it, because a synced thread's identity is the account's;
+   *  - nothing is enqueued back to the outbox, or the two devices would echo
+   *    one conversation at each other forever;
+   *  - a settle does NOT drain this device's queue. The turn ran elsewhere,
+   *    and a queued message here is one this user typed on THIS machine for a
+   *    thread they are not driving — starting it because a remote turn ended
+   *    would put two agents on one thread.
+   */
+  applySyncedEvents(args: {
+    threadId: string;
+    rows: readonly SyncedEventInput[];
+    cursor: number;
+  }): void {
+    this.ingest({
+      origin: "remote",
+      threadId: args.threadId,
+      rows: args.rows,
+      cursor: args.cursor,
+    });
+  }
+
+  private ingest(
+    args:
+      | { origin: "local"; threadId: string; events: readonly ThreadEvent[] }
+      | { origin: "remote"; threadId: string; rows: readonly SyncedEventInput[]; cursor: number },
+  ): void {
+    const { threadId } = args;
+    const events = args.origin === "remote" ? args.rows.map((row) => row.event) : args.events;
     const mismatched = events.find((event) => event.threadId !== threadId);
     if (mismatched !== undefined) {
       throw new ThreadEventThreadIdMismatchError(threadId, mismatched.threadId);
@@ -551,9 +628,28 @@ export class ThreadService implements ProviderEventSink {
     const drains: ClaimedQueuedThreadMessageRow[] = [];
     this.db.transaction(
       (tx) => {
-        appendEventsInTransaction(tx, events);
+        // What lifecycle actually projects over: the rows that LANDED. For a
+        // local batch that is all of them; for a synced one it is the input
+        // minus whatever this database already held, which is what makes a
+        // re-pair's full replay a no-op rather than a status flap.
+        let projected: readonly ThreadEvent[] = events;
+        if (args.origin === "remote") {
+          if (ensureThreadInTransaction(tx, threadId).created) {
+            buffer.notifyThread(threadId, ["thread-created"]);
+          }
+          const landed = appendSyncedEventsInTransaction(tx, args.rows);
+          projected = landed.applied.map((row) => row.event);
+          // Advances even when nothing landed: the point of the cursor is that
+          // this device has SEEN the row, not that the row was new.
+          this.sync?.recordCursor(tx, args.cursor);
+          if (projected.length === 0) {
+            return;
+          }
+        } else {
+          this.appendLocal(tx, events);
+        }
         buffer.notifyThread(threadId, ["events-appended"]);
-        for (const event of events) {
+        for (const event of projected) {
           const lifecycleEvent = lifecycleEventFor(event);
           if (lifecycleEvent === null) {
             continue;
@@ -571,7 +667,7 @@ export class ThreadService implements ProviderEventSink {
             continue;
           }
           buffer.notifyThread(threadId, ["status-changed"]);
-          if (outcome.thread.status === "idle") {
+          if (outcome.thread.status === "idle" && args.origin === "local") {
             const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
             if (claimed !== null) {
               buffer.notifyThread(threadId, ["queue-changed"]);
@@ -622,6 +718,19 @@ export class ThreadService implements ProviderEventSink {
    * of a previous process. run.failed is legal from starting, active and
    * stopping alike, and it names the orphaned turn so the CAS matches by
    * construction.
+   *
+   * "OF A PREVIOUS PROCESS" IS NOW A QUESTION, not an assumption. A synced
+   * thread can be active because ANOTHER DEVICE started a turn on it, and that
+   * device's provider is very much alive — declaring it failed here would
+   * append a fabricated failure and, worse, push it back through the account's
+   * log to the machine where the work is genuinely still running. Only the
+   * process that owns a provider may say the provider died, so the turn's own
+   * `turn/started` row is asked who wrote it.
+   *
+   * The residual, stated: a device that never comes back leaves the thread
+   * active here until it does. That is the same trade in the other direction —
+   * this process cannot distinguish "still working" from "gone" across a
+   * network, and the owner's own recovery settles it and syncs the settle back.
    */
   private recoverWedgedThreads(): void {
     for (const thread of listThreads(this.db)) {
@@ -632,10 +741,19 @@ export class ThreadService implements ProviderEventSink {
       ) {
         continue;
       }
+      if (
+        thread.activeTurnId !== null &&
+        turnStartOriginDeviceId(this.db, {
+          threadId: thread.id,
+          turnId: thread.activeTurnId,
+        }) !== null
+      ) {
+        continue;
+      }
       const buffer = new NotificationBuffer();
       this.db.transaction(
         (tx) => {
-          appendEventsInTransaction(tx, [
+          this.appendLocal(tx, [
             {
               type: "provider/error",
               threadId: thread.id,

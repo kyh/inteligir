@@ -49,6 +49,33 @@ export function createThread(
   return row;
 }
 
+export type EnsureThreadOutcome = { row: ThreadRow; created: boolean };
+
+/**
+ * The thread an event names, created with THAT id when this database has never
+ * seen it — the arrival half of cloud sync.
+ *
+ * `createThread` is the wrong verb here and its id is the reason: a synced
+ * thread's identity belongs to the account, so a device that minted its own
+ * would turn one conversation into two, one per device. Everything else about
+ * the row is left at its default — an event log carries no title, no write
+ * mode and no origin, so inventing values for them would be this device
+ * guessing at facts another device holds.
+ */
+export function ensureThreadInTransaction(tx: DbTransaction, id: string): EnsureThreadOutcome {
+  const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
+  if (existing !== undefined) {
+    return { row: existing, created: false };
+  }
+  const now = Date.now();
+  const row = tx
+    .insert(threads)
+    .values({ id, status: "idle", createdAt: now, updatedAt: now })
+    .returning()
+    .get();
+  return { row, created: true };
+}
+
 /** Accepts a transaction so read-decide-write flows load the row under the
  *  same lock they act on. */
 export function getThread(db: ThreadWriteConnection, id: string): ThreadRow | null {

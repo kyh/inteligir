@@ -24,6 +24,14 @@ import { z } from "zod";
 // is deduplicated by an idempotent apply.
 // ---------------------------------------------------------------------------
 
+/** Where the inbox is served — see `DEVICE_API_PATHS` for why a path lives
+ *  beside its schemas. */
+export const CAPTURE_API_PATHS = {
+  capture: "/v1/capture",
+  claim: "/v1/sync/captures/claim",
+  ack: "/v1/sync/captures/ack",
+} as const;
+
 export const CAPTURE_MAX_CHARS = 4096;
 /** How long a claim owns its rows before they return to the pool. Long enough
  * to survive a slow vault write, short enough that a crashed device does not

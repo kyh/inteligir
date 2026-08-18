@@ -30,6 +30,13 @@ import { z } from "zod";
  * as a dispatch: a phone can start it, but an agent-capable desktop is the one
  * expected to pick it up (the ws `dispatch` ping targets desktop sockets).
  */
+/** Where the merged log is served — see `DEVICE_API_PATHS` for why a path
+ *  lives beside its schemas. */
+export const SYNC_API_PATHS = {
+  push: "/v1/sync/push",
+  pull: "/v1/sync/pull",
+} as const;
+
 export const threadLaneSchema = z.enum(["any", "desktop"]);
 export type ThreadLane = z.infer<typeof threadLaneSchema>;
 

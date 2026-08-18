@@ -75,6 +75,7 @@ async function bootVaultApp() {
       vaultRemote: null,
       agent: "off",
       agentModel: null,
+      cloudUrl: "https://cloud.test",
     },
     fallback: { kind: "none" },
     instanceSecret: "test-instance-secret",

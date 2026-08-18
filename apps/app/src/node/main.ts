@@ -12,6 +12,7 @@ import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
 import { buildAgentShellEnv, resolveCliBinDir } from "./agent/agent-shell-env";
 import { createApp, type AppFallback, type StartFetchOptions } from "./app";
+import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { ensureInstanceSecret } from "./instance-identity";
@@ -117,10 +118,11 @@ async function createProdFallback(): Promise<AppFallback> {
  * The teardown, accumulated AS THE BOOT PROCEEDS.
  *
  * `unshift` rather than `push`, and the two orders coincide on purpose:
- * resources come up db → vault → knowledge → agent → listener, so reversing
- * creation yields exactly the teardown order shutdown.ts states (listener →
- * agent → knowledge → vault → db). Registering each step the moment its
- * resource exists is also what makes a FAILED boot survivable: a listen that
+ * resources come up db → vault → knowledge → agent → cloud → listener, so
+ * reversing creation yields exactly the teardown order shutdown.ts states
+ * (listener → cloud → agent → knowledge → vault → db). Registering each step
+ * the moment its resource exists is also what makes a FAILED boot survivable:
+ * a listen that
  * throws EADDRINUSE still has a vault watcher forked and a database open, and
  * without this the process would sit there holding both, alive on the
  * watcher's IPC channel and listening to nothing.
@@ -201,9 +203,12 @@ async function boot(): Promise<{ serverUrl: string }> {
   });
   registerTeardown("agent", () => agentDriver.dispose());
 
-  const { app, injectWebSocket } = createApp({
+  const { app, cloud, injectWebSocket } = createApp({
     agent: agentDriver.status,
     bus,
+    // The real dial, injected because it cannot be imported from `app.ts` —
+    // see `cloud/cloud-socket.ts`. This is the ONE place that supplies it.
+    cloudTransport: { openSocket: openCloudSocket },
     config,
     createTurnDriver: agentDriver.createTurnDriver,
     db,
@@ -215,6 +220,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     vault,
     version,
   });
+  registerTeardown("cloud", () => cloud.dispose());
 
   const { port, server } = await listenWithRetry({
     fetch: app.fetch,

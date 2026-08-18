@@ -50,7 +50,19 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // are parser-free, so refusing a bad value in the contract cannot drag
   // remark into every client bundle. Widening this edge to a remark-carrying
   // module is the regression to catch.
-  "@repo/server-contract": ["@repo/domain", "@repo/notes", "@repo/typed-routes"],
+  // The @repo/cloud-contract edge is ONE fact, and it is a wire fact: the local
+  // `/cloud/pair` route is a PROXY for the cloud's `/v1/device/redeem`, so the
+  // ceilings it validates against have to be that route's own. A hand-copied
+  // number here is a value this end accepts and the cloud then refuses, which
+  // the user reads as a shape error about a code they typed correctly. Both
+  // packages are zod-only leaves, so the edge costs a client bundle nothing but
+  // the schemas it already parses.
+  "@repo/server-contract": [
+    "@repo/cloud-contract",
+    "@repo/domain",
+    "@repo/notes",
+    "@repo/typed-routes",
+  ],
   "@repo/agent-runtime": ["@repo/domain"],
   // Persistence sits BELOW the wire: the store announces its writes through
   // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
@@ -63,6 +75,13 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // The product: the one workspace that composes everything.
   "@repo/app": [
     "@repo/agent-runtime",
+    // The cloud wire (issue #572). This app is the OTHER end of what
+    // apps/web serves: the sync client parses the same push/pull/capture
+    // schemas, the same ws ping frames and the same error envelope the Worker
+    // produces, so the contract has two implementations and no second reading.
+    // It stays a zod-only leaf precisely so this edge costs the local process
+    // nothing beyond the grammar.
+    "@repo/cloud-contract",
     "@repo/db",
     "@repo/domain",
     "@repo/editor",

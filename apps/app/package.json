@@ -23,6 +23,7 @@
     "@hono/node-ws": "catalog:",
     "@parcel/watcher": "catalog:",
     "@repo/agent-runtime": "workspace:*",
+    "@repo/cloud-contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/editor": "workspace:*",

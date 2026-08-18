@@ -14,6 +14,7 @@ import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import type { AgentStatus } from "@repo/server-contract/routes";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import type { CloudTransport } from "../cloud/sync-runtime";
 import type { CodexMcpRunner } from "../connectors/codex-mcp";
 import { ensureInstanceSecret } from "../instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime";
@@ -33,6 +34,9 @@ afterEach(async () => {
 
 export interface BootTestAppOptions {
   agent?: AgentStatus;
+  /** Omitted, the cloud runtime boots with the real transport — which does
+   *  nothing at all, because a scratch data dir holds no device credential. */
+  cloudTransport?: CloudTransport;
   /** Omitted, the connector routes drive whatever `codex` this machine has —
    *  so a suite asserting on them injects a fake and never touches the
    *  developer's own `~/.codex/config.toml`. */
@@ -94,6 +98,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const args: CreateAppArgs = {
     agent,
     bus,
+    ...(options.cloudTransport === undefined ? {} : { cloudTransport: options.cloudTransport }),
     ...(options.codexMcpRunner === undefined ? {} : { codexMcpRunner: options.codexMcpRunner }),
     config: {
       databasePath,
@@ -107,6 +112,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
       vaultRemote: null,
       agent: agent.mode,
       agentModel: null,
+      cloudUrl: "https://cloud.test",
     },
     createTurnDriver: driver?.createTurnDriver ?? (() => unavailableTurnDriver),
     db,
@@ -119,6 +125,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     version: "0.1.0-test",
   };
   const composed = createApp(args);
+  cleanups.push(() => composed.cloud.dispose());
   const client = createApiClient("http://app.test", {
     fetch: async (input, init) => composed.app.request(input, init),
   });

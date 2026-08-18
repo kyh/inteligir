@@ -9,6 +9,19 @@ import { z } from "zod";
 // SHA-256 hash, and presented as `Authorization: Bearer` on every sync call.
 // ---------------------------------------------------------------------------
 
+/**
+ * Where the pairing surface is served. Beside the schemas rather than in each
+ * implementation, because a path IS wire: the Worker routes on it, the
+ * dashboard fetches it and the local app dials it, and three private copies of
+ * a string are three places a rename can miss.
+ */
+export const DEVICE_API_PATHS = {
+  mintCode: "/v1/device/code",
+  redeem: "/v1/device/redeem",
+  list: "/v1/device/list",
+  revoke: "/v1/device/revoke",
+} as const;
+
 export const PAIRING_CODE_TTL_MS = 10 * 60_000;
 
 /** The one purpose today's codes carry; a future flow adds its own value
@@ -35,11 +48,21 @@ export const mintPairingCodeResponseSchema = z
   .strict();
 export type MintPairingCodeResponse = z.infer<typeof mintPairingCodeResponseSchema>;
 
+/**
+ * The ceilings a redeem is judged against. Exported because the LOCAL app puts
+ * a route in front of this one and has to bound the same two fields — and a
+ * hand-copied number there means a value that passes locally and is refused
+ * here, reported to the user as a shape error about a code they typed
+ * correctly.
+ */
+export const PAIRING_CODE_MAX_LENGTH = 16;
+export const DEVICE_NAME_MAX_LENGTH = 64;
+
 // POST /v1/device/redeem (the code IS the credential; consumed exactly once).
 export const redeemDeviceRequestSchema = z
   .object({
-    code: z.string().trim().min(1).max(16),
-    deviceName: z.string().trim().min(1).max(64),
+    code: z.string().trim().min(1).max(PAIRING_CODE_MAX_LENGTH),
+    deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX_LENGTH),
   })
   .strict();
 export type RedeemDeviceRequest = z.infer<typeof redeemDeviceRequestSchema>;

@@ -40,3 +40,7 @@ export function createPendingInteractionId(): string {
 export function createProposalId(): string {
   return createPrefixedId("prp");
 }
+
+export function createSyncOutboxId(): string {
+  return createPrefixedId("obx");
+}

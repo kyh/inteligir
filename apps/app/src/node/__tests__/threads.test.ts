@@ -110,6 +110,7 @@ async function bootThreadsApp(
       vaultRemote: null,
       agent: "off",
       agentModel: null,
+      cloudUrl: "https://cloud.test",
     },
     createTurnDriver,
     db,
