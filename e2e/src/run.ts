@@ -20,6 +20,7 @@ import { proposalReview } from "./scenarios/proposal-review";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
 import { vaultSync } from "./scenarios/vault-sync";
+import { viewContextBrowser } from "./scenarios/view-context-browser";
 
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
@@ -31,6 +32,7 @@ const SCENARIOS: readonly Scenario[] = [
   browserSmoke,
   delegationChipBrowser,
   editorConstructsBrowser,
+  viewContextBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--prod] [--only <names>] [--keep] [--list]

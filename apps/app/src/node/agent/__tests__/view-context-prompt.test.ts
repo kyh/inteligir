@@ -66,7 +66,7 @@ describe("composeViewContextBlock", () => {
     const block = composeViewContextBlock(docContext({ from: 0, to: text.length, text }));
     const excerpt = block.slice(block.lastIndexOf("\n\n") + 2).replace("> ", "");
     expect(excerpt).not.toContain("�");
-    expect([...excerpt]).toEqual(["a", ...Array<string>(499).fill(emoji)]);
+    expect(Array.from(excerpt)).toEqual(["a", ...Array<string>(499).fill(emoji)]);
     expect(utf8Length(excerpt)).toBeLessThanOrEqual(VIEW_CONTEXT_EXCERPT_MAX_BYTES);
   });
 });

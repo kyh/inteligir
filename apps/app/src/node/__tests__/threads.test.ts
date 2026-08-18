@@ -340,7 +340,7 @@ describe("the view context a message carries", () => {
     expect(send.status).toBe(200);
     expect(driver?.startedTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
 
-    const [row] = timelineRows(await fetchTimeline(client, threadId)).filter(
+    const row = timelineRows(await fetchTimeline(client, threadId)).find(
       (candidate) => candidate.kind === "conversation",
     );
     if (row?.kind !== "conversation") {
