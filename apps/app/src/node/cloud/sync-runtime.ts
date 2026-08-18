@@ -134,8 +134,8 @@ export interface CloudTransport {
    * injection rather than a default.
    */
   openSocket?: CloudSocketOpener;
-  /** null disables the poll timer, the push debounce AND the socket, leaving
-   *  `syncNow` the only trigger — what a deterministic suite needs. */
+  /** null disables the poll timer and the push debounce — what a deterministic
+   *  suite needs, and independent of the socket above. */
   pollIntervalMs?: number | null;
 }
 
@@ -205,6 +205,8 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempt = 0;
+  /** Which dial the live callbacks belong to — see `connect`. */
+  let socketGeneration = 0;
   let inflight: Promise<void> | null = null;
   let dirty = false;
 
@@ -243,6 +245,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   }
 
   function closeSocket(): void {
+    socketGeneration += 1;
     socket?.close();
     socket = null;
     connected = false;
@@ -266,7 +269,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       return;
     }
     const credential = session.credential.credential;
-    socket = openSocket({
+    // A generation, because an opener may report a terminal failure BEFORE it
+    // returns: the assignment below would then overwrite the null its own
+    // `onClose` just wrote, and this runtime would hold a dead handle it never
+    // replaces. Bumping the counter from inside the callback makes the
+    // assignment refuse itself.
+    const generation = socketGeneration + 1;
+    socketGeneration = generation;
+    const opened = openSocket({
       baseUrl: args.cloudUrl,
       credential,
       // This process owns the vault and drives the agent, so it is the machine
@@ -274,18 +284,28 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       // round's work; saying what this device IS is not.
       platform: "desktop",
       onOpen: () => {
+        if (generation !== socketGeneration) {
+          return;
+        }
         connected = true;
         reconnectAttempt = 0;
       },
       onPing: (ping) => {
-        // Every frame is invalidation-only, so all three mean the same thing
-        // here: ask the server what changed. A `dispatch` for a thread this
-        // device has not been told to run still wants pulling, so the thread
-        // shows up rather than existing only in the cloud.
-        debug(`ping: ${ping.type}`);
+        // Invalidation-only frames, so all three mean "ask the server what
+        // changed" — including `dispatch`, whose thread still wants pulling so
+        // it shows up here rather than existing only in the cloud. A `sync`
+        // ping carries the log's high-water precisely so a client can tell one
+        // it already covers from news.
+        if (ping.type === "sync" && ping.seq <= readSyncState(args.db).cursor) {
+          return;
+        }
         void syncNow();
       },
       onClose: (code) => {
+        if (generation !== socketGeneration) {
+          return;
+        }
+        socketGeneration += 1;
         socket = null;
         connected = false;
         if (code === SEVERED_CLOSE_CODE) {
@@ -296,6 +316,9 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         scheduleReconnect();
       },
     });
+    if (generation === socketGeneration) {
+      socket = opened;
+    }
   }
 
   function armTimers(): void {

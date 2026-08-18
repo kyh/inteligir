@@ -285,6 +285,42 @@ describe("a revoked device", () => {
   });
 });
 
+describe("the invalidation socket", () => {
+  it("ignores a sync ping this device's cursor already covers", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await pair(harness);
+    const dial = harness.socketOpens[0];
+    if (dial === undefined) throw new Error("expected a socket dial");
+    const quiet = harness.cloud.requests.length;
+
+    // The contract puts the log's high-water on the ping precisely so a client
+    // can tell one it already covers from news.
+    dial.onPing({ type: "sync", seq: 0 });
+    await harness.runtime.syncNow();
+    const afterCovered = harness.cloud.requests.length;
+
+    dial.onPing({ type: "sync", seq: 99 });
+    // The ping's own pass is in flight; joining it is what `syncNow` does.
+    await harness.runtime.syncNow();
+    expect(afterCovered).toBeGreaterThan(quiet);
+    expect(harness.cloud.requests.length).toBeGreaterThan(afterCovered);
+  });
+
+  it("re-dials after a close, and a severed socket turns into a refusal", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    const deviceId = await pair(harness);
+    const dial = harness.socketOpens[0];
+    if (dial === undefined) throw new Error("expected a socket dial");
+
+    // 1008 is the cloud severing a REVOKED device — a hint, never the verdict,
+    // so the pass it triggers is what establishes the fact.
+    harness.cloud.revoke(deviceId);
+    dial.onClose(1008);
+    await harness.runtime.syncNow();
+    expect(harness.runtime.status().state).toBe("unauthorized");
+  });
+});
+
 describe("applying the account's log", () => {
   it("skips this device's own rows and settles the cursor on the rest", async () => {
     const writer = makeHarness({ pollIntervalMs: null });
