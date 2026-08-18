@@ -389,14 +389,24 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   speed. What may NOT redefine the query is anything that is not that typing:
   a caret move, a paste and an external write each CLOSE the menu, because the
   `/query` range is the one an apply deletes and a caret walked rightwards over
-  prose would otherwise make the user's own bytes the query. Applying an item
-  is ONE transaction under an `input.type.` user event, so CodeMirror's history
-  joins it to the group the query was typed in and one undo takes the construct
-  AND the `/query` that asked for it. A ONE-LINE snippet takes the rest of the
-  line (`/head` before `tail` is `# tail` — the block transform); a MULTI-LINE
-  one gets a BLANK LINE after it, derived from the snippet rather than declared
-  per item, because ` ```tail ` is not a closing fence and a table or a
-  `$$` paragraph swallows the remainder one line lower down. The
+  prose would otherwise make the user's own bytes the query, and a BLUR closes
+  it too — that one needs `focusChangeEffect`, because clicking out of the
+  editor dispatches no transaction and a menu left armed applies on the next
+  refocus. Applying an item is ONE transaction under an `input.type.` user
+  event, which makes one undo take the construct AND the `/query` that asked
+  for it — BEST EFFORT, not a guarantee: `HistoryState.addChanges` joins on
+  that prefix AND on `time - prevTime < 500ms`, so a longer pause mid-menu
+  leaves two undo steps. Stated as the known limit it is. A ONE-LINE snippet
+  takes the rest of the line (`/head` before `tail` is `# tail` — the block
+  transform); a MULTI-LINE one gets a BLANK LINE after it, derived from the
+  snippet rather than declared per item, because ` ```tail ` is not a closing
+  fence and a table or a `$$` paragraph swallows the remainder one line lower
+  down — and the remainder is the rest of the PARAGRAPH, not of the line, since
+  a paragraph runs across every line up to a blank one. The divider row emits
+  `***` rather than `---` for a neighbouring reason: the frontmatter parser
+  fires at line 0 and takes any later `---` as its closer, so a dash divider at
+  the top of a note turns the whole note into YAML the moment a second one
+  lands. The
   vocabulary is DATA the app injects
   (`apps/app/src/app/note/slash-items.ts`), the same split
   `DelegationAffordanceConfig` uses, and it is BOUNDED BY WHAT THE EDITOR
@@ -414,9 +424,15 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   `externalReplaceAnnotation`, so "this transaction was not the user" is a fact
   the transaction carries rather than something a decoration layer infers from
   timing (`@repo/editor/external-edit-marks`). The tint covers the inserted
-  spans, trimmed of the line breaks that carried them, and fades on a timer
-  whose clearing transaction is excluded from history — an undo spent removing
-  a highlight is an undo the user's own last edit did not get. A later write
+  spans, trimmed of the line breaks that carried them, and clears on a timer
+  whose transaction is excluded from history — an undo spent removing a
+  highlight is an undo the user's own last edit did not get. The tint is FLAT
+  rather than fading, because the state is the only clock that can be right:
+  CodeMirror renders only visible ranges, so scrolling a marked span away and
+  back rebuilds its DOM and restarts any CSS animation on it from full tint,
+  which the timer then cuts mid-fade. Pinning the animation to the mark's age
+  does not rescue it — a decoration spec is built once, so a negative
+  `animation-delay` computed there is zero forever. A later write
   REPLACES the attribution rather than stacking on it, and a MARK NEVER COVERS
   BYTES THE USER TYPED — mapping alone does not keep that true, because a range
   set maps a mark THROUGH a replacement of the text it covers, so a user edit
