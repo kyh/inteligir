@@ -372,12 +372,31 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   that character, and that single question is what makes a rule list
   unnecessary: a fence, frontmatter, a URL, a mid-word slash and a line lazily
   continuing the paragraph above all decline because none of them begins a
-  block. The typed insertion is allowed to be LONGER than the slash, because
+  block — and that Paragraph must hang off the DOCUMENT, because inside a
+  blockquote or a list item the question still passes while the answer stops
+  being safe: a multi-line snippet's continuation lines carry no `> ` and no
+  indent, so the construct opens inside the container and closes outside it.
+  Supporting a container means prefixing every continuation line with the
+  enclosing context, a per-context byte transform that needs its own
+  round-trip pins; until it has them, `/` in a container is a literal slash.
+  The tree is also MADE to answer: lezer parses under a time budget, so the
+  slash keystroke — only that one — forces the parse up to itself and declines
+  if the budget runs out, because a trigger computed once gets no second
+  chance and an unparsed region has no answer to guess at.
+  The typed insertion is allowed to be LONGER than the slash, because
   CodeMirror reads typing off DOM mutations and coalesces a fast burst into
   one change — a one-character rule would make the menu a function of typing
-  speed. Applying an item is ONE transaction under an `input.type.` user
-  event, so CodeMirror's history joins it to the group the query was typed in
-  and one undo takes the construct AND the `/query` that asked for it. The
+  speed. What may NOT redefine the query is anything that is not that typing:
+  a caret move, a paste and an external write each CLOSE the menu, because the
+  `/query` range is the one an apply deletes and a caret walked rightwards over
+  prose would otherwise make the user's own bytes the query. Applying an item
+  is ONE transaction under an `input.type.` user event, so CodeMirror's history
+  joins it to the group the query was typed in and one undo takes the construct
+  AND the `/query` that asked for it. A ONE-LINE snippet takes the rest of the
+  line (`/head` before `tail` is `# tail` — the block transform); a MULTI-LINE
+  one gets a BLANK LINE after it, derived from the snippet rather than declared
+  per item, because ` ```tail ` is not a closing fence and a table or a
+  `$$` paragraph swallows the remainder one line lower down. The
   vocabulary is DATA the app injects
   (`apps/app/src/app/note/slash-items.ts`), the same split
   `DelegationAffordanceConfig` uses, and it is BOUNDED BY WHAT THE EDITOR
@@ -398,7 +417,10 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   spans, trimmed of the line breaks that carried them, and fades on a timer
   whose clearing transaction is excluded from history — an undo spent removing
   a highlight is an undo the user's own last edit did not get. A later write
-  REPLACES the attribution rather than stacking on it, and a pure deletion is
+  REPLACES the attribution rather than stacking on it, and a MARK NEVER COVERS
+  BYTES THE USER TYPED — mapping alone does not keep that true, because a range
+  set maps a mark THROUGH a replacement of the text it covers, so a user edit
+  reaching into a mark drops it. A pure deletion is
   the stated residual: it leaves no span to tint, and a zero-width widget
   standing in for absent text says less than the count the host reports. That
   count is what a conflicted merge now shows — diff3 kept the buffer, so the
