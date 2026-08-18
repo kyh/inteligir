@@ -12,6 +12,14 @@
 // clearing them — says so explicitly, because an undo spent on removing a
 // highlight is an undo the user's own last edit did not get.
 //
+// A MARK MAY NEVER COVER BYTES THE USER TYPED. That is the whole point of the
+// tint, and mapping alone does not keep it true: a range set maps a mark
+// THROUGH a replacement of the text it covers, so selecting an attributed span
+// and typing over it leaves the tint sitting on the user's own words — and a
+// conflict toast counting "1 merged region" would then point at them. So a
+// user edit reaching INTO a mark drops that mark, and `withoutTouched` below
+// is the one place that rule lives.
+//
 // The residual, stated rather than hidden: a pure DELETION leaves no span in
 // the new document, so nothing is tinted for it. Marking it would need a
 // zero-width widget standing in for text that is gone, which says less than
@@ -59,6 +67,32 @@ function trimmed(inserted: string, at: number): ExternalEditRange | null {
 
 const externalEditMark = Decoration.mark({ class: "cm-external-edit" });
 
+/**
+ * The marks after a transaction that was NOT an external write: mapped
+ * forward, minus every mark the change reached into. A change ABUTTING a mark
+ * keeps it — typing at the end of what the agent wrote is a new sentence
+ * beside its bytes, not a rewrite of them — so the overlap test is strict, and
+ * a bare insertion counts only when it lands strictly inside.
+ */
+function withoutTouched(marks: DecorationSet, tr: Transaction): DecorationSet {
+  if (!tr.docChanged) {
+    return marks;
+  }
+  const touched: ExternalEditRange[] = [];
+  tr.changes.iterChanges((_fromA, _toA, fromB, toB) => {
+    touched.push({ from: fromB, to: toB });
+  });
+  const mapped = marks.map(tr.changes);
+  const kept: Range<Decoration>[] = [];
+  for (let iter = mapped.iter(); iter.value !== null; iter.next()) {
+    const { from, to } = iter;
+    if (!touched.some((span) => span.from < to && span.to > from)) {
+      kept.push(externalEditMark.range(from, to));
+    }
+  }
+  return Decoration.set(kept, true);
+}
+
 const externalEditField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(marks, tr) {
@@ -68,7 +102,7 @@ const externalEditField = StateField.define<DecorationSet>({
       }
     }
     if (tr.annotation(externalReplaceAnnotation) !== true) {
-      return marks.map(tr.changes);
+      return withoutTouched(marks, tr);
     }
     // The newest write REPLACES the attribution rather than joining it: two
     // writes over one region would otherwise stack marks the reader reports

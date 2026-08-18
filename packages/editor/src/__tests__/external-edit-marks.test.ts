@@ -97,6 +97,59 @@ describe("attributing an external write", () => {
   });
 });
 
+describe("a mark never covers bytes the user typed", () => {
+  test("typing over a marked span drops its mark", () => {
+    const mounted = mount();
+    mounted.replaceDoc("# Notes\n\none\n\ntwo and a half\n");
+    expect(marked(mounted)).toEqual(["two and a half"]);
+    // Select what the agent wrote and type over it — the case a range set
+    // maps THROUGH, leaving the tint on the user's own words.
+    const at = mounted.view.state.doc.toString().indexOf("two and a half");
+    mounted.view.dispatch({
+      changes: { from: at, to: at + "two and a half".length, insert: "mine" },
+      selection: EditorSelection.single(at + "mine".length),
+      userEvent: "input.type",
+    });
+    expect(marked(mounted)).toEqual([]);
+  });
+
+  test("an edit strictly inside a marked span drops it", () => {
+    const mounted = mount();
+    mounted.replaceDoc("# Notes\n\none\n\ntwo and a half\n");
+    const at = mounted.view.state.doc.toString().indexOf("and");
+    mounted.view.dispatch({
+      changes: { from: at, insert: "X" },
+      selection: EditorSelection.single(at + 1),
+      userEvent: "input.type",
+    });
+    expect(marked(mounted)).toEqual([]);
+  });
+
+  test("typing at either edge keeps it — that is a sentence beside the write", () => {
+    const mounted = mount();
+    mounted.replaceDoc("# Notes\n\none\n\ntwo and a half\n");
+    const doc = mounted.view.state.doc.toString();
+    const end = doc.indexOf("two and a half") + "two and a half".length;
+    mounted.view.dispatch({
+      changes: { from: end, insert: "!" },
+      selection: EditorSelection.single(end + 1),
+      userEvent: "input.type",
+    });
+    expect(marked(mounted)).toEqual(["two and a half"]);
+  });
+
+  test("an edit elsewhere leaves the mark alone", () => {
+    const mounted = mount();
+    mounted.replaceDoc("# Notes\n\none\n\ntwo and a half\n");
+    mounted.view.dispatch({
+      changes: { from: 0, insert: "x" },
+      selection: EditorSelection.single(1),
+      userEvent: "input.type",
+    });
+    expect(marked(mounted)).toEqual(["two and a half"]);
+  });
+});
+
 describe("undo history", () => {
   test("neither the write nor the fade spends the user's undo", () => {
     fakeTimers();
