@@ -3,7 +3,7 @@ import { EditorSelection } from "@codemirror/state";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { createMarkdownEditor, type MarkdownEditor } from "../create-markdown-editor";
 import {
-  EXTERNAL_EDIT_FADE_MS,
+  EXTERNAL_EDIT_HOLD_MS,
   externalEditMarksExtension,
   externalEditRanges,
 } from "../external-edit-marks";
@@ -29,7 +29,7 @@ const mount = (doc = DOC): MarkdownEditor => {
 };
 
 /** Only the timers: CodeMirror's measure pass rides rAF, and faking that
- *  stalls the view rather than the fade under test. */
+ *  stalls the view rather than the hold under test. */
 const fakeTimers = (): void => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 };
@@ -76,12 +76,12 @@ describe("attributing an external write", () => {
     expect(marked(mounted)).toEqual([]);
   });
 
-  test("the marks fade out on their own", () => {
+  test("the marks clear themselves when the window is up", () => {
     fakeTimers();
     const mounted = mount();
     mounted.replaceDoc("# Notes\n\none\n\ntwo and a half\n");
     expect(marked(mounted)).toEqual(["two and a half"]);
-    vi.advanceTimersByTime(EXTERNAL_EDIT_FADE_MS);
+    vi.advanceTimersByTime(EXTERNAL_EDIT_HOLD_MS);
     expect(marked(mounted)).toEqual([]);
     expect(mounted.view.dom.querySelector(".cm-external-edit")).toBeNull();
   });
@@ -90,7 +90,7 @@ describe("attributing an external write", () => {
     fakeTimers();
     const mounted = mount();
     mounted.replaceDoc("# Notes\n\none\n\ntwo and a half\n");
-    vi.advanceTimersByTime(EXTERNAL_EDIT_FADE_MS - 100);
+    vi.advanceTimersByTime(EXTERNAL_EDIT_HOLD_MS - 100);
     mounted.replaceDoc("# Notes\n\none\n\ntwo and three quarters\n");
     vi.advanceTimersByTime(200);
     expect(marked(mounted)).toEqual(["two and three quarters"]);
@@ -151,7 +151,7 @@ describe("a mark never covers bytes the user typed", () => {
 });
 
 describe("undo history", () => {
-  test("neither the write nor the fade spends the user's undo", () => {
+  test("neither the write nor the clear spends the user's undo", () => {
     fakeTimers();
     const mounted = mount();
     const at = DOC.indexOf("one") + 3;
@@ -163,7 +163,7 @@ describe("undo history", () => {
     expect(mounted.getDoc()).toBe("# Notes\n\none!\n\ntwo\n");
 
     mounted.replaceDoc("# Notes\n\none!\n\ntwo\n\nthree\n");
-    vi.advanceTimersByTime(EXTERNAL_EDIT_FADE_MS);
+    vi.advanceTimersByTime(EXTERNAL_EDIT_HOLD_MS);
     expect(marked(mounted)).toEqual([]);
 
     undo(mounted.view);

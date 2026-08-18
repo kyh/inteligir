@@ -1,6 +1,18 @@
 // Who wrote this? A tint over the spans an EXTERNAL write just put in the
 // buffer — an agent's edit landing through the watcher, or the half of a
-// three-way merge that came from disk — fading out on its own.
+// three-way merge that came from disk — clearing itself after a while.
+//
+// THE STATE IS THE ONLY CLOCK, and the tint is flat because of it. The obvious
+// polish is a CSS fade over the same window, and it cannot be made honest
+// here: CodeMirror renders only the visible ranges, so scrolling a marked span
+// away and back BUILDS ITS DOM AGAIN and any `animation` on it restarts from
+// full tint — then the state timer, already near expiry, removes it mid-fade.
+// Pinning the animation to the mark's age does not fix it either: a decoration
+// spec is created once, so a negative `animation-delay` computed then is zero
+// forever, and making it age-aware means writing style onto decoration DOM
+// from a measure pass — a lot of machinery for a tint. A flat tint that is
+// either there or not never disagrees with the timer, whatever the scroll
+// position did, and that is the trade taken.
 //
 // The discriminator is already in the buffer: `replaceDoc` stamps every
 // external replacement with `externalReplaceAnnotation`, so "this transaction
@@ -46,7 +58,7 @@ import { externalReplaceAnnotation } from "./external-replace";
 /** How long an attributed span stays on screen. Exported because a host
  *  saying something about the same write — a toast offering to jump to it —
  *  must not outlive the thing it points at. */
-export const EXTERNAL_EDIT_FADE_MS = 6_000;
+export const EXTERNAL_EDIT_HOLD_MS = 6_000;
 
 /** One span an external write changed, in current document coordinates. */
 export interface ExternalEditRange {
@@ -134,7 +146,7 @@ export function externalEditRanges(state: EditorState): ExternalEditRange[] {
   return ranges;
 }
 
-class ExternalEditFade implements PluginValue {
+class ExternalEditHold implements PluginValue {
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly view: EditorView) {}
@@ -157,7 +169,7 @@ class ExternalEditFade implements PluginValue {
           effects: clearExternalEdits.of(null),
           annotations: Transaction.addToHistory.of(false),
         });
-      }, EXTERNAL_EDIT_FADE_MS);
+      }, EXTERNAL_EDIT_HOLD_MS);
     }
   }
 
@@ -183,19 +195,11 @@ const externalEditTheme = EditorView.theme({
   ".cm-external-edit": {
     borderRadius: "2px",
     backgroundColor: "var(--editor-external-edit)",
-    animation: `cm-external-edit-fade ${String(EXTERNAL_EDIT_FADE_MS)}ms ease-out forwards`,
-  },
-  "@keyframes cm-external-edit-fade": {
-    "0%, 55%": { backgroundColor: "var(--editor-external-edit)" },
-    "100%": { backgroundColor: "transparent" },
-  },
-  "@media (prefers-reduced-motion: reduce)": {
-    ".cm-external-edit": { animation: "none" },
   },
 });
 
 export const externalEditMarksExtension: Extension = [
   externalEditField,
-  ViewPlugin.fromClass(ExternalEditFade),
+  ViewPlugin.fromClass(ExternalEditHold),
   externalEditTheme,
 ];

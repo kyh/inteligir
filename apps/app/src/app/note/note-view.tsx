@@ -18,7 +18,7 @@ import {
   type DelegationSelection,
 } from "@repo/editor/delegation-affordance";
 import {
-  EXTERNAL_EDIT_FADE_MS,
+  EXTERNAL_EDIT_HOLD_MS,
   externalEditMarksExtension,
   externalEditRanges,
 } from "@repo/editor/external-edit-marks";
@@ -470,7 +470,7 @@ function OpenNote({
         toast.warning(
           `This note changed on disk while you edited it — kept your version, and merged in ${String(merged)} ${merged === 1 ? "region" : "regions"}.`,
           {
-            duration: EXTERNAL_EDIT_FADE_MS,
+            duration: EXTERNAL_EDIT_HOLD_MS,
             action: {
               label: "Show",
               onClick: () => {
