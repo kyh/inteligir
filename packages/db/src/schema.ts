@@ -92,10 +92,32 @@ export const events = sqliteTable(
     itemId: text("item_id"),
     itemKind: text("item_kind").$type<ThreadEventItemType>(),
     data: text("data").notNull().default("{}"),
+    // WHOSE outbox position this row arrived as (issue #572): the writing
+    // device and that device's own counter, server-stamped on the merged log
+    // row. Both null for an event THIS process produced.
+    //
+    // It is the log row's natural key, and the reason it is stored rather than
+    // the account-global `seq` is re-pairing: a global seq means a different
+    // row under a different account, so an idempotency check keyed on it would
+    // wrongly SKIP a genuine event, while a (device, position) pair is minted
+    // per pairing and never reused. Two things read it — the apply, which is
+    // idempotent on it, and crash recovery, which must not fail a turn whose
+    // provider belongs to another machine.
+    //
+    // No CHECK pairs them: SQLite cannot ADD a checked column without
+    // rebuilding the table, and a rebuild would cascade through the children's
+    // foreign keys mid-migration. One writer sets both or neither.
+    originDeviceId: text("origin_device_id"),
+    originDeviceSeq: integer("origin_device_seq"),
     createdAt: integer("created_at").notNull(),
   },
   (table) => [
     uniqueIndex("events_thread_sequence_idx").on(table.threadId, table.sequence),
+    // The apply's idempotency, with teeth: a replayed log row cannot become a
+    // second event even if the pre-check ever misses it. SQLite treats NULLs as
+    // DISTINCT in a unique index, so every locally-written row (both columns
+    // null) coexists freely.
+    uniqueIndex("events_origin_idx").on(table.originDeviceId, table.originDeviceSeq),
     // Open-turn resolution and lifecycle lookups scan by (thread, type) —
     // latest turn/started, matching turn/completed — without touching data.
     index("events_thread_type_sequence_idx").on(table.threadId, table.type, table.sequence),

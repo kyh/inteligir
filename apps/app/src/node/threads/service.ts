@@ -22,7 +22,12 @@ import {
   type ApprovalPendingInteractionPayload,
 } from "@repo/domain/pending-interactions";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
-import { appendEventsInTransaction } from "@repo/db/events";
+import {
+  appendEventsInTransaction,
+  appendSyncedEventsInTransaction,
+  turnStartOriginDeviceId,
+  type SyncedEventInput,
+} from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
 import { NotificationBuffer, type DbNotifier } from "@repo/domain/notifier";
 import {
@@ -594,13 +599,13 @@ export class ThreadService implements ProviderEventSink {
    */
   applySyncedEvents(args: {
     threadId: string;
-    events: readonly ThreadEvent[];
+    rows: readonly SyncedEventInput[];
     cursor: number;
   }): void {
     this.ingest({
       origin: "remote",
       threadId: args.threadId,
-      events: args.events,
+      rows: args.rows,
       cursor: args.cursor,
     });
   }
@@ -608,9 +613,10 @@ export class ThreadService implements ProviderEventSink {
   private ingest(
     args:
       | { origin: "local"; threadId: string; events: readonly ThreadEvent[] }
-      | { origin: "remote"; threadId: string; events: readonly ThreadEvent[]; cursor: number },
+      | { origin: "remote"; threadId: string; rows: readonly SyncedEventInput[]; cursor: number },
   ): void {
-    const { threadId, events } = args;
+    const { threadId } = args;
+    const events = args.origin === "remote" ? args.rows.map((row) => row.event) : args.events;
     const mismatched = events.find((event) => event.threadId !== threadId);
     if (mismatched !== undefined) {
       throw new ThreadEventThreadIdMismatchError(threadId, mismatched.threadId);
@@ -622,17 +628,28 @@ export class ThreadService implements ProviderEventSink {
     const drains: ClaimedQueuedThreadMessageRow[] = [];
     this.db.transaction(
       (tx) => {
+        // What lifecycle actually projects over: the rows that LANDED. For a
+        // local batch that is all of them; for a synced one it is the input
+        // minus whatever this database already held, which is what makes a
+        // re-pair's full replay a no-op rather than a status flap.
+        let projected: readonly ThreadEvent[] = events;
         if (args.origin === "remote") {
           if (ensureThreadInTransaction(tx, threadId).created) {
             buffer.notifyThread(threadId, ["thread-created"]);
           }
-          appendEventsInTransaction(tx, events);
+          const landed = appendSyncedEventsInTransaction(tx, args.rows);
+          projected = landed.applied.map((row) => row.event);
+          // Advances even when nothing landed: the point of the cursor is that
+          // this device has SEEN the row, not that the row was new.
           this.sync?.recordCursor(tx, args.cursor);
+          if (projected.length === 0) {
+            return;
+          }
         } else {
           this.appendLocal(tx, events);
         }
         buffer.notifyThread(threadId, ["events-appended"]);
-        for (const event of events) {
+        for (const event of projected) {
           const lifecycleEvent = lifecycleEventFor(event);
           if (lifecycleEvent === null) {
             continue;
@@ -701,6 +718,19 @@ export class ThreadService implements ProviderEventSink {
    * of a previous process. run.failed is legal from starting, active and
    * stopping alike, and it names the orphaned turn so the CAS matches by
    * construction.
+   *
+   * "OF A PREVIOUS PROCESS" IS NOW A QUESTION, not an assumption. A synced
+   * thread can be active because ANOTHER DEVICE started a turn on it, and that
+   * device's provider is very much alive — declaring it failed here would
+   * append a fabricated failure and, worse, push it back through the account's
+   * log to the machine where the work is genuinely still running. Only the
+   * process that owns a provider may say the provider died, so the turn's own
+   * `turn/started` row is asked who wrote it.
+   *
+   * The residual, stated: a device that never comes back leaves the thread
+   * active here until it does. That is the same trade in the other direction —
+   * this process cannot distinguish "still working" from "gone" across a
+   * network, and the owner's own recovery settles it and syncs the settle back.
    */
   private recoverWedgedThreads(): void {
     for (const thread of listThreads(this.db)) {
@@ -708,6 +738,15 @@ export class ThreadService implements ProviderEventSink {
         thread.status !== "starting" &&
         thread.status !== "active" &&
         thread.status !== "stopping"
+      ) {
+        continue;
+      }
+      if (
+        thread.activeTurnId !== null &&
+        turnStartOriginDeviceId(this.db, {
+          threadId: thread.id,
+          turnId: thread.activeTurnId,
+        }) !== null
       ) {
         continue;
       }
