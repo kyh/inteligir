@@ -320,6 +320,44 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   the YAML and silently changes what `tags:` and `tasks: false` mean. The
   invariant under test: inserting a marker leaves the rest of the document
   parsing identically.
+- **The slash menu asks the tree ONE question — does a block begin here — and
+  the app stocks it.** `/` opens the insertion menu
+  (`@repo/editor/slash-menu`) only where lezer says a `Paragraph` starts at
+  that character, and that single question is what makes a rule list
+  unnecessary: a fence, frontmatter, a URL, a mid-word slash and a line lazily
+  continuing the paragraph above all decline because none of them begins a
+  block. The typed insertion is allowed to be LONGER than the slash, because
+  CodeMirror reads typing off DOM mutations and coalesces a fast burst into
+  one change — a one-character rule would make the menu a function of typing
+  speed. Applying an item is ONE transaction under an `input.type.` user
+  event, so CodeMirror's history joins it to the group the query was typed in
+  and one undo takes the construct AND the `/query` that asked for it. The
+  vocabulary is DATA the app injects
+  (`apps/app/src/app/note/slash-items.ts`), the same split
+  `DelegationAffordanceConfig` uses, and it is BOUNDED BY WHAT THE EDITOR
+  DRAWS — every row's markdown re-parses to a decorated construct, asserted
+  against the editor's own grammar rather than by string equality. The two
+  agent rows reach `draftFor`, the same closure the selection tooltip reaches;
+  a menu that armed a delegation its own way would be a second dispatch path
+  over one thread service. **"Link to a note" is deliberately absent**: this
+  editor renders no wiki-links, and a vault-relative markdown link IS
+  decorated but its click handler is `window.open`, so it would open a dead
+  browser tab. That row lands when the editor gets a wiki-link extension, not
+  before.
+- **An EXTERNAL write is attributed in the buffer, and the annotation is the
+  discriminator.** `replaceDoc` already stamps every external replacement with
+  `externalReplaceAnnotation`, so "this transaction was not the user" is a fact
+  the transaction carries rather than something a decoration layer infers from
+  timing (`@repo/editor/external-edit-marks`). The tint covers the inserted
+  spans, trimmed of the line breaks that carried them, and fades on a timer
+  whose clearing transaction is excluded from history — an undo spent removing
+  a highlight is an undo the user's own last edit did not get. A later write
+  REPLACES the attribution rather than stacking on it, and a pure deletion is
+  the stated residual: it leaves no span to tint, and a zero-width widget
+  standing in for absent text says less than the count the host reports. That
+  count is what a conflicted merge now shows — diff3 kept the buffer, so the
+  only honest thing to state is what DID merge in, and the toast lives exactly
+  as long as the marks it offers to jump to.
 - **The launcher boots in-process; the desktop shell supervises a child.**
   Opposite answers because the failure differs: `npx` wants one exit code and
   a `^C` that reaches the vault's owner, while the shell must not share its
