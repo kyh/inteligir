@@ -70,7 +70,7 @@ export function ApprovalCard({ interaction, onAnswer, disabled = false }: Approv
     "deny",
   ];
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3">
+    <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-raised p-3 shadow-surface-1">
       <div className="text-sm">{view.summary}</div>
       {view.reason !== null && view.reason !== "" ? (
         <div className="text-xs text-muted-foreground">{view.reason}</div>

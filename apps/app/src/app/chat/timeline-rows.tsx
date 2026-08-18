@@ -127,7 +127,7 @@ export const TimelineRowView = memo(function TimelineRowView({ row }: { row: Tim
       if (row.role === "user") {
         return (
           <div className="flex flex-col items-end gap-0.5">
-            <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-muted px-3 py-1.5 text-sm">
+            <div className="max-w-[85%] rounded-2xl bg-surface-raised px-3 py-1.5 text-sm whitespace-pre-wrap shadow-surface-1">
               {row.text}
             </div>
             {row.viewContext === null ? null : <ViewContextAttribution context={row.viewContext} />}

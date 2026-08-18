@@ -42,8 +42,10 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
       title={title}
       onClick={onSyncNow}
       className={cn(
-        "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground",
-        canSync && "hover:bg-muted hover:text-foreground",
+        // Hover steps an ink TIER rather than lighting a pill: a status line
+        // that gains a background reads as a button it is only sometimes.
+        "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-ink-3",
+        canSync && "hover:text-ink-2",
       )}
     >
       <span className={cn("size-1.5 rounded-full", syncStateDotClass(status))} />
@@ -102,7 +104,7 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
           onPendingCreateHandled={() => setPendingCreate(null)}
         />
       </div>
-      <footer className="flex items-center justify-between border-t border-border/60 px-2 py-1.5">
+      <footer className="flex items-center justify-between border-t border-line px-2 py-1.5">
         <SyncStatusPill onSyncNow={onSyncNow} />
         <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={onOpenSettings}>
           <SettingsIcon className="size-4 text-muted-foreground" />

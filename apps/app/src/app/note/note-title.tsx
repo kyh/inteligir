@@ -3,6 +3,10 @@
 // Escape restores; a blur with changes commits too. Names pass through the
 // domain's ONE gate (@repo/notes checkNoteName) — reject, never sanitize.
 //
+// It is set QUIETER than the note's own `# H1`, which sits ~60px below it: two
+// bold lines that size alike read as one heading stuttered twice, and the one
+// that should win is the document's, not the file's.
+//
 // Which extension the title hides is the domain's answer too (`docExtension`),
 // never `.md` spelled here: the server indexes and lists `.markdown`, `.mdx`
 // and `.txt` as docs, and a title that only knows one of them shows the other
@@ -70,7 +74,7 @@ export function NoteTitle({ path, onRename, onSubmit }: NoteTitleProps) {
       value={draft}
       aria-label="Note title"
       spellCheck={false}
-      className="w-full bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50"
+      className="w-full bg-transparent text-2xl font-medium tracking-tight text-ink-2 outline-none placeholder:text-ink-3"
       placeholder="Untitled"
       onChange={(event) => {
         lastSentRef.current = null;

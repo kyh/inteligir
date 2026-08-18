@@ -9,6 +9,7 @@ import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/server-contract/notifications";
 import { createContext, useContext, useEffect, useState } from "react";
+import { AppearanceProvider } from "./appearance";
 import { createWorkspaceApiClient, queryKeys } from "./api";
 import {
   browserInvalidationSocket,
@@ -227,9 +228,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <EditorThemeCarrier />
-      <QueryClientProvider client={runtime.queryClient}>
-        <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
-      </QueryClientProvider>
+      <AppearanceProvider>
+        <QueryClientProvider client={runtime.queryClient}>
+          <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
+        </QueryClientProvider>
+      </AppearanceProvider>
     </ThemeProvider>
   );
 }
