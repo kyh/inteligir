@@ -411,11 +411,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background text-foreground">
+    <div className="flex h-dvh overflow-hidden bg-surface text-ink">
       <aside
         ref={asideRef}
         style={{ width: sidebarWidth }}
-        className="shrink-0 border-r border-border/60 bg-sidebar text-sidebar-foreground"
+        className="shrink-0 border-r border-line bg-sidebar text-sidebar-foreground"
       >
         <Sidebar
           openPath={openNote}
@@ -429,7 +429,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
-        className="w-1 shrink-0 cursor-col-resize hover:bg-border active:bg-border"
+        className="w-1 shrink-0 cursor-col-resize hover:bg-line-strong active:bg-line-strong"
         onPointerDown={onResizePointerDown}
         onPointerMove={onResizePointerMove}
         onPointerUp={onResizePointerUp}
@@ -438,9 +438,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         <div className="min-h-0 flex-1">
           {openNote === null ? (
             <div className="flex h-full items-center justify-center">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-ink-3">
                 Open a note from the sidebar, or press{" "}
-                <kbd className="rounded border border-border px-1 font-mono text-xs">⌘K</kbd>
+                <kbd className="rounded border border-line px-1 font-mono text-xs">⌘K</kbd>
               </p>
             </div>
           ) : (

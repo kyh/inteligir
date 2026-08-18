@@ -30,7 +30,7 @@ function describe(proposal: Proposal): string {
 export function ProposalSummary({ proposal, actions, onOpenDoc }: ProposalSummaryProps) {
   const stale = proposal.status === "stale";
   return (
-    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+    <div className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm shadow-surface-1">
       <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="font-medium">Suggested edit</span>
         <button

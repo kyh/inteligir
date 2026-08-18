@@ -113,6 +113,16 @@
   /* Surface-relative interactive overlays */
   --color-hover: var(--hover);
   --color-focus-ring: var(--focus-ring);
+
+  /* Surface and ink ROLES (see :root) */
+  --color-surface: var(--surface);
+  --color-surface-inset: var(--surface-inset);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
 }
 
 :root {
@@ -194,6 +204,28 @@
   --overlay: 0 0 0;
   --hover: rgb(var(--overlay) / 0.04);
   --focus-ring: #6b97ff;
+
+  /* ── Surface and ink ROLES ────────────────────────────────────────────────
+     A vocabulary of PLACES and WEIGHTS over the palette above, so a component
+     reaches for `bg-surface-inset` / `text-ink-3` / `border-line` and stops
+     naming shades it then has to re-pick per theme. Nothing new is defined:
+     every value resolves through --background / --foreground / --border /
+     --card, so a palette change carries the whole ladder with it.
+
+     Each DERIVED rung is one step toward the ink, which is the direction that
+     reads right in both themes — a strip set into a white page is a shade
+     darker, and the same strip on a dark page is a shade lighter. That is why
+     these live in `:root` alone and `.dark` restates none of them: `.dark`
+     lands on the same element, so re-declaring --background under it is
+     already enough to move every rung. */
+  --surface: var(--background);
+  --surface-inset: color-mix(in oklab, var(--background), var(--foreground) 3%);
+  --surface-raised: var(--card);
+  --ink: var(--foreground);
+  --ink-2: var(--muted-foreground);
+  --ink-3: color-mix(in oklab, var(--muted-foreground), var(--background) 30%);
+  --line: var(--border);
+  --line-strong: color-mix(in oklab, var(--border), var(--foreground) 6%);
 }
 
 .dark {

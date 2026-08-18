@@ -221,7 +221,7 @@ export function ChatDock({
       : (thread.title ?? (thread.originDocPath === null ? "Chat" : "Delegation"));
 
   return (
-    <div className="shrink-0 border-t border-border/60 bg-background">
+    <div className="shrink-0 border-t border-line bg-surface-inset">
       <div className="mx-auto w-full max-w-[var(--editor-width)] px-7">
         {expanded && viewingId !== null ? (
           <div className="flex flex-col">
@@ -290,7 +290,7 @@ export function ChatDock({
               ))}
               {queued.map((message) => (
                 <div key={message.id} className="flex justify-end">
-                  <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground">
+                  <div className="max-w-[85%] rounded-2xl bg-surface-raised/60 px-3 py-1.5 text-sm whitespace-pre-wrap text-ink-3 shadow-surface-1">
                     {message.text}
                     <span className="ml-2 text-xs">queued</span>
                   </div>
@@ -318,7 +318,7 @@ export function ChatDock({
         ) : null}
 
         {draft !== null ? (
-          <div className="mb-2 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+          <div className="mb-2 flex items-start gap-2 rounded-lg border border-line bg-surface-raised px-3 py-2 text-xs shadow-surface-1">
             <div className="min-w-0 flex-1">
               <div className="font-medium">
                 {draft.intent === "ask"
