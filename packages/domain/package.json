@@ -14,7 +14,8 @@
     "./thread-status": "./src/thread-status.ts",
     "./thread-lifecycle": "./src/thread-lifecycle.ts",
     "./thread-event-scope": "./src/thread-event-scope.ts",
-    "./provider-event": "./src/provider-event.ts"
+    "./provider-event": "./src/provider-event.ts",
+    "./view-context": "./src/view-context.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

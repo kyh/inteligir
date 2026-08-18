@@ -28,7 +28,7 @@ function timeline(rows: TimelineRow[]): ThreadTimeline {
 describe("formatThreadTimeline", () => {
   it("renders a whole conversation with a grouped turn, deterministically", () => {
     const rows: TimelineRow[] = [
-      { ...base(), kind: "conversation", role: "user", text: "Write me a note" },
+      { ...base(), kind: "conversation", role: "user", text: "Write me a note", viewContext: null },
       {
         ...base(),
         kind: "turn",
@@ -58,7 +58,13 @@ describe("formatThreadTimeline", () => {
           },
         ],
       },
-      { ...base(), kind: "conversation", role: "assistant", text: "Done — see notes/a.md" },
+      {
+        ...base(),
+        kind: "conversation",
+        role: "assistant",
+        text: "Done — see notes/a.md",
+        viewContext: null,
+      },
     ];
     expect(formatThreadTimeline(timeline(rows))).toBe(
       [

@@ -2,6 +2,7 @@ import { agentWriteModeSchema } from "@repo/domain/agent-write-mode";
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
+import { viewContextSchema, type ViewContext } from "@repo/domain/view-context";
 import { THREAD_ANCHOR_TOKEN_PATTERN } from "@repo/notes/markdown/thread-anchor";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
@@ -162,6 +163,24 @@ export const sendMessageModeSchema = z.enum(["steer-if-active", "queue-if-active
 export type SendMessageMode = z.infer<typeof sendMessageModeSchema>;
 
 /**
+ * The domain shape with its `resource` held to the vault path grammar, exactly
+ * as `createThreadRequestSchema` holds `originDocPath`: a path nothing
+ * downstream re-validates would otherwise reach a prompt unchecked.
+ */
+const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
+  const resource = vaultPathSchema.safeParse(value.resource);
+  if (!resource.success) {
+    ctx.addIssue({
+      code: "custom",
+      message: "viewContext.resource is not a vault path",
+      path: ["resource"],
+    });
+    return z.NEVER;
+  }
+  return { ...value, resource: resource.data };
+});
+
+/**
  * `expectedTurnId` is the staleness guard: the turn the client believes is
  * running. When it no longer names the open turn — it settled, or another
  * client started a new one — the send is refused with 409 instead of landing
@@ -173,6 +192,10 @@ export const sendMessageRequestSchema = z
     text: z.string().min(1),
     mode: sendMessageModeSchema,
     expectedTurnId: z.string().min(1).optional(),
+    /** What the sender was looking at. Optional because most senders are
+     *  looking at nothing this host can name — the CLI, the palette, a chat
+     *  with no note open. */
+    viewContext: wireViewContextSchema.optional(),
   })
   .strict();
 export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;

@@ -63,7 +63,9 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
   and the whole `system/*` family are not carried. The `userMessage` item is
   flattened from a content array to `text: string`, and `getThreadEventItemRef`
   stands in for upstream's `deriveStoredEventItemFields` over the same case
-  list with a different body.
+  list with a different body. `client/turn/requested` ADDS an optional
+  `viewContext` (`src/view-context.ts`, a house file) — upstream's member
+  carries the text and the kind only.
 - `src/thread-event-scope.ts` keeps the policy table and the five scope
   helpers; upstream's six derived indexes and `assertThreadEventScope` are not
   carried, so `validateThreadEventScope` reads the table directly.

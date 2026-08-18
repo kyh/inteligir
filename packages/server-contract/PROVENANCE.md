@@ -47,7 +47,8 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
   functions near-verbatim, trimmed of fields this repo does not model. Three
   row kinds are local inventions with no bb counterpart: the `reasoning` and
   `plan` work rows, and the top-level `error` row (bb models errors as system
-  rows).
+  rows). The conversation row also ADDS a nullable `viewContext`
+  (`@repo/domain/view-context`), which upstream has no counterpart for.
 
 ## Re-vendor recipe
 

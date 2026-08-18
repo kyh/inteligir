@@ -152,6 +152,9 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
           threadId: event.threadId,
           turnId: null,
           text: event.text,
+          // The one row that can carry one: the send path records what the
+          // sender was looking at beside their text, never folded into it.
+          viewContext: event.viewContext ?? null,
           sourceSeqStart: entry.sequence,
           sourceSeqEnd: entry.sequence,
           createdAt: entry.createdAt,
@@ -340,6 +343,9 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
         kind: "conversation",
         role: "user",
         text: snapshot.text,
+        // A provider's own echo of the user's message; the context belongs to
+        // the send that recorded it, not to what came back.
+        viewContext: null,
       };
       return { placement: "top-level", row };
     }
@@ -351,6 +357,7 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
         // While streaming, the visible text is the started snapshot plus its
         // buffered deltas; the completed item's text supersedes the buffer.
         text: settled ? snapshot.text : snapshot.text + accumulator.textBuffer,
+        viewContext: null,
       };
       return { placement: "top-level", row };
     }

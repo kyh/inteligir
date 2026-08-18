@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 import { threadEventScopeSchema, validateThreadEventScope } from "./thread-event-scope";
+import { viewContextSchema } from "./view-context";
 
 export const threadEventItemStatusSchema = z.enum([
   "pending",
@@ -184,6 +185,14 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     threadId: z.string(),
     text: z.string(),
     kind: z.enum(["message", "steer"]),
+    /**
+     * What the sender was looking at — a local addition to bb's shape, and the
+     * one place a message's ambient context is recorded. `text` stays exactly
+     * what the user typed; this rides beside it rather than being folded in.
+     * No migration: `events.data` is a free-form text column holding
+     * `JSON.stringify(event)`, re-parsed through this schema.
+     */
+    viewContext: viewContextSchema.optional(),
   }),
 ]);
 

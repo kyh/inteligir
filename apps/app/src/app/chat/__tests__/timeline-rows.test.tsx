@@ -34,6 +34,7 @@ const assistant = (text: string, seq: number): TimelineRow => ({
   id: "item:turn_1:item_a",
   turnId: "turn_1",
   text,
+  viewContext: null,
   sourceSeqStart: 5,
   sourceSeqEnd: seq,
 });

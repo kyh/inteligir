@@ -7,6 +7,7 @@ import {
   threadEventItemApprovalStatusSchema,
   threadEventTokenUsageSchema,
 } from "@repo/domain/provider-event";
+import { viewContextSchema } from "@repo/domain/view-context";
 import { z } from "zod";
 
 export const timelineRowStatusValues = ["pending", "completed", "error", "interrupted"] as const;
@@ -27,6 +28,12 @@ export const timelineConversationRowSchema = timelineRowBaseSchema.extend({
   kind: z.literal("conversation"),
   role: z.enum(["user", "assistant"]),
   text: z.string(),
+  /**
+   * What the sender was looking at, so the user can SEE what the agent was
+   * told. Nullable rather than optional: every constructor of a conversation
+   * row has to answer, and most of them answer null.
+   */
+  viewContext: viewContextSchema.nullable(),
 });
 export type TimelineConversationRow = z.infer<typeof timelineConversationRowSchema>;
 
