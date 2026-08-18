@@ -103,6 +103,59 @@ describe("sendToThread", () => {
   });
 });
 
+describe("the view context a composer send carries", () => {
+  const VIEW_CONTEXT = {
+    surface: "doc",
+    resource: "Notes/Plans.md",
+    revision: "c".repeat(64),
+    selection: { from: 6, to: 10, text: "beta" },
+  } as const;
+
+  it("reaches the provider dispatch through the real send path", async () => {
+    const { client, driver } = await bootChatHarness({ mode: "manual" });
+    const thread = await createChatThreadResolver(client)();
+    const outcome = await sendToThread(client, {
+      threadId: thread.id,
+      text: "make this shorter",
+      activeTurnId: null,
+      viewContext: VIEW_CONTEXT,
+    });
+    expect(outcome.kind).toBe("started");
+    expect(driver.startedTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
+  });
+
+  it("carries none when nothing is open — the palette and the CLI send this shape", async () => {
+    const { client, driver } = await bootChatHarness({ mode: "manual" });
+    const thread = await createChatThreadResolver(client)();
+    await sendToThread(client, { threadId: thread.id, text: "hello", activeTurnId: null });
+    expect(driver.startedTurns[0]?.viewContext).toBeUndefined();
+  });
+
+  it("survives the queue fallback as a DROP, not as a stale claim", async () => {
+    const { client, driver } = await bootChatHarness({ mode: "manual", steerable: false });
+    const thread = await createChatThreadResolver(client)();
+    const started = await sendToThread(client, {
+      threadId: thread.id,
+      text: "first",
+      activeTurnId: null,
+    });
+    if (started.kind !== "started") {
+      throw new Error(`expected started, got ${started.kind}`);
+    }
+    const queued = await sendToThread(client, {
+      threadId: thread.id,
+      text: "for later",
+      activeTurnId: started.turnId,
+      viewContext: VIEW_CONTEXT,
+    });
+    expect(queued.kind).toBe("queued");
+
+    driver.completeTurn(thread.id, started.turnId, "completed");
+    expect(driver.startedTurns[1]?.text).toBe("for later");
+    expect(driver.startedTurns[1]?.viewContext).toBeUndefined();
+  });
+});
+
 describe("the steer guard", () => {
   it("refuses an unguarded send into a running turn, and the client recovers", async () => {
     const { client, driver } = await bootChatHarness({ mode: "manual" });

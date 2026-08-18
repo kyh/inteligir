@@ -5,6 +5,7 @@
 // fresh boot reopens where the user left off.
 
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
+import type { ViewContext } from "@repo/domain/view-context";
 import type { Thread } from "@repo/server-contract/threads";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
@@ -13,7 +14,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, queryKeys, unwrap } from "./api";
 import { ChatDock } from "./chat/chat-dock";
-import { ANCHOR_FAILURE_MESSAGES, type DelegationDraft } from "./chat/chat-model";
+import {
+  ANCHOR_FAILURE_MESSAGES,
+  type DelegationDraft,
+  type ViewContextSource,
+} from "./chat/chat-model";
 import { createDelegation } from "./chat/chat-service";
 import { useThreads } from "./chat/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
@@ -86,6 +91,18 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     setChatThreadId(threadId);
     setChatExpanded(true);
   }, []);
+
+  // ONE slot for what the user is looking at: the main column's surface fills
+  // it while it is mounted, the dock pulls from it at submit. A ref rather
+  // than state — registering a getter must not re-render the editor.
+  const viewContextRef = useRef<ViewContextSource | null>(null);
+  const registerViewContext = useCallback((source: ViewContextSource | null): void => {
+    viewContextRef.current = source;
+  }, []);
+  const readViewContext = useCallback(
+    async (): Promise<ViewContext | null> => (await viewContextRef.current?.()) ?? null,
+    [],
+  );
 
   const runDelegation = useCallback(
     async (draft: DelegationDraft, prompt: string): Promise<void> => {
@@ -451,6 +468,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               onVanished={onNoteVanished}
               onSearchTag={onSearchTag}
               onOpenNote={setOpenNote}
+              onViewContextSource={registerViewContext}
             />
           )}
         </div>
@@ -463,6 +481,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           onCancelDraft={onCancelDraft}
           onSubmitDelegation={onSubmitDelegation}
           onOpenDoc={setOpenNote}
+          readViewContext={readViewContext}
         />
       </main>
       <CommandPalette

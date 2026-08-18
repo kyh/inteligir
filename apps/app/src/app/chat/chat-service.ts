@@ -11,6 +11,7 @@
 // whole matrix is proven against the server's own transitions.
 
 import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
+import type { ViewContext } from "@repo/domain/view-context";
 import type { ApiClient } from "@repo/server-contract/client";
 import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import type { SendMessageRequest, Thread } from "@repo/server-contract/threads";
@@ -35,6 +36,10 @@ export interface SendToThreadArgs {
   text: string;
   /** The turn the user is watching; the staleness guard on a steer. */
   activeTurnId: string | null;
+  /** What the sender was looking at. Carried on EVERY attempt below, the
+   *  queue fallbacks included: which mode a send lands in is the server's
+   *  decision, and the server is where a queued message's context is dropped. */
+  viewContext?: ViewContext;
 }
 
 async function refusalMessage(response: { json(): Promise<unknown> }): Promise<string> {
@@ -59,11 +64,13 @@ export async function sendToThread(
   api: ApiClient,
   args: SendToThreadArgs,
 ): Promise<ComposerSendOutcome> {
+  const context = args.viewContext === undefined ? {} : { viewContext: args.viewContext };
   const steer: SendMessageRequest = {
     threadId: args.threadId,
     text: args.text,
     mode: "steer-if-active",
     ...(args.activeTurnId === null ? {} : { expectedTurnId: args.activeTurnId }),
+    ...context,
   };
   const first = await api.threads.send.$post({ json: steer });
   if (first.ok) {
@@ -76,7 +83,7 @@ export async function sendToThread(
   const errorClass = refusal.success ? refusal.data.error : "conflict";
   if (errorClass === "not_steerable") {
     const queued = await api.threads.send.$post({
-      json: { threadId: args.threadId, text: args.text, mode: "queue-if-active" },
+      json: { threadId: args.threadId, text: args.text, mode: "queue-if-active", ...context },
     });
     if (queued.ok) {
       return queued.json();
@@ -95,6 +102,7 @@ export async function sendToThread(
         text: args.text,
         mode: "steer-if-active",
         ...(thread.activeTurnId === null ? {} : { expectedTurnId: thread.activeTurnId }),
+        ...context,
       },
     });
     if (retry.ok) {
@@ -102,7 +110,7 @@ export async function sendToThread(
     }
     if (retry.status === 409) {
       const queued = await api.threads.send.$post({
-        json: { threadId: args.threadId, text: args.text, mode: "queue-if-active" },
+        json: { threadId: args.threadId, text: args.text, mode: "queue-if-active", ...context },
       });
       if (queued.ok) {
         return queued.json();

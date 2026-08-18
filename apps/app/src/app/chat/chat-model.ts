@@ -4,6 +4,7 @@
 // composer, the checkbox fast path and the tests share one answer.
 
 import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
+import type { ViewContext } from "@repo/domain/view-context";
 import type { ThreadChipTone } from "@repo/editor/thread-chip";
 import { checkboxMarkerAt } from "@repo/notes/knowledge/source-lines";
 import { threadMarkerText } from "@repo/notes/markdown/thread-marker";
@@ -124,6 +125,18 @@ export const THREAD_ACTIVITY_TONES: Record<ThreadActivity, ThreadChipTone> = {
 export function isSettledActivity(activity: ThreadActivity): boolean {
   return activity === "archived";
 }
+
+/**
+ * How the composer learns what the user is looking at: ONE slot the workspace
+ * holds, filled by whichever surface is open and PULLED at submit.
+ *
+ * A getter rather than a subscription, deliberately — a selection change must
+ * re-render nothing, in a surface whose chat state is kept beside the editor
+ * precisely so nothing remounts it. Async because producing the value flushes
+ * the buffer first (`note-view-context.ts` says why). null when nothing is
+ * open, which is also every send from the palette or the CLI.
+ */
+export type ViewContextSource = () => Promise<ViewContext | null>;
 
 export type DelegationIntent = "do" | "ask";
 

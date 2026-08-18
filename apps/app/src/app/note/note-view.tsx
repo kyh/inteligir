@@ -37,7 +37,7 @@ import {
 import { threadMarkerInsertion } from "@repo/notes/markdown/thread-marker";
 import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentHashHex } from "@repo/server-contract/vault";
 import { ApiError } from "../api";
 import { renameVaultEntry } from "../vault-hooks";
@@ -49,6 +49,7 @@ import {
   THREAD_ACTIVITY_TONES,
   type DelegationDraft,
   type DelegationIntent,
+  type ViewContextSource,
 } from "../chat/chat-model";
 import { useDocThreads } from "../chat/thread-hooks";
 import { ProposalBar } from "../proposals/proposal-bar";
@@ -57,6 +58,7 @@ import { readDelegationWriteMode } from "../prefs";
 import { BacklinksSection } from "./backlinks-panel";
 import { NoteController, type SaveResult } from "./note-controller";
 import { useNoteDisk } from "./note-disk";
+import { readNoteViewContext } from "./note-view-context";
 import { NoteTitle } from "./note-title";
 import { sendKeepaliveWrite } from "./keepalive-write";
 import { vaultAssetUrl } from "./vault-asset";
@@ -82,6 +84,9 @@ export interface NoteViewProps {
   onSearchTag: (tag: string) => void;
   /** Open another note — a backlink row under the document. */
   onOpenNote: (path: string) => void;
+  /** Fill the workspace's one view-context slot while this note is open, and
+   *  clear it when it is not. */
+  onViewContextSource: (source: ViewContextSource | null) => void;
 }
 
 export function NoteView({
@@ -91,6 +96,7 @@ export function NoteView({
   onVanished,
   onSearchTag,
   onOpenNote,
+  onViewContextSource,
 }: NoteViewProps) {
   const { api, docEvents } = useWorkspace();
   const disk = useNoteDisk({ api, docEvents, path, onVanished });
@@ -117,6 +123,7 @@ export function NoteView({
       setRenamePending={disk.setRenamePending}
       onSearchTag={onSearchTag}
       onOpenNote={onOpenNote}
+      onViewContextSource={onViewContextSource}
     />
   );
 }
@@ -132,6 +139,7 @@ interface OpenNoteProps {
   onRename: (toPath: string) => void;
   setRenamePending: (pending: boolean) => void;
   onOpenNote: (path: string) => void;
+  onViewContextSource: (source: ViewContextSource | null) => void;
 }
 
 function OpenNote({
@@ -142,6 +150,7 @@ function OpenNote({
   setRenamePending,
   onSearchTag,
   onOpenNote,
+  onViewContextSource,
 }: OpenNoteProps) {
   const { api } = useWorkspace();
   const controllerRef = useRef<NoteController | null>(null);
@@ -336,6 +345,33 @@ function OpenNote({
       },
     }),
   ]);
+
+  // What this note contributes to the next message the composer sends. Reads
+  // refs only, so it is stable for the life of this mount (the key is `path`)
+  // and a selection change re-renders nothing.
+  const readViewContext = useCallback<ViewContextSource>(async () => {
+    const editor = editorRef.current;
+    if (editor === null) {
+      return null;
+    }
+    const controller = controllerRef.current;
+    return readNoteViewContext(path, {
+      flush: async () => {
+        await controller?.flush();
+      },
+      read: () => {
+        const main = editor.view.state.selection.main;
+        return { content: editor.getDoc(), from: main.from, to: main.to };
+      },
+    });
+  }, [path]);
+
+  useEffect(() => {
+    onViewContextSource(readViewContext);
+    return () => {
+      onViewContextSource(null);
+    };
+  }, [onViewContextSource, readViewContext]);
 
   // Status changes reach the widgets as an effect — never through the doc.
   useEffect(() => {

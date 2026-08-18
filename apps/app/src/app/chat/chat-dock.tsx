@@ -24,6 +24,7 @@ import {
   threadActivity,
   THREAD_ACTIVITY_DOT_CLASSES,
   type DelegationDraft,
+  type ViewContextSource,
 } from "./chat-model";
 import { createChatThreadResolver, sendToThread } from "./chat-service";
 import { TimelineRowView } from "./timeline-rows";
@@ -40,6 +41,8 @@ export interface ChatDockProps {
   /** Runs the delegation create for the armed draft; resolves when sent. */
   onSubmitDelegation: (prompt: string) => Promise<void>;
   onOpenDoc: (path: string) => void;
+  /** What the user is looking at, pulled at submit. */
+  readViewContext: ViewContextSource;
 }
 
 function lastExchange(rows: readonly TimelineRow[]): { role: string; text: string } | null {
@@ -61,6 +64,7 @@ export function ChatDock({
   onCancelDraft,
   onSubmitDelegation,
   onOpenDoc,
+  readViewContext,
 }: ChatDockProps) {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
@@ -130,10 +134,16 @@ export function ChatDock({
     void (async () => {
       try {
         if (draft !== null) {
+          // A delegation already names its doc and quotes its block in the
+          // message it composes; a view context would say it a second time.
           await onSubmitDelegation(trimmed);
           setText("");
           return;
         }
+        // BEFORE the send, and before the thread is even resolved: producing
+        // the context flushes the open note, so the bytes its revision names
+        // are the ones the agent will read.
+        const viewContext = await readViewContext();
         let threadId = viewingId;
         if (threadId === null) {
           threadId = (await resolveChatThread()).id;
@@ -143,6 +153,7 @@ export function ChatDock({
           threadId,
           text: trimmed,
           activeTurnId: detailQuery.data?.thread.activeTurnId ?? null,
+          ...(viewContext === null ? {} : { viewContext }),
         });
         if (outcome.kind === "refused") {
           toast.error(outcome.message);
