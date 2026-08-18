@@ -644,6 +644,9 @@ importers:
 
   packages/server-contract:
     dependencies:
+      '@repo/cloud-contract':
+        specifier: workspace:*
+        version: link:../cloud-contract
       '@repo/domain':
         specifier: workspace:*
         version: link:../domain

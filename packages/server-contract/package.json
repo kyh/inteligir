@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
+    "@repo/cloud-contract": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/notes": "workspace:*",
     "@repo/typed-routes": "workspace:*",

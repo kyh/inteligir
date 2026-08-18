@@ -48,11 +48,21 @@ export const mintPairingCodeResponseSchema = z
   .strict();
 export type MintPairingCodeResponse = z.infer<typeof mintPairingCodeResponseSchema>;
 
+/**
+ * The ceilings a redeem is judged against. Exported because the LOCAL app puts
+ * a route in front of this one and has to bound the same two fields — and a
+ * hand-copied number there means a value that passes locally and is refused
+ * here, reported to the user as a shape error about a code they typed
+ * correctly.
+ */
+export const PAIRING_CODE_MAX_LENGTH = 16;
+export const DEVICE_NAME_MAX_LENGTH = 64;
+
 // POST /v1/device/redeem (the code IS the credential; consumed exactly once).
 export const redeemDeviceRequestSchema = z
   .object({
-    code: z.string().trim().min(1).max(16),
-    deviceName: z.string().trim().min(1).max(64),
+    code: z.string().trim().min(1).max(PAIRING_CODE_MAX_LENGTH),
+    deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX_LENGTH),
   })
   .strict();
 export type RedeemDeviceRequest = z.infer<typeof redeemDeviceRequestSchema>;

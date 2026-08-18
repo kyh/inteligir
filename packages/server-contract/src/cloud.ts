@@ -16,6 +16,7 @@
 // the flag on without one would be a promise no loop can keep. So the state is
 // a three-way union over the credential this data dir holds.
 
+import { DEVICE_NAME_MAX_LENGTH, PAIRING_CODE_MAX_LENGTH } from "@repo/cloud-contract/pairing";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
   defineRoute,
@@ -26,8 +27,16 @@ import {
 import { z } from "zod";
 import type { ApiErrorResponse } from "./errors";
 
-/** Long enough for "Kaiyu's MacBook Pro"; the cloud's own ceiling is 64. */
-export const CLOUD_DEVICE_NAME_MAX_LENGTH = 64;
+/**
+ * The cloud's own ceiling, re-exported rather than restated.
+ *
+ * This route is a PROXY for `POST /v1/device/redeem`, so anything it accepts
+ * and the cloud does not is a value the user is told is fine and then sees
+ * refused, with a shape error about a code they typed correctly. One spelling,
+ * imported — the local surface cannot drift wider than the thing it forwards
+ * to.
+ */
+export const CLOUD_DEVICE_NAME_MAX_LENGTH = DEVICE_NAME_MAX_LENGTH;
 
 export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
   /** No credential in the data dir: no socket, no timer, no request. */
@@ -84,7 +93,7 @@ export const cloudPairRequestSchema = z
      *  cloud's to judge — this end only refuses an empty one, so a mistyped
      *  code answers the cloud's own "that code isn't valid" rather than a
      *  local guess at the same sentence. */
-    code: z.string().trim().min(1).max(32),
+    code: z.string().trim().min(1).max(PAIRING_CODE_MAX_LENGTH),
     /** How this machine appears in the account's device list. */
     deviceName: z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH),
   })
