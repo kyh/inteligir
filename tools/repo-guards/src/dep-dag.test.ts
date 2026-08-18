@@ -63,6 +63,13 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // The product: the one workspace that composes everything.
   "@repo/app": [
     "@repo/agent-runtime",
+    // The cloud wire (issue #572). This app is the OTHER end of what
+    // apps/web serves: the sync client parses the same push/pull/capture
+    // schemas, the same ws ping frames and the same error envelope the Worker
+    // produces, so the contract has two implementations and no second reading.
+    // It stays a zod-only leaf precisely so this edge costs the local process
+    // nothing beyond the grammar.
+    "@repo/cloud-contract",
     "@repo/db",
     "@repo/domain",
     "@repo/editor",

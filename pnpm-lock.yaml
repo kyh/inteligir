@@ -158,6 +158,9 @@ importers:
       '@repo/agent-runtime':
         specifier: workspace:*
         version: link:../../packages/agent-runtime
+      '@repo/cloud-contract':
+        specifier: workspace:*
+        version: link:../../packages/cloud-contract
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db

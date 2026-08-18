@@ -22,6 +22,7 @@
       "passThroughEnv": [
         "INTELIGIR_AGENT",
         "INTELIGIR_AGENT_MODEL",
+        "INTELIGIR_CLOUD_URL",
         "INTELIGIR_DATA_DIR",
         "INTELIGIR_HMR_PORT",
         "INTELIGIR_PORT",

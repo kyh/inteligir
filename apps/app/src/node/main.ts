@@ -12,6 +12,7 @@ import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
 import { buildAgentShellEnv, resolveCliBinDir } from "./agent/agent-shell-env";
 import { createApp, type AppFallback, type StartFetchOptions } from "./app";
+import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { ensureInstanceSecret } from "./instance-identity";
@@ -201,9 +202,12 @@ async function boot(): Promise<{ serverUrl: string }> {
   });
   registerTeardown("agent", () => agentDriver.dispose());
 
-  const { app, injectWebSocket } = createApp({
+  const { app, cloud, injectWebSocket } = createApp({
     agent: agentDriver.status,
     bus,
+    // The real dial, injected because it cannot be imported from `app.ts` —
+    // see `cloud/cloud-socket.ts`. This is the ONE place that supplies it.
+    cloudTransport: { openSocket: openCloudSocket },
     config,
     createTurnDriver: agentDriver.createTurnDriver,
     db,
@@ -215,6 +219,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     vault,
     version,
   });
+  registerTeardown("cloud", () => cloud.dispose());
 
   const { port, server } = await listenWithRetry({
     fetch: app.fetch,

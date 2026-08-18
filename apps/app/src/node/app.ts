@@ -19,6 +19,8 @@ import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
+import { registerCloudRoutes } from "./cloud/routes";
+import { createCloudRuntime, type CloudTransport } from "./cloud/sync-runtime";
 import type { AppConfig } from "./config";
 import { systemCodexMcpRunner, type CodexMcpRunner } from "./connectors/codex-mcp";
 import { createConnectorsService } from "./connectors/connectors-service";
@@ -68,6 +70,10 @@ export interface CreateAppArgs {
   /** What the boot-time driver resolution decided; served on /system/status. */
   agent: AgentStatus;
   bus: WsBus;
+  /** Tests: drive the whole sync loop without a network. Absent in the
+   *  shipping boot, where the transport is the real one — and irrelevant until
+   *  someone pairs, since an install with no credential opens nothing. */
+  cloudTransport?: CloudTransport;
   /** Tests: drive `codex mcp` without a codex on the machine. */
   codexMcpRunner?: CodexMcpRunner;
   config: AppConfig;
@@ -205,14 +211,25 @@ export function createApp(args: CreateAppArgs) {
     }),
   });
 
-  registerThreadRoutes({
-    routes: { get, post },
-    service: new ThreadService({
-      db: args.db,
-      notifier: args.bus,
-      createTurnDriver: args.createTurnDriver,
-    }),
+  // Built BEFORE the thread service, which needs its outbox hook at
+  // construction; the ingest sink goes back the other way once that service
+  // exists. An install with no credential in its data dir starts nothing here.
+  const cloud = createCloudRuntime({
+    db: args.db,
+    dataDir: args.config.dataDir,
+    cloudUrl: args.config.cloudUrl,
+    vault: args.vault.service,
+    ...(args.cloudTransport === undefined ? {} : { transport: args.cloudTransport }),
   });
+  const threads = new ThreadService({
+    db: args.db,
+    notifier: args.bus,
+    createTurnDriver: args.createTurnDriver,
+    sync: cloud,
+  });
+  cloud.attach(threads);
+  registerCloudRoutes(registrars, cloud);
+  registerThreadRoutes({ routes: { get, post }, service: threads });
 
   // Unmatched API paths answer JSON here — an API caller must never receive
   // the SPA shell or a Vite page from the fallthrough below.
@@ -315,5 +332,9 @@ export function createApp(args: CreateAppArgs) {
     app.all("*", (c) => renderDocument(c.req.raw));
   }
 
-  return { app, injectWebSocket };
+  // Last, so nothing dials the cloud until the routes it will announce
+  // invalidations through are mounted.
+  cloud.start();
+
+  return { app, cloud, injectWebSocket };
 }

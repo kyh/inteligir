@@ -8,6 +8,7 @@ import {
   type RouteDefinition,
 } from "@repo/typed-routes/route-descriptor";
 import { z } from "zod";
+import { cloudRoutes } from "./cloud";
 import { connectorRoutes } from "./connectors";
 import type { ApiErrorResponse } from "./errors";
 import { knowledgeRoutes } from "./knowledge";
@@ -146,6 +147,7 @@ export const apiRoutes = {
     request: noRequest(),
     response: jsonResponse<GuideResponse>(),
   }),
+  cloud: cloudRoutes,
   connectors: connectorRoutes,
   knowledge: knowledgeRoutes,
   proposals: proposalRoutes,

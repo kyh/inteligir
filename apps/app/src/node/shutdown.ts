@@ -3,9 +3,9 @@
 //
 // ORDER IS THE CONTRACT, and it is one rule: every writer stops before the
 // durable flush, and the flush happens before the handles close. So the steps
-// run listener → agent → knowledge → vault → db. The vault's dispose is the
-// flush — it commits whatever the debounce was still holding — which is why
-// nothing that can write a vault file may run after it.
+// run listener → cloud → agent → knowledge → vault → db. The vault's dispose
+// is the flush — it commits whatever the debounce was still holding — which is
+// why nothing that can write a vault file may run after it.
 //
 // EVERY STEP RUNS, even after one throws. A teardown that abandons the
 // remaining steps on the first failure loses the pending commit because a
@@ -50,6 +50,11 @@ export const DEFAULT_STEP_TIMEOUT_MS = 5_000;
  */
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
+  /** Cloud sync is a WRITER — it applies pulled events into the database and
+   *  writes claimed captures into the vault — so it stops above both, and its
+   *  step waits out the pass in flight rather than abandoning a push whose ack
+   *  has not landed. */
+  cloud: DEFAULT_STEP_TIMEOUT_MS,
   agent: DEFAULT_STEP_TIMEOUT_MS,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
   /** The final commit is a git subprocess over the whole dirty tree, which a

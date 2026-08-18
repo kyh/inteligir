@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
+    "./cloud": "./src/cloud.ts",
     "./connectors": "./src/connectors.ts",
     "./errors": "./src/errors.ts",
     "./knowledge": "./src/knowledge.ts",
