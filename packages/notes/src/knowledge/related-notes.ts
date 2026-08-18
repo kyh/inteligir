@@ -20,7 +20,7 @@
 // the point of Related is the ring the user has NOT already wired up.
 // ---------------------------------------------------------------------------
 
-import { tokenize } from "./search-index";
+import { tokenize } from "./search-query";
 
 /** One ranked related note. `reasons` is the explainability payload — short
  * human sentences ("both link to X", "shares #tag", "similar text") the

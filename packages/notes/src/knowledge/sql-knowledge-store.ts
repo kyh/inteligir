@@ -16,9 +16,11 @@
 // durable ever lives in it.
 //
 // Search: FTS5 over (title, headings, body), unicode61 with `_` kept as a
-// token char to match core tokenize(); queries AND quoted tokens with the
-// last as a prefix (search-as-you-type), ranked by weighted bm25 mirroring
-// the pure index's TITLE/HEADING/BODY weights (10/4/1).
+// token char to match core tokenize(). WHICH tokens a query asks for is
+// search-query.ts's answer — shared with the pure SearchIndex so the two
+// engines cannot drift — and this file only renders it as a MATCH expression,
+// ranked by weighted bm25 mirroring the pure index's TITLE/HEADING/BODY
+// weights (10/4/1).
 //
 // Hydration is PAGED. Every SQLite binding on every target platform is
 // synchronous, so a whole-corpus read is an uninterruptible stall on whatever
@@ -35,7 +37,7 @@ import type { SearchResult } from "./knowledge-index";
 import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
 import { parseStoredProjection } from "./projection-row";
-import { tokenize } from "./search-index";
+import { planSearchQuery, type SearchQueryPlan } from "./search-query";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
 export const KNOWLEDGE_SCHEMA_VERSION = 9;
@@ -164,14 +166,18 @@ const PATH_START = "";
  * without paying a per-page query round-trip for every few rows. */
 const HYDRATION_DRAIN_PAGE_DOCS = 1000;
 
-/** Core tokenize() → an FTS5 MATCH expression: quoted tokens ANDed, the last
- * one prefix-matched (search-as-you-type). Null when the query has no tokens. */
-function buildFtsMatchQuery(query: string): string | null {
-  const tokens = [...new Set(tokenize(query))];
-  if (tokens.length === 0) return null;
-  return tokens
-    .map((token, i) => (i === tokens.length - 1 ? `"${token}" *` : `"${token}"`))
-    .join(" ");
+/** One plan (search-query.ts) rendered as an FTS5 MATCH expression.
+ *
+ * Every term is QUOTED, and that is load-bearing rather than cosmetic: FTS5
+ * reads `AND`/`OR`/`NOT`/`NEAR`, `*`, `^`, `:`, `-` and parentheses as syntax,
+ * so a user typing "near miss" or "c++" would otherwise be composing the
+ * expression rather than searching for it. A quoted string is a phrase, never
+ * an operator — and core's tokenizer cannot emit a `"` in the first place, so
+ * nothing can close the quote either. */
+function renderFtsMatch(plan: SearchQueryPlan): string {
+  return plan.terms
+    .map((term) => (term.prefix ? `"${term.token}" *` : `"${term.token}"`))
+    .join(plan.match === "all" ? " AND " : " OR ");
 }
 
 // ---- Row parsing (SQL boundary) ------------------------------------------------
@@ -433,20 +439,26 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     },
 
     search(query, limit): SearchResult[] {
-      const match = buildFtsMatchQuery(query);
-      if (match === null || limit <= 0) return [];
-      return driver.all(SEARCH_SQL, [match, limit]).map((row) => {
-        const title = columnString(row, "title");
-        const snippet = columnString(row, "snip").trim();
-        return {
-          path: columnString(row, "path"),
-          title,
-          snippet: snippet === "" ? title : snippet,
-          // bm25() ranks lower-is-better (negative); flip so higher is better,
-          // matching the pure index's score direction.
-          score: -columnNumber(row, "rank"),
-        };
-      });
+      if (limit <= 0) return [];
+      // Plans are ordered, and a plan that matched nothing is not an answer —
+      // the relaxed one behind it is what turns an empty box into hits.
+      for (const plan of planSearchQuery(query)) {
+        const rows = driver.all(SEARCH_SQL, [renderFtsMatch(plan), limit]);
+        if (rows.length === 0) continue;
+        return rows.map((row) => {
+          const title = columnString(row, "title");
+          const snippet = columnString(row, "snip").trim();
+          return {
+            path: columnString(row, "path"),
+            title,
+            snippet: snippet === "" ? title : snippet,
+            // bm25() ranks lower-is-better (negative); flip so higher is
+            // better, matching the pure index's score direction.
+            score: -columnNumber(row, "rank"),
+          };
+        });
+      }
+      return [];
     },
 
     transaction,

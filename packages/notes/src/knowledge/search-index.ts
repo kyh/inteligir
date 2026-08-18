@@ -6,11 +6,19 @@
 // class stays as the deterministic, tier-exact behavioral pin (core tests)
 // and the drop-in for any surface that can't carry a SQLite binding.
 //
-// Model: token → doc → per-field term frequencies. Queries AND across tokens
-// (every token must hit somewhere in the doc); the final token also matches
-// by prefix so search-as-you-type works. Scoring is weighted, capped tf —
-// caps keep a body-spammy doc from drowning a title match.
+// Model: token → doc → per-field term frequencies. Which tokens a query asks
+// for, and whether they are all required, is search-query.ts's answer for both
+// engines; this file only executes it. Scoring is weighted, capped tf — caps
+// keep a body-spammy doc from drowning a title match, and under "any" they are
+// also what makes a doc matching more terms outrank one matching fewer.
 // ---------------------------------------------------------------------------
+
+import {
+  planSearchQuery,
+  tokenize,
+  type SearchQueryPlan,
+  type SearchQueryTerm,
+} from "./search-query";
 
 export type SearchFields = {
   title: string;
@@ -27,13 +35,8 @@ const HEADING_WEIGHT = 4;
 const BODY_WEIGHT = 1;
 /** Per-field tf cap — bounded so max body contribution (5) < one title hit. */
 const TF_CAP = 5;
-/** Prefix matches (last query token) score below exact matches. */
+/** Prefix matches (the token still being typed) score below exact matches. */
 const PREFIX_FACTOR = 0.7;
-
-/** Unicode-aware tokens: letter/number/underscore runs, lowercased. */
-export function tokenize(text: string): string[] {
-  return text.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? [];
-}
 
 function weightOf(counts: FieldCounts): number {
   return (
@@ -108,42 +111,32 @@ export class SearchIndex {
     return lo;
   }
 
-  /** Ranked hits: AND across query tokens, last token prefix-matches. */
+  /** Ranked hits for the query — see search-query.ts for which tokens are
+   * asked for, whether all of them are required, and why a plan that matches
+   * nothing is followed by a relaxed one. */
   search(query: string, limit: number): SearchHit[] {
-    const tokens = [...new Set(tokenize(query))];
-    if (tokens.length === 0) return [];
+    for (const plan of planSearchQuery(query)) {
+      const hits = this.run(plan, limit);
+      if (hits.length > 0) return hits;
+    }
+    return [];
+  }
 
-    // Per-token doc → best contribution; a doc survives only if present for
-    // every token.
+  private run(plan: SearchQueryPlan, limit: number): SearchHit[] {
+    // doc → summed contribution. Under "all" a doc that misses a term is
+    // dropped from the running set; under "any" it simply scores less than
+    // the docs that matched more terms.
     let surviving: Map<string, number> | null = null;
-    for (const [i, token] of tokens.entries()) {
-      const isLast = i === tokens.length - 1;
-      const contributions = new Map<string, number>();
-      const exact = this.postings.get(token);
-      if (exact) {
-        for (const [path, counts] of exact) contributions.set(path, weightOf(counts));
-      }
-      if (isLast) {
-        // Range-scan just the keys sharing this prefix: sorted keys make the
-        // prefix span a contiguous block from the lower bound, so walk it and
-        // stop at the first non-match instead of iterating every posting.
-        if (this.sortedTokens === null) this.sortedTokens = [...this.postings.keys()].toSorted();
-        const sorted = this.sortedTokens;
-        for (let idx = SearchIndex.lowerBound(sorted, token); idx < sorted.length; idx++) {
-          const candidate = sorted[idx];
-          if (candidate === undefined || !candidate.startsWith(token)) break;
-          if (candidate === token) continue;
-          const docs = this.postings.get(candidate);
-          if (!docs) continue;
-          for (const [path, counts] of docs) {
-            const scored = PREFIX_FACTOR * weightOf(counts);
-            const prior = contributions.get(path);
-            if (prior === undefined || scored > prior) contributions.set(path, scored);
-          }
-        }
-      }
+    for (const term of plan.terms) {
+      const contributions = this.contributionsFor(term);
       if (surviving === null) {
         surviving = contributions;
+        continue;
+      }
+      if (plan.match === "any") {
+        for (const [path, score] of contributions) {
+          surviving.set(path, (surviving.get(path) ?? 0) + score);
+        }
         continue;
       }
       const next = new Map<string, number>();
@@ -160,5 +153,34 @@ export class SearchIndex {
       .map(([path, score]) => ({ path, score }))
       .toSorted((a, b) => b.score - a.score || (a.path < b.path ? -1 : 1))
       .slice(0, limit);
+  }
+
+  /** Every doc one term reaches, scored — exact hits, plus prefix hits at a
+   * discount when the term is the one still being typed. */
+  private contributionsFor(term: SearchQueryTerm): Map<string, number> {
+    const contributions = new Map<string, number>();
+    const exact = this.postings.get(term.token);
+    if (exact) {
+      for (const [path, counts] of exact) contributions.set(path, weightOf(counts));
+    }
+    if (!term.prefix) return contributions;
+    // Range-scan just the keys sharing this prefix: sorted keys make the
+    // prefix span a contiguous block from the lower bound, so walk it and
+    // stop at the first non-match instead of iterating every posting.
+    if (this.sortedTokens === null) this.sortedTokens = [...this.postings.keys()].toSorted();
+    const sorted = this.sortedTokens;
+    for (let idx = SearchIndex.lowerBound(sorted, term.token); idx < sorted.length; idx++) {
+      const candidate = sorted[idx];
+      if (candidate === undefined || !candidate.startsWith(term.token)) break;
+      if (candidate === term.token) continue;
+      const docs = this.postings.get(candidate);
+      if (!docs) continue;
+      for (const [path, counts] of docs) {
+        const scored = PREFIX_FACTOR * weightOf(counts);
+        const prior = contributions.get(path);
+        if (prior === undefined || scored > prior) contributions.set(path, scored);
+      }
+    }
+    return contributions;
   }
 }

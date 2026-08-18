@@ -25,7 +25,8 @@ import { titleFromPath } from "./link-extract";
 import { clipSnippet, projectDoc } from "./projection";
 import { splitLines } from "./source-lines";
 import { relatedNotes, type RelatedNoteEntry, type RelatedNotesOpts } from "./related-notes";
-import { SearchIndex, tokenize } from "./search-index";
+import { SearchIndex } from "./search-index";
+import { tokenize } from "./search-query";
 import type { TagCount } from "./tag-index";
 
 export type SearchResult = { path: string; title: string; snippet: string; score: number };
