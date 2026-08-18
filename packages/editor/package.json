@@ -8,6 +8,7 @@
     "./create-markdown-editor": "./src/create-markdown-editor.ts",
     "./markdown-editor-extensions": "./src/markdown-editor-extensions.ts",
     "./external-replace": "./src/external-replace.ts",
+    "./external-edit-marks": "./src/external-edit-marks.ts",
     "./editor-theme": "./src/editor-theme.ts",
     "./thread-chip": "./src/thread-chip.ts",
     "./proposal-marks": "./src/proposal-marks.ts",
