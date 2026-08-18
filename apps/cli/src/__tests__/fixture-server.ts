@@ -12,6 +12,7 @@ import type { AgentStatus, SystemStatusResponse } from "@repo/server-contract/ro
 import { apiRoutes, API_BASE_PATH } from "@repo/server-contract/routes";
 import type {
   BacklinkEntryWire,
+  RelatedNoteWire,
   SearchResultWire,
   TagCountWire,
 } from "@repo/server-contract/knowledge";
@@ -51,6 +52,7 @@ export interface FixtureState {
   searchResults: SearchResultWire[];
   tags: TagCountWire[];
   backlinks: BacklinkEntryWire[];
+  related: RelatedNoteWire[];
   connectors: ConnectorsResponse;
   threads: FixtureThread[];
   proposals: Proposal[];
@@ -113,6 +115,7 @@ export function makeFixtureState(): FixtureState {
     searchResults: [],
     tags: [],
     backlinks: [],
+    related: [],
     connectors: { state: "ready", servers: [] },
     threads: [],
     proposals: [],
@@ -246,6 +249,9 @@ function createFixtureApp(state: FixtureState): Hono {
   );
   get(apiRoutes.knowledge.backlinks, (c, query) =>
     c.json({ path: query.path, backlinks: state.backlinks, total: state.backlinks.length }),
+  );
+  get(apiRoutes.knowledge.related, (c, query) =>
+    c.json({ path: query.path, related: state.related.slice(0, query.limit) }),
   );
   get(apiRoutes.knowledge.tags, (c) => c.json({ tags: state.tags, total: state.tags.length }));
   get(apiRoutes.knowledge.renameCandidates, (c) => c.json({ candidates: [], total: 0 }));

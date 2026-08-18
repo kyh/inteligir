@@ -13,6 +13,7 @@ const KEYS = {
   delegationWriteMode: "inteligir.delegation-write-mode",
   appearance: "inteligir.appearance",
   backlinksOpen: "inteligir.backlinks-open",
+  relatedOpen: "inteligir.related-open",
 };
 
 function read(key: string): string | null {
@@ -73,6 +74,22 @@ export function readBacklinksOpen(): boolean {
 
 export function writeBacklinksOpen(open: boolean): void {
   write(KEYS.backlinksOpen, open ? "true" : "false");
+}
+
+/**
+ * Whether the related section under the backlinks one is expanded. Its own key
+ * rather than sharing the backlinks one: the two answer different questions,
+ * and a reader who wants the exact list of citations open does not thereby
+ * want a ranked guess open too. Defaults CLOSED, which is where it differs
+ * from backlinks — this list is inferred rather than counted, so it is offered
+ * rather than presented.
+ */
+export function readRelatedOpen(): boolean {
+  return read(KEYS.relatedOpen) === "true";
+}
+
+export function writeRelatedOpen(open: boolean): void {
+  write(KEYS.relatedOpen, open ? "true" : "false");
 }
 
 export function readTheme(): Theme {

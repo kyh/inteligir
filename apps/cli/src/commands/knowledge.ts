@@ -1,27 +1,29 @@
-// `inteligir search|backlinks|tags` — read-only queries over the knowledge
+// `inteligir search|backlinks|related|tags` — read-only queries over the knowledge
 // index. `search` passes the raw query through: `tag:<name>` terms are parsed
 // ENGINE-side, so a tag typed here narrows exactly like the app's one box.
 //
-// Three TOP-LEVEL commands rather than a group, so three `defineCommand`s in
+// Four TOP-LEVEL commands rather than a group, so four `defineCommand`s in
 // one module: what they share is a subject, not a prefix.
 
-import { KNOWLEDGE_SEARCH_MAX_LIMIT } from "@repo/server-contract/knowledge";
+import {
+  KNOWLEDGE_RELATED_MAX_LIMIT,
+  KNOWLEDGE_SEARCH_MAX_LIMIT,
+} from "@repo/server-contract/knowledge";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
 
 /** Bounded HERE as well as server-side: an out-of-range limit is the caller's
- *  own mistake, and naming the ceiling beats relaying a 400. */
-function parseLimit(rawValue: string | undefined): number | undefined {
+ *  own mistake, and naming the ceiling beats relaying a 400. The ceiling is
+ *  the contract's, per route — never a number this file picked. */
+function parseLimit(rawValue: string | undefined, max: number): number | undefined {
   if (rawValue === undefined) {
     return undefined;
   }
   const limit = Number(rawValue);
-  if (!Number.isInteger(limit) || limit < 1 || limit > KNOWLEDGE_SEARCH_MAX_LIMIT) {
-    throw invalidUsage(
-      `--limit must be an integer between 1 and ${KNOWLEDGE_SEARCH_MAX_LIMIT} (got "${rawValue}")`,
-    );
+  if (!Number.isInteger(limit) || limit < 1 || limit > max) {
+    throw invalidUsage(`--limit must be an integer between 1 and ${max} (got "${rawValue}")`);
   }
   return limit;
 }
@@ -35,7 +37,7 @@ export function searchCommand(deps: CliDeps) {
       ...jsonArg,
     },
     run: async ({ args }) => {
-      const limit = parseLimit(args.limit);
+      const limit = parseLimit(args.limit, KNOWLEDGE_SEARCH_MAX_LIMIT);
       const api = await apiFor(deps);
       const found = await requireOk(
         await api.knowledge.search.$get({
@@ -85,6 +87,43 @@ export function backlinksCommand(deps: CliDeps) {
           ? [`(${body.total - body.backlinks.length} more not shown)`]
           : []),
       ]);
+    },
+  });
+}
+
+export function relatedCommand(deps: CliDeps) {
+  return defineCommand({
+    meta: { name: "related", description: "Notes connected to a note, and why" },
+    args: {
+      path: { type: "positional", required: true, description: "The vault-relative path" },
+      limit: { type: "string", description: "Maximum results" },
+      ...jsonArg,
+    },
+    run: async ({ args }) => {
+      const limit = parseLimit(args.limit, KNOWLEDGE_RELATED_MAX_LIMIT);
+      const api = await apiFor(deps);
+      const found = await requireOk(
+        await api.knowledge.related.$get({
+          query: { path: args.path, ...(limit === undefined ? {} : { limit }) },
+        }),
+      );
+      const body = await found.json();
+      if (outputJson(args, body)) {
+        return;
+      }
+      if (body.related.length === 0) {
+        out.info("No related notes.");
+        return;
+      }
+      // The reasons ride WITH the row rather than being summarised away: a
+      // ranked list of paths is a claim, and the reasons are what make it
+      // checkable by whoever reads it.
+      writeLines(
+        body.related.flatMap((entry) => [
+          `${entry.path}  ${entry.title}`,
+          `  ${entry.reasons.join("; ")}`,
+        ]),
+      );
     },
   });
 }
