@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { planSearchQuery, tokenize } from "../knowledge/search-query";
+import { planSearchQuery, stemText, tokenize } from "../knowledge/search-query";
 
 /** The plans as readable strings — `a AND b*`, `a OR b` — in run order. */
 function plans(query: string): string[] {
@@ -21,9 +21,47 @@ function plan(query: string): string | undefined {
 }
 
 describe("tokenize", () => {
-  it("lowercases and splits on non-word runs, unicode included", () => {
-    expect(tokenize("Hello, Wörld-42!")).toEqual(["hello", "wörld", "42"]);
+  it("lowercases, folds diacritics, and splits on non-word runs", () => {
+    // The fold is what keeps this tokenizer and FTS5's unicode61 answering the
+    // same question; the store pins the two against each other.
+    expect(tokenize("Hello, Wörld-42!")).toEqual(["hello", "world", "42"]);
+    expect(tokenize("Acción Łódź İstanbul")).toEqual(["accion", "łodz", "istanbul"]);
+    // Letters unicode61 does not fold either are left exactly alone.
+    expect(tokenize("Straße søster 东京")).toEqual(["straße", "søster", "东京"]);
     expect(tokenize("")).toEqual([]);
+  });
+});
+
+describe("stemming", () => {
+  it("stems the text an engine indexes, token for token and in order", () => {
+    // Order and repetition survive, so a stemmed field has the same length and
+    // term frequencies as the literal field it shadows.
+    expect(stemText("Two interviewers per loop, two loops")).toBe(
+      "two interview per loop two loop",
+    );
+    expect(stemText("")).toBe("");
+  });
+
+  it("leaves a token it has no rule for as the tokenizer handed it over", () => {
+    // Identifiers and other languages carry no English suffix, so the stemmer
+    // returns them unchanged — folded, because stemming runs over tokens and
+    // the fold is part of tokenizing.
+    expect(stemText("bm25 café _slug_ 42")).toBe("bm25 cafe _slug_ 42");
+  });
+
+  it("gives every term the stem a whole-word match asks for", () => {
+    expect(planSearchQuery("interviewing candidates")[0]?.terms).toEqual([
+      { token: "interviewing", stem: "interview", prefix: false },
+      { token: "candidates", stem: "candid", prefix: true },
+    ]);
+  });
+
+  it("keeps the typed term's literal token, which is what prefix-matches", () => {
+    // Mid-word the stem is the fragment itself and buys nothing; the literal
+    // token is the half that still finds `running` from `runn`.
+    expect(planSearchQuery("runn")[0]?.terms).toEqual([
+      { token: "runn", stem: "runn", prefix: true },
+    ]);
   });
 });
 

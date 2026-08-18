@@ -49,6 +49,9 @@ function seedFixture(state: FixtureState): void {
   state.backlinks = [
     { sourcePath: "Welcome.md", line: 1, snippet: "[[hello]]", kind: "wiki", embed: false },
   ];
+  state.related = [
+    { path: "notes/nearby.md", title: "Nearby", score: 3, reasons: ["shares #project"] },
+  ];
   state.connectors = {
     state: "ready",
     servers: [

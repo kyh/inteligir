@@ -6,6 +6,7 @@
 // handed a traversal to refuse.
 
 import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
+import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import {
   KNOWLEDGE_BACKLINKS_MAX,
@@ -39,6 +40,11 @@ export function registerKnowledgeRoutes(
       backlinks: backlinks.slice(0, KNOWLEDGE_BACKLINKS_MAX),
       total: backlinks.length,
     });
+  });
+
+  get(knowledgeRoutes.related, async (c, query) => {
+    const related = await knowledge.relatedNotes(query.path, query.limit ?? RELATED_DEFAULT_LIMIT);
+    return c.json({ path: query.path, related });
   });
 
   get(knowledgeRoutes.tags, async (c) => {

@@ -1,5 +1,6 @@
 // The knowledge wire contract: read-only queries over the derived vault index
-// (search, backlinks, tags, rename candidates). Paths are `vaultPathSchema`,
+// (search, backlinks, related, tags, rename candidates). Paths are
+// `vaultPathSchema`,
 // the same grammar the vault's own routes take — answering an index query for
 // a path the vault would refuse invites the client to then act on it.
 // Every schema here MIRRORS an
@@ -26,6 +27,7 @@ import { z } from "zod";
 import { vaultPathSchema } from "./vault";
 
 export const KNOWLEDGE_SEARCH_MAX_LIMIT = 100;
+export const KNOWLEDGE_RELATED_MAX_LIMIT = 50;
 export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
 export const KNOWLEDGE_RENAME_CANDIDATES_MAX = 200;
@@ -90,6 +92,41 @@ export const knowledgeBacklinksResponseSchema = z
   .strict();
 export type KnowledgeBacklinksResponse = z.infer<typeof knowledgeBacklinksResponseSchema>;
 
+/**
+ * Related notes carry a `limit` and no `total`, the way `search` does and
+ * unlike `backlinks`: this is a RANKED TOP-N, not a capped enumeration of
+ * everything the vault holds, so there is no honest number of "the rest" to
+ * report. The scorer ranks a candidate set that reaches most of the vault.
+ */
+export const knowledgeRelatedRequestSchema = z
+  .object({
+    path: vaultPathSchema,
+    limit: z.coerce.number().int().min(1).max(KNOWLEDGE_RELATED_MAX_LIMIT).optional(),
+  })
+  .strict();
+export type KnowledgeRelatedRequest = z.infer<typeof knowledgeRelatedRequestSchema>;
+
+export const relatedNoteSchema = z
+  .object({
+    path: z.string().min(1),
+    title: z.string(),
+    score: z.number(),
+    /** WHY this note is here, in the scorer's own words — "both link to X",
+     * "shares #tag", "similar text". Every surface prints them verbatim: a
+     * ranked list of filenames with no reason is a list nobody can check. */
+    reasons: z.array(z.string()),
+  })
+  .strict();
+export type RelatedNoteWire = z.infer<typeof relatedNoteSchema>;
+
+export const knowledgeRelatedResponseSchema = z
+  .object({
+    path: z.string().min(1),
+    related: z.array(relatedNoteSchema).max(KNOWLEDGE_RELATED_MAX_LIMIT),
+  })
+  .strict();
+export type KnowledgeRelatedResponse = z.infer<typeof knowledgeRelatedResponseSchema>;
+
 export const tagCountSchema = z
   .object({
     tag: z.string().min(1),
@@ -137,6 +174,12 @@ export const knowledgeRoutes = {
     method: "get",
     request: queryRequest<EmptyInput, KnowledgeBacklinksRequest>(knowledgeBacklinksRequestSchema),
     response: jsonResponse<KnowledgeBacklinksResponse>(),
+  }),
+  related: defineRoute({
+    path: "/knowledge/related",
+    method: "get",
+    request: queryRequest<EmptyInput, KnowledgeRelatedRequest>(knowledgeRelatedRequestSchema),
+    response: jsonResponse<KnowledgeRelatedResponse>(),
   }),
   tags: defineRoute({
     path: "/knowledge/tags",

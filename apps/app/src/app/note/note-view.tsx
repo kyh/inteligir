@@ -56,6 +56,7 @@ import { ProposalBar } from "../proposals/proposal-bar";
 import { useDocProposals, useProposalActions } from "../proposals/proposal-hooks";
 import { readDelegationWriteMode } from "../prefs";
 import { BacklinksSection } from "./backlinks-panel";
+import { RelatedSection } from "./related-panel";
 import { NoteController, type SaveResult } from "./note-controller";
 import { useNoteDisk } from "./note-disk";
 import { readNoteViewContext } from "./note-view-context";
@@ -544,6 +545,7 @@ function OpenNote({
       />
       <div className="mx-auto w-full max-w-[var(--editor-width)] px-7 pb-16">
         <BacklinksSection path={path} onOpen={onOpenNote} />
+        <RelatedSection path={path} onOpen={onOpenNote} />
       </div>
     </div>
   );

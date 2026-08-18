@@ -57,6 +57,9 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   by tag and compose with text (\`inteligir search "tag:project deadline"\`).
   \`--limit <n>\` caps results (1–100).
 - \`inteligir backlinks <path>\` — the notes linking INTO a note.
+- \`inteligir related <path>\` — notes connected to a note WITHOUT linking to
+  it: shared link targets, shared tags, similar text. Each row is followed by
+  the reasons it is there. \`--limit <n>\` caps results (1–50).
 - \`inteligir tags\` — every tag with its usage count, most used first.
 
 ## Threads — the agent

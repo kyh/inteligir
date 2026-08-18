@@ -177,6 +177,14 @@ export const EVAL_QUERIES: readonly EvalQuery[] = [
   { query: "sourdough", gold: ["recipes/bread.md"] },
   { query: "dentist", gold: ["health/dentist.md", "journal/2026-02-02.md"] },
 
+  // One word, inflected differently from the note. A whole query made of the
+  // token the box treats as still being typed — the commonest thing anyone
+  // types into a search box, and the case a prefix alone cannot answer,
+  // because the difference is in the middle of the word or before its end.
+  { query: "dentists", gold: ["health/dentist.md", "journal/2026-02-02.md"] },
+  { query: "interviewer", gold: ["work/hiring.md"] },
+  { query: "invoicing", gold: ["work/billing.md"] },
+
   // Sentences whose content words are present somewhere in the note.
   { query: "how do I roll back a bad release", gold: ["work/oncall.md"] },
   { query: "what temperature do I bake the bread at", gold: ["recipes/bread.md"] },

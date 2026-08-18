@@ -286,6 +286,52 @@ pull` from a hostile remote is enough to plant one.
   invalidation is not expressible. No `knowledge` change kind exists or is
   needed; every knowledge query settles the index first.
 
+- **Related notes sit BESIDE backlinks, and start closed because they are
+  INFERRED.** Same placement, same measure, same whole-family refresh off the
+  same two change kinds (`apps/app/src/app/note/related-panel.tsx`) — the
+  difference is epistemic. A backlink is COUNTED: it either exists in another
+  note's bytes or it does not. Relatedness is a blend of shared link targets,
+  co-citation, shared tags and lexical similarity, so it is offered rather
+  than presented, and every row carries the scorer's own REASONS, because the
+  failure mode of an inferred list is a plausible-looking row that is there by
+  accident and a bare list of filenames is a claim no reader can check. The
+  route follows `search` rather than `backlinks` — a `limit`, no `total` —
+  since a ranked top-N has no honest count of "the rest". The scorer excludes
+  direct neighbours by construction, so the two sections never name the same
+  note twice. Stage 5 of issue #570; it takes a semantic signal later without
+  changing shape.
+
+- **Stemming is a SHADOW of the indexed text, never a rewrite of it.**
+  `search_fts` carries `title/headings/body` AND `title_stems/heading_stems/
+body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
+  owns the one stemmer both engines call. FTS5's built-in `porter` tokenizer
+  would have been the idiomatic answer and is REJECTED for a measured reason:
+  it stems the INDEX, so a prefix query for a partly-typed word runs against
+  stems and dies where the suffix begins — 86 of the 1,555 prefixes over the
+  labelled corpus stop retrieving anything (`hirin`, `packin`, `migratio`),
+  and typing is what the palette does. It would also put half a shared policy
+  inside SQLite's C, where the pure `SearchIndex` cannot execute the same one.
+  EVERY term asks BOTH halves, and that OR is **the exact tier**, not a
+  belt-and-braces duplicate: Porter over-stems (`busy`/`business` → `busi`,
+  `organ`/`organization` → `organ`), so the shadow alone lets a collision in a
+  title outrank the word itself in a body. A doc holding the literal word
+  satisfies both arms and bm25 sums the columns each matched, so it scores
+  about twice a stem-only hit; the pure `SearchIndex` SUMS its two
+  contributions to say the same thing. Implementing it on one side only is a
+  silent lockstep break — the set-comparison lockstep test cannot see an
+  ordering — so it is pinned by a ranking assertion run against BOTH engines.
+  The residual is stated: the tier is one extra helping of a term's own field
+  weight and the title/body gap is 10x, so a title-level collision still beats
+  a body-level exact match. Closing that needs idf, which only bm25 has.
+  **`tokenize()` folds diacritics** (NFD, nonspacing marks dropped) and the
+  store states `remove_diacritics 2` against it — the stem is computed in JS
+  and folded by SQLite, so an unfolded tokenizer made `acciones` reach one
+  engine and not the other. **The snippet is cut in JS**
+  (`knowledge/search-excerpt.ts`), by both engines: `snippet()` cuts one column
+  from THAT column's offsets, and FTS5 will not carry a `body_stems` match
+  across to the literal body, so a stemmed hit rendered the note's opening
+  filler.
+
 - **Connectors are CODEX'S MCP servers, and this app keeps no registry of its
   own.** `codex mcp list|add|remove` over `~/.codex/config.toml` is where the
   agent reads them from, so a second store here would be a second answer the
