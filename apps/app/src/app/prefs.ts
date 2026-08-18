@@ -4,12 +4,14 @@
 
 import { agentWriteModeSchema, type AgentWriteMode } from "@repo/domain/agent-write-mode";
 import { parseTheme, type Theme } from "@repo/ui/lib/theme";
+import { APPEARANCE_DEFAULTS, parseAppearance, type Appearance } from "./appearance";
 
 const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
   lastOpenNote: "inteligir.last-open-note",
   theme: "inteligir.theme",
   delegationWriteMode: "inteligir.delegation-write-mode",
+  appearance: "inteligir.appearance",
 };
 
 function read(key: string): string | null {
@@ -78,4 +80,23 @@ export function readDelegationWriteMode(): AgentWriteMode {
 
 export function writeDelegationWriteMode(mode: AgentWriteMode): void {
   write(KEYS.delegationWriteMode, mode);
+}
+
+/** How the editor is set: the typeface, the size, the leading, the measure and
+ *  the accent. One key holding one JSON record, because they are read and
+ *  written together — and unparseable bytes are the same answer as none. */
+export function readAppearance(): Appearance {
+  const raw = read(KEYS.appearance);
+  if (raw === null) {
+    return APPEARANCE_DEFAULTS;
+  }
+  try {
+    return parseAppearance(JSON.parse(raw));
+  } catch {
+    return APPEARANCE_DEFAULTS;
+  }
+}
+
+export function writeAppearance(appearance: Appearance): void {
+  write(KEYS.appearance, JSON.stringify(appearance));
 }

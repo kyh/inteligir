@@ -2,10 +2,29 @@
 @import "@repo/ui/globals.css";
 
 :root {
+  /* The editor's appearance, in the tokens `@repo/editor`'s theme already
+     reads. THIS BLOCK IS THE DEFAULT, and the only place each default value is
+     written: `app/appearance.tsx` sets an inline property for an option the
+     reader actually chose and clears it back to here otherwise, so no default
+     is spelled twice.
+
+     `--editor-font` names the chrome's own face on purpose. Left unset it fell
+     through to the `-apple-system` stack baked into the editor theme, which put
+     two typefaces on one screen — Inter in the sidebar and the composer, the
+     system UI face in the document. */
+  --editor-font: var(--font-inter);
+  --editor-mono: var(--font-geist-mono);
+  --editor-size: 1rem;
+  --editor-line-height: 1.75;
+
   /* THE measure. Three columns have to line up on it — the page title, the
      editor's own content, and the chat dock under them — and they sit in
      different stacking contexts, so :root is the only ancestor all three
      share. A fallback repeated at each use is three values wearing one
      name, which is exactly how they stop agreeing. */
-  --editor-width: 44rem;
+  --editor-width: 38rem;
+
+  /* `--editor-accent` is deliberately absent: the editor theme carries its own
+     light and dark fallback, and a value here would flatten both into one. The
+     appearance funnel sets it only when the reader picks a hue. */
 }

@@ -17,6 +17,14 @@ import { Separator } from "@repo/ui/components/separator";
 import { cn } from "@repo/ui/lib/utils";
 import { useState } from "react";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
+import {
+  EDITOR_ACCENTS,
+  EDITOR_FONTS,
+  EDITOR_LEADINGS,
+  EDITOR_MEASURES,
+  EDITOR_SIZES,
+  useAppearance,
+} from "../appearance";
 import { readDelegationWriteMode, writeDelegationWriteMode } from "../prefs";
 import {
   canSyncNow,
@@ -69,7 +77,7 @@ function ChoiceRow<T extends string>({
   onChange: (next: T) => void;
 }) {
   return (
-    <div className="flex gap-1" role="radiogroup" aria-label={label}>
+    <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={label}>
       {options.map((option) => (
         <button
           key={option.value}
@@ -122,6 +130,7 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
   const statusQuery = useVaultStatus();
   const systemQuery = useSystemStatus();
   const { theme, setTheme } = useTheme();
+  const { appearance, setAppearance } = useAppearance();
   const [writeMode, setWriteModeState] = useState<AgentWriteMode>(readDelegationWriteMode);
   const setWriteMode = (next: AgentWriteMode): void => {
     writeDelegationWriteMode(next);
@@ -132,7 +141,9 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
   const system = systemQuery.data;
 
   return (
-    <div className="space-y-5">
+    // The body scrolls, not the dialog: the sections outgrew a short viewport
+    // once Appearance gained a row per editor token.
+    <div className="-mr-2 max-h-[70dvh] space-y-5 overflow-y-auto pr-2">
       <section className="space-y-2">
         <SectionHeading>Vault</SectionHeading>
         <dl className="space-y-1.5">
@@ -202,7 +213,51 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
       <Separator />
       <section className="space-y-2">
         <SectionHeading>Appearance</SectionHeading>
-        <ChoiceRow label="Theme" options={THEMES} value={theme} onChange={setTheme} />
+        <dl className="space-y-1.5">
+          <Row label="Theme">
+            <ChoiceRow label="Theme" options={THEMES} value={theme} onChange={setTheme} />
+          </Row>
+          <Row label="Editor font">
+            <ChoiceRow
+              label="Editor font"
+              options={EDITOR_FONTS}
+              value={appearance.font}
+              onChange={(font) => setAppearance({ ...appearance, font })}
+            />
+          </Row>
+          <Row label="Text size">
+            <ChoiceRow
+              label="Text size"
+              options={EDITOR_SIZES}
+              value={appearance.size}
+              onChange={(size) => setAppearance({ ...appearance, size })}
+            />
+          </Row>
+          <Row label="Line height">
+            <ChoiceRow
+              label="Line height"
+              options={EDITOR_LEADINGS}
+              value={appearance.leading}
+              onChange={(leading) => setAppearance({ ...appearance, leading })}
+            />
+          </Row>
+          <Row label="Measure">
+            <ChoiceRow
+              label="Measure"
+              options={EDITOR_MEASURES}
+              value={appearance.measure}
+              onChange={(measure) => setAppearance({ ...appearance, measure })}
+            />
+          </Row>
+          <Row label="Accent">
+            <ChoiceRow
+              label="Accent"
+              options={EDITOR_ACCENTS}
+              value={appearance.accent}
+              onChange={(accent) => setAppearance({ ...appearance, accent })}
+            />
+          </Row>
+        </dl>
       </section>
       <Separator />
       <section className="space-y-2">
