@@ -230,6 +230,27 @@ pull` from a hostile remote is enough to plant one.
   THE REVERT IS GUARDED (`writeIfUnchanged`/`removeIfUnchanged`), so a save
   that landed in between keeps its bytes and the proposal it invalidated reads
   stale instead of overwriting it.
+- **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
+  What the user was looking at when they pressed Enter travels on the send
+  (`@repo/domain/view-context`) — never as a thread column, never as a mutable
+  server-side "current view". That value would have no owner and no truth (two
+  windows, a closed tab, a turn still running after the app quit) and would be
+  a lie the first time anyone stopped looking. Because the context describes
+  the screen the message LEFT FROM, the staleness question dissolves: nothing
+  needs to happen when the user navigates away mid-turn. The consequences are
+  three. It reaches the model as a leading `{type:"text"}` element of the
+  turn's `input`, because that is the ONLY per-turn channel codex honours —
+  `instructions` is read at thread start/resume only, the shell environment is
+  built once per session, and session instructions are per session. There is NO
+  tool: the agent already works in the vault checkout and can read the file, so
+  a `get_view_context` tool would buy a round trip to deliver what it can
+  already fetch, and the one thing it could add — a LIVE selection — is the one
+  thing that cannot be made honest. And it is a STATEMENT, NOT A GRANT: it
+  widens nothing, because the agent could already write any file in the vault,
+  so no permission model belongs around it. A queued send carries none — the
+  drain is minutes later, and storing a context for later gives away the exact
+  property that makes it immune to rot.
+
 - **A proposal stores BOTH SIDES WHOLE, never a hunk list.** The hunks every
   surface renders are `diffLines(base, proposed)` — the Myers walk
   `@repo/notes/text` already carries — so storing hunks would store a

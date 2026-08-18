@@ -4,7 +4,11 @@
 // identity of every row it did not touch — so a row that re-renders anyway is
 // throwing that away, and a turn row carries its whole subtree.
 
-import type { TimelineRow, TimelineTurnRow } from "@repo/server-contract/thread-timeline";
+import type {
+  TimelineConversationRow,
+  TimelineRow,
+  TimelineTurnRow,
+} from "@repo/server-contract/thread-timeline";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { TimelineRowView } from "../timeline-rows";
@@ -81,4 +85,45 @@ it("re-renders only the row a delta actually replaced", () => {
 
   expect(spinnerRenders.count).toBe(1);
   expect(view.container.textContent).toContain("Two commits landed today.");
+});
+
+const userMessage = (viewContext: TimelineConversationRow["viewContext"]): TimelineRow => ({
+  ...base,
+  kind: "conversation",
+  role: "user",
+  id: "user:1",
+  turnId: null,
+  text: "make this shorter",
+  viewContext,
+  sourceSeqStart: 1,
+  sourceSeqEnd: 1,
+});
+
+it("attributes a user message to what the sender was looking at", () => {
+  const view = render(
+    <List
+      rows={[
+        userMessage({
+          surface: "doc",
+          resource: "Notes/Plans.md",
+          revision: "a".repeat(64),
+          selection: { from: 12, to: 41, text: "First paragraph.\nAnd a second." },
+        }),
+      ]}
+    />,
+  );
+
+  // The bubble is what was typed; the file and the selection's first line ride
+  // beneath it, so the user can see what the agent was told.
+  expect(view.container.textContent).toContain("make this shorter");
+  expect(view.container.textContent).toContain("Notes/Plans.md");
+  expect(view.container.textContent).toContain("First paragraph.");
+  // Never the revision, and never the rest of a multi-line selection.
+  expect(view.container.textContent).not.toContain("a".repeat(64));
+  expect(view.container.textContent).not.toContain("And a second.");
+});
+
+it("renders a message with no context as the bubble alone", () => {
+  const view = render(<List rows={[userMessage(null)]} />);
+  expect(view.container.textContent).toBe("make this shorter");
 });

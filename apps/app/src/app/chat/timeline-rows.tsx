@@ -3,6 +3,7 @@
 // plans, tools) as quiet one-liners that expand on demand via <details> —
 // no per-row state to manage, and closed is the restrained default.
 
+import type { ViewContext } from "@repo/domain/view-context";
 import type {
   TimelineRow,
   TimelineTurnRow,
@@ -14,6 +15,22 @@ import { memo } from "react";
 
 function firstLine(text: string): string {
   return text.split("\n", 1)[0] ?? "";
+}
+
+/**
+ * What the agent was told about the user's screen, under the user's own
+ * bubble. It is ATTRIBUTION, not message body — the bubble above stays exactly
+ * what was typed — and it exists because a message the model answers with
+ * hidden context is a message the user cannot debug.
+ */
+function ViewContextAttribution({ context }: { context: ViewContext }) {
+  const selected = context.selection;
+  return (
+    <div className="max-w-[85%] truncate px-3 text-xs text-muted-foreground">
+      {context.resource}
+      {selected === undefined ? null : ` · “${firstLine(selected.text)}”`}
+    </div>
+  );
 }
 
 function WorkRowView({ row }: { row: TimelineWorkRow }) {
@@ -109,10 +126,11 @@ export const TimelineRowView = memo(function TimelineRowView({ row }: { row: Tim
     case "conversation":
       if (row.role === "user") {
         return (
-          <div className="flex justify-end">
+          <div className="flex flex-col items-end gap-0.5">
             <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-muted px-3 py-1.5 text-sm">
               {row.text}
             </div>
+            {row.viewContext === null ? null : <ViewContextAttribution context={row.viewContext} />}
           </div>
         );
       }

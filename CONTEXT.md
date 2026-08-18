@@ -78,6 +78,19 @@ it in writing. The rule is enforced twice — the zod grammar at parse, a CHECK
 constraint on the `events` table — because a turn-scoped row with no turn id is
 a row no query can place.
 
+**view context vs thread origin** — two answers to "which doc is this about",
+and they are not interchangeable. A **view context**
+(`@repo/domain/view-context`) rides ONE message: the path, the revision those
+bytes hashed to, and the selection, taken at submit and consumed by that turn's
+prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
+message left from, which is what "this" and "here" in it refer to — so nothing
+has to reconcile it when the user navigates away. A **thread origin**
+(`threads.originDocPath` / `originAnchor`) is the DURABLE binding a delegation
+makes: one anchor, spliced into the file as a marker, rebound when the file is
+renamed, and the thing a doc chip resolves. A message can carry a view context
+into a thread with no origin, and usually does — the bottom composer's chat
+thread has none.
+
 **lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
 thread's metadata row (`@repo/cloud-contract/sync`). It is what makes the sync
 log double as a dispatch mailbox — a `desktop`-lane thread pokes the desktop
