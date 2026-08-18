@@ -57,6 +57,14 @@ function seededState(): FixtureState {
       embed: false,
     },
   ];
+  state.related = [
+    {
+      path: "notes/nearby.md",
+      title: "Nearby",
+      score: 3,
+      reasons: ["both link to Welcome", "shares #project"],
+    },
+  ];
   return state;
 }
 
@@ -242,6 +250,32 @@ describe("knowledge commands", () => {
 
     const tags = await runCliForTest({ argv: ["tags"], baseUrl: server.baseUrl });
     expect(tags.stdout).toBe("project  3\nidea  1\n");
+  });
+
+  it("renders a related note with the reasons it is related", async () => {
+    // The reasons are the row's second line, verbatim — a bare list of paths
+    // would throw away the only part a reader can check.
+    const server = await boot(seededState());
+    const related = await runCliForTest({
+      argv: ["related", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(related.stdout).toBe(
+      "notes/nearby.md  Nearby\n  both link to Welcome; shares #project\n",
+    );
+  });
+
+  it("says a note has no related notes rather than printing nothing", async () => {
+    const state = seededState();
+    state.related = [];
+    const server = await boot(state);
+    const related = await runCliForTest({
+      argv: ["related", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    // An outcome, so consola writes it — not a silent zero-line answer.
+    expect(related.stdout).toBe("ℹ No related notes.\n");
+    expect(related.code).toBe(0);
   });
 });
 

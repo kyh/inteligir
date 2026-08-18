@@ -27,6 +27,7 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
 import { LinkGraphIndex, type BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
 import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
+import { relatedNotes, type RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import {
   createSqlKnowledgeStore,
@@ -86,6 +87,7 @@ export interface KnowledgeRuntime {
   settle(): Promise<void>;
   search(params: { query: string; tag?: string; limit: number }): Promise<SearchResult[]>;
   backlinks(path: string): Promise<BacklinkEntry[]>;
+  relatedNotes(path: string, limit: number): Promise<RelatedNoteEntry[]>;
   tags(): Promise<TagCount[]>;
   renameCandidates(from: string, to: string): Promise<string[]>;
   /** The last reconcile's exact work, for boot logging and the hash-diff
@@ -195,6 +197,23 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       const paths = [...pendingPaths].toSorted();
       pendingPaths.clear();
       await applyChangedPaths(paths);
+    }
+  }
+
+  /** Settle, then run a read that goes through the SQL store: a corrupt-read
+   * rejection gets one nuke-and-rebuild, then one retry. A second failure
+   * propagates. Shared by every SQL-backed read, so adding one cannot quietly
+   * arrive without the recovery — the graph-only reads need none, because a
+   * rebuilt graph is what `settle()` already guarantees. */
+  async function readThroughIndex<T>(what: string, run: () => T): Promise<T> {
+    await settle();
+    try {
+      return run();
+    } catch (err) {
+      console.warn(`[knowledge] ${what} failed — rebuilding the index:`, messageOf(err));
+      recover();
+      await settle();
+      return run();
     }
   }
 
@@ -409,30 +428,30 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
     settle,
 
     async search(params) {
-      await settle();
-      const run = (): SearchResult[] =>
+      return readThroughIndex("search", () =>
         searchVaultNotes(
           {
             search: (query, limit) => store.search(query, limit),
             notesWithTag: (tag) => graph.notesWithTag(tag),
           },
           { query: params.query, tag: params.tag, limit: params.limit },
-        );
-      try {
-        return run();
-      } catch (err) {
-        // The only SQL-backed read path: a corrupt-read rejection gets one
-        // nuke-and-rebuild, then one retry. A second failure propagates.
-        console.warn("[knowledge] search failed — rebuilding the index:", messageOf(err));
-        recover();
-        await settle();
-        return run();
-      }
+        ),
+      );
     },
 
     async backlinks(path) {
       await settle();
       return graph.backlinks(normalizePath(path));
+    },
+
+    // The ranking is the engine's (related-notes.ts); this shell supplies its
+    // graph and points its lexical port at the same FTS5 `search` uses, which
+    // is why it reads THROUGH the index rather than off the graph alone.
+    async relatedNotes(path, limit) {
+      const normalized = normalizePath(path);
+      return readThroughIndex("related notes", () =>
+        relatedNotes(graph, (query, probe) => store.search(query, probe), normalized, { limit }),
+      );
     },
 
     async tags() {

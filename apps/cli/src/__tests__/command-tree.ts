@@ -32,6 +32,7 @@ export const LEAF_INVOCATIONS: Readonly<Record<string, readonly string[]>> = {
   "vault sync": ["vault", "sync"],
   search: ["search", "hello"],
   backlinks: ["backlinks", "notes/hello.md"],
+  related: ["related", "notes/hello.md"],
   tags: ["tags"],
   "thread list": ["thread", "list"],
   "thread new": ["thread", "new", "do a thing"],

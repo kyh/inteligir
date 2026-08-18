@@ -9,6 +9,13 @@
   // typecheck hash byte-identical, and CI restores `.turbo` from a
   // branch-prefix key — the gate serves a green typecheck it never re-ran.
   "globalDependencies": ["tsconfig.base.json"],
+  // The local cache has no ceiling by default and this repo builds under
+  // worktrees, which SHARE one cache dir — so every parallel branch adds
+  // entries and nothing ever removes them. Measured at 172 GB / 16,725 entries
+  // before this line existed. Eviction runs in a background thread at the start
+  // of `turbo run`, so it costs the build nothing.
+  "cacheMaxSize": "10GB",
+  "cacheMaxAge": "14d",
   "tasks": {
     "topo": {
       "dependsOn": ["^topo"]

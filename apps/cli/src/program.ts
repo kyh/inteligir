@@ -22,7 +22,7 @@ import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
 import { connectorsCommand } from "./commands/connectors";
 import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
-import { backlinksCommand, searchCommand, tagsCommand } from "./commands/knowledge";
+import { backlinksCommand, relatedCommand, searchCommand, tagsCommand } from "./commands/knowledge";
 import { proposalsCommand } from "./commands/proposals";
 import { statusCommand } from "./commands/status";
 import { threadCommand } from "./commands/thread";
@@ -70,6 +70,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       vault: vaultCommand(deps),
       search: searchCommand(deps),
       backlinks: backlinksCommand(deps),
+      related: relatedCommand(deps),
       tags: tagsCommand(deps),
       thread: threadCommand(deps),
       interactions: interactionsCommand(deps),
