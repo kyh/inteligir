@@ -1,4 +1,5 @@
 import {
+  DEVICE_API_PATHS,
   listDevicesResponseSchema,
   redeemDeviceRequestSchema,
   revokeDeviceRequestSchema,
@@ -42,7 +43,7 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   const db = createDb(env.DB);
   const route = `${request.method} ${url.pathname}`;
 
-  if (route === "POST /v1/device/redeem") {
+  if (route === `POST ${DEVICE_API_PATHS.redeem}`) {
     if (env.RATE_LIMIT_DISABLED !== "true") {
       const key = `${REDEEM_RATE_KEY_PREFIX}${callerIp(request)}`;
       if (!(await allowInWindow(db, key, Date.now(), REDEEM_WINDOW))) {
@@ -61,11 +62,11 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   const userId = await sessionUserId(request, env, url.origin);
   if (userId === null) return refuse("unauthorized", "Sign in first.");
 
-  if (route === "POST /v1/device/code") {
+  if (route === `POST ${DEVICE_API_PATHS.mintCode}`) {
     return jsonNoStore(await mintPairingCode(db, userId));
   }
 
-  if (route === "GET /v1/device/list") {
+  if (route === `GET ${DEVICE_API_PATHS.list}`) {
     const rows = await db
       .select()
       .from(device)
@@ -84,7 +85,7 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
     return Response.json(listDevicesResponseSchema.parse(body));
   }
 
-  if (route === "POST /v1/device/revoke") {
+  if (route === `POST ${DEVICE_API_PATHS.revoke}`) {
     const body = revokeDeviceRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Send { deviceId }.");
     // Scoped to the session's own userId, so no session can revoke across

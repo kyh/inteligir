@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 
 import {
+  DEVICE_API_PATHS,
   listDevicesResponseSchema,
   mintPairingCodeResponseSchema,
   type Device,
@@ -35,19 +36,19 @@ export const Route = createFileRoute("/app/devices")({
 });
 
 async function fetchDevices(): Promise<Device[]> {
-  const response = await fetch("/v1/device/list");
+  const response = await fetch(DEVICE_API_PATHS.list);
   if (!response.ok) throw new Error("Couldn't load devices.");
   return listDevicesResponseSchema.parse(await response.json()).devices;
 }
 
 async function mintCode(): Promise<MintPairingCodeResponse> {
-  const response = await fetch("/v1/device/code", { method: "POST" });
+  const response = await fetch(DEVICE_API_PATHS.mintCode, { method: "POST" });
   if (!response.ok) throw new Error("Couldn't mint a pairing code.");
   return mintPairingCodeResponseSchema.parse(await response.json());
 }
 
 async function revokeDevice(deviceId: string): Promise<void> {
-  const response = await fetch("/v1/device/revoke", {
+  const response = await fetch(DEVICE_API_PATHS.revoke, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ deviceId }),

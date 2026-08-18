@@ -1,4 +1,6 @@
-import { SYNC_WS_PLATFORM_PARAM } from "@repo/cloud-contract/ws";
+import { CAPTURE_API_PATHS } from "@repo/cloud-contract/captures";
+import { SYNC_API_PATHS } from "@repo/cloud-contract/sync";
+import { SYNC_WS_PATH, SYNC_WS_PLATFORM_PARAM } from "@repo/cloud-contract/ws";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
@@ -31,12 +33,12 @@ import { verifyDeviceCredential } from "../device/device-auth";
 // ---------------------------------------------------------------------------
 
 const DO_PATH_BY_ROUTE: Record<string, string> = {
-  "POST /v1/capture": "/capture",
-  "POST /v1/sync/push": "/push",
-  "GET /v1/sync/pull": "/pull",
-  "POST /v1/sync/captures/claim": "/captures/claim",
-  "POST /v1/sync/captures/ack": "/captures/ack",
-  "GET /v1/sync/ws": "/ws",
+  [`POST ${CAPTURE_API_PATHS.capture}`]: "/capture",
+  [`POST ${SYNC_API_PATHS.push}`]: "/push",
+  [`GET ${SYNC_API_PATHS.pull}`]: "/pull",
+  [`POST ${CAPTURE_API_PATHS.claim}`]: "/captures/claim",
+  [`POST ${CAPTURE_API_PATHS.ack}`]: "/captures/ack",
+  [`GET ${SYNC_WS_PATH}`]: "/ws",
 };
 
 export async function handleSyncRoutes(request: Request, env: Env, url: URL): Promise<Response> {
