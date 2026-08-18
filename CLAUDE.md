@@ -286,6 +286,36 @@ pull` from a hostile remote is enough to plant one.
   invalidation is not expressible. No `knowledge` change kind exists or is
   needed; every knowledge query settles the index first.
 
+- **Related notes sit BESIDE backlinks, and start closed because they are
+  INFERRED.** Same placement, same measure, same whole-family refresh off the
+  same two change kinds (`apps/app/src/app/note/related-panel.tsx`) — the
+  difference is epistemic. A backlink is COUNTED: it either exists in another
+  note's bytes or it does not. Relatedness is a blend of shared link targets,
+  co-citation, shared tags and lexical similarity, so it is offered rather
+  than presented, and every row carries the scorer's own REASONS, because the
+  failure mode of an inferred list is a plausible-looking row that is there by
+  accident and a bare list of filenames is a claim no reader can check. The
+  route follows `search` rather than `backlinks` — a `limit`, no `total` —
+  since a ranked top-N has no honest count of "the rest". The scorer excludes
+  direct neighbours by construction, so the two sections never name the same
+  note twice. Stage 5 of issue #570; it takes a semantic signal later without
+  changing shape.
+
+- **Stemming is a SHADOW of the indexed text, never a rewrite of it.**
+  `search_fts` carries `title/headings/body` AND `title_stems/heading_stems/
+body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
+  owns the one stemmer both engines call. FTS5's built-in `porter` tokenizer
+  would have been the idiomatic answer and is REJECTED for a measured reason:
+  it stems the INDEX, so a prefix query for a partly-typed word runs against
+  stems and dies where the suffix begins — 86 of the 1,555 prefixes over the
+  labelled corpus stop retrieving anything (`hirin`, `packin`, `migratio`),
+  and typing is what the palette does. It would also put half a shared policy
+  inside SQLite's C, where the pure `SearchIndex` cannot execute the same one.
+  A settled term asks the stems; the term still being TYPED asks both, because
+  it is a fragment right up until it is a word and a one-word query is nothing
+  but that term. `snippet()` still cuts from the literal body, which is the
+  other thing a rewrite would have cost.
+
 - **Connectors are CODEX'S MCP servers, and this app keeps no registry of its
   own.** `codex mcp list|add|remove` over `~/.codex/config.toml` is where the
   agent reads them from, so a second store here would be a second answer the
