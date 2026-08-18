@@ -83,6 +83,13 @@ id=$(inteligir thread new "Summarize notes/inbox.md" --json | jq -r .thread.id)
 inteligir thread wait "$id" && inteligir thread show "$id"
 \`\`\`
 
+## Connectors — the MCP servers Codex offers you
+
+- \`inteligir connectors list\` — the MCP servers Codex is configured with, and
+  whether each is enabled and logged in. Read-only on purpose: an MCP server is
+  code the agent then talks to, so adding or removing one is a person's own act
+  in the app's Settings → Connectors, not a command.
+
 ## Interactions — approvals the agent is waiting on
 
 - \`inteligir interactions list [--thread <id>]\` — pending approval requests;

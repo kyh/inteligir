@@ -49,6 +49,17 @@ function seedFixture(state: FixtureState): void {
   state.backlinks = [
     { sourcePath: "Welcome.md", line: 1, snippet: "[[hello]]", kind: "wiki", embed: false },
   ];
+  state.connectors = {
+    state: "ready",
+    servers: [
+      {
+        name: "context7",
+        enabled: true,
+        transport: { kind: "http", url: "https://mcp.context7.com/mcp" },
+        authStatus: "not_logged_in",
+      },
+    ],
+  };
   state.proposals.length = 0;
   state.proposals.push(makeProposal({ id: "prp_1" }));
   state.threads.length = 0;

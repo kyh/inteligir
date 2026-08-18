@@ -14,6 +14,7 @@ import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import type { AgentStatus } from "@repo/server-contract/routes";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import type { CodexMcpRunner } from "../connectors/codex-mcp";
 import { ensureInstanceSecret } from "../instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
@@ -32,6 +33,10 @@ afterEach(async () => {
 
 export interface BootTestAppOptions {
   agent?: AgentStatus;
+  /** Omitted, the connector routes drive whatever `codex` this machine has —
+   *  so a suite asserting on them injects a fake and never touches the
+   *  developer's own `~/.codex/config.toml`. */
+  codexMcpRunner?: CodexMcpRunner;
   fallback?: AppFallback;
   port?: number;
   /** Omitted, sends 503 through the unavailable driver. */
@@ -89,6 +94,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const args: CreateAppArgs = {
     agent,
     bus,
+    ...(options.codexMcpRunner === undefined ? {} : { codexMcpRunner: options.codexMcpRunner }),
     config: {
       databasePath,
       dataDir,

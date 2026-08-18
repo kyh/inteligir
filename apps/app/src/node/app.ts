@@ -20,6 +20,9 @@ import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { AppConfig } from "./config";
+import { systemCodexMcpRunner, type CodexMcpRunner } from "./connectors/codex-mcp";
+import { createConnectorsService } from "./connectors/connectors-service";
+import { registerConnectorRoutes } from "./connectors/routes";
 import { buildContentSecurityPolicy } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
 import { proveIdentity } from "./instance-identity";
@@ -65,6 +68,8 @@ export interface CreateAppArgs {
   /** What the boot-time driver resolution decided; served on /system/status. */
   agent: AgentStatus;
   bus: WsBus;
+  /** Tests: drive `codex mcp` without a codex on the machine. */
+  codexMcpRunner?: CodexMcpRunner;
   config: AppConfig;
   /** The provider seam (agent-driver.ts resolves which driver boots). */
   createTurnDriver: CreateTurnDriver;
@@ -185,6 +190,11 @@ export function createApp(args: CreateAppArgs) {
     }),
   );
   registerKnowledgeRoutes(registrars, args.knowledge);
+
+  registerConnectorRoutes(
+    registrars,
+    createConnectorsService(args.codexMcpRunner ?? systemCodexMcpRunner),
+  );
 
   registerProposalRoutes({
     routes: { get, post },

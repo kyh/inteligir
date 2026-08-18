@@ -16,6 +16,10 @@ export function createWorkspaceApiClient(): ApiClient {
 
 export const queryKeys = {
   systemStatus: ["system", "status"] as const,
+  /** Codex's MCP servers. Nothing on the ws bus announces `~/.codex/config.
+   *  toml` moving, so this family is swept by its own mutations and re-read
+   *  whenever the settings dialog mounts. */
+  connectors: ["connectors"] as const,
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
   /** The whole thread family — what a ws thread invalidation sweeps. */

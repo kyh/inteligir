@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { runCommand, defineCommand, renderUsage, type CommandDef } from "citty";
 import { CliExitError, EXIT_ERROR, getErrorMessage, invalidUsage } from "./cli-error";
 import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
+import { connectorsCommand } from "./commands/connectors";
 import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
 import { backlinksCommand, searchCommand, tagsCommand } from "./commands/knowledge";
@@ -72,6 +73,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       tags: tagsCommand(deps),
       thread: threadCommand(deps),
       interactions: interactionsCommand(deps),
+      connectors: connectorsCommand(deps),
       proposals: proposalsCommand(deps),
       status: statusCommand(deps),
       guide: guideCommand(deps),

@@ -243,6 +243,48 @@ describe("knowledge commands", () => {
   });
 });
 
+describe("connectors", () => {
+  it("names each server, what it runs, and codex's own state words", async () => {
+    const state = seededState();
+    state.connectors = {
+      state: "ready",
+      servers: [
+        {
+          name: "files",
+          enabled: true,
+          transport: { kind: "stdio", command: "npx", args: ["-y", "server-files"] },
+          authStatus: null,
+        },
+        {
+          name: "context7",
+          enabled: false,
+          transport: { kind: "http", url: "https://mcp.context7.com/mcp" },
+          authStatus: "not_logged_in",
+        },
+      ],
+    };
+    const server = await boot(state);
+
+    const listed = await runCliForTest({ argv: ["connectors", "list"], baseUrl: server.baseUrl });
+
+    expect(listed.stdout).toBe(
+      "files  npx -y server-files  [enabled]\n" +
+        "context7  https://mcp.context7.com/mcp  [disabled not_logged_in]\n",
+    );
+  });
+
+  it("states why there is nothing to list rather than printing an empty one", async () => {
+    const state = seededState();
+    state.connectors = { state: "unavailable", detail: "The codex binary was not found on PATH" };
+    const server = await boot(state);
+
+    const listed = await runCliForTest({ argv: ["connectors", "list"], baseUrl: server.baseUrl });
+
+    expect(listed.code).toBe(0);
+    expect(listed.stdout).toContain("The codex binary was not found on PATH");
+  });
+});
+
 describe("thread commands", () => {
   it("lists threads and shows one with the compact timeline", async () => {
     const state = seededState();

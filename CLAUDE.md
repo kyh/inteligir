@@ -250,6 +250,24 @@ pull` from a hostile remote is enough to plant one.
   the count is kept rather than inferred — a history calling a
   partially-applied suggestion "rejected" would contradict the note it
   describes.
+- **Connectors are CODEX'S MCP servers, and this app keeps no registry of its
+  own.** `codex mcp list|add|remove` over `~/.codex/config.toml` is where the
+  agent reads them from, so a second store here would be a second answer the
+  agent ignores — and writing that file directly would mean owning codex's
+  schema and racing the codex processes the runtime already spawns. The routes
+  (`apps/app/src/node/connectors/`) drive the CLI with `execFile` and an argv
+  list, never a shell, and `codex mcp add` puts the command after `--` so one
+  that looks like a flag stays a command. Two guards are this product's rather
+  than codex's, because codex exits 0 for both: `add` refuses a name that
+  already exists (codex OVERWRITES it), and `remove` refuses one that does not
+  (codex shrugs). The READ answers 200 either way — `{ state: "unavailable",
+detail }` when no codex is installed, in the shape the Agent section already
+  states an unavailable runtime, because an empty list is a claim there are no
+  connectors. **The CLI gets `list` and nothing else on purpose**: an MCP
+  server is code the agent then talks to, so adding one is a person's act in
+  Settings with the exact invocation on screen, not a verb in the surface built
+  for a model to drive.
+
 - **Cloud state names its Durable Object from a VERIFIED credential**, never
   from anything a caller supplies. Account deletion revokes credentials FIRST,
   then purges, then writes a tombstone every route refuses against — the

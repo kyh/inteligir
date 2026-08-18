@@ -6,6 +6,7 @@
 // suites pin what the CLI itself owns (rendering, flags, exit codes).
 
 import { serve } from "@hono/node-server";
+import type { ConnectorsResponse } from "@repo/server-contract/connectors";
 import type { ApiErrorCode, ApiErrorResponse } from "@repo/server-contract/errors";
 import type { AgentStatus, SystemStatusResponse } from "@repo/server-contract/routes";
 import { apiRoutes, API_BASE_PATH } from "@repo/server-contract/routes";
@@ -50,6 +51,7 @@ export interface FixtureState {
   searchResults: SearchResultWire[];
   tags: TagCountWire[];
   backlinks: BacklinkEntryWire[];
+  connectors: ConnectorsResponse;
   threads: FixtureThread[];
   proposals: Proposal[];
   guideMarkdown: string;
@@ -111,6 +113,7 @@ export function makeFixtureState(): FixtureState {
     searchResults: [],
     tags: [],
     backlinks: [],
+    connectors: { state: "ready", servers: [] },
     threads: [],
     proposals: [],
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
@@ -246,6 +249,8 @@ function createFixtureApp(state: FixtureState): Hono {
   );
   get(apiRoutes.knowledge.tags, (c) => c.json({ tags: state.tags, total: state.tags.length }));
   get(apiRoutes.knowledge.renameCandidates, (c) => c.json({ candidates: [], total: 0 }));
+
+  get(apiRoutes.connectors.list, (c) => c.json(state.connectors));
 
   get(apiRoutes.threads.list, (c) =>
     c.json({ threads: state.threads.map((entry) => entry.thread) }),
