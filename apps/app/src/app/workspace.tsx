@@ -450,6 +450,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               onRename={setOpenNote}
               onVanished={onNoteVanished}
               onSearchTag={onSearchTag}
+              onOpenNote={setOpenNote}
             />
           )}
         </div>

@@ -44,7 +44,6 @@ const CARRIED_FOR_V3 = new Set([
   "breadcrumb",
   "bubble",
   "checkbox",
-  "collapsible",
   "command",
   "confirm-dialog",
   "dropdown-menu",

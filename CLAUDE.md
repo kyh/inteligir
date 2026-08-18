@@ -250,6 +250,21 @@ pull` from a hostile remote is enough to plant one.
   the count is kept rather than inferred — a history calling a
   partially-applied suggestion "rejected" would contradict the note it
   describes.
+- **Backlinks live UNDER the document, and no graph view is coming.** The
+  editor column is the product's centre of gravity, so the notes linking into
+  the open one are a collapsible section at the foot of it, inside the note's
+  own measure (`apps/app/src/app/note/backlinks-panel.tsx`) — not a rail that
+  takes width from the writing surface permanently, and not a palette command
+  alone, which asks a reader to already suspect a backlink exists. OUTGOING
+  links are deliberately absent: they are on screen in the document as
+  wiki-links, unresolved ones dashed, so listing them below would be the same
+  information twice with one copy stale. The refresh rides the EXISTING change
+  kinds — vault `files-changed` and doc `content-changed` both sweep the
+  `backlinksRoot` family WHOLE, because a link into a note lives in another
+  note's bytes (or, for a self-link, in its own), so a path-scoped
+  invalidation is not expressible. No `knowledge` change kind exists or is
+  needed; every knowledge query settles the index first.
+
 - **Connectors are CODEX'S MCP servers, and this app keeps no registry of its
   own.** `codex mcp list|add|remove` over `~/.codex/config.toml` is where the
   agent reads them from, so a second store here would be a second answer the

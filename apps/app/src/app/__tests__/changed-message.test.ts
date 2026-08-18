@@ -38,7 +38,7 @@ function apply(message: Parameters<typeof applyChangedMessage>[3]): Applied {
 }
 
 describe("a doc change", () => {
-  it("reaches the open note's reader and invalidates NOTHING", () => {
+  it("reaches the open note's reader and re-reads none of its bytes", () => {
     const applied = apply({
       type: "changed",
       entity: "doc",
@@ -47,7 +47,10 @@ describe("a doc change", () => {
     });
 
     expect(applied.docs).toEqual(["notes/open.md"]);
-    expect(applied.invalidated).toEqual([]);
+    // Backlinks only: the links this doc holds are somebody else's backlinks,
+    // and the family is swept whole because which somebody is not knowable
+    // from here. Nothing that would re-fetch the doc's own bytes.
+    expect(applied.invalidated).toEqual([[...queryKeys.backlinksRoot]]);
   });
 });
 
@@ -60,7 +63,7 @@ describe("a vault change", () => {
       paths: ["a.md", "b.md"],
     });
 
-    expect(applied.invalidated).toEqual([[...queryKeys.vaultTree]]);
+    expect(applied.invalidated).toEqual([[...queryKeys.vaultTree], [...queryKeys.backlinksRoot]]);
     expect(applied.docs).toEqual(["a.md", "b.md"]);
   });
 

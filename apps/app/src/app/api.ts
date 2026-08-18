@@ -22,6 +22,11 @@ export const queryKeys = {
   connectors: ["connectors"] as const,
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
+  /** The whole backlinks family — what any content change sweeps, because a
+   *  link INTO a note lives in someone else's bytes (or, for a self-link, in
+   *  its own), so no path-scoped invalidation is even expressible. */
+  backlinksRoot: ["knowledge", "backlinks"] as const,
+  backlinks: (docPath: string) => ["knowledge", "backlinks", docPath] as const,
   /** The whole thread family — what a ws thread invalidation sweeps. */
   threadsRoot: ["threads"] as const,
   threads: ["threads", "list"] as const,

@@ -54,6 +54,7 @@ import { useDocThreads } from "../chat/thread-hooks";
 import { ProposalBar } from "../proposals/proposal-bar";
 import { useDocProposals, useProposalActions } from "../proposals/proposal-hooks";
 import { readDelegationWriteMode } from "../prefs";
+import { BacklinksSection } from "./backlinks-panel";
 import { NoteController, type SaveResult } from "./note-controller";
 import { useNoteDisk } from "./note-disk";
 import { NoteTitle } from "./note-title";
@@ -79,9 +80,18 @@ export interface NoteViewProps {
   onVanished: () => void;
   /** A `#tag` chip was clicked: narrow the palette's search to that tag. */
   onSearchTag: (tag: string) => void;
+  /** Open another note — a backlink row under the document. */
+  onOpenNote: (path: string) => void;
 }
 
-export function NoteView({ path, delegation, onRename, onVanished, onSearchTag }: NoteViewProps) {
+export function NoteView({
+  path,
+  delegation,
+  onRename,
+  onVanished,
+  onSearchTag,
+  onOpenNote,
+}: NoteViewProps) {
   const { api, docEvents } = useWorkspace();
   const disk = useNoteDisk({ api, docEvents, path, onVanished });
 
@@ -106,6 +116,7 @@ export function NoteView({ path, delegation, onRename, onVanished, onSearchTag }
       onRename={onRename}
       setRenamePending={disk.setRenamePending}
       onSearchTag={onSearchTag}
+      onOpenNote={onOpenNote}
     />
   );
 }
@@ -120,6 +131,7 @@ interface OpenNoteProps {
   diskContent: string;
   onRename: (toPath: string) => void;
   setRenamePending: (pending: boolean) => void;
+  onOpenNote: (path: string) => void;
 }
 
 function OpenNote({
@@ -129,6 +141,7 @@ function OpenNote({
   onRename,
   setRenamePending,
   onSearchTag,
+  onOpenNote,
 }: OpenNoteProps) {
   const { api } = useWorkspace();
   const controllerRef = useRef<NoteController | null>(null);
@@ -493,6 +506,9 @@ function OpenNote({
         resolveAsset={vaultAssetUrl}
         onEditor={handleEditor}
       />
+      <div className="mx-auto w-full max-w-[var(--editor-width)] px-7 pb-16">
+        <BacklinksSection path={path} onOpen={onOpenNote} />
+      </div>
     </div>
   );
 }

@@ -64,6 +64,7 @@ export function applyChangedMessage(
     case "vault":
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTree });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.backlinksRoot });
         // A NAMED change reaches only the notes it names; an unnamed one
         // asserts nothing, so every open note re-checks its own file.
         if (message.paths === undefined) {
@@ -82,12 +83,18 @@ export function applyChangedMessage(
       // The two doc kinds reach DIFFERENT readers, which is the reason they
       // are two kinds. The note's bytes are not query state (the buffer IS the
       // file), so `content-changed` goes to the open note's own reader and
-      // invalidates nothing — a `vaultFile` query alongside it bought a second
-      // read of the same bytes. A suggestion IS query state, and the file did
-      // not move, so `proposals-changed` sweeps that family and must not make
-      // the note re-read itself to learn about a row.
+      // invalidates no read of those bytes — a `vaultFile` query alongside it
+      // bought a second read of the same ones. A suggestion IS query state,
+      // and the file did not move, so `proposals-changed` sweeps that family
+      // and must not make the note re-read itself to learn about a row.
+      //
+      // Backlinks are the other kind of derived state a doc's OWN bytes move:
+      // the links this doc holds are someone else's backlinks, and which
+      // someone is not knowable from here — so the family is swept whole,
+      // never per path.
       if (message.changes.includes("content-changed")) {
         notifyDoc(message.id);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.backlinksRoot });
       }
       if (message.changes.includes("proposals-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
@@ -195,6 +202,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // which changes every field on it.
       onReconnected: () => {
         void runtime.queryClient.invalidateQueries({ queryKey: ["vault"] });
+        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.backlinksRoot });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
