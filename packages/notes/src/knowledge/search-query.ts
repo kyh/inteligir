@@ -31,6 +31,12 @@
 //     stem (`ranking` against a note reading `ranked`). It can cost a
 //     successful lookup nothing: the second query runs only where the first
 //     returned no rows at all.
+//
+// Which constant here is right is a MEASUREMENT rather than a taste. The
+// evaluation harness beside the node host's knowledge tests
+// (apps/app/src/node/knowledge/__tests__/search-eval.test.ts) scores this whole
+// policy over a labelled vault; a change here that does not move those numbers
+// is not an improvement.
 //   - The token still being TYPED prefix-matches, so the box answers before
 //     the word is finished. It is the last token of the RAW query rather than
 //     the last surviving term: a term with a stopword after it is a word the
