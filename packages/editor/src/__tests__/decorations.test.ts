@@ -1,5 +1,6 @@
 import { foldable } from "@codemirror/language";
 import { describe, expect, test } from "vitest";
+import { headingMarginField } from "../heading-margin-marks";
 import { foldExtension } from "../vendor/prosemark/lib/fold/core";
 import { hideExtension } from "../vendor/prosemark/lib/hide/core";
 import { posOf, rangesWithClass, stateWithStack, widgetRanges } from "./helpers";
@@ -79,16 +80,43 @@ describe("hide decorations", () => {
   test("heading hashes hang in the margin instead of hiding", () => {
     const heading = posOf(doc, "# Heading one");
     const headingLine = state.doc.lineAt(heading);
-    expect(rangesWithClass(state.field(hideExtension), "cm-heading-hash")).toContainEqual([
+    expect(rangesWithClass(state.field(headingMarginField), "cm-heading-hash")).toContainEqual([
       heading,
       heading + 2,
     ]);
-    expect(rangesWithClass(state.field(hideExtension), "cm-heading-hang")).toContainEqual([
+    expect(rangesWithClass(state.field(headingMarginField), "cm-heading-hang")).toContainEqual([
       headingLine.from,
       headingLine.from,
     ]);
     // The hash is NOT font-size-zero hidden — it hangs, visibly.
     expect(hidden).not.toContainEqual([heading, heading + 2]);
+  });
+
+  // The regression this field exists for: the hide facet restored a touched
+  // node's marks INLINE, so the heading's text edge moved as the caret
+  // travelled — and a cold open parks the caret at offset 0, which is a
+  // heading line in most notes.
+  test("the hang survives the caret landing on the heading line", () => {
+    const heading = posOf(doc, "# Heading one");
+    const onHeading = stateWithStack(doc, heading + 3);
+    expect(rangesWithClass(onHeading.field(headingMarginField), "cm-heading-hash")).toContainEqual([
+      heading,
+      heading + 2,
+    ]);
+  });
+
+  test("every level hangs, so the text edge is the same at all of them", () => {
+    const levels = "# one\n\n## two\n\n### three\n\n#### four\n";
+    const marks = rangesWithClass(
+      stateWithStack(levels, levels.length).field(headingMarginField),
+      "cm-heading-hash",
+    );
+    expect(marks).toEqual([
+      [posOf(levels, "# one"), posOf(levels, "# one") + 2],
+      [posOf(levels, "## two"), posOf(levels, "## two") + 3],
+      [posOf(levels, "### three"), posOf(levels, "### three") + 4],
+      [posOf(levels, "#### four"), posOf(levels, "#### four") + 5],
+    ]);
   });
 
   test("blockquote and fence marks keep their space", () => {

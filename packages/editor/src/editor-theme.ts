@@ -174,14 +174,6 @@ export const editorThemeExtension = EditorView.theme({
     insetInlineStart: "calc(6px + var(--blockquote-border-offset))",
     zIndex: -10,
   },
-  ".cm-task-checkbox": {
-    accentColor: accent,
-    width: "1em",
-    height: "1em",
-    margin: "0 0.1em 0 0",
-    verticalAlign: "-0.1em",
-    cursor: "pointer",
-  },
   ".cm-horizontal-rule-container hr": {
     border: "none",
     borderTop: "1px solid var(--editor-faint)",
