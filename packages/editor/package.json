@@ -8,12 +8,15 @@
     "./create-markdown-editor": "./src/create-markdown-editor.ts",
     "./markdown-editor-extensions": "./src/markdown-editor-extensions.ts",
     "./external-replace": "./src/external-replace.ts",
+    "./external-edit-marks": "./src/external-edit-marks.ts",
     "./editor-theme": "./src/editor-theme.ts",
     "./thread-chip": "./src/thread-chip.ts",
     "./proposal-marks": "./src/proposal-marks.ts",
     "./delegation-affordance": "./src/delegation-affordance.ts",
+    "./slash-menu": "./src/slash-menu.ts",
     "./pending-anchor": "./src/pending-anchor.ts",
     "./react/markdown-editor": "./src/react/markdown-editor.tsx",
+    "./test-support/block-nodes": "./src/test-support/block-nodes.ts",
     "./test-support/jsdom-stubs": "./src/test-support/jsdom-stubs.ts"
   },
   "scripts": {

@@ -18,6 +18,12 @@ import {
   type DelegationSelection,
 } from "@repo/editor/delegation-affordance";
 import {
+  EXTERNAL_EDIT_HOLD_MS,
+  externalEditMarksExtension,
+  externalEditRanges,
+} from "@repo/editor/external-edit-marks";
+import { slashMenuExtension } from "@repo/editor/slash-menu";
+import {
   pendingAnchorExtension,
   pendingAnchorPosition,
   setPendingAnchor,
@@ -61,6 +67,7 @@ import { NoteController, type SaveResult } from "./note-controller";
 import { useNoteDisk } from "./note-disk";
 import { readNoteViewContext } from "./note-view-context";
 import { NoteTitle } from "./note-title";
+import { noteSlashItems } from "./slash-items";
 import { sendKeepaliveWrite } from "./keepalive-write";
 import { vaultAssetUrl } from "./vault-asset";
 import { useWorkspace } from "../workspace-context";
@@ -307,8 +314,9 @@ function OpenNote({
     draftForRef.current = draftFor;
   });
 
-  const [delegationExtensions] = useState(() => [
+  const [noteExtensions] = useState(() => [
     pendingAnchorExtension,
+    externalEditMarksExtension,
     threadChipsExtension({
       onOpen: (anchor) => {
         const threadId = delegationRef.current.threadIdFor(anchor);
@@ -344,6 +352,15 @@ function OpenNote({
           taskPrompt(task.text),
         );
       },
+    }),
+    slashMenuExtension({
+      items: () =>
+        noteSlashItems({
+          writeMode: readDelegationWriteMode,
+          onDelegate: (intent, writeMode, block) => {
+            delegationRef.current.onDraft(draftForRef.current(intent, writeMode, block));
+          },
+        }),
     }),
   ]);
 
@@ -439,8 +456,37 @@ function OpenNote({
       buffer: editor,
       initialContent: diskContent,
       save,
+      // A conflict means diff3 kept the buffer over an overlapping external
+      // change, so the only honest thing to show is what DID merge in — which
+      // the attribution marks are already tinting. The toast counts them and
+      // offers the jump, and lives exactly as long as they do.
       onConflict: () => {
-        toast.warning("This note changed on disk while you edited it — kept your version.");
+        const view = editor.view;
+        const merged = externalEditRanges(view.state).length;
+        if (merged === 0) {
+          toast.warning("This note changed on disk while you edited it — kept your version.");
+          return;
+        }
+        toast.warning(
+          `This note changed on disk while you edited it — kept your version, and merged in ${String(merged)} ${merged === 1 ? "region" : "regions"}.`,
+          {
+            duration: EXTERNAL_EDIT_HOLD_MS,
+            action: {
+              label: "Show",
+              onClick: () => {
+                const target = externalEditRanges(view.state)[0];
+                if (target === undefined) {
+                  return;
+                }
+                view.dispatch({
+                  selection: { anchor: target.from, head: target.to },
+                  scrollIntoView: true,
+                });
+                view.focus();
+              },
+            },
+          },
+        );
       },
       onSaveError: () => {
         toast.error("Could not save the note. Your changes are still in the editor.");
@@ -532,7 +578,7 @@ function OpenNote({
       <MarkdownEditor
         className="note-editor-host"
         initialDoc={diskContent}
-        extensions={delegationExtensions}
+        extensions={noteExtensions}
         onDocChanged={() => {
           controllerRef.current?.docChanged();
           // The marks' coordinates are the DISK's; the moment they part

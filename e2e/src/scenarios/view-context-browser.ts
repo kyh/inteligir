@@ -17,7 +17,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import type { TimelineConversationRow } from "@repo/server-contract/thread-timeline";
+import type { TimelineConversationRow, TimelineRow } from "@repo/server-contract/thread-timeline";
 import { expect, expectEq, skip } from "../harness/assert";
 import { exec, ExecError } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
@@ -98,9 +98,14 @@ export const viewContextBrowser: Scenario = {
       await agentBrowser(["fill", COMPOSER, MESSAGE]);
       await agentBrowser(["press", "Enter"]);
 
+      // `idle` alone does not mean the turn RAN: the dock creates the thread on
+      // submit, and a row exists (idle, empty) for a beat before the turn
+      // starts. So the settle condition is idle AND the user's own message
+      // already on the timeline — otherwise this reads the empty window and
+      // fails on a timeline that was simply not written yet.
       ctx.log("waiting for the turn to settle");
       const deadline = Date.now() + TURN_DEADLINE_MS;
-      let threadId: string | null = null;
+      let rows: readonly TimelineRow[] = [];
       for (;;) {
         const listed = await app.api.threads.list.$get();
         expect(listed.status === 200, `threads list answered ${listed.status}`);
@@ -108,19 +113,20 @@ export const viewContextBrowser: Scenario = {
           (thread) => thread.originDocPath === null && thread.archivedAt === null,
         );
         if (chat !== undefined && chat.status === "idle") {
-          threadId = chat.id;
-          break;
+          const timeline = await app.api.threads.timeline.$get({ query: { threadId: chat.id } });
+          expect(timeline.status === 200, `timeline answered ${timeline.status}`);
+          const body = await timeline.json();
+          expect(body.kind === "full", `expected the full timeline, got "${body.kind}"`);
+          const settled = body.kind === "full" ? body.timeline.rows : [];
+          if (settled.some((row) => row.kind === "conversation" && row.role === "user")) {
+            rows = settled;
+            break;
+          }
         }
         expect(chat?.status !== "error", "the turn settled in error");
-        expect(Date.now() < deadline, `no settled chat thread after ${TURN_DEADLINE_MS}ms`);
+        expect(Date.now() < deadline, `no settled chat turn after ${TURN_DEADLINE_MS}ms`);
         await delay(250);
       }
-
-      const timeline = await app.api.threads.timeline.$get({ query: { threadId } });
-      expect(timeline.status === 200, `timeline answered ${timeline.status}`);
-      const body = await timeline.json();
-      expect(body.kind === "full", `expected the full timeline, got "${body.kind}"`);
-      const rows = body.kind === "full" ? body.timeline.rows : [];
 
       const sent = rows.find(
         (row): row is TimelineConversationRow => row.kind === "conversation" && row.role === "user",

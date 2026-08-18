@@ -16,7 +16,9 @@ import { cliDrive } from "./scenarios/cli-drive";
 import { delegationChipBrowser } from "./scenarios/delegation-chip-browser";
 import { delegationScripted } from "./scenarios/delegation-scripted";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
+import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { proposalReview } from "./scenarios/proposal-review";
+import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
 import { vaultSync } from "./scenarios/vault-sync";
@@ -32,6 +34,8 @@ const SCENARIOS: readonly Scenario[] = [
   browserSmoke,
   delegationChipBrowser,
   editorConstructsBrowser,
+  slashMenuBrowser,
+  externalEditBrowser,
   viewContextBrowser,
 ];
 

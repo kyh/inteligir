@@ -366,6 +366,82 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   the YAML and silently changes what `tags:` and `tasks: false` mean. The
   invariant under test: inserting a marker leaves the rest of the document
   parsing identically.
+- **The slash menu asks the tree ONE question — does a block begin here — and
+  the app stocks it.** `/` opens the insertion menu
+  (`@repo/editor/slash-menu`) only where lezer says a `Paragraph` starts at
+  that character, and that single question is what makes a rule list
+  unnecessary: a fence, frontmatter, a URL, a mid-word slash and a line lazily
+  continuing the paragraph above all decline because none of them begins a
+  block — and that Paragraph must hang off the DOCUMENT, because inside a
+  blockquote or a list item the question still passes while the answer stops
+  being safe: a multi-line snippet's continuation lines carry no `> ` and no
+  indent, so the construct opens inside the container and closes outside it.
+  Supporting a container means prefixing every continuation line with the
+  enclosing context, a per-context byte transform that needs its own
+  round-trip pins; until it has them, `/` in a container is a literal slash.
+  The tree is also MADE to answer: lezer parses under a time budget, so the
+  slash keystroke — only that one — forces the parse up to itself and declines
+  if the budget runs out, because a trigger computed once gets no second
+  chance and an unparsed region has no answer to guess at.
+  The typed insertion is allowed to be LONGER than the slash, because
+  CodeMirror reads typing off DOM mutations and coalesces a fast burst into
+  one change — a one-character rule would make the menu a function of typing
+  speed. What may NOT redefine the query is anything that is not that typing:
+  a caret move, a paste and an external write each CLOSE the menu, because the
+  `/query` range is the one an apply deletes and a caret walked rightwards over
+  prose would otherwise make the user's own bytes the query, and a BLUR closes
+  it too — that one needs `focusChangeEffect`, because clicking out of the
+  editor dispatches no transaction and a menu left armed applies on the next
+  refocus. Applying an item is ONE transaction under an `input.type.` user
+  event, which makes one undo take the construct AND the `/query` that asked
+  for it — BEST EFFORT, not a guarantee: `HistoryState.addChanges` joins on
+  that prefix AND on `time - prevTime < 500ms`, so a longer pause mid-menu
+  leaves two undo steps. Stated as the known limit it is. A ONE-LINE snippet
+  takes the rest of the line (`/head` before `tail` is `# tail` — the block
+  transform); a MULTI-LINE one gets a BLANK LINE after it, derived from the
+  snippet rather than declared per item, because ` ```tail ` is not a closing
+  fence and a table or a `$$` paragraph swallows the remainder one line lower
+  down — and the remainder is the rest of the PARAGRAPH, not of the line, since
+  a paragraph runs across every line up to a blank one. The divider row emits
+  `***` rather than `---` for a neighbouring reason: the frontmatter parser
+  fires at line 0 and takes any later `---` as its closer, so a dash divider at
+  the top of a note turns the whole note into YAML the moment a second one
+  lands. The
+  vocabulary is DATA the app injects
+  (`apps/app/src/app/note/slash-items.ts`), the same split
+  `DelegationAffordanceConfig` uses, and it is BOUNDED BY WHAT THE EDITOR
+  DRAWS — every row's markdown re-parses to a decorated construct, asserted
+  against the editor's own grammar rather than by string equality. The two
+  agent rows reach `draftFor`, the same closure the selection tooltip reaches;
+  a menu that armed a delegation its own way would be a second dispatch path
+  over one thread service. **"Link to a note" is deliberately absent**: this
+  editor renders no wiki-links, and a vault-relative markdown link IS
+  decorated but its click handler is `window.open`, so it would open a dead
+  browser tab. That row lands when the editor gets a wiki-link extension, not
+  before.
+- **An EXTERNAL write is attributed in the buffer, and the annotation is the
+  discriminator.** `replaceDoc` already stamps every external replacement with
+  `externalReplaceAnnotation`, so "this transaction was not the user" is a fact
+  the transaction carries rather than something a decoration layer infers from
+  timing (`@repo/editor/external-edit-marks`). The tint covers the inserted
+  spans, trimmed of the line breaks that carried them, and clears on a timer
+  whose transaction is excluded from history — an undo spent removing a
+  highlight is an undo the user's own last edit did not get. The tint is FLAT
+  rather than fading, because the state is the only clock that can be right:
+  CodeMirror renders only visible ranges, so scrolling a marked span away and
+  back rebuilds its DOM and restarts any CSS animation on it from full tint,
+  which the timer then cuts mid-fade. Pinning the animation to the mark's age
+  does not rescue it — a decoration spec is built once, so a negative
+  `animation-delay` computed there is zero forever. A later write
+  REPLACES the attribution rather than stacking on it, and a MARK NEVER COVERS
+  BYTES THE USER TYPED — mapping alone does not keep that true, because a range
+  set maps a mark THROUGH a replacement of the text it covers, so a user edit
+  reaching into a mark drops it. A pure deletion is
+  the stated residual: it leaves no span to tint, and a zero-width widget
+  standing in for absent text says less than the count the host reports. That
+  count is what a conflicted merge now shows — diff3 kept the buffer, so the
+  only honest thing to state is what DID merge in, and the toast lives exactly
+  as long as the marks it offers to jump to.
 - **The launcher boots in-process; the desktop shell supervises a child.**
   Opposite answers because the failure differs: `npx` wants one exit code and
   a `^C` that reaches the vault's owner, while the shell must not share its
