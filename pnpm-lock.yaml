@@ -613,6 +613,9 @@ importers:
       remark-parse:
         specifier: 'catalog:'
         version: 11.0.0
+      stemmer:
+        specifier: ^2.0.1
+        version: 2.0.1
       unified:
         specifier: 'catalog:'
         version: 11.0.5
@@ -7756,6 +7759,10 @@ packages:
   stdin-discarder@0.2.2:
     resolution: {integrity: sha512-UhDfHmA92YAlNnCfhmq0VeNL5bDbiZGg7sZ2IvPsXubGkiNa9EC+tUTsjBRsYUAz87btI6/1wf4XoVvQ3uRnmQ==}
     engines: {node: '>=18'}
+
+  stemmer@2.0.1:
+    resolution: {integrity: sha512-bkWvSX2JR4nSZFfs113kd4C6X13bBBrg4fBKv2pVdzpdQI2LA5pZcWzTFNdkYsiUNl13E4EzymSRjZ0D55jBYg==}
+    hasBin: true
 
   stream-buffers@2.2.0:
     resolution: {integrity: sha512-uyQK/mx5QjHun80FLJTfaWE7JtwfRMKBLkMne6udYOmvH0CawotVa7TfgYHzAnpphn4+TweIx1QKMnRIbipmUg==}
@@ -16335,6 +16342,8 @@ snapshots:
   std-env@4.2.0: {}
 
   stdin-discarder@0.2.2: {}
+
+  stemmer@2.0.1: {}
 
   stream-buffers@2.2.0:
     optional: true

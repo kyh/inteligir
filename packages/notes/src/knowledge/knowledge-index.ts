@@ -22,11 +22,12 @@
 import { LinkGraphIndex } from "./link-graph-index";
 import type { BacklinkEntry, ForwardLinkEntry, LinkGraph, WikiTarget } from "./link-graph-index";
 import { titleFromPath } from "./link-extract";
-import { clipSnippet, projectDoc } from "./projection";
+import { projectDoc } from "./projection";
 import { splitLines } from "./source-lines";
 import { relatedNotes, type RelatedNoteEntry, type RelatedNotesOpts } from "./related-notes";
 import { SearchIndex } from "./search-index";
-import { tokenize } from "./search-query";
+import { searchExcerpt } from "./search-excerpt";
+import { planSearchQuery, type SearchQueryTerm } from "./search-query";
 import type { TagCount } from "./tag-index";
 
 export type SearchResult = { path: string; title: string; snippet: string; score: number };
@@ -91,12 +92,16 @@ export class KnowledgeIndex {
   }
 
   search(query: string, limit: number = SEARCH_DEFAULT_LIMIT): SearchResult[] {
-    const tokens = tokenize(query);
+    // The excerpt needs the query's TERMS, and every plan in the ladder shares
+    // one term list — they differ only in whether all of them are required —
+    // so which plan actually answered does not change the words to look for.
+    const [plan] = planSearchQuery(query);
+    const terms = plan?.terms ?? [];
     const ranked = this.searchIndex.search(query, limit);
     return ranked.map(({ path, score }) => ({
       path,
       title: this.linkGraph.titleOf(path) ?? titleFromPath(path),
-      snippet: this.searchSnippet(path, tokens),
+      snippet: this.searchSnippet(path, terms),
       score,
     }));
   }
@@ -122,16 +127,11 @@ export class KnowledgeIndex {
 
   // ---- Internals --------------------------------------------------------------
 
-  /** First line containing a query token; falls back to the title. */
-  private searchSnippet(path: string, tokens: string[]): string {
-    const lines = this.lines.get(path);
-    if (!lines) return "";
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (line === "") continue;
-      const lower = line.toLowerCase();
-      if (tokens.some((token) => lower.includes(token))) return clipSnippet(line);
-    }
-    return this.linkGraph.titleOf(path) ?? "";
+  /** The line a hit is shown by (search-excerpt.ts — the SQL store cuts the
+   * same one), falling back to the title when nothing in the doc matched. */
+  private searchSnippet(path: string, terms: readonly SearchQueryTerm[]): string {
+    const content = this.lines.get(path);
+    if (!content) return "";
+    return searchExcerpt(content.join("\n"), terms) || (this.linkGraph.titleOf(path) ?? "");
   }
 }

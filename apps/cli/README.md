@@ -39,7 +39,7 @@ exits 3 naming the conflict.
 ## Command surface
 
 `vault list|read|write|rename|delete|mkdir|status|sync` ·
-`search` (`tag:` terms pass through) · `backlinks` · `tags` ·
+`search` (`tag:` terms pass through) · `backlinks` · `related` · `tags` ·
 `thread list|new|send|show|wait|archive` · `interactions list|answer` ·
 `proposals list|show|accept|reject` · `status` · `guide`.
 

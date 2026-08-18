@@ -47,10 +47,11 @@ describe("a doc change", () => {
     });
 
     expect(applied.docs).toEqual(["notes/open.md"]);
-    // Backlinks only: the links this doc holds are somebody else's backlinks,
-    // and the family is swept whole because which somebody is not knowable
-    // from here. Nothing that would re-fetch the doc's own bytes.
-    expect(applied.invalidated).toEqual([[...queryKeys.backlinksRoot]]);
+    // The two DERIVED families only: the links this doc holds are somebody
+    // else's backlinks and somebody else's relatedness, and both are swept
+    // whole because which somebody is not knowable from here. Nothing that
+    // would re-fetch the doc's own bytes.
+    expect(applied.invalidated).toEqual([[...queryKeys.backlinksRoot], [...queryKeys.relatedRoot]]);
   });
 });
 
@@ -63,7 +64,11 @@ describe("a vault change", () => {
       paths: ["a.md", "b.md"],
     });
 
-    expect(applied.invalidated).toEqual([[...queryKeys.vaultTree], [...queryKeys.backlinksRoot]]);
+    expect(applied.invalidated).toEqual([
+      [...queryKeys.vaultTree],
+      [...queryKeys.backlinksRoot],
+      [...queryKeys.relatedRoot],
+    ]);
     expect(applied.docs).toEqual(["a.md", "b.md"]);
   });
 

@@ -8,10 +8,12 @@
 //
 //   pnpm --filter @repo/app vitest run src/node/knowledge/__tests__/search-eval
 //
-// It scores the labelled corpus in search-eval-vault.ts twice — under the
-// AND-every-token expression this repo shipped before stage 1, and under what
-// it ships now — over the REAL store, so the numbers are FTS5's and bm25's
-// rather than a model of them.
+// It scores the labelled corpus in search-eval-vault.ts three times — under
+// the AND-every-token expression this repo shipped before stage 1, under the
+// relaxed plan with no stemming, and under what it ships now — over the REAL
+// store, so the numbers are FTS5's and bm25's rather than a model of them.
+// Each column is one policy's whole contribution, which is the point: a stage
+// that does not move these numbers is not worth its weight.
 //
 // Every miss that survives is then classified by asking the one question that
 // decides which stage could fix it: is the note retrievable AT ALL? A note the
@@ -31,6 +33,7 @@ import {
   type SqlDriver,
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
+import { planSearchQuery, type SearchQueryPlan } from "@repo/notes/knowledge/search-query";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
@@ -58,11 +61,22 @@ function legacyMatchExpression(query: string): string | null {
     .join(" ");
 }
 
-/** The store's own ranked read, copied for the baseline only — the current
- * store builds its expression internally, so the old one cannot be run
- * through it. Same bm25 field weights, so the two columns are comparable. */
-const BASELINE_SEARCH_SQL = `
-SELECT path, bm25(search_fts, 10.0, 4.0, 1.0) AS rank
+/** The relaxed plan rendered over the LITERAL columns only — stage 1 without
+ * the stem shadow. The literal columns are still indexed, so the intermediate
+ * stays RUNNABLE rather than becoming a number in an old commit message, and
+ * what stemming bought is a column of this report instead of a claim. */
+function unstemmedMatchExpression(plan: SearchQueryPlan): string {
+  return plan.terms
+    .map((term) => `{title headings body}: "${term.token}"${term.prefix ? " *" : ""}`)
+    .join(plan.match === "all" ? " AND " : " OR ");
+}
+
+/** The store's own ranked read, copied for the columns the store cannot run —
+ * it builds its expression internally, so neither the old expression nor the
+ * unstemmed one can go through it. Same bm25 field weights, so every column is
+ * comparable; the stem weights are inert for both, which have no stem term. */
+const PROBE_SEARCH_SQL = `
+SELECT path, bm25(search_fts, 10.0, 4.0, 1.0, 10.0, 4.0, 1.0) AS rank
 FROM search_fts WHERE search_fts MATCH ?
 ORDER BY rank, path LIMIT ?
 `;
@@ -156,17 +170,62 @@ beforeAll(() => {
 
 afterAll(() => {
   store.dispose();
+  for (const built of tierStores.splice(0)) built.dispose();
 });
+
+function probe(match: string, limit: number): string[] {
+  return driver
+    .all(PROBE_SEARCH_SQL, [match, limit])
+    .map((row) => (typeof row.path === "string" ? row.path : ""));
+}
 
 const before: Retrieve = (query, limit) => {
   const match = legacyMatchExpression(query);
-  if (match === null) return [];
-  return driver
-    .all(BASELINE_SEARCH_SQL, [match, limit])
-    .map((row) => (typeof row.path === "string" ? row.path : ""));
+  return match === null ? [] : probe(match, limit);
+};
+
+/** The plan ladder the store runs, rendered without the stems: the FIRST plan
+ * that matches anything is the answer, exactly as the store decides it. */
+const unstemmed: Retrieve = (query, limit) => {
+  for (const plan of planSearchQuery(query)) {
+    const rows = probe(unstemmedMatchExpression(plan), limit);
+    if (rows.length > 0) return rows;
+  }
+  return [];
 };
 
 const after: Retrieve = (query, limit) => store.search(query, limit).map((hit) => hit.path);
+
+/** A throwaway store over exactly the notes one invariant needs. Each of these
+ * corpora is built to expose a ranking relation, so they are kept APART: a
+ * shared fixture lets a note added for one test change another's answer. */
+function storeOf(docs: Readonly<Record<string, string>>): SqlKnowledgeStore {
+  const built = createSqlKnowledgeStore(
+    createSqliteDriver(join(makeTempDir("inteligir-search-tier-"), "knowledge.db")),
+    "/vault",
+  );
+  tierStores.push(built);
+  for (const [path, content] of Object.entries(docs)) {
+    built.upsertDoc(
+      {
+        path,
+        contentHash: createHash("sha256").update(content, "utf8").digest("hex"),
+        projection: projectDoc(path, content),
+      },
+      content,
+    );
+  }
+  return built;
+}
+
+/** The same corpus in the pure engine, so a relation can be asserted of both. */
+function pureOf(docs: Readonly<Record<string, string>>): KnowledgeIndex {
+  const index = new KnowledgeIndex();
+  for (const [path, content] of Object.entries(docs)) index.setDoc(path, content);
+  return index;
+}
+
+const tierStores: SqlKnowledgeStore[] = [];
 
 /** Every note the current policy can reach for this query, at any rank. */
 function reachable(query: string): Set<string> {
@@ -193,9 +252,10 @@ function misses(retrieve: Retrieve): Miss[] {
 
 // ---- The report ---------------------------------------------------------------
 
-describe("vault search — the stage 1 measurement", () => {
-  it("reports what relaxing the query bought, and what it left behind", () => {
+describe("vault search — the retrieval measurement", () => {
+  it("reports what each policy bought, and what it left behind", () => {
     const beforeMetrics = measure(before, EVAL_QUERIES);
+    const unstemmedMetrics = measure(unstemmed, EVAL_QUERIES);
     const afterMetrics = measure(after, EVAL_QUERIES);
     const residue = misses(after);
     const vocabulary = residue.filter((miss) => miss.kind === "vocabulary");
@@ -205,7 +265,8 @@ describe("vault search — the stage 1 measurement", () => {
       "",
       `search eval — ${Object.keys(EVAL_VAULT).length} notes, ${EVAL_QUERIES.length} labelled queries`,
       formatMetrics("before", beforeMetrics),
-      formatMetrics("after", afterMetrics),
+      formatMetrics("relaxed", unstemmedMetrics),
+      formatMetrics("stemmed", afterMetrics),
       `residue: ${residue.length}/${EVAL_QUERIES.length} queries still miss a note` +
         ` — ${vocabulary.length} vocabulary, ${ranking.length} ranking`,
       ...residue.map(
@@ -217,15 +278,29 @@ describe("vault search — the stage 1 measurement", () => {
 
     // Relaxing the query is only worth doing if it retrieves more, and only
     // safe if it does not do it by returning everything.
-    expect(afterMetrics.answered).toBeGreaterThan(beforeMetrics.answered);
-    expect(afterMetrics.recall).toBeGreaterThan(beforeMetrics.recall);
-    expect(afterMetrics.mrr).toBeGreaterThan(beforeMetrics.mrr);
+    expect(unstemmedMetrics.answered).toBeGreaterThan(beforeMetrics.answered);
+    expect(unstemmedMetrics.recall).toBeGreaterThan(beforeMetrics.recall);
+    expect(unstemmedMetrics.mrr).toBeGreaterThan(beforeMetrics.mrr);
     expect(afterMetrics.meanResults).toBeLessThan(Object.keys(EVAL_VAULT).length / 2);
+
+    // And the stem shadow is only worth its column of the index if it recalls
+    // more than the same plan without it. A null result here is the finding.
+    expect(afterMetrics.recall).toBeGreaterThan(unstemmedMetrics.recall);
+    expect(afterMetrics.mrr).toBeGreaterThan(unstemmedMetrics.mrr);
 
     // The residue is the thing this harness is for: it must be counted, and
     // every member of it must be classified.
     expect(residue.length).toBeGreaterThan(0);
     expect(vocabulary.length + ranking.length).toBe(residue.length);
+  });
+
+  it("recovers a note whose only mismatch was the shape of the word", () => {
+    // `interviewing` against a note that says `interviewers`. Nothing here is
+    // a vocabulary gap — the word is present, inflected — so this class is
+    // the stemmer's, and no embedding is owed a share of it.
+    const query = "notes on interviewing candidates";
+    expect(unstemmed(query, K)).not.toContain("work/hiring.md");
+    expect(after(query, K)).toContain("work/hiring.md");
   });
 
   it("recovers the plan's lexical probe, which used to answer with nothing", () => {
@@ -251,11 +326,133 @@ describe("vault search — the stage 1 measurement", () => {
   });
 
   it("answers a short lookup that had none, by relaxing it", () => {
+    // `book concentration` against a note that discusses concentration and
+    // never says "book": no stem reaches a word the note does not contain, so
+    // the conjunction finds nothing and the relaxed plan behind it is what
+    // answers. That ladder still earns its place.
+    expect(before("book concentration", K)).toEqual([]);
+    expect(after("book concentration", K)).toEqual(["reading/deep-work.md"]);
+  });
+
+  it("answers a short lookup the stem alone recovers, without relaxing it", () => {
     // `bm25 ranking` against a note reading "ranked by bm25": the conjunction
-    // cannot stem, so it found nothing at all. This is the class the relaxed
-    // second plan recovers, and it needs no model.
+    // used to find nothing, because it could not stem. Now it can, and the
+    // relaxed plan behind it never runs.
     expect(before("bm25 ranking", K)).toEqual([]);
+    expect(unstemmed("bm25 ranking", K)).toEqual(["projects/vault-search.md"]);
     expect(after("bm25 ranking", K)).toEqual(["projects/vault-search.md"]);
+  });
+
+  it("ranks an exact word above a note that only shares its stem — in BOTH engines", () => {
+    // The tier, and the pin the set-only lockstep check could not make: the
+    // engines spell it differently (bm25 sums the two matched column groups,
+    // the pure index sums the two contributions) and an implementation that
+    // has it on one side only orders these two notes oppositely.
+    const docs = { "stem-only.md": "loop", "exact.md": "loops" };
+    const ranked = ["exact.md", "stem-only.md"];
+    expect(
+      storeOf(docs)
+        .search("loops", 2)
+        .map((hit) => hit.path),
+    ).toEqual(ranked);
+    expect(
+      pureOf(docs)
+        .search("loops", 2)
+        .map((hit) => hit.path),
+    ).toEqual(ranked);
+  });
+
+  it("does not let an over-stemmed collision outrank the word itself", () => {
+    // Porter maps `busy` and `business` to ONE stem, so the shadow alone
+    // cannot tell them apart and the tier is the only thing that can.
+    const docs = { "busy.md": "# Busy\n", "business.md": "# Business\n" };
+    expect(
+      storeOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("business.md");
+    expect(
+      pureOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("business.md");
+  });
+
+  it("still lets a TITLE-level collision beat a BODY-level exact match, in both", () => {
+    // The residual, stated rather than left to be discovered. The tier is
+    // worth one extra helping of a term's own field weight, and the field
+    // gap is 10x — so `busy` in a title still outranks `business` in a body
+    // even though only one of them is the word the user typed. Both engines
+    // agree, which is the part that matters: this is field weighting doing
+    // exactly what it is for, not the two of them drifting.
+    //
+    // Closing it needs a signal neither engine has — how RARE the stem is
+    // across the vault — and bm25 has an idf that pushes this way already,
+    // enough to flip the answer on a corpus with more than two notes in it.
+    // That is a reason not to over-tune the tier, not a bug to patch here.
+    const docs = { "busy.md": "# Busy\n", "body.md": "# Notes\n\nThe business of the week.\n" };
+    expect(
+      storeOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("busy.md");
+    expect(
+      pureOf(docs)
+        .search("business", 2)
+        .map((hit) => hit.path)[0],
+    ).toBe("busy.md");
+  });
+
+  it("folds diacritics the same way on both sides of the seam", () => {
+    // FTS5's unicode61 strips diacritics itself, so the pure tokenizer has to
+    // as well or `acciones` reaches one engine and not the other. This is the
+    // divergence the stem shadow made reachable: the stem is computed in JS
+    // and folded by SQLite.
+    const docs = { "es.md": "# Acción\n\nUna acción pendiente.\n" };
+    const store = storeOf(docs);
+    const index = pureOf(docs);
+    for (const query of ["acción", "accion", "acciones"]) {
+      expect(
+        store.search(query, 5).map((hit) => hit.path),
+        query,
+      ).toEqual(["es.md"]);
+      expect(
+        index.search(query, 5).map((hit) => hit.path),
+        query,
+      ).toEqual(["es.md"]);
+    }
+  });
+
+  it("shows a stemmed hit at the word that actually matched", () => {
+    // FTS5's snippet() cuts one column from THAT column's offsets, so a hit in
+    // the stem shadow used to render the note's opening filler instead.
+    const docs = {
+      "late.md": `# Late\n\n${"filler ".repeat(30)}\n\nI have been exhausted lately.\n`,
+    };
+    for (const engine of [storeOf(docs), pureOf(docs)]) {
+      const [hit] = engine.search("exhausting", 5);
+      expect(hit?.path).toBe("late.md");
+      expect(hit?.snippet).toContain("exhausted");
+      expect(hit?.snippet).not.toContain("filler");
+    }
+  });
+
+  it("lets one posting satisfy both halves of a conjunction it spells twice", () => {
+    // `policy policies` is two content terms that stem to one, so the AND is
+    // satisfiable by a note holding either spelling. That is the intended
+    // reading — two spellings of one word are not two requirements — and it is
+    // pinned rather than left to be rediscovered.
+    const docs = { "policy.md": "# Policy\n\nOur policies are written down.\n" };
+    expect(
+      storeOf(docs)
+        .search("policy policies", 5)
+        .map((hit) => hit.path),
+    ).toEqual(["policy.md"]);
+    expect(
+      pureOf(docs)
+        .search("policy policies", 5)
+        .map((hit) => hit.path),
+    ).toEqual(["policy.md"]);
   });
 
   it("keeps the two engines in lockstep over the whole corpus", () => {

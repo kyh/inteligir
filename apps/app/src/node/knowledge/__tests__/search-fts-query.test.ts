@@ -88,6 +88,21 @@ describe("FTS5 over the shared query policy", () => {
     expect(hits(storeWith(VAULT), "deploy runb")).toEqual(["deploy-runbook.md"]);
   });
 
+  it("matches a word the note inflects differently", () => {
+    const store = storeWith(VAULT);
+    // `deploying` reaches `deploy`; `Fridays` reaches `Friday`. Neither is a
+    // prefix of the other in the direction typed.
+    expect(hits(store, "deploying the gateway")).toEqual(["deploy-runbook.md"]);
+    // One word IS the typed term, so this is the half a prefix cannot answer.
+    expect(hits(store, "questioning")).toEqual(["how-do-i.md"]);
+  });
+
+  it("keeps the snippet cut from the literal body, never from the stems", () => {
+    const [hit] = storeWith(VAULT).search("exhausting", 20);
+    expect(hit?.path).toBe("burnout.md");
+    expect(hit?.snippet).toContain("exhausted");
+  });
+
   it("reads FTS5 syntax in the box as text, never as syntax", () => {
     const store = storeWith(VAULT);
     // Unquoted, each of these is an operator, a column filter or a parse

@@ -31,6 +31,11 @@ export const queryKeys = {
    *  its own), so no path-scoped invalidation is even expressible. */
   backlinksRoot: ["knowledge", "backlinks"] as const,
   backlinks: (docPath: string) => ["knowledge", "backlinks", docPath] as const,
+  /** The whole related family, swept alongside the backlinks one and for a
+   *  wider version of the same reason: relatedness is computed from links,
+   *  tags AND text, all of which live in notes other than this one. */
+  relatedRoot: ["knowledge", "related"] as const,
+  related: (docPath: string) => ["knowledge", "related", docPath] as const,
   /** The whole thread family — what a ws thread invalidation sweeps. */
   threadsRoot: ["threads"] as const,
   threads: ["threads", "list"] as const,
