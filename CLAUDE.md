@@ -376,7 +376,44 @@ detail }` when no codex is installed, in the shape the Agent section already
   starting a local one would put two agents on one thread. **THE CURSOR MOVES
   INSIDE THAT TRANSACTION** — that is what makes the apply exactly-once, and
   advancing it as a second write is precisely the window a crash duplicates a
-  conversation through.
+  conversation through. The cursor is not enough on its own, though: a re-pair
+  RESETS it, so a synced row also carries the log row's own identity —
+  `events.origin_device_id` / `origin_device_seq`, under a unique index — and
+  an append that already holds one is skipped. `(device, position)` rather than
+  the account-global `seq`, because a global seq means a DIFFERENT row under a
+  different account and an idempotency check keyed on it would wrongly skip a
+  genuine event. Lifecycle projects over what LANDED, never over what arrived:
+  replaying a `turn/started` whose completion fell on the far side of a page
+  boundary would leave a long-finished turn running.
+- **Only the process that owns a provider may declare it dead.** Crash recovery
+  fails every thread still marked running, and after sync "still running" can
+  mean another device's turn — so `recoverWedgedThreads` reads the `turn/started`
+  row's own provenance and leaves a remote turn alone. Fabricating that failure
+  would be bad locally and worse on the wire: it syncs back to the machine where
+  the work is genuinely still going. The residual is the same trade inverted —
+  a device that never returns leaves the thread active here until it does,
+  because no process can tell "still working" from "gone" across a network.
+- **CONVERGENCE MEANS THE SAME SET, NOT THE SAME ORDER.** `events.sequence` is
+  allocated per thread by whichever device appends — for a synced row, the
+  device that PULLED it — so it is an ARRIVAL order. Two devices that both
+  write before either syncs hold the same rows in different positions, and the
+  local log is append-only under a UNIQUE(thread, sequence), so no renumbering
+  is available to fix it. What IS guaranteed, and pinned: both devices hold the
+  same set, and each writer's own turn stays contiguous and in its order on
+  both. The account log does carry a total order (its global `seq`); projecting
+  THAT instead is the change to make if a shared interleave is ever needed, and
+  it means the timeline stops reading `sequence`.
+- **A SYNC PASS IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
+  Every step re-checks the id it started under after every await, because the
+  dangerous case answers "yes, live" about a DIFFERENT pairing: an old push's
+  ack deletes the outbox rows a re-pairing has since queued, and an old pull's
+  page applies another account's events and drags the new cursor past rows it
+  never saw. Cancellation (an `AbortController` per session, plus a per-request
+  timeout) covers the in-flight half; identity covers the half cancellation
+  cannot reach, where the response already arrived and there is nothing left to
+  abort. Both are needed, and `dispose` aborts too — otherwise the teardown
+  step's budget is a hope, and the pass keeps writing (the vault included)
+  after the process was told to stop.
 - **The outbox stores the bytes it will send, once, at enqueue.** The log calls
   a stored position replayed with a different body `sync-conflict`, so
   re-serializing at push time turns every retry after a grammar change into

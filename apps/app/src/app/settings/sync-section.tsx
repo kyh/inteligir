@@ -1,4 +1,11 @@
-// Settings → Sync: this install's relationship with an inteligir account.
+// Settings → Devices: this install's relationship with an inteligir account.
+//
+// NOT called "Sync", and not by accident — the Vault section above already has
+// a Sync row with a "Sync now" button, and that one moves FILES to a git
+// remote. Two sections with the same title and the same button, moving
+// different things to different places, is a UI that lies about what a click
+// does. This one is named for what it holds (the pairing) and its button says
+// what it moves (threads).
 //
 // PAIRING IS THE SWITCH, so this section has no toggle. A local-first app that
 // opens a connection to a hosted service on first boot is not the product; an
@@ -235,7 +242,7 @@ export function SyncSection() {
 
   return (
     <section className="space-y-2">
-      <SectionHeading>Sync</SectionHeading>
+      <SectionHeading>Devices</SectionHeading>
       {status === undefined ? (
         <p className="text-sm text-muted-foreground">…</p>
       ) : status.state === "off" ? (
@@ -254,7 +261,7 @@ export function SyncSection() {
           <PairedDetails status={status} />
           <div className="flex gap-2">
             <Button size="xs" variant="outline" onClick={syncNow} disabled={pending}>
-              Sync now
+              Sync threads now
             </Button>
             <Button size="xs" variant="ghost" onClick={unpair} disabled={pending}>
               Unpair

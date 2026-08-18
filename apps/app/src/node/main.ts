@@ -118,10 +118,11 @@ async function createProdFallback(): Promise<AppFallback> {
  * The teardown, accumulated AS THE BOOT PROCEEDS.
  *
  * `unshift` rather than `push`, and the two orders coincide on purpose:
- * resources come up db → vault → knowledge → agent → listener, so reversing
- * creation yields exactly the teardown order shutdown.ts states (listener →
- * agent → knowledge → vault → db). Registering each step the moment its
- * resource exists is also what makes a FAILED boot survivable: a listen that
+ * resources come up db → vault → knowledge → agent → cloud → listener, so
+ * reversing creation yields exactly the teardown order shutdown.ts states
+ * (listener → cloud → agent → knowledge → vault → db). Registering each step
+ * the moment its resource exists is also what makes a FAILED boot survivable:
+ * a listen that
  * throws EADDRINUSE still has a vault watcher forked and a database open, and
  * without this the process would sit there holding both, alive on the
  * watcher's IPC channel and listening to nothing.
