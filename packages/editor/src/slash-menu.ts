@@ -12,13 +12,38 @@
 // continuing the paragraph above it the Paragraph started on the line above.
 // All decline, and none of them needed a rule of its own.
 //
+// AND THAT PARAGRAPH MUST HANG OFF THE DOCUMENT. Inside a blockquote or a
+// list item the same question passes while the ANSWER stops being safe: a
+// multi-line snippet's continuation lines carry no `> ` and no indent, so the
+// construct opens inside the container and closes outside it. Making that
+// work means prefixing every continuation line with the enclosing context,
+// which is a per-context byte transform that would need its own round-trip
+// pins; until it has them the honest v1 rule is that `/` in a container is a
+// literal slash. Stated here because it is a REFUSAL a reader will otherwise
+// read as an oversight.
+//
+// THE TREE IS ASKED ONCE, AND MADE TO ANSWER. Lezer parses incrementally under
+// a time budget, so on a large document the region under a freshly moved caret
+// may not be parsed yet — and a trigger computed only from the slash keystroke
+// gets no second chance. So the slash keystroke (only that one) forces the
+// parse up to itself before asking, the same `syntaxTreeAvailable` question
+// force-parse-healer.ts asks before it heals, and declines if the budget runs
+// out rather than guessing.
+//
+// WHAT THE MENU IS ABOUT IS THE `/query` THE USER IS TYPING, and nothing else
+// may redefine it. A caret move, a paste, an external write merging in: each
+// closes the menu rather than re-reading a query from wherever the caret now
+// sits, because that range is the one `applyItem` DELETES — a caret walked
+// rightwards over existing prose would otherwise make the user's own bytes
+// the query and take them with the insert.
+//
 // THE VOCABULARY IS THE HOST'S. This module owns the trigger, the filter, the
 // rendering and the one transaction; it knows nothing about what an item
 // inserts or who a handoff reaches. Same split `DelegationAffordanceConfig`
 // uses, for the same reason: the constructs are markdown, the seams are the
 // app's.
 
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
 import {
   Facet,
   MapMode,
@@ -93,11 +118,31 @@ export function matchesSlashQuery(item: SlashItem, query: string): boolean {
   );
 }
 
-/** True when a block-level construct could begin at `pos` — the whole
- *  legality question, asked of the tree rather than of the character. */
+/** How long the slash keystroke may spend making the parser catch up to it.
+ *  One hitch on one keystroke, never per keystroke — the alternative is a
+ *  menu that silently never opens on a large document. */
+const TRIGGER_PARSE_BUDGET_MS = 50;
+
+/**
+ * True when a block-level construct could begin at `pos`: the tree must say a
+ * `Paragraph` starts exactly there AND hang it off the document rather than
+ * off a blockquote or a list item (see the header for why a container is
+ * refused rather than supported).
+ *
+ * Forces the parse up to `pos` when the tree has not reached it, and declines
+ * when it cannot — an unparsed region has no answer, and inventing one is how
+ * a slash inside a fence opens a menu.
+ */
 export function opensSlashMenuAt(state: EditorState, pos: number): boolean {
-  const node = syntaxTree(state).resolveInner(pos, 1);
-  return node.name === "Paragraph" && node.from === pos;
+  const upto = Math.min(state.doc.length, pos + 1);
+  const tree = syntaxTreeAvailable(state, upto)
+    ? syntaxTree(state)
+    : ensureSyntaxTree(state, upto, TRIGGER_PARSE_BUDGET_MS);
+  if (tree === null) {
+    return false;
+  }
+  const node = tree.resolveInner(pos, 1);
+  return node.name === "Paragraph" && node.from === pos && node.parent?.name === "Document";
 }
 
 interface SlashMenuState {
@@ -181,11 +226,30 @@ function nextState(value: SlashMenuState, tr: Transaction): SlashMenuState | nul
       return { ...value, selected: (value.selected + effect.value + count) % count };
     }
   }
+  // A transaction that moves the caret without editing the document is not a
+  // query edit, and re-reading the query from the new caret would redefine the
+  // range applyItem deletes — walk right over `Heading` and the menu would
+  // "insert" by eating the H. An effect-only transaction (a host pushing chip
+  // or proposal state) touches neither and is passed through untouched.
+  if (!tr.docChanged) {
+    return tr.selection === undefined ? value : null;
+  }
+  // Only the user's own typing and deleting are the query. A paste, an
+  // external write merging in, a programmatic rewrite: each is somebody else's
+  // bytes arriving between the slash and the caret.
+  if (!tr.isUserEvent("input.type") && !tr.isUserEvent("delete")) {
+    return null;
+  }
   const from = tr.changes.mapPos(value.from, -1, MapMode.TrackDel);
   const caret = tr.state.selection.main;
   // Backspacing past the `/` deletes it or puts the caret behind it; either
   // way there is no query left for the menu to be about.
   if (from === null || !caret.empty || caret.head <= from) {
+    return null;
+  }
+  // The anchor is a slash or it is nothing: an edit elsewhere that shifted the
+  // buffer under a stale offset must refuse rather than name a new range.
+  if (tr.state.doc.sliceString(from, from + 1) !== "/") {
     return null;
   }
   const query = tr.state.doc.sliceString(from + 1, caret.head);
@@ -195,10 +259,36 @@ function nextState(value: SlashMenuState, tr: Transaction): SlashMenuState | nul
   return narrow(value.all, query, from);
 }
 
+/**
+ * The bytes to insert, given what the `/query` leaves behind on its line.
+ *
+ * A ONE-LINE snippet is a line PREFIX and wants the remainder: `/head` typed
+ * at the start of `tail` becomes `# tail`, which is the transform-the-block
+ * behaviour a slash menu is expected to have. A MULTI-LINE snippet is the
+ * opposite — its last line closes the construct, so trailing prose glued to
+ * it is inside the construct rather than after it. `` ```tail `` is not a
+ * closing fence (an info string is opener-only), so the fence never closes and
+ * the rest of the document becomes code; a table row and a math paragraph
+ * swallow the remainder the same way, one line lower down.
+ *
+ * So a multi-line snippet followed by text gets a BLANK LINE after it. Not one
+ * newline: a table continues across consecutive non-blank lines and a `$$`
+ * paragraph continues the same way, so only a blank line ends them. Derived
+ * from the snippet rather than declared per item, because an item that forgot
+ * to declare it corrupts a document silently.
+ */
+export function slashInsertionFor(text: string, trailing: boolean): string {
+  if (!trailing || !text.includes("\n")) {
+    return text;
+  }
+  return `${text.replace(/\n*$/u, "")}\n\n`;
+}
+
 function applyItem(view: EditorView, menu: SlashMenuState, item: SlashItem): void {
   const from = menu.from;
   const to = from + 1 + menu.query.length;
-  const insert = item.action.kind === "insert" ? item.action.text : "";
+  const trailing = to < view.state.doc.lineAt(from).to;
+  const insert = item.action.kind === "insert" ? slashInsertionFor(item.action.text, trailing) : "";
   const caret = item.action.kind === "insert" ? (item.action.caret ?? insert.length) : 0;
   // ONE transaction, so a single undo takes the construct AND the `/query`
   // that asked for it. The `input.type.` prefix is what CodeMirror's history
