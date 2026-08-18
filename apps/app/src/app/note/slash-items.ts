@@ -66,7 +66,14 @@ export function noteSlashItems(handlers: NoteSlashHandlers): SlashItem[] {
     insert("task-list", "Task", "- [ ]", "- [ ] ", 6, ["todo", "checkbox", "list"]),
     insert("quote", "Quote", ">", "> ", 2, ["blockquote"]),
     insert("callout", "Callout", "> [!NOTE]", "> [!NOTE] ", 10, ["note", "warning", "admonition"]),
-    insert("divider", "Divider", "---", "---\n", 4, ["hr", "rule", "separator"]),
+    // `***`, NOT `---`, and the reason is position: prosemark's frontmatter
+    // parser fires at line 0 and takes any later `---` as its closer, so a
+    // dash divider written at the top of a note turns the whole note into
+    // frontmatter the moment a second one lands — the prose below it becomes
+    // YAML the knowledge index reads as properties. `***` is the same
+    // CommonMark thematic break and the same `HorizontalRule` node, and it
+    // cannot open frontmatter from any position.
+    insert("divider", "Divider", "***", "***\n", 4, ["hr", "rule", "separator"]),
     // The caret lands in the body rather than on the info string: code is what
     // a fence is for, and its language is one line up when it is wanted.
     insert("code-block", "Code block", "```", "```\n\n```", 4, ["fence", "snippet"]),

@@ -78,7 +78,7 @@ describe("the note's slash vocabulary", () => {
       const item = itemsFor("direct").find((row) => row.id === id);
       if (item?.action.kind !== "insert") throw new Error(`${id} is not an insertion`);
       const before = "Intro.\n\n";
-      const insertion = slashInsertionFor(item.action.text, true);
+      const insertion = slashInsertionFor(item.action.text, "same-line");
       const doc = `${before}${insertion}tail\n`;
       const blocks = topLevelBlocks(doc);
       const owning = (pos: number) => blocks.find((block) => block.from <= pos && pos < block.to);
@@ -93,6 +93,33 @@ describe("the note's slash vocabulary", () => {
       }
     },
   );
+
+  // Verified parse, not a worry: `---\nMy notes.\n\n---\n` is ONE Frontmatter
+  // node over the whole note — prosemark's frontmatter parser fires at line 0
+  // and takes any later `---` as its closer, so the prose becomes YAML the
+  // knowledge index reads as properties. A note that STARTS with a divider is
+  // exactly the shape that gets there.
+  test("no row can open frontmatter from the top of a note", () => {
+    for (const item of itemsFor("direct")) {
+      if (item.action.kind !== "insert") continue;
+      const doc = `${item.action.text}\nMy notes.\n\n${item.action.text}\n`;
+      expect({ id: item.id, blocks: topLevelBlocks(doc).map((block) => block.name) }).not.toEqual({
+        id: item.id,
+        blocks: ["Frontmatter"],
+      });
+    }
+  });
+
+  test("the divider is a thematic break wherever it lands", () => {
+    const divider = itemsFor("direct").find((row) => row.id === "divider");
+    if (divider?.action.kind !== "insert") throw new Error("divider is not an insertion");
+    const atTop = `${divider.action.text}My notes.\n\n${divider.action.text}`;
+    expect(topLevelBlocks(atTop).map((block) => block.name)).toEqual([
+      "HorizontalRule",
+      "Paragraph",
+      "HorizontalRule",
+    ]);
+  });
 
   test("every caret offset lands inside the text it names", () => {
     for (const item of itemsFor("direct")) {
