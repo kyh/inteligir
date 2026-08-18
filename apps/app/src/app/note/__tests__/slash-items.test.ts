@@ -2,7 +2,8 @@
 
 import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type { SlashBlock, SlashItem } from "@repo/editor/slash-menu";
-import { parsedNodeNames } from "@repo/editor/test-support/block-nodes";
+import { slashInsertionFor } from "@repo/editor/slash-menu";
+import { parsedNodeNames, topLevelBlocks } from "@repo/editor/test-support/block-nodes";
 import { describe, expect, test, vi } from "vitest";
 import type { DelegationIntent } from "../../chat/chat-model";
 import { noteSlashItems } from "../slash-items";
@@ -58,6 +59,40 @@ describe("the note's slash vocabulary", () => {
     if (item?.action.kind !== "insert") return;
     expect(parsedNodeNames(documentWith(item.action.text))).toContain(node);
   });
+
+  // Both halves of the rule the editor derives from the snippet, stated over
+  // the vocabulary that actually ships.
+  //
+  // A ONE-LINE snippet is a line prefix and TAKES the remainder: `/head` at
+  // the start of `tail` is `# tail`, the transform-the-block behaviour a slash
+  // menu is expected to have.
+  //
+  // A MULTI-LINE snippet must not. "```tail" is not a closing fence (an info
+  // string is opener-only), so a fence glued to trailing prose never closes
+  // and the rest of the document becomes code; a table and a `$$` paragraph
+  // swallow the remainder one line lower down, which is why a single newline
+  // does not do and only a blank line ends them.
+  test.each(Object.entries(CONSTRUCTS))(
+    "%s applied before prose ends where the rule says it ends",
+    (id, node) => {
+      const item = itemsFor("direct").find((row) => row.id === id);
+      if (item?.action.kind !== "insert") throw new Error(`${id} is not an insertion`);
+      const before = "Intro.\n\n";
+      const insertion = slashInsertionFor(item.action.text, true);
+      const doc = `${before}${insertion}tail\n`;
+      const blocks = topLevelBlocks(doc);
+      const owning = (pos: number) => blocks.find((block) => block.from <= pos && pos < block.to);
+
+      expect(parsedNodeNames(doc)).toContain(node);
+      const tailAt = before.length + insertion.length;
+      if (item.action.text.includes("\n")) {
+        expect(owning(tailAt)?.from).toBe(tailAt);
+      } else {
+        // The prefix case: one block, and it is the construct's.
+        expect(owning(tailAt)?.from).toBe(before.length);
+      }
+    },
+  );
 
   test("every caret offset lands inside the text it names", () => {
     for (const item of itemsFor("direct")) {
