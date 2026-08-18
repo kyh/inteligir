@@ -14,6 +14,7 @@
     "./proposals": "./src/proposals.ts",
     "./queued-messages": "./src/queued-messages.ts",
     "./schema": "./src/schema.ts",
+    "./sync-outbox": "./src/sync-outbox.ts",
     "./threads": "./src/threads.ts"
   },
   "scripts": {

@@ -173,6 +173,75 @@ export const pendingInteractions = sqliteTable(
 );
 
 /**
+ * The cloud sync outbox: one row per LOCAL thread event still owed to the
+ * account's merged log (`@repo/cloud-contract/sync`).
+ *
+ * `device_seq` is the WIRE position — strictly increasing per device across
+ * batches, and the log's idempotency key. It cannot be derived from
+ * `events.sequence`, which is contiguous per THREAD and so orders nothing
+ * about a device; and it cannot be read back as `MAX(device_seq)` here,
+ * because a pushed row is deleted and a counter over a shrinking table would
+ * hand a later event a position the log already holds. Its high-water lives in
+ * `sync_state` instead.
+ *
+ * `body` is the event's serialized bytes, FROZEN at enqueue. Re-pushing a
+ * stored position is the retry path only while the bytes match, so deriving
+ * them again at push time — from a later build's grammar, or a key order that
+ * moved — is `sync-conflict` rather than idempotency.
+ *
+ * No foreign key to `threads`: the row is a wire payload already computed, not
+ * thread state, and a cascade would silently drop a position the log's
+ * high-water has passed.
+ */
+export const syncOutbox = sqliteTable(
+  "sync_outbox",
+  {
+    id: text("id").primaryKey(),
+    deviceSeq: integer("device_seq").notNull(),
+    threadId: text("thread_id").notNull(),
+    body: text("body").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    // The drain reads and the ack deletes in this order, and a position may
+    // never be enqueued twice.
+    uniqueIndex("sync_outbox_device_seq_idx").on(table.deviceSeq),
+  ],
+);
+
+/**
+ * This device's sync position, in ONE row: the outbox counter's high-water and
+ * the account log's global `seq` applied through. Both survive an unpair only
+ * by being reset together — a cursor kept across accounts would skip another
+ * account's log from its own first row.
+ */
+export const syncState = sqliteTable(
+  "sync_state",
+  {
+    id: integer("id").primaryKey(),
+    lastDeviceSeq: integer("last_device_seq").notNull().default(0),
+    cursor: integer("cursor").notNull().default(0),
+    lastSyncedAt: integer("last_synced_at"),
+  },
+  (table) => [check("sync_state_singleton_check", sql`${table.id} = 1`)],
+);
+
+/**
+ * Capture ids this device has already written into the vault. The inbox's
+ * guarantee is at-least-once DELIVERY with exactly-once deletion by the owning
+ * claim, so a device that applied and then lost its claim is handed the same
+ * capture again — this table is what makes the second apply a no-op.
+ *
+ * Rows are pruned by age rather than kept: once a capture is acked by its
+ * owner it leaves the inbox and can never be delivered again, so the only
+ * window this covers is a lapsed claim.
+ */
+export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
+  id: text("id").primaryKey(),
+  appliedAt: integer("applied_at").notNull(),
+});
+
+/**
  * A suggested edit a review-mode turn captured instead of landing (issue
  * #560): one row per file the turn wrote, holding BOTH sides whole.
  *
