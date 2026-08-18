@@ -354,6 +354,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
    */
   async function drain(client: CloudClient): Promise<boolean> {
     for (let round = 0; round < MAX_PUSH_BATCHES_PER_PASS; round += 1) {
+      // Re-read per round, not once: an unpair can land while a request is in
+      // flight, and it has already emptied the queue this loop is draining.
+      if (session.kind !== "live") {
+        return false;
+      }
       const batch = takePushBatch(args.db);
       if (batch === null) {
         return true;
@@ -465,6 +470,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
    *  Returns false when the session ended. */
   async function pullAndApply(client: CloudClient, deviceId: string): Promise<boolean> {
     for (let page = 0; page < MAX_PULL_PAGES_PER_PASS; page += 1) {
+      // See `drain`: an unpair mid-pass has already reset the cursor this loop
+      // is advancing.
+      if (session.kind !== "live") {
+        return false;
+      }
       const cursor = readSyncState(args.db).cursor;
       const result = await client.pull({ afterSeq: cursor, limit: PULL_DEFAULT_LIMIT });
       if (!result.ok) {
@@ -492,6 +502,9 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
    * ledger absorbs) rather than a capture nobody ever wrote.
    */
   async function applyCaptures(client: CloudClient): Promise<boolean> {
+    if (session.kind !== "live") {
+      return false;
+    }
     const claimed = await client.claimCaptures(CLAIM_DEFAULT_LIMIT);
     if (!claimed.ok) {
       return !recordFailure(claimed.failure);

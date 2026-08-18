@@ -15,7 +15,7 @@ import { hostname } from "node:os";
 import type { CloudStatusResponse } from "@repo/server-contract/cloud";
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, outputJson, requireOk, writeLines } from "../output";
 
 function describe(status: CloudStatusResponse): string[] {
   switch (status.state) {
@@ -99,10 +99,6 @@ export function syncCommand(deps: CliDeps) {
           const api = await apiFor(deps);
           const body = await (await requireOk(await api.cloud.sync.$post())).json();
           if (outputJson(args, body)) {
-            return;
-          }
-          if (body.state === "off") {
-            out.info("This install is not paired; nothing was sent.");
             return;
           }
           writeLines(describe(body));
