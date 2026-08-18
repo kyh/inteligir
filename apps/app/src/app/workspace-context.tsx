@@ -65,8 +65,7 @@ export function applyChangedMessage(
     case "vault":
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTree });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.backlinksRoot });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.relatedRoot });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
         // A NAMED change reaches only the notes it names; an unnamed one
         // asserts nothing, so every open note re-checks its own file.
         if (message.paths === undefined) {
@@ -90,17 +89,16 @@ export function applyChangedMessage(
       // and the file did not move, so `proposals-changed` sweeps that family
       // and must not make the note re-read itself to learn about a row.
       //
-      // Backlinks are the other kind of derived state a doc's OWN bytes move:
+      // Knowledge is the other kind of derived state a doc's OWN bytes move:
       // the links this doc holds are someone else's backlinks, and which
       // someone is not knowable from here — so the family is swept whole,
       // never per path. Related notes are that same argument over a wider
-      // input (links, tags AND text), so they are swept the same way and by
-      // the same signals; neither needs a `knowledge` change kind of its own,
-      // because every knowledge query settles the index before answering.
+      // input (links, tags AND text), which is why one prefix sweep covers
+      // both; neither needs a `knowledge` change kind of its own, because
+      // every knowledge query settles the index before answering.
       if (message.changes.includes("content-changed")) {
         notifyDoc(message.id);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.backlinksRoot });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.relatedRoot });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
       }
       if (message.changes.includes("proposals-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
@@ -208,8 +206,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // which changes every field on it.
       onReconnected: () => {
         void runtime.queryClient.invalidateQueries({ queryKey: ["vault"] });
-        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.backlinksRoot });
-        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.relatedRoot });
+        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });

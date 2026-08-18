@@ -21,11 +21,11 @@
 
 import {
   planSearchQuery,
+  stemToken,
   tokenize,
   type SearchQueryPlan,
   type SearchQueryTerm,
 } from "./search-query";
-import { stemmer } from "stemmer";
 
 export type SearchFields = {
   title: string;
@@ -98,7 +98,7 @@ export class SearchIndex {
       for (const token of tokenize(text)) {
         bump(this.postings, token, path, field);
         keys.tokens.add(token);
-        const stem = stemmer(token);
+        const stem = stemToken(token);
         bump(this.stemPostings, stem, path, field);
         keys.stems.add(stem);
       }

@@ -49,6 +49,7 @@ import {
   releaseQueuedMessageClaim,
   type ClaimedQueuedThreadMessageRow,
 } from "@repo/db/queued-messages";
+import { writeSyncCursor } from "@repo/db/sync-outbox";
 import {
   applyThreadLifecycleEventInTransaction,
   archiveThread,
@@ -130,21 +131,15 @@ export class ThreadEventThreadIdMismatchError extends Error {
 }
 
 /**
- * The cloud's two seams into this service, and both live INSIDE the
- * transaction that writes the events — which is the whole reason they are
- * seams rather than calls the sync runtime makes afterwards.
- *
- * `enqueue` commits with the append, so an event is owed to the account's log
- * exactly when it is in the local one. `recordCursor` commits with the apply,
- * which is what makes a pulled event land EXACTLY once: advancing the cursor
- * as a second write leaves a window where a crash replays the page into
- * duplicate rows.
+ * The cloud's seam into this service, and it lives INSIDE the transaction that
+ * writes the events — which is the whole reason it is a seam rather than a
+ * call the sync runtime makes afterwards: an event is owed to the account's
+ * log exactly when it is in the local one.
  *
  * Absent when this install is not paired, which is the default (issue #572).
  */
 export interface ThreadSyncHooks {
   enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;
-  recordCursor(tx: DbTransaction, cursor: number): void;
 }
 
 export interface ThreadServiceArgs {
@@ -639,9 +634,12 @@ export class ThreadService implements ProviderEventSink {
           }
           const landed = appendSyncedEventsInTransaction(tx, args.rows);
           projected = landed.applied.map((row) => row.event);
-          // Advances even when nothing landed: the point of the cursor is that
+          // IN THIS TRANSACTION, which is what makes a pulled event land
+          // exactly once — advancing the cursor as a second write leaves a
+          // window where a crash replays the page into duplicate rows. And it
+          // advances even when nothing landed: the point of the cursor is that
           // this device has SEEN the row, not that the row was new.
-          this.sync?.recordCursor(tx, args.cursor);
+          writeSyncCursor(tx, args.cursor);
           if (projected.length === 0) {
             return;
           }

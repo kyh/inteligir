@@ -18,11 +18,11 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { TimelineConversationRow, TimelineRow } from "@repo/server-contract/thread-timeline";
-import { expect, expectEq, skip } from "../harness/assert";
-import { exec, ExecError } from "../harness/exec";
+import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
-const SESSION = `inteligir-e2e-view-context-${process.pid}`;
+const agentBrowser = agentBrowserSession("view-context");
 const DOC_PATH = "Plans.md";
 const PARAGRAPH = "First paragraph to delegate.";
 const DOC = `# Plans
@@ -35,20 +35,6 @@ const TURN_DEADLINE_MS = 30_000;
 const COMPOSER = 'textarea[aria-label="Message the agent"]';
 /** The third rendered line of the seeded doc is the paragraph. */
 const PARAGRAPH_LINE = ".cm-content .cm-line:nth-child(3)";
-
-async function agentBrowser(args: readonly string[], timeoutMs = 60_000): Promise<string> {
-  const result = await exec("agent-browser", ["--session", SESSION, ...args], { timeoutMs });
-  return result.stdout.trim();
-}
-
-function describeExecError(error: unknown): string {
-  if (error instanceof ExecError) {
-    return [error.message, error.stdout.trim(), error.stderr.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n");
-  }
-  return error instanceof Error ? error.message : String(error);
-}
 
 function sha256Hex(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
@@ -69,15 +55,7 @@ export const viewContextBrowser: Scenario = {
     });
 
     try {
-      ctx.log("probing the environment: can a headless browser launch at all?");
-      try {
-        await agentBrowser(["open", "about:blank"], 120_000);
-      } catch (error) {
-        skip(
-          `agent-browser could not launch a headless browser in this environment; ` +
-            `the exact error:\n${describeExecError(error)}`,
-        );
-      }
+      await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);

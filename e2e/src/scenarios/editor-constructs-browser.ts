@@ -9,11 +9,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { apiPath, apiRoutes } from "@repo/server-contract/routes";
-import { expect, skip } from "../harness/assert";
-import { exec, ExecError } from "../harness/exec";
+import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
-const SESSION = `inteligir-e2e-editor-${process.pid}`;
+const agentBrowser = agentBrowserSession("editor");
 const DOC_PATH = "Constructs.md";
 
 const DOC = `# Constructs
@@ -58,20 +58,6 @@ const ASSET_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20
  *  strings per construct, so adding a construct is one line of probe script
  *  and one assertion rather than another round trip and another parser. */
 type RenderedProbe = Record<string, string[]>;
-
-async function agentBrowser(args: readonly string[], timeoutMs = 60_000): Promise<string> {
-  const result = await exec("agent-browser", ["--session", SESSION, ...args], { timeoutMs });
-  return result.stdout.trim();
-}
-
-function describeExecError(error: unknown): string {
-  if (error instanceof ExecError) {
-    return [error.message, error.stdout.trim(), error.stderr.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n");
-  }
-  return error instanceof Error ? error.message : String(error);
-}
 
 // `get text <sel>` answers for the FIRST match only, so a construct that
 // renders N times is read through one eval that reports all of them. The CLI
@@ -153,15 +139,7 @@ export const editorConstructsBrowser: Scenario = {
     });
 
     try {
-      ctx.log("probing the environment: can a headless browser launch at all?");
-      try {
-        await agentBrowser(["open", "about:blank"], 120_000);
-      } catch (error) {
-        skip(
-          `agent-browser could not launch a headless browser in this environment; ` +
-            `the exact error:\n${describeExecError(error)}`,
-        );
-      }
+      await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);

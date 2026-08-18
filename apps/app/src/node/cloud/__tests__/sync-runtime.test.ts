@@ -11,15 +11,10 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CAPTURE_INBOX_PATH, type CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "../cloud-client";
 import { readDeviceCredential } from "../credential-store";
-import {
-  CAPTURE_INBOX_PATH,
-  createCloudRuntime,
-  type CaptureVault,
-  type CloudRuntime,
-  type SyncedEventSink,
-} from "../sync-runtime";
+import { createCloudRuntime, type CloudRuntime, type SyncedEventSink } from "../sync-runtime";
 import { VaultServiceError } from "../../vault/vault-service";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { FakeCloud } from "./fake-cloud";
@@ -411,23 +406,13 @@ function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): 
   };
 }
 
-/** Spin the microtask queue until `predicate` holds — how a test waits for a
- *  step INSIDE an async call it has deliberately not awaited. */
-async function waitUntil(predicate: () => boolean): Promise<void> {
-  for (let turn = 0; turn < 1_000; turn += 1) {
-    if (predicate()) {
-      return;
-    }
-    await Promise.resolve();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  throw new Error("waitUntil gave up");
-}
-
-/** The device this runtime is paired as, or null when it is not. */
-function pairedDeviceId(runtime: CloudRuntime): string | null {
-  const status = runtime.status();
-  return status.state === "paired" ? status.deviceId : null;
+/** Wait for a re-pairing to have taken, from OUTSIDE the `pair` call this test
+ *  has deliberately not awaited. */
+async function waitForPairing(runtime: CloudRuntime, deviceId: string): Promise<void> {
+  await vi.waitFor(() => {
+    const status = runtime.status();
+    expect(status.state === "paired" ? status.deviceId : null).toBe(deviceId);
+  });
 }
 
 describe("a session that changes mid-pass", () => {
@@ -451,7 +436,7 @@ describe("a session that changes mid-pass", () => {
     // for once it gets that far.
     cloud.mintCode("WXYZ-WXYZ");
     const repaired = harness.runtime.pair({ code: "WXYZ-WXYZ", deviceName: "Laptop again" });
-    await waitUntil(() => pairedDeviceId(harness.runtime) === "dev_2");
+    await waitForPairing(harness.runtime, "dev_2");
 
     // The new pairing's own work. The counter reset with it, so this row
     // carries the very position the held push is about to acknowledge.
@@ -509,7 +494,7 @@ describe("a session that changes mid-pass", () => {
     current = joining.cloud;
     joining.cloud.mintCode("JOIN-NOW");
     const repaired = reader.runtime.pair({ code: "JOIN-NOW", deviceName: "Reader elsewhere" });
-    await waitUntil(() => pairedDeviceId(reader.runtime) === "dev_2");
+    await waitForPairing(reader.runtime, "dev_2");
     reader.applied.length = 0;
 
     gate.release();

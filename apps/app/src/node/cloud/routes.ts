@@ -20,14 +20,10 @@ import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 /** The refusal classes `POST /cloud/pair` can answer — a SUBSET of the API's
  *  vocabulary, held against it rather than restated, and exactly the statuses
  *  the contract row declares. */
-const PAIR_REFUSAL_CODES = [
-  "invalid_request",
-  "not_found",
-  "conflict",
-  "provider_unavailable",
-] as const satisfies readonly ApiErrorCode[];
-
-type PairRefusalCode = (typeof PAIR_REFUSAL_CODES)[number];
+type PairRefusalCode = Extract<
+  ApiErrorCode,
+  "invalid_request" | "not_found" | "conflict" | "provider_unavailable"
+>;
 
 interface PairRefusal {
   code: PairRefusalCode;
@@ -81,16 +77,7 @@ export function registerCloudRoutes(
     }
     const refusal = pairRefusal(outcome.failure);
     const response: ApiErrorResponse = { error: refusal.code, message: refusal.message };
-    switch (refusal.code) {
-      case "invalid_request":
-        return c.json(response, API_ERROR_STATUS.invalid_request);
-      case "not_found":
-        return c.json(response, API_ERROR_STATUS.not_found);
-      case "conflict":
-        return c.json(response, API_ERROR_STATUS.conflict);
-      case "provider_unavailable":
-        return c.json(response, API_ERROR_STATUS.provider_unavailable);
-    }
+    return c.json(response, API_ERROR_STATUS[refusal.code]);
   });
 
   post(cloudRoutes.unpair, (c) => c.json(runtime.unpair()));

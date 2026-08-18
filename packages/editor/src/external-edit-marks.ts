@@ -87,22 +87,18 @@ const externalEditMark = Decoration.mark({ class: "cm-external-edit" });
  * a bare insertion counts only when it lands strictly inside.
  */
 function withoutTouched(marks: DecorationSet, tr: Transaction): DecorationSet {
-  if (!tr.docChanged) {
+  // The unmarked buffer is the common case and this runs on every keystroke,
+  // so it costs nothing before there is anything to keep.
+  if (marks.size === 0 || !tr.docChanged) {
     return marks;
   }
   const touched: ExternalEditRange[] = [];
   tr.changes.iterChanges((_fromA, _toA, fromB, toB) => {
     touched.push({ from: fromB, to: toB });
   });
-  const mapped = marks.map(tr.changes);
-  const kept: Range<Decoration>[] = [];
-  for (let iter = mapped.iter(); iter.value !== null; iter.next()) {
-    const { from, to } = iter;
-    if (!touched.some((span) => span.from < to && span.to > from)) {
-      kept.push(externalEditMark.range(from, to));
-    }
-  }
-  return Decoration.set(kept, true);
+  return marks.map(tr.changes).update({
+    filter: (from, to) => !touched.some((span) => span.from < to && span.to > from),
+  });
 }
 
 const externalEditField = StateField.define<DecorationSet>({

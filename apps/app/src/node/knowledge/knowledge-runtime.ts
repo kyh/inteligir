@@ -446,11 +446,15 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
     // The ranking is the engine's (related-notes.ts); this shell supplies its
     // graph and points its lexical port at the same FTS5 `search` uses, which
-    // is why it reads THROUGH the index rather than off the graph alone.
+    // is why it reads THROUGH the index rather than off the graph alone. The
+    // RANKED read, though: the probe runs once per title token and keeps only
+    // the score, so every excerpt `search` cuts would be thrown away.
     async relatedNotes(path, limit) {
       const normalized = normalizePath(path);
       return readThroughIndex("related notes", () =>
-        relatedNotes(graph, (query, probe) => store.search(query, probe), normalized, { limit }),
+        relatedNotes(graph, (query, probe) => store.searchRanked(query, probe), normalized, {
+          limit,
+        }),
       );
     },
 

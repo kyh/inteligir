@@ -2,20 +2,15 @@
 // the page loads, the SPA mounts (sidebar + editor), the virgin boot opens
 // the seeded welcome note, the page reaches the API, the palette shortcut
 // does not edit the note under it, and the console stays clean.
-//
-// The environment probe and the product assertions are SEPARATE: about:blank
-// needs only the browser, so a failure there is an environment gap and
-// reports SKIP with the exact error. Every step after that probe — including
-// opening the app's own URL — is a real assertion.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { expect, skip } from "../harness/assert";
-import { exec, ExecError } from "../harness/exec";
+import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
-const SESSION = `inteligir-e2e-${process.pid}`;
+const agentBrowser = agentBrowserSession("smoke");
 const MOUNT_DEADLINE_MS = 60_000;
 /** Settle window between "the page reached the API" and the error sweep, so
  *  a late-arriving async failure cannot slip in after the assertion read. */
@@ -29,20 +24,6 @@ const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 /** agent-browser drives a browser on THIS machine, so the running platform is
  *  the one the page sees — and the app claims ⌘ there, Ctrl elsewhere. */
 const PALETTE_CHORD = process.platform === "darwin" ? "Meta+k" : "Control+k";
-
-async function agentBrowser(args: readonly string[], timeoutMs = 60_000): Promise<string> {
-  const result = await exec("agent-browser", ["--session", SESSION, ...args], { timeoutMs });
-  return result.stdout.trim();
-}
-
-function describeExecError(error: unknown): string {
-  if (error instanceof ExecError) {
-    return [error.message, error.stdout.trim(), error.stderr.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n");
-  }
-  return error instanceof Error ? error.message : String(error);
-}
 
 function pageIsMounted(bodyText: string): boolean {
   // The seeded welcome note's content only reaches the page through a
@@ -100,15 +81,7 @@ export const browserSmoke: Scenario = {
         await assertDocumentCarriesItsNonce(app.baseUrl);
       }
 
-      ctx.log("probing the environment: can a headless browser launch at all?");
-      try {
-        await agentBrowser(["open", "about:blank"], 120_000);
-      } catch (error) {
-        skip(
-          `agent-browser could not launch a headless browser in this environment; ` +
-            `the exact error:\n${describeExecError(error)}`,
-        );
-      }
+      await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);

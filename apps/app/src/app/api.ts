@@ -26,15 +26,15 @@ export const queryKeys = {
   cloudStatus: ["cloud", "status"] as const,
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
-  /** The whole backlinks family — what any content change sweeps, because a
-   *  link INTO a note lives in someone else's bytes (or, for a self-link, in
-   *  its own), so no path-scoped invalidation is even expressible. */
-  backlinksRoot: ["knowledge", "backlinks"] as const,
+  /** The whole knowledge family — what any content or file change sweeps.
+   *  Every member is derived from bytes OTHER than the note it is asked
+   *  about: a link into a note lives in someone else's (or, for a self-link,
+   *  in its own), and relatedness blends links, tags AND text from across the
+   *  vault. So no path-scoped invalidation is expressible for any of them,
+   *  and the family is swept at the prefix rather than one root per query —
+   *  the next derived read inherits the sweep instead of needing its own. */
+  knowledgeRoot: ["knowledge"] as const,
   backlinks: (docPath: string) => ["knowledge", "backlinks", docPath] as const,
-  /** The whole related family, swept alongside the backlinks one and for a
-   *  wider version of the same reason: relatedness is computed from links,
-   *  tags AND text, all of which live in notes other than this one. */
-  relatedRoot: ["knowledge", "related"] as const,
   related: (docPath: string) => ["knowledge", "related", docPath] as const,
   /** The whole thread family — what a ws thread invalidation sweeps. */
   threadsRoot: ["threads"] as const,
@@ -57,6 +57,13 @@ export class ApiError extends Error {
     this.status = status;
     this.code = code;
   }
+}
+
+/** The server's own refusal sentence when it sent one; anything else — a
+ *  dropped connection, a thrown string — has none of its own to show, so the
+ *  caller's fallback stands in. The ONE spelling of that choice. */
+export function refusalMessage(error: unknown, fallback: string): string {
+  return error instanceof ApiError ? error.message : fallback;
 }
 
 /** hc types `ok` as literal true/false per declared status, so the success

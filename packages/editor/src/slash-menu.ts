@@ -505,20 +505,16 @@ export function slashMenuExtension(config: SlashMenuConfig): Extension {
 
 // The panel IS the tooltip element — CodeMirror adds `cm-tooltip` to whatever
 // dom a `create` returns — so there is no wrapper to style separately, and the
-// class is named twice to outrank the base theme's own `.cm-tooltip` chrome
-// (a light `#f5f5f5` box that ignores this editor's palette entirely).
+// box it sits in is the shared tooltip chrome editor-theme.ts already dresses.
+// What is left here is what makes this tooltip a MENU rather than a bar.
 const slashMenuTheme = EditorView.theme({
-  ".cm-slash-menu.cm-tooltip": {
+  ".cm-slash-menu": {
     display: "flex",
     flexDirection: "column",
     maxHeight: "16em",
     minWidth: "14em",
     overflowY: "auto",
     padding: "3px",
-    border: "1px solid var(--chip-border, oklch(88% 0.01 260))",
-    borderRadius: "8px",
-    background: "var(--pm-code-background-color)",
-    color: "var(--editor-fg)",
     boxShadow: "0 4px 14px oklch(0% 0 0 / 0.12)",
   },
   ".cm-slash-row": {

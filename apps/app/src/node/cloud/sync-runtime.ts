@@ -28,7 +28,7 @@
 // — except a credential the cloud has refused, which is the one failure a
 // retry cannot fix.
 
-import { CLAIM_DEFAULT_LIMIT, type CaptureRow } from "@repo/cloud-contract/captures";
+import { CLAIM_DEFAULT_LIMIT } from "@repo/cloud-contract/captures";
 import type { CloudErrorCode } from "@repo/cloud-contract/errors";
 import { PULL_DEFAULT_LIMIT, type SyncEventRow } from "@repo/cloud-contract/sync";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
@@ -46,6 +46,7 @@ import {
 } from "@repo/db/sync-outbox";
 import { threadEventSchema, type ThreadEvent } from "@repo/domain/provider-event";
 import type { CloudPairRequest, CloudStatusResponse } from "@repo/server-contract/cloud";
+import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS, type CaptureVault } from "./captures";
 import {
   createCloudClient,
   describeCloudFailure,
@@ -63,7 +64,7 @@ import {
   type DeviceCredential,
 } from "./credential-store";
 import { ackPushBatch, enqueueThreadEvents, takePushBatch } from "./outbox";
-import { VaultServiceError, type VaultService } from "../vault/vault-service";
+import { messageOf } from "../knowledge/message-of";
 
 /** The fallback cadence. The socket is what makes sync feel immediate; this is
  *  what makes it CORRECT when the socket is down, so it is deliberately slow. */
@@ -92,16 +93,6 @@ const RECONNECT_MAX_MS = 60_000;
  *  with. Treated as a hint, never as the verdict: the next HTTP call is what
  *  actually establishes that a credential is dead. */
 const SEVERED_CLOSE_CODE = 1008;
-
-/** Where a claimed capture lands. One note rather than a dated one: a daily
- *  note is a vault convention this product has not chosen yet, and inventing
- *  one here would put the choice in the sync client. */
-export const CAPTURE_INBOX_PATH = "Inbox.md";
-
-/** How long an applied capture id is remembered. The only window it has to
- *  cover is a lapsed claim being handed to this device again, which the
- *  contract bounds at five minutes — a week is slack, not a requirement. */
-const APPLIED_CAPTURE_RETENTION_MS = 7 * 24 * 60 * 60_000;
 
 /**
  * The one-transaction ingest, as this runtime needs it. Implemented by
@@ -142,13 +133,6 @@ export interface CloudTransport {
   pollIntervalMs?: number | null;
 }
 
-/**
- * The slice of the vault a claimed capture needs. Narrow on purpose: this
- * runtime writes exactly ONE note, and handing it the whole service is how a
- * sync client quietly becomes a second writer of the vault.
- */
-export type CaptureVault = Pick<VaultService, "read" | "writeIfUnchanged" | "writeGuarded">;
-
 export interface CloudRuntimeArgs {
   db: DbConnection;
   /** Where the credential lives; also this install's identity. */
@@ -164,8 +148,6 @@ export interface CloudRuntime {
   status(): CloudStatusResponse;
   /** The outbox hook the thread service calls inside its append transaction. */
   enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;
-  /** The cursor hook, in the transaction that applies a pulled batch. */
-  recordCursor(tx: DbTransaction, cursor: number): void;
   /** Late-bound: the sink is built after this runtime, because the thread
    *  service needs `enqueue` at construction. */
   attach(sink: SyncedEventSink): void;
@@ -636,13 +618,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     );
     const toWrite = captures.filter((capture) => fresh.has(capture.id));
     if (toWrite.length > 0) {
-      const written = await appendToInbox(toWrite);
+      const written = await appendToInbox(args.vault, toWrite);
       if (!fenced(context)) {
         return false;
       }
-      if (!written) {
+      if (!written.applied) {
         // Nothing recorded and nothing acked: the claim lapses and the inbox
         // hands these to whoever claims next.
+        debug(written.reason);
         return true;
       }
       recordAppliedCaptures(
@@ -667,37 +650,6 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       }
     }
     pruneAppliedCaptures(args.db, Date.now() - APPLIED_CAPTURE_RETENTION_MS);
-    return true;
-  }
-
-  async function appendToInbox(captures: readonly CaptureRow[]): Promise<boolean> {
-    const addition = captures.map(inboxBullet).join("");
-    try {
-      const current = await args.vault.read(CAPTURE_INBOX_PATH);
-      const separator = current.content === "" || current.content.endsWith("\n") ? "" : "\n";
-      const result = await args.vault.writeIfUnchanged(
-        CAPTURE_INBOX_PATH,
-        current.content,
-        `${current.content}${separator}${addition}`,
-      );
-      if (!result.applied) {
-        debug(`${CAPTURE_INBOX_PATH} changed under the capture write; retrying next pass`);
-        return false;
-      }
-      return true;
-    } catch (error) {
-      if (!(error instanceof VaultServiceError) || error.code !== "not_found") {
-        debug(`could not write ${CAPTURE_INBOX_PATH}: ${messageOf(error)}`);
-        return false;
-      }
-    }
-    const created = await args.vault.writeGuarded(CAPTURE_INBOX_PATH, `# Inbox\n\n${addition}`, {
-      ifAbsent: true,
-    });
-    if (!created.applied) {
-      debug(`${CAPTURE_INBOX_PATH} appeared under the capture write; retrying next pass`);
-      return false;
-    }
     return true;
   }
 
@@ -810,10 +762,6 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       scheduleDrain();
     },
 
-    recordCursor(tx, cursor) {
-      writeSyncCursor(tx, cursor);
-    },
-
     attach(next) {
       sink = next;
     },
@@ -889,14 +837,4 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       await inflight?.catch(() => undefined);
     },
   };
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/** One capture, one bullet. Continuation lines are indented so a multi-line
- *  capture stays inside its own list item instead of ending the list. */
-function inboxBullet(capture: CaptureRow): string {
-  return `- ${capture.text.replaceAll("\n", "\n  ")}\n`;
 }

@@ -25,12 +25,11 @@ import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
-import { toast } from "@repo/ui/components/sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { ApiError, queryKeys, unwrap } from "../api";
+import { queryKeys, unwrap } from "../api";
 import { useWorkspace } from "../workspace-context";
-import { Row, SectionHeading } from "./settings-chrome";
+import { failed, Row, SectionHeading } from "./settings-chrome";
 
 /**
  * Nothing on the local ws bus announces a sync pass — the bus carries vault,
@@ -63,12 +62,6 @@ function relativeTime(epochMs: number | null): string {
     return `${Math.round(seconds / 60)}m ago`;
   }
   return new Date(epochMs).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
-/** The server's own refusal sentence when it sent one; a dropped connection
- *  has none of its own to render. */
-function failed(error: unknown, fallback: string): void {
-  toast.error(error instanceof ApiError ? error.message : fallback);
 }
 
 /**
@@ -186,23 +179,32 @@ export function SyncSection() {
   const statusQuery = useCloudStatus();
   const [pending, setPending] = useState(false);
 
-  const apply = (next: CloudStatusResponse): void => {
-    queryClient.setQueryData<CloudStatusResponse>(queryKeys.cloudStatus, () => next);
-  };
-
-  const pair = (request: { code: string; deviceName: string }): void => {
+  // Every verb here is the same act: lock the section, ask the server, take
+  // the whole status it answers with, and say what went wrong in this verb's
+  // own words. Three copies of that lifecycle is three places a `finally` can
+  // go missing and leave the section disabled for good.
+  const perform = (fallback: string, call: () => Promise<CloudStatusResponse>): void => {
     setPending(true);
     void (async () => {
       try {
-        apply(await unwrap(await api.cloud.pair.$post({ json: request })));
+        const next = await call();
+        queryClient.setQueryData<CloudStatusResponse>(queryKeys.cloudStatus, () => next);
       } catch (error) {
-        failed(error, "Could not pair this device.");
+        failed(error, fallback);
       } finally {
         setPending(false);
       }
     })();
   };
 
+  const pair = (request: { code: string; deviceName: string }): void => {
+    perform("Could not pair this device.", async () =>
+      unwrap(await api.cloud.pair.$post({ json: request })),
+    );
+  };
+
+  // The confirm runs OUTSIDE the lock: nothing is in flight while a dialog
+  // waits for an answer, and a section greyed out meanwhile says otherwise.
   const unpair = (): void => {
     void (async () => {
       const confirmed = await confirm({
@@ -214,28 +216,12 @@ export function SyncSection() {
       if (!confirmed) {
         return;
       }
-      setPending(true);
-      try {
-        apply(await unwrap(await api.cloud.unpair.$post()));
-      } catch (error) {
-        failed(error, "Could not unpair this device.");
-      } finally {
-        setPending(false);
-      }
+      perform("Could not unpair this device.", async () => unwrap(await api.cloud.unpair.$post()));
     })();
   };
 
   const syncNow = (): void => {
-    setPending(true);
-    void (async () => {
-      try {
-        apply(await unwrap(await api.cloud.sync.$post()));
-      } catch (error) {
-        failed(error, "Could not run a sync.");
-      } finally {
-        setPending(false);
-      }
-    })();
+    perform("Could not run a sync.", async () => unwrap(await api.cloud.sync.$post()));
   };
 
   const status = statusQuery.data;

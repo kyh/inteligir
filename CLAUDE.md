@@ -284,7 +284,7 @@ pull` from a hostile remote is enough to plant one.
   wiki-links, unresolved ones dashed, so listing them below would be the same
   information twice with one copy stale. The refresh rides the EXISTING change
   kinds — vault `files-changed` and doc `content-changed` both sweep the
-  `backlinksRoot` family WHOLE, because a link into a note lives in another
+  `knowledgeRoot` family WHOLE, because a link into a note lives in another
   note's bytes (or, for a self-link, in its own), so a path-scoped
   invalidation is not expressible. No `knowledge` change kind exists or is
   needed; every knowledge query settles the index first.

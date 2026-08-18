@@ -10,11 +10,11 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { insertThreadMarker } from "@repo/notes/markdown/thread-marker";
-import { expect, skip } from "../harness/assert";
-import { exec, ExecError } from "../harness/exec";
+import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
-const SESSION = `inteligir-e2e-chip-${process.pid}`;
+const agentBrowser = agentBrowserSession("chip");
 const DOC_PATH = "Plans.md";
 const DOC = `# Plans
 
@@ -23,20 +23,6 @@ First paragraph to delegate.
 const ANCHOR = "anc_0c81b0405e11";
 const PROMPT = "Summarize the paragraph";
 const TURN_DEADLINE_MS = 30_000;
-
-async function agentBrowser(args: readonly string[], timeoutMs = 60_000): Promise<string> {
-  const result = await exec("agent-browser", ["--session", SESSION, ...args], { timeoutMs });
-  return result.stdout.trim();
-}
-
-function describeExecError(error: unknown): string {
-  if (error instanceof ExecError) {
-    return [error.message, error.stdout.trim(), error.stderr.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n");
-  }
-  return error instanceof Error ? error.message : String(error);
-}
 
 export const delegationChipBrowser: Scenario = {
   name: "delegation-chip-browser",
@@ -80,15 +66,7 @@ export const delegationChipBrowser: Scenario = {
     }
 
     try {
-      ctx.log("probing the environment: can a headless browser launch at all?");
-      try {
-        await agentBrowser(["open", "about:blank"], 120_000);
-      } catch (error) {
-        skip(
-          `agent-browser could not launch a headless browser in this environment; ` +
-            `the exact error:\n${describeExecError(error)}`,
-        );
-      }
+      await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);

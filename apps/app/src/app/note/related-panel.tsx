@@ -17,21 +17,20 @@
 // the section above and this one never name the same note twice.
 
 import type { RelatedNoteWire } from "@repo/server-contract/knowledge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@repo/ui/components/collapsible";
-import { cn } from "@repo/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRightIcon } from "lucide-react";
-import { useState } from "react";
 import { queryKeys, unwrap } from "../api";
 import { readRelatedOpen, writeRelatedOpen } from "../prefs";
 import { useWorkspace } from "../workspace-context";
+import {
+  NoteFootList,
+  NoteFootMessage,
+  NoteFootRow,
+  NoteFootSection,
+  useSectionOpen,
+} from "./note-foot-section";
 
 /**
- * A doc's related notes. Swept by `relatedRoot` on every content or file
+ * A doc's related notes. Swept by `knowledgeRoot` on every content or file
  * change (workspace-context.tsx) rather than re-read on a timer: every signal
  * this ranks on lives in notes other than the open one.
  *
@@ -80,45 +79,33 @@ export function RelatedPanel({
 }: RelatedPanelProps) {
   const settled = !loading && !failed;
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger className="flex w-full items-center gap-1.5 py-2 text-xs font-medium tracking-wide text-muted-foreground hover:text-foreground">
-        <ChevronRightIcon
-          className={cn("size-3.5 transition-transform", open && "rotate-90")}
-          aria-hidden
-        />
-        {settled ? relatedSummary(related.length) : "Related notes"}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        {related.length === 0 ? (
-          <p className="pb-4 text-sm text-muted-foreground">
-            {failed
-              ? "Could not read the index just now."
-              : loading
-                ? "…"
-                : "Nothing else in the vault shares this note's links, tags or words."}
-          </p>
-        ) : (
-          <ul className="space-y-1 pb-4">
-            {related.map((entry) => (
-              <li key={entry.path}>
-                <button
-                  type="button"
-                  className="w-full rounded-md px-2 py-1.5 text-left hover:bg-muted"
-                  onClick={() => onOpen(entry.path)}
-                >
-                  <span className="block truncate text-sm" title={entry.path}>
-                    {entry.title}
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {entry.reasons.join(" · ")}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
+    <NoteFootSection
+      summary={settled ? relatedSummary(related.length) : "Related notes"}
+      open={open}
+      onOpenChange={onOpenChange}
+    >
+      {related.length === 0 ? (
+        <NoteFootMessage>
+          {failed
+            ? "Could not read the index just now."
+            : loading
+              ? "…"
+              : "Nothing else in the vault shares this note's links, tags or words."}
+        </NoteFootMessage>
+      ) : (
+        <NoteFootList>
+          {related.map((entry) => (
+            <NoteFootRow
+              key={entry.path}
+              label={entry.title}
+              path={entry.path}
+              detail={entry.reasons.join(" · ")}
+              onOpen={() => onOpen(entry.path)}
+            />
+          ))}
+        </NoteFootList>
+      )}
+    </NoteFootSection>
   );
 }
 
@@ -130,12 +117,8 @@ export interface RelatedSectionProps {
 /** The panel with its own data. Split from the panel so the surface is
  *  testable without a query client, the way the backlinks section is. */
 export function RelatedSection({ path, onOpen }: RelatedSectionProps) {
-  const [open, setOpenState] = useState(readRelatedOpen);
+  const [open, setOpen] = useSectionOpen(readRelatedOpen, writeRelatedOpen);
   const relatedQuery = useRelatedNotes(path, open);
-  const setOpen = (next: boolean): void => {
-    writeRelatedOpen(next);
-    setOpenState(next);
-  };
 
   return (
     <RelatedPanel

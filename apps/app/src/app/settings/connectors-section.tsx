@@ -28,12 +28,11 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
-import { toast } from "@repo/ui/components/sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { ApiError, queryKeys, unwrap } from "../api";
+import { queryKeys, unwrap } from "../api";
 import { useWorkspace } from "../workspace-context";
-import { ChoiceRow, SectionHeading } from "./settings-chrome";
+import { ChoiceRow, failed, SectionHeading } from "./settings-chrome";
 
 /**
  * Codex's config file is not on the ws bus — nothing in this app writes it,
@@ -66,12 +65,6 @@ export function argumentLines(text: string): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-}
-
-/** The server's own refusal sentence when it sent one; a dropped connection
- *  has none of its own to render. */
-function failed(error: unknown, fallback: string): void {
-  toast.error(error instanceof ApiError ? error.message : fallback);
 }
 
 type TransportKind = ConnectorTransportInput["kind"];

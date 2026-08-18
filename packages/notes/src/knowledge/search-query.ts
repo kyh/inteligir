@@ -71,6 +71,18 @@ function foldDiacritics(text: string): string {
   return text.normalize("NFD").replace(/\p{Mn}+/gu, "");
 }
 
+/** One token's stem — the whole-word match, for every caller on both engines.
+ *
+ * `stemmer` is imported HERE and nowhere else, which is what makes this file's
+ * claim to own the policy true rather than aspirational: the two engines and
+ * the snippet cut all ask the same function, so a change of stemmer (or of
+ * what is fed to one) cannot land on two of the three. Callers pass a token
+ * from {@link tokenize} — the fold is what makes the stem comparable across
+ * the SQL seam. */
+export function stemToken(token: string): string {
+  return stemmer(token);
+}
+
 /** `text`'s tokens, each replaced by its stem, in order — what an engine must
  * index ALONGSIDE the literal text for {@link SearchQueryTerm.stem} to find
  * anything. Order and repetition are preserved rather than deduped, so a
@@ -96,7 +108,7 @@ function foldDiacritics(text: string): string {
  * The stemmer is English. A token it has no rule for comes back unchanged, so
  * a vault in another language searches exactly as it does today. */
 export function stemText(text: string): string {
-  return tokenize(text).map(stemmer).join(" ");
+  return tokenize(text).map(stemToken).join(" ");
 }
 
 /** One token to look up: `stem` is what a whole-word match asks for, `token`
@@ -153,7 +165,7 @@ export function planSearchQuery(query: string): readonly SearchQueryPlan[] {
   const content = unique.filter((token) => !STOPWORDS.has(token));
   const terms = (content.length > 0 ? content : unique).map((token) => ({
     token,
-    stem: stemmer(token),
+    stem: stemToken(token),
     prefix: token === typing,
   }));
 

@@ -16,6 +16,7 @@
 
 import type { SearchResult } from "./knowledge-index";
 import type { DocProjection } from "./projection";
+import type { SearchHit } from "./search-index";
 
 /** One indexed doc as persisted: identity, change-detection key, projection. */
 export type StoredDocRow = {
@@ -47,6 +48,13 @@ export type KnowledgeStore = {
 
   /** Ranked full-text search over the stored corpus. */
   search(query: string, limit: number): SearchResult[];
+
+  /** The same ranking, paths and scores ONLY — no body read, no excerpt cut.
+   * What the related-notes lexical probe asks for: it blends scores and shows
+   * no row, so the excerpt is work with no reader. Answers {@link SearchHit},
+   * which is also what the pure SearchIndex's own ranked read returns, so both
+   * engines satisfy `relatedNotes`' lexical port with the same type. */
+  searchRanked(query: string, limit: number): SearchHit[];
 
   /** Run `fn` atomically — the host batches reconcile writes through this. */
   transaction(fn: () => void): void;

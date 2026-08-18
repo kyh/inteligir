@@ -16,17 +16,15 @@
 // the word the query happened to spell.
 // ---------------------------------------------------------------------------
 
-import { stemmer } from "stemmer";
 import { clipSnippet } from "./projection";
-import { tokenize, type SearchQueryTerm } from "./search-query";
-import { splitLines } from "./source-lines";
+import { stemToken, tokenize, type SearchQueryTerm } from "./search-query";
 
 /** Does this line hold something one of `terms` reached? Stems on both sides,
  * because that is how the term was matched in the first place; a term still
  * being typed also matches by prefix, exactly as the engines run it. */
 function lineMatches(line: string, terms: readonly SearchQueryTerm[]): boolean {
   for (const token of tokenize(line)) {
-    const stem = stemmer(token);
+    const stem = stemToken(token);
     for (const term of terms) {
       if (stem === term.stem) return true;
       if (term.prefix && token.startsWith(term.token)) return true;
@@ -35,10 +33,14 @@ function lineMatches(line: string, terms: readonly SearchQueryTerm[]): boolean {
   return false;
 }
 
-/** The line to show `text` by, clipped — empty when nothing in it matched, so
- * the caller can fall back to the title rather than print an arbitrary line. */
-export function searchExcerpt(text: string, terms: readonly SearchQueryTerm[]): string {
-  for (const raw of splitLines(text)) {
+/** The line to show a doc by, clipped — empty when none of its lines matched,
+ * so the caller can fall back to the title rather than print an arbitrary one.
+ *
+ * It takes LINES rather than text because what a line is belongs to
+ * ./source-lines and to nowhere else: the SQL store splits the body it just
+ * read, and the pure index already holds the split it made at index time. */
+export function searchExcerpt(lines: readonly string[], terms: readonly SearchQueryTerm[]): string {
+  for (const raw of lines) {
     const line = raw.trim();
     if (line === "") continue;
     if (lineMatches(line, terms)) return clipSnippet(line);

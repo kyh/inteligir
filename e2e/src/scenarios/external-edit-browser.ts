@@ -13,28 +13,14 @@
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
-import { expect, expectEq, skip } from "../harness/assert";
-import { exec, ExecError } from "../harness/exec";
+import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
-const SESSION = `inteligir-e2e-external-edit-${process.pid}`;
+const agentBrowser = agentBrowserSession("external-edit");
 const PROMPT = "rewrite the note";
 const BASE_NOTE = "# Agent note\n\nthe line that was already here\n";
 const TURN_DEADLINE_MS = 30_000;
-
-async function agentBrowser(args: readonly string[], timeoutMs = 60_000): Promise<string> {
-  const result = await exec("agent-browser", ["--session", SESSION, ...args], { timeoutMs });
-  return result.stdout.trim();
-}
-
-function describeExecError(error: unknown): string {
-  if (error instanceof ExecError) {
-    return [error.message, error.stdout.trim(), error.stderr.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n");
-  }
-  return error instanceof Error ? error.message : String(error);
-}
 
 export const externalEditBrowser: Scenario = {
   name: "external-edit-browser",
@@ -58,15 +44,7 @@ export const externalEditBrowser: Scenario = {
     expect(seeded.status === 200, `note seed answered ${seeded.status}`);
 
     try {
-      ctx.log("probing the environment: can a headless browser launch at all?");
-      try {
-        await agentBrowser(["open", "about:blank"], 120_000);
-      } catch (error) {
-        skip(
-          `agent-browser could not launch a headless browser in this environment; ` +
-            `the exact error:\n${describeExecError(error)}`,
-        );
-      }
+      await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       // The open note rides the route's `note` search param — deep-linkable,
       // which is what lets this scenario open a note in a subdirectory.

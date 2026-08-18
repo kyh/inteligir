@@ -144,16 +144,13 @@ export function delegationAffordanceExtension(config: DelegationAffordanceConfig
 
 // The bar IS the tooltip element — CodeMirror adds `cm-tooltip` to whatever
 // dom a `create` returns — so there is no wrapper to style separately, and the
-// class is named twice to outrank the base theme's own `.cm-tooltip` chrome
-// (a light `#f5f5f5` box that ignores this editor's palette entirely).
+// box it sits in is the shared tooltip chrome editor-theme.ts already dresses.
+// What is left here is the row of buttons.
 const affordanceTheme = EditorView.theme({
-  ".cm-delegate-tooltip.cm-tooltip": {
+  ".cm-delegate-tooltip": {
     display: "flex",
     gap: "2px",
     padding: "2px",
-    border: "1px solid var(--chip-border, oklch(88% 0.01 260))",
-    borderRadius: "8px",
-    background: "var(--pm-code-background-color)",
     boxShadow: "0 2px 8px oklch(0% 0 0 / 0.08)",
   },
   ".cm-delegate-button": {

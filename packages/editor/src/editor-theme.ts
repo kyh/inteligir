@@ -128,6 +128,22 @@ export const editorThemeExtension = EditorView.theme({
     opacity: "1",
   },
 
+  // Every tooltip this editor shows is house chrome (the slash menu, the
+  // delegation bar), so the box they share is dressed ONCE here rather than
+  // per extension: CodeMirror's base theme paints `.cm-tooltip` as a light
+  // `#f5f5f5` card that ignores this palette entirely, and one class is
+  // enough to beat it because a theme mounts after the base theme. That order
+  // cuts the other way against the extensions — the house stack mounts before
+  // them, so one that wants to REPLACE a property named here must outrank
+  // this rule (`.cm-slash-menu.cm-tooltip`) rather than restate it. Today
+  // each adds only its own layout, sizing and shadow.
+  ".cm-tooltip": {
+    border: "1px solid var(--chip-border, oklch(88% 0.01 260))",
+    borderRadius: "8px",
+    background: "var(--pm-code-background-color)",
+    color: "var(--editor-fg)",
+  },
+
   ".cm-rendered-link": {
     textDecoration: "underline",
     textUnderlineOffset: "0.15em",

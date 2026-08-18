@@ -464,4 +464,16 @@ describe("vault search — the retrieval measurement", () => {
       expect([...inMemory].toSorted(), query).toEqual([...fts].toSorted());
     }
   });
+
+  it("keeps the rank-only read identical to the full search it shadows", () => {
+    // `searchRanked` exists so the related-notes probe skips excerpt work; the
+    // saving is only safe while both statements interpolate one BM25_RANK and
+    // one plan ladder. This is the pin that catches the day someone edits one.
+    for (const { query } of EVAL_QUERIES) {
+      const full = store
+        .search(query, REACHABLE)
+        .map((hit) => ({ path: hit.path, score: hit.score }));
+      expect(store.searchRanked(query, REACHABLE), query).toEqual(full);
+    }
+  });
 });

@@ -12,7 +12,7 @@ import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, queryKeys, unwrap } from "./api";
+import { ApiError, queryKeys, refusalMessage, unwrap } from "./api";
 import { ChatDock } from "./chat/chat-dock";
 import {
   ANCHOR_FAILURE_MESSAGES,
@@ -253,7 +253,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           setOpenNote(path);
           return;
         }
-        toast.error(error instanceof ApiError ? error.message : `Could not create ${path}.`);
+        toast.error(refusalMessage(error, `Could not create ${path}.`));
       }
     },
     [api, setOpenNote],
@@ -299,7 +299,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           try {
             await unwrap(await api.vault.mkdir.$post({ json: { path } }));
           } catch (error) {
-            toast.error(error instanceof ApiError ? error.message : `Could not create ${path}.`);
+            toast.error(refusalMessage(error, `Could not create ${path}.`));
           }
         })();
       },
@@ -337,7 +337,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               setOpenNote(null);
             }
           } catch (error) {
-            toast.error(error instanceof ApiError ? error.message : `Could not delete ${path}.`);
+            toast.error(refusalMessage(error, `Could not delete ${path}.`));
           }
         })();
       },

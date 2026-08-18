@@ -16,21 +16,20 @@
 // note would be the same information twice, one copy of it stale.
 
 import type { BacklinkEntryWire } from "@repo/server-contract/knowledge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@repo/ui/components/collapsible";
-import { cn } from "@repo/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRightIcon } from "lucide-react";
-import { useState } from "react";
 import { queryKeys, unwrap } from "../api";
 import { readBacklinksOpen, writeBacklinksOpen } from "../prefs";
 import { useWorkspace } from "../workspace-context";
+import {
+  NoteFootList,
+  NoteFootMessage,
+  NoteFootRow,
+  NoteFootSection,
+  useSectionOpen,
+} from "./note-foot-section";
 
 /**
- * A doc's backlinks. Swept by `backlinksRoot` on every content or file change
+ * A doc's backlinks. Swept by `knowledgeRoot` on every content or file change
  * (workspace-context.tsx) rather than re-read on a timer: a link into this note
  * is written in another note, so the only thing that knows is the bus.
  */
@@ -80,41 +79,27 @@ export function BacklinksPanel({
   onOpen,
 }: BacklinksPanelProps) {
   return (
-    <Collapsible open={open} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger className="flex w-full items-center gap-1.5 py-2 text-xs font-medium tracking-wide text-muted-foreground hover:text-foreground">
-        <ChevronRightIcon
-          className={cn("size-3.5 transition-transform", open && "rotate-90")}
-          aria-hidden
-        />
-        {loading ? "Linked mentions" : backlinksSummary(backlinks.length, total)}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        {backlinks.length === 0 ? (
-          <p className="pb-4 text-sm text-muted-foreground">
-            {loading ? "…" : "No other note links here yet."}
-          </p>
-        ) : (
-          <ul className="space-y-1 pb-4">
-            {backlinks.map((backlink) => (
-              <li key={`${backlink.sourcePath}:${backlink.line}`}>
-                <button
-                  type="button"
-                  className="w-full rounded-md px-2 py-1.5 text-left hover:bg-muted"
-                  onClick={() => onOpen(backlink.sourcePath)}
-                >
-                  <span className="block truncate text-sm" title={backlink.sourcePath}>
-                    {backlinkLabel(backlink.sourcePath)}
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {backlink.snippet}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
+    <NoteFootSection
+      summary={loading ? "Linked mentions" : backlinksSummary(backlinks.length, total)}
+      open={open}
+      onOpenChange={onOpenChange}
+    >
+      {backlinks.length === 0 ? (
+        <NoteFootMessage>{loading ? "…" : "No other note links here yet."}</NoteFootMessage>
+      ) : (
+        <NoteFootList>
+          {backlinks.map((backlink) => (
+            <NoteFootRow
+              key={`${backlink.sourcePath}:${backlink.line}`}
+              label={backlinkLabel(backlink.sourcePath)}
+              path={backlink.sourcePath}
+              detail={backlink.snippet}
+              onOpen={() => onOpen(backlink.sourcePath)}
+            />
+          ))}
+        </NoteFootList>
+      )}
+    </NoteFootSection>
   );
 }
 
@@ -126,12 +111,8 @@ export interface BacklinksSectionProps {
 /** The panel with its own data. Split from the panel so the surface is
  *  testable without a query client, the way the proposal surfaces are. */
 export function BacklinksSection({ path, onOpen }: BacklinksSectionProps) {
-  const [open, setOpenState] = useState(readBacklinksOpen);
+  const [open, setOpen] = useSectionOpen(readBacklinksOpen, writeBacklinksOpen);
   const backlinksQuery = useBacklinks(path);
-  const setOpen = (next: boolean): void => {
-    writeBacklinksOpen(next);
-    setOpenState(next);
-  };
 
   return (
     <BacklinksPanel

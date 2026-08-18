@@ -41,7 +41,9 @@ import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
 import { parseStoredProjection } from "./projection-row";
 import { searchExcerpt } from "./search-excerpt";
+import type { SearchHit } from "./search-index";
 import { planSearchQuery, stemText, type SearchQueryPlan } from "./search-query";
+import { splitLines } from "./source-lines";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
 export const KNOWLEDGE_SCHEMA_VERSION = 11;
@@ -149,8 +151,11 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 // bm25() returns lower-is-better (negative) ranks; weights mirror the pure
 // SearchIndex's TITLE_WEIGHT/HEADING_WEIGHT/BODY_WEIGHT so a title hit beats a
 // body-only hit, once for the literal columns and once for their stem shadow.
-// Path tiebreak keeps ordering deterministic.
-//
+// Path tiebreak keeps ordering deterministic. Both reads below name this one
+// expression, so the two can differ in what they SELECT and never in how they
+// rank.
+const BM25_RANK = "bm25(search_fts, 10.0, 4.0, 1.0, 10.0, 4.0, 1.0) AS rank";
+
 // The BODY comes back whole and the excerpt is cut in JS (search-excerpt.ts).
 // FTS5's `snippet()` cuts one column from THAT column's match offsets, and a
 // stem-only hit matches `body_stems` — offsets FTS5 will not carry across to
@@ -160,8 +165,19 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 // quietly been two. The cost is the body of each RETURNED row (LIMIT bounds
 // it), which SQLite reads to satisfy the query either way.
 const SEARCH_SQL = `
-SELECT path, title, body,
-  bm25(search_fts, 10.0, 4.0, 1.0, 10.0, 4.0, 1.0) AS rank
+SELECT path, title, body, ${BM25_RANK}
+FROM search_fts
+WHERE search_fts MATCH ?
+ORDER BY rank, path
+LIMIT ?
+`;
+
+// The same ranking with NO body column: `searchRanked` answers the
+// related-notes lexical probe, which sums scores and renders nothing, so
+// every byte of every hit's body would be read and dropped — and that probe
+// runs once per title token, not once per user keystroke.
+const RANK_SQL = `
+SELECT path, ${BM25_RANK}
 FROM search_fts
 WHERE search_fts MATCH ?
 ORDER BY rank, path
@@ -245,6 +261,12 @@ function columnString(row: SqlRow, key: string): string {
   const value = row[key];
   if (typeof value === "string") return value;
   throw new Error(`knowledge-store: column ${key} is not text`);
+}
+
+/** bm25() ranks lower-is-better (negative); flip so higher is better, matching
+ * the pure index's score direction. */
+function rankScore(row: SqlRow): number {
+  return -columnNumber(row, "rank");
 }
 
 // ---- Store --------------------------------------------------------------------
@@ -346,6 +368,22 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     } finally {
       transactionDepth = 0;
     }
+  };
+
+  /** The plan ladder (search-query.ts) run over ONE statement: plans are
+   * ordered and a plan that matched nothing is not an answer, so the relaxed
+   * plan behind it is what turns an empty box into hits. The answering plan
+   * comes back with its rows — the excerpt needs the terms that matched. */
+  const answerPlan = (
+    sql: string,
+    query: string,
+    limit: number,
+  ): { plan: SearchQueryPlan; rows: SqlRow[] } | null => {
+    for (const plan of planSearchQuery(query)) {
+      const rows = driver.all(sql, [renderFtsMatch(plan), limit]);
+      if (rows.length > 0) return { plan, rows };
+    }
+    return null;
   };
 
   const rowidOf = (path: string): number | null => {
@@ -498,25 +536,28 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
 
     search(query, limit): SearchResult[] {
       if (limit <= 0) return [];
-      // Plans are ordered, and a plan that matched nothing is not an answer —
-      // the relaxed one behind it is what turns an empty box into hits.
-      for (const plan of planSearchQuery(query)) {
-        const rows = driver.all(SEARCH_SQL, [renderFtsMatch(plan), limit]);
-        if (rows.length === 0) continue;
-        return rows.map((row) => {
-          const title = columnString(row, "title");
-          const snippet = searchExcerpt(columnString(row, "body"), plan.terms);
-          return {
-            path: columnString(row, "path"),
-            title,
-            snippet: snippet === "" ? title : snippet,
-            // bm25() ranks lower-is-better (negative); flip so higher is
-            // better, matching the pure index's score direction.
-            score: -columnNumber(row, "rank"),
-          };
-        });
-      }
-      return [];
+      const answered = answerPlan(SEARCH_SQL, query, limit);
+      if (answered === null) return [];
+      return answered.rows.map((row) => {
+        const title = columnString(row, "title");
+        const snippet = searchExcerpt(splitLines(columnString(row, "body")), answered.plan.terms);
+        return {
+          path: columnString(row, "path"),
+          title,
+          snippet: snippet === "" ? title : snippet,
+          score: rankScore(row),
+        };
+      });
+    },
+
+    searchRanked(query, limit): SearchHit[] {
+      if (limit <= 0) return [];
+      const answered = answerPlan(RANK_SQL, query, limit);
+      if (answered === null) return [];
+      return answered.rows.map((row) => ({
+        path: columnString(row, "path"),
+        score: rankScore(row),
+      }));
     },
 
     transaction,

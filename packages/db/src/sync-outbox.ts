@@ -104,11 +104,7 @@ export function countSyncOutbox(db: DbConnection): number {
  *  own high-water, so an enqueue that landed while the push was in flight
  *  survives the ack. */
 export function deleteSyncOutboxThrough(db: DbConnection, throughDeviceSeq: number): number {
-  return db
-    .delete(syncOutbox)
-    .where(lte(syncOutbox.deviceSeq, throughDeviceSeq))
-    .returning({ id: syncOutbox.id })
-    .all().length;
+  return db.delete(syncOutbox).where(lte(syncOutbox.deviceSeq, throughDeviceSeq)).run().changes;
 }
 
 /**
@@ -171,10 +167,6 @@ export function recordAppliedCaptures(db: DbConnection, ids: readonly string[], 
     .run();
 }
 
-export function pruneAppliedCaptures(db: DbConnection, before: number): number {
-  return db
-    .delete(syncAppliedCaptures)
-    .where(lt(syncAppliedCaptures.appliedAt, before))
-    .returning({ id: syncAppliedCaptures.id })
-    .all().length;
+export function pruneAppliedCaptures(db: DbConnection, before: number): void {
+  db.delete(syncAppliedCaptures).where(lt(syncAppliedCaptures.appliedAt, before)).run();
 }

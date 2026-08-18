@@ -1,11 +1,18 @@
-// The bits every settings section is drawn out of: the label/value row, the
-// section heading, and the one-of-N control. Their own module because the
-// dialog is no longer the only file that draws a section — and a second copy
-// of the radiogroup would be a second answer to which element carries
-// `aria-checked`, which is the kind of divergence only a screen reader
-// notices.
+// The bits every settings section is built out of: the label/value row, the
+// section heading, the one-of-N control, and the way a section reports a
+// refusal. Their own module because the dialog is no longer the only file that
+// draws a section — and a second copy of the radiogroup would be a second
+// answer to which element carries `aria-checked`, which is the kind of
+// divergence only a screen reader notices.
 
+import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
+import { refusalMessage } from "../api";
+
+/** `refusalMessage`, toasted — the sections' one way of saying a verb failed. */
+export function failed(error: unknown, fallback: string): void {
+  toast.error(refusalMessage(error, fallback));
+}
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (

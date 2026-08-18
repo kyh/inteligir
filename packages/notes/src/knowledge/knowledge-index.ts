@@ -130,8 +130,8 @@ export class KnowledgeIndex {
   /** The line a hit is shown by (search-excerpt.ts — the SQL store cuts the
    * same one), falling back to the title when nothing in the doc matched. */
   private searchSnippet(path: string, terms: readonly SearchQueryTerm[]): string {
-    const content = this.lines.get(path);
-    if (!content) return "";
-    return searchExcerpt(content.join("\n"), terms) || (this.linkGraph.titleOf(path) ?? "");
+    const lines = this.lines.get(path);
+    if (!lines) return "";
+    return searchExcerpt(lines, terms) || (this.linkGraph.titleOf(path) ?? "");
   }
 }
