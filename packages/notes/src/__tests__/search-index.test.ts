@@ -1,17 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { SearchIndex, tokenize } from "../knowledge/search-index";
+import { SearchIndex } from "../knowledge/search-index";
 
 function paths(index: SearchIndex, query: string): string[] {
   return index.search(query, 20).map((hit) => hit.path);
 }
-
-describe("tokenize", () => {
-  it("lowercases and splits on non-word runs, unicode included", () => {
-    expect(tokenize("Hello, Wörld-42!")).toEqual(["hello", "wörld", "42"]);
-    expect(tokenize("")).toEqual([]);
-  });
-});
 
 function seeded(): SearchIndex {
   const index = new SearchIndex();
@@ -32,12 +25,43 @@ describe("SearchIndex — ranking", () => {
     expect(paths(index, "alpha")[0]).toBe("title.md");
   });
 
-  it("ANDs across query tokens", () => {
+  it("ANDs a short query, and relaxes it only once it has found nothing", () => {
     const index = new SearchIndex();
     index.set("both.md", { title: "alpha beta", headings: [], body: "" });
     index.set("one.md", { title: "alpha", headings: [], body: "" });
+    // `beta` narrows, because the conjunction had an answer …
     expect(paths(index, "alpha beta")).toEqual(["both.md"]);
-    expect(paths(index, "alpha gamma")).toEqual([]);
+    // … and `gamma` cannot, because requiring it answers with nothing.
+    expect(paths(index, "alpha gamma")).toEqual(["both.md", "one.md"]);
+  });
+
+  it("ORs a sentence, ranking a doc matching more terms above one matching fewer", () => {
+    const index = new SearchIndex();
+    index.set("three.md", { title: "alpha beta gamma", headings: [], body: "" });
+    index.set("two.md", { title: "alpha beta", headings: [], body: "" });
+    index.set("one.md", { title: "gamma", headings: [], body: "" });
+    index.set("none.md", { title: "delta", headings: [], body: "" });
+    expect(paths(index, "alpha beta gamma")).toEqual(["three.md", "two.md", "one.md"]);
+  });
+
+  it("drops the function words a sentence is mostly made of", () => {
+    const index = new SearchIndex();
+    index.set("burnout.md", {
+      title: "Burnout",
+      headings: [],
+      body: "I have been exhausted lately and cannot focus on anything at work.",
+    });
+    // Every token was required before, `how` and `do` included, so this whole
+    // class of query answered with nothing at all.
+    expect(paths(index, "how do I stop feeling burnt out at work")).toEqual(["burnout.md"]);
+  });
+
+  it("answers an all-stopword query with the notes carrying those words", () => {
+    const index = new SearchIndex();
+    index.set("phrase.md", { title: "how do I", headings: [], body: "" });
+    index.set("other.md", { title: "how", headings: [], body: "" });
+    // Not the whole index, and not nothing: the conjunction still holds.
+    expect(paths(index, "how do I")).toEqual(["phrase.md"]);
   });
 
   it("prefix-matches the final token, below an exact match", () => {
