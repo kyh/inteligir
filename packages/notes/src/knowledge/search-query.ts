@@ -26,11 +26,14 @@
 //     as Elasticsearch's `minimum_should_match` default idiom.
 //   - A lookup that finds NOTHING is relaxed and asked again. It was a
 //     question in disguise ("what is the book about concentration" reduces to
-//     two content words, and the note says `concentration` but never `book`),
-//     or one of its words is a morphological variant the tokenizer does not
-//     stem (`ranking` against a note reading `ranked`). It can cost a
-//     successful lookup nothing: the second query runs only where the first
-//     returned no rows at all.
+//     two content words, and the note says `concentration` but never `book`).
+//     It can cost a successful lookup nothing: the second query runs only
+//     where the first returned no rows at all.
+//   - Every term is matched by its STEM, so `interviewing` reaches a note that
+//     says `interviewers`. The term still being TYPED is matched by its stem
+//     AND by prefix against the literal text, because it is a fragment right
+//     up until it is a word — see stemText below for why those two cannot be
+//     served by one index.
 //
 // Which constant here is right is a MEASUREMENT rather than a taste. The
 // evaluation harness beside the node host's knowledge tests
@@ -43,13 +46,45 @@
 //     user already finished typing.
 // ---------------------------------------------------------------------------
 
+import { stemmer } from "stemmer";
+
 /** Unicode-aware tokens: letter/number/underscore runs, lowercased. */
 export function tokenize(text: string): string[] {
   return text.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? [];
 }
 
-/** One token to look up, and whether it matches by prefix. */
-export type SearchQueryTerm = { token: string; prefix: boolean };
+/** `text`'s tokens, each replaced by its stem, in order — what an engine must
+ * index ALONGSIDE the literal text for {@link SearchQueryTerm.stem} to find
+ * anything. Order and repetition are preserved rather than deduped, so a
+ * stemmed field has the same length and term frequencies as the literal field
+ * it shadows and bm25 ranks the two the same way.
+ *
+ * A SHADOW rather than a replacement, for two measured reasons.
+ *
+ * Stemming the indexed text in place breaks the search box's own interaction:
+ * the token still being typed is matched by PREFIX, and a prefix run against
+ * stems stops matching the moment it reaches into the suffix — `hirin`,
+ * `packin`, `migratio` and `runn` all go dead against an index holding `hire`,
+ * `pack`, `migrat` and `run`. Measured over the labelled corpus, 86 of the
+ * 1,555 prefixes that retrieve something stop retrieving anything (5.5%). So
+ * the literal text stays indexed and owns prefix matching, and the stems own
+ * whole-word matching.
+ *
+ * It is also why FTS5's own `porter` tokenizer is not what the SQL store uses,
+ * though it would otherwise be the idiomatic answer: it stems the index, which
+ * is exactly the case above, and it would move half of this policy into
+ * SQLite's C where the pure engine cannot execute the same one.
+ *
+ * The stemmer is English. A token it has no rule for comes back unchanged, so
+ * a vault in another language searches exactly as it does today. */
+export function stemText(text: string): string {
+  return tokenize(text).map(stemmer).join(" ");
+}
+
+/** One token to look up: `stem` is what a whole-word match asks for, `token`
+ * is what a prefix match asks for, and `prefix` says which of the two this
+ * term is. */
+export type SearchQueryTerm = { token: string; stem: string; prefix: boolean };
 
 /** What an engine has to run. `match` is "all" (every term must hit) or "any"
  * (one is enough, and hitting more is what the ranking rewards). */
@@ -100,6 +135,7 @@ export function planSearchQuery(query: string): readonly SearchQueryPlan[] {
   const content = unique.filter((token) => !STOPWORDS.has(token));
   const terms = (content.length > 0 ? content : unique).map((token) => ({
     token,
+    stem: stemmer(token),
     prefix: token === typing,
   }));
 

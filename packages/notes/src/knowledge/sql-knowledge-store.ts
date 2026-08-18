@@ -15,12 +15,14 @@
 // always safe because of the KnowledgeStore law: the DB is a CACHE, nothing
 // durable ever lives in it.
 //
-// Search: FTS5 over (title, headings, body), unicode61 with `_` kept as a
-// token char to match core tokenize(). WHICH tokens a query asks for is
+// Search: FTS5 over (title, headings, body) plus a STEM SHADOW of the same
+// three, unicode61 with `_` kept as a token char to match core tokenize().
+// WHICH tokens a query asks for, and which of them are stems, is
 // search-query.ts's answer — shared with the pure SearchIndex so the two
 // engines cannot drift — and this file only renders it as a MATCH expression,
 // ranked by weighted bm25 mirroring the pure index's TITLE/HEADING/BODY
-// weights (10/4/1).
+// weights (10/4/1), the shadow carrying the same three weights so a stemmed
+// title hit still outranks a stemmed body hit.
 //
 // Hydration is PAGED. Every SQLite binding on every target platform is
 // synchronous, so a whole-corpus read is an uninterruptible stall on whatever
@@ -37,10 +39,10 @@ import type { SearchResult } from "./knowledge-index";
 import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
 import { parseStoredProjection } from "./projection-row";
-import { planSearchQuery, type SearchQueryPlan } from "./search-query";
+import { planSearchQuery, stemText, type SearchQueryPlan } from "./search-query";
 
 /** Bump on any DDL change — an older/newer file is wiped and rebuilt. */
-export const KNOWLEDGE_SCHEMA_VERSION = 9;
+export const KNOWLEDGE_SCHEMA_VERSION = 10;
 
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 type SqlValue = null | number | string;
@@ -129,18 +131,23 @@ CREATE TABLE files (
   projection TEXT
 );
 CREATE VIRTUAL TABLE search_fts USING fts5(
-  title, headings, body, path UNINDEXED,
+  title, headings, body,
+  title_stems, heading_stems, body_stems,
+  path UNINDEXED,
   tokenize='unicode61 tokenchars ''_'''
 );
 `;
 
 // bm25() returns lower-is-better (negative) ranks; weights mirror the pure
 // SearchIndex's TITLE_WEIGHT/HEADING_WEIGHT/BODY_WEIGHT so a title hit beats a
-// body-only hit. Path tiebreak keeps ordering deterministic.
+// body-only hit, once for the literal columns and once for their stem shadow.
+// Path tiebreak keeps ordering deterministic. The snippet is cut from column 2
+// — the LITERAL body, which is why the stems are a shadow rather than a
+// rewrite of it.
 const SEARCH_SQL = `
 SELECT path, title,
   snippet(search_fts, 2, '', '', '…', 12) AS snip,
-  bm25(search_fts, 10.0, 4.0, 1.0) AS rank
+  bm25(search_fts, 10.0, 4.0, 1.0, 10.0, 4.0, 1.0) AS rank
 FROM search_fts
 WHERE search_fts MATCH ?
 ORDER BY rank, path
@@ -166,6 +173,10 @@ const PATH_START = "";
  * without paying a per-page query round-trip for every few rows. */
 const HYDRATION_DRAIN_PAGE_DOCS = 1000;
 
+/** The literal text, and the shadow holding its stems. */
+const LITERAL_COLUMNS = "{title headings body}";
+const STEM_COLUMNS = "{title_stems heading_stems body_stems}";
+
 /** One plan (search-query.ts) rendered as an FTS5 MATCH expression.
  *
  * Every term is QUOTED, and that is load-bearing rather than cosmetic: FTS5
@@ -173,10 +184,24 @@ const HYDRATION_DRAIN_PAGE_DOCS = 1000;
  * so a user typing "near miss" or "c++" would otherwise be composing the
  * expression rather than searching for it. A quoted string is a phrase, never
  * an operator — and core's tokenizer cannot emit a `"` in the first place, so
- * nothing can close the quote either. */
+ * nothing can close the quote either. The column filters are this file's own
+ * text and name columns that exist, so they carry nothing a caller wrote.
+ *
+ * A settled term asks the STEM shadow alone. The term still being TYPED asks
+ * both: a prefix over the literal columns, because a prefix run against stems
+ * stops matching the moment it reaches the suffix (stemText states the
+ * measurement), OR its stem, because that same term is a whole word the
+ * instant the user stops typing — and a one-word query is nothing BUT this
+ * term, so without the second half `dentists` would not reach a note that says
+ * `dentist`. The two halves are parenthesized so the inner OR cannot bind
+ * against the AND joining the terms. */
 function renderFtsMatch(plan: SearchQueryPlan): string {
   return plan.terms
-    .map((term) => (term.prefix ? `"${term.token}" *` : `"${term.token}"`))
+    .map((term) =>
+      term.prefix
+        ? `(${LITERAL_COLUMNS}: "${term.token}" * OR ${STEM_COLUMNS}: "${term.stem}")`
+        : `${STEM_COLUMNS}: "${term.stem}"`,
+    )
     .join(plan.match === "all" ? " AND " : " OR ");
 }
 
@@ -390,17 +415,22 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         const rowid = rowidOf(row.path);
         if (rowid === null) throw new Error("knowledge-store: upserted file row vanished");
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
+        const headings = [...projection.headings, ...projection.aliases].join("\n");
         driver.run(
           // Aliases ride the headings column — a ranking boost only (the alias
           // bytes already match via the body, which includes the frontmatter),
           // mirroring the pure SearchIndex composition in knowledge-index.ts.
-          `INSERT INTO search_fts (rowid, title, headings, body, path)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO search_fts
+             (rowid, title, headings, body, title_stems, heading_stems, body_stems, path)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             rowid,
             projection.title,
-            [...projection.headings, ...projection.aliases].join("\n"),
+            headings,
             body,
+            stemText(projection.title),
+            stemText(headings),
+            stemText(body),
             row.path,
           ],
         );

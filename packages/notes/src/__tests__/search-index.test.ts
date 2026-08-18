@@ -80,6 +80,42 @@ describe("SearchIndex — ranking", () => {
   });
 });
 
+function hiring(): SearchIndex {
+  const index = new SearchIndex();
+  index.set("hiring.md", {
+    title: "Hiring",
+    headings: [],
+    body: "Two interviewers per loop, written feedback within a day.",
+  });
+  return index;
+}
+
+describe("SearchIndex — stemming", () => {
+  it("reaches a word the note inflects differently", () => {
+    // `interviewing` is nowhere in the note; `interviewers` is, and no prefix
+    // of either reaches the other.
+    expect(paths(hiring(), "interviewing candidates")).toEqual(["hiring.md"]);
+  });
+
+  it("stems the token still being typed too, so one word is a whole query", () => {
+    // The commonest search-box input there is. Without this the typed term is
+    // a bare prefix, and `interviewer` never reaches `interviewers`.
+    expect(paths(hiring(), "interviewer")).toEqual(["hiring.md"]);
+  });
+
+  it("still prefix-matches a genuine fragment, which no stem can", () => {
+    // `interv` stems to itself; the literal postings are what answer here.
+    expect(paths(hiring(), "interv")).toEqual(["hiring.md"]);
+  });
+
+  it("does not let a stem match outrank the exact word", () => {
+    const index = new SearchIndex();
+    index.set("exact.md", { title: "loop", headings: [], body: "" });
+    index.set("inflected.md", { title: "looping", headings: [], body: "" });
+    expect(paths(index, "loop")).toEqual(["exact.md", "inflected.md"]);
+  });
+});
+
 describe("SearchIndex — incremental updates", () => {
   it("re-indexes a doc in place", () => {
     const index = new SearchIndex();
@@ -89,10 +125,11 @@ describe("SearchIndex — incremental updates", () => {
     expect(paths(index, "new")).toEqual(["a.md"]);
   });
 
-  it("removes a doc's postings", () => {
+  it("removes a doc's postings, stems included", () => {
     const index = new SearchIndex();
-    index.set("a.md", { title: "findable", headings: [], body: "" });
+    index.set("a.md", { title: "findable interviewers", headings: [], body: "" });
     index.remove("a.md");
     expect(paths(index, "findable")).toEqual([]);
+    expect(paths(index, "interviewing candidates")).toEqual([]);
   });
 });
