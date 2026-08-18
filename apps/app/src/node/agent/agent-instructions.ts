@@ -24,8 +24,12 @@ command takes \`--json\`.`;
  * Cut to at most `maxBytes` of UTF-8 WITHOUT splitting a character. Measuring
  * `string.length` would count UTF-16 units (wrong for any non-BMP text) and
  * slicing by it can halve a surrogate pair, which reaches the model as U+FFFD.
+ *
+ * Exported because the per-turn view-context block caps the same way against a
+ * much smaller budget: "cut UTF-8 to N bytes without splitting a code point"
+ * must not get a second answer.
  */
-function headCapUtf8(text: string, maxBytes: number): string {
+export function headCapUtf8(text: string, maxBytes: number): string {
   const bytes = new TextEncoder().encode(text);
   if (bytes.length <= maxBytes) {
     return text;

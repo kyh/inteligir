@@ -2,9 +2,14 @@
 // script, for login-free e2e — every production path around it is real (the
 // ingest transaction, the timeline projection, the ws invalidations, the
 // vault service write, the settling of the turn's write set). The script:
-// stream an agent message echoing the user's text, write a note through the
-// VAULT SERVICE, report the fileChange item, settle the write set (an
-// agent-attributed commit, or a reviewable proposal), complete.
+// stream an agent message echoing THE PROMPT IT WAS HANDED, write a note
+// through the VAULT SERVICE, report the fileChange item, settle the write set
+// (an agent-attributed commit, or a reviewable proposal), complete.
+//
+// The echo is the prompt rather than the raw text because the prompt is
+// assembled by production code (`turnPromptInput`) that a real provider would
+// receive and an e2e otherwise cannot see. With no view context the two are
+// the same string, so nothing about the older scenarios moves.
 
 import { turnScope } from "@repo/domain/thread-event-scope";
 import type { GitEngine } from "../vault/git";
@@ -16,6 +21,7 @@ import type {
   TurnDriverStartArgs,
 } from "../threads/turn-driver";
 import { beginAgentTurnWrites, type CaptureTurnProposals } from "./agent-commits";
+import { turnPromptInput } from "./view-context-prompt";
 
 export interface ScriptedDriverDeps {
   vault: VaultService;
@@ -43,7 +49,10 @@ class ScriptedTurnDriver implements TurnDriver {
   startTurn(args: TurnDriverStartArgs): void {
     const scope = turnScope(args.turnId);
     const itemId = `item_${args.turnId}_message`;
-    const text = `Noted: ${args.text}`;
+    const prompt = turnPromptInput(args.text, args.viewContext)
+      .map((part) => part.text)
+      .join("\n\n");
+    const text = `Noted: ${prompt}`;
     const midpoint = Math.ceil(text.length / 2);
     this.sink.ingestProviderEvents(args.threadId, [
       { type: "turn/started", threadId: args.threadId, scope },

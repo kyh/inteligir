@@ -318,6 +318,115 @@ describe("the send-mode matrix", () => {
   });
 });
 
+describe("the view context a message carries", () => {
+  const VIEW_CONTEXT = {
+    surface: "doc",
+    resource: "Notes/Plans.md",
+    revision: "a".repeat(64),
+    selection: { from: 12, to: 41, text: "First paragraph to delegate." },
+  } as const;
+
+  it("reaches the driver, is recorded beside the text, and never becomes the text", async () => {
+    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    const threadId = await createThread(client);
+    const send = await client.threads.send.$post({
+      json: {
+        threadId,
+        text: "make this shorter",
+        mode: "steer-if-active",
+        viewContext: VIEW_CONTEXT,
+      },
+    });
+    expect(send.status).toBe(200);
+    expect(driver?.startedTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
+
+    const [row] = timelineRows(await fetchTimeline(client, threadId)).filter(
+      (candidate) => candidate.kind === "conversation",
+    );
+    if (row?.kind !== "conversation") {
+      throw new Error("expected the user's conversation row");
+    }
+    // The bubble is what the user typed, byte for byte; the context is
+    // attribution beside it.
+    expect(row.text).toBe("make this shorter");
+    expect(row.viewContext).toEqual(VIEW_CONTEXT);
+  });
+
+  it("rides a steer too — a steer is its own statement about the past", async () => {
+    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = sendResponseSchema.parse(
+      await (
+        await client.threads.send.$post({
+          json: { threadId, text: "start", mode: "steer-if-active" },
+        })
+      ).json(),
+    );
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    const steered = await client.threads.send.$post({
+      json: {
+        threadId,
+        text: "and this bit",
+        mode: "steer-if-active",
+        expectedTurnId: started.turnId,
+        viewContext: VIEW_CONTEXT,
+      },
+    });
+    expect(steered.status).toBe(200);
+    expect(driver?.steeredTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
+  });
+
+  it("is DROPPED by a queued send, which drains onto a screen the user has left", async () => {
+    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    if (!driver) {
+      throw new Error("expected the fake driver");
+    }
+    const threadId = await createThread(client);
+    const started = sendResponseSchema.parse(
+      await (
+        await client.threads.send.$post({
+          json: { threadId, text: "first", mode: "steer-if-active" },
+        })
+      ).json(),
+    );
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    const queued = await client.threads.send.$post({
+      json: { threadId, text: "for later", mode: "queue-if-active", viewContext: VIEW_CONTEXT },
+    });
+    expect(sendResponseSchema.parse(await queued.json()).kind).toBe("queued");
+
+    driver.completeTurn(threadId, started.turnId, "completed");
+    expect(driver.startedTurns[1]?.text).toBe("for later");
+    expect(driver.startedTurns[1]?.viewContext).toBeUndefined();
+
+    const drained = timelineRows(await fetchTimeline(client, threadId)).find(
+      (row) => row.kind === "conversation" && row.text === "for later",
+    );
+    if (drained?.kind !== "conversation") {
+      throw new Error("expected the drained message's row");
+    }
+    expect(drained.viewContext).toBeNull();
+  });
+
+  it("refuses a resource that is not a vault path", async () => {
+    const { client } = await bootThreadsApp({ mode: "manual" });
+    const threadId = await createThread(client);
+    const send = await client.threads.send.$post({
+      json: {
+        threadId,
+        text: "hi",
+        mode: "steer-if-active",
+        viewContext: { ...VIEW_CONTEXT, resource: "../outside.md" },
+      },
+    });
+    expect(send.status).toBe(400);
+  });
+});
+
 describe("the queue drain", () => {
   it("drains queued messages one turn at a time as the thread settles idle", async () => {
     const { client, db, driver } = await bootThreadsApp({ mode: "manual" });

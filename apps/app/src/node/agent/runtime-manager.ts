@@ -78,6 +78,7 @@ import {
 import { loadAgentInstructions } from "./agent-instructions";
 import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
+import { turnPromptInput } from "./view-context-prompt";
 
 /** Statically-always-dropped kinds that arrive on every token tick: the
  * translation emits them as the pair of thread/tokenUsage/updated (persisted)
@@ -387,7 +388,7 @@ class CodexTurnDriver implements TurnDriver {
     }
     await runtime.runTurn({
       threadId: args.threadId,
-      input: [{ type: "text", text: args.text }],
+      input: turnPromptInput(args.text, args.viewContext),
       options: this.options,
     });
   }
@@ -453,7 +454,7 @@ class CodexTurnDriver implements TurnDriver {
         const result = await runtime.steerTurn({
           threadId: args.threadId,
           expectedTurnId,
-          input: [{ type: "text", text: args.text }],
+          input: turnPromptInput(args.text, args.viewContext),
           options: this.options,
         });
         if (result.status === "stale") {

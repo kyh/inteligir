@@ -55,6 +55,7 @@ import {
 } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId, threadScope } from "@repo/domain/thread-event-scope";
+import type { ViewContext } from "@repo/domain/view-context";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import type {
   AnswerInteractionRequest,
@@ -104,6 +105,7 @@ type SendDecision =
       turnId: string;
       text: string;
       writeMode: AgentWriteMode;
+      viewContext: ViewContext | undefined;
     }
   | { kind: "done"; outcome: SendOutcome };
 
@@ -302,7 +304,7 @@ export class ThreadService implements ProviderEventSink {
     switch (thread.status) {
       case "idle":
       case "error":
-        return this.prepareTurnInTransaction(tx, thread, request.text, buffer);
+        return this.prepareTurnInTransaction(tx, thread, request.text, request.viewContext, buffer);
       case "active": {
         if (request.mode === "queue-if-active") {
           return this.queueInTransaction(tx, thread.id, request.text, buffer);
@@ -329,6 +331,7 @@ export class ThreadService implements ProviderEventSink {
             threadId: thread.id,
             turnId: thread.activeTurnId,
             text: request.text,
+            ...(request.viewContext === undefined ? {} : { viewContext: request.viewContext }),
           })
         ) {
           return {
@@ -346,6 +349,7 @@ export class ThreadService implements ProviderEventSink {
             threadId: thread.id,
             text: request.text,
             kind: "steer",
+            ...(request.viewContext === undefined ? {} : { viewContext: request.viewContext }),
             scope: threadScope(),
           },
         ]);
@@ -369,6 +373,18 @@ export class ThreadService implements ProviderEventSink {
     }
   }
 
+  /**
+   * A QUEUED MESSAGE CARRIES NO VIEW CONTEXT, and the request's is dropped
+   * here rather than stored. A queued send drains when the running turn
+   * settles — minutes later — so the screen it describes is one the user has
+   * long since left, and the tidy-looking answer ("context is per message, so
+   * every message carries its own") is the one that adds a column to
+   * `queued_thread_messages` and fills it with a knowably stale claim. A view
+   * context earns its immunity to staleness by being consumed immediately;
+   * storing one for later is exactly the property being given away. The client
+   * still SENDS it — which mode a send lands in is this transaction's decision,
+   * not the caller's — so the drop belongs here, once.
+   */
   private queueInTransaction(
     tx: DbTransaction,
     threadId: string,
@@ -388,6 +404,7 @@ export class ThreadService implements ProviderEventSink {
     tx: DbTransaction,
     thread: ThreadRow,
     text: string,
+    viewContext: ViewContext | undefined,
     buffer: NotificationBuffer,
   ): SendDecision {
     const threadId = thread.id;
@@ -407,7 +424,14 @@ export class ThreadService implements ProviderEventSink {
     }
     buffer.notifyThread(threadId, ["status-changed"]);
     appendEventsInTransaction(tx, [
-      { type: "client/turn/requested", threadId, text, kind: "message", scope: threadScope() },
+      {
+        type: "client/turn/requested",
+        threadId,
+        text,
+        kind: "message",
+        ...(viewContext === undefined ? {} : { viewContext }),
+        scope: threadScope(),
+      },
     ]);
     buffer.notifyThread(threadId, ["events-appended"]);
     return {
@@ -416,6 +440,7 @@ export class ThreadService implements ProviderEventSink {
       turnId: createTurnId(),
       text,
       writeMode: thread.writeMode,
+      viewContext,
     };
   }
 
@@ -426,6 +451,7 @@ export class ThreadService implements ProviderEventSink {
         turnId: decision.turnId,
         text: decision.text,
         writeMode: decision.writeMode,
+        ...(decision.viewContext === undefined ? {} : { viewContext: decision.viewContext }),
       });
     } catch (error) {
       this.recordDispatchFailure(decision.threadId, error);
@@ -570,7 +596,8 @@ export class ThreadService implements ProviderEventSink {
         if (thread === null) {
           return { kind: "done", outcome: { kind: "not-found" } };
         }
-        return this.prepareTurnInTransaction(tx, thread, claimed.text, buffer);
+        // No view context: the row never held one — see queueInTransaction.
+        return this.prepareTurnInTransaction(tx, thread, claimed.text, undefined, buffer);
       },
       { behavior: "immediate" },
     );
