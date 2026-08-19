@@ -6,7 +6,14 @@
 
 import { VOICE_SAMPLE_RATE } from "@repo/server-contract/voice";
 import { describe, expect, it } from "vitest";
-import { insertTranscript, levelFrom, resampleTo16k, toBase64, toPcm16 } from "../dictation";
+import {
+  insertTranscript,
+  levelFrom,
+  resampleTo16k,
+  spliceIntoComposer,
+  toBase64,
+  toPcm16,
+} from "../dictation";
 
 describe("toPcm16", () => {
   it("writes little-endian signed samples", () => {
@@ -89,5 +96,39 @@ describe("insertTranscript", () => {
     expect(
       insertTranscript({ text: "ab", transcript: "X", selectionStart: 99, selectionEnd: 99 }),
     ).toEqual({ text: "ab X", caret: 4 });
+  });
+});
+
+describe("spliceIntoComposer", () => {
+  it("splices against the LIVE composer value, not the stale fallback", () => {
+    // The repro: the user typed into the composer DURING the transcription
+    // round-trip. The fallback is what the composer held when the mic was armed
+    // ("old"); splicing against it would discard the edit and land the caret in
+    // text the base never had.
+    const live = { value: "typed while waiting", selectionStart: 19, selectionEnd: 19 };
+    expect(spliceIntoComposer(live, "old", "dictated")).toEqual({
+      text: "typed while waiting dictated",
+      caret: 28,
+    });
+  });
+
+  it("inserts at the live caret, keeping text on both sides", () => {
+    const live = { value: "before after", selectionStart: 6, selectionEnd: 6 };
+    expect(spliceIntoComposer(live, "ignored", "MID")).toEqual({
+      text: "before MID after",
+      caret: 10,
+    });
+  });
+
+  it("falls back to the closure value only when the composer is gone", () => {
+    expect(spliceIntoComposer(null, "kept", "added")).toEqual({
+      text: "kept added",
+      caret: 10,
+    });
+  });
+
+  it("treats a null selection as the end of the live value", () => {
+    const live = { value: "abc", selectionStart: null, selectionEnd: null };
+    expect(spliceIntoComposer(live, "x", "Y")).toEqual({ text: "abc Y", caret: 5 });
   });
 });

@@ -20,7 +20,7 @@ import { useProposalActions, useThreadProposals } from "../proposals/proposal-ho
 import { useVoiceStatus } from "../voice-hooks";
 import { useWorkspace } from "../workspace-context";
 import { ApprovalCard } from "./approval-card";
-import { insertTranscript } from "./dictation";
+import { spliceIntoComposer } from "./dictation";
 import { MicButton } from "./mic-button";
 import {
   initialChatThread,
@@ -108,22 +108,15 @@ export function ChatDock({
   const voiceStatus = useVoiceStatus().data;
 
   // Dictation is INPUT, never a send: the words land where the caret was and
-  // the user reads them before pressing Enter. The caret is read off the live
-  // element rather than tracked in state — a textarea keeps its selection
-  // across the blur that clicking the mic button causes, so the position the
-  // user last typed at is still there when the transcript arrives.
+  // the user reads them before pressing Enter. BOTH the base text and the caret
+  // are read off the live element, not from this render's `text` — the mic
+  // round-trip is seconds long, and anything the user typed into the composer
+  // meanwhile is in the textarea's own value, which `spliceIntoComposer` splices
+  // against so a concurrent edit is not discarded.
   const acceptTranscript = (transcript: string): void => {
-    const composer = composerRef.current;
-    const caret = composer === null ? text.length : composer.selectionStart;
-    const caretEnd = composer === null ? text.length : composer.selectionEnd;
-    const next = insertTranscript({
-      text,
-      transcript,
-      selectionStart: caret,
-      selectionEnd: caretEnd,
-    });
+    const next = spliceIntoComposer(composerRef.current, text, transcript);
     setText(next.text);
-    composer?.focus();
+    composerRef.current?.focus();
     // After the state lands, or the element still holds the old value and the
     // caret is clamped to its length.
     requestAnimationFrame(() => {

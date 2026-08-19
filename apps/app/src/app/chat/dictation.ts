@@ -137,6 +137,34 @@ export function insertTranscript(args: {
   return { text: `${before}${inserted}${after}`, caret: start + inserted.length };
 }
 
+/** The composer fields dictation reads at accept time. An `HTMLTextAreaElement`
+ *  satisfies this, and so does a plain object in a test. */
+export interface ComposerSelection {
+  value: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+}
+
+/**
+ * Splice a transcript into the LIVE composer. Both the base text AND the caret
+ * come from `composer` — never a base captured in a render closure, which the
+ * seconds-long mic round-trip makes stale the instant the user types while the
+ * transcription is in flight. Reading the base from the closure and the caret
+ * from the DOM was the mis-splice: the caret indexed text the base did not
+ * have. `fallback` stands in only when the composer is gone (unmounted
+ * mid-flight), where there is nothing live left to read.
+ */
+export function spliceIntoComposer(
+  composer: ComposerSelection | null,
+  fallback: string,
+  transcript: string,
+): { text: string; caret: number } {
+  const base = composer === null ? fallback : composer.value;
+  const start = composer?.selectionStart ?? base.length;
+  const end = composer?.selectionEnd ?? base.length;
+  return insertTranscript({ text: base, transcript, selectionStart: start, selectionEnd: end });
+}
+
 export interface CaptureHandle {
   /** Resolves with the samples the contract wants, or null if nothing was
    *  captured (a stop before any data arrived). */
@@ -151,65 +179,83 @@ export interface CaptureHandle {
 /**
  * Open the microphone and start recording. Rejects with whatever
  * `getUserMedia` refused, so the caller can turn it into a sentence.
+ *
+ * Once `getUserMedia` grants, the microphone is LIVE — the OS indicator is
+ * lit and the tracks are open. So everything built after it (the recorder, the
+ * meter's AudioContext) runs under a guard: if any constructor throws, the
+ * stream is released before the rejection propagates, or the mic stays hot
+ * with no handle left to stop it.
  */
 export async function startCapture(): Promise<CaptureHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const recorder = new MediaRecorder(stream);
-  const chunks: Blob[] = [];
-  recorder.addEventListener("dataavailable", (event) => {
-    if (event.data.size > 0) {
-      chunks.push(event.data);
-    }
-  });
+  let meterContext: AudioContext | null = null;
+  try {
+    const recorder = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data);
+      }
+    });
 
-  // The meter reads the LIVE stream rather than the recorded blob, so it moves
-  // while the user speaks instead of after they stop.
-  const meterContext = new AudioContext();
-  const analyser = meterContext.createAnalyser();
-  analyser.fftSize = 512;
-  meterContext.createMediaStreamSource(stream).connect(analyser);
-  const frame = new Float32Array(analyser.fftSize);
+    // The meter reads the LIVE stream rather than the recorded blob, so it
+    // moves while the user speaks instead of after they stop.
+    meterContext = new AudioContext();
+    const analyser = meterContext.createAnalyser();
+    analyser.fftSize = 512;
+    meterContext.createMediaStreamSource(stream).connect(analyser);
+    const frame = new Float32Array(analyser.fftSize);
 
-  const release = (): void => {
+    const context = meterContext;
+    const release = (): void => {
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+      void context.close();
+    };
+
+    recorder.start();
+
+    return {
+      level: () => {
+        analyser.getFloatTimeDomainData(frame);
+        return levelFrom(frame);
+      },
+      cancel: () => {
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        }
+        release();
+      },
+      stop: async () => {
+        const stopped = new Promise<void>((resolve) => {
+          recorder.addEventListener("stop", () => resolve(), { once: true });
+        });
+        if (recorder.state !== "inactive") {
+          recorder.stop();
+        }
+        await stopped;
+        release();
+        if (chunks.length === 0) {
+          return null;
+        }
+        const bytes = await new Blob(chunks).arrayBuffer();
+        const decodeContext = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
+        try {
+          const audio = await decodeContext.decodeAudioData(bytes);
+          return resampleTo16k(audio.getChannelData(0), audio.sampleRate);
+        } finally {
+          void decodeContext.close();
+        }
+      },
+    };
+  } catch (error) {
     for (const track of stream.getTracks()) {
       track.stop();
     }
-    void meterContext.close();
-  };
-
-  recorder.start();
-
-  return {
-    level: () => {
-      analyser.getFloatTimeDomainData(frame);
-      return levelFrom(frame);
-    },
-    cancel: () => {
-      if (recorder.state !== "inactive") {
-        recorder.stop();
-      }
-      release();
-    },
-    stop: async () => {
-      const stopped = new Promise<void>((resolve) => {
-        recorder.addEventListener("stop", () => resolve(), { once: true });
-      });
-      if (recorder.state !== "inactive") {
-        recorder.stop();
-      }
-      await stopped;
-      release();
-      if (chunks.length === 0) {
-        return null;
-      }
-      const bytes = await new Blob(chunks).arrayBuffer();
-      const decodeContext = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
-      try {
-        const audio = await decodeContext.decodeAudioData(bytes);
-        return resampleTo16k(audio.getChannelData(0), audio.sampleRate);
-      } finally {
-        void decodeContext.close();
-      }
-    },
-  };
+    if (meterContext !== null) {
+      void meterContext.close();
+    }
+    throw error;
+  }
 }
