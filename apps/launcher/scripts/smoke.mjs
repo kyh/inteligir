@@ -182,26 +182,28 @@ try {
   const vaultList = await fetch(`${baseUrl}/api/v1/vault/tree`);
   process.stdout.write(`smoke: vault tree -> ${vaultList.status}\n`);
 
-  // Dictation's native binding is the ONE runtime dependency this smoke can
-  // check by behaviour rather than by presence: answering `no-model` means the
-  // worker spawned from the staged bundle, resolved `@fugood/whisper.node`
-  // from the installed tree and dlopened it. `unavailable` is a legitimate
-  // answer on a platform with no prebuild, so it is reported rather than
-  // failed — what fails is a status that never arrives or is not one of the
-  // states the contract declares.
+  // Dictation's native binding is the ONE runtime dependency this smoke checks
+  // by BEHAVIOUR rather than presence, and it is a real check because the
+  // status is computed from a worker that spawns from the staged bundle,
+  // resolves `@fugood/whisper.node` from the installed tree and dlopens the
+  // addon. So a fresh install must answer `no-model` (binding loaded, no model
+  // downloaded) — `ready` is also accepted, since the model dir is shared
+  // across installs and this machine may already hold one. `unavailable` is
+  // REFUSED: this smoke runs on a platform the artifact ships a prebuild for,
+  // so a runtime that will not load there is a packaging or ABI regression,
+  // which is exactly the class a green smoke on `unavailable` would hide.
   const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
   if (!voice.ok) {
     fail(`the voice status route answered ${voice.status}`);
   }
   const voiceStatus = await voice.json();
-  if (
-    !["unavailable", "no-model", "downloading", "preparing", "ready"].includes(voiceStatus.state)
-  ) {
-    fail(`the voice status is not a state the contract declares: ${JSON.stringify(voiceStatus)}`);
+  if (!["no-model", "ready"].includes(voiceStatus.state)) {
+    fail(
+      `voice status is ${JSON.stringify(voiceStatus)}; expected no-model or ready — ` +
+        `the native transcription binding did not load from the installed tree`,
+    );
   }
-  process.stdout.write(
-    `smoke: voice -> ${voiceStatus.state}${voiceStatus.detail === undefined ? "" : ` (${voiceStatus.detail})`}\n`,
-  );
+  process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
 
   const pid = server.pid;
   if (pid === undefined) {

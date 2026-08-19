@@ -180,20 +180,45 @@ export class WhisperVoiceService implements VoiceService {
   }
 
   /**
-   * Transcribe a second of silence, ONCE, so the shader compile lands here.
-   * Its result is discarded and its failure is not recorded: the model is
-   * installed either way, and a warm-up that could refuse would make the
-   * switch fail for a reason the next real dictation would report anyway.
+   * Transcribe a second of silence, ONCE, so the shader compile lands here —
+   * and, because this is the first time the freshly-downloaded model is
+   * actually loaded, so a model that passed the size/digest gate but cannot be
+   * opened by whisper.cpp is caught HERE, at the install the user is watching,
+   * rather than at their first dictation. Such a model is nuked so the status
+   * drops to `no-model` with the reason, the same delete-and-rebuild recovery
+   * the knowledge cache uses. A decode failure (the runtime loaded but choked
+   * on silence) is recorded but keeps the model — it is not about the bytes.
    */
   #warmUp(): void {
     this.#preparing = true;
-    void this.#runWorker({
-      kind: "transcribe",
-      modelPath: modelFilePath(this.#modelDir, VOICE_MODEL),
-      pcm: new ArrayBuffer(WARM_UP_PCM_BYTES),
-    }).finally(() => {
-      this.#preparing = false;
-    });
+    void (async () => {
+      try {
+        const answer = await this.#runWorker({
+          kind: "transcribe",
+          modelPath: modelFilePath(this.#modelDir, VOICE_MODEL),
+          pcm: new ArrayBuffer(WARM_UP_PCM_BYTES),
+        });
+        if (answer.kind === "failed") {
+          await this.#recordWorkerFailure(answer.message, answer.modelUnusable);
+        }
+      } finally {
+        this.#preparing = false;
+      }
+    })();
+  }
+
+  /**
+   * What a `failed` worker answer means for the cache. A model that would not
+   * LOAD is corrupt for this build, so it is deleted — a re-download is the
+   * only recovery, and leaving it would report `ready` for a file that cannot
+   * work. A decode failure keeps the file: the bytes are fine, the clip was
+   * not. Either way the reason is remembered for the `no-model` status.
+   */
+  async #recordWorkerFailure(reason: string, modelUnusable: boolean): Promise<void> {
+    this.#lastError = reason;
+    if (modelUnusable) {
+      await removeModel(this.#modelDir, VOICE_MODEL);
+    }
   }
 
   async remove(): Promise<VoiceStatusResponse> {
@@ -230,11 +255,19 @@ export class WhisperVoiceService implements VoiceService {
       if (answer.kind === "transcribed") {
         return answer.text;
       }
-      throw new VoiceTranscriptionError(
-        answer.kind === "failed"
-          ? answer.message
-          : "The transcription runtime answered a probe instead of a transcript.",
-      );
+      if (answer.kind === "probed") {
+        throw new VoiceTranscriptionError(
+          "The transcription runtime answered a probe instead of a transcript.",
+        );
+      }
+      await this.#recordWorkerFailure(answer.message, answer.modelUnusable);
+      // A model that would not load is now gone, so this is `unavailable`, not
+      // a bad clip; a decode failure keeps the model and reports as one.
+      throw answer.modelUnusable
+        ? new VoiceUnavailableError(
+            `The ${VOICE_MODEL.label} model could not be loaded and was removed. Turn voice input on again in Settings to re-download it.`,
+          )
+        : new VoiceTranscriptionError(answer.message);
     } finally {
       this.#transcribing = false;
     }

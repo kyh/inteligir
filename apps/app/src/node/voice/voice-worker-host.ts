@@ -78,14 +78,30 @@ export async function runVoiceWorker(request: VoiceWorkerRequest): Promise<Voice
         resolve(response);
       }
     };
+    // These three are HOST-side failures — the worker never sent a message —
+    // so `modelUnusable` is false: a timeout, a crash or an early exit could be
+    // a wedged decode, an OOM or a segfault, none of which means the bytes on
+    // disk are bad. The worker itself reports `modelUnusable: true` for the one
+    // case that IS about the file (whisper.cpp refusing to open the model),
+    // before it would ever reach one of these.
     const budget = setTimeout(() => {
-      settle({ kind: "failed", message: "Transcription took too long and was stopped." });
+      settle({
+        kind: "failed",
+        message: "Transcription took too long and was stopped.",
+        modelUnusable: false,
+      });
     }, WORKER_BUDGET_MS);
 
     worker.on("message", (message: VoiceWorkerResponse) => settle(message));
-    worker.on("error", (error: Error) => settle({ kind: "failed", message: error.message }));
+    worker.on("error", (error: Error) =>
+      settle({ kind: "failed", message: error.message, modelUnusable: false }),
+    );
     worker.on("exit", () =>
-      settle({ kind: "failed", message: "The transcription worker stopped before answering." }),
+      settle({
+        kind: "failed",
+        message: "The transcription worker stopped before answering.",
+        modelUnusable: false,
+      }),
     );
   });
   await worker.terminate();

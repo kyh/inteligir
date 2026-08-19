@@ -19,5 +19,12 @@ export type VoiceWorkerRequest =
 export type VoiceWorkerResponse =
   | { kind: "probed" }
   | { kind: "transcribed"; text: string }
-  /** A sentence for a person; the worker never sends a stack. */
-  | { kind: "failed"; message: string };
+  /**
+   * A sentence for a person; the worker never sends a stack. `modelUnusable`
+   * is true when the failure was the MODEL failing to load (the file passed
+   * the size/digest gate but whisper.cpp could not open it) rather than the
+   * clip failing to decode — the caller nukes the file on the former, because
+   * the recovery primitive for the model cache is deleting it, and keeps it on
+   * the latter, which is about the audio, not the bytes on disk.
+   */
+  | { kind: "failed"; message: string; modelUnusable: boolean };

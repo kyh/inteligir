@@ -16,6 +16,15 @@
 // NOTHING HERE THROWS PAST THE MESSAGE. A native loader failing to dlopen is
 // exactly the case the probe exists to report, so it must arrive as a sentence
 // rather than as a worker `error` event carrying a stack.
+//
+// THE PROBE ACTUALLY LOADS THE NATIVE BINDING. `import("@fugood/whisper.node")`
+// alone loads only the pure-JS wrapper; the `.node` addon is dlopened lazily
+// inside `loadModule` — reached by `loadWhisperModule()` and by `initWhisper`,
+// never by the bare import. A probe that only imported would pass on a machine
+// whose binary cannot load (no prebuild for the platform, an ABI mismatch, a
+// macOS older than the binary's minimum — where dyld refuses at dlopen), and
+// the failure would surface only on the user's first real dictation. So the
+// probe calls `loadWhisperModule()` and forces the load.
 
 import { parentPort, workerData } from "node:worker_threads";
 import type { VoiceWorkerRequest, VoiceWorkerResponse } from "./worker-protocol";
@@ -29,14 +38,27 @@ function reply(response: VoiceWorkerResponse): void {
   port?.postMessage(response);
 }
 
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function run(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
-  // Imported HERE rather than at module scope so a binding that cannot load
-  // answers the probe instead of killing the worker before it has a port.
-  const { initWhisper } = await import("@fugood/whisper.node");
+  const whisper = await import("@fugood/whisper.node");
   if (request.kind === "probe") {
+    // Forces the dlopen (see the header); a binding that cannot load throws
+    // here, which is exactly what the probe exists to catch.
+    await whisper.loadWhisperModule();
     return { kind: "probed" };
   }
-  const context = await initWhisper({ filePath: request.modelPath, useGpu: true });
+
+  // Split so a failure names its stage: a model that will not open is a fact
+  // about the file on disk (nuke it), a decode that throws is about the clip.
+  let context: Awaited<ReturnType<typeof whisper.initWhisper>>;
+  try {
+    context = await whisper.initWhisper({ filePath: request.modelPath, useGpu: true });
+  } catch (error) {
+    return { kind: "failed", message: message(error), modelUnusable: true };
+  }
   try {
     // `language` and a zero temperature on purpose: dictation is one person
     // speaking English into a composer, and sampling makes the same audio
@@ -47,6 +69,8 @@ async function run(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
     });
     const result = await promise;
     return { kind: "transcribed", text: result.result.trim() };
+  } catch (error) {
+    return { kind: "failed", message: message(error), modelUnusable: false };
   } finally {
     await context.release();
   }
@@ -54,5 +78,7 @@ async function run(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
 
 const request: VoiceWorkerRequest = workerData;
 run(request).then(reply, (error: unknown) => {
-  reply({ kind: "failed", message: error instanceof Error ? error.message : String(error) });
+  // The only path here is the dynamic import itself throwing — a broken JS
+  // wrapper — which is as unusable as a binding that will not load.
+  reply({ kind: "failed", message: message(error), modelUnusable: true });
 });

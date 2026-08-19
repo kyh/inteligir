@@ -162,25 +162,27 @@ try {
   const tree = await fetch(`${baseUrl}/api/v1/vault/tree`);
   process.stdout.write(`smoke: vault tree -> ${tree.status} ${(await tree.text()).length} bytes\n`);
 
-  // The third native module, and the only one reached from a WORKER THREAD —
-  // so this also proves the worker entry was staged beside the bundle inside
-  // app.asar.unpacked and that a thread can dlopen from there. `unavailable`
-  // is a legitimate answer (a platform with no prebuild, a macOS older than
-  // the binary's minimum), so it is reported rather than failed; what fails is
-  // a status that never arrives or is not one the contract declares.
+  // The third native module, and the only one reached from a WORKER THREAD, so
+  // this is the one check that proves the worker entry was staged inside
+  // app.asar.unpacked AND that a thread can dlopen the addon from there — the
+  // status is computed from exactly that load. A fresh packaged install must
+  // answer `no-model` (loaded, nothing downloaded); `ready` is accepted for the
+  // shared model dir. `unavailable` is REFUSED: this .app is built for
+  // darwin-arm64 and ships that prebuild, so a runtime that will not load is a
+  // staging or ABI regression — the very thing a green smoke on `unavailable`
+  // (its old, false, "legitimate answer") would have hidden.
   const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
   if (!voice.ok) {
     fail(`the packaged voice status route answered ${voice.status}`);
   }
   const voiceStatus = await voice.json();
-  if (
-    !["unavailable", "no-model", "downloading", "preparing", "ready"].includes(voiceStatus.state)
-  ) {
-    fail(`the packaged voice status is not a declared state: ${JSON.stringify(voiceStatus)}`);
+  if (!["no-model", "ready"].includes(voiceStatus.state)) {
+    fail(
+      `packaged voice status is ${JSON.stringify(voiceStatus)}; expected no-model or ready — ` +
+        `the transcription worker could not dlopen its binding from app.asar.unpacked`,
+    );
   }
-  process.stdout.write(
-    `smoke: voice -> ${voiceStatus.state}${voiceStatus.detail === undefined ? "" : ` (${voiceStatus.detail})`}\n`,
-  );
+  process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
 
   const status = await run(cliBin, ["status", "--json"], {
     env: { ...process.env, INTELIGIR_SERVER_URL: baseUrl },

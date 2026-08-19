@@ -3,6 +3,7 @@
 // native binding and every assertion holds on every platform the suite runs
 // on.
 
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
@@ -35,7 +36,11 @@ describe("WhisperVoiceService", () => {
   it("reports a runtime that will not load as unavailable, and refuses both verbs", async () => {
     const service = new WhisperVoiceService({
       modelDir: makeTempDir("inteligir-voice-"),
-      runWorker: async () => ({ kind: "failed", message: "dlopen: image not found" }),
+      runWorker: async () => ({
+        kind: "failed",
+        message: "dlopen: image not found",
+        modelUnusable: true,
+      }),
     });
     const status = await service.status();
     expect(status).toEqual({
@@ -112,15 +117,22 @@ describe("WhisperVoiceService", () => {
   it("refuses a second dictation while one is in flight", async () => {
     const modelDir = makeTempDir("inteligir-voice-");
     await installFakeModel(modelDir);
+    // A GATE the test opens by hand, not a timer: the first transcribe holds
+    // here until the assertion below has fired, so "the second call arrives
+    // while the first is in flight" is a fact rather than a timing bet. A
+    // `delay()` raced the second call's own `stat` under a saturated CI and
+    // flaked. The executor captures `gate`, which keeps the linter happy.
+    const gate: { release?: () => void } = {};
+    const held = new Promise<void>((resolve) => {
+      gate.release = resolve;
+    });
     const service = new WhisperVoiceService({
       modelDir,
       runWorker: async (request) => {
         if (request.kind === "probe") {
           return { kind: "probed" };
         }
-        // Long enough that the second call below is unambiguously inside this
-        // one; the refusal is synchronous, so nothing waits on this timer.
-        await delay(50);
+        await held;
         return { kind: "transcribed", text: "first" };
       },
     });
@@ -129,10 +141,11 @@ describe("WhisperVoiceService", () => {
     await service.status();
     const first = service.transcribe(new ArrayBuffer(2));
     await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(VoiceBusyError);
+    gate.release?.();
     expect(await first).toBe("first");
   });
 
-  it("turns a worker refusal into a transcription error carrying its sentence", async () => {
+  it("a decode failure is a transcription error and KEEPS the model", async () => {
     const modelDir = makeTempDir("inteligir-voice-");
     await installFakeModel(modelDir);
     const service = new WhisperVoiceService({
@@ -140,11 +153,47 @@ describe("WhisperVoiceService", () => {
       runWorker: async (request) =>
         request.kind === "probe"
           ? { kind: "probed" }
-          : { kind: "failed", message: "Transcription took too long and was stopped." },
+          : {
+              kind: "failed",
+              message: "the runtime choked on this clip",
+              modelUnusable: false,
+            },
     });
     await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(
       VoiceTranscriptionError,
     );
+    // The bytes are fine, the clip was not — the model stays and status is ready.
+    expect(existsSync(modelFilePath(modelDir, VOICE_MODEL))).toBe(true);
+    expect((await service.status()).state).toBe("ready");
+  });
+
+  it("nukes a model that will not LOAD and drops to no-model with the reason", async () => {
+    const modelDir = makeTempDir("inteligir-voice-");
+    await installFakeModel(modelDir);
+    const service = new WhisperVoiceService({
+      modelDir,
+      runWorker: async (request) =>
+        request.kind === "probe"
+          ? { kind: "probed" }
+          : {
+              kind: "failed",
+              message: "whisper_model_load: failed to open the model",
+              modelUnusable: true,
+            },
+    });
+    // A same-size-but-corrupt file passes the readiness check, so it reports
+    // ready — and would forever, with no recovery, if a load failure did not
+    // nuke it. This is the repro: readiness is size-only, recovery is on load.
+    expect((await service.status()).state).toBe("ready");
+    await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(
+      VoiceUnavailableError,
+    );
+    expect(existsSync(modelFilePath(modelDir, VOICE_MODEL))).toBe(false);
+    const after = await service.status();
+    expect(after.state).toBe("no-model");
+    if (after.state === "no-model") {
+      expect(after.lastError).toMatch(/failed to open/u);
+    }
   });
 
   it("reports a failed download as the reason it has no model", async () => {
