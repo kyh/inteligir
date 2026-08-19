@@ -27,6 +27,9 @@ apps/
                  is the sync CLIENT (issue #572): the credential at rest, the
                  frozen-body outbox, the pull/apply loop and the local
                  /cloud/* routes Settings and `inteligir sync` drive.
+                 src/node/voice/ is dictation (issue #574): the pinned model
+                 cache under ~/.inteligir/models/, and whisper.cpp on a worker
+                 thread per clip.
   cli/           @repo/cli — the `inteligir` CLI (issue #553): citty over
                  the typed hc client, consola for the human path (raw writes
                  for anything verbatim — consola rewrites `backtick` spans).
@@ -353,6 +356,50 @@ detail }` when no codex is installed, in the shape the Agent section already
   Settings with the exact invocation on screen, not a verb in the surface built
   for a model to drive.
 
+- **DICTATION TRANSCRIBES IN THE NODE PROCESS, ON A WORKER PER CLIP, and the
+  MODEL FILE IS THE SWITCH** (issue #574). Four runtimes were measured on this
+  machine against a 9.5 s and a 62 s clip before anything was built — the table
+  and the argument are the issue's first two comments. whisper.cpp through
+  `@fugood/whisper.node` (MIT, prebuilt per-platform, `postinstall` exits 0
+  unless asked to build from source) wins every axis: **94 ms** warm on a
+  dictated sentence and 513 ms on a full minute, 185 MB peak, off a 32 MB
+  download, returning the passage verbatim WITH punctuation and capitals.
+  The rejections are measured rather than argued. **transformers.js in the
+  renderer is refused by this app's own CSP** — verified by serving the bundle
+  under `csp.ts`'s policy verbatim: it needs `script-src … 'wasm-unsafe-eval'`
+  AND `worker-src 'self' blob:` together, and it would ship a 24 MB `.wasm` in
+  the SPA. **transformers.js on onnxruntime-node** is 3.7x slower at 3.3x the
+  memory, and both of its paths hallucinated at the 30 s chunk boundary where
+  whisper.cpp's sequential decode did not. **sherpa-onnx + streaming Parakeet**
+  — which this repo shipped before the rewrite — has the one thing whisper.cpp
+  cannot, a measured **0 ms** tail after the user stops, and loses anyway: the
+  tail it removes is 94 ms and already imperceptible, while it costs 4x the
+  download, 2x the memory, 8x the CPU, and returns **no punctuation and no
+  capitalization**, which in a composer is an edit per sentence. It was also
+  chosen here for a hands-free voice-call mode that `c9c8b76d` deleted as
+  unreachable; streaming was load-bearing for the feature that went away.
+  **ONE WORKER PER CLIP, not a warm pool**: opening the model is 37–92 ms and
+  the whole round trip 130–210 ms against a 2 s budget, so a resident context
+  would buy nothing perceptible and cost 185 MB plus an idle timer and a
+  teardown step. The worker is not optional — `better-sqlite3` is synchronous
+  and the watcher's fork channel pings on a bare timer, so an inline 700 ms
+  decode stalls a save, a query and the watcher's liveness together; measured
+  the other way, `/health` answered 450 times with a 15 ms worst case DURING a
+  62 s transcribe. **THE SHADER COMPILE IS PAID AT INSTALL**, which is what the
+  `preparing` state is for: `ggml_metal_library_init` takes 9.865 s the first
+  time this binary runs on a machine and 0.012 s on every run after, across
+  restarts, so it lands inside the switch the user is already watching rather
+  than inside their first dictation. There is NO `voiceEnabled` flag, for the
+  reason stated below about the device credential — the model on disk is the
+  fact, `install` fetches it against a pinned digest and `remove` deletes it.
+  **THE AUDIO IS BASE64 PCM IN A JSON BODY**: `@repo/typed-routes` is vendored
+  and has no binary request descriptor, and adding one would put house code in
+  files whose provenance row says `vendored`. **NO CLI VERB**, the same reason
+  connectors gets `list` and nothing else: dictation is a human affordance, and
+  an agent that wanted to transcribe a file would be asking for a different
+  feature. The residuals are stated: macOS **15+** only (the binary's `minos`),
+  English only, and the first dictation on a machine that got its model from
+  another checkout still pays the shader compile.
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
   `<dataDir>/device-credential` at 0600, beside `instance-secret` and for the
   same reason — and the two places it must NOT go are what fix the location:

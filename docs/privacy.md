@@ -56,6 +56,12 @@ anything shared across accounts.
 - **Your AI provider credentials.** The agent runs on your machine and talks
   to your provider from there; this deployment's cloud never sees or proxies
   those calls.
+- **Your voice.** Dictation is transcribed by a speech model running on this
+  machine. Microphone audio goes from the page to the local server and no
+  further — there is no speech API, no key, and nothing to opt out of. The one
+  network request the feature ever makes is downloading the model itself, once,
+  from Hugging Face when you turn it on; the file is checked against a checksum
+  this build ships and deleted when you turn it off.
 - **Telemetry about note content.** There is none.
 
 ## Retention
