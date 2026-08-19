@@ -17,8 +17,11 @@ import { useEffect, useRef, useState } from "react";
 import { queryKeys, unwrap } from "../api";
 import { ProposalSummary } from "../proposals/proposal-summary";
 import { useProposalActions, useThreadProposals } from "../proposals/proposal-hooks";
+import { useVoiceStatus } from "../voice-hooks";
 import { useWorkspace } from "../workspace-context";
 import { ApprovalCard } from "./approval-card";
+import { spliceIntoComposer } from "./dictation";
+import { MicButton } from "./mic-button";
 import {
   initialChatThread,
   threadActivity,
@@ -102,6 +105,24 @@ export function ChatDock({
   const [sending, setSending] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const voiceStatus = useVoiceStatus().data;
+
+  // Dictation is INPUT, never a send: the words land where the caret was and
+  // the user reads them before pressing Enter. BOTH the base text and the caret
+  // are read off the live element, not from this render's `text` — the mic
+  // round-trip is seconds long, and anything the user typed into the composer
+  // meanwhile is in the textarea's own value, which `spliceIntoComposer` splices
+  // against so a concurrent edit is not discarded.
+  const acceptTranscript = (transcript: string): void => {
+    const next = spliceIntoComposer(composerRef.current, text, transcript);
+    setText(next.text);
+    composerRef.current?.focus();
+    // After the state lands, or the element still holds the old value and the
+    // caret is clamped to its length.
+    requestAnimationFrame(() => {
+      composerRef.current?.setSelectionRange(next.caret, next.caret);
+    });
+  };
 
   // A freshly armed draft moves the user's next keystrokes here.
   useEffect(() => {
@@ -380,6 +401,7 @@ export function ChatDock({
               }
             }}
           />
+          <MicButton status={voiceStatus} onTranscript={acceptTranscript} disabled={sending} />
           <Button
             size="icon-sm"
             aria-label="Send"

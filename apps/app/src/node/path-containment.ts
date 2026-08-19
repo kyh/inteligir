@@ -53,3 +53,21 @@ export function assertVaultAndDataDirDisjoint(vaultDir: string, dataDir: string)
     );
   }
 }
+
+/**
+ * The model cache must not sit inside the vault. Same reason the data dir may
+ * not: the vault is a git repo the sync loop pushes, and a model directory
+ * under it would stage and ship a multi-megabyte binary weights file. Only the
+ * vault is checked, not the data dir — the model dir DEFAULTS to
+ * `<dataDir>/models`, which is intended: it is a cache the data dir owns, and
+ * deleting the data dir takes it with no harm. Both arguments must already be
+ * resolved.
+ */
+export function assertModelDirOutsideVault(modelDir: string, vaultDir: string): void {
+  if (pathContains(vaultDir, modelDir) || pathContains(modelDir, vaultDir)) {
+    throw new Error(
+      `The model directory must be outside the vault, but model dir "${modelDir}" and vault "${vaultDir}" nest. ` +
+        `A model under the vault would be committed and pushed. Set INTELIGIR_MODEL_DIR to a folder outside the vault.`,
+    );
+  }
+}

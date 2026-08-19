@@ -29,9 +29,9 @@ import {
 } from "@repo/server-contract/routes";
 import {
   classifyNavigation,
+  classifyPermission,
   classifyWindowOpen,
   decideExternalOpen,
-  isPermissionAllowed,
 } from "./origin-pin";
 import {
   resolveAppCheckoutDir,
@@ -191,20 +191,22 @@ function onServerStateChanged(state: SupervisorState): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Deny every permission the product does not use, on the window's OWN session.
- * Electron grants most of them by default to whatever a window loads, so an
- * unset handler is a standing grant — and this window's content comes from a
- * server, over a socket, on a port. Both handlers are required: the request
- * handler answers a prompt, the check handler answers a silent capability
- * query (`navigator.permissions.query`, `getUserMedia`'s pre-flight).
+ * Deny every permission the product does not use, on the window's OWN session,
+ * and grant the one it does (`media`, dictation) ONLY to the pinned origin.
+ * Electron grants most permissions by default to whatever a window loads, so
+ * an unset handler is a standing grant. Both handlers are required and both
+ * are ORIGIN-SCOPED: the request handler answers a prompt (its origin is
+ * `details.requestingUrl`), the check handler answers a silent capability
+ * query (`navigator.permissions.query`, `getUserMedia`'s pre-flight — its
+ * origin arrives as the third argument).
  */
-function lockDownSession(partition: string): Electron.Session {
+function lockDownSession(partition: string, appOrigin: string): Electron.Session {
   const windowSession = session.fromPartition(partition);
-  windowSession.setPermissionRequestHandler((_contents, permission, callback) => {
-    callback(isPermissionAllowed(permission));
+  windowSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
+    callback(classifyPermission(permission, details.requestingUrl, appOrigin));
   });
-  windowSession.setPermissionCheckHandler((_contents, permission) =>
-    isPermissionAllowed(permission),
+  windowSession.setPermissionCheckHandler((_contents, permission, requestingOrigin) =>
+    classifyPermission(permission, requestingOrigin, appOrigin),
   );
   // Serial/HID/USB device pickers, which the permission handlers above do not
   // cover.
@@ -226,7 +228,7 @@ function openExternalFromPage(url: string): void {
 
 function createWindow(target: ServerTarget): BrowserWindow {
   const partition = sessionPartition(target.dataDir);
-  lockDownSession(partition);
+  lockDownSession(partition, target.origin);
   const window = new BrowserWindow({
     width: 1200,
     height: 800,

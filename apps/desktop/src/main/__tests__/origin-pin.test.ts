@@ -6,10 +6,10 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_PERMISSIONS,
   classifyNavigation,
+  classifyPermission,
   classifyWindowOpen,
   decideExternalOpen,
   isHttpUrl,
-  isPermissionAllowed,
   isSameOriginNavigation,
   USER_ACTIVATION_WINDOW_MS,
 } from "../origin-pin";
@@ -137,15 +137,35 @@ describe("decideExternalOpen", () => {
   });
 });
 
-describe("isPermissionAllowed", () => {
-  it("grants nothing — the product uses no web permission", () => {
-    // Electron's default is to GRANT most of these to whatever a window loads,
-    // so the empty list is the policy, not an oversight.
-    expect(ALLOWED_PERMISSIONS).toEqual([]);
+describe("classifyPermission", () => {
+  it("grants exactly one permission — the dictation microphone", () => {
+    // The origin pin is the whole security surface, so the set that can EVER
+    // be granted is asserted here rather than left to the matrix below.
+    expect(ALLOWED_PERMISSIONS).toEqual(["media"]);
+  });
+
+  it("grants media to the window's own origin", () => {
+    expect(classifyPermission("media", ORIGIN, ORIGIN)).toBe(true);
+    // The request handler passes a full URL as the requesting origin; the
+    // check handler passes a bare origin. Both must resolve the same.
+    expect(classifyPermission("media", `${ORIGIN}/app/note`, ORIGIN)).toBe(true);
   });
 
   it.each([
-    "media",
+    "http://127.0.0.1:46640",
+    "http://127.0.0.1:4665",
+    "https://evil.example.com",
+    "http://localhost:4664",
+    "",
+  ])("denies media to a different origin (%s)", (requestingOrigin) => {
+    expect(classifyPermission("media", requestingOrigin, ORIGIN)).toBe(false);
+  });
+
+  it("denies media when the shell has no origin of its own", () => {
+    expect(classifyPermission("media", ORIGIN, "")).toBe(false);
+  });
+
+  it.each([
     "geolocation",
     "notifications",
     "midi",
@@ -159,8 +179,8 @@ describe("isPermissionAllowed", () => {
     "serial",
     "hid",
     "usb",
-  ])("denies %s", (permission) => {
-    expect(isPermissionAllowed(permission)).toBe(false);
+  ])("denies %s even from the window's own origin", (permission) => {
+    expect(classifyPermission(permission, ORIGIN, ORIGIN)).toBe(false);
   });
 });
 

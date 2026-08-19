@@ -37,6 +37,7 @@ import {
 import { ConnectorsSection } from "./connectors-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SyncSection } from "./sync-section";
+import { VoiceSection } from "./voice-section";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
   { value: "system", label: "System" },
@@ -168,6 +169,8 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
       </section>
       <Separator />
       <ConnectorsSection />
+      <Separator />
+      <VoiceSection />
       <Separator />
       <SyncSection />
       <Separator />

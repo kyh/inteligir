@@ -7,7 +7,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { apiPath, apiRoutes } from "@repo/server-contract/routes";
 import { z } from "zod";
 import { errnoCode } from "./errno";
-import { assertVaultAndDataDirDisjoint } from "./path-containment";
+import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
 
 type RuntimeMode = "dev" | "prod";
 
@@ -21,6 +21,8 @@ const PROD_VAULT_DIR_NAME = "Inteligir";
 const DEV_INSTANCE_DATA_DIR_NAME = "data";
 const DEV_INSTANCE_VAULT_DIR_NAME = "vault";
 const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
+/** Under the PROD data dir in both modes — see `AppConfig.modelDir`. */
+const MODELS_DIR_NAME = "models";
 const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
 
@@ -134,6 +136,21 @@ function parseAgentModeValue(name: string, rawValue: string): AgentMode {
   return trimmed;
 }
 
+const VOICE_MODE_VALUES = ["auto", "scripted"] as const;
+type VoiceMode = (typeof VOICE_MODE_VALUES)[number];
+
+function isVoiceMode(value: string): value is VoiceMode {
+  return VOICE_MODE_VALUES.some((mode) => mode === value);
+}
+
+function parseVoiceModeValue(name: string, rawValue: string): VoiceMode {
+  const trimmed = rawValue.trim();
+  if (!isVoiceMode(trimmed)) {
+    throw new Error(`${name} must be one of ${VOICE_MODE_VALUES.join(", ")} (got "${trimmed}")`);
+  }
+  return trimmed;
+}
+
 function parseNonEmptyValue(name: string, rawValue: string): string {
   const trimmed = rawValue.trim();
   if (trimmed.length === 0) {
@@ -204,6 +221,18 @@ const ENV_VARS = {
     name: "INTELIGIR_AGENT_MODEL",
     description: "Model passed through to the agent provider; unset means the provider's default.",
     parse: ({ name, value }) => parseNonEmptyValue(name, value),
+  }),
+  modelDir: defineEnvVar({
+    name: "INTELIGIR_MODEL_DIR",
+    description:
+      "Absolute (or ~-relative) directory the downloaded local models live in; unset means ~/.inteligir/models. Shared across checkouts on purpose — a model is a cache of the NETWORK, immutable and named by its id, so duplicating it per dev instance costs a re-download and buys nothing.",
+    parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
+  }),
+  voice: defineEnvVar({
+    name: "INTELIGIR_VOICE",
+    description:
+      "Dictation runtime: auto (whisper.cpp against a downloaded model) or scripted (an in-process fake that needs neither, for e2e).",
+    parse: ({ name, value }) => parseVoiceModeValue(name, value),
   }),
   cloudUrl: defineEnvVar({
     name: "INTELIGIR_CLOUD_URL",
@@ -329,6 +358,14 @@ export interface AppConfig {
   /** Read only in dev (prod runs no vite): vite's HMR websocket port,
    *  derived per checkout so parallel dev instances never collide. */
   devHmrPort: number;
+  /**
+   * Where downloaded models live (issue #574). NOT under the data dir: a model
+   * is a cache of the network keyed by its own id, so every checkout on this
+   * machine shares one copy rather than each paying the download.
+   */
+  modelDir: string;
+  /** Which transcription runtime dictation uses; "scripted" is the e2e fake. */
+  voice: VoiceMode;
   /** Which turn driver boots (issue #549); "auto" resolves at boot by binary presence. */
   agent: AgentMode;
   /** Model passed through to the provider; null means the provider's default. */
@@ -388,6 +425,11 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
   const devHmrPort =
     readEnvVar(ENV_VARS.devHmrPort, args.env, homeDir) ??
     resolveDevDefaultHmrPort(args.checkoutPath);
+  const modelDir =
+    readEnvVar(ENV_VARS.modelDir, args.env, homeDir) ??
+    join(homeDir, PROD_DATA_DIR_NAME, MODELS_DIR_NAME);
+  assertModelDirOutsideVault(resolve(modelDir), resolve(vaultDir));
+  const voice = readEnvVar(ENV_VARS.voice, args.env, homeDir) ?? "auto";
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModel =
     readEnvVar(ENV_VARS.agentModel, args.env, homeDir) ?? managed.agentModel ?? null;
@@ -411,6 +453,8 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
       envPort !== undefined ? "env" : managed.port !== undefined ? "managed-config" : "default",
     vaultDir,
     vaultRemote,
+    modelDir,
+    voice,
     agent,
     agentModel,
     cloudUrl,

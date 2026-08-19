@@ -122,17 +122,39 @@ export function decideExternalOpen(args: ExternalOpenArgs): ExternalOpenDecision
 // ---------------------------------------------------------------------------
 
 /**
- * Every web permission this product uses. It is EMPTY, and that is the whole
- * policy: the workspace is markdown, a websocket and HTTP — no camera, no
- * microphone, no geolocation, no notifications, no clipboard-read, no MIDI, no
- * serial or HID. Electron's default is to grant most of these to any page it
- * loads, so an unset handler is a standing grant to whatever the window ends
- * up rendering.
+ * The ONE web permission this product uses: `media`, for the composer's
+ * dictation microphone (issue #574). Electron's default is to grant most
+ * permissions to whatever a window loads, so an unset handler is a standing
+ * grant to whatever the window ends up rendering — the policy below is the
+ * whole answer, and it denies everything not named here.
  *
- * A feature that needs one adds it HERE, deliberately, as one row.
+ * A feature that needs another adds it to this set, deliberately, as one row.
  */
-export const ALLOWED_PERMISSIONS: readonly string[] = [];
+export const ALLOWED_PERMISSIONS: readonly string[] = ["media"];
 
-export function isPermissionAllowed(permission: string): boolean {
-  return ALLOWED_PERMISSIONS.includes(permission);
+/**
+ * May `permission` be granted to a page from `requestingOrigin`, on a window
+ * pinned to `appOrigin`?
+ *
+ * ORIGIN-SCOPED, not a bare allowlist, and that is the whole care this needs.
+ * The origin pin already keeps the window on one origin, so a media request
+ * can today only come from the app's own SPA — but a grant that ignored the
+ * origin would be a standing one the day that stops being true (a subframe, a
+ * future embed a note or an agent talked the window into). So `media` is
+ * granted ONLY when the request comes from the window's own origin, and every
+ * other permission is denied outright regardless of who asks.
+ *
+ * An empty `appOrigin` (a misconfigured shell) matches nothing:
+ * `isSameOriginNavigation` fails closed, so the safe failure is "no
+ * microphone" rather than "microphone for anyone".
+ */
+export function classifyPermission(
+  permission: string,
+  requestingOrigin: string,
+  appOrigin: string,
+): boolean {
+  if (!ALLOWED_PERMISSIONS.includes(permission)) {
+    return false;
+  }
+  return isSameOriginNavigation(requestingOrigin, appOrigin);
 }

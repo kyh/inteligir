@@ -16,13 +16,15 @@
     "apps/app": {
       // The Start file routes are the UI roots; the router and the Node entry
       // are already known to knip (the vite plugin and the dev script). The
-      // watcher child entry is forked, never imported, so knip cannot see its
-      // caller.
+      // watcher child entry is forked and the transcription worker is started
+      // as a thread — both are resolved by PATH at runtime and bundled as
+      // their own esbuild entries, so knip cannot see either caller.
       "entry": [
         "src/routes/**/*.tsx",
         "src/node/**/__tests__/**/*.test.ts",
         "src/app/**/__tests__/**/*.test.{ts,tsx}",
-        "src/node/vault/watcher/parcel-child-entry.ts"
+        "src/node/vault/watcher/parcel-child-entry.ts",
+        "src/node/voice/transcribe-worker.ts"
       ],
       "project": ["src/**/*.{ts,tsx,css}"],
       "ignoreDependencies": ["tailwindcss"]
@@ -46,15 +48,15 @@
       "project": ["src/**/*.ts", "scripts/*.{mjs,cjs}"]
     },
     // The published artifact. Its `bin` points at a build output, so the real
-    // entries are named here. The two native modules are runtime deps of the
+    // entries are named here. The three native modules are runtime deps of the
     // app bundle this package STAGES rather than imports — nothing under src/
-    // may import either, so knip cannot see them. (@repo/app and @repo/cli are
+    // may import any of them, so knip cannot see them. (@repo/app and @repo/cli are
     // deliberately not manifest dependencies at all: the relationship is a
     // build ORDER, declared in turbo.json.)
     "apps/launcher": {
       "entry": ["scripts/*.mjs", "src/main.ts", "src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts", "scripts/*.mjs"],
-      "ignoreDependencies": ["@parcel/watcher", "better-sqlite3"]
+      "ignoreDependencies": ["@fugood/whisper.node", "@parcel/watcher", "better-sqlite3"]
     },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it

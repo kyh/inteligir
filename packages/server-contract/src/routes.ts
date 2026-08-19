@@ -15,6 +15,7 @@ import { knowledgeRoutes } from "./knowledge";
 import { proposalRoutes } from "./proposals";
 import { threadRoutes } from "./threads";
 import { vaultRoutes } from "./vault";
+import { voiceRoutes } from "./voice";
 
 /** Where the route table below is mounted; client and server both derive from it. */
 export const API_BASE_PATH = "/api/v1";
@@ -153,6 +154,7 @@ export const apiRoutes = {
   proposals: proposalRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,
+  voice: voiceRoutes,
 };
 
 export type ApiSchema = ApiSchemaFromRouteDescriptors<typeof apiRoutes>;

@@ -1,7 +1,8 @@
 // The packaging smoke: pack the tarball npm would publish, install it into a
 // scratch prefix, boot it from a scratch data dir through its own bin, and
-// check the three things a published artifact can be wrong about — that it
-// serves, that the CLI inside it runs, and that it leaves nothing behind.
+// check the four things a published artifact can be wrong about — that it
+// serves, that the CLI inside it runs, that its native runtime dependencies
+// resolve from the installed tree, and that it leaves nothing behind.
 //
 // It packs a real tarball rather than reading dist/ directly, so `files` is
 // under test too: an omitted entry fails here instead of on someone's machine.
@@ -180,6 +181,29 @@ try {
 
   const vaultList = await fetch(`${baseUrl}/api/v1/vault/tree`);
   process.stdout.write(`smoke: vault tree -> ${vaultList.status}\n`);
+
+  // Dictation's native binding is the ONE runtime dependency this smoke checks
+  // by BEHAVIOUR rather than presence, and it is a real check because the
+  // status is computed from a worker that spawns from the staged bundle,
+  // resolves `@fugood/whisper.node` from the installed tree and dlopens the
+  // addon. So a fresh install must answer `no-model` (binding loaded, no model
+  // downloaded) — `ready` is also accepted, since the model dir is shared
+  // across installs and this machine may already hold one. `unavailable` is
+  // REFUSED: this smoke runs on a platform the artifact ships a prebuild for,
+  // so a runtime that will not load there is a packaging or ABI regression,
+  // which is exactly the class a green smoke on `unavailable` would hide.
+  const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
+  if (!voice.ok) {
+    fail(`the voice status route answered ${voice.status}`);
+  }
+  const voiceStatus = await voice.json();
+  if (!["no-model", "ready"].includes(voiceStatus.state)) {
+    fail(
+      `voice status is ${JSON.stringify(voiceStatus)}; expected no-model or ready — ` +
+        `the native transcription binding did not load from the installed tree`,
+    );
+  }
+  process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
 
   const pid = server.pid;
   if (pid === undefined) {

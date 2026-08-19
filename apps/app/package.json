@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/node"
   },
   "dependencies": {
+    "@fugood/whisper.node": "catalog:",
     "@hono/node-server": "catalog:",
     "@hono/node-ws": "catalog:",
     "@parcel/watcher": "catalog:",

@@ -15,7 +15,8 @@
     "./routes": "./src/routes.ts",
     "./thread-timeline": "./src/thread-timeline.ts",
     "./threads": "./src/threads.ts",
-    "./vault": "./src/vault.ts"
+    "./vault": "./src/vault.ts",
+    "./voice": "./src/voice.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

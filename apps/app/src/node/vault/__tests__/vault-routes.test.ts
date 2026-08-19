@@ -73,6 +73,8 @@ async function bootVaultApp() {
       portSource: "env",
       vaultDir,
       vaultRemote: null,
+      modelDir: join(dataDir, "models"),
+      voice: "scripted",
       agent: "off",
       agentModel: null,
       cloudUrl: "https://cloud.test",

@@ -23,7 +23,7 @@ await build({
   banner: { js: NODE_ESM_REQUIRE_BANNER },
   bundle: true,
   entryPoints: ["src/node/main.ts"],
-  external: ["better-sqlite3", "@parcel/watcher", "vite"],
+  external: ["better-sqlite3", "@parcel/watcher", "@fugood/whisper.node", "vite"],
   format: "esm",
   legalComments: "none",
   logLevel: "info",
@@ -45,6 +45,24 @@ await build({
   legalComments: "none",
   logLevel: "info",
   outfile: "dist-node/parcel-watcher-child.mjs",
+  platform: "node",
+  sourcemap: true,
+  target: "node24",
+});
+
+// The transcription worker is its own thread with its own module graph, so
+// like the watcher child it cannot ride inside main.js: `voice-worker-host.ts`
+// resolves this bundle as a SIBLING of the running entry
+// (dist-node/transcribe-worker.mjs).
+await build({
+  banner: { js: NODE_ESM_REQUIRE_BANNER },
+  bundle: true,
+  entryPoints: ["src/node/voice/transcribe-worker.ts"],
+  external: ["@fugood/whisper.node"],
+  format: "esm",
+  legalComments: "none",
+  logLevel: "info",
+  outfile: "dist-node/transcribe-worker.mjs",
   platform: "node",
   sourcemap: true,
   target: "node24",
