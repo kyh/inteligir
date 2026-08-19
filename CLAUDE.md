@@ -66,8 +66,9 @@ apps/
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
                  marketing site, the auth pages, Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
-                 device pairing, the per-user ThreadSyncDO (merged thread log
-                 + capture inbox + ws invalidation), the flag-gated Artifacts
+                 device pairing (/app/pair approves one, /app/devices lists and
+                 revokes), the per-user ThreadSyncDO (merged thread log +
+                 capture inbox + ws invalidation), the flag-gated Artifacts
                  mint. src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
 packages/
@@ -366,6 +367,55 @@ detail }` when no codex is installed, in the shape the Agent section already
   no socket, arms no timer and makes no request (asserted, at the shipping
   cadence, in `cloud/__tests__/sync-runtime.test.ts`). The cost, accepted:
   "pause sync" is not expressible — you unpair, which discards the queue.
+- **PAIRING IS APPROVED IN A BROWSER, and the code survives only as plumbing**
+  (issue #573). Nothing shows a `XXXX-XXXX` to a human any more and nothing
+  accepts one: Settings has a button, the dashboard has a device table, the CLI
+  has `inteligir sync pair` with no argument. What was deleted is the FERRY, not
+  the artifact — the mint route, the code table, the ten-minute TTL and the
+  one-time redeem are untouched, because they are the security story and the
+  redirect merely carries what a user's eyes used to. The durable credential
+  never transits the browser: it is minted by the local app's own redeem and
+  lands only in `<dataDir>/device-credential`.
+  **This is small here and large elsewhere because THE APP IS ALREADY A
+  LOOPBACK SERVER** — the callback a CLI tool would stand a server up for is one
+  more route on it. No typed-code fallback survives, and the user it would serve
+  cannot exist: reaching this product's UI at all means a browser reaching its
+  loopback, and a browser that can do that can complete the redirect (an ssh
+  user's port-forward carries both).
+  **THE REDIRECT ALLOWLIST IS CONTRACT, not handler code**
+  (`@repo/cloud-contract/pairing`): the approve page refuses a target at PARSE,
+  and the local app validates its OWN composition through the same schema, so
+  there is one gate rather than two that can disagree. It is judged on `URL`
+  FIELDS — `hostname`, `protocol`, `pathname`, and `username`/`password` required
+  empty — because `new URL("http://127.0.0.1@evil.example/…")` parses to username
+  `127.0.0.1` and hostname `evil.example`, and every host check that ever fell
+  for that was reading the wrong field. `[::1]` is REFUSED and `localhost` with
+  it: this process binds the `127.0.0.1` literal and nothing else, so an
+  allowlist wider than the set of addresses that can answer is an open redirect
+  with extra steps — one carrying a live pairing code. The port is deliberately
+  unconstrained, default included, because loopback is loopback on any port.
+  **THE STATE IS THE APP'S, and the callback is inert without it.** One slot,
+  128 bits, ten minutes, compared in constant time and CONSUMED BEFORE the
+  redeem — a state that survived its own redeem is a URL replayable out of a
+  browser history. A wrong state does NOT consume it, or any local page could
+  cancel a pairing mid-flight. `GET /pair/callback` sits outside the contract
+  table for the reason `/ws` states its own (a browser wants a page, and no
+  typed client has any use for the row) and outside the browser-origin guard for
+  the mirror of it: the request IS a cross-site top-level navigation, which is
+  exactly what that guard refuses, so the state stands in its place.
+  **THE SERVER OPENS THE BROWSER**, via `execFile` with an argv list and never a
+  shell, so the act is identical from a browser tab, the Electron shell and a
+  headless CLI — and the shell's unconditional `window.open` denial never comes
+  into play. Whether to open is a REQUEST FIELD rather than a second route,
+  because beginning a pairing is one verb; it is required rather than defaulted,
+  since the caller that must say `false` is the agent's `--json` path and a
+  default is precisely what that path would forget. A failed open is an ordinary
+  answer (`opened: false`), not an error: the URL is returned either way and
+  Settings shows it as a link.
+  The callback's port comes from the REQUEST's own Host header, not from
+  `config.port`, because `listen` may have probed past a busy dev port — and a
+  Host that is not one of this app's loopback origins answers 400 rather than a
+  redirect pointing somewhere else.
 - **A pulled event lands through the SAME ingest, marked with its origin**
   (`ThreadService.applySyncedEvents`, issue #572). A second append path would
   be a second answer to thread lifecycle. The origin changes exactly three
