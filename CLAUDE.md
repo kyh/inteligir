@@ -394,12 +394,27 @@ detail }` when no codex is installed, in the shape the Agent section already
   fact, `install` fetches it against a pinned digest and `remove` deletes it.
   **THE AUDIO IS BASE64 PCM IN A JSON BODY**: `@repo/typed-routes` is vendored
   and has no binary request descriptor, and adding one would put house code in
-  files whose provenance row says `vendored`. **NO CLI VERB**, the same reason
-  connectors gets `list` and nothing else: dictation is a human affordance, and
-  an agent that wanted to transcribe a file would be asking for a different
-  feature. The residuals are stated: macOS **15+** only (the binary's `minos`),
-  English only, and the first dictation on a machine that got its model from
-  another checkout still pays the shader compile.
+  files whose provenance row says `vendored`. **THE PROBE ACTUALLY LOADS THE
+  NATIVE BINDING** (`loadWhisperModule()`, not a bare `import` of the JS
+  wrapper — the `.node` is dlopened lazily and the import never reaches it), so
+  a platform whose binary cannot load answers `unavailable` at the switch
+  rather than passing every check and failing only the first real dictation.
+  **A MODEL THAT WILL NOT LOAD IS NUKED**: readiness is size-only (hashing a
+  32 MB file on every polled status is not free), so recovery is on the load —
+  the worker reports `modelUnusable` when whisper.cpp refuses the file, and the
+  service deletes it and drops to `no-model` with the reason, the same
+  delete-and-rebuild the knowledge cache uses; a decode failure keeps the file,
+  because that is about the clip, not the bytes. **THE DESKTOP SHELL GRANTS
+  `media`, ORIGIN-SCOPED**: the origin pin's permission handlers are no longer
+  an empty denylist — `classifyPermission` grants the microphone ONLY to the
+  window's own origin and denies everything else, because the pin already keeps
+  the window on one origin but a grant that ignored the origin would be a
+  standing one the day a subframe or embed changes that. **NO CLI VERB**, the
+  same reason connectors gets `list` and nothing else: dictation is a human
+  affordance, and an agent that wanted to transcribe a file would be asking for
+  a different feature. The residuals are stated: macOS **15+** only (the
+  binary's `minos`), English only, and the first dictation on a machine that
+  got its model from another checkout still pays the shader compile.
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
   `<dataDir>/device-credential` at 0600, beside `instance-secret` and for the
   same reason — and the two places it must NOT go are what fix the location:
