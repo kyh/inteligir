@@ -157,10 +157,30 @@ try {
   }
   process.stdout.write(`smoke: SPA shell -> ${shell.status} ${html.length} bytes\n`);
 
-  // A vault listing exercises the two native modules and the git repo init —
-  // the parts that would fail first on an ABI mismatch.
+  // A vault listing exercises better-sqlite3, @parcel/watcher and the git repo
+  // init — the parts that would fail first on an ABI mismatch.
   const tree = await fetch(`${baseUrl}/api/v1/vault/tree`);
   process.stdout.write(`smoke: vault tree -> ${tree.status} ${(await tree.text()).length} bytes\n`);
+
+  // The third native module, and the only one reached from a WORKER THREAD —
+  // so this also proves the worker entry was staged beside the bundle inside
+  // app.asar.unpacked and that a thread can dlopen from there. `unavailable`
+  // is a legitimate answer (a platform with no prebuild, a macOS older than
+  // the binary's minimum), so it is reported rather than failed; what fails is
+  // a status that never arrives or is not one the contract declares.
+  const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
+  if (!voice.ok) {
+    fail(`the packaged voice status route answered ${voice.status}`);
+  }
+  const voiceStatus = await voice.json();
+  if (
+    !["unavailable", "no-model", "downloading", "preparing", "ready"].includes(voiceStatus.state)
+  ) {
+    fail(`the packaged voice status is not a declared state: ${JSON.stringify(voiceStatus)}`);
+  }
+  process.stdout.write(
+    `smoke: voice -> ${voiceStatus.state}${voiceStatus.detail === undefined ? "" : ` (${voiceStatus.detail})`}\n`,
+  );
 
   const status = await run(cliBin, ["status", "--json"], {
     env: { ...process.env, INTELIGIR_SERVER_URL: baseUrl },
