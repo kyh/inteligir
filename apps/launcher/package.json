@@ -41,6 +41,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fugood/whisper.node": "catalog:",
     "@parcel/watcher": "catalog:",
     "better-sqlite3": "catalog:"
   },

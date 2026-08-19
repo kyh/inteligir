@@ -6,6 +6,12 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.6.0
+  # Dictation (issue #574). Pinned EXACT: the binary arrives through 14
+  # per-platform optionalDependencies pinned to the same version, and its
+  # postinstall is a no-op unless someone asks to build from source — which is
+  # the property `apps/launcher`'s zero-rebuild install depends on, so the
+  # version it was verified against is the version that ships.
+  "@fugood/whisper.node": 1.1.1
   "@cloudflare/vite-plugin": ^1.47.0
   "@cloudflare/vitest-pool-workers": ^0.18.8
   "@hono/node-server": ~1.19.17

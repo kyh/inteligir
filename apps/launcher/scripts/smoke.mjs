@@ -1,7 +1,8 @@
 // The packaging smoke: pack the tarball npm would publish, install it into a
 // scratch prefix, boot it from a scratch data dir through its own bin, and
-// check the three things a published artifact can be wrong about — that it
-// serves, that the CLI inside it runs, and that it leaves nothing behind.
+// check the four things a published artifact can be wrong about — that it
+// serves, that the CLI inside it runs, that its native runtime dependencies
+// resolve from the installed tree, and that it leaves nothing behind.
 //
 // It packs a real tarball rather than reading dist/ directly, so `files` is
 // under test too: an omitted entry fails here instead of on someone's machine.
@@ -180,6 +181,27 @@ try {
 
   const vaultList = await fetch(`${baseUrl}/api/v1/vault/tree`);
   process.stdout.write(`smoke: vault tree -> ${vaultList.status}\n`);
+
+  // Dictation's native binding is the ONE runtime dependency this smoke can
+  // check by behaviour rather than by presence: answering `no-model` means the
+  // worker spawned from the staged bundle, resolved `@fugood/whisper.node`
+  // from the installed tree and dlopened it. `unavailable` is a legitimate
+  // answer on a platform with no prebuild, so it is reported rather than
+  // failed — what fails is a status that never arrives or is not one of the
+  // states the contract declares.
+  const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
+  if (!voice.ok) {
+    fail(`the voice status route answered ${voice.status}`);
+  }
+  const voiceStatus = await voice.json();
+  if (
+    !["unavailable", "no-model", "downloading", "preparing", "ready"].includes(voiceStatus.state)
+  ) {
+    fail(`the voice status is not a state the contract declares: ${JSON.stringify(voiceStatus)}`);
+  }
+  process.stdout.write(
+    `smoke: voice -> ${voiceStatus.state}${voiceStatus.detail === undefined ? "" : ` (${voiceStatus.detail})`}\n`,
+  );
 
   const pid = server.pid;
   if (pid === undefined) {

@@ -15,6 +15,7 @@ import { browserSmoke } from "./scenarios/browser-smoke";
 import { cliDrive } from "./scenarios/cli-drive";
 import { delegationChipBrowser } from "./scenarios/delegation-chip-browser";
 import { delegationScripted } from "./scenarios/delegation-scripted";
+import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { proposalReview } from "./scenarios/proposal-review";
@@ -37,6 +38,7 @@ const SCENARIOS: readonly Scenario[] = [
   slashMenuBrowser,
   externalEditBrowser,
   viewContextBrowser,
+  dictationBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--prod] [--only <names>] [--keep] [--list]
