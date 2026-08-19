@@ -14,20 +14,22 @@ anything shared across accounts.
 
 - **Account data** — email, name, password hash, sessions — in Cloudflare D1
   (Better Auth).
-- **Device records** — a name you chose per device, timestamps (created, last
-  seen, revoked) and the SHA-256 hash of each device credential. The credential
-  itself is answered once at pairing and never stored.
-- **Pairing codes** — one row per code you mint, holding the code IN PLAINTEXT
-  (it is a short string you retype into the app, not a secret at rest), your
-  user id, when it expires, whether it was consumed, and the device it created.
-  Ten-minute life, single use.
+- **Device records** — a name per device (that machine's hostname unless it was
+  given another), timestamps (created, last seen, revoked) and the SHA-256 hash
+  of each device credential. The credential itself is answered once at pairing
+  and never stored.
+- **Pairing codes** — one row per pairing you approve, holding the code IN
+  PLAINTEXT (it is a ten-minute single-use token carried in a redirect, not a
+  secret at rest), your user id, when it expires, whether it was consumed, and
+  the device it created. Nothing ever shows it to you: your browser mints it on
+  Approve and hands it straight to the app on your machine.
 
   What actually happens to a spent code, stated because the tidy version would
   be a lie: **nothing collects it on a timer.** An expired or consumed row is
   already unusable — redeem judges expiry in the same statement that consumes —
-  but the row itself sits there until the next time YOU mint a code, which is
-  when your own dead rows are swept. If you pair once and never again, that one
-  row persists until you delete the account.
+  but the row itself sits there until the next time YOU approve a pairing,
+  which is when your own dead rows are swept. If you pair once and never again,
+  that one row persists until you delete the account.
 
 - **Thread events** — the append-only log of your agent conversations
   (messages, tool activity, status), pushed by each device to your account's

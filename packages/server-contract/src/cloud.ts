@@ -1,6 +1,6 @@
 // The LOCAL face of cloud sync: what the workspace UI and the CLI need to know
-// about this install's relationship with an account, and the three verbs that
-// change it.
+// about this install's relationship with an account, and the verbs that change
+// it.
 //
 // It is deliberately not a mirror of `@repo/cloud-contract`. That package is
 // the wire between this machine and the Worker; this one is the wire between
@@ -16,7 +16,7 @@
 // the flag on without one would be a promise no loop can keep. So the state is
 // a three-way union over the credential this data dir holds.
 
-import { DEVICE_NAME_MAX_LENGTH, PAIRING_CODE_MAX_LENGTH } from "@repo/cloud-contract/pairing";
+import { DEVICE_NAME_MAX_LENGTH } from "@repo/cloud-contract/pairing";
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
   defineRoute,
@@ -30,11 +30,11 @@ import type { ApiErrorResponse } from "./errors";
 /**
  * The cloud's own ceiling, re-exported rather than restated.
  *
- * This route is a PROXY for `POST /v1/device/redeem`, so anything it accepts
- * and the cloud does not is a value the user is told is fine and then sees
- * refused, with a shape error about a code they typed correctly. One spelling,
- * imported — the local surface cannot drift wider than the thing it forwards
- * to.
+ * The name this route accepts is the name the eventual redeem sends, so
+ * anything accepted here and refused there is a value the user is told is fine
+ * and then sees refused — with a shape error arriving long after the click that
+ * caused it. One spelling, imported: the local surface cannot drift wider than
+ * the thing it feeds.
  */
 export const CLOUD_DEVICE_NAME_MAX_LENGTH = DEVICE_NAME_MAX_LENGTH;
 
@@ -43,8 +43,8 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
   z
     .object({
       state: z.literal("off"),
-      /** Which deployment a pair would dial, so the UI can say where the code
-       *  has to come from. */
+      /** Which deployment a pair would dial, so the UI can name the account
+       *  the browser is about to be sent to. */
       cloudUrl: z.url(),
     })
     .strict(),
@@ -87,18 +87,45 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
 ]);
 export type CloudStatusResponse = z.infer<typeof cloudStatusResponseSchema>;
 
-export const cloudPairRequestSchema = z
+export const cloudPairBeginRequestSchema = z
   .object({
-    /** The one-time code from the account's Devices page. Its shape is the
-     *  cloud's to judge — this end only refuses an empty one, so a mistyped
-     *  code answers the cloud's own "that code isn't valid" rather than a
-     *  local guess at the same sentence. */
-    code: z.string().trim().min(1).max(PAIRING_CODE_MAX_LENGTH),
-    /** How this machine appears in the account's device list. */
-    deviceName: z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH),
+    /** How this machine appears in the account's device list. Absent means the
+     *  server's own hostname — the machine knows its name, and asking a user to
+     *  retype it is a field that exists to be left at its default. */
+    deviceName: z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH).optional(),
+    /**
+     * Whether the SERVER launches the system browser at the URL it answers
+     * with.
+     *
+     * A request field rather than a second route, because "begin a pairing" is
+     * one act and who opens the window is a property of the caller, not a
+     * different verb. It is required, not defaulted: the caller that must say
+     * `false` is an agent shell, where a browser window nobody asked for is the
+     * failure, and a default would be exactly the value that path forgets to
+     * override.
+     */
+    openBrowser: z.boolean(),
   })
   .strict();
-export type CloudPairRequest = z.infer<typeof cloudPairRequestSchema>;
+export type CloudPairBeginRequest = z.infer<typeof cloudPairBeginRequestSchema>;
+
+export const cloudPairBeginResponseSchema = z
+  .object({
+    /** The approve page, on the configured deployment. Answered whether or not
+     *  the browser opened, so a caller always has something to show. */
+    url: z.url(),
+    /** Whether the system browser was launched. False is not a failure — it is
+     *  also what `openBrowser: false` asks for — so the caller decides what to
+     *  say about it. */
+    opened: z.boolean(),
+    /** The name the approve page will show, resolved. */
+    deviceName: z.string().min(1),
+    /** How long the pending state lives. After that the callback is inert and
+     *  the user begins again. */
+    expiresInMs: z.number().int().positive(),
+  })
+  .strict();
+export type CloudPairBeginResponse = z.infer<typeof cloudPairBeginResponseSchema>;
 
 export const cloudRoutes = {
   status: defineRoute({
@@ -107,16 +134,28 @@ export const cloudRoutes = {
     request: noRequest(),
     response: jsonResponse<CloudStatusResponse>(),
   }),
-  pair: defineRoute({
-    path: "/cloud/pair",
+  /**
+   * Start a browser-approve pairing (issue #573): mint a single-use `state`,
+   * compose the approve page's URL, and optionally open it.
+   *
+   * There is no route here that takes a CODE, and that absence is the design.
+   * The code still exists — it is what the approve page mints and the redirect
+   * carries — but nothing human-facing shows one or accepts one, so the only
+   * caller that can complete a pairing is a browser arriving at
+   * `GET /pair/callback` with a `state` this route handed out. That callback is
+   * NOT a row here: it answers HTML to a browser, so it lives outside the
+   * contract table beside the `/ws` upgrade.
+   *
+   * 400 is the one refusal: a request that did not reach this server over its
+   * own loopback origin has no callback address to name.
+   */
+  pairBegin: defineRoute({
+    path: "/cloud/pair/begin",
     method: "post",
-    request: jsonRequest<EmptyInput, CloudPairRequest>(cloudPairRequestSchema),
+    request: jsonRequest<EmptyInput, CloudPairBeginRequest>(cloudPairBeginRequestSchema),
     response: [
-      jsonResponse<CloudStatusResponse>(),
+      jsonResponse<CloudPairBeginResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),
-      jsonResponse<ApiErrorResponse>({ status: 404 }),
-      jsonResponse<ApiErrorResponse>({ status: 409 }),
-      jsonResponse<ApiErrorResponse, 503>({ status: 503 }),
     ] as const,
   }),
   /** Idempotent: unpairing an install that was never paired answers `off`.

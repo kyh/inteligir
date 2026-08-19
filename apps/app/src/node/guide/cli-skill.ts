@@ -133,16 +133,19 @@ those are git's job.
 
 - \`inteligir sync status\` — whether this install is paired, how many events
   are queued for the account, and how far behind it is.
-- \`inteligir sync pair <code>\` — redeem a one-time code minted on the
-  account's Devices page. \`--name\` sets how this machine appears in that
-  list (default: the hostname).
+- \`inteligir sync pair\` — start a pairing. The SERVER opens a browser at the
+  account's approve page and prints the URL; a person approves it there and
+  the pairing completes on its own. \`--name\` sets how this machine appears in
+  the account's device list (default: the hostname). Under \`--json\` nothing
+  is opened and the URL is printed for you to hand to the user — pairing is a
+  person's act, so print the link and stop rather than waiting on it.
 - \`inteligir sync push\` — run a pass now (drain the outbox, pull, apply) and
   print the state it left behind. Use it before reporting a long task done, so
   the work has actually reached the account.
 
 There is no \`unpair\` here: it discards writes that have not reached the
-account yet, so it lives in the app's Settings → Sync, in front of the state it
-would throw away.
+account yet, so it lives in the app's Settings → Devices, in front of the state
+it would throw away.
 
 ## System
 

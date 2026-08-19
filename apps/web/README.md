@@ -13,7 +13,8 @@ src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
     app/             /app/sign-in, /app/sign-up, /app/forgot-password,
-                     /app/devices (the pairing dashboard, client-only)
+                     /app/pair (the approve screen) and /app/devices (the
+                     device table), both client-only
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client, session guard, site config
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
@@ -41,14 +42,15 @@ its own `tsconfig.json`.
 | `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
 | `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
 | `/app/forgot-password`         | —       | Requests the reset link                                    |
-| `/app/devices`                 | session | The pairing dashboard: mint codes, list/revoke devices     |
+| `/app/pair`                    | session | Approve a device: mints a code and redirects it to the app |
+| `/app/devices`                 | session | The device table: list and revoke                          |
 | `/api/auth/*`                  | —       | Better Auth (email+password, bearer, optional social)      |
 | `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
 | `/v1/capabilities`             | —       | Which social providers this deployment serves              |
 | `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
-| `POST /v1/device/code`         | session | Mint a one-time pairing code (10 min, single-use)          |
+| `POST /v1/device/code`         | session | Mint a one-time code for `/app/pair` (10 min, single-use)  |
 | `POST /v1/device/redeem`       | code    | Exchange the code for the durable device credential        |
-| `GET /v1/device/list`          | session | The dashboard's device table (revoked rows included)       |
+| `GET /v1/device/list`          | session | The device table (revoked rows included)                   |
 | `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
 | `POST /v1/sync/push`           | device  | Outbox batch in — idempotent, conflict-aware               |
 | `GET /v1/sync/pull`            | device  | Page the merged log by global `seq`                        |

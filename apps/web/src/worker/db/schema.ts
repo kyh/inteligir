@@ -152,6 +152,11 @@ export const pairingCode = sqliteTable("pairing_code", {
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   consumedAt: integer("consumed_at", { mode: "timestamp" }),
   deviceId: text("device_id"),
+  // The PKCE S256 challenge the approve page sent at mint. Redeem rejects
+  // unless S256(verifier) equals it, so an intercepted code alone cannot be
+  // spent (issue #573). Nullable only because the column is additive over a
+  // deployed table; every code minted now carries one, and a null is refused.
+  challenge: text("challenge"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

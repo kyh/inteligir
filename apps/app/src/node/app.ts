@@ -1,8 +1,9 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 // One Hono root splitting /api/v1 (the contract table), GET /ws (the
-// invalidation bus), and a fallback — vite middlewares in dev, static client
-// + the Start server entry's fetch in prod.
+// invalidation bus), GET /pair/callback (the browser-approve landing), and a
+// fallback — vite middlewares in dev, static client + the Start server entry's
+// fetch in prod.
 
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -18,7 +19,10 @@ import { API_BASE_PATH, apiRoutes, type AgentStatus } from "@repo/server-contrac
 import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
+import { PAIR_CALLBACK_PATH } from "@repo/cloud-contract/pairing";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
+import type { OpenExternalUrl } from "./cloud/browser-opener";
+import { handlePairCallback } from "./cloud/pair-callback";
 import { registerCloudRoutes } from "./cloud/routes";
 import { createCloudRuntime, type CloudTransport } from "./cloud/sync-runtime";
 import type { AppConfig } from "./config";
@@ -86,6 +90,9 @@ export interface CreateAppArgs {
    *  a client uses to tell this server from anything else holding the port. */
   instanceSecret: string;
   knowledge: KnowledgeRuntime;
+  /** Tests: watch a pairing send the user to their browser without a window
+   *  opening on whoever ran the suite. */
+  openExternalUrl?: OpenExternalUrl;
   /** Resolved once at boot, after migrate — not a SELECT per status request. */
   schemaVersion: number;
   startedAt: number;
@@ -220,6 +227,7 @@ export function createApp(args: CreateAppArgs) {
     cloudUrl: args.config.cloudUrl,
     vault: args.vault.service,
     ...(args.cloudTransport === undefined ? {} : { transport: args.cloudTransport }),
+    ...(args.openExternalUrl === undefined ? {} : { openExternalUrl: args.openExternalUrl }),
   });
   const threads = new ThreadService({
     db: args.db,
@@ -249,6 +257,18 @@ export function createApp(args: CreateAppArgs) {
       onClose: (_event, socket) => args.bus.unregisterClient(socket),
     })),
   );
+
+  // Beside the upgrade above and for the mirror-image reason: `/ws` is not a
+  // contract row because a websocket is not a request/response pair, and this
+  // one is not because what arrives is a BROWSER expecting a page. It carries
+  // no origin guard either — the redirect that reaches it IS a cross-site
+  // top-level navigation, which is exactly what that guard refuses — and the
+  // single-use `state` the runtime is holding stands in its place.
+  // `cloud/pair-callback.ts` states the whole argument.
+  app.get(PAIR_CALLBACK_PATH, async (c) => {
+    const answer = await handlePairCallback(cloud, new URL(c.req.url));
+    return c.body(answer.body, answer.status, answer.headers);
+  });
 
   const fallback = args.fallback;
   if (fallback.kind === "dev") {

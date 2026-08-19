@@ -55,12 +55,42 @@ async function bootInstall(
   });
 }
 
+/**
+ * Pair an install the way a user does (issue #573), through the composed app
+ * rather than the runtime: `POST /cloud/pair/begin` over the typed client, then
+ * the callback a browser would follow — a plain `GET` on the loopback route,
+ * with the state read off the approve URL exactly as the approve page reads it.
+ *
+ * `openBrowser: false`, because a suite that popped a window on whoever ran it
+ * would be the last thing anyone wants from `pnpm test`.
+ */
+/** The loopback address these installs pretend to be reached on. The begin
+ *  route reads the port back out of the request's own Host header, because
+ *  `listen` may have probed past the configured one. */
+const LOOPBACK_HOST = "127.0.0.1:4664";
+
 async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Promise<void> {
-  cloud.mintCode(code);
-  const response = ok(
-    await install.client.cloud.pair.$post({ json: { code, deviceName: `device-${code}` } }),
+  const begun = ok(
+    await install.client.cloud.pair.begin.$post(
+      { json: { deviceName: `device-${code}`, openBrowser: false } },
+      { headers: { host: LOOPBACK_HOST } },
+    ),
   );
-  expect((await response.json()).state).toBe("paired");
+  const approve = new URL((await begun.json()).url);
+  const state = approve.searchParams.get("state") ?? "";
+  // The approve page's mint, bound to the PKCE challenge begin put on the URL —
+  // registered here because the app kept the verifier and only the hash travels.
+  cloud.mintCode(code, approve.searchParams.get("challenge") ?? "");
+  const callback = new URL(approve.searchParams.get("redirect") ?? "");
+  expect(callback.origin).toBe(`http://${LOOPBACK_HOST}`);
+  callback.searchParams.set("code", code);
+  callback.searchParams.set("state", state);
+
+  // What the browser does next, and the only thing that completes a pairing.
+  const landed = await install.composed.app.request(callback.toString());
+  expect(landed.status).toBe(200);
+  expect(await landed.text()).toContain("Paired");
+  expect((await ok(await install.client.cloud.status.$get()).json()).state).toBe("paired");
 }
 
 async function syncNow(install: BootedTestApp): Promise<void> {

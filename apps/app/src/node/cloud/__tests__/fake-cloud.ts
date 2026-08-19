@@ -33,6 +33,7 @@ import { cloudError, type CloudErrorCode } from "@repo/cloud-contract/errors";
 import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PREFIX,
+  pkceChallengeS256,
   redeemDeviceRequestSchema,
   type RedeemDeviceResponse,
 } from "@repo/cloud-contract/pairing";
@@ -86,7 +87,7 @@ interface InboxRow {
 
 export class FakeCloud {
   private readonly devices = new Map<string, { deviceId: string; revoked: boolean }>();
-  private readonly codes = new Set<string>();
+  private readonly codes = new Map<string, string>();
   private readonly log: LogRow[] = [];
   private readonly inbox: InboxRow[] = [];
   private nextDevice = 0;
@@ -99,8 +100,12 @@ export class FakeCloud {
    *  case, which the wire cannot otherwise produce on demand. */
   dropNextPushResponse = false;
 
-  mintCode(code: string): void {
-    this.codes.add(code);
+  /** Mint a code bound to a PKCE challenge, exactly as the approve page does.
+   *  The challenge comes off the approve URL `beginPair` answered, so a test
+   *  registers it AFTER begin — the app kept the verifier, the browser only
+   *  ever carried the hash. */
+  mintCode(code: string, challenge: string): void {
+    this.codes.set(code, challenge);
   }
 
   /** Revoke as the dashboard does: the credential stops verifying at once. */
@@ -132,6 +137,12 @@ export class FakeCloud {
     return this.log.length;
   }
 
+  /** How many devices have redeemed against this cloud — a signal a test can
+   *  wait on to know a re-pair's redeem actually landed here. */
+  deviceCount(): number {
+    return this.devices.size;
+  }
+
   readonly fetch: CloudFetch = async (input, init) => {
     const url = new URL(input);
     const method = init?.method ?? "GET";
@@ -140,7 +151,7 @@ export class FakeCloud {
       typeof init?.body === "string" ? JSON.parse(init.body) : (init?.body ?? null);
 
     if (method === "POST" && url.pathname === DEVICE_API_PATHS.redeem) {
-      return this.redeem(body);
+      return await this.redeem(body);
     }
 
     const device = this.authorize(init);
@@ -179,14 +190,22 @@ export class FakeCloud {
     return { deviceId: device.deviceId };
   }
 
-  private redeem(body: unknown): Response {
+  private async redeem(body: unknown): Promise<Response> {
     const parsed = redeemDeviceRequestSchema.safeParse(body);
     if (!parsed.success) {
-      return refuse("bad-request", "Send { code, deviceName }.");
+      return refuse("bad-request", "Send { code, deviceName, verifier }.");
     }
-    if (!this.codes.delete(parsed.data.code)) {
+    const challenge = this.codes.get(parsed.data.code);
+    if (challenge === undefined) {
       return refuse("invalid-code", "That pairing code isn't valid.");
     }
+    // PKCE, the worker's check mirrored: an intercepted code with the wrong (or
+    // no) verifier answers invalid-code and does NOT consume the code, so the
+    // real app's redeem still lands.
+    if ((await pkceChallengeS256(parsed.data.verifier)) !== challenge) {
+      return refuse("invalid-code", "That pairing code isn't valid.");
+    }
+    this.codes.delete(parsed.data.code);
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
     const credential = `${DEVICE_CREDENTIAL_PREFIX}${String(this.nextDevice).padStart(64, "0")}`;

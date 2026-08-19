@@ -1,6 +1,7 @@
 import {
   DEVICE_API_PATHS,
   listDevicesResponseSchema,
+  mintPairingCodeRequestSchema,
   redeemDeviceRequestSchema,
   revokeDeviceRequestSchema,
   type ListDevicesResponse,
@@ -18,7 +19,7 @@ import { severDeviceSockets } from "../sync/routes";
 // ---------------------------------------------------------------------------
 // `/v1/device/*` — the pairing surface.
 //
-//   POST /v1/device/code    session  mint a one-time pairing code (dashboard)
+//   POST /v1/device/code    session  mint a one-time pairing code (/app/pair)
 //   POST /v1/device/redeem  code     exchange it for the durable credential
 //   GET  /v1/device/list    session  the dashboard's device table
 //   POST /v1/device/revoke  session  cut a device off (bites next request)
@@ -51,8 +52,14 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       }
     }
     const body = redeemDeviceRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { code, deviceName }.");
-    const redeemed = await redeemPairingCode(db, env.DB, body.data.code, body.data.deviceName);
+    if (!body.success) return refuse("bad-request", "Send { code, deviceName, verifier }.");
+    const redeemed = await redeemPairingCode(
+      db,
+      env.DB,
+      body.data.code,
+      body.data.deviceName,
+      body.data.verifier,
+    );
     if (typeof redeemed === "string") {
       return refuse(redeemed, redeemFailureMessage(redeemed));
     }
@@ -63,7 +70,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   if (userId === null) return refuse("unauthorized", "Sign in first.");
 
   if (route === `POST ${DEVICE_API_PATHS.mintCode}`) {
-    return jsonNoStore(await mintPairingCode(db, userId));
+    const body = mintPairingCodeRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!body.success) return refuse("bad-request", "Send { challenge, challengeMethod: 'S256' }.");
+    return jsonNoStore(await mintPairingCode(db, userId, body.data.challenge));
   }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {
@@ -117,9 +126,9 @@ function redeemFailureMessage(
     case "invalid-code":
       return "That pairing code isn't valid.";
     case "code-expired":
-      return "That pairing code expired — mint a new one from the dashboard.";
+      return "That pairing code expired — start pairing again from the app.";
     case "code-consumed":
-      return "That pairing code was already used — mint a new one from the dashboard.";
+      return "That pairing code was already used — start pairing again from the app.";
     case "device-limit":
       return "This account has too many active devices — revoke one first.";
   }

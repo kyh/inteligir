@@ -4,9 +4,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   DEVICE_API_PATHS,
   listDevicesResponseSchema,
-  mintPairingCodeResponseSchema,
   type Device,
-  type MintPairingCodeResponse,
 } from "@repo/cloud-contract/pairing";
 import { Button } from "@repo/ui/components/button";
 
@@ -15,9 +13,15 @@ import { currentSession } from "@/lib/session-guard";
 import { siteConfig } from "@/lib/site-config";
 
 // ---------------------------------------------------------------------------
-// `/app/devices` — the signed-in dashboard for device pairing: mint a one-time
-// code for the local app, see every paired device, revoke one (which cuts it
-// off on its next request — the credential check is never cached).
+// `/app/devices` — the signed-in audit surface: every paired device, and the
+// revoke that cuts one off on its next request (the credential check is never
+// cached).
+//
+// NOTHING HERE SHOWS A CODE TO A HUMAN (issue #573). Codes still exist and are
+// still the artifact a pairing turns on, but the only thing that ever sees one
+// is `/app/pair`, which mints it on an approval and puts it straight in a
+// redirect. A "mint a code" button here would be a second way to pair whose
+// whole value was that a person could retype what it printed.
 //
 // `ssr: false`: everything on this page depends on the live session and the
 // device table, neither of which a server render can have — the shell would be
@@ -41,12 +45,6 @@ async function fetchDevices(): Promise<Device[]> {
   return listDevicesResponseSchema.parse(await response.json()).devices;
 }
 
-async function mintCode(): Promise<MintPairingCodeResponse> {
-  const response = await fetch(DEVICE_API_PATHS.mintCode, { method: "POST" });
-  if (!response.ok) throw new Error("Couldn't mint a pairing code.");
-  return mintPairingCodeResponseSchema.parse(await response.json());
-}
-
 async function revokeDevice(deviceId: string): Promise<void> {
   const response = await fetch(DEVICE_API_PATHS.revoke, {
     method: "POST",
@@ -58,7 +56,6 @@ async function revokeDevice(deviceId: string): Promise<void> {
 
 function DevicesPage() {
   const [devices, setDevices] = useState<Device[] | null>(null);
-  const [minted, setMinted] = useState<MintPairingCodeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
@@ -68,13 +65,6 @@ function DevicesPage() {
   }, []);
 
   useEffect(refresh, [refresh]);
-
-  const onMint = () => {
-    setError(null);
-    void mintCode().then(setMinted, (failure: unknown) => {
-      setError(failure instanceof Error ? failure.message : "Couldn't mint a pairing code.");
-    });
-  };
 
   const onRevoke = (deviceId: string) => {
     setError(null);
@@ -90,28 +80,16 @@ function DevicesPage() {
       </Link>
       <h1 className="text-lg font-medium tracking-tight">Devices</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Pair the local app with your account: mint a code here, enter it in the app within ten
-        minutes. Each device gets its own credential; revoking one cuts it off immediately.
+        To pair a machine, start it there — Settings → Devices in the app, or{" "}
+        <code>inteligir sync pair</code> — and approve it in the browser it opens. Each device gets
+        its own credential; revoking one cuts it off immediately.
       </p>
 
-      <div className="mt-6 grid gap-3">
-        <div>
-          <Button type="button" onClick={onMint}>
-            Pair a device
-          </Button>
-        </div>
-        {minted === null ? null : (
-          <div className="rounded-md border p-4">
-            <div className="font-mono text-2xl tracking-widest">{minted.code}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              One-time code — expires in {Math.round(minted.expiresInMs / 60_000)} minutes.
-            </p>
-          </div>
-        )}
+      <div className="mt-6">
         <AuthError message={error} />
       </div>
 
-      <h2 className="mt-10 text-sm font-medium">Paired devices</h2>
+      <h2 className="mt-4 text-sm font-medium">Paired devices</h2>
       <DeviceList devices={devices} onRevoke={onRevoke} />
     </main>
   );

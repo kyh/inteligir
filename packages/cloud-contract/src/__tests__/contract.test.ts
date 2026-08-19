@@ -6,8 +6,18 @@ import {
 } from "../captures";
 import { cloudError, cloudErrorSchema } from "../errors";
 import {
+  buildPairApproveUrl,
+  buildPairCallbackUrl,
   DEVICE_CREDENTIAL_PATTERN,
+  generatePkceVerifier,
+  mintPairingCodeRequestSchema,
+  PAIR_APPROVE_PATH,
+  PAIR_CALLBACK_PATH,
   PAIRING_CODE_PATTERN,
+  pairApproveSearchSchema,
+  pairRedirectUrlSchema,
+  PKCE_S256_PATTERN,
+  pkceChallengeS256,
   redeemDeviceRequestSchema,
 } from "../pairing";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync";
@@ -45,6 +55,7 @@ describe("pairing grammar", () => {
     const parsed = redeemDeviceRequestSchema.parse({
       code: " K7QP-2M4X ",
       deviceName: "  Kaiyu's MacBook ",
+      verifier: "a".repeat(43),
     });
     expect(parsed.code).toBe("K7QP-2M4X");
     expect(parsed.deviceName).toBe("Kaiyu's MacBook");
@@ -54,6 +65,148 @@ describe("pairing grammar", () => {
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(64)}`)).toBe(true);
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(63)}`)).toBe(false);
     expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
+  });
+});
+
+// The redirect allowlist is the ONE thing standing between the approve page
+// and an open redirect that hands a live pairing code to whoever asked for
+// one, so every refusal it makes is pinned here rather than left to the page
+// that parses through it.
+describe("the pairing redirect allowlist", () => {
+  const OK = `http://127.0.0.1:4664${PAIR_CALLBACK_PATH}`;
+
+  it("accepts the loopback callback on any port", () => {
+    expect(pairRedirectUrlSchema.safeParse(OK).success).toBe(true);
+    expect(pairRedirectUrlSchema.safeParse(`http://127.0.0.1:1${PAIR_CALLBACK_PATH}`).success).toBe(
+      true,
+    );
+    expect(
+      pairRedirectUrlSchema.safeParse(`http://127.0.0.1:65535${PAIR_CALLBACK_PATH}`).success,
+    ).toBe(true);
+  });
+
+  it("refuses a USERINFO trick, which is the one that reads as loopback", () => {
+    // `new URL` parses this to username "127.0.0.1" and hostname "evil.com" —
+    // every check that matched the string rather than the field said yes.
+    const trick = `http://127.0.0.1@evil.example:4664${PAIR_CALLBACK_PATH}`;
+    expect(new URL(trick).username).toBe("127.0.0.1");
+    expect(new URL(trick).hostname).toBe("evil.example");
+    expect(pairRedirectUrlSchema.safeParse(trick).success).toBe(false);
+    expect(
+      pairRedirectUrlSchema.safeParse(`http://user:pass@127.0.0.1:4664${PAIR_CALLBACK_PATH}`)
+        .success,
+    ).toBe(false);
+  });
+
+  it("refuses a non-loopback host, however it is spelled", () => {
+    for (const host of [
+      "evil.example",
+      "localhost",
+      "[::1]",
+      "127.0.0.1.evil.example",
+      "0.0.0.0",
+    ]) {
+      expect(
+        pairRedirectUrlSchema.safeParse(`http://${host}:4664${PAIR_CALLBACK_PATH}`).success,
+        host,
+      ).toBe(false);
+    }
+  });
+
+  it("refuses https on loopback — TLS there is somebody else's server", () => {
+    expect(
+      pairRedirectUrlSchema.safeParse(`https://127.0.0.1:4664${PAIR_CALLBACK_PATH}`).success,
+    ).toBe(false);
+  });
+
+  it("refuses any path but the callback's own", () => {
+    for (const path of [
+      "/",
+      "/pair",
+      "/pair/callback/",
+      "/pair/callback/../evil",
+      "/api/v1/vault",
+    ]) {
+      expect(pairRedirectUrlSchema.safeParse(`http://127.0.0.1:4664${path}`).success, path).toBe(
+        false,
+      );
+    }
+  });
+
+  it("refuses a target that already carries a query or a fragment", () => {
+    // The code and state are APPENDED to this URL; a target arriving with its
+    // own parameters is a shape this flow never produces.
+    expect(pairRedirectUrlSchema.safeParse(`${OK}?code=X`).success).toBe(false);
+    expect(pairRedirectUrlSchema.safeParse(`${OK}#x`).success).toBe(false);
+  });
+
+  it("leaves the port alone, default included — loopback is loopback", () => {
+    // `URL` normalises `:80` away for http, so a rule demanding an explicit
+    // port would make an app bound to 80 impossible to pair at all, and would
+    // refuse nothing dangerous in exchange.
+    expect(pairRedirectUrlSchema.safeParse(`http://127.0.0.1${PAIR_CALLBACK_PATH}`).success).toBe(
+      true,
+    );
+  });
+
+  it("refuses anything that is not an absolute URL", () => {
+    expect(pairRedirectUrlSchema.safeParse("not a url").success).toBe(false);
+    expect(pairRedirectUrlSchema.safeParse(`//127.0.0.1:4664${PAIR_CALLBACK_PATH}`).success).toBe(
+      false,
+    );
+    expect(pairRedirectUrlSchema.safeParse(PAIR_CALLBACK_PATH).success).toBe(false);
+  });
+
+  it("gates the approve page's whole search, and strips what it does not know", () => {
+    const challenge = "a".repeat(43);
+    const parsed = pairApproveSearchSchema.parse({
+      redirect: OK,
+      state: "0".repeat(32),
+      name: "  Work laptop ",
+      challenge,
+      utm_source: "somewhere",
+    });
+    expect(parsed).toEqual({ redirect: OK, state: "0".repeat(32), name: "Work laptop", challenge });
+    // A missing challenge is refused: the approve page must forward one.
+    expect(
+      pairApproveSearchSchema.safeParse({ redirect: OK, state: "0".repeat(32), name: "Laptop" })
+        .success,
+    ).toBe(false);
+    expect(
+      pairApproveSearchSchema.safeParse({
+        redirect: OK,
+        state: "short",
+        name: "Laptop",
+        challenge,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("round-trips through the two builders both ends compose with", () => {
+    const challenge = "b".repeat(43);
+    const approve = new URL(
+      buildPairApproveUrl("https://cloud.test", {
+        redirect: OK,
+        state: "a".repeat(32),
+        name: "Laptop",
+        challenge,
+      }),
+    );
+    expect(approve.pathname).toBe(PAIR_APPROVE_PATH);
+    expect(pairApproveSearchSchema.parse(Object.fromEntries(approve.searchParams))).toEqual({
+      redirect: OK,
+      state: "a".repeat(32),
+      name: "Laptop",
+      challenge,
+    });
+
+    const callback = new URL(
+      buildPairCallbackUrl(OK, { code: "ABCD-EFGH", state: "a".repeat(32) }),
+    );
+    expect(callback.origin).toBe("http://127.0.0.1:4664");
+    expect(callback.pathname).toBe(PAIR_CALLBACK_PATH);
+    expect(callback.searchParams.get("code")).toBe("ABCD-EFGH");
+    expect(callback.searchParams.get("state")).toBe("a".repeat(32));
   });
 });
 
@@ -158,5 +311,58 @@ describe("ws ping frames", () => {
 
   it("refuses a frame with extra fields — the server owns this boundary", () => {
     expect(syncPingSchema.safeParse({ type: "sync", seq: 1, extra: true }).success).toBe(false);
+  });
+});
+
+// PKCE binds the one-time code to the app that began the pairing — the whole of
+// what makes an intercepted code useless without the verifier the app kept.
+describe("PKCE (S256)", () => {
+  it("generates a verifier in the base64url shape both ends expect", () => {
+    const verifier = generatePkceVerifier();
+    expect(PKCE_S256_PATTERN.test(verifier)).toBe(true);
+    // Fresh every call — a fixed verifier would be a fixed secret.
+    expect(generatePkceVerifier()).not.toBe(verifier);
+  });
+
+  it("computes the challenge the same way every time, and it is base64url", async () => {
+    const verifier = generatePkceVerifier();
+    const challenge = await pkceChallengeS256(verifier);
+    expect(PKCE_S256_PATTERN.test(challenge)).toBe(true);
+    expect(await pkceChallengeS256(verifier)).toBe(challenge);
+    // A different verifier hashes to a different challenge.
+    expect(await pkceChallengeS256(generatePkceVerifier())).not.toBe(challenge);
+  });
+
+  it("matches RFC 7636's own S256 test vector", async () => {
+    // Appendix B: verifier "dBjft...v-a" -> challenge "E9Melhoa...M".
+    const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    expect(await pkceChallengeS256(verifier)).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+  });
+
+  it("mint demands an S256 challenge, and refuses a plain or absent one", () => {
+    const challenge = "c".repeat(43);
+    expect(
+      mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "S256" }).success,
+    ).toBe(true);
+    // plain is refused — a challenge equal to its verifier binds nothing.
+    expect(
+      mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "plain" }).success,
+    ).toBe(false);
+    // absent challenge, and a challenge that is not base64url of a SHA-256.
+    expect(mintPairingCodeRequestSchema.safeParse({ challengeMethod: "S256" }).success).toBe(false);
+    expect(
+      mintPairingCodeRequestSchema.safeParse({ challenge: "short", challengeMethod: "S256" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("redeem requires the verifier — the code alone no longer parses", () => {
+    const base = { code: "ABCD-EFGH", deviceName: "Laptop" };
+    expect(redeemDeviceRequestSchema.safeParse(base).success).toBe(false);
+    expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "d".repeat(43) }).success).toBe(
+      true,
+    );
+    // A verifier that is not base64url of 32 bytes is refused at the boundary.
+    expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "nope" }).success).toBe(false);
   });
 });

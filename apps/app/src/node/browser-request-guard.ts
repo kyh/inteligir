@@ -45,8 +45,13 @@ export function buildLocalAppOrigins(port: number): ReadonlySet<string> {
  * smuggled parts. Non-loopback hostnames return null: the server only binds
  * 127.0.0.1, and honoring a foreign hostname here would let a DNS-rebinding
  * page mint a matching Origin/Host pair.
+ *
+ * Exported because the pairing flow needs the same answer to a different
+ * question — which loopback address the caller actually reached, so the
+ * callback it is redirected to names the port this process is really on
+ * (`cloud/pair-callback.ts`). One reading of a Host header, not two.
  */
-function requestTargetOrigin(host: string | undefined): string | null {
+export function loopbackRequestOrigin(host: string | undefined): string | null {
   if (host === undefined || host.length === 0) {
     return null;
   }
@@ -90,7 +95,7 @@ function isTrustedOrigin(
   if (allowedOrigins.has(originUrl.origin)) {
     return true;
   }
-  const target = requestTargetOrigin(headers.host);
+  const target = loopbackRequestOrigin(headers.host);
   return target !== null && target === originUrl.origin;
 }
 
