@@ -38,6 +38,12 @@ import { ThreadService } from "./threads/service";
 import type { CreateTurnDriver } from "./threads/turn-driver";
 import { registerVaultRoutes } from "./vault/routes";
 import type { VaultRuntime } from "./vault/vault-runtime";
+import { registerVoiceRoutes } from "./voice/routes";
+import {
+  ScriptedVoiceService,
+  WhisperVoiceService,
+  type VoiceService,
+} from "./voice/voice-service";
 import type { WsBus } from "./ws-bus";
 
 /** Thrown by the typed-routes validation wrapper; everything else is a 500. */
@@ -202,6 +208,16 @@ export function createApp(args: CreateAppArgs) {
     createConnectorsService(args.codexMcpRunner ?? systemCodexMcpRunner),
   );
 
+  // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
+  // scenario suite can drive a microphone: it answers `ready` with no model on
+  // disk and no native binding loaded, so everything ABOVE the decode — the
+  // permission, the capture, the wire, the composer insertion — is real.
+  const voice: VoiceService =
+    args.config.voice === "scripted"
+      ? new ScriptedVoiceService()
+      : new WhisperVoiceService({ modelDir: args.config.modelDir });
+  registerVoiceRoutes(registrars, voice);
+
   registerProposalRoutes({
     routes: { get, post },
     service: new ProposalService({
@@ -336,5 +352,5 @@ export function createApp(args: CreateAppArgs) {
   // invalidations through are mounted.
   cloud.start();
 
-  return { app, cloud, injectWebSocket };
+  return { app, cloud, injectWebSocket, voice };
 }

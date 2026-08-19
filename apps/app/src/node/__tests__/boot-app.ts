@@ -15,6 +15,7 @@ import type { AgentStatus } from "@repo/server-contract/routes";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
 import type { CloudTransport } from "../cloud/sync-runtime";
+import type { AppConfig } from "../config";
 import type { CodexMcpRunner } from "../connectors/codex-mcp";
 import { ensureInstanceSecret } from "../instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime";
@@ -43,6 +44,8 @@ export interface BootTestAppOptions {
   codexMcpRunner?: CodexMcpRunner;
   fallback?: AppFallback;
   port?: number;
+  /** Omitted, the scripted transcriber — see the config block below. */
+  voice?: AppConfig["voice"];
   /** Omitted, sends 503 through the unavailable driver. */
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
@@ -110,6 +113,13 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
       portSource: "env",
       vaultDir,
       vaultRemote: null,
+      // Under the instance dir rather than ~/.inteligir/models: a suite that
+      // shared the machine's real model cache could delete a model a developer
+      // downloaded, and `remove` is one of the routes under test.
+      modelDir: join(instanceDir, "models"),
+      // Never `auto` in a suite: the real runtime dlopens a native binding and
+      // would make every route test a claim about this machine's platform.
+      voice: options.voice ?? "scripted",
       agent: agent.mode,
       agentModel: null,
       cloudUrl: "https://cloud.test",

@@ -3,7 +3,7 @@
 //
 // ORDER IS THE CONTRACT, and it is one rule: every writer stops before the
 // durable flush, and the flush happens before the handles close. So the steps
-// run listener → cloud → agent → knowledge → vault → db. The vault's dispose
+// run listener → voice → cloud → agent → knowledge → vault → db. The vault's dispose
 // is the flush — it commits whatever the debounce was still holding — which is
 // why nothing that can write a vault file may run after it.
 //
@@ -50,6 +50,10 @@ export const DEFAULT_STEP_TIMEOUT_MS = 5_000;
  */
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
+  /** Dictation writes only into the shared model directory, and only while a
+   *  download is in flight — aborting one is a signal, not a flush, so it
+   *  takes the default and stops early rather than being waited on. */
+  voice: DEFAULT_STEP_TIMEOUT_MS,
   /** Cloud sync is a WRITER — it applies pulled events into the database and
    *  writes claimed captures into the vault — so it stops above both, and its
    *  step waits out the pass in flight rather than abandoning a push whose ack

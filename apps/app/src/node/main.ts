@@ -118,9 +118,9 @@ async function createProdFallback(): Promise<AppFallback> {
  * The teardown, accumulated AS THE BOOT PROCEEDS.
  *
  * `unshift` rather than `push`, and the two orders coincide on purpose:
- * resources come up db → vault → knowledge → agent → cloud → listener, so
- * reversing creation yields exactly the teardown order shutdown.ts states
- * (listener → cloud → agent → knowledge → vault → db). Registering each step
+ * resources come up db → vault → knowledge → agent → cloud → voice → listener,
+ * so reversing creation yields exactly the teardown order shutdown.ts states
+ * (listener → voice → cloud → agent → knowledge → vault → db). Registering each step
  * the moment its resource exists is also what makes a FAILED boot survivable:
  * a listen that
  * throws EADDRINUSE still has a vault watcher forked and a database open, and
@@ -203,7 +203,7 @@ async function boot(): Promise<{ serverUrl: string }> {
   });
   registerTeardown("agent", () => agentDriver.dispose());
 
-  const { app, cloud, injectWebSocket } = createApp({
+  const { app, cloud, injectWebSocket, voice } = createApp({
     agent: agentDriver.status,
     bus,
     // The real dial, injected because it cannot be imported from `app.ts` —
@@ -221,6 +221,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     version,
   });
   registerTeardown("cloud", () => cloud.dispose());
+  registerTeardown("voice", () => voice.dispose());
 
   const { port, server } = await listenWithRetry({
     fetch: app.fetch,
