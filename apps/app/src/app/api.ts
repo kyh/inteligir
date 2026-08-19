@@ -24,6 +24,11 @@ export const queryKeys = {
    *  sync pass — the bus carries vault, doc and thread invalidations only — so
    *  the settings section polls this family while it is on screen. */
   cloudStatus: ["cloud", "status"] as const,
+  /** Whether this machine can dictate, and how far a model download has got.
+   *  Nothing on the ws bus announces a byte landing on disk — the model
+   *  directory is shared across checkouts and is not the vault — so the
+   *  surfaces that need progress poll this family while it is on screen. */
+  voiceStatus: ["voice", "status"] as const,
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
   /** The whole knowledge family — what any content or file change sweeps.
