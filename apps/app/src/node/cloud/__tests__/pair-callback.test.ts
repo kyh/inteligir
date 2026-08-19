@@ -45,6 +45,12 @@ function callbackFor(approveUrl: string, code: string, state: string): string {
   return callback.toString();
 }
 
+/** The approve page's mint, bound to the PKCE challenge on the URL — so the
+ *  callback's redeem finds a code whose challenge the app's verifier matches. */
+function approveMint(cloud: FakeCloud, approveUrl: string, code: string): void {
+  cloud.mintCode(code, new URL(approveUrl).searchParams.get("challenge") ?? "");
+}
+
 describe("where a pairing is told to come back to", () => {
   it("takes the port from the request, so a probed dev port still works", () => {
     expect(pairCallbackUrlFor("127.0.0.1:51000")).toBe(
@@ -88,12 +94,12 @@ describe("the loopback callback", () => {
   it("pairs, at 0600, and consumes the state it used", async () => {
     const cloud = new FakeCloud();
     const app = await boot(cloud);
-    cloud.mintCode(CODE);
 
     const begun: unknown = await (await begin(app)).json();
     const url = typeof begun === "object" && begun !== null ? Reflect.get(begun, "url") : null;
     if (typeof url !== "string") throw new Error("begin answered no url");
     const state = new URL(url).searchParams.get("state") ?? "";
+    approveMint(cloud, url, CODE);
 
     const landed = await app.composed.app.request(callbackFor(url, CODE, state));
     expect(landed.status).toBe(200);
@@ -107,9 +113,8 @@ describe("the loopback callback", () => {
     expect(statSync(credentialPath).mode & 0o777).toBe(0o600);
 
     // The same link again — out of a history, out of a shoulder-surfed address
-    // bar. It redeems nothing.
-    cloud.mintCode("WXYZ-WXYZ");
-    const replay = await app.composed.app.request(callbackFor(url, "WXYZ-WXYZ", state));
+    // bar. The state was consumed, so it is no-pending before any redeem.
+    const replay = await app.composed.app.request(callbackFor(url, CODE, state));
     expect(replay.status).toBe(400);
     expect(await replay.text()).toContain("Nothing to approve");
   });
@@ -120,7 +125,6 @@ describe("the loopback callback", () => {
     // stands in its place, so with none armed nothing may happen.
     const cloud = new FakeCloud();
     const app = await boot(cloud);
-    cloud.mintCode(CODE);
 
     const bare = await app.composed.app.request(PAIR_CALLBACK_PATH);
     expect(bare.status).toBe(400);
@@ -138,7 +142,6 @@ describe("the loopback callback", () => {
   it("refuses a state that is not the one this app is waiting on", async () => {
     const cloud = new FakeCloud();
     const app = await boot(cloud);
-    cloud.mintCode(CODE);
     const begun: unknown = await (await begin(app)).json();
     const url = typeof begun === "object" && begun !== null ? Reflect.get(begun, "url") : null;
     if (typeof url !== "string") throw new Error("begin answered no url");

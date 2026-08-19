@@ -7,6 +7,7 @@ import { SYNC_API_PATHS } from "@repo/cloud-contract/sync";
 import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
+import type { CloudPairBeginResponse } from "@repo/server-contract/cloud";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { join } from "node:path";
@@ -153,13 +154,19 @@ function append(harness: Harness, events: readonly ThreadEvent[]): void {
   harness.db.transaction((tx) => harness.runtime.enqueue(tx, events), { behavior: "immediate" });
 }
 
-/**
- * The whole browser-approve round trip in one call: arm an approval, read the
- * `state` back out of the URL the runtime answered — which is exactly what the
- * approve page does with it — and complete the callback.
- */
+/** The approve page's act: mint the code BOUND to the PKCE challenge `beginPair`
+ *  put on the URL, and hand back the `state` the callback carries. Registered
+ *  after begin because the challenge only exists then — the app kept the
+ *  verifier, the browser only ever saw the hash. */
+function approve(cloud: FakeCloud, begun: CloudPairBeginResponse, code: string): string {
+  const url = new URL(begun.url);
+  cloud.mintCode(code, url.searchParams.get("challenge") ?? "");
+  return url.searchParams.get("state") ?? "";
+}
+
 async function pairWithCode(
   runtime: CloudRuntime,
+  cloud: FakeCloud,
   code: string,
   deviceName: string,
 ): Promise<PairCompletion> {
@@ -168,16 +175,12 @@ async function pairWithCode(
     deviceName,
     openBrowser: false,
   });
-  const state = new URL(begun.url).searchParams.get("state");
-  if (state === null) {
-    throw new Error("beginPair answered a URL carrying no state");
-  }
+  const state = approve(cloud, begun, code);
   return await runtime.completePair({ code, state });
 }
 
 async function pair(harness: Harness): Promise<string> {
-  harness.cloud.mintCode(CODE);
-  const outcome = await pairWithCode(harness.runtime, CODE, "Laptop");
+  const outcome = await pairWithCode(harness.runtime, harness.cloud, CODE, "Laptop");
   if (outcome.kind !== "paired") {
     throw new Error(`pairing refused: ${JSON.stringify(outcome)}`);
   }
@@ -234,7 +237,14 @@ describe("pairing", () => {
 
   it("reports the cloud's own refusal for a code it will not take", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const outcome = await pairWithCode(harness.runtime, "ZZZZ-ZZZZ", "Laptop");
+    // No approve(): the code is never registered, so the cloud refuses it — the
+    // ordinary invalid-code path, unrelated to PKCE.
+    const begun = await harness.runtime.beginPair({
+      callbackUrl: CALLBACK_URL,
+      openBrowser: false,
+    });
+    const state = new URL(begun.url).searchParams.get("state") ?? "";
+    const outcome = await harness.runtime.completePair({ code: "ZZZZ-ZZZZ", state });
     expect(outcome.kind).toBe("refused");
     if (outcome.kind !== "refused") throw new Error("expected a refusal");
     expect(outcome.failure).toEqual({
@@ -293,29 +303,26 @@ describe("the pending approval", () => {
 
   it("is CONSUMED by the callback it completes, so a replay applies nothing", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    harness.cloud.mintCode(CODE);
     const begun = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
       deviceName: "Laptop",
       openBrowser: false,
     });
-    const state = new URL(begun.url).searchParams.get("state") ?? "";
+    const state = approve(harness.cloud, begun, CODE);
 
     expect((await harness.runtime.completePair({ code: CODE, state })).kind).toBe("paired");
     const credential = readDeviceCredential(harness.dataDir);
     expect(credential).not.toBeNull();
 
-    // The same URL out of a browser history: no second redeem, no second
-    // credential, and the pairing that landed is untouched.
-    harness.cloud.mintCode("WXYZ-WXYZ");
-    const replayed = await harness.runtime.completePair({ code: "WXYZ-WXYZ", state });
+    // The same URL out of a browser history: the state was consumed, so this
+    // is no-pending before any redeem — no second credential.
+    const replayed = await harness.runtime.completePair({ code: CODE, state });
     expect(replayed.kind).toBe("no-pending");
     expect(readDeviceCredential(harness.dataDir)).toEqual(credential);
   });
 
   it("is inert with nothing armed — any local page can reach this route", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    harness.cloud.mintCode(CODE);
     const outcome = await harness.runtime.completePair({ code: CODE, state: "0".repeat(32) });
     expect(outcome.kind).toBe("no-pending");
     expect(harness.cloud.requests).toEqual([]);
@@ -324,12 +331,11 @@ describe("the pending approval", () => {
 
   it("refuses a wrong state WITHOUT spending the approval it does not match", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    harness.cloud.mintCode(CODE);
     const begun = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const state = new URL(begun.url).searchParams.get("state") ?? "";
+    const state = approve(harness.cloud, begun, CODE);
 
     expect((await harness.runtime.completePair({ code: CODE, state: "f".repeat(32) })).kind).toBe(
       "state-mismatch",
@@ -343,12 +349,11 @@ describe("the pending approval", () => {
   it("expires, and redeems nothing once it has", async () => {
     vi.useFakeTimers();
     const harness = makeHarness({ pollIntervalMs: null });
-    harness.cloud.mintCode(CODE);
     const begun = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const state = new URL(begun.url).searchParams.get("state") ?? "";
+    const state = approve(harness.cloud, begun, CODE);
 
     vi.setSystemTime(Date.now() + begun.expiresInMs + 1);
     expect((await harness.runtime.completePair({ code: CODE, state })).kind).toBe("expired");
@@ -358,17 +363,16 @@ describe("the pending approval", () => {
 
   it("keeps ONE slot: a second begin is the button pressed again", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    harness.cloud.mintCode(CODE);
     const first = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
+    const stale = new URL(first.url).searchParams.get("state") ?? "";
     const second = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const stale = new URL(first.url).searchParams.get("state") ?? "";
-    const live = new URL(second.url).searchParams.get("state") ?? "";
+    const live = approve(harness.cloud, second, CODE);
     expect(stale).not.toBe(live);
 
     expect((await harness.runtime.completePair({ code: CODE, state: stale })).kind).toBe(
@@ -379,14 +383,30 @@ describe("the pending approval", () => {
 
   it("is dropped by an unpair — that button said stop", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    harness.cloud.mintCode(CODE);
     const begun = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const state = new URL(begun.url).searchParams.get("state") ?? "";
+    const state = approve(harness.cloud, begun, CODE);
     harness.runtime.unpair();
     expect((await harness.runtime.completePair({ code: CODE, state })).kind).toBe("no-pending");
+  });
+
+  it("is inert after dispose — a callback in flight during shutdown redeems nothing", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    const begun = await harness.runtime.beginPair({
+      callbackUrl: CALLBACK_URL,
+      openBrowser: false,
+    });
+    const state = approve(harness.cloud, begun, CODE);
+
+    await harness.runtime.dispose();
+    const outcome = await harness.runtime.completePair({ code: CODE, state });
+
+    // No redeem over the network, and no credential written after teardown.
+    expect(outcome.kind).toBe("no-pending");
+    expect(harness.cloud.requests).toEqual([]);
+    expect(readDeviceCredential(harness.dataDir)).toBeNull();
   });
 });
 
@@ -429,11 +449,9 @@ describe("a capture delivered twice", () => {
       return cloud.fetch(input, init);
     };
     const harness = makeHarness({ pollIntervalMs: null, fetch: fetchWithLapse });
-    harness.cloud.mintCode(CODE);
     // The harness's own FakeCloud is unused here; pair against the one the
-    // wrapped fetch talks to.
-    cloud.mintCode(CODE);
-    const outcome = await pairWithCode(harness.runtime, CODE, "Laptop");
+    // wrapped fetch talks to, so the challenge binds where the redeem lands.
+    const outcome = await pairWithCode(harness.runtime, cloud, CODE, "Laptop");
     expect(outcome.kind).toBe("paired");
 
     cloud.capture("buy oat milk");
@@ -602,8 +620,7 @@ describe("a session that changes mid-pass", () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.push, "after");
     const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
-    cloud.mintCode(CODE);
-    await pairWithCode(harness.runtime, CODE, "Laptop");
+    await pairWithCode(harness.runtime, cloud, CODE, "Laptop");
     append(harness, [message("thr_1", "belongs to the first pairing")]);
 
     gate.arm();
@@ -616,8 +633,7 @@ describe("a session that changes mid-pass", () => {
     // still answers yes and only the session's IDENTITY can tell the two apart.
     // Not awaited — the pass this test is holding is what `pair` itself waits
     // for once it gets that far.
-    cloud.mintCode("WXYZ-WXYZ");
-    const repaired = pairWithCode(harness.runtime, "WXYZ-WXYZ", "Laptop again");
+    const repaired = pairWithCode(harness.runtime, cloud, "WXYZ-WXYZ", "Laptop again");
     await waitForPairing(harness.runtime, "dev_2");
 
     // The new pairing's own work. The counter reset with it, so this row
@@ -660,8 +676,7 @@ describe("a session that changes mid-pass", () => {
       fetch: (input, init) =>
         current === leaving.cloud ? gate.fetch(input, init) : current.fetch(input, init),
     });
-    leaving.cloud.mintCode("READ-ONCE");
-    await pairWithCode(reader.runtime, "READ-ONCE", "Reader");
+    await pairWithCode(reader.runtime, leaving.cloud, "READ-ONCE", "Reader");
 
     // A row the gated page will carry.
     append(leaving, [message("thr_leaving", "the page held mid-flight")]);
@@ -674,9 +689,16 @@ describe("a session that changes mid-pass", () => {
     // The page ARRIVED. Now the device joins a different account — `live`
     // throughout, so identity is the only thing that can refuse the page.
     current = joining.cloud;
-    joining.cloud.mintCode("JOIN-NOW");
-    const repaired = pairWithCode(reader.runtime, "JOIN-NOW", "Reader elsewhere");
-    await waitForPairing(reader.runtime, "dev_2");
+    const repaired = pairWithCode(reader.runtime, joining.cloud, "JOIN-NOW", "Reader elsewhere");
+    // NOT waitForPairing on the deviceId here — the reader was already "dev_2"
+    // on leaving.cloud, so that would resolve before the re-pair's session swap
+    // even ran. Wait instead for the re-pair's redeem to LAND on joining.cloud
+    // (its second device, after the joining install), which only happens once
+    // completePair is past its redeem and into openSession.
+    await vi.waitFor(() => expect(joining.cloud.deviceCount()).toBe(2));
+    // Let the redeem's microtask continuation (openSession) drain before the
+    // held page is released, so the fence sees the new session.
+    await Promise.resolve();
     reader.applied.length = 0;
 
     gate.release();
@@ -694,8 +716,7 @@ describe("dispose", () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.pull);
     const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
-    cloud.mintCode(CODE);
-    await pairWithCode(harness.runtime, CODE, "Laptop");
+    await pairWithCode(harness.runtime, cloud, CODE, "Laptop");
     cloud.capture("something the inbox is holding");
 
     gate.arm();
@@ -771,8 +792,7 @@ describe("applying the account's log", () => {
         writeSyncCursor(harness.db, args.cursor);
       },
     });
-    cloud.mintCode("READ-ONCE");
-    await pairWithCode(harness.runtime, "READ-ONCE", "Reader");
+    await pairWithCode(harness.runtime, cloud, "READ-ONCE", "Reader");
 
     // Three distinct positions, each committed by the row it belongs to.
     // Handing every retry the group's last seq would record rows 2 and 3 as
@@ -791,8 +811,7 @@ describe("applying the account's log", () => {
     expect(writer.applied).toEqual([]);
 
     const reader = makeHarness({ pollIntervalMs: null, fetch: cloud.fetch });
-    cloud.mintCode("WXYZ-WXYZ");
-    const paired = await pairWithCode(reader.runtime, "WXYZ-WXYZ", "Desktop");
+    const paired = await pairWithCode(reader.runtime, cloud, "WXYZ-WXYZ", "Desktop");
     expect(paired.kind).toBe("paired");
 
     // Pairing runs a pass of its own, and a second one must find nothing left

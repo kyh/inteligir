@@ -9,11 +9,15 @@ import {
   buildPairApproveUrl,
   buildPairCallbackUrl,
   DEVICE_CREDENTIAL_PATTERN,
+  generatePkceVerifier,
+  mintPairingCodeRequestSchema,
   PAIR_APPROVE_PATH,
   PAIR_CALLBACK_PATH,
   PAIRING_CODE_PATTERN,
   pairApproveSearchSchema,
   pairRedirectUrlSchema,
+  PKCE_S256_PATTERN,
+  pkceChallengeS256,
   redeemDeviceRequestSchema,
 } from "../pairing";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync";
@@ -51,6 +55,7 @@ describe("pairing grammar", () => {
     const parsed = redeemDeviceRequestSchema.parse({
       code: " K7QP-2M4X ",
       deviceName: "  Kaiyu's MacBook ",
+      verifier: "a".repeat(43),
     });
     expect(parsed.code).toBe("K7QP-2M4X");
     expect(parsed.deviceName).toBe("Kaiyu's MacBook");
@@ -153,24 +158,38 @@ describe("the pairing redirect allowlist", () => {
   });
 
   it("gates the approve page's whole search, and strips what it does not know", () => {
+    const challenge = "a".repeat(43);
     const parsed = pairApproveSearchSchema.parse({
       redirect: OK,
       state: "0".repeat(32),
       name: "  Work laptop ",
+      challenge,
       utm_source: "somewhere",
     });
-    expect(parsed).toEqual({ redirect: OK, state: "0".repeat(32), name: "Work laptop" });
+    expect(parsed).toEqual({ redirect: OK, state: "0".repeat(32), name: "Work laptop", challenge });
+    // A missing challenge is refused: the approve page must forward one.
     expect(
-      pairApproveSearchSchema.safeParse({ redirect: OK, state: "short", name: "Laptop" }).success,
+      pairApproveSearchSchema.safeParse({ redirect: OK, state: "0".repeat(32), name: "Laptop" })
+        .success,
+    ).toBe(false);
+    expect(
+      pairApproveSearchSchema.safeParse({
+        redirect: OK,
+        state: "short",
+        name: "Laptop",
+        challenge,
+      }).success,
     ).toBe(false);
   });
 
   it("round-trips through the two builders both ends compose with", () => {
+    const challenge = "b".repeat(43);
     const approve = new URL(
       buildPairApproveUrl("https://cloud.test", {
         redirect: OK,
         state: "a".repeat(32),
         name: "Laptop",
+        challenge,
       }),
     );
     expect(approve.pathname).toBe(PAIR_APPROVE_PATH);
@@ -178,6 +197,7 @@ describe("the pairing redirect allowlist", () => {
       redirect: OK,
       state: "a".repeat(32),
       name: "Laptop",
+      challenge,
     });
 
     const callback = new URL(
@@ -291,5 +311,58 @@ describe("ws ping frames", () => {
 
   it("refuses a frame with extra fields — the server owns this boundary", () => {
     expect(syncPingSchema.safeParse({ type: "sync", seq: 1, extra: true }).success).toBe(false);
+  });
+});
+
+// PKCE binds the one-time code to the app that began the pairing — the whole of
+// what makes an intercepted code useless without the verifier the app kept.
+describe("PKCE (S256)", () => {
+  it("generates a verifier in the base64url shape both ends expect", () => {
+    const verifier = generatePkceVerifier();
+    expect(PKCE_S256_PATTERN.test(verifier)).toBe(true);
+    // Fresh every call — a fixed verifier would be a fixed secret.
+    expect(generatePkceVerifier()).not.toBe(verifier);
+  });
+
+  it("computes the challenge the same way every time, and it is base64url", async () => {
+    const verifier = generatePkceVerifier();
+    const challenge = await pkceChallengeS256(verifier);
+    expect(PKCE_S256_PATTERN.test(challenge)).toBe(true);
+    expect(await pkceChallengeS256(verifier)).toBe(challenge);
+    // A different verifier hashes to a different challenge.
+    expect(await pkceChallengeS256(generatePkceVerifier())).not.toBe(challenge);
+  });
+
+  it("matches RFC 7636's own S256 test vector", async () => {
+    // Appendix B: verifier "dBjft...v-a" -> challenge "E9Melhoa...M".
+    const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    expect(await pkceChallengeS256(verifier)).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+  });
+
+  it("mint demands an S256 challenge, and refuses a plain or absent one", () => {
+    const challenge = "c".repeat(43);
+    expect(
+      mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "S256" }).success,
+    ).toBe(true);
+    // plain is refused — a challenge equal to its verifier binds nothing.
+    expect(
+      mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "plain" }).success,
+    ).toBe(false);
+    // absent challenge, and a challenge that is not base64url of a SHA-256.
+    expect(mintPairingCodeRequestSchema.safeParse({ challengeMethod: "S256" }).success).toBe(false);
+    expect(
+      mintPairingCodeRequestSchema.safeParse({ challenge: "short", challengeMethod: "S256" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("redeem requires the verifier — the code alone no longer parses", () => {
+    const base = { code: "ABCD-EFGH", deviceName: "Laptop" };
+    expect(redeemDeviceRequestSchema.safeParse(base).success).toBe(false);
+    expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "d".repeat(43) }).success).toBe(
+      true,
+    );
+    // A verifier that is not base64url of 32 bytes is refused at the boundary.
+    expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "nope" }).success).toBe(false);
   });
 });

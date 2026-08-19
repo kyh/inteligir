@@ -39,7 +39,53 @@ export const PAIRING_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/;
 export const DEVICE_CREDENTIAL_PREFIX = "igd_";
 export const DEVICE_CREDENTIAL_PATTERN = /^igd_[0-9a-f]{64}$/;
 
-// POST /v1/device/code (session-authed; the dashboard's "Pair a device").
+// ---------------------------------------------------------------------------
+// PKCE (RFC 7636, S256) — what BINDS the one-time code to the app that began
+// the pairing, so intercepting the code stops being enough to redeem it.
+//
+// The redirect's `state` guards THIS APP's callback and never reaches the
+// cloud; `redeem` is unauthenticated, so without PKCE any loopback listener
+// that receives the redirect could read the code off the query and redeem it
+// directly. So the app keeps a secret VERIFIER, ships only its
+// `SHA-256`→base64url CHALLENGE through the browser (to the mint, stored on the
+// code row), and presents the verifier at redeem. The cloud rejects unless
+// `S256(verifier)` equals the stored challenge — and the verifier never leaves
+// the app, so an intercepted code alone cannot be spent.
+//
+// One spelling of the transform, here, because both ends compute it: the app at
+// begin, the cloud at redeem. Web crypto globals only (`crypto`,
+// `TextEncoder`, `btoa`) — this leaf runs on workerd, Node and the browser, and
+// all three carry them.
+
+/** 32 random bytes as base64url — 43 chars, inside RFC 7636's 43–128 range. */
+export const PKCE_VERIFIER_BYTES = 32;
+
+/** base64url with no padding: the shape of both a verifier and an S256
+ *  challenge (SHA-256 is 32 bytes → 43 base64url chars). */
+export const PKCE_S256_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
+function base64UrlFromBytes(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+/** A fresh code verifier — the secret that never leaves the app. */
+export function generatePkceVerifier(): string {
+  const bytes = new Uint8Array(PKCE_VERIFIER_BYTES);
+  crypto.getRandomValues(bytes);
+  return base64UrlFromBytes(bytes);
+}
+
+/** `BASE64URL(SHA-256(ASCII(verifier)))` — the S256 challenge, computed the
+ *  same way on both ends so a compare is meaningful. */
+export async function pkceChallengeS256(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return base64UrlFromBytes(new Uint8Array(digest));
+}
+
 export const mintPairingCodeResponseSchema = z
   .object({
     code: z.string().regex(PAIRING_CODE_PATTERN),
@@ -47,6 +93,19 @@ export const mintPairingCodeResponseSchema = z
   })
   .strict();
 export type MintPairingCodeResponse = z.infer<typeof mintPairingCodeResponseSchema>;
+
+// POST /v1/device/code (session-authed). The approve page mints WITH the
+// challenge the app put on the redirect, and the cloud stores it on the code
+// row. `S256` is the only method: a plain (or absent) challenge is refused at
+// parse, because a code bound to a plaintext-equal challenge is a code bound to
+// nothing an interceptor could not also send.
+export const mintPairingCodeRequestSchema = z
+  .object({
+    challenge: z.string().regex(PKCE_S256_PATTERN),
+    challengeMethod: z.literal("S256"),
+  })
+  .strict();
+export type MintPairingCodeRequest = z.infer<typeof mintPairingCodeRequestSchema>;
 
 /**
  * The ceilings a redeem is judged against. Exported because the LOCAL app puts
@@ -63,6 +122,10 @@ export const redeemDeviceRequestSchema = z
   .object({
     code: z.string().trim().min(1).max(PAIRING_CODE_MAX_LENGTH),
     deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX_LENGTH),
+    /** The PKCE code verifier. Required: the cloud checks `S256(verifier)`
+     *  against the challenge stored at mint, so a redeem without the secret the
+     *  app kept cannot succeed even with the right code. */
+    verifier: z.string().regex(PKCE_S256_PATTERN),
   })
   .strict();
 export type RedeemDeviceRequest = z.infer<typeof redeemDeviceRequestSchema>;
@@ -144,13 +207,15 @@ export const PAIR_CALLBACK_PARAMS = {
   state: "state",
 } as const;
 
-/** Where the WEB deployment serves the approve page, and the three values the
- *  local app hands it. */
+/** Where the WEB deployment serves the approve page, and the four values the
+ *  local app hands it. `challenge` is the PKCE S256 challenge the approve page
+ *  forwards to the mint. */
 export const PAIR_APPROVE_PATH = "/app/pair";
 export const PAIR_APPROVE_PARAMS = {
   redirect: "redirect",
   state: "state",
   name: "name",
+  challenge: "challenge",
 } as const;
 
 /**
@@ -233,6 +298,7 @@ export const pairApproveSearchSchema = z.object({
   [PAIR_APPROVE_PARAMS.redirect]: pairRedirectUrlSchema,
   [PAIR_APPROVE_PARAMS.state]: z.string().regex(PAIR_STATE_PATTERN),
   [PAIR_APPROVE_PARAMS.name]: z.string().trim().min(1).max(DEVICE_NAME_MAX_LENGTH),
+  [PAIR_APPROVE_PARAMS.challenge]: z.string().regex(PKCE_S256_PATTERN),
 });
 export type PairApproveSearch = z.infer<typeof pairApproveSearchSchema>;
 
@@ -242,6 +308,7 @@ export function buildPairApproveUrl(cloudUrl: string, search: PairApproveSearch)
   url.searchParams.set(PAIR_APPROVE_PARAMS.redirect, search.redirect);
   url.searchParams.set(PAIR_APPROVE_PARAMS.state, search.state);
   url.searchParams.set(PAIR_APPROVE_PARAMS.name, search.name);
+  url.searchParams.set(PAIR_APPROVE_PARAMS.challenge, search.challenge);
   return url.toString();
 }
 

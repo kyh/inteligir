@@ -1,6 +1,7 @@
 import {
   DEVICE_API_PATHS,
   listDevicesResponseSchema,
+  mintPairingCodeRequestSchema,
   redeemDeviceRequestSchema,
   revokeDeviceRequestSchema,
   type ListDevicesResponse,
@@ -51,8 +52,14 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       }
     }
     const body = redeemDeviceRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { code, deviceName }.");
-    const redeemed = await redeemPairingCode(db, env.DB, body.data.code, body.data.deviceName);
+    if (!body.success) return refuse("bad-request", "Send { code, deviceName, verifier }.");
+    const redeemed = await redeemPairingCode(
+      db,
+      env.DB,
+      body.data.code,
+      body.data.deviceName,
+      body.data.verifier,
+    );
     if (typeof redeemed === "string") {
       return refuse(redeemed, redeemFailureMessage(redeemed));
     }
@@ -63,7 +70,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   if (userId === null) return refuse("unauthorized", "Sign in first.");
 
   if (route === `POST ${DEVICE_API_PATHS.mintCode}`) {
-    return jsonNoStore(await mintPairingCode(db, userId));
+    const body = mintPairingCodeRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!body.success) return refuse("bad-request", "Send { challenge, challengeMethod: 'S256' }.");
+    return jsonNoStore(await mintPairingCode(db, userId, body.data.challenge));
   }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {

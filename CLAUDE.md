@@ -416,6 +416,36 @@ detail }` when no codex is installed, in the shape the Agent section already
   `config.port`, because `listen` may have probed past a busy dev port — and a
   Host that is not one of this app's loopback origins answers 400 rather than a
   redirect pointing somewhere else.
+  **THE CODE IS BOUND WITH PKCE (RFC 7636, S256), and that is why the open port
+  is safe.** `state` guards only THIS app's callback; it never reaches the
+  cloud, and `redeem` is unauthenticated — so an intercepted redirect on the
+  loopback would otherwise let any local listener read the code and redeem it
+  directly. So `beginPair` mints a high-entropy VERIFIER, keeps it in the
+  pending slot, and sends only its `S256` CHALLENGE through the browser: the
+  approve page forwards the challenge to the mint, the Worker stores it on the
+  code row, and `redeem` now takes the verifier and refuses unless
+  `S256(verifier)` equals the stored challenge (constant-time; a mismatch or a
+  null challenge answers `invalid-code` and does NOT consume the code, so an
+  interceptor's wrong-verifier attempt neither reveals the miss nor burns the
+  real pairing). The verifier never leaves the app, so an intercepted code alone
+  cannot be spent — which is what makes the deliberately-open port a non-issue
+  rather than a hole: the port stays open BECAUSE the code is bound. The S256
+  transform is ONE spelling in `@repo/cloud-contract/pairing`
+  (`pkceChallengeS256`), computed the same way at begin and at redeem. The mint
+  refuses a plain or absent challenge — `S256` is the only method — because a
+  challenge equal to its verifier binds nothing an interceptor could not also
+  send.
+  **THE APPROVE PAGE NAMES THE ACCOUNT** it is about to join (the session's
+  email), because a shared or ambient browser session would otherwise pair a
+  device to the wrong account and sync private threads both ways with no sign of
+  it. **The browser opener never touches a shell**: `execFile` with an argv
+  list, and on win32 it is `rundll32 url.dll,FileProtocolHandler <url>` rather
+  than `cmd /c start`, because cmd re-parses the approve URL's `&` query
+  separators even with `shell:false` — the URL's own ampersands would truncate
+  it and could run the tail as a command. **`beginPair`/`completePair` are
+  guarded by `disposed` and `dispose` clears the pending slot**, so a callback
+  in flight during ordered shutdown redeems nothing and writes no credential
+  after teardown.
 - **A pulled event lands through the SAME ingest, marked with its origin**
   (`ThreadService.applySyncedEvents`, issue #572). A second append path would
   be a second answer to thread lifecycle. The origin changes exactly three

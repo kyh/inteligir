@@ -18,6 +18,24 @@ export async function sha256Hex(value: string): Promise<string> {
   return hex;
 }
 
+/**
+ * A length-independent, content-independent-timing equality on two strings.
+ *
+ * workerd carries no `crypto.timingSafeEqual` (that is node's), so the PKCE
+ * challenge compare at redeem does it by hand: fold the length difference into
+ * the accumulator and XOR every code unit, so the loop runs the longer string's
+ * length whatever the inputs are. Both operands here are 43-char base64url, but
+ * the guard is written not to depend on that.
+ */
+export function constantTimeEqual(a: string, b: string): boolean {
+  const length = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < length; i += 1) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
 export type VerifiedDevice = {
   readonly deviceId: string;
   readonly userId: string;

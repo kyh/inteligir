@@ -47,10 +47,14 @@ export function resolveOpenCommand(platform: string, url: string): OpenCommand |
     case "darwin":
       return { file: "open", argv: [url] };
     case "win32":
-      // `start` is a cmd BUILTIN rather than an executable, so the file is cmd
-      // and `start` is its argument; the empty string after it is the window
-      // title, which is what stops a quoted URL from being eaten as one.
-      return { file: "cmd", argv: ["/c", "start", "", url] };
+      // NOT `cmd /c start`: cmd.exe re-parses the command line and treats the
+      // approve URL's `&` query separators as command separators, so the
+      // browser opens a truncated URL and the tail may run as a command —
+      // libuv quotes an arg only when it holds a space, tab or quote, and this
+      // URL holds none. `rundll32 url.dll,FileProtocolHandler <url>` hands the
+      // whole URL to the shell's protocol handler through CreateProcess with no
+      // cmd in the path, so `&` is just a character (RFC-safe by construction).
+      return { file: "rundll32", argv: ["url.dll,FileProtocolHandler", url] };
     case "linux":
       return { file: "xdg-open", argv: [url] };
     default:

@@ -21,13 +21,19 @@ describe("resolveOpenCommand", () => {
     });
   });
 
-  it("gives cmd's `start` an empty title, so the URL is not read as one", () => {
-    // `start` is a cmd builtin, so the executable is cmd — the closest a
-    // no-shell rule gets on Windows.
-    expect(resolveOpenCommand("win32", URL_WITH_QUERY)).toEqual({
-      file: "cmd",
-      argv: ["/c", "start", "", URL_WITH_QUERY],
+  it("opens on win32 through rundll32, not cmd, so the URL's `&` survives", () => {
+    // cmd.exe re-parses `&` as a command separator even with shell:false, so
+    // `cmd /c start` would open a truncated URL and could run the tail as a
+    // command. rundll32's protocol handler takes the whole URL through
+    // CreateProcess with no cmd in the path.
+    const command = resolveOpenCommand("win32", URL_WITH_QUERY);
+    expect(command).toEqual({
+      file: "rundll32",
+      argv: ["url.dll,FileProtocolHandler", URL_WITH_QUERY],
     });
+    // The `&`-bearing query reaches the handler whole — nothing split it off.
+    expect(command?.argv.at(-1)).toBe(URL_WITH_QUERY);
+    expect(command?.argv.some((arg) => arg === "start")).toBe(false);
   });
 
   it("has no opener for a platform it does not know", () => {

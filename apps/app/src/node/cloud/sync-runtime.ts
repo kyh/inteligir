@@ -41,7 +41,9 @@ import type { CloudErrorCode } from "@repo/cloud-contract/errors";
 import {
   buildPairApproveUrl,
   DEVICE_NAME_MAX_LENGTH,
+  generatePkceVerifier,
   PAIR_STATE_BYTES,
+  pkceChallengeS256,
 } from "@repo/cloud-contract/pairing";
 import { PULL_DEFAULT_LIMIT, type SyncEventRow } from "@repo/cloud-contract/sync";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
@@ -141,6 +143,10 @@ const PENDING_PAIR_TTL_MS = 10 * 60_000;
  *  complete a request nobody remembers making. */
 interface PendingPair {
   state: string;
+  /** The PKCE secret. Kept HERE, never on the wire the browser rides: the
+   *  challenge it hashes to is all that travels, and redeem needs this back to
+   *  prove the code reached the app that began the pairing. */
+  verifier: string;
   deviceName: string;
   expiresAt: number;
 }
@@ -861,12 +867,22 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     async beginPair(request) {
       const deviceName = request.deviceName ?? defaultDeviceName();
       const state = randomBytes(PAIR_STATE_BYTES).toString("hex");
-      pendingPair = { state, deviceName, expiresAt: Date.now() + PENDING_PAIR_TTL_MS };
+      const verifier = generatePkceVerifier();
+      const challenge = await pkceChallengeS256(verifier);
       const url = buildPairApproveUrl(args.cloudUrl, {
         redirect: request.callbackUrl,
         state,
         name: deviceName,
+        challenge,
       });
+      if (disposed) {
+        // Teardown has started: arm nothing and open nothing. The URL is still
+        // answered so an in-flight caller gets a coherent reply, but no slot
+        // outlives the process — and `completePair` refuses a disposed runtime
+        // regardless.
+        return { url, opened: false, deviceName, expiresInMs: PENDING_PAIR_TTL_MS };
+      }
+      pendingPair = { state, verifier, deviceName, expiresAt: Date.now() + PENDING_PAIR_TTL_MS };
       // Awaited, so `opened` is observed rather than assumed — and false is an
       // ordinary answer here, since the caller may have asked for no window at
       // all.
@@ -875,6 +891,12 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     },
 
     async completePair(request) {
+      if (disposed) {
+        // A callback in flight during ordered shutdown must not redeem over the
+        // network and write a credential after teardown. Same answer as an
+        // unarmed slot: nothing was completable.
+        return { kind: "no-pending" };
+      }
       const pending = pendingPair;
       if (pending === null) {
         // Any local page can navigate a browser at this loopback route, so with
@@ -901,8 +923,13 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
           baseUrl: args.cloudUrl,
           ...(transport.fetch === undefined ? {} : { fetch: transport.fetch }),
         },
-        { code: request.code, deviceName: pending.deviceName },
+        { code: request.code, deviceName: pending.deviceName, verifier: pending.verifier },
       );
+      if (disposed) {
+        // Teardown ran during the redeem round trip: do not write a credential
+        // or open a session after the process was told to stop.
+        return { kind: "no-pending" };
+      }
       if (!redeemed.ok) {
         return { kind: "refused", failure: redeemed.failure };
       }
@@ -951,6 +978,10 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       disposed = true;
       clearTimers();
       closeSocket();
+      // Drop any armed approval: a callback arriving mid-teardown must find
+      // nothing to complete (completePair also guards on `disposed`, but the
+      // slot itself should not outlive the runtime that owns it).
+      pendingPair = null;
       // Cancels the requests in flight. Without it the teardown step's budget
       // is a hope: `await inflight` would wait out every remaining round trip,
       // and the pass would keep writing — the vault included — after the

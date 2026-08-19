@@ -1,5 +1,7 @@
 import {
+  generatePkceVerifier,
   mintPairingCodeResponseSchema,
+  pkceChallengeS256,
   redeemDeviceResponseSchema,
 } from "@repo/cloud-contract/pairing";
 import { env, SELF } from "cloudflare:test";
@@ -56,24 +58,29 @@ export async function userIdOf(bearer: string): Promise<string> {
   return userId;
 }
 
-export async function mintCode(bearer: string): Promise<string> {
+/** Mint a code bound to a PKCE challenge — the approve page's act. Returns both
+ *  the code and the verifier the redeem will have to present. */
+export async function mintCode(bearer: string): Promise<{ code: string; verifier: string }> {
+  const verifier = generatePkceVerifier();
+  const challenge = await pkceChallengeS256(verifier);
   const response = await SELF.fetch(`${ORIGIN}/v1/device/code`, {
     method: "POST",
-    headers: sessionHeaders(bearer),
+    headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+    body: JSON.stringify({ challenge, challengeMethod: "S256" }),
   });
   expect(response.status).toBe(200);
-  return mintPairingCodeResponseSchema.parse(await response.json()).code;
+  return { code: mintPairingCodeResponseSchema.parse(await response.json()).code, verifier };
 }
 
 export async function pairDevice(
   bearer: string,
   deviceName: string,
 ): Promise<{ deviceId: string; credential: string }> {
-  const code = await mintCode(bearer);
+  const { code, verifier } = await mintCode(bearer);
   const response = await SELF.fetch(`${ORIGIN}/v1/device/redeem`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, deviceName }),
+    body: JSON.stringify({ code, deviceName, verifier }),
   });
   expect(response.status).toBe(200);
   return redeemDeviceResponseSchema.parse(await response.json());

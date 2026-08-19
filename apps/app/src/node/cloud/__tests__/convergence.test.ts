@@ -70,7 +70,6 @@ async function bootInstall(
 const LOOPBACK_HOST = "127.0.0.1:4664";
 
 async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Promise<void> {
-  cloud.mintCode(code);
   const begun = ok(
     await install.client.cloud.pair.begin.$post(
       { json: { deviceName: `device-${code}`, openBrowser: false } },
@@ -79,6 +78,9 @@ async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Pro
   );
   const approve = new URL((await begun.json()).url);
   const state = approve.searchParams.get("state") ?? "";
+  // The approve page's mint, bound to the PKCE challenge begin put on the URL —
+  // registered here because the app kept the verifier and only the hash travels.
+  cloud.mintCode(code, approve.searchParams.get("challenge") ?? "");
   const callback = new URL(approve.searchParams.get("redirect") ?? "");
   expect(callback.origin).toBe(`http://${LOOPBACK_HOST}`);
   callback.searchParams.set("code", code);

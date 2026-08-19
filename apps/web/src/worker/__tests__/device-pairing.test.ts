@@ -1,6 +1,7 @@
 import { cloudErrorSchema } from "@repo/cloud-contract/errors";
 import {
   DEVICE_PAIR_PURPOSE,
+  generatePkceVerifier,
   listDevicesResponseSchema,
   redeemDeviceResponseSchema,
 } from "@repo/cloud-contract/pairing";
@@ -16,18 +17,24 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
+import { constantTimeEqual } from "../device/device-auth";
 import { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
 
-// The pairing flow end to end against the real Worker + D1: mint (session) →
-// redeem (the code is the credential) → the durable device credential works on
-// the device surface — and every refusal on the way.
+// The pairing flow end to end against the real Worker + D1: mint (session,
+// PKCE challenge bound to the code) → redeem (code + the matching verifier) →
+// the durable device credential works on the device surface — and every
+// refusal on the way, PKCE included.
 
-async function redeem(code: string, deviceName = "Test Laptop"): Promise<Response> {
+async function redeem(
+  code: string,
+  verifier: string,
+  deviceName = "Test Laptop",
+): Promise<Response> {
   return await SELF.fetch(`${ORIGIN}/v1/device/redeem`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, deviceName }),
+    body: JSON.stringify({ code, deviceName, verifier }),
   });
 }
 
@@ -38,9 +45,9 @@ function pull(credential: string): Promise<Response> {
 describe("device pairing", () => {
   it("mints and redeems: the credential reaches the sync surface", async () => {
     const { bearer } = await signUpUser("pair-ok@example.test");
-    const code = await mintCode(bearer);
+    const { code, verifier } = await mintCode(bearer);
 
-    const redeemed = redeemDeviceResponseSchema.parse(await (await redeem(code)).json());
+    const redeemed = redeemDeviceResponseSchema.parse(await (await redeem(code, verifier)).json());
     expect(redeemed.credential.startsWith("igd_")).toBe(true);
 
     expect((await pull(redeemed.credential)).status).toBe(200);
@@ -55,18 +62,60 @@ describe("device pairing", () => {
     expect(row?.credentialHash).not.toContain(redeemed.credential.slice(4));
   });
 
+  // PKCE: the code alone is not enough. This is the interception scenario — a
+  // loopback listener that receives the redirect has the code but not the
+  // verifier the app kept.
+  it("refuses a redeem whose verifier does not match the minted challenge", async () => {
+    const { bearer } = await signUpUser("pair-pkce@example.test");
+    const { code } = await mintCode(bearer);
+
+    // A different, well-formed verifier — S256 of it will not equal the stored
+    // challenge, so the code is refused and, crucially, NOT consumed.
+    const wrong = await redeem(code, generatePkceVerifier());
+    expect(wrong.status).toBe(404);
+    expect(cloudErrorSchema.parse(await wrong.json()).error.code).toBe("invalid-code");
+
+    // The real app, with the code's own verifier, still redeems — the wrong
+    // attempt neither revealed the miss nor burned the code.
+    const { code: code2, verifier } = await mintCode(bearer);
+    expect((await redeem(code2, verifier)).status).toBe(200);
+  });
+
+  it("refuses a redeem carrying no verifier at all", async () => {
+    const { bearer } = await signUpUser("pair-noverifier@example.test");
+    const { code } = await mintCode(bearer);
+    const response = await SELF.fetch(`${ORIGIN}/v1/device/redeem`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, deviceName: "No Verifier" }),
+    });
+    expect(response.status).toBe(400);
+    expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("bad-request");
+  });
+
   it("refuses to mint without a session", async () => {
     const response = await SELF.fetch(`${ORIGIN}/v1/device/code`, { method: "POST" });
     expect(response.status).toBe(401);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("unauthorized");
   });
 
+  it("refuses to mint a code with a plain (non-S256) challenge", async () => {
+    const { bearer } = await signUpUser("pair-plain@example.test");
+    const response = await SELF.fetch(`${ORIGIN}/v1/device/code`, {
+      method: "POST",
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      body: JSON.stringify({ challenge: "a".repeat(43), challengeMethod: "plain" }),
+    });
+    expect(response.status).toBe(400);
+    expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("bad-request");
+  });
+
   it("consumes a code exactly once", async () => {
     const { bearer } = await signUpUser("pair-once@example.test");
-    const code = await mintCode(bearer);
+    const { code, verifier } = await mintCode(bearer);
 
-    expect((await redeem(code)).status).toBe(200);
-    const second = await redeem(code);
+    expect((await redeem(code, verifier)).status).toBe(200);
+    const second = await redeem(code, verifier);
     expect(second.status).toBe(409);
     expect(cloudErrorSchema.parse(await second.json()).error.code).toBe("code-consumed");
   });
@@ -76,12 +125,12 @@ describe("device pairing", () => {
   // a shared pairing code actually produces.
   it("settles simultaneous redeems on exactly one device", async () => {
     const { bearer } = await signUpUser("pair-race@example.test");
-    const code = await mintCode(bearer);
+    const { code, verifier } = await mintCode(bearer);
 
     const responses = await Promise.all([
-      redeem(code, "Racer A"),
-      redeem(code, "Racer B"),
-      redeem(code, "Racer C"),
+      redeem(code, verifier, "Racer A"),
+      redeem(code, verifier, "Racer B"),
+      redeem(code, verifier, "Racer C"),
     ]);
     const statuses = responses.map((response) => response.status).toSorted((a, b) => a - b);
     expect(statuses).toEqual([200, 409, 409]);
@@ -102,13 +151,13 @@ describe("device pairing", () => {
 
   it("refuses an expired code", async () => {
     const { bearer } = await signUpUser("pair-expired@example.test");
-    const code = await mintCode(bearer);
+    const { code, verifier } = await mintCode(bearer);
     await createDb(env.DB)
       .update(pairingCode)
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(pairingCode.code, code));
 
-    const response = await redeem(code);
+    const response = await redeem(code, verifier);
     expect(response.status).toBe(410);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("code-expired");
   });
@@ -130,8 +179,8 @@ describe("device pairing", () => {
       });
     }
 
-    const code = await mintCode(bearer);
-    const response = await redeem(code, "One Too Many");
+    const { code, verifier } = await mintCode(bearer);
+    const response = await redeem(code, verifier, "One Too Many");
     expect(response.status).toBe(409);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("device-limit");
 
@@ -148,7 +197,8 @@ describe("device pairing", () => {
       headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ deviceId: "cap-device-0" }),
     });
-    expect((await redeem(await mintCode(bearer), "Now There's Room")).status).toBe(200);
+    const room = await mintCode(bearer);
+    expect((await redeem(room.code, room.verifier, "Now There's Room")).status).toBe(200);
   });
 
   // The invariant, from the outside: two codes minted while under the cap and
@@ -172,9 +222,12 @@ describe("device pairing", () => {
       });
     }
 
-    const [firstCode, secondCode] = [await mintCode(bearer), await mintCode(bearer)];
+    const [first, second] = [await mintCode(bearer), await mintCode(bearer)];
     const statuses = (
-      await Promise.all([redeem(firstCode, "Racer A"), redeem(secondCode, "Racer B")])
+      await Promise.all([
+        redeem(first.code, first.verifier, "Racer A"),
+        redeem(second.code, second.verifier, "Racer B"),
+      ])
     )
       .map((response) => response.status)
       .toSorted((a, b) => a - b);
@@ -189,20 +242,20 @@ describe("device pairing", () => {
   });
 
   it("refuses an unknown code without touching anything", async () => {
-    const response = await redeem("XXXX-XXXX");
+    const response = await redeem("XXXX-XXXX", generatePkceVerifier());
     expect(response.status).toBe(404);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("invalid-code");
   });
 
   it("refuses a code minted for a different purpose", async () => {
     const { bearer } = await signUpUser("pair-purpose@example.test");
-    const code = await mintCode(bearer);
+    const { code, verifier } = await mintCode(bearer);
     await createDb(env.DB)
       .update(pairingCode)
       .set({ purpose: "something-else" })
       .where(eq(pairingCode.code, code));
 
-    expect((await redeem(code)).status).toBe(404);
+    expect((await redeem(code, verifier)).status).toBe(404);
     // The purpose value the mint writes is the one redeem demands.
     expect(DEVICE_PAIR_PURPOSE).toBe("device-pair");
   });
@@ -264,5 +317,17 @@ describe("device pairing", () => {
       headers: sessionHeaders(bearer),
     });
     expect(response.status).toBe(401);
+  });
+});
+
+// The PKCE challenge compare workerd has no `timingSafeEqual` for.
+describe("constantTimeEqual", () => {
+  it("is true only for identical strings, length differences included", () => {
+    expect(constantTimeEqual("abc", "abc")).toBe(true);
+    expect(constantTimeEqual("abc", "abd")).toBe(false);
+    expect(constantTimeEqual("abc", "abcd")).toBe(false);
+    expect(constantTimeEqual("", "")).toBe(true);
+    expect(constantTimeEqual("a".repeat(43), "a".repeat(43))).toBe(true);
+    expect(constantTimeEqual(`${"a".repeat(42)}b`, "a".repeat(43))).toBe(false);
   });
 });

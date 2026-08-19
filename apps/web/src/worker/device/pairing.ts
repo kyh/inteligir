@@ -3,11 +3,12 @@ import {
   DEVICE_PAIR_PURPOSE,
   PAIRING_CODE_PATTERN,
   PAIRING_CODE_TTL_MS,
+  pkceChallengeS256,
   type MintPairingCodeResponse,
   type RedeemDeviceResponse,
 } from "@repo/cloud-contract/pairing";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
-import { sha256Hex } from "./device-auth";
+import { constantTimeEqual, sha256Hex } from "./device-auth";
 import type { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
 
@@ -54,7 +55,11 @@ function generateDeviceCredential(): string {
  * are already unusable (redeem judges expiry in its own WHERE clause), and
  * `docs/privacy.md` states what remains rather than implying it is collected.
  */
-export async function mintPairingCode(db: Db, userId: string): Promise<MintPairingCodeResponse> {
+export async function mintPairingCode(
+  db: Db,
+  userId: string,
+  challenge: string,
+): Promise<MintPairingCodeResponse> {
   const now = new Date();
   await db
     .delete(pairingCode)
@@ -70,6 +75,10 @@ export async function mintPairingCode(db: Db, userId: string): Promise<MintPairi
     code,
     userId,
     purpose: DEVICE_PAIR_PURPOSE,
+    // The PKCE challenge is bound to the code here, at mint, so redeem can
+    // demand the matching verifier — the whole of what stops an intercepted
+    // code from being spent (issue #573).
+    challenge,
     expiresAt: new Date(now.getTime() + PAIRING_CODE_TTL_MS),
     createdAt: now,
   });
@@ -110,6 +119,7 @@ export async function redeemPairingCode(
   d1: D1Database,
   rawCode: string,
   deviceName: string,
+  verifier: string,
 ): Promise<RedeemDeviceResponse | RedeemFailure> {
   const code = rawCode.trim().toUpperCase();
   if (!PAIRING_CODE_PATTERN.test(code)) return "invalid-code";
@@ -118,6 +128,16 @@ export async function redeemPairingCode(
   if (row === undefined || row.purpose !== DEVICE_PAIR_PURPOSE) return "invalid-code";
   if (row.consumedAt !== null) return "code-consumed";
   if (row.expiresAt.getTime() < Date.now()) return "code-expired";
+
+  // PKCE, BEFORE the consume: a mismatch answers `invalid-code` and leaves the
+  // code alive, so a wrong-verifier attempt by an interceptor neither reveals
+  // the miss nor burns the code the real app still holds. A row with no stored
+  // challenge (minted before this column, or somehow plain) can never match,
+  // and is refused rather than waved through. The compare is constant-time,
+  // and `S256(verifier)` is computed the contract's one way.
+  if (row.challenge === null) return "invalid-code";
+  const presented = await pkceChallengeS256(verifier);
+  if (!constantTimeEqual(presented, row.challenge)) return "invalid-code";
 
   const openDevices = await db
     .select({ id: device.id })
