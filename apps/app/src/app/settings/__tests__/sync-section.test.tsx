@@ -1,50 +1,67 @@
 // @vitest-environment jsdom
 
-// The sync surface's own claims — the ones that are not the server's: it
-// refuses a draft rather than composing a pair request the cloud would reject,
-// and it says what a paired install is actually doing rather than implying a
-// live connection it may not have.
+// The sync surface's own claims — the ones that are not the server's: it never
+// asks a user to type anything to pair, it always leaves a link behind when the
+// auto-open cannot be trusted, and it says what a paired install is actually
+// doing rather than implying a live connection it may not have.
 
 import { cleanup, render, screen } from "@testing-library/react";
-import { CLOUD_DEVICE_NAME_MAX_LENGTH } from "@repo/server-contract/cloud";
+import type { CloudPairBeginResponse } from "@repo/server-contract/cloud";
 import { afterEach, describe, expect, it } from "vitest";
-import { PairForm, PairedDetails, readPairDraft } from "../sync-section";
+import { describeBegun, PairPrompt, PairedDetails } from "../sync-section";
 
 afterEach(cleanup);
 
-describe("reading the pair draft", () => {
-  it("refuses an empty code and an empty name, each with its own sentence", () => {
-    expect(readPairDraft("  ", "Laptop")).toEqual({
-      ok: false,
-      problem: "Enter the code from your account's Devices page.",
-    });
-    expect(readPairDraft("ABCD-EFGH", "  ")).toEqual({
-      ok: false,
-      problem: "Name this device so you can recognise it on your account.",
-    });
+const BEGUN: CloudPairBeginResponse = {
+  url: "https://cloud.test/app/pair?redirect=http%3A%2F%2F127.0.0.1%3A4664%2Fpair%2Fcallback&state=00112233445566778899aabbccddeeff&name=Laptop",
+  opened: true,
+  deviceName: "Laptop",
+  expiresInMs: 600_000,
+};
+
+describe("what the section says once an approval is armed", () => {
+  it("points at the window it opened", () => {
+    expect(describeBegun(BEGUN)).toBe(
+      "Approve “Laptop” in the browser window that just opened. The link works for 10 minutes.",
+    );
   });
 
-  it("refuses a name past the cloud's own ceiling, before the round trip", () => {
-    expect(readPairDraft("ABCD-EFGH", "x".repeat(CLOUD_DEVICE_NAME_MAX_LENGTH + 1)).ok).toBe(false);
-    expect(readPairDraft("ABCD-EFGH", "x".repeat(CLOUD_DEVICE_NAME_MAX_LENGTH)).ok).toBe(true);
-  });
-
-  it("does not judge the code's shape — that answer is the cloud's", () => {
-    // A mistyped code gets the cloud's own "that code isn't valid" rather than
-    // a local guess at the same sentence, which would go stale the day the
-    // alphabet moves.
-    expect(readPairDraft("nonsense", "Laptop")).toEqual({
-      ok: true,
-      request: { code: "nonsense", deviceName: "Laptop" },
-    });
+  it("points at the link instead when nothing opened", () => {
+    // The auto-open is best-effort — a headless box, a machine with no
+    // `xdg-open` — so the fallback sentence is a first-class outcome rather
+    // than an error.
+    expect(describeBegun({ ...BEGUN, opened: false })).toBe(
+      "Open this link to approve “Laptop”. It works for 10 minutes.",
+    );
   });
 });
 
-describe("the pair form", () => {
-  it("keeps its button disabled until the draft is one the cloud can take", () => {
-    render(<PairForm cloudUrl="https://cloud.test" onSubmit={() => undefined} pending={false} />);
-    const button = screen.getByRole("button", { name: "Pair this device" });
-    expect(button instanceof HTMLButtonElement && button.disabled).toBe(true);
+describe("the pair prompt", () => {
+  it("offers one button and no field to type into", () => {
+    render(
+      <PairPrompt
+        cloudUrl="https://cloud.test"
+        begun={null}
+        onBegin={() => undefined}
+        pending={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Pair with browser" })).toBeDefined();
+    // The whole point of issue #573: there is nowhere left to type a code.
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("shows the URL as a link once an approval is armed", () => {
+    render(
+      <PairPrompt
+        cloudUrl="https://cloud.test"
+        begun={{ ...BEGUN, opened: false }}
+        onBegin={() => undefined}
+        pending={false}
+      />,
+    );
+    const link = screen.getByRole("link");
+    expect(link.getAttribute("href")).toBe(BEGUN.url);
   });
 });
 

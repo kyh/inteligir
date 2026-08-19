@@ -48,7 +48,7 @@ export const LEAF_INVOCATIONS: Readonly<Record<string, readonly string[]>> = {
   "proposals accept": ["proposals", "accept", "prp_1"],
   "proposals reject": ["proposals", "reject", "prp_1"],
   "sync status": ["sync", "status"],
-  "sync pair": ["sync", "pair", "ABCD-EFGH"],
+  "sync pair": ["sync", "pair"],
   "sync push": ["sync", "push"],
   status: ["status"],
   guide: ["guide"],

@@ -5,18 +5,33 @@ import { Button } from "@repo/ui/components/button";
 
 import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-shell";
 import { authClient, authErrorMessage } from "@/lib/auth-client";
+import { internalNextPath } from "@/lib/next-path";
 import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
+
+/** Where to go once signed in. A guarded route sets it on the way out so its
+ *  own search params survive the round trip; `internalNextPath` is what keeps
+ *  it from becoming an open redirect. */
+interface SignInSearch {
+  next?: string;
+}
 
 export const Route = createFileRoute("/app/sign-in")({
   ssr: ssrWhenSignedOut,
-  beforeLoad: async () => {
-    if ((await currentSession()) !== null) throw redirect({ to: "/" });
+  validateSearch: (search: Record<string, unknown>): SignInSearch => {
+    const next = search["next"];
+    return typeof next === "string" && next !== "" ? { next } : {};
+  },
+  beforeLoad: async ({ search }) => {
+    if ((await currentSession()) !== null) {
+      throw redirect({ href: internalNextPath(search.next) ?? "/" });
+    }
   },
   component: SignInPage,
 });
 
 function SignInPage() {
   const router = useRouter();
+  const { next } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -37,7 +52,7 @@ function SignInPage() {
       }
       // `navigate` rather than a location assignment: the session cookie is
       // set, and the destination's own guards are what read it back.
-      await router.navigate({ to: "/" });
+      await router.navigate({ href: internalNextPath(next) ?? "/" });
     })();
   };
 

@@ -32,9 +32,6 @@ import { Hono } from "hono";
 const NOT_FOUND: ApiErrorResponse = { error: "not_found", message: "Not found" };
 
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
-/** The only code this fixture redeems; anything else answers the same 404 the
- *  real route maps `invalid-code` onto. */
-const FIXTURE_PAIRING_CODE = "ABCD-EFGH";
 
 interface FixtureThread {
   thread: Thread;
@@ -267,22 +264,17 @@ function createFixtureApp(state: FixtureState): Hono {
   get(apiRoutes.connectors.list, (c) => c.json(state.connectors));
 
   get(apiRoutes.cloud.status, (c) => c.json(state.cloud));
-  post(apiRoutes.cloud.pair, (c, body) => {
-    if (body.code !== FIXTURE_PAIRING_CODE) {
-      return c.json({ error: "not_found", message: "That pairing code isn't valid." }, 404);
-    }
-    state.cloud = {
-      state: "paired",
-      cloudUrl: FIXTURE_CLOUD_URL,
-      deviceId: "dev_fixture",
-      connected: false,
-      pending: 0,
-      cursor: 0,
-      lastSyncedAt: null,
-      lastError: null,
-    };
-    return c.json(state.cloud);
-  });
+  // The real route opens a browser; this one never can, so `opened` mirrors
+  // what was ASKED — which is what the CLI's own claim ("opened your browser"
+  // vs "approve here") is derived from.
+  post(apiRoutes.cloud.pairBegin, (c, body) =>
+    c.json({
+      url: `${FIXTURE_CLOUD_URL}/app/pair?redirect=http%3A%2F%2F127.0.0.1%3A4664%2Fpair%2Fcallback&state=${"0".repeat(32)}&name=fixture`,
+      opened: body.openBrowser,
+      deviceName: body.deviceName ?? "fixture-host",
+      expiresInMs: 600_000,
+    }),
+  );
   post(apiRoutes.cloud.unpair, (c) => {
     state.cloud = { state: "off", cloudUrl: FIXTURE_CLOUD_URL };
     return c.json(state.cloud);

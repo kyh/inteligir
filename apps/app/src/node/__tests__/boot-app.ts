@@ -14,6 +14,7 @@ import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import type { AgentStatus } from "@repo/server-contract/routes";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import type { OpenExternalUrl } from "../cloud/browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import type { CodexMcpRunner } from "../connectors/codex-mcp";
 import { ensureInstanceSecret } from "../instance-identity";
@@ -42,6 +43,9 @@ export interface BootTestAppOptions {
    *  developer's own `~/.codex/config.toml`. */
   codexMcpRunner?: CodexMcpRunner;
   fallback?: AppFallback;
+  /** Omitted, a pairing would reach the real opener — so any suite that begins
+   *  one has to supply this, or `pnpm test` pops a browser window. */
+  openExternalUrl?: OpenExternalUrl;
   port?: number;
   /** Omitted, sends 503 through the unavailable driver. */
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
@@ -100,6 +104,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     bus,
     ...(options.cloudTransport === undefined ? {} : { cloudTransport: options.cloudTransport }),
     ...(options.codexMcpRunner === undefined ? {} : { codexMcpRunner: options.codexMcpRunner }),
+    ...(options.openExternalUrl === undefined ? {} : { openExternalUrl: options.openExternalUrl }),
     config: {
       databasePath,
       dataDir,

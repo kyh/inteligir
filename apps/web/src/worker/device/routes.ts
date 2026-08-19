@@ -18,7 +18,7 @@ import { severDeviceSockets } from "../sync/routes";
 // ---------------------------------------------------------------------------
 // `/v1/device/*` — the pairing surface.
 //
-//   POST /v1/device/code    session  mint a one-time pairing code (dashboard)
+//   POST /v1/device/code    session  mint a one-time pairing code (/app/pair)
 //   POST /v1/device/redeem  code     exchange it for the durable credential
 //   GET  /v1/device/list    session  the dashboard's device table
 //   POST /v1/device/revoke  session  cut a device off (bites next request)
@@ -117,9 +117,9 @@ function redeemFailureMessage(
     case "invalid-code":
       return "That pairing code isn't valid.";
     case "code-expired":
-      return "That pairing code expired — mint a new one from the dashboard.";
+      return "That pairing code expired — start pairing again from the app.";
     case "code-consumed":
-      return "That pairing code was already used — mint a new one from the dashboard.";
+      return "That pairing code was already used — start pairing again from the app.";
     case "device-limit":
       return "This account has too many active devices — revoke one first.";
   }

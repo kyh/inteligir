@@ -1,9 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // ES2023 only: this contract loads in the Worker, the Node app and the
-    // browser dashboard — it may assume none of their platform globals.
-    "lib": ["ES2023"],
+    // WebWorker, not DOM — the same line @repo/server-contract and @repo/notes
+    // draw: this contract loads in the Worker, the Node app and the browser
+    // dashboard, so it may name the globals all three have (`URL`, which is
+    // what judges a pairing redirect) and none that claim a document.
+    "lib": ["ES2023", "WebWorker"],
     "types": [],
     "paths": {
       "@repo/cloud-contract/*": ["./src/*"]

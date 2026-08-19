@@ -1,66 +1,16 @@
 // The local cloud routes, registered against the contract rows. The runtime
-// decides; this layer only translates the CLOUD's refusal vocabulary into this
-// API's — the same division `connectors/routes.ts` keeps over codex.
+// decides; this layer only turns what it decided into a response.
 //
-// The translation is an EXHAUSTIVE switch over `CloudErrorCode`, including the
-// codes no redeem can produce. That is the point: a code the cloud adds is a
-// compile error here, which is where "what does this route say about it" has
-// to be decided, rather than a refusal that silently becomes a 500.
+// There is no route here that takes a pairing CODE. Beginning an approval is
+// the only pairing verb a client can call, and the code that eventually lands
+// arrives at `GET /pair/callback` — a browser-facing route that is deliberately
+// not a row in this table (see `pair-callback.ts`).
 
-import { describeCloudFailure, type CloudFailure } from "./cloud-client";
+import { pairCallbackUrlFor } from "./pair-callback";
 import type { CloudRuntime } from "./sync-runtime";
 import { cloudRoutes } from "@repo/server-contract/cloud";
-import {
-  API_ERROR_STATUS,
-  type ApiErrorCode,
-  type ApiErrorResponse,
-} from "@repo/server-contract/errors";
+import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
-
-/** The refusal classes `POST /cloud/pair` can answer — a SUBSET of the API's
- *  vocabulary, held against it rather than restated, and exactly the statuses
- *  the contract row declares. */
-type PairRefusalCode = Extract<
-  ApiErrorCode,
-  "invalid_request" | "not_found" | "conflict" | "provider_unavailable"
->;
-
-interface PairRefusal {
-  code: PairRefusalCode;
-  message: string;
-}
-
-function pairRefusal(failure: CloudFailure): PairRefusal {
-  const message = describeCloudFailure(failure);
-  if (failure.kind !== "refused") {
-    // No judgement was reached — offline, or something in the way answered
-    // with a body this build cannot read. Neither says anything about the
-    // code, so neither may be reported as a bad code.
-    return { code: "provider_unavailable", message };
-  }
-  switch (failure.code) {
-    case "invalid-code":
-      return { code: "not_found", message };
-    case "code-expired":
-    case "code-consumed":
-    case "device-limit":
-      return { code: "conflict", message };
-    case "bad-request":
-      return { code: "invalid_request", message };
-    // The rest cannot come from a redeem — it is unauthenticated, touches no
-    // sync position and mints no artifact — so they arrive only from something
-    // that is not the cloud this build expects.
-    case "rate-limited":
-    case "unauthorized":
-    case "not-found":
-    case "sync-conflict":
-    case "sync-out-of-order":
-    case "account-deleted":
-    case "artifacts-not-enabled":
-    case "internal":
-      return { code: "provider_unavailable", message };
-  }
-}
 
 export function registerCloudRoutes(
   registrars: Pick<TypedRoutesRegistrars, "get" | "post">,
@@ -70,14 +20,27 @@ export function registerCloudRoutes(
 
   get(cloudRoutes.status, (c) => c.json(runtime.status()));
 
-  post(cloudRoutes.pair, async (c, body) => {
-    const outcome = await runtime.pair(body);
-    if (outcome.kind === "paired") {
-      return c.json(outcome.status);
+  post(cloudRoutes.pairBegin, async (c, body) => {
+    // The address the browser will be sent back to, taken from the origin this
+    // caller actually reached — so a probed dev port is the port the redirect
+    // names. A request that did not arrive on one of this app's own loopback
+    // origins has no callback to offer, and gets told so rather than handed a
+    // URL pointing somewhere else.
+    const callbackUrl = pairCallbackUrlFor(c.req.header("host"));
+    if (callbackUrl === null) {
+      const refusal: ApiErrorResponse = {
+        error: "invalid_request",
+        message: "Pairing must be started from this app's own address (127.0.0.1 or localhost).",
+      };
+      return c.json(refusal, API_ERROR_STATUS.invalid_request);
     }
-    const refusal = pairRefusal(outcome.failure);
-    const response: ApiErrorResponse = { error: refusal.code, message: refusal.message };
-    return c.json(response, API_ERROR_STATUS[refusal.code]);
+    return c.json(
+      await runtime.beginPair({
+        callbackUrl,
+        ...(body.deviceName === undefined ? {} : { deviceName: body.deviceName }),
+        openBrowser: body.openBrowser,
+      }),
+    );
   });
 
   post(cloudRoutes.unpair, (c) => c.json(runtime.unpair()));

@@ -9,24 +9,21 @@
 //
 // PAIRING IS THE SWITCH, so this section has no toggle. A local-first app that
 // opens a connection to a hosted service on first boot is not the product; an
-// install syncs because someone typed a code, and it stops because someone
+// install syncs because someone approved it, and it stops because someone
 // unpaired. A separate on/off beside that would be a second value that can
 // disagree with the credential on disk.
 //
-// The code comes from the account's own Devices page and is typed here — the
-// direction matters, because it means this machine never holds an account
-// session, only a device credential it can be cut off from.
+// THERE IS NOTHING TO TYPE (issue #573). Pairing is one button: the server
+// arms an approval, opens the browser at the account's approve page, and the
+// browser brings the answer back to the loopback. The URL is shown beside the
+// button because the auto-open is best-effort — a headless box or a machine
+// with no `xdg-open` still has a link a person can carry to another screen.
 
-import {
-  CLOUD_DEVICE_NAME_MAX_LENGTH,
-  type CloudStatusResponse,
-} from "@repo/server-contract/cloud";
+import type { CloudPairBeginResponse, CloudStatusResponse } from "@repo/server-contract/cloud";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { Input } from "@repo/ui/components/input";
-import { Label } from "@repo/ui/components/label";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useState } from "react";
 import { queryKeys, unwrap } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
@@ -65,83 +62,49 @@ function relativeTime(epochMs: number | null): string {
 }
 
 /**
- * The two fields as a request, or the sentence that stops it. Pure and total,
- * so the disabled state and the submit read the same answer — a form that lets
- * you press a button it will then refuse to act on is worse than one that
- * never enabled it.
+ * What the section says once an approval is armed. Pure and total, so the
+ * sentence is decided in one place rather than assembled inside the markup —
+ * and so the "we could not open your browser" case is a value a test can name
+ * rather than a branch that only appears on a headless machine.
  */
-export function readPairDraft(
-  code: string,
-  deviceName: string,
-): { ok: true; request: { code: string; deviceName: string } } | { ok: false; problem: string } {
-  const trimmedCode = code.trim();
-  const trimmedName = deviceName.trim();
-  if (trimmedCode.length === 0) {
-    return { ok: false, problem: "Enter the code from your account's Devices page." };
-  }
-  if (trimmedName.length === 0) {
-    return { ok: false, problem: "Name this device so you can recognise it on your account." };
-  }
-  if (trimmedName.length > CLOUD_DEVICE_NAME_MAX_LENGTH) {
-    return {
-      ok: false,
-      problem: `A device name is at most ${CLOUD_DEVICE_NAME_MAX_LENGTH} characters.`,
-    };
-  }
-  return { ok: true, request: { code: trimmedCode, deviceName: trimmedName } };
+export function describeBegun(begun: CloudPairBeginResponse): string {
+  const minutes = Math.round(begun.expiresInMs / 60_000);
+  return begun.opened
+    ? `Approve “${begun.deviceName}” in the browser window that just opened. The link works for ${minutes} minutes.`
+    : `Open this link to approve “${begun.deviceName}”. It works for ${minutes} minutes.`;
 }
 
-export interface PairFormProps {
+export interface PairPromptProps {
   cloudUrl: string;
-  onSubmit: (request: { code: string; deviceName: string }) => void;
+  begun: CloudPairBeginResponse | null;
+  onBegin: () => void;
   pending: boolean;
 }
 
-export function PairForm({ cloudUrl, onSubmit, pending }: PairFormProps) {
-  const fieldId = useId();
-  const [code, setCode] = useState("");
-  const [deviceName, setDeviceName] = useState("");
-  const draft = readPairDraft(code, deviceName);
-
+export function PairPrompt({ cloudUrl, begun, onBegin, pending }: PairPromptProps) {
   return (
-    <form
-      className="space-y-3 rounded-md border border-border p-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (draft.ok && !pending) {
-          onSubmit(draft.request);
-        }
-      }}
-    >
+    <div className="space-y-3 rounded-md border border-border p-3">
       <p className="text-xs text-muted-foreground">
-        Sign in at {new URL(cloudUrl).host} and open Devices to mint a one-time code, then enter it
-        here. Threads and their history sync; your notes stay in the vault, versioned by git.
+        Pairing sends you to {new URL(cloudUrl).host} to approve this device. Threads and their
+        history sync; your notes stay in the vault, versioned by git.
       </p>
-      <div className="space-y-1">
-        <Label htmlFor={`${fieldId}-code`}>Pairing code</Label>
-        <Input
-          id={`${fieldId}-code`}
-          value={code}
-          placeholder="ABCD-EFGH"
-          autoComplete="off"
-          onChange={(event) => setCode(event.target.value)}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor={`${fieldId}-name`}>This device</Label>
-        <Input
-          id={`${fieldId}-name`}
-          value={deviceName}
-          placeholder="Work laptop"
-          maxLength={CLOUD_DEVICE_NAME_MAX_LENGTH}
-          onChange={(event) => setDeviceName(event.target.value)}
-        />
-      </div>
-      <p className="text-xs text-muted-foreground">{draft.ok ? "" : draft.problem}</p>
-      <Button type="submit" size="xs" disabled={!draft.ok || pending}>
-        Pair this device
+      <Button type="button" size="xs" onClick={onBegin} disabled={pending}>
+        Pair with browser
       </Button>
-    </form>
+      {begun === null ? null : (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">{describeBegun(begun)}</p>
+          <a
+            href={begun.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block truncate font-mono text-xs underline underline-offset-2"
+          >
+            {begun.url}
+          </a>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -178,6 +141,7 @@ export function SyncSection() {
   const queryClient = useQueryClient();
   const statusQuery = useCloudStatus();
   const [pending, setPending] = useState(false);
+  const [begun, setBegun] = useState<CloudPairBeginResponse | null>(null);
 
   // Every verb here is the same act: lock the section, ask the server, take
   // the whole status it answers with, and say what went wrong in this verb's
@@ -197,10 +161,20 @@ export function SyncSection() {
     })();
   };
 
-  const pair = (request: { code: string; deviceName: string }): void => {
-    perform("Could not pair this device.", async () =>
-      unwrap(await api.cloud.pair.$post({ json: request })),
-    );
+  // Not `perform`: beginning an approval answers a URL rather than a status,
+  // and the status that matters lands later — when the browser comes back and
+  // the poll above sees a paired install.
+  const beginPair = (): void => {
+    setPending(true);
+    void (async () => {
+      try {
+        setBegun(await unwrap(await api.cloud.pair.begin.$post({ json: { openBrowser: true } })));
+      } catch (error) {
+        failed(error, "Could not start pairing.");
+      } finally {
+        setPending(false);
+      }
+    })();
   };
 
   // The confirm runs OUTSIDE the lock: nothing is in flight while a dialog
@@ -216,6 +190,7 @@ export function SyncSection() {
       if (!confirmed) {
         return;
       }
+      setBegun(null);
       perform("Could not unpair this device.", async () => unwrap(await api.cloud.unpair.$post()));
     })();
   };
@@ -232,11 +207,16 @@ export function SyncSection() {
       {status === undefined ? (
         <p className="text-sm text-muted-foreground">…</p>
       ) : status.state === "off" ? (
-        <PairForm cloudUrl={status.cloudUrl} onSubmit={pair} pending={pending} />
+        <PairPrompt
+          cloudUrl={status.cloudUrl}
+          begun={begun}
+          onBegin={beginPair}
+          pending={pending}
+        />
       ) : status.state === "unauthorized" ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {status.detail} Sync is stopped. Unpair, then pair again with a fresh code.
+            {status.detail} Sync is stopped. Unpair, then pair this device again.
           </p>
           <Button size="xs" variant="outline" onClick={unpair} disabled={pending}>
             Unpair

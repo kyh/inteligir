@@ -50,13 +50,13 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
   // are parser-free, so refusing a bad value in the contract cannot drag
   // remark into every client bundle. Widening this edge to a remark-carrying
   // module is the regression to catch.
-  // The @repo/cloud-contract edge is ONE fact, and it is a wire fact: the local
-  // `/cloud/pair` route is a PROXY for the cloud's `/v1/device/redeem`, so the
-  // ceilings it validates against have to be that route's own. A hand-copied
-  // number here is a value this end accepts and the cloud then refuses, which
-  // the user reads as a shape error about a code they typed correctly. Both
-  // packages are zod-only leaves, so the edge costs a client bundle nothing but
-  // the schemas it already parses.
+  // The @repo/cloud-contract edge is ONE fact, and it is a wire fact: the
+  // device name `/cloud/pair/begin` accepts is the name the cloud's own
+  // `/v1/device/redeem` will eventually be sent, so the ceiling it validates
+  // against has to be that route's. A hand-copied number here is a value this
+  // end accepts and the cloud then refuses, arriving as a shape error long
+  // after the click that caused it. Both packages are zod-only leaves, so the
+  // edge costs a client bundle nothing but the schemas it already parses.
   "@repo/server-contract": [
     "@repo/cloud-contract",
     "@repo/domain",
