@@ -7,7 +7,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { apiPath, apiRoutes } from "@repo/server-contract/routes";
 import { z } from "zod";
 import { errnoCode } from "./errno";
-import { assertVaultAndDataDirDisjoint } from "./path-containment";
+import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
 
 type RuntimeMode = "dev" | "prod";
 
@@ -428,6 +428,7 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
   const modelDir =
     readEnvVar(ENV_VARS.modelDir, args.env, homeDir) ??
     join(homeDir, PROD_DATA_DIR_NAME, MODELS_DIR_NAME);
+  assertModelDirOutsideVault(resolve(modelDir), resolve(vaultDir));
   const voice = readEnvVar(ENV_VARS.voice, args.env, homeDir) ?? "auto";
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModel =
