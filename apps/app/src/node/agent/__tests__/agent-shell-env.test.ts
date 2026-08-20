@@ -60,13 +60,15 @@ describe("resolveCliBinDir", () => {
 });
 
 describe("buildAgentShellEnv", () => {
-  it("prepends the bin dir to the inherited PATH and carries the server URL", () => {
+  it("prepends the bin dir to the inherited PATH and carries the server URL and memory dir", () => {
     const env = buildAgentShellEnv({
       serverUrl: "http://127.0.0.1:21999",
       env: { PATH: `/usr/bin${delimiter}/bin` },
       cliBinDir: "/repo/apps/cli/bin",
+      memoryDir: "/home/user/.inteligir/memory",
     });
     expect(env.INTELIGIR_SERVER_URL).toBe("http://127.0.0.1:21999");
+    expect(env.INTELIGIR_MEMORY_DIR).toBe("/home/user/.inteligir/memory");
     expect(env.PATH).toBe(`/repo/apps/cli/bin${delimiter}/usr/bin${delimiter}/bin`);
   });
 
@@ -75,6 +77,7 @@ describe("buildAgentShellEnv", () => {
       serverUrl: "http://127.0.0.1:1",
       env: {},
       cliBinDir: "/repo/apps/cli/bin",
+      memoryDir: "/home/user/.inteligir/memory",
     });
     expect(env.PATH).toBe("/repo/apps/cli/bin");
   });
@@ -84,7 +87,11 @@ describe("buildAgentShellEnv", () => {
       serverUrl: "http://127.0.0.1:1",
       env: { PATH: "/usr/bin" },
       cliBinDir: null,
+      memoryDir: "/home/user/.inteligir/memory",
     });
-    expect(env).toEqual({ INTELIGIR_SERVER_URL: "http://127.0.0.1:1" });
+    expect(env).toEqual({
+      INTELIGIR_SERVER_URL: "http://127.0.0.1:1",
+      INTELIGIR_MEMORY_DIR: "/home/user/.inteligir/memory",
+    });
   });
 });

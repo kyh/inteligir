@@ -20,7 +20,7 @@ describe("agent driver resolution", () => {
       agent: { mode: "codex", runtime: "unavailable", detail: "placeholder" },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
-          config: { agent: "codex", agentModel: null, vaultDir },
+          config: { agent: "codex", agentModel: null, vaultDir, memoryDir: `${vaultDir}-memory` },
           db,
           notifier: bus,
           vault,
@@ -48,7 +48,7 @@ describe("agent driver resolution", () => {
       agent: { mode: "off", runtime: "off", detail: "The agent is disabled (INTELIGIR_AGENT=off)" },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
-          config: { agent: "off", agentModel: null, vaultDir },
+          config: { agent: "off", agentModel: null, vaultDir, memoryDir: `${vaultDir}-memory` },
           db,
           notifier: bus,
           vault,

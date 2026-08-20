@@ -135,6 +135,10 @@ export interface CodexRuntimeManagerDeps {
   /** Review mode's seam: where a turn's write set goes when the thread asks
    *  for proposals instead of writes. Omitted, every turn writes directly. */
   captureProposals?: CaptureTurnProposals;
+  /** The agent's memory index for this turn, read fresh each dispatch (issue
+   *  #575) — undefined when there is none, which keeps the provider input
+   *  byte-identical to a turn with no memory. Omitted, no memory is injected. */
+  readMemoryIndex?: () => string | undefined;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
   /** The idle budget a dispatched turn gets; null disables the watchdog. */
@@ -394,7 +398,7 @@ class CodexTurnDriver implements TurnDriver {
     }
     await runtime.runTurn({
       threadId: args.threadId,
-      input: turnPromptInput(args.text, args.viewContext),
+      input: turnPromptInput(args.text, args.viewContext, this.deps.readMemoryIndex?.()),
       options: this.options,
     });
   }
@@ -462,7 +466,7 @@ class CodexTurnDriver implements TurnDriver {
         const result = await runtime.steerTurn({
           threadId: args.threadId,
           expectedTurnId,
-          input: turnPromptInput(args.text, args.viewContext),
+          input: turnPromptInput(args.text, args.viewContext, this.deps.readMemoryIndex?.()),
           options: this.options,
         });
         if (result.status === "stale") {

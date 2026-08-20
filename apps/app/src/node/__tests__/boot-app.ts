@@ -119,6 +119,10 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
       // shared the machine's real model cache could delete a model a developer
       // downloaded, and `remove` is one of the routes under test.
       modelDir: join(instanceDir, "models"),
+      // Under the instance dir, disjoint from the vault: `remove` is a route
+      // under test, and a suite that shared the machine's real memory dir could
+      // delete a fact a developer's own agent recorded.
+      memoryDir: join(instanceDir, "memory"),
       // Never `auto` in a suite: the real runtime dlopens a native binding and
       // would make every route test a claim about this machine's platform.
       voice: options.voice ?? "scripted",

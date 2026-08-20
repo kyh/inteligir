@@ -250,6 +250,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     serverUrl: `http://127.0.0.1:${port}`,
     env: process.env,
     cliBinDir,
+    memoryDir: config.memoryDir,
   });
   console.log(
     `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,

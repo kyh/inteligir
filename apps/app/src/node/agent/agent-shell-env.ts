@@ -57,20 +57,29 @@ export interface AgentShellEnvArgs {
   /** The host process's environment, whose PATH the agent shell inherits. */
   env: NodeJS.ProcessEnv;
   cliBinDir: string | null;
+  /** The agent's memory directory (issue #575) — where the model reads a fact's
+   *  full text and writes or deletes files to update what it remembers. */
+  memoryDir: string;
 }
 
 /**
  * The env the runtime injects into the agent's shell. PATH is PREPENDED, not
  * replaced: the agent still needs git, node and everything else it inherits —
  * this only makes `inteligir` win over nothing.
+ *
+ * INTELIGIR_MEMORY_DIR is per-session, which is enough: the path never changes,
+ * and the CONTENTS are read live off disk (`cat`/`rg` by the agent, and the
+ * per-turn injection by the app). The agent remembers by writing a file there
+ * and forgets by deleting one — its own filesystem, no round trip to the app.
  */
 export function buildAgentShellEnv(args: AgentShellEnvArgs) {
   if (args.cliBinDir === null) {
-    return { INTELIGIR_SERVER_URL: args.serverUrl };
+    return { INTELIGIR_SERVER_URL: args.serverUrl, INTELIGIR_MEMORY_DIR: args.memoryDir };
   }
   const inheritedPath = args.env.PATH ?? "";
   return {
     INTELIGIR_SERVER_URL: args.serverUrl,
+    INTELIGIR_MEMORY_DIR: args.memoryDir,
     PATH:
       inheritedPath.length === 0 ? args.cliBinDir : `${args.cliBinDir}${delimiter}${inheritedPath}`,
   };

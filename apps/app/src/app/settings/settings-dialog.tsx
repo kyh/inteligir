@@ -35,6 +35,7 @@ import {
   useVaultTree,
 } from "../vault-hooks";
 import { ConnectorsSection } from "./connectors-section";
+import { MemorySection } from "./memory-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SyncSection } from "./sync-section";
 import { VoiceSection } from "./voice-section";
@@ -169,6 +170,8 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
       </section>
       <Separator />
       <ConnectorsSection />
+      <Separator />
+      <MemorySection />
       <Separator />
       <VoiceSection />
       <Separator />

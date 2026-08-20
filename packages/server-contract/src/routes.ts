@@ -12,6 +12,7 @@ import { cloudRoutes } from "./cloud";
 import { connectorRoutes } from "./connectors";
 import type { ApiErrorResponse } from "./errors";
 import { knowledgeRoutes } from "./knowledge";
+import { memoryRoutes } from "./memory";
 import { proposalRoutes } from "./proposals";
 import { threadRoutes } from "./threads";
 import { vaultRoutes } from "./vault";
@@ -151,6 +152,7 @@ export const apiRoutes = {
   cloud: cloudRoutes,
   connectors: connectorRoutes,
   knowledge: knowledgeRoutes,
+  memory: memoryRoutes,
   proposals: proposalRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,

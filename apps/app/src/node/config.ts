@@ -7,7 +7,11 @@ import { isAbsolute, join, resolve } from "node:path";
 import { apiPath, apiRoutes } from "@repo/server-contract/routes";
 import { z } from "zod";
 import { errnoCode } from "./errno";
-import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
+import {
+  assertMemoryDirOutsideVault,
+  assertModelDirOutsideVault,
+  assertVaultAndDataDirDisjoint,
+} from "./path-containment";
 
 type RuntimeMode = "dev" | "prod";
 
@@ -23,6 +27,8 @@ const DEV_INSTANCE_VAULT_DIR_NAME = "vault";
 const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
 /** Under the PROD data dir in both modes — see `AppConfig.modelDir`. */
 const MODELS_DIR_NAME = "models";
+/** Under `~/.inteligir` in both modes — see `AppConfig.memoryDir`. */
+const MEMORY_DIR_NAME = "memory";
 const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
 
@@ -228,6 +234,12 @@ const ENV_VARS = {
       "Absolute (or ~-relative) directory the downloaded local models live in; unset means ~/.inteligir/models. Shared across checkouts on purpose — a model is a cache of the NETWORK, immutable and named by its id, so duplicating it per dev instance costs a re-download and buys nothing.",
     parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
   }),
+  memoryDir: defineEnvVar({
+    name: "INTELIGIR_MEMORY_DIR",
+    description:
+      "Absolute (or ~-relative) directory the agent's memory (durable markdown facts about the USER) lives in; unset means ~/.inteligir/memory. Machine-global and shared across checkouts on purpose — memory is about the user, not a vault — and asserted OUTSIDE the vault, because a fact under the vault would be committed and pushed.",
+    parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
+  }),
   voice: defineEnvVar({
     name: "INTELIGIR_VOICE",
     description:
@@ -364,6 +376,13 @@ export interface AppConfig {
    * machine shares one copy rather than each paying the download.
    */
   modelDir: string;
+  /**
+   * Where the agent's memory lives (issue #575): durable markdown facts about
+   * the USER, one per file. NOT under the data dir and NOT the vault — memory
+   * is about the user rather than a checkout, so every checkout on this machine
+   * shares one directory, and it must stay outside the pushed git repo.
+   */
+  memoryDir: string;
   /** Which transcription runtime dictation uses; "scripted" is the e2e fake. */
   voice: VoiceMode;
   /** Which turn driver boots (issue #549); "auto" resolves at boot by binary presence. */
@@ -429,6 +448,10 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     readEnvVar(ENV_VARS.modelDir, args.env, homeDir) ??
     join(homeDir, PROD_DATA_DIR_NAME, MODELS_DIR_NAME);
   assertModelDirOutsideVault(resolve(modelDir), resolve(vaultDir));
+  const memoryDir =
+    readEnvVar(ENV_VARS.memoryDir, args.env, homeDir) ??
+    join(homeDir, PROD_DATA_DIR_NAME, MEMORY_DIR_NAME);
+  assertMemoryDirOutsideVault(resolve(memoryDir), resolve(vaultDir));
   const voice = readEnvVar(ENV_VARS.voice, args.env, homeDir) ?? "auto";
   const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
   const agentModel =
@@ -451,6 +474,7 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     vaultDir,
     vaultRemote,
     modelDir,
+    memoryDir,
     voice,
     agent,
     agentModel,

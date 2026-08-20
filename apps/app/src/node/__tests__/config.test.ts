@@ -228,6 +228,39 @@ describe("the vault dir and remote", () => {
     expect(config.modelDir).toBe(join(homeDir, ".inteligir", "models"));
   });
 
+  it("refuses a memory dir inside the vault — a fact would be committed and pushed", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const dataDir = makeTempDir("inteligir-config-test-");
+    const vaultDir = makeTempDir("inteligir-config-test-");
+    expect(() =>
+      resolveAppConfig({
+        checkoutPath: "/checkout/a",
+        env: {
+          INTELIGIR_DATA_DIR: dataDir,
+          INTELIGIR_VAULT_DIR: vaultDir,
+          INTELIGIR_MEMORY_DIR: join(vaultDir, "memory"),
+        },
+        homeDir,
+      }),
+    ).toThrow(/outside the vault/);
+  });
+
+  it("defaults the memory dir under ~/.inteligir and expands ~ and env overrides", () => {
+    const homeDir = makeTempDir("inteligir-config-test-");
+    const config = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { NODE_ENV: "production" },
+      homeDir,
+    });
+    expect(config.memoryDir).toBe(join(homeDir, ".inteligir", "memory"));
+    const overridden = resolveAppConfig({
+      checkoutPath: "/checkout/a",
+      env: { NODE_ENV: "production", INTELIGIR_MEMORY_DIR: "~/elsewhere/memory" },
+      homeDir,
+    });
+    expect(overridden.memoryDir).toBe(join(homeDir, "elsewhere", "memory"));
+  });
+
   it("accepts the git remote shapes git dials and refuses the rest", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const resolveWithRemote = (remote: string) =>
