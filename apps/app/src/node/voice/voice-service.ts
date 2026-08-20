@@ -203,6 +203,11 @@ export class WhisperVoiceService implements VoiceService {
         if (answer.kind === "failed") {
           await this.#recordWorkerFailure(answer.message, answer.modelUnusable);
         }
+      } catch (error) {
+        // Fire-and-forget: a warm-up that THROWS — a worker that died, a model
+        // dir a concurrent remove raced away — records like a `failed` answer
+        // rather than escaping this void as an unhandled rejection.
+        this.#lastError = error instanceof Error ? error.message : String(error);
       } finally {
         this.#preparing = false;
       }
