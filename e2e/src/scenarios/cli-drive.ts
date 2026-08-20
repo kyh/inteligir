@@ -47,6 +47,7 @@ export const cliDrive: Scenario = {
       serverUrl: app.baseUrl,
       env: hermeticProcessEnv(),
       cliBinDir,
+      memoryDir: app.memoryDir,
     });
 
     // `inteligir`, not a path: found through PATH exactly as an agent's bash

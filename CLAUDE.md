@@ -29,7 +29,11 @@ apps/
                  /cloud/* routes Settings and `inteligir sync` drive.
                  src/node/voice/ is dictation (issue #574): the pinned model
                  cache under ~/.inteligir/models/, and whisper.cpp on a worker
-                 thread per clip.
+                 thread per clip. src/node/memory/ is agent memory (issue #575):
+                 flat markdown facts about the USER under ~/.inteligir/memory/,
+                 read/written by the agent's own shell — the app only DERIVES
+                 the per-turn prompt index off them and serves Settings'
+                 list/delete.
   cli/           @repo/cli — the `inteligir` CLI (issue #553): citty over
                  the typed hc client, consola for the human path (raw writes
                  for anything verbatim — consola rewrites `backtick` spans).
@@ -356,6 +360,48 @@ detail }` when no codex is installed, in the shape the Agent section already
   server is code the agent then talks to, so adding one is a person's act in
   Settings with the exact invocation on screen, not a verb in the surface built
   for a model to drive.
+
+- **AGENT MEMORY IS FILES THE AGENT READS AND WRITES WITH ITS SHELL, not a CLI
+  verb and not a tool** (issue #575). Memory is durable markdown facts about the
+  USER — who they are, how they want the agent to work — one fact per file in
+  `~/.inteligir/memory/` (INTELIGIR_MEMORY_DIR), frontmatter `{ name,
+description, type }`. It is machine-global and shared across checkouts because
+  it is about the user, not a vault — the model-cache decision's neighbour —
+  and asserted OUTSIDE the vault at boot for the model dir's reason: a fact
+  under the vault would be committed and pushed. It is NOT the vault (the user's
+  notes) and NOT the thread log (already durable and synced); it is the
+  DISTILLATE, so the type vocabulary is CLOSED to `user` and `preference` and
+  there is deliberately NO `session`/transcript type — a running log would
+  duplicate the thread history. A third type later is one additive row.
+  THE AGENT WRITES MEMORY DIRECTLY, with `cat`/`rg`/write/`rm`, because it has a
+  bash shell as the same user — so there is no `inteligir memory` CLI leaf and
+  no add/remove-for-agent route, for the SAME reason view-context ships no
+  `get_view_context` tool: a round trip to the app to do what the shell already
+  does buys nothing, and the one thing a route could add cannot be made honest.
+  This is the ASYMMETRY WITH CONNECTORS, and it must not be "fixed": an MCP
+  server is code the agent then talks to, so adding one is a person's act;
+  a memory is the agent's own observation about the user, so writing it IS the
+  agent's job, and gating every remembered fact behind a human click defeats the
+  feature. The safety valve is that the user SEES and deletes memory in
+  Settings, not a per-fact gate.
+  THE APP DERIVES AND SERVES THE HUMAN — nothing more. It DERIVES the per-turn
+  index (name + description per fact, grouped by type, head-capped) into the
+  leading `{type:"text"}` element of the turn `input`, beside the view-context
+  block, because `input` is the only per-turn channel codex honours — read
+  fresh off the files each turn (nothing persisted), so a fact written this turn
+  is carried into the next, and an EMPTY memory dir injects nothing, leaving the
+  provider input byte-identical to a turn with no memory. And it SERVES the
+  human: `GET /memory` (list) and `POST /memory/remove` (delete) back the
+  Settings → Memory surface — for the user who is NOT in a shell — and nothing
+  else; memory has no workspace surface, no palette command, no composer entry.
+  THERE IS NO MAINTAINED INDEX FILE: the per-fact files are the ONLY source of
+  truth, so there is no index to race and nothing to keep atomic — every read
+  globs the directory, VALIDATES frontmatter at that boundary, and surfaces a
+  malformed file (with the reason) rather than dropping it. It is a rebuildable
+  cache and is NOT synced across devices in v1 — thread sync carries threads,
+  not this — stated, not hidden. INTELIGIR_MEMORY_DIR rides the agent shell env
+  per session (the path is stable; the CONTENTS are read live), never a per-turn
+  channel, because only the injection needs to move per turn and it already does.
 
 - **DICTATION TRANSCRIBES IN THE NODE PROCESS, ON A WORKER PER CLIP, and the
   MODEL FILE IS THE SWITCH** (issue #574). Four runtimes were measured on this
