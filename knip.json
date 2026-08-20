@@ -58,6 +58,18 @@
       "project": ["src/**/*.ts", "scripts/*.mjs"],
       "ignoreDependencies": ["@fugood/whisper.node", "@parcel/watcher", "better-sqlite3"]
     },
+    // The mobile companion (issue #576). The expo-router file routes under
+    // src/app are the UI roots; the tests are the sync/credential/pairing
+    // suites. app.config.js declares `updates: { enabled: false }`, which is
+    // what stops knip's Expo plugin synthesizing an `expo-updates` dependency
+    // nothing installs — keep it there rather than adding an ignore here. The
+    // native/peer deps (`@expo/metro-runtime`, `react-native-screens`,
+    // `expo-system-ui`) are resolved by knip's Expo plugin from app.config, so
+    // they need no explicit ignore.
+    "apps/mobile": {
+      "entry": ["src/app/**/*.tsx", "src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"]
+    },
     "apps/web": {
       // The Worker entry (src/worker/server.ts) is not listed: knip reads it
       // from wrangler.jsonc's `main`. `src/worker/index.ts` is the test suite's

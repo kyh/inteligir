@@ -14,6 +14,11 @@ catalog:
   "@fugood/whisper.node": 1.1.1
   "@cloudflare/vite-plugin": ^1.47.0
   "@cloudflare/vitest-pool-workers": ^0.18.8
+  # The mobile companion (issue #576). Expo SDK 57 uses `~57.0.x` unified
+  # versioning across its own packages; the react-native peers carry their own
+  # ranges. Recovered from the pre-purge catalog — the app is a sync-only
+  # thread/capture client, no native module beyond the Keychain/Keystore.
+  "@expo/metro-runtime": ~57.0.7
   "@hono/node-server": ~1.19.17
   "@hono/node-ws": ^1.3.1
   "@parcel/watcher": ^2.5.6
@@ -34,11 +39,24 @@ catalog:
   consola: ^3.4.2
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
+  expo: ~57.0.8
+  expo-constants: ~57.0.7
+  expo-crypto: ~57.0.1
+  expo-linking: ~57.0.4
+  expo-router: ~57.0.8
+  expo-secure-store: ~57.0.1
+  expo-splash-screen: ~57.0.5
+  expo-status-bar: ~57.0.1
+  expo-system-ui: ~57.0.1
+  expo-web-browser: ~57.0.2
   hono: ^4.13.2
   lucide-react: ^1.26.0
   nanoid: ^5.1.16
   react: ^19.2.8
   react-dom: ^19.2.8
+  react-native: ~0.86.0
+  react-native-safe-area-context: ~5.7.0
+  react-native-screens: ~4.26.2
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
